@@ -208,7 +208,7 @@ async def check_idempotency(self, webhook_id: Optional[str], event_type: str) ->
 
     # WA-006: DB fallback for reliability
     try:
-        cutoff_time = datetime.utcnow() - timedelta(hours=IDEMPOTENCY_WINDOW_HOURS)
+        cutoff_time = now_sao_paulo() - timedelta(hours=IDEMPOTENCY_WINDOW_HOURS)
         existing = self.db.execute(
             select(WebhookEvent).where(
                 WebhookEvent.event_id == webhook_id,

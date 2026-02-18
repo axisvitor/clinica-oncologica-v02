@@ -19,7 +19,6 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.config import settings
@@ -39,6 +38,7 @@ from .prompts.patient_summary import (
     PATIENT_SUMMARY_PROMPT,
     PATIENT_SUMMARY_SYSTEM_PROMPT,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,9 @@ class PatientSummaryService:
         self.aggregator = SummaryDataAggregator(db)
 
         # Initialize Gemini model
+        # Lazy import avoids expensive package metadata lookup at module import time.
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
         self.model = ChatGoogleGenerativeAI(
             model=settings.AI_GEMINI_MODEL,
             google_api_key=settings.AI_GEMINI_API_KEY,
@@ -135,7 +138,7 @@ class PatientSummaryService:
             start_date=request.start_date,
             end_date=request.end_date,
             content=summary_content,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=now_sao_paulo(),
             generated_by=generated_by,
             token_usage=token_usage,
             model_used=settings.AI_GEMINI_MODEL,
@@ -326,7 +329,7 @@ class PatientSummaryService:
         """Check for cached/saved summary within the last hour."""
         from datetime import timedelta
 
-        cache_threshold = datetime.now(timezone.utc) - timedelta(hours=1)
+        cache_threshold = now_sao_paulo() - timedelta(hours=1)
 
         result = await self.db.execute(
             select(PatientSummary)

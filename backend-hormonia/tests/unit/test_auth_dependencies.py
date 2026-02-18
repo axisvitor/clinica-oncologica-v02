@@ -2,14 +2,20 @@
 Unit tests for authentication dependencies.
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, Request
 
 from app.config import settings
 from app.core.permissions import Permission, PermissionChecker
-from app.dependencies.auth_dependencies import _validate_firebase_uid, get_current_user_from_session
+from app.dependencies.auth_dependencies import (
+    GenericRedisCache,
+    _get_user_from_db_by_session,
+    _validate_firebase_uid,
+    get_current_user_from_session,
+)
 from app.models.user import UserRole
 
 
@@ -125,3 +131,82 @@ def test_has_permission_doctor():
     """Doctor should not have admin permissions."""
     assert not PermissionChecker.has_permission(UserRole.DOCTOR, Permission.USER_DELETE)
     assert PermissionChecker.has_permission(UserRole.DOCTOR, Permission.PATIENT_READ)
+
+
+@pytest.mark.asyncio
+async def test_generic_redis_cache_delete_pattern_uses_scan_iter():
+    """delete_pattern should scan with pattern/count and delete matching keys."""
+    redis_client = MagicMock()
+    redis_client.scan_iter.return_value = iter(["cache:1", "cache:2"])
+    cache = GenericRedisCache(redis_client)
+
+    result = await cache.delete_pattern("cache:*")
+
+    assert result is True
+    redis_client.scan_iter.assert_called_once_with(match="cache:*", count=100)
+    redis_client.delete.assert_called_once_with("cache:1", "cache:2")
+
+
+@pytest.mark.asyncio
+async def test_generic_redis_cache_delete_pattern_batches_large_keyspace():
+    """delete_pattern should delete scanned keys in bounded batches."""
+    redis_client = MagicMock()
+    scanned_keys = [f"cache:{index}" for index in range(205)]
+    redis_client.scan_iter.return_value = iter(scanned_keys)
+    cache = GenericRedisCache(redis_client)
+
+    result = await cache.delete_pattern("cache:*")
+
+    assert result is True
+    redis_client.scan_iter.assert_called_once_with(match="cache:*", count=100)
+    assert redis_client.delete.call_count == 3
+    assert redis_client.delete.call_args_list == [
+        call(*scanned_keys[0:100]),
+        call(*scanned_keys[100:200]),
+        call(*scanned_keys[200:205]),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_generic_redis_cache_delete_pattern_preserves_false_on_error():
+    """delete_pattern should keep fail-closed return contract."""
+    redis_client = MagicMock()
+    redis_client.scan_iter.side_effect = RuntimeError("redis unavailable")
+    cache = GenericRedisCache(redis_client)
+
+    result = await cache.delete_pattern("cache:*")
+
+    assert result is False
+    redis_client.delete.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_user_from_db_by_session_enforces_revoked_filter():
+    """Fallback DB lookup must exclude revoked sessions."""
+    async_session = AsyncMock()
+    result_proxy = MagicMock()
+    result_proxy.scalar_one_or_none.return_value = None
+    async_session.execute.return_value = result_proxy
+
+    await _get_user_from_db_by_session(str(uuid4()), async_session)
+
+    stmt = async_session.execute.call_args.args[0]
+    rendered = str(stmt)
+    assert "sessions.revoked_at IS NULL" in rendered
+    assert "sessions.id =" in rendered
+
+
+@pytest.mark.asyncio
+async def test_get_user_from_db_by_session_supports_legacy_session_token():
+    """Fallback DB lookup should support legacy token identifiers."""
+    async_session = AsyncMock()
+    result_proxy = MagicMock()
+    result_proxy.scalar_one_or_none.return_value = None
+    async_session.execute.return_value = result_proxy
+
+    await _get_user_from_db_by_session("legacy-session-token", async_session)
+
+    stmt = async_session.execute.call_args.args[0]
+    rendered = str(stmt)
+    assert "sessions.session_token =" in rendered
+    assert "sessions.revoked_at IS NULL" in rendered

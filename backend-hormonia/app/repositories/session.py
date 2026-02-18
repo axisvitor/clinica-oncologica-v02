@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session as DBSession, joinedload
 
 from app.models.session import Session
 from app.repositories.base import BaseRepository
+from app.utils.timezone import now_sao_paulo
 
 
 class SessionRepository(BaseRepository[Session]):
@@ -162,7 +163,7 @@ class SessionRepository(BaseRepository[Session]):
         Returns:
             List of active sessions with relationships pre-loaded
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         filters = [Session.is_active, Session.expires_at > now]
 
         if user_id:
@@ -232,7 +233,7 @@ class SessionRepository(BaseRepository[Session]):
         Returns:
             List of expired sessions
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         query = self.db.query(Session).filter(
             or_(
                 Session.expires_at <= now,
@@ -262,7 +263,7 @@ class SessionRepository(BaseRepository[Session]):
 
         if session:
             session.is_active = False
-            session.revoked_at = datetime.now(timezone.utc)
+            session.revoked_at = now_sao_paulo()
             if reason:
                 session.revocation_reason = reason
             self.db.commit()
@@ -283,7 +284,7 @@ class SessionRepository(BaseRepository[Session]):
         Returns:
             Number of sessions revoked
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         update_data = {"is_active": False, "revoked_at": now}
 
         if reason:
@@ -311,7 +312,7 @@ class SessionRepository(BaseRepository[Session]):
         session = self.get_by_id(session_id, eager_load=False)
 
         if session:
-            session.last_activity = datetime.now(timezone.utc)
+            session.last_activity = now_sao_paulo()
             self.db.commit()
             self.db.refresh(session)
 

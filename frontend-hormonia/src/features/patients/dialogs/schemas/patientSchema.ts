@@ -7,6 +7,16 @@ import { z } from 'zod'
 import { cpfRefinement, cleanCPF } from '@/lib/utils/cpf'
 import { normalizePhone } from '@/lib/utils/phone'
 
+const optionalEmailSchema = z.preprocess(
+  (value) => {
+    if (typeof value === 'string' && value.trim() === '') {
+      return undefined
+    }
+    return value
+  },
+  z.string().email('Email inválido').optional().nullable()
+)
+
 /**
  * Schema base para campos comuns de paciente
  */
@@ -21,10 +31,7 @@ const basePatientFields = {
       'Telefone deve incluir código do país (ex: +5511999999999)'
     ),
 
-  email: z.string()
-    .email('Email inválido')
-    .optional()
-    .nullable(),
+  email: optionalEmailSchema,
 
   cpf: z.string()
     .optional()
@@ -73,10 +80,7 @@ export const updatePatientSchema = z.object({
       'Telefone deve incluir código do país (ex: +5511999999999)'
     ),
 
-  email: z.string()
-    .email('Email inválido')
-    .optional()
-    .nullable(),
+  email: optionalEmailSchema,
 
   cpf: z.string()
     .optional()

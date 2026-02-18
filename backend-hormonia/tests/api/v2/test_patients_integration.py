@@ -3,6 +3,7 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 from uuid import uuid4, UUID
 
 import httpx
@@ -10,6 +11,12 @@ import pytest
 from fastapi import Request
 from sqlalchemy.orm import Session, sessionmaker
 
+try:
+    import redis
+except ImportError:  # pragma: no cover - optional dependency in some environments
+    redis = None
+
+from app.utils.security import get_password_hash
 from app.database import get_db
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.main import app
@@ -19,9 +26,7 @@ from app.models.user import User, UserRole
 
 @pytest.fixture
 async def async_client_with_doctor(db: Session):
-    doctor = db.query(User).filter(User.role == UserRole.DOCTOR).first()
-    if not doctor:
-        pytest.skip("No doctor available for test")
+    doctor = _get_or_create_doctor(db)
 
     SessionLocal = sessionmaker(bind=db.get_bind())
 
@@ -43,20 +48,72 @@ async def async_client_with_doctor(db: Session):
     app.dependency_overrides[get_current_user_from_session] = _override_session
 
     async with httpx.AsyncClient(app=app, base_url="http://test") as async_client:
+        csrf_response = await async_client.get("/csrf-token")
+        if csrf_response.status_code == 200:
+            csrf_payload = csrf_response.json()
+            csrf_token = csrf_payload.get("csrf_token")
+            if csrf_token:
+                async_client.headers["X-CSRF-Token"] = csrf_token
         yield async_client, doctor
 
     app.dependency_overrides.clear()
 
 
+def _unique_email(prefix: str = "test") -> str:
+    return f"{prefix}_{uuid4()}@gmail.com"
+
+
 def _unique_phone():
-    return f"11{uuid4().int % 10**9:09d}"
+    return f"119{uuid4().int % 10**8:08d}"
+
+
+def _get_or_create_doctor(db: Session) -> User:
+    doctor = db.query(User).filter(User.role == UserRole.DOCTOR).first()
+    if doctor:
+        return doctor
+
+    doctor = User(
+        id=uuid4(),
+        email=_unique_email("doctor"),
+        hashed_password=get_password_hash("testpass123"),
+        full_name="Test Doctor",
+        role=UserRole.DOCTOR,
+        is_active=True,
+    )
+    db.add(doctor)
+    db.commit()
+    db.refresh(doctor)
+    return doctor
+
+
+def _redis_available() -> bool:
+    if redis is None:
+        return False
+    redis_url = os.getenv("TEST_REDIS_URL") or os.getenv("REDIS_URL")
+    if not redis_url:
+        return False
+    parsed = urlparse(redis_url)
+    host = parsed.hostname or ""
+    if host not in {"localhost", "127.0.0.1"} and os.getenv(
+        "ALLOW_REMOTE_REDIS_TESTS", ""
+    ).lower() not in ("1", "true", "yes"):
+        return False
+    try:
+        client = redis.Redis.from_url(
+            redis_url,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+        client.ping()
+        client.close()
+        return True
+    except Exception:
+        return False
 
 
 @pytest.fixture
 def doctor_session_override(db: Session):
-    doctor = db.query(User).filter(User.role == UserRole.DOCTOR).first()
-    if not doctor:
-        pytest.skip("No doctor available for test")
+    doctor = _get_or_create_doctor(db)
 
     async def _override_session(_request: Request):
         return {
@@ -76,10 +133,21 @@ def test_create_patient_full_flow(client, doctor_session_override, monkeypatch):
 
     step_calls = {"flow": False, "welcome": False}
 
-    async def _step_initialize_flow(_self, _saga, _patient, _current_user):
+    async def _step_initialize_flow(
+        _self,
+        _saga,
+        _patient,
+        _current_user,
+        idempotency_key=None,
+    ):
         step_calls["flow"] = True
 
-    async def _step_send_welcome_message(_self, _saga, _patient):
+    async def _step_send_welcome_message(
+        _self,
+        _saga,
+        _patient,
+        idempotency_key=None,
+    ):
         step_calls["welcome"] = True
 
     @asynccontextmanager
@@ -101,7 +169,7 @@ def test_create_patient_full_flow(client, doctor_session_override, monkeypatch):
 
     patient_data = {
         "name": "Flow Patient",
-        "email": f"flow_{uuid4()}@example.com",
+        "email": _unique_email("flow"),
         "phone": "(11) 98765-4321",
         "doctor_id": str(doctor.id),
     }
@@ -123,7 +191,7 @@ def test_create_patient_idempotency_duplicate(client, doctor_session_override):
     idempotency_key = f"idem-{uuid4()}"
     patient_data = {
         "name": "Idempotency Patient",
-        "email": f"idem_{uuid4()}@example.com",
+        "email": _unique_email("idem"),
         "phone": "(11) 98765-4321",
         "doctor_id": str(doctor.id),
     }
@@ -177,7 +245,7 @@ def test_create_patient_with_valid_metadata_stores_metadata(
 
     patient_data = {
         "name": "Metadata Patient",
-        "email": f"metadata_{uuid4()}@example.com",
+        "email": _unique_email("metadata"),
         "phone": _unique_phone(),
         "doctor_id": str(doctor.id),
         "patient_data": {
@@ -213,7 +281,7 @@ def test_create_patient_with_unknown_metadata_moves_to_custom_fields(
 
     patient_data = {
         "name": "Metadata Unknown Patient",
-        "email": f"metadata_unknown_{uuid4()}@example.com",
+        "email": _unique_email("metadata_unknown"),
         "phone": _unique_phone(),
         "doctor_id": str(doctor.id),
         "patient_data": {"unknown_key": "value"},
@@ -241,7 +309,7 @@ def test_create_patient_with_clinical_fields_conversion(
 
     patient_data = {
         "name": "Clinical Fields Patient",
-        "email": f"clinical_{uuid4()}@example.com",
+        "email": _unique_email("clinical"),
         "phone": _unique_phone(),
         "doctor_id": str(doctor.id),
         "allergies": "A/B",
@@ -268,7 +336,7 @@ def test_create_patient_with_clinical_fields_conversion(
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(
-    os.getenv("REDIS_URL") is None, reason="Redis not configured for lock tests"
+    not _redis_available(), reason="Redis not available for lock tests"
 )
 async def test_concurrent_idempotency_same_key(async_client_with_doctor):
     """Concurrent requests with same idempotency key return same patient."""
@@ -277,7 +345,7 @@ async def test_concurrent_idempotency_same_key(async_client_with_doctor):
     idempotency_key = f"idem-{uuid4()}"
     patient_data = {
         "name": "Concurrent Idem",
-        "email": f"concurrent_{uuid4()}@example.com",
+        "email": _unique_email("concurrent"),
         "phone": "(11) 98765-4321",
         "doctor_id": str(doctor.id),
     }
@@ -299,19 +367,19 @@ async def test_concurrent_idempotency_same_key(async_client_with_doctor):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(
-    os.getenv("REDIS_URL") is None, reason="Redis not configured for lock tests"
+    not _redis_available(), reason="Redis not available for lock tests"
 )
 async def test_concurrent_create_different_patients(async_client_with_doctor):
     """Concurrent requests for different patients create unique records."""
     async_client, doctor = async_client_with_doctor
 
     payloads = [
-        {
-            "name": f"Concurrent {i}",
-            "email": f"concurrent_{uuid4()}@example.com",
-            "phone": f"(11) 98{i:03}5-4321",
-            "doctor_id": str(doctor.id),
-        }
+            {
+                "name": f"Concurrent {i}",
+                "email": _unique_email("concurrent"),
+                "phone": f"(11) 98{i:03}5-4321",
+                "doctor_id": str(doctor.id),
+            }
         for i in range(3)
     ]
 

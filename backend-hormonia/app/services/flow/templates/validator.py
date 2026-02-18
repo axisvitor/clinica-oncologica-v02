@@ -28,6 +28,7 @@ from ..constants import (
     FlowErrorMessages,
 )
 from app.utils.version_utils import is_semantic_version, is_valid_version
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,7 @@ class FlowTemplateValidator:
             "flow_type": template.flow_type.value if template.flow_type else None,
             "step_count": len(template.steps),
             "transition_count": len(template.transitions),
-            "validated_at": datetime.now(timezone.utc).isoformat(),
+            "validated_at": now_sao_paulo().isoformat(),
         }
 
         result = FlowValidationResult(
@@ -339,7 +340,7 @@ class FlowTemplateValidator:
         # Type-specific validation
         if step_type == FlowStepType.MESSAGE:
             if "content" not in step and "message" not in step:
-                errors.append("MESSAGE step requires 'content' or 'message' field")
+                warnings.append("MESSAGE step should include 'content' or 'message' field")
 
         elif step_type == FlowStepType.QUESTION:
             if "question" not in step:
@@ -474,9 +475,13 @@ class FlowTemplateValidator:
         elif len(start_steps) > 1:
             warnings.append(f"Flow has multiple start steps: {start_steps}")
 
-        # Check for end steps
-        end_steps = self._find_end_steps(template)
-        if not end_steps:
+        # Check for explicit end steps
+        explicit_end_steps = [
+            step.get("step_id")
+            for step in template.steps
+            if step.get("type") == FlowStepType.END.value
+        ]
+        if not explicit_end_steps:
             warnings.append("Flow has no explicit end steps")
 
         # Check for cycles (except intentional loops)

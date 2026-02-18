@@ -18,6 +18,8 @@ from app.dependencies.auth_dependencies import get_redis_cache
 from app.services.flow_dashboard import DashboardTimeframe, get_flow_dashboard_service
 from app.exceptions import internal_server_exception
 from app.utils.rate_limiter import limiter
+from app.utils.timezone import now_sao_paulo
+from .cache import get_cached_or_compute as _get_cached_or_compute
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -31,21 +33,6 @@ CACHE_TTL_RISK = 600  # 10 minutes
 # ============================================================================
 # Helper Functions
 # ============================================================================
-
-
-async def _get_cached_or_compute(
-    cache_key: str, compute_fn, redis_cache, ttl: int = CACHE_TTL_ANALYTICS
-) -> Any:
-    """Get from cache or compute and cache result"""
-    # Try to get from cache
-    cached = await redis_cache.get(cache_key)
-    if cached is not None:
-        return cached
-
-    # Compute and cache
-    result = await compute_fn()
-    await redis_cache.set(cache_key, result, ttl=ttl)
-    return result
 
 
 # ============================================================================
@@ -76,7 +63,7 @@ async def get_dashboard_overview(
             "success": True,
             "timeframe": timeframe.value,
             "data": overview_data,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
 
     try:
@@ -115,7 +102,7 @@ async def get_flow_metrics(
             "flow_type": flow_type,
             "timeframe": timeframe.value,
             "metrics": metrics_data,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
 
     try:
@@ -152,7 +139,7 @@ async def get_patient_engagement_metrics(
             "success": True,
             "timeframe": timeframe.value,
             "engagement_metrics": engagement_data,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
 
     try:
@@ -191,7 +178,7 @@ async def get_risk_assessment(
             "risk_level_filter": risk_level or "all",
             "risk_assessments": risk_data,
             "total_patients": len(risk_data),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
 
     try:
@@ -265,7 +252,7 @@ async def get_patient_journey_analytics(
             "flow_type": flow_type,
             "timeframe": timeframe.value,
             "journey_analytics": journey_data,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to get patient journey analytics: {e}")
@@ -296,7 +283,7 @@ async def generate_flow_insights(
             "flow_type": flow_type,
             "analysis_depth": analysis_depth,
             "insights": insights,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
     except Exception as e:
         logger.error(f"Failed to generate flow insights: {e}")

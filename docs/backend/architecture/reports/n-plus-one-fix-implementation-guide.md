@@ -364,7 +364,7 @@ def get_patient_risk_assessments(
     """
     from sqlalchemy import func
 
-    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_lookback)
+    cutoff_date = now_sao_paulo() - timedelta(days=days_lookback)
 
     # Single query with severity aggregation
     patient_alerts = self.db.query(

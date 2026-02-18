@@ -126,7 +126,7 @@ async def test_patient_registration(db_session, doctor_id: UUID):
             if patient:
                 print("\n✅ Patient created successfully!")
                 print(f"   ID: {patient.id}")
-                print(f"   Name: {patient.full_name}")
+                print(f"   Name: {patient.name}")
                 print(f"   Phone: {patient.phone}")
                 print(f"   Status: {patient.status}")
                 print(f"\n📊 WhatsApp Messages Sent: {mock_whatsapp.messages_sent}")
@@ -160,7 +160,7 @@ async def test_daily_flows(db_session, patient_id: UUID):
         print(f"\n❌ Patient {patient_id} not found")
         return
     
-    print(f"\n📋 Processing flows for: {patient.full_name}")
+    print(f"\n📋 Processing flows for: {patient.name}")
     
     # Check flow state
     flow_state = db_session.query(FlowState).filter(

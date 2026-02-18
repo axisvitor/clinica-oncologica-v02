@@ -16,7 +16,8 @@ from __future__ import annotations
 # Standard library imports
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+from copy import deepcopy
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -30,6 +31,7 @@ from ..types import (
     FlowStepStatus,
     FlowType,
 )
+from app.utils.timezone import normalize_datetime_naive_sao_paulo, now_sao_paulo_naive
 
 
 logger = logging.getLogger(__name__)
@@ -53,7 +55,7 @@ class FlowMetricsCollector:
 
     def __init__(self) -> None:
         """Initialize metrics collector."""
-        self.config = get_flow_config().analytics
+        self.config = deepcopy(get_flow_config()).analytics
 
         # Metrics storage (in-memory, should use Redis/DB in production)
         self._flow_metrics: Dict[UUID, FlowMetrics] = {}
@@ -80,8 +82,10 @@ class FlowMetricsCollector:
         if not self.config.enable_metrics:
             return
 
-        self._flow_start_times[flow_instance_id] = datetime.now(timezone.utc)
-        self._flow_metrics[flow_instance_id] = FlowMetrics()
+        if flow_instance_id not in self._flow_start_times:
+            self._flow_start_times[flow_instance_id] = now_sao_paulo_naive()
+        if flow_instance_id not in self._flow_metrics:
+            self._flow_metrics[flow_instance_id] = FlowMetrics()
 
         logger.debug(f"Started tracking flow {flow_instance_id}")
 
@@ -102,51 +106,58 @@ class FlowMetricsCollector:
         if not self.config.enable_metrics:
             return
 
-        # Calculate duration
-        start_time = self._flow_start_times.get(flow_instance_id)
+        metrics = self._flow_metrics.get(flow_instance_id, FlowMetrics())
+
+        # Calculate duration (use start time if available, else context.started_at)
+        start_time = normalize_datetime_naive_sao_paulo(
+            self._flow_start_times.get(flow_instance_id)
+        )
+        if not start_time and context and context.started_at:
+            start_time = normalize_datetime_naive_sao_paulo(context.started_at)
+
+        duration: Optional[float] = None
         if start_time:
-            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
-            metrics = self._flow_metrics.get(flow_instance_id, FlowMetrics())
+            duration = (now_sao_paulo_naive() - start_time).total_seconds()
             metrics.duration_seconds = duration
 
-            # Update from context if available
-            if context:
-                metrics.total_steps = len(context.steps_history)
-                metrics.completed_steps = sum(
-                    1
-                    for step in context.steps_history
-                    if step.status == FlowStepStatus.COMPLETED
+        # Update from context if available
+        if context:
+            metrics.total_steps = len(context.steps_history)
+            metrics.completed_steps = sum(
+                1
+                for step in context.steps_history
+                if step.status == FlowStepStatus.COMPLETED
+            )
+            metrics.failed_steps = sum(
+                1
+                for step in context.steps_history
+                if step.status == FlowStepStatus.FAILED
+            )
+            metrics.skipped_steps = sum(
+                1
+                for step in context.steps_history
+                if step.status == FlowStepStatus.SKIPPED
+            )
+
+            # Calculate average step duration
+            step_durations = []
+            for step in context.steps_history:
+                started_at = normalize_datetime_naive_sao_paulo(step.started_at)
+                completed_at = normalize_datetime_naive_sao_paulo(step.completed_at)
+                if started_at and completed_at:
+                    step_durations.append((completed_at - started_at).total_seconds())
+
+            if step_durations:
+                metrics.average_step_duration_seconds = sum(step_durations) / len(
+                    step_durations
                 )
-                metrics.failed_steps = sum(
-                    1
-                    for step in context.steps_history
-                    if step.status == FlowStepStatus.FAILED
-                )
-                metrics.skipped_steps = sum(
-                    1
-                    for step in context.steps_history
-                    if step.status == FlowStepStatus.SKIPPED
-                )
 
-                # Calculate average step duration
-                step_durations = []
-                for step in context.steps_history:
-                    if step.started_at and step.completed_at:
-                        step_duration = (
-                            step.completed_at - step.started_at
-                        ).total_seconds()
-                        step_durations.append(step_duration)
+        self._flow_metrics[flow_instance_id] = metrics
 
-                if step_durations:
-                    metrics.average_step_duration_seconds = sum(step_durations) / len(
-                        step_durations
-                    )
+        # Update aggregate metrics
+        self._update_aggregate_metrics(status, duration)
 
-            self._flow_metrics[flow_instance_id] = metrics
-
-            # Update aggregate metrics
-            self._update_aggregate_metrics(status, duration)
-
+        if duration is not None:
             logger.debug(
                 f"Recorded completion for flow {flow_instance_id}: "
                 f"status={status}, duration={duration:.2f}s"
@@ -207,7 +218,7 @@ class FlowMetricsCollector:
             return
 
         tracking_key = f"{flow_instance_id}:{step_id}"
-        self._step_start_times[tracking_key] = datetime.now(timezone.utc)
+        self._step_start_times[tracking_key] = now_sao_paulo_naive()
 
         logger.debug(f"Started tracking step {step_id} in flow {flow_instance_id}")
 
@@ -233,25 +244,27 @@ class FlowMetricsCollector:
         tracking_key = f"{flow_instance_id}:{step_id}"
         start_time = self._step_start_times.get(tracking_key)
 
+        duration = None
         if start_time:
-            duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+            duration = (now_sao_paulo_naive() - start_time).total_seconds()
 
-            # Store step metrics
-            self._step_metrics[tracking_key] = {
-                "flow_instance_id": flow_instance_id,
-                "step_id": step_id,
-                "status": status.value,
-                "duration_seconds": duration,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-            }
+        # Store step metrics (even if duration is missing)
+        self._step_metrics[tracking_key] = {
+            "flow_instance_id": flow_instance_id,
+            "step_id": step_id,
+            "status": status.value,
+            "duration_seconds": duration,
+            "completed_at": now_sao_paulo_naive().isoformat(),
+        }
 
-            # Update aggregate metrics
-            self._aggregate_metrics["total_steps_executed"] += 1
-            if status == FlowStepStatus.COMPLETED:
-                self._aggregate_metrics["total_steps_succeeded"] += 1
-            elif status == FlowStepStatus.FAILED:
-                self._aggregate_metrics["total_steps_failed"] += 1
+        # Update aggregate metrics
+        self._aggregate_metrics["total_steps_executed"] += 1
+        if status == FlowStepStatus.COMPLETED:
+            self._aggregate_metrics["total_steps_succeeded"] += 1
+        elif status == FlowStepStatus.FAILED:
+            self._aggregate_metrics["total_steps_failed"] += 1
 
+        if duration is not None:
             logger.debug(
                 f"Recorded step completion {step_id} in flow {flow_instance_id}: "
                 f"status={status}, duration={duration:.2f}s"
@@ -342,14 +355,16 @@ class FlowMetricsCollector:
         Returns:
             Dictionary with recent metrics.
         """
-        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+        cutoff_time = now_sao_paulo_naive() - timedelta(minutes=minutes)
 
         # Filter recent flows
-        recent_flows = {
-            flow_id: metrics
-            for flow_id, metrics in self._flow_metrics.items()
-            if self._flow_start_times.get(flow_id, datetime.min) >= cutoff_time
-        }
+        recent_flows = {}
+        for flow_id, metrics in self._flow_metrics.items():
+            start_time = normalize_datetime_naive_sao_paulo(
+                self._flow_start_times.get(flow_id)
+            )
+            if (start_time or datetime.min) >= cutoff_time:
+                recent_flows[flow_id] = metrics
 
         return {
             "time_window_minutes": minutes,
@@ -361,7 +376,9 @@ class FlowMetricsCollector:
     # Internal Methods
     # ========================================================================
 
-    def _update_aggregate_metrics(self, status: FlowStatus, duration: float) -> None:
+    def _update_aggregate_metrics(
+        self, status: FlowStatus, duration: Optional[float]
+    ) -> None:
         """
         Update aggregate metrics after flow completion.
 
@@ -376,12 +393,19 @@ class FlowMetricsCollector:
         elif status == FlowStatus.FAILED:
             self._aggregate_metrics["total_flows_failed"] += 1
 
-        # Update average duration (simple moving average)
-        current_avg = self._aggregate_metrics.get("average_flow_duration_seconds", 0.0)
-        total_completed = self._aggregate_metrics.get("total_flows_completed", 1)
+        # Update average duration (simple moving average) only when duration is available
+        if status == FlowStatus.COMPLETED and duration is not None:
+            current_avg = self._aggregate_metrics.get(
+                "average_flow_duration_seconds", 0.0
+            )
+            total_completed = self._aggregate_metrics.get("total_flows_completed", 1)
 
-        new_avg = ((current_avg * (total_completed - 1)) + duration) / total_completed
-        self._aggregate_metrics["average_flow_duration_seconds"] = new_avg
+            new_avg = (
+                ((current_avg * (total_completed - 1)) + duration) / total_completed
+                if total_completed > 0
+                else 0.0
+            )
+            self._aggregate_metrics["average_flow_duration_seconds"] = new_avg
 
     # ========================================================================
     # Utility Methods
@@ -415,7 +439,7 @@ class FlowMetricsCollector:
                 for flow_id, metrics in self._flow_metrics.items()
             },
             "step_metrics": dict(self._step_metrics),
-            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "exported_at": now_sao_paulo_naive().isoformat(),
         }
 
 

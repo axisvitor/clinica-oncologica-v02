@@ -233,8 +233,8 @@ GET /api/v2/patients/{patient_id}
   "doctor_id": "223e4567-e89b-12d3-a456-426614174001",
   "flow_state": "active",
   "current_day": 12,
-  "created_at": "2025-01-01T10:00:00Z",
-  "updated_at": "2025-01-15T14:30:00Z"
+  "created_at": "2025-01-01T10:00:00-03:00",
+  "updated_at": "2025-01-15T14:30:00-03:00"
 }
 ```
 
@@ -310,8 +310,8 @@ POST /api/v2/patients/
   "doctor_id": "223e4567-e89b-12d3-a456-426614174001",
   "flow_state": "onboarding",
   "current_day": 0,
-  "created_at": "2025-01-01T10:00:00Z",
-  "updated_at": "2025-01-01T10:00:00Z"
+  "created_at": "2025-01-01T10:00:00-03:00",
+  "updated_at": "2025-01-01T10:00:00-03:00"
 }
 ```
 
@@ -365,7 +365,7 @@ PATCH /api/v2/patients/{patient_id}
   "name": "João Silva Updated",
   "email": "joao.novo@example.com",
   "phone": "+5511912345678",
-  "updated_at": "2025-01-15T14:30:00Z",
+  "updated_at": "2025-01-15T14:30:00-03:00",
   ...
 }
 ```
@@ -769,7 +769,7 @@ query = query.options(
 
 ```python
 cursor_data = {
-    "created_at": "2025-01-15T14:30:00Z",
+    "created_at": "2025-01-15T14:30:00-03:00",
     "id": "123e4567-e89b-12d3-a456-426614174000"
 }
 ```

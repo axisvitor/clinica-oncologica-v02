@@ -15,6 +15,7 @@ from sqlalchemy import text
 
 from app.models.failed_message import FailedMessage, DLQStatus
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +217,7 @@ class AtomicRetryCounter:
             stmt,
             {
                 "status": DLQStatus.MAX_RETRIES_EXCEEDED.value,
-                "now": datetime.now(timezone.utc),
+                "now": now_sao_paulo(),
                 "message_id": message_id,
             },
         )
@@ -302,7 +303,7 @@ class AtomicRetryScheduler:
         await self._ensure_scripts_loaded()
 
         schedule_time = (
-            datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+            now_sao_paulo() + timedelta(seconds=delay_seconds)
         ).isoformat()
         key = self._schedule_key(message_id)
 
@@ -329,7 +330,7 @@ class AtomicRetryScheduler:
         Returns:
             List of message IDs with due retries
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         due_messages = []
 
         async for key in self.redis.scan_iter(match="retry:schedule:*"):

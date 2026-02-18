@@ -234,7 +234,7 @@ try:
 
     # --- Complete Saga ---
     saga.status = SagaStatus.COMPLETED
-    saga.completed_at = datetime.now(timezone.utc)
+    saga.completed_at = now_sao_paulo()
 
     # UNIT OF WORK: Single commit at the end for entire transaction
     self.db.commit()
@@ -311,7 +311,7 @@ async def _compensate_message(self, saga: PatientOnboardingSaga):
         message.message_metadata = {
             **(message.message_metadata or {}),
             "cancelled_by": "saga_compensation",
-            "cancelled_at": datetime.now(timezone.utc).isoformat(),
+            "cancelled_at": now_sao_paulo().isoformat(),
         }
 
     # Mark step as compensated
@@ -674,7 +674,7 @@ async def send_welcome_message(
     message = self.message_service.schedule_message(
         patient_id=patient.id,
         content=welcome_text,
-        scheduled_for=datetime.now(timezone.utc),
+        scheduled_for=now_sao_paulo(),
         message_type=MessageType.TEXT,
         message_metadata={
             "patient_id": str(patient.id),
@@ -881,7 +881,7 @@ async def _track_compensation_failure(
             "step": step,
             "error": str(error),
             "error_type": type(error).__name__,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
         self.redis.setex(failure_key, 86400 * 7, json.dumps(failure_data))
 ```

@@ -1,10 +1,22 @@
 """
 Flow Management Service for handling flow operations.
+
+Provides flow state management, advancement with optimistic locking,
+pause/resume, history, template version migration, and response processing.
+Delegates AI work to EnhancedFlowEngine.
+
+Architecture note (QW-021 consolidation):
+    This service provides production flow management with FlowStateRepository,
+    optimistic locking, and schema-based responses (FlowStateResponse, etc.).
+    NOT a duplicate of ``app.services.flow.core.manager.FlowManager`` which is
+    the QW-021 step-execution orchestrator with Pydantic contexts.
+
+    Canonical FlowType enum: ``app.services.flow.types.FlowType``
 """
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Any
 from uuid import UUID
 
 from app.exceptions import (
@@ -23,9 +35,15 @@ from app.schemas.flow import (
     FlowHistoryItem,
 )
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
-from app.services.flow_core import FlowType
+from app.services.flow.flags import is_awaiting_response as _is_awaiting_response
+from app.services.flow.types import FlowType, normalize_flow_type  # canonical location
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
+
+FLOW_ADVANCE_BLOCKED_MESSAGE = "Cannot advance flow while awaiting patient response"
+FLOW_ADVANCE_BLOCKED_CODE = "flow_advance_blocked_awaiting_response"
+FLOW_ADVANCE_BLOCKED_REASON = "awaiting_response"
 
 
 class FlowManagementService:
@@ -140,6 +158,18 @@ class FlowManagementService:
             if flow_state.status == "paused":
                 raise FlowStateConflictError("Cannot advance a paused flow")
 
+            if _is_awaiting_response(flow_state.step_data):
+                raise FlowStateConflictError(
+                    FLOW_ADVANCE_BLOCKED_MESSAGE,
+                    details={
+                        "patient_id": str(patient_id),
+                        "blocked": True,
+                        "block_reason": FLOW_ADVANCE_BLOCKED_REASON,
+                        "current_step": flow_state.current_step,
+                    },
+                    code=FLOW_ADVANCE_BLOCKED_CODE,
+                )
+
             template_version = (
                 self.flow_repo.db.query(FlowTemplateVersion)
                 .filter(FlowTemplateVersion.id == flow_state.flow_template_version_id)
@@ -157,16 +187,16 @@ class FlowManagementService:
             expected_version = flow_state.version
 
             flow_state.current_step = next_step
-            flow_state.last_interaction_at = datetime.now(timezone.utc)
+            flow_state.last_interaction_at = now_sao_paulo()
             flow_state.step_data = flow_state.step_data or {}
             flow_state.step_data.setdefault("step_timestamps", {})
             flow_state.step_data["step_timestamps"][
                 f"step_{next_step}"
-            ] = datetime.now(timezone.utc).isoformat()
+            ] = now_sao_paulo().isoformat()
 
             if total_steps and next_step >= total_steps:
                 flow_state.status = "completed"
-                flow_state.completed_at = datetime.now(timezone.utc)
+                flow_state.completed_at = now_sao_paulo()
 
             self.enhanced_flow_engine._commit_flow_state_with_lock(
                 flow_state, expected_version
@@ -197,7 +227,7 @@ class FlowManagementService:
                 message="Patient flow advanced successfully",
             )
 
-        except FlowStateNotFoundError:
+        except (FlowStateNotFoundError, FlowStateConflictError):
             raise
         except Exception as e:
             logger.error(f"Failed to advance flow for patient {patient_id}: {e}")
@@ -244,19 +274,19 @@ class FlowManagementService:
             flow_state.state_data["pause_reason"] = (
                 reason or "Manual pause by healthcare provider"
             )
-            flow_state.state_data["paused_at"] = datetime.now(timezone.utc).isoformat()
+            flow_state.state_data["paused_at"] = now_sao_paulo().isoformat()
 
             if user_id:
                 flow_state.state_data["paused_by"] = str(user_id)
 
             auto_resume_at = None
             if duration_hours:
-                resume_at = datetime.now(timezone.utc) + timedelta(hours=duration_hours)
+                resume_at = now_sao_paulo() + timedelta(hours=duration_hours)
                 flow_state.state_data["auto_resume_at"] = resume_at.isoformat()
                 auto_resume_at = resume_at.isoformat()
 
             flow_state.status = "paused"
-            flow_state.last_interaction_at = datetime.now(timezone.utc)
+            flow_state.last_interaction_at = now_sao_paulo()
             expected_version = flow_state.version
             self.enhanced_flow_engine._commit_flow_state_with_lock(
                 flow_state, expected_version
@@ -315,7 +345,7 @@ class FlowManagementService:
 
             # Update flow state to resumed
             flow_state.state_data["paused"] = False
-            flow_state.state_data["resumed_at"] = datetime.now(timezone.utc).isoformat()
+            flow_state.state_data["resumed_at"] = now_sao_paulo().isoformat()
 
             if user_id:
                 flow_state.state_data["resumed_by"] = str(user_id)
@@ -324,7 +354,7 @@ class FlowManagementService:
             flow_state.state_data.pop("auto_resume_at", None)
 
             flow_state.status = "active"
-            flow_state.last_interaction_at = datetime.now(timezone.utc)
+            flow_state.last_interaction_at = now_sao_paulo()
             expected_version = flow_state.version
             self.enhanced_flow_engine._commit_flow_state_with_lock(
                 flow_state, expected_version
@@ -507,15 +537,10 @@ class FlowManagementService:
             FlowStateResponse with new flow state
         """
         try:
-            # Map flow_type string to Enum
-            try:
-                flow_type_enum = FlowType(flow_type)
-            except ValueError:
-                # Fallback or error if flow_type isn't in Enum (e.g. legacy types)
-                # But FlowCore.enroll_patient uses FlowType enum.
-                # If flow_type doesn't match, we might need to handle it.
-                # Assuming flow_type strings match Enum values
-                flow_type_enum = FlowType(flow_type)
+            # Parse and validate flow type before starting the flow.
+            flow_type_enum = normalize_flow_type(flow_type)
+            if flow_type_enum == FlowType.CUSTOM:
+                raise FlowOperationError(f"Invalid flow_type: {flow_type}")
 
             # Start flow using EnhancedFlowEngine (which inherits from FlowCore)
             flow_state = await self.enhanced_flow_engine.enroll_patient(
@@ -541,7 +566,7 @@ class FlowManagementService:
                 has_active_flow=True,
                 flow_state={
                     "id": str(flow_state.id),
-                    "flow_type": flow_type,
+                    "flow_type": flow_type_enum.value,
                     "current_step": flow_state.current_step,
                     "started_at": flow_state.started_at.isoformat(),
                     "state_data": flow_state.state_data,
@@ -577,6 +602,7 @@ class FlowManagementService:
             return await self.enhanced_flow_engine.process_patient_response(
                 patient_id=patient_id,
                 response_text=response_text,
+                response_context=response_metadata,
             )
         except FlowStateNotFoundError:
             raise
@@ -643,7 +669,7 @@ class FlowManagementService:
             {
                 "migrated_from": str(previous_version_id),
                 "migrated_to": str(target_version.id),
-                "migrated_at": datetime.now(timezone.utc).isoformat(),
+                "migrated_at": now_sao_paulo().isoformat(),
             }
         )
 

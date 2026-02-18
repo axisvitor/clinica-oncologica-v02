@@ -6,7 +6,7 @@ This directory contains integration tests that use **real database connections, 
 
 1. **These tests commit REAL data to the database**
 2. **Always use a TEST database, NEVER production**
-3. **Database URL MUST contain 'test' in the name**
+3. **Database URL MUST contain 'test' in the name (unless explicitly overridden)**
 4. **Tests are SKIPPED by default in CI** (use `-m integration` to run)
 5. **Cleanup fixtures delete data after each test**
 
@@ -28,7 +28,8 @@ Set the test database URL:
 export DATABASE_URL="postgresql://user:password@localhost/hormonia_test"
 ```
 
-**SAFETY CHECK**: The conftest.py will refuse to run if DATABASE_URL doesn't contain "test".
+**SAFETY CHECK**: The conftest.py will refuse to run if DATABASE_URL doesn't contain "test",
+unless you explicitly set `CONFIRM_REAL_DB=1`.
 
 ### 3. Run Migrations
 
@@ -266,6 +267,14 @@ export DATABASE_URL="postgresql://user:password@localhost/hormonia_test"
 ```bash
 # Good
 postgresql://user:password@localhost/hormonia_test
+
+If you must run against a real database, set an explicit override:
+
+```bash
+export CONFIRM_REAL_DB=1
+```
+
+Use with caution: this will write real data.
 
 # Bad (will be rejected)
 postgresql://user:password@localhost/hormonia_prod

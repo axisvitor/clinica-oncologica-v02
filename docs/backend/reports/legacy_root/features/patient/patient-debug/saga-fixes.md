@@ -300,7 +300,7 @@ Each log entry contains:
   "step": 1,
   "action": "create_patient",
   "status": "success",
-  "timestamp": "2025-12-24T17:05:56Z",
+  "timestamp": "2025-12-24T17:05:56-03:00",
   "message": "optional details"
 }
 ```
@@ -316,7 +316,7 @@ Data stored:
   "step": 3,
   "error": "error message",
   "error_type": "FlowServiceError",
-  "timestamp": "2025-12-24T17:05:56Z"
+  "timestamp": "2025-12-24T17:05:56-03:00"
 }
 ```
 

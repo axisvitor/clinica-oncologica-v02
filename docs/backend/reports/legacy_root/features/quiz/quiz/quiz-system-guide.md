@@ -357,7 +357,7 @@ class TokenManager:
             "patient_id": str(patient_id),
             "quiz_template_id": str(quiz_template_id),
             "exp": int(expires_at.timestamp()),
-            "iat": int(datetime.now(timezone.utc).timestamp()),
+            "iat": int(now_sao_paulo().timestamp()),
             "rotation": rotation_count,
             "jti": secrets.token_urlsafe(16),
         }
@@ -853,8 +853,8 @@ Response: 200 OK
       "patient_id": "uuid",
       "quiz_template_id": "uuid",
       "status": "completed",
-      "created_at": "2025-01-01T10:00:00Z",
-      "completed_at": "2025-01-01T10:30:00Z",
+      "created_at": "2025-01-01T10:00:00-03:00",
+      "completed_at": "2025-01-01T10:30:00-03:00",
       "score": 85.5,
       "passed": true,
       "patient": {
@@ -913,8 +913,8 @@ Response: 201 Created
   "patient_id": "uuid",
   "quiz_template_id": "uuid",
   "status": "started",
-  "created_at": "2025-01-01T10:00:00Z",
-  "started_at": "2025-01-01T10:00:00Z"
+  "created_at": "2025-01-01T10:00:00-03:00",
+  "started_at": "2025-01-01T10:00:00-03:00"
 }
 
 Error Responses:
@@ -937,7 +937,7 @@ Request Body:
   "score": 85.5,
   "max_score": 100.0,
   "passed": true,
-  "completed_at": "2025-01-01T10:30:00Z"
+  "completed_at": "2025-01-01T10:30:00-03:00"
 }
 
 Response: 200 OK

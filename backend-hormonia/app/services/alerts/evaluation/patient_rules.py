@@ -17,6 +17,7 @@ from ..types import (
     AlertEvaluation,
     AlertRuleType,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +51,13 @@ async def evaluate_no_response(
     context.get("patient_id")
     last_inbound_at = context.get("last_inbound_message_at")
     outbound_count = context.get("outbound_messages_since_response", 0)
-    patient_created_at = context.get("patient_created_at", datetime.now(timezone.utc))
+    patient_created_at = context.get("patient_created_at", now_sao_paulo())
 
     # Extract rule configuration
     threshold_hours = rule.condition.get("threshold_hours", 48)
 
     # Calculate cutoff time
-    cutoff_time = datetime.now(timezone.utc) - timedelta(hours=threshold_hours)
+    cutoff_time = now_sao_paulo() - timedelta(hours=threshold_hours)
 
     # Check if we've sent messages without response
     if outbound_count > 0:
@@ -65,7 +66,7 @@ async def evaluate_no_response(
 
         # Check if last response is before cutoff
         if reference_time < cutoff_time:
-            hours_since = (datetime.now(timezone.utc) - reference_time).total_seconds() / 3600
+            hours_since = (now_sao_paulo() - reference_time).total_seconds() / 3600
 
             return AlertEvaluation(
                 rule=rule,

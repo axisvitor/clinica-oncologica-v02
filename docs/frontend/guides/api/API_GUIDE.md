@@ -137,14 +137,14 @@ const appointments = await apiClient.appointments.list({
 const appointment = await apiClient.appointments.create({
   patient_id: 'patient-id',
   practitioner_id: 'doctor-id',
-  scheduled_at: '2025-02-01T10:00:00Z',
+  scheduled_at: '2025-02-01T10:00:00-03:00',
   duration_minutes: 60
 })
 
 // Verificar conflitos
 const conflicts = await apiClient.appointments.checkConflicts(
   'doctor-id',
-  '2025-02-01T10:00:00Z',
+  '2025-02-01T10:00:00-03:00',
   60
 )
 

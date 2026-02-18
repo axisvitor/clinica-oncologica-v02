@@ -5,7 +5,7 @@ CRITICAL FIX: Import ALL models to ensure migrations capture complete schema.
 """
 
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config
+from sqlalchemy import engine_from_config, text
 from sqlalchemy import pool
 from alembic import context
 import os
@@ -30,17 +30,6 @@ from app.models.quiz import QuizTemplate, QuizResponse
 from app.models.report import MedicalReport
 from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.models.flow_analytics import FlowAnalytics, FlowMessage
-from app.models.ab_experiment import (
-    ABExperiment,
-    ABVariantAssignment,
-    ABExperimentMetric,
-    ABExperimentResult,
-    ABExperimentAudit,
-    ABExperimentMonitoring,
-    ExperimentStatus,
-    VariantType,
-    PatientSafetyLevel,
-)
 from app.models.audit_log import AuditLog, AuditEventType
 from app.models.user_sync_log import UserSyncLog
 from app.models.treatment import Treatment, TreatmentStatus, TreatmentType
@@ -106,7 +95,11 @@ def run_migrations_offline() -> None:
 
     """
     url = get_url()
-    autocommit = os.getenv("ALEMBIC_AUTOCOMMIT", "").lower() in ("1", "true", "yes")
+    autocommit = os.getenv("ALEMBIC_AUTOCOMMIT", "1").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -132,7 +125,11 @@ def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section)
     configuration["sqlalchemy.url"] = get_url()
 
-    autocommit = os.getenv("ALEMBIC_AUTOCOMMIT", "").lower() in ("1", "true", "yes")
+    autocommit = os.getenv("ALEMBIC_AUTOCOMMIT", "1").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     engine_kwargs = {"poolclass": pool.NullPool}
     if autocommit:
         engine_kwargs["isolation_level"] = "AUTOCOMMIT"
@@ -144,6 +141,25 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # Some historical revisions use IDs longer than Alembic's default
+        # version table width (VARCHAR(32)). Ensure enough capacity before
+        # Alembic starts writing revision values.
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS alembic_version (
+                    version_num VARCHAR(255) NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE alembic_version "
+                "ALTER COLUMN version_num TYPE VARCHAR(255)"
+            )
+        )
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

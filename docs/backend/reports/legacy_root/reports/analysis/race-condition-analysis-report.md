@@ -704,7 +704,7 @@ async def _resume_saga_internal(self, saga: PatientOnboardingSaga):
 
     # Update status (not atomic with previous checks)
     saga.status = SagaStatus.COMPLETED  # <-- WRITE
-    saga.completed_at = datetime.now(timezone.utc)
+    saga.completed_at = now_sao_paulo()
 
     self.db.commit()  # Commits entire transaction
 
@@ -793,7 +793,7 @@ response = await call_next(request)
 # Mark as completed (not atomic with response creation)
 webhook_event.mark_completed({
     "status_code": response.status_code,
-    "processed_at": datetime.now(timezone.utc).isoformat(),
+    "processed_at": now_sao_paulo().isoformat(),
 })
 db.commit()
 ```
@@ -869,7 +869,7 @@ No max_overflow setting visible. Under extreme concurrency, connection pool coul
 ```python
 webhook_event.mark_completed({
     "status_code": response.status_code,
-    "processed_at": datetime.now(timezone.utc).isoformat(),  # <-- Clock skew possible
+    "processed_at": now_sao_paulo().isoformat(),  # <-- Clock skew possible
 })
 ```
 

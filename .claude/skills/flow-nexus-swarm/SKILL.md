@@ -207,7 +207,7 @@ mcp__flow-nexus__workflow_list({
 mcp__flow-nexus__workflow_audit_trail({
   workflow_id: "id",
   limit: 50,
-  start_time: "2025-01-01T00:00:00Z"
+  start_time: "2025-01-01T00:00:00-03:00"
 })
 ```
 

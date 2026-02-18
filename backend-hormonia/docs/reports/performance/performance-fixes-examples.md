@@ -310,7 +310,7 @@ def test_delivery_metrics_single_query(db):
     repo = FlowMessageRepository(db)
 
     # Create test data
-    now = datetime.utcnow()
+    now = now_sao_paulo()
     test_data = [
         FlowMessage(
             scheduled_for=now,
@@ -537,7 +537,7 @@ def test_integrity_scan_counter_usage(db):
             entity_type="patient",
             entity_id="1",
             description="Test",
-            detected_at=datetime.now(timezone.utc)
+            detected_at=now_sao_paulo()
         ),
         IntegrityIssue(
             id="2",
@@ -546,7 +546,7 @@ def test_integrity_scan_counter_usage(db):
             entity_type="message",
             entity_id="2",
             description="Test",
-            detected_at=datetime.now(timezone.utc)
+            detected_at=now_sao_paulo()
         ),
     ]
 
@@ -634,7 +634,7 @@ def test_scheduled_messages_with_eager_loading(db):
     repo = MessageRepository(db)
 
     # Create test data
-    now = datetime.utcnow()
+    now = now_sao_paulo()
     message = Message(
         patient_id='test-id',
         status=MessageStatus.PENDING,

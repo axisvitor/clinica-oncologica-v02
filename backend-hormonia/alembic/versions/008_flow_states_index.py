@@ -55,8 +55,7 @@ def upgrade() -> None:
         'idx_patient_flow_states_patient_id',
         'patient_flow_states',
         ['patient_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Composite index for active flow queries
@@ -64,8 +63,7 @@ def upgrade() -> None:
         'idx_patient_flow_states_patient_completed',
         'patient_flow_states',
         ['patient_id', 'completed_at'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Index on template_version_id for template-based queries
@@ -73,8 +71,7 @@ def upgrade() -> None:
         'idx_patient_flow_states_template_version',
         'patient_flow_states',
         ['template_version_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Index for sorting by started_at
@@ -82,8 +79,7 @@ def upgrade() -> None:
         'idx_patient_flow_states_started_at',
         'patient_flow_states',
         ['started_at'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
 

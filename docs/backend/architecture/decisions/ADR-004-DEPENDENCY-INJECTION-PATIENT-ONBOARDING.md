@@ -141,7 +141,7 @@ async def _send_welcome_message(self, patient, current_user):
     message = self.message_service.schedule_message(
         patient_id=patient.id,
         content=welcome_text,
-        scheduled_for=datetime.utcnow(),
+        scheduled_for=now_sao_paulo(),
         message_type=MessageType.TEXT,
         message_metadata={...},
     )

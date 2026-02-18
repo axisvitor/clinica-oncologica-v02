@@ -11,6 +11,7 @@ import { ReportGenerator } from '@/features/reports/ReportGenerator'
 import { useToast } from '@/components/ui/use-toast'
 import { createLogger } from '@/lib/logger'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import type { Report } from '@/lib/api-client/types'
 
 const logger = createLogger('ReportsPage')
 
@@ -131,12 +132,12 @@ export function ReportsPage() {
   }
 
   const getReportsStats = () => {
-    const reports = reportsData?.items || []
+    const reports = (reportsData?.items || []) as Report[]
     return {
       total: reportsData?.total || 0,
-      completed: reports.filter((r) => r.status === 'completed').length,
-      generating: reports.filter((r) => r.status === 'generating').length,
-      failed: reports.filter((r) => r.status === 'failed').length
+      completed: reports.filter((r: Report) => r.status === 'completed').length,
+      generating: reports.filter((r: Report) => r.status === 'generating').length,
+      failed: reports.filter((r: Report) => r.status === 'failed').length
     }
   }
 
@@ -227,12 +228,17 @@ export function ReportsPage() {
           <div className="space-y-4">
             <div className="flex items-center space-x-4">
               <div className="flex-1 relative">
+                <label htmlFor="reports-search" className="sr-only">
+                  Buscar relatórios
+                </label>
                 <Input
+                  id="reports-search"
                   name="searchQuery"
-                  placeholder="Buscar relatórios..."
+                  placeholder="Buscar relatórios…"
                   className="pl-4"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  autoComplete="off"
                 />
               </div>
               <Button
@@ -248,9 +254,11 @@ export function ReportsPage() {
             {showFilters && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Status</label>
+                  <label htmlFor="report-status-filter" className="text-sm font-medium">
+                    Status
+                  </label>
                   <Select name="statusFilter" value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger id="report-status-filter" className="w-full">
                       <SelectValue placeholder="Selecione o status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -262,9 +270,11 @@ export function ReportsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Tipo</label>
+                  <label htmlFor="report-type-filter" className="text-sm font-medium">
+                    Tipo
+                  </label>
                   <Select name="typeFilter" value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger id="report-type-filter" className="w-full">
                       <SelectValue placeholder="Selecione o tipo" />
                     </SelectTrigger>
                     <SelectContent>
@@ -301,7 +311,7 @@ export function ReportsPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {reportsData?.items?.map((report) => (
+            {reportsData?.items?.map((report: Report) => (
               <ReportCard
                 key={report.id}
                 report={report}

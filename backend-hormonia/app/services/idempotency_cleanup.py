@@ -12,6 +12,7 @@ from sqlalchemy import func
 
 from app.models.webhook_event import WebhookEvent
 from app.middleware.idempotency import cleanup_expired_events
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +39,14 @@ class IdempotencyCleanupService:
         Returns:
             Dictionary with cleanup statistics
         """
-        start_time = datetime.now(timezone.utc)
+        start_time = now_sao_paulo()
 
         try:
             # Get statistics before cleanup
             total_events = db.query(func.count(WebhookEvent.event_id)).scalar()
             expired_count = (
                 db.query(func.count(WebhookEvent.event_id))
-                .filter(WebhookEvent.expires_at < datetime.now(timezone.utc))
+                .filter(WebhookEvent.expires_at < now_sao_paulo())
                 .scalar()
             )
 
@@ -66,7 +67,7 @@ class IdempotencyCleanupService:
             # Get statistics after cleanup
             remaining_events = db.query(func.count(WebhookEvent.event_id)).scalar()
 
-            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+            execution_time = (now_sao_paulo() - start_time).total_seconds()
 
             result = {
                 "status": "success",
@@ -103,13 +104,13 @@ class IdempotencyCleanupService:
 
             expired_events = (
                 db.query(func.count(WebhookEvent.event_id))
-                .filter(WebhookEvent.expires_at < datetime.now(timezone.utc))
+                .filter(WebhookEvent.expires_at < now_sao_paulo())
                 .scalar()
             )
 
             active_events = (
                 db.query(func.count(WebhookEvent.event_id))
-                .filter(WebhookEvent.expires_at >= datetime.now(timezone.utc))
+                .filter(WebhookEvent.expires_at >= now_sao_paulo())
                 .scalar()
             )
 
@@ -163,7 +164,7 @@ class IdempotencyCleanupService:
                 "provider_breakdown": {
                     provider: count for provider, count in provider_stats
                 },
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:

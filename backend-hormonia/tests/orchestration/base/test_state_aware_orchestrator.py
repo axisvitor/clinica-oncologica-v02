@@ -25,7 +25,13 @@ class TestStateAwareOrchestrator(BaseOrchestrator, StateAwareOrchestrator):
     """Concrete implementation for testing."""
 
     def __init__(self, *args, **kwargs):
+        state_cache_enabled = kwargs.pop("state_cache_enabled", True)
+        # BaseOrchestrator is first in MRO and does not call super().
+        # Initialize mixin explicitly so state cache attributes are available.
         super().__init__(*args, **kwargs)
+        StateAwareOrchestrator.__init__(
+            self, state_cache_enabled=state_cache_enabled
+        )
         self._db_storage: Dict[UUID, Dict[str, Any]] = {}
 
     async def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:

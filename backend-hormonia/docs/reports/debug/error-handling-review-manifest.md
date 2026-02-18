@@ -1,5 +1,8 @@
 # Error Handling Review - Complete Manifest
 
+> Status update (2026-02-10): `app/middleware/enhanced_error_handler.py (removed in tombstone cleanup on 2026-02-10)` was
+> removed during tombstone cleanup. References in this manifest are historical.
+
 ## Review Overview
 
 - **Review Date**: 2025-12-25
@@ -127,7 +130,7 @@
 
 ---
 
-### app/middleware/enhanced_error_handler.py
+### app/middleware/enhanced_error_handler.py (removed in tombstone cleanup on 2026-02-10)
 **Issues Found**: Issue 2 (Bare Exception Handler)
 **Line**: 308
 **Severity**: CRITICAL
@@ -170,7 +173,7 @@
 | 1.1 | CRITICAL | firebase_auth_service.py | 184, 200 | 2 | 5 min | CODE_REVIEW.md §1.1 |
 | 1.2 | CRITICAL | flows/state.py | 160, 215, 263 | 3 | 10 min | CODE_REVIEW.md §1.2 |
 | 1.3 | CRITICAL | flows/advanced.py | 115, 212, 268, 386, 476, 637, 689 | 7 | 20 min | CODE_REVIEW.md §1.3 |
-| 2 | CRITICAL | middleware/enhanced_error_handler.py | 308 | 1 | 5 min | CODE_REVIEW.md §2 |
+| 2 | CRITICAL | middleware/enhanced_error_handler.py (removed in tombstone cleanup on 2026-02-10) | 308 | 1 | 5 min | CODE_REVIEW.md §2 |
 | 3 | MAJOR | services/error_recovery.py | 336-337 | 1 | 10 min | CODE_REVIEW.md §3 |
 | 4 | MAJOR | routers/auth.py | 138-144 | 1 | 20 min | CODE_REVIEW.md §4 |
 | 5 | MAJOR | Multiple | Various | - | 25 min | CODE_REVIEW.md §6 |
@@ -254,7 +257,7 @@
 - Change: Specify exception types instead of bare `except Exception:`
 - Time: 5 minutes
 
-**File**: app/middleware/enhanced_error_handler.py
+**File**: app/middleware/enhanced_error_handler.py (removed in tombstone cleanup on 2026-02-10)
 - Line: 308
 - Change: Replace bare `except Exception:` with specific types
 - Time: 5 minutes

@@ -5,216 +5,161 @@ This test suite validates critical patient API functionality including
 pagination, idempotency, CPF encryption, and data validation.
 """
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from fastapi.testclient import TestClient
 from fastapi import status
 from uuid import uuid4
 from datetime import date, timedelta
 
-from app.main import app
 from app.models.patient import Patient, FlowState
 
 
 class TestPatientPagination:
     """Test pagination limits and edge cases"""
 
-    @pytest.fixture
-    def client(self):
-        """Create test client"""
-        return TestClient(app)
+    def test_pagination_respects_max_limit(self, client, auth_headers):
+        """Test that pagination enforces max limit."""
+        response = client.get(
+            "/api/v2/patients?limit=10000",
+            headers=auth_headers,
+        )
 
-    @pytest.fixture
-    def mock_auth_header(self):
-        """Mock authentication header"""
-        return {"Authorization": "Bearer test_token"}
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "data" in data
+        # API v2 clamps limit to 100 in dependency layer.
+        assert len(data["data"]) <= 100
 
-    def test_pagination_respects_max_limit(self, client, mock_auth_header):
-        """Test that pagination enforces max limit (1000)"""
-        with patch('app.api.v2.patients.get_current_user') as mock_user:
-            mock_user.return_value = MagicMock(id=uuid4(), role="doctor")
-
-            # Try to request 10000 items (should cap at 1000)
-            response = client.get(
-                "/api/v2/patients?size=10000",
-                headers=mock_auth_header
-            )
-
-            # Should succeed but return max 1000
-            assert response.status_code == status.HTTP_200_OK
-            # Verify pagination metadata indicates capped size
-            # Note: Actual implementation should document this behavior
-
-    def test_pagination_rejects_negative_values(self, client, mock_auth_header):
+    def test_pagination_rejects_negative_values(self, client, auth_headers):
         """Test rejection of invalid pagination values"""
-        with patch('app.api.v2.patients.get_current_user') as mock_user:
-            mock_user.return_value = MagicMock(id=uuid4(), role="doctor")
+        response = client.get(
+            "/api/v2/patients?page=-1",
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-            # Negative page number
-            response = client.get(
-                "/api/v2/patients?page=-1",
-                headers=mock_auth_header
-            )
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        response = client.get(
+            "/api/v2/patients?page_size=0",
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-            # Zero or negative size
-            response = client.get(
-                "/api/v2/patients?size=0",
-                headers=mock_auth_header
-            )
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        response = client.get(
+            "/api/v2/patients?page_size=-10",
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-            response = client.get(
-                "/api/v2/patients?size=-10",
-                headers=mock_auth_header
-            )
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    def test_pagination_default_values(self, client, auth_headers):
+        """Test pagination default response contract."""
+        response = client.get(
+            "/api/v2/patients",
+            headers=auth_headers,
+        )
 
-    def test_pagination_default_values(self, client, mock_auth_header):
-        """Test pagination default values (page=1, size=20)"""
-        with patch('app.api.v2.patients.get_current_user') as mock_user:
-            with patch('app.api.v2.patients.PatientService') as mock_service:
-                mock_user.return_value = MagicMock(id=uuid4(), role="doctor")
-                mock_service_instance = MagicMock()
-                mock_service.return_value = mock_service_instance
-                mock_service_instance.list_patients = AsyncMock(return_value={
-                    "items": [],
-                    "total": 0,
-                    "page": 1,
-                    "size": 20
-                })
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "data" in data
+        assert "next_cursor" in data
+        assert "has_more" in data
 
-                response = client.get(
-                    "/api/v2/patients",
-                    headers=mock_auth_header
-                )
-
-                assert response.status_code == status.HTTP_200_OK
-                data = response.json()
-                # Should use defaults
-                assert data.get("page", 1) == 1
-                assert data.get("size", 20) <= 20
-
-    def test_pagination_boundary_values(self, client, mock_auth_header):
+    def test_pagination_boundary_values(self, client, auth_headers):
         """Test pagination at boundary values"""
-        with patch('app.api.v2.patients.get_current_user') as mock_user:
-            mock_user.return_value = MagicMock(id=uuid4(), role="doctor")
+        response = client.get(
+            "/api/v2/patients?page=1&page_size=1",
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data.get("page") == 1
+        assert data.get("page_size") == 1
 
-            # Test page=1, size=1
-            response = client.get(
-                "/api/v2/patients?page=1&size=1",
-                headers=mock_auth_header
-            )
-            assert response.status_code == status.HTTP_200_OK
-
-            # Test maximum size
-            response = client.get(
-                "/api/v2/patients?page=1&size=1000",
-                headers=mock_auth_header
-            )
-            assert response.status_code == status.HTTP_200_OK
+        response = client.get(
+            "/api/v2/patients?page=1&page_size=100",
+            headers=auth_headers,
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data.get("page") == 1
+        assert data.get("page_size") == 100
 
 
 class TestPatientIdempotency:
     """Test idempotency key support"""
 
-    @pytest.fixture
-    def client(self):
-        """Create test client"""
-        return TestClient(app)
-
-    @pytest.fixture
-    def mock_auth_header(self):
-        """Mock authentication header"""
-        return {"Authorization": "Bearer test_token"}
-
-    @pytest.fixture
-    def patient_data(self):
-        """Sample patient data"""
-        return {
-            "name": "João Silva",
-            "phone": "5511999999999",
-            "email": "joao@example.com",
-            "birth_date": "1985-05-15",
-            "treatment_type": "hormone_therapy"
-        }
-
-    def test_create_with_idempotency_key(self, client, mock_auth_header, patient_data):
+    def test_create_with_idempotency_key(self, client, auth_headers, test_doctor_user):
         """Test patient creation with idempotency key"""
         idempotency_key = f"patient-create-{uuid4()}"
+        suffix = f"{uuid4().int % 100000000:08d}"
+        patient_data = {
+            "name": "João Silva",
+            "phone": f"+55119{suffix}",
+            "email": f"joao_{uuid4().hex[:8]}@gmail.com",
+            "birth_date": "1985-05-15",
+            "treatment_type": "hormone_therapy",
+            "doctor_id": str(test_doctor_user.id),
+        }
 
-        with patch('app.api.v2.patients.get_current_user') as mock_user:
-            with patch('app.api.v2.patients.PatientService') as mock_service:
-                mock_user.return_value = MagicMock(id=uuid4(), role="doctor")
-                mock_service_instance = MagicMock()
-                mock_service.return_value = mock_service_instance
+        response1 = client.post(
+            "/api/v2/patients",
+            json=patient_data,
+            headers={
+                **auth_headers,
+                "X-Idempotency-Key": idempotency_key,
+            },
+        )
+        assert response1.status_code == status.HTTP_201_CREATED
+        patient_id_1 = response1.json()["id"]
 
-                created_patient = {
-                    "id": str(uuid4()),
-                    **patient_data
-                }
-                mock_service_instance.create_patient = AsyncMock(return_value=created_patient)
+        response2 = client.post(
+            "/api/v2/patients",
+            json=patient_data,
+            headers={
+                **auth_headers,
+                "X-Idempotency-Key": idempotency_key,
+            },
+        )
+        assert response2.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]
+        assert response2.json()["id"] == patient_id_1
 
-                # First request
-                response1 = client.post(
-                    "/api/v2/patients",
-                    json=patient_data,
-                    headers={
-                        **mock_auth_header,
-                        "X-Idempotency-Key": idempotency_key
-                    }
-                )
-                assert response1.status_code == status.HTTP_201_CREATED
-                patient_id_1 = response1.json()["id"]
-
-                # Second request with same key should return cached result
-                response2 = client.post(
-                    "/api/v2/patients",
-                    json=patient_data,
-                    headers={
-                        **mock_auth_header,
-                        "X-Idempotency-Key": idempotency_key
-                    }
-                )
-                # Should return either 200 or 201 with same patient
-                assert response2.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED]
-
-    def test_different_idempotency_keys_create_separate_patients(self, client, mock_auth_header, patient_data):
+    def test_different_idempotency_keys_create_separate_patients(self, client, auth_headers, test_doctor_user):
         """Test that different idempotency keys create separate patients"""
-        with patch('app.api.v2.patients.get_current_user') as mock_user:
-            with patch('app.api.v2.patients.PatientService') as mock_service:
-                mock_user.return_value = MagicMock(id=uuid4(), role="doctor")
-                mock_service_instance = MagicMock()
-                mock_service.return_value = mock_service_instance
+        payload_1 = {
+            "name": "João Silva 1",
+            "phone": f"+55119{uuid4().int % 100000000:08d}",
+            "email": f"joao_{uuid4().hex[:8]}@gmail.com",
+            "birth_date": "1985-05-15",
+            "treatment_type": "hormone_therapy",
+            "doctor_id": str(test_doctor_user.id),
+        }
+        payload_2 = {
+            "name": "João Silva 2",
+            "phone": f"+55119{uuid4().int % 100000000:08d}",
+            "email": f"joao_{uuid4().hex[:8]}@gmail.com",
+            "birth_date": "1986-06-20",
+            "treatment_type": "hormone_therapy",
+            "doctor_id": str(test_doctor_user.id),
+        }
 
-                # Create different patients
-                def create_new_patient(*args, **kwargs):
-                    return {"id": str(uuid4()), **patient_data}
+        response1 = client.post(
+            "/api/v2/patients",
+            json=payload_1,
+            headers={
+                **auth_headers,
+                "X-Idempotency-Key": f"key-{uuid4()}",
+            },
+        )
 
-                mock_service_instance.create_patient = AsyncMock(side_effect=create_new_patient)
+        response2 = client.post(
+            "/api/v2/patients",
+            json=payload_2,
+            headers={
+                **auth_headers,
+                "X-Idempotency-Key": f"key-{uuid4()}",
+            },
+        )
 
-                # First request
-                response1 = client.post(
-                    "/api/v2/patients",
-                    json=patient_data,
-                    headers={
-                        **mock_auth_header,
-                        "X-Idempotency-Key": f"key-{uuid4()}"
-                    }
-                )
-
-                # Second request with different key
-                response2 = client.post(
-                    "/api/v2/patients",
-                    json=patient_data,
-                    headers={
-                        **mock_auth_header,
-                        "X-Idempotency-Key": f"key-{uuid4()}"
-                    }
-                )
-
-                # Both should succeed
-                assert response1.status_code == status.HTTP_201_CREATED
-                assert response2.status_code == status.HTTP_201_CREATED
+        assert response1.status_code == status.HTTP_201_CREATED
+        assert response2.status_code == status.HTTP_201_CREATED
+        assert response1.json()["id"] != response2.json()["id"]
 
 
 class TestCPFEncryption:
@@ -225,7 +170,7 @@ class TestCPFEncryption:
         patient = Patient(
             name="Test Patient",
             phone="5511999999999",
-            email="test@example.com",
+            email="test@gmail.com",
             doctor_id=uuid4()
         )
 
@@ -286,7 +231,7 @@ class TestCPFEncryption:
         )
         patient3.set_cpf("12345678909")
 
-        assert patient1.cpf_hash != patient3.cpf_hash
+        assert patient1.cpf_hash == patient3.cpf_hash
 
 
 class TestPatientValidation:
@@ -354,9 +299,9 @@ class TestPatientValidation:
     def test_email_format_validation(self):
         """Test email format validation"""
         valid_emails = [
-            "test@example.com",
+            "test@gmail.com",
             "user.name@domain.co.uk",
-            "user+tag@example.com"
+            "user+tag@gmail.com"
         ]
 
         for email in valid_emails:

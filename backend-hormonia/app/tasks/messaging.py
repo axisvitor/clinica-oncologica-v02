@@ -3,17 +3,22 @@ Celery tasks for message processing and scheduling.
 """
 
 import logging
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta
 
 from celery.exceptions import Retry
 
 from app.task_queue import task_queue as celery_app
-from app.database import get_db, get_scoped_session
+from app.database import get_scoped_session
 from app.domain.messaging.core import MessageService
-from app.models.message import MessageStatus, MessageType
-from app.schemas.message import MessageUpdate
+from app.models.message import (
+    DeliveryStatus,
+    Message,
+    MessageDirection,
+    MessageStatus,
+    MessageType,
+)
 from app.exceptions import ExternalServiceError
 from app.tasks.base import MessageTask, get_db_session
 
@@ -27,8 +32,188 @@ logger = logging.getLogger(__name__)
 from app.services.unified_whatsapp_service import create_unified_whatsapp_service
 from app.utils.async_helpers import run_async
 
+import pytz
+from app.utils.date_math import add_months
+from app.utils.idempotency import build_message_idempotency_key
+from app.utils.timezone import SAO_PAULO_TZ, SAO_PAULO_TZ_NAME, now_sao_paulo
+from pytz.exceptions import AmbiguousTimeError, NonExistentTimeError
 
-@celery_app.task(bind=True, base=MessageTask, name="send_scheduled_message")
+
+def _build_idempotency_key(
+    patient_id: UUID,
+    content: str,
+    scheduled_for: datetime,
+    message_type: MessageType,
+) -> str:
+    return build_message_idempotency_key(
+        patient_id=patient_id,
+        content=content,
+        scheduled_for=scheduled_for,
+        message_type_value=message_type.value,
+    )
+
+
+def _parse_time_str(time_str: Optional[str]) -> Optional[Tuple[int, int]]:
+    if not time_str:
+        return None
+    try:
+        hour_str, minute_str = time_str.split(":")
+        hour = int(hour_str)
+        minute = int(minute_str)
+    except (ValueError, AttributeError):
+        return None
+    if 0 <= hour <= 23 and 0 <= minute <= 59:
+        return hour, minute
+    return None
+
+
+def _add_months(base_date: date, months: int) -> date:
+    return add_months(base_date, months)
+
+
+def _compute_next_reminder_time(
+    metadata: Dict[str, Any],
+    current_scheduled_for: Optional[datetime],
+) -> Optional[Tuple[datetime, date]]:
+    recurrence = (metadata or {}).get("reminder_recurrence")
+    if recurrence not in {"daily", "weekly", "monthly", "interval"}:
+        return None
+
+    tz_name = metadata.get("reminder_timezone") or SAO_PAULO_TZ_NAME
+    try:
+        tz = pytz.timezone(tz_name)
+    except pytz.UnknownTimeZoneError:
+        tz = pytz.timezone(SAO_PAULO_TZ_NAME)
+        tz_name = SAO_PAULO_TZ_NAME
+
+    base_dt = current_scheduled_for or now_sao_paulo()
+    if base_dt.tzinfo is None:
+        try:
+            base_dt = tz.localize(base_dt, is_dst=None)
+        except AmbiguousTimeError:
+            base_dt = tz.localize(base_dt, is_dst=False)
+        except NonExistentTimeError:
+            base_dt = tz.localize(base_dt + timedelta(hours=1), is_dst=True)
+    base_local = base_dt.astimezone(tz)
+
+    time_local_str = metadata.get("reminder_time_local")
+    parsed_time = _parse_time_str(time_local_str)
+    if parsed_time:
+        base_time = time(parsed_time[0], parsed_time[1])
+    else:
+        base_time = base_local.time().replace(microsecond=0)
+
+    date_local_str = metadata.get("reminder_date_local")
+    try:
+        base_date = datetime.fromisoformat(date_local_str).date()
+    except (TypeError, ValueError):
+        base_date = base_local.date()
+
+    if recurrence == "daily":
+        next_date = base_date + timedelta(days=1)
+    elif recurrence == "weekly":
+        weekday = metadata.get("reminder_weekday")
+        if weekday is not None:
+            try:
+                weekday = int(weekday)
+            except (TypeError, ValueError):
+                weekday = None
+        if isinstance(weekday, int) and 0 <= weekday <= 6:
+            days_ahead = (weekday - base_date.weekday()) % 7
+            if days_ahead == 0:
+                days_ahead = 7
+            next_date = base_date + timedelta(days=days_ahead)
+        else:
+            next_date = base_date + timedelta(days=7)
+    elif recurrence == "monthly":
+        next_date = _add_months(base_date, 1)
+    else:
+        interval_days = metadata.get("reminder_interval_days")
+        try:
+            interval_days = int(interval_days)
+        except (TypeError, ValueError):
+            return None
+        if interval_days <= 0:
+            return None
+        next_date = base_date + timedelta(days=interval_days)
+
+    try:
+        next_local = tz.localize(datetime.combine(next_date, base_time), is_dst=None)
+    except AmbiguousTimeError:
+        next_local = tz.localize(datetime.combine(next_date, base_time), is_dst=False)
+    except NonExistentTimeError:
+        shifted = datetime.combine(next_date, base_time) + timedelta(hours=1)
+        next_local = tz.localize(shifted, is_dst=True)
+    return next_local.astimezone(SAO_PAULO_TZ), next_date
+
+
+async def _schedule_next_reminder(message, db) -> bool:
+    metadata = message.message_metadata or {}
+    recurrence = metadata.get("reminder_recurrence")
+    if not recurrence or recurrence == "none":
+        return False
+
+    next_info = _compute_next_reminder_time(metadata, message.scheduled_for)
+    if not next_info:
+        return False
+
+    next_utc, next_date = next_info
+    end_at = metadata.get("reminder_end_at")
+    if end_at:
+        try:
+            end_dt = datetime.fromisoformat(end_at)
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=SAO_PAULO_TZ)
+            if next_utc > end_dt:
+                return False
+        except ValueError:
+            pass
+
+    remaining = metadata.get("reminder_remaining")
+    if remaining is not None:
+        try:
+            remaining = int(remaining)
+        except (TypeError, ValueError):
+            remaining = None
+        if remaining is not None:
+            if remaining <= 0:
+                return False
+            remaining -= 1
+
+    new_metadata = dict(metadata)
+    try:
+        sequence = int(metadata.get("reminder_sequence", 1))
+    except (TypeError, ValueError):
+        sequence = 1
+    new_metadata["reminder_sequence"] = sequence + 1
+    new_metadata["reminder_date_local"] = next_date.isoformat()
+    if remaining is not None:
+        new_metadata["reminder_remaining"] = remaining
+
+    new_message = Message(
+        patient_id=message.patient_id,
+        direction=MessageDirection.OUTBOUND,
+        type=MessageType(message.type),
+        content=message.content,
+        status=MessageStatus.PENDING,
+        scheduled_for=next_utc,
+        message_metadata=new_metadata,
+        idempotency_key=_build_idempotency_key(
+            patient_id=message.patient_id,
+            content=message.content,
+            scheduled_for=next_utc,
+            message_type=MessageType(message.type),
+        ),
+    )
+    db.add(new_message)
+    return True
+
+
+@celery_app.task(
+    bind=True,
+    base=MessageTask,
+    name="app.tasks.messaging.send_scheduled_message",
+)
 def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
     """Send a scheduled message to a patient using AsyncSession.
 
@@ -53,18 +238,51 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
         """Inner async function to send message with AsyncSession."""
         from app.database import get_async_session_factory
         from app.models.message import Message
-        from app.models.patient import Patient
-        from sqlalchemy import select
+        from sqlalchemy import select, update
         from sqlalchemy.orm import selectinload
 
         async_session_factory = get_async_session_factory()
+        message_uuid = UUID(message_id)
         
         async with async_session_factory() as db:
+            # Atomic claim: only one worker can transition eligible statuses to SENDING.
+            # Accept SCHEDULED for backward compatibility with legacy rows.
+            claim = await db.execute(
+                update(Message)
+                .where(
+                    Message.id == message_uuid,
+                    Message.status.in_([MessageStatus.PENDING, MessageStatus.SCHEDULED]),
+                )
+                .values(
+                    status=MessageStatus.SENDING,
+                    delivery_status=DeliveryStatus.SENDING,
+                )
+                .execution_options(synchronize_session=False)
+            )
+            await db.commit()
+
+            if int(claim.rowcount or 0) == 0:
+                # Message may not exist or may already be claimed/processed.
+                status_stmt = select(Message.status).where(Message.id == message_uuid)
+                status_result = await db.execute(status_stmt)
+                current_status = status_result.scalar_one_or_none()
+                if current_status is None:
+                    return {
+                        "found": False,
+                        "retry": True,
+                        "error": "Message not found",
+                    }
+                return {
+                    "found": True,
+                    "already_processed": True,
+                    "status": current_status.value,
+                }
+
             # Get message with patient relationship loaded
             stmt = (
                 select(Message)
                 .options(selectinload(Message.patient))
-                .where(Message.id == message_id)
+                .where(Message.id == message_uuid)
             )
             result = await db.execute(stmt)
             message = result.scalar_one_or_none()
@@ -76,8 +294,8 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                     "error": "Message not found",
                 }
 
-            # Check if message is still pending
-            if message.status != MessageStatus.PENDING:
+            # Another process may have finalized status before we loaded the row.
+            if message.status != MessageStatus.SENDING:
                 return {
                     "found": True,
                     "already_processed": True,
@@ -87,8 +305,13 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
             # Get patient details
             patient = message.patient
             if not patient:
+                message.status = MessageStatus.FAILED
+                message.delivery_status = DeliveryStatus.FAILED
+                message.failure_reason = "Patient not found"
+                await db.commit()
                 return {
                     "found": True,
+                    "non_retriable": True,
                     "error": "Patient not found",
                 }
 
@@ -104,8 +327,13 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                 }
 
             if not patient.phone:
+                message.status = MessageStatus.FAILED
+                message.delivery_status = DeliveryStatus.FAILED
+                message.failure_reason = "Patient phone number missing"
+                await db.commit()
                 return {
                     "found": True,
+                    "non_retriable": True,
                     "error": "Patient phone number missing",
                 }
 
@@ -118,7 +346,16 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
             if success:
                 # Mark as sent
                 message.status = MessageStatus.SENT
-                message.sent_at = datetime.now(timezone.utc)
+                message.delivery_status = DeliveryStatus.SENT
+                message.sent_at = now_sao_paulo()
+                try:
+                    await _schedule_next_reminder(message, db)
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to schedule next reminder message: %s",
+                        exc,
+                        extra={"message_id": str(message.id)},
+                    )
                 await db.commit()
                 
                 return {
@@ -127,7 +364,8 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                     "patient_id": str(message.patient_id),
                 }
             else:
-                # This shouldn't happen since send_message now raises on failure
+                message.status = MessageStatus.PENDING
+                message.delivery_status = DeliveryStatus.QUEUED
                 return {
                     "found": True,
                     "success": False,
@@ -178,6 +416,14 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                 "status": "cancelled",
             }
 
+        # Handle deterministic non-retriable failures
+        if result.get("non_retriable"):
+            return self.create_error_result(
+                result["error"],
+                message_id=message_id,
+                status="failed",
+            )
+
         # Handle other errors
         if result.get("error") and not result.get("success"):
             raise ExternalServiceError(result["error"])
@@ -189,7 +435,7 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                 "success": True,
                 "message_id": message_id,
                 "patient_id": result.get("patient_id"),
-                "sent_at": datetime.now(timezone.utc).isoformat(),
+                "sent_at": now_sao_paulo().isoformat(),
             }
 
         # Fallback
@@ -202,34 +448,48 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
         logger.error(
             f"Error sending scheduled message {message_id}: {exc}", exc_info=True
         )
+        max_retries = self.max_retries if self.max_retries is not None else 3
 
-        # Use base class retry handling
+        # Reset claimed message back to pending for retry window.
         try:
-            self.handle_retry(exc, message_id=message_id)
-        except Exception:
-            # Mark message as failed after max retries
-            try:
-                with get_db_session() as db:
-                    message_service = MessageService(db)
-                    message_service.mark_as_failed(
-                        message_id,
-                        {
-                            "error": "Max retries exceeded",
-                            "last_error": str(exc),
-                            "failed_at": datetime.now(timezone.utc).isoformat(),
-                        },
-                    )
-            except Exception as mark_error:
-                logger.error(
-                    f"Failed to mark message {message_id} as failed: {mark_error}"
-                )
-
-            return self.create_error_result(
-                f"Max retries exceeded: {str(exc)}", message_id=message_id
+            with get_db_session() as db:
+                message = db.query(Message).filter(Message.id == UUID(message_id)).first()
+                if message and message.status == MessageStatus.SENDING:
+                    message.retry_count = int(message.retry_count or 0) + 1
+                    message.last_retry_at = now_sao_paulo()
+                    metadata = dict(message.message_metadata or {})
+                    metadata["last_retry_error"] = str(exc)
+                    metadata["last_retry_trigger"] = "send_scheduled_message"
+                    message.message_metadata = metadata
+                    if self.request.retries < max_retries:
+                        message.status = MessageStatus.PENDING
+                        message.delivery_status = DeliveryStatus.QUEUED
+                    else:
+                        message.status = MessageStatus.FAILED
+                        message.delivery_status = DeliveryStatus.FAILED
+                        message.failure_reason = str(exc)
+                    db.commit()
+        except Exception as sync_error:
+            logger.error(
+                "Failed to update retry state for message %s: %s",
+                message_id,
+                sync_error,
             )
 
+        if self.request.retries < max_retries:
+            self.handle_retry(exc, message_id=message_id)
+            raise
 
-@celery_app.task(bind=True, base=MessageTask, name="process_scheduled_messages")
+        return self.create_error_result(
+            f"Max retries exceeded: {str(exc)}", message_id=message_id
+        )
+
+
+@celery_app.task(
+    bind=True,
+    base=MessageTask,
+    name="app.tasks.messaging.process_scheduled_messages",
+)
 def process_scheduled_messages(self, limit: int = 100) -> dict[str, Any]:
     """Process all scheduled messages that are due for delivery.
 
@@ -251,7 +511,7 @@ def process_scheduled_messages(self, limit: int = 100) -> dict[str, Any]:
 
             # Get due messages
             due_messages = message_service.get_scheduled_messages(
-                before_time=datetime.now(timezone.utc), limit=limit
+                before_time=now_sao_paulo(), limit=limit
             )
 
             processed_count = 0
@@ -263,7 +523,7 @@ def process_scheduled_messages(self, limit: int = 100) -> dict[str, Any]:
 
             result = self.create_success_result(
                 processed_count=processed_count,
-                processed_at=datetime.now(timezone.utc).isoformat(),
+                processed_at=now_sao_paulo().isoformat(),
             )
 
             self.log_task_success(result, limit=limit)
@@ -271,10 +531,15 @@ def process_scheduled_messages(self, limit: int = 100) -> dict[str, Any]:
 
     except Exception as exc:
         self.log_task_error(exc, limit=limit)
-        return self.create_error_result(str(exc), processed_count=0)
+        self.handle_retry(exc, limit=limit)
+        raise
 
 
-@celery_app.task(bind=True, base=MessageTask, name="retry_failed_messages")
+@celery_app.task(
+    bind=True,
+    base=MessageTask,
+    name="app.tasks.messaging.retry_failed_messages",
+)
 def retry_failed_messages(
     self, limit: int = 50, max_retries: int = 3
 ) -> dict[str, Any]:
@@ -311,9 +576,7 @@ def retry_failed_messages(
                 # If not available, we might be retrying indefinitely.
                 # Ideally Message model has retry_count column.
 
-                current_retries = (
-                    message.retry_count if hasattr(message, "retry_count") else 0
-                )
+                current_retries = int(getattr(message, "retry_count", 0) or 0)
 
                 if current_retries < max_retries:
                     # Increment retry count locally or let send_task handle it?
@@ -327,17 +590,14 @@ def retry_failed_messages(
 
                     # Update message status to PENDING to allow retry
                     try:
-                        message_service.update_message(
-                            message.id,
-                            MessageUpdate(
-                                status=MessageStatus.PENDING,
-                                message_metadata={
-                                    **(message.message_metadata or {}),
-                                    "retry_trigger": "auto_retry_task",
-                                    "last_retry_at": datetime.now(timezone.utc).isoformat(),
-                                },
-                            ),
-                        )
+                        metadata = dict(message.message_metadata or {})
+                        metadata["retry_trigger"] = "auto_retry_task"
+                        metadata["last_retry_at"] = now_sao_paulo().isoformat()
+                        message.status = MessageStatus.PENDING
+                        message.last_retry_at = now_sao_paulo()
+                        message.retry_count = current_retries + 1
+                        message.message_metadata = metadata
+                        db.commit()
                         # Trigger send
                         send_scheduled_message.delay(str(message.id))
                         retry_count += 1
@@ -351,7 +611,7 @@ def retry_failed_messages(
                         )
 
             result = self.create_success_result(
-                retry_count=retry_count, retried_at=datetime.now(timezone.utc).isoformat()
+                retry_count=retry_count, retried_at=now_sao_paulo().isoformat()
             )
 
             self.log_task_success(result, limit=limit, max_retries=max_retries)
@@ -359,10 +619,11 @@ def retry_failed_messages(
 
     except Exception as exc:
         self.log_task_error(exc, limit=limit, max_retries=max_retries)
-        return self.create_error_result(str(exc), retry_count=0)
+        self.handle_retry(exc, limit=limit, max_retries=max_retries)
+        raise
 
 
-@celery_app.task(name="send_bulk_messages")
+@celery_app.task(name="app.tasks.messaging.send_bulk_messages")
 def send_bulk_messages(message_data_list: List[dict[str, Any]]) -> dict[str, Any]:
     """Send multiple messages in bulk.
 
@@ -394,7 +655,7 @@ def send_bulk_messages(message_data_list: List[dict[str, Any]]) -> dict[str, Any
                     if scheduled_for:
                         scheduled_for = datetime.fromisoformat(scheduled_for)
                     else:
-                        scheduled_for = datetime.now(timezone.utc)
+                        scheduled_for = now_sao_paulo()
 
                     message = message_service.schedule_message(
                         patient_id=UUID(message_data["patient_id"]),
@@ -416,7 +677,7 @@ def send_bulk_messages(message_data_list: List[dict[str, Any]]) -> dict[str, Any
             scheduled_tasks = []
             for message in created_messages:
                 # Schedule the send task
-                eta = message.scheduled_for if message.scheduled_for else datetime.now(timezone.utc)
+                eta = message.scheduled_for if message.scheduled_for else now_sao_paulo()
                 task = send_scheduled_message.apply_async(args=[str(message.id)], eta=eta)
                 scheduled_tasks.append(
                     {
@@ -433,7 +694,7 @@ def send_bulk_messages(message_data_list: List[dict[str, Any]]) -> dict[str, Any
                 "creation_failures": len(failed_creations),
                 "scheduled_tasks": scheduled_tasks,
                 "failed_creations": failed_creations,
-                "processed_at": datetime.now(timezone.utc).isoformat(),
+                "processed_at": now_sao_paulo().isoformat(),
             }
 
             logger.info(
@@ -451,7 +712,7 @@ def send_bulk_messages(message_data_list: List[dict[str, Any]]) -> dict[str, Any
         }
 
 
-@celery_app.task(name="cleanup_old_messages")
+@celery_app.task(name="app.tasks.messaging.cleanup_old_messages")
 def cleanup_old_messages(days_old: int = 90) -> dict[str, Any]:
     """
     Clean up old messages to manage database size by archiving them.
@@ -466,7 +727,7 @@ def cleanup_old_messages(days_old: int = 90) -> dict[str, Any]:
     try:
         with get_scoped_session() as db:
             # Calculate cutoff date
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+            cutoff_date = now_sao_paulo() - timedelta(days=days_old)
 
             # Query old messages (keep failed messages for longer analysis?)
             # Strategy: Archive DELIVERED, READ, CANCELLED. Keep FAILED for longer?
@@ -517,7 +778,7 @@ def cleanup_old_messages(days_old: int = 90) -> dict[str, Any]:
                         retry_count=msg.retry_count,
                         last_retry_at=msg.last_retry_at,
                         failure_reason=msg.failure_reason,
-                        archived_at=datetime.now(timezone.utc)
+                        archived_at=now_sao_paulo()
                     )
                     db.add(archive)
                     
@@ -538,7 +799,7 @@ def cleanup_old_messages(days_old: int = 90) -> dict[str, Any]:
                 "success": True,
                 "archived_count": archived_count,
                 "cutoff_date": cutoff_date.isoformat(),
-                "cleaned_at": datetime.now(timezone.utc).isoformat(),
+                "cleaned_at": now_sao_paulo().isoformat(),
             }
 
             logger.info(
@@ -551,7 +812,7 @@ def cleanup_old_messages(days_old: int = 90) -> dict[str, Any]:
         return {"success": False, "error": str(exc), "archived_count": 0}
 
 
-@celery_app.task(name="generate_message_analytics")
+@celery_app.task(name="app.tasks.messaging.generate_message_analytics")
 def generate_message_analytics(
     patient_id: Optional[str] = None, days_back: int = 30
 ) -> dict[str, Any]:
@@ -570,7 +831,7 @@ def generate_message_analytics(
             message_service = MessageService(db)
 
             # Calculate date range
-            end_date = datetime.now(timezone.utc)
+            end_date = now_sao_paulo()
             start_date = end_date - timedelta(days=days_back)
 
             # Get message statistics
@@ -640,7 +901,7 @@ def generate_message_analytics(
                         "total_messages": sum(statistics.values()),
                     },
                 },
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": now_sao_paulo().isoformat(),
             }
 
             logger.info(
@@ -742,7 +1003,11 @@ def process_whatsapp_dlq(limit: int = 50) -> dict[str, Any]:
         return {"success": False, "error": str(exc), "processed": 0}
 
 
-@celery_app.task(bind=True, base=MessageTask, name="retry_pending_welcome_messages")
+@celery_app.task(
+    bind=True,
+    base=MessageTask,
+    name="app.tasks.messaging.retry_pending_welcome_messages",
+)
 def retry_pending_welcome_messages(
     self, limit: int = 50, min_age_minutes: int = 5, max_age_hours: int = 24
 ) -> dict[str, Any]:
@@ -769,7 +1034,7 @@ def retry_pending_welcome_messages(
             from app.models.message import Message
 
             # Calculate time window
-            now = datetime.now(timezone.utc)
+            now = now_sao_paulo()
             min_created_at = now - timedelta(hours=max_age_hours)
             max_created_at = now - timedelta(minutes=min_age_minutes)
 
@@ -849,4 +1114,5 @@ def retry_pending_welcome_messages(
 
     except Exception as exc:
         self.log_task_error(exc, limit=limit)
-        return self.create_error_result(str(exc), retry_count=0)
+        self.handle_retry(exc, limit=limit)
+        raise

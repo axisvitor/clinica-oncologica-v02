@@ -4,12 +4,14 @@ Message delivery metrics and monitoring.
 
 import logging
 from typing import Dict, Any, List
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.message import Message, MessageStatus
 from app.utils.db_retry import with_db_retry
+from app.utils.timezone import now_sao_paulo
+from .shared import ensure_message_metadata, get_celery_task_status
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +21,11 @@ class MetricsCollector:
 
     def __init__(self, db: Session):
         self.db = db
+
+    @staticmethod
+    def _ensure_message_metadata(message: Message) -> Dict[str, Any]:
+        """Guarantee message.message_metadata is a dictionary."""
+        return ensure_message_metadata(message, logger)
 
     @with_db_retry(max_retries=3)
     async def get_scheduled_messages(
@@ -46,7 +53,8 @@ class MetricsCollector:
 
             result = []
             for message in messages:
-                task_id = message.message_metadata.get("celery_task_id")
+                message_metadata = self._ensure_message_metadata(message)
+                task_id = message_metadata.get("celery_task_id")
                 task_status = await self._get_task_status(task_id) if task_id else None
 
                 result.append(
@@ -58,7 +66,7 @@ class MetricsCollector:
                         "created_at": message.created_at.isoformat(),
                         "task_id": task_id,
                         "task_status": task_status,
-                        "metadata": message.message_metadata,
+                        "metadata": message_metadata,
                     }
                 )
 
@@ -83,7 +91,7 @@ class MetricsCollector:
             Delivery metrics and statistics
         """
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
+            cutoff_date = now_sao_paulo() - timedelta(days=days_back)
 
             query = self.db.query(Message).filter(Message.created_at >= cutoff_date)
 
@@ -138,7 +146,7 @@ class MetricsCollector:
                 if delivery_times
                 else None,
                 "period_days": days_back,
-                "analysis_date": datetime.now(timezone.utc).isoformat(),
+                "analysis_date": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
@@ -155,19 +163,4 @@ class MetricsCollector:
         Returns:
             Task status information
         """
-        try:
-            from celery.result import AsyncResult
-
-            result = AsyncResult(task_id)
-
-            return {
-                "task_id": task_id,
-                "status": result.status,
-                "result": result.result if result.ready() else None,
-                "traceback": result.traceback if result.failed() else None,
-                "date_done": result.date_done,
-            }
-
-        except Exception as e:
-            logger.error(f"Failed to get task status for {task_id}: {e}")
-            return {"task_id": task_id, "status": "UNKNOWN", "error": str(e)}
+        return await get_celery_task_status(task_id, logger)

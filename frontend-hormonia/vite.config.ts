@@ -13,6 +13,18 @@ export default defineConfig(({ mode }) => ({
       "@": resolve(__dirname, "./src"),
       "~backend/client": resolve(__dirname, "./client"),
       "~backend": resolve(__dirname, "../backend-hormonia"),
+      ...(mode === "test"
+        ? {
+          "firebase/app": resolve(
+            __dirname,
+            "./node_modules/firebase/app/dist/esm/index.esm.js"
+          ),
+          "firebase/auth": resolve(
+            __dirname,
+            "./node_modules/firebase/auth/dist/esm/index.esm.js"
+          ),
+        }
+        : {}),
     },
   },
 
@@ -161,7 +173,6 @@ export default defineConfig(({ mode }) => ({
       "firebase/auth",
       "clsx",
       "tailwind-merge",
-      "date-fns",
       "lucide-react",
       "recharts",
       "lodash",

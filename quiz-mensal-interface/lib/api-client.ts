@@ -270,7 +270,7 @@ class QuizApiClient {
     // Wait for CSRF to complete before making the POST
     await csrfPromise;
 
-    // Note: API_BASE_URL already includes /monthly-quiz-public prefix
+    // Note: API_BASE_URL already includes /quiz-extensions prefix
     return this.request<QuizSession>("/access", {
       method: "POST",
       body,
@@ -283,7 +283,7 @@ class QuizApiClient {
    */
   async recoverSession(): Promise<QuizSession | null> {
     try {
-      // Note: API_BASE_URL already includes /monthly-quiz-public prefix
+      // Note: API_BASE_URL already includes /quiz-extensions prefix
       return await this.request<QuizSession>("/session/active", {
         method: "GET",
       });
@@ -296,13 +296,6 @@ class QuizApiClient {
   }
 
   /**
-   * Get current session status (legacy method for compatibility)
-   */
-  async getSessionStatus(): Promise<QuizSession | null> {
-    return this.recoverSession();
-  }
-
-  /**
    * Submit answer to a question
    */
   async submitAnswer(
@@ -310,7 +303,7 @@ class QuizApiClient {
     responseValue: string | string[],
     metadata?: Record<string, unknown>
   ): Promise<QuizSubmitResponse> {
-    // Note: API_BASE_URL already includes /monthly-quiz-public prefix
+    // Note: API_BASE_URL already includes /quiz-extensions prefix
     return this.request<QuizSubmitResponse>("/submit", {
       method: "POST",
       body: JSON.stringify({
@@ -326,7 +319,7 @@ class QuizApiClient {
    */
   async logout(): Promise<void> {
     try {
-      // Note: API_BASE_URL already includes /monthly-quiz-public prefix
+      // Note: API_BASE_URL already includes /quiz-extensions prefix
       await this.request<void>("/logout", {
         method: "POST",
       });

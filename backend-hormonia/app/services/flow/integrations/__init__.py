@@ -13,39 +13,20 @@ Exports:
 
 from .quiz_integration import QuizFlowIntegration
 from .ai_integration import AIFlowIntegration
-from .manager import FlowIntegrationManager
-from .base import FlowIntegration, LegacyIntegrationAdapter
+from .manager import (
+    FlowIntegrationManager,
+    get_integration_manager,
+    reset_integration_manager,
+)
+from .base import FlowIntegration, IntegrationAdapter
 from .plugins import QuizIntegrationPlugin, AIIntegrationPlugin
-
-# Singleton instance
-_integration_manager_instance = None
-
-
-def get_integration_manager() -> FlowIntegrationManager:
-    """
-    Get or create the global FlowIntegrationManager singleton instance.
-
-    Returns:
-        FlowIntegrationManager: The singleton instance
-    """
-    global _integration_manager_instance
-    if _integration_manager_instance is None:
-        _integration_manager_instance = FlowIntegrationManager()
-    return _integration_manager_instance
-
-
-def reset_integration_manager():
-    """Reset the global FlowIntegrationManager instance (for testing)."""
-    global _integration_manager_instance
-    _integration_manager_instance = None
-
 
 __all__ = [
     "QuizFlowIntegration",
     "AIFlowIntegration",
     "FlowIntegrationManager",
     "FlowIntegration",
-    "LegacyIntegrationAdapter",
+    "IntegrationAdapter",
     "QuizIntegrationPlugin",
     "AIIntegrationPlugin",
     "get_integration_manager",

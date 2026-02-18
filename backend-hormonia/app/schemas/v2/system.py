@@ -46,7 +46,7 @@ class ComponentHealth(BaseModel):
                 "status": "healthy",
                 "latency_ms": 12.5,
                 "error": None,
-                "last_check": "2025-11-07T10:30:00Z",
+                "last_check": "2025-11-07T10:30:00-03:00",
                 "metadata": {"pool_size": 10, "active_connections": 3},
             }
         }
@@ -83,20 +83,20 @@ class SystemHealthResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "status": "healthy",
-                "timestamp": "2025-11-07T10:30:00Z",
+                "timestamp": "2025-11-07T10:30:00-03:00",
                 "overall_score": 95.0,
                 "components": {
                     "database": {
                         "name": "database",
                         "status": "healthy",
                         "latency_ms": 12.5,
-                        "last_check": "2025-11-07T10:30:00Z",
+                        "last_check": "2025-11-07T10:30:00-03:00",
                     },
                     "redis": {
                         "name": "redis",
                         "status": "healthy",
                         "latency_ms": 2.1,
-                        "last_check": "2025-11-07T10:30:00Z",
+                        "last_check": "2025-11-07T10:30:00-03:00",
                     },
                 },
                 "degraded_components": [],
@@ -124,7 +124,7 @@ class InitializationError(BaseModel):
             "example": {
                 "component": "firebase",
                 "error_message": "Failed to initialize Firebase Admin SDK",
-                "timestamp": "2025-11-07T10:30:00Z",
+                "timestamp": "2025-11-07T10:30:00-03:00",
                 "recoverable": True,
             }
         }
@@ -189,8 +189,8 @@ class InitializationStatusResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "started_at": "2025-11-07T10:00:00Z",
-                "completed_at": "2025-11-07T10:00:05Z",
+                "started_at": "2025-11-07T10:00:00-03:00",
+                "completed_at": "2025-11-07T10:00:05-03:00",
                 "status": "completed",
                 "duration_ms": 5234.5,
                 "components": {
@@ -243,7 +243,7 @@ class SystemInfoResponse(BaseModel):
                 },
                 "build_info": {
                     "git_commit": "abc123def456",
-                    "build_date": "2025-11-01T10:00:00Z",
+                    "build_date": "2025-11-01T10:00:00-03:00",
                 },
             }
         }
@@ -360,7 +360,7 @@ class ComponentRestartResponse(BaseModel):
             "example": {
                 "component": "redis",
                 "status": "success",
-                "restarted_at": "2025-11-07T10:30:00Z",
+                "restarted_at": "2025-11-07T10:30:00-03:00",
                 "duration_ms": 1523.4,
                 "previous_status": "running",
                 "current_status": "running",
@@ -420,7 +420,7 @@ class ConfigValidationResponse(BaseModel):
                     "Rate limiting disabled in production",
                 ],
                 "errors": [],
-                "checked_at": "2025-11-07T10:30:00Z",
+                "checked_at": "2025-11-07T10:30:00-03:00",
                 "categories_checked": ["security", "database", "external_services"],
                 "recommendations": [
                     "Enable rate limiting in production",
@@ -546,7 +546,7 @@ class SystemMetrics(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-11-07T10:30:00Z",
+                "timestamp": "2025-11-07T10:30:00-03:00",
                 "cpu_percent": 45.2,
                 "cpu_count": 4,
                 "memory_total_mb": 16384.0,

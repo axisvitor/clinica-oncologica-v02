@@ -363,18 +363,120 @@ class AuthorizationError(ForbiddenError):
 
 class ExternalServiceError(APIException):
     """
-    External service integration error (503 Service Unavailable).
+    External service integration error with compatibility constructors.
 
-    Use when external APIs (WhatsApp, Firebase, Gemini, etc.) fail.
-
-    Example:
-        raise ExternalServiceError("WhatsApp", "Connection timeout")
+    Supports legacy call signatures:
+    - (service_name, error_message)
+    - (message, service, status_code)
+    - (message, service_name=..., error_code=..., is_recoverable=..., retry_after=...)
+    - (message)
     """
 
-    def __init__(self, service_name: str, error_message: str):
-        message = f"{service_name} service error: {error_message}"
-        details = {"service": service_name, "error": error_message}
-        super().__init__(message, 503, "EXTERNAL_SERVICE_ERROR", details)
+    def __init__(
+        self,
+        *args: Any,
+        service_name: Optional[str] = None,
+        error_message: Optional[str] = None,
+        service: Optional[str] = None,
+        status_code: Optional[int] = None,
+        error_code: Optional[str] = None,
+        is_recoverable: bool = True,
+        retry_after: Optional[int] = None,
+        patient_id: Optional[Any] = None,
+        flow_type: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        parsed_service = service_name or service
+        parsed_status_code = status_code if status_code is not None else 503
+        parsed_error_code = error_code or "EXTERNAL_SERVICE_ERROR"
+        parsed_message: Optional[str] = None
+        legacy_service_error_pair = False
+        status_code_explicit = status_code is not None
+
+        if args:
+            if len(args) == 1:
+                parsed_message = str(args[0])
+            elif len(args) == 2:
+                if (
+                    service_name is None
+                    and service is None
+                    and error_message is None
+                    and status_code is None
+                ):
+                    # Legacy core signature: (service_name, error_message)
+                    legacy_service_error_pair = True
+                    parsed_service = str(args[0])
+                    parsed_message = str(args[1])
+                else:
+                    # Legacy external_service signature: (message, service)
+                    parsed_message = str(args[0])
+                    parsed_service = parsed_service or str(args[1])
+            else:
+                # Legacy external_service signature: (message, service, status_code)
+                parsed_message = str(args[0])
+                parsed_service = parsed_service or str(args[1])
+                if status_code is None:
+                    try:
+                        parsed_status_code = int(args[2])
+                        status_code_explicit = True
+                    except (TypeError, ValueError):
+                        parsed_status_code = 503
+        elif error_message is not None:
+            parsed_message = error_message
+
+        if parsed_message is None:
+            parsed_message = "External service integration failed"
+
+        if legacy_service_error_pair and parsed_service:
+            public_message = f"{parsed_service} service error: {parsed_message}"
+            underlying_error = parsed_message
+        else:
+            public_message = parsed_message
+            underlying_error = parsed_message
+
+        exception_details: Dict[str, Any] = {}
+        if details:
+            exception_details.update(details)
+        if context:
+            exception_details.update(context)
+        if parsed_service:
+            exception_details.setdefault("service", parsed_service)
+            exception_details.setdefault("service_name", parsed_service)
+        if retry_after is not None:
+            exception_details["retry_after"] = retry_after
+        if patient_id is not None:
+            exception_details.setdefault("patient_id", str(patient_id))
+        if flow_type:
+            exception_details.setdefault("flow_type", flow_type)
+        if underlying_error:
+            exception_details.setdefault("error", underlying_error)
+        if status_code is not None:
+            exception_details.setdefault("status_code", parsed_status_code)
+
+        super().__init__(
+            public_message,
+            status_code=parsed_status_code,
+            error_code=parsed_error_code,
+            details=exception_details or None,
+        )
+        self.service_name = parsed_service
+        self.service = parsed_service
+        self.is_recoverable = is_recoverable
+        self.retry_after = retry_after
+        self.patient_id = patient_id
+        self.flow_type = flow_type
+        self.context = self.details
+        self.external_error_code = error_code
+        self._status_code_explicit = status_code_explicit
+
+    def __str__(self) -> str:
+        parts = [self.message]
+        if self.service_name:
+            parts.insert(0, f"[{self.service_name}]")
+        if self._status_code_explicit and self.status_code:
+            parts.append(f"(Status: {self.status_code})")
+        return " ".join(parts)
 
 
 class DatabaseError(HormoniaException):
@@ -387,7 +489,28 @@ class DatabaseError(HormoniaException):
         raise DatabaseError("Connection pool exhausted", {"pool_size": 10})
     """
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        operation: Optional[str] = None,
+        table: Optional[str] = None,
+        patient_id: Optional[Any] = None,
+        is_recoverable: bool = True,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        error_details = details.copy() if details else {}
+        if operation:
+            error_details.setdefault("operation", operation)
+        if table:
+            error_details.setdefault("table", table)
+        if patient_id is not None:
+            error_details.setdefault("patient_id", str(patient_id))
+
+        super().__init__(message, error_details or None)
+        self.operation = operation or "unknown"
+        self.table = table
+        self.patient_id = patient_id
+        self.is_recoverable = is_recoverable
 
 
 class ProcessingError(HormoniaException):
@@ -418,9 +541,13 @@ class FlowException(HormoniaException):
     def __init__(
         self,
         message: str,
-        patient_id: Optional[str] = None,
+        patient_id: Optional[Any] = None,
         flow_type: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
         details: Optional[Dict[str, Any]] = None,
+        code: Optional[str] = None,
+        field: Optional[str] = None,
+        **kwargs
     ):
         """
         Initialize flow exception.
@@ -431,15 +558,26 @@ class FlowException(HormoniaException):
             flow_type: Flow type (e.g., "ONBOARDING", "QUIZ")
             details: Additional context
         """
-        flow_details = details or {}
-        if patient_id:
+        flow_details: Dict[str, Any] = {}
+        if details:
+            flow_details.update(details)
+        if context:
+            flow_details.update(context)
+        if patient_id is not None:
             flow_details["patient_id"] = patient_id
         if flow_type:
             flow_details["flow_type"] = flow_type
 
-        super().__init__(message, flow_details)
+        super().__init__(
+            message,
+            details=flow_details or None,
+            code=code,
+            field=field,
+            **kwargs,
+        )
         self.patient_id = patient_id
         self.flow_type = flow_type
+        self.context = self.details
 
 
 class FlowStateNotFoundError(FlowException):
@@ -451,7 +589,25 @@ class FlowStateNotFoundError(FlowException):
 class FlowValidationError(FlowException):
     """Flow validation failed."""
 
-    pass
+    def __init__(
+        self,
+        message: str,
+        validation_errors: Optional[Dict[str, str]] = None,
+        patient_id: Optional[Any] = None,
+        flow_type: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ):
+        merged_context = context.copy() if context else {}
+        if validation_errors is not None:
+            merged_context["validation_errors"] = validation_errors
+
+        super().__init__(
+            message,
+            patient_id=patient_id,
+            flow_type=flow_type,
+            context=merged_context or None,
+        )
+        self.validation_errors = validation_errors or {}
 
 
 class FlowStateConflictError(FlowException):
@@ -464,6 +620,173 @@ class FlowOperationError(FlowException):
     """Flow operation failed."""
 
     pass
+
+
+class MessageDeliveryError(FlowException):
+    """Exception raised when message delivery fails."""
+
+    def __init__(
+        self,
+        message: str,
+        patient_id: Any,
+        message_id: Optional[Any] = None,
+        retry_count: int = 0,
+        last_error: Optional[str] = None,
+    ):
+        context = {"message_id": message_id, "retry_count": retry_count}
+        if last_error is not None:
+            context["last_error"] = last_error
+        super().__init__(message, patient_id=patient_id, context=context)
+        self.message_id = message_id
+        self.retry_count = retry_count
+        self.last_error = last_error
+
+
+class FlowStateCorruptionError(FlowException):
+    """Exception raised when flow state data is corrupted or invalid."""
+
+    def __init__(
+        self,
+        message: str,
+        patient_id: Any,
+        flow_state_data: Optional[Dict[str, Any]] = None,
+        corruption_type: str = "unknown",
+    ):
+        context = {
+            "flow_state_data": flow_state_data,
+            "corruption_type": corruption_type,
+        }
+        super().__init__(message, patient_id=patient_id, context=context)
+        self.flow_state_data = flow_state_data
+        self.corruption_type = corruption_type
+
+
+class FlowProcessingError(FlowException):
+    """Exception raised during flow processing operations."""
+
+    def __init__(
+        self,
+        message: str,
+        patient_id: Any,
+        flow_type: str,
+        current_day: Optional[int] = None,
+        operation: Optional[str] = None,
+    ):
+        context: Dict[str, Any] = {}
+        if current_day is not None:
+            context["current_day"] = current_day
+        if operation is not None:
+            context["operation"] = operation
+        super().__init__(
+            message,
+            patient_id=patient_id,
+            flow_type=flow_type,
+            context=context or None,
+        )
+        self.current_day = current_day
+        self.operation = operation
+
+
+class TemplateLoadError(FlowException):
+    """Exception raised when flow templates cannot be loaded."""
+
+    def __init__(
+        self,
+        message: str,
+        template_path: str,
+        flow_type: Optional[str] = None,
+    ):
+        super().__init__(
+            message,
+            flow_type=flow_type,
+            context={"template_path": template_path},
+        )
+        self.template_path = template_path
+
+
+class AIServiceError(ExternalServiceError):
+    """Exception raised when AI services fail."""
+
+    def __init__(
+        self,
+        message: str,
+        ai_service: str,
+        prompt: Optional[str] = None,
+        error_code: Optional[str] = None,
+        is_recoverable: bool = True,
+    ):
+        context = {"prompt": prompt} if prompt is not None else None
+        super().__init__(
+            message,
+            service_name=ai_service,
+            error_code=error_code,
+            is_recoverable=is_recoverable,
+            context=context,
+        )
+        self.ai_service = ai_service
+        self.prompt = prompt
+
+
+class RedisConnectionError(ExternalServiceError):
+    """Exception raised when Redis connection fails."""
+
+    def __init__(self, message: str, operation: str, key: Optional[str] = None):
+        context = {"operation": operation}
+        if key is not None:
+            context["key"] = key
+        super().__init__(
+            message,
+            service_name="redis",
+            is_recoverable=True,
+            context=context,
+        )
+        self.operation = operation
+        self.key = key
+
+
+class ConcurrencyError(FlowException):
+    """Exception raised when concurrent flow operations conflict."""
+
+    def __init__(self, message: str, patient_id: Any, conflicting_operation: str):
+        super().__init__(
+            message,
+            patient_id=patient_id,
+            context={"conflicting_operation": conflicting_operation},
+        )
+        self.conflicting_operation = conflicting_operation
+
+
+class APITimeoutError(ExternalServiceError):
+    """Exception raised when an API call times out."""
+
+    def __init__(self, message: str = "API request timed out", service: Optional[str] = None):
+        super().__init__(message, service=service, status_code=408)
+
+
+class APIRateLimitError(ExternalServiceError):
+    """Exception raised when API rate limit is exceeded."""
+
+    def __init__(self, message: str = "API rate limit exceeded", service: Optional[str] = None):
+        super().__init__(message, service=service, status_code=429)
+
+
+class APIAuthenticationError(ExternalServiceError):
+    """Exception raised for API authentication failures."""
+
+    def __init__(self, message: str = "API authentication failed", service: Optional[str] = None):
+        super().__init__(message, service=service, status_code=401)
+
+
+class APIResponseError(ExternalServiceError):
+    """Exception raised for invalid API responses."""
+
+    def __init__(
+        self,
+        message: str = "Invalid API response",
+        service: Optional[str] = None,
+        status_code: Optional[int] = None,
+    ):
+        super().__init__(message, service=service, status_code=status_code)
 
 
 # =========================================================================
@@ -507,7 +830,7 @@ class AIProcessingError(ProcessingError):
     """
     AI service processing error.
 
-    Use for errors during AI operations (Gemini, OpenAI, etc.).
+    Use for errors during AI operations (Gemini, etc.).
 
     Example:
         raise AIProcessingError("Failed to generate response", {"prompt_length": 1000})
@@ -632,6 +955,10 @@ __all__ = [
     "AuthenticationError",
     "AuthorizationError",
     "ExternalServiceError",
+    "APITimeoutError",
+    "APIRateLimitError",
+    "APIAuthenticationError",
+    "APIResponseError",
     "DatabaseError",
     "ProcessingError",
     # Flow Exceptions
@@ -640,6 +967,13 @@ __all__ = [
     "FlowValidationError",
     "FlowStateConflictError",
     "FlowOperationError",
+    "MessageDeliveryError",
+    "FlowStateCorruptionError",
+    "FlowProcessingError",
+    "TemplateLoadError",
+    "AIServiceError",
+    "RedisConnectionError",
+    "ConcurrencyError",
     # Patient Exceptions
     "PatientNotFoundError",
     "PatientAccessDeniedError",

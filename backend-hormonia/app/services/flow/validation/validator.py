@@ -33,9 +33,11 @@ from ..types import (
     FlowValidationResult,
 )
 from ..config import get_flow_config
+from ..template_lookup import find_step_in_template
 from .integrity import FlowIntegrityChecker
 from .rules import ValidationRule
 from .constraints import get_default_rules
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,7 @@ class FlowValidator:
         >>> validator = FlowValidator()
         >>> result = await validator.validate_start(
         ...     patient_id=patient_id,
-        ...     flow_type=FlowType.DAILY_CHECKIN,
+        ...     flow_type=FlowType.DAILY_FOLLOW_UP,
         ...     template=template
         ... )
         >>> if not result.is_valid:
@@ -110,7 +112,7 @@ class FlowValidator:
         Example:
             >>> result = await validator.validate_start(
             ...     patient_id=uuid4(),
-            ...     flow_type=FlowType.DAILY_CHECKIN,
+            ...     flow_type=FlowType.DAILY_FOLLOW_UP,
             ...     template=template
             ... )
         """
@@ -408,7 +410,7 @@ class FlowValidator:
                 errors.append("Expires_at is before started_at")
 
             if context.status == FlowStatus.ACTIVE:
-                if datetime.now(timezone.utc) > context.expires_at:
+                if now_sao_paulo() > context.expires_at:
                     warnings.append("Flow has expired but is still active")
 
         # Validate steps history
@@ -620,11 +622,7 @@ class FlowValidator:
         self, template: Dict[str, Any], step_id: str
     ) -> Optional[Dict[str, Any]]:
         """Find step definition in template."""
-        steps = template.get("steps", [])
-        for step in steps:
-            if step.get("step_id") == step_id:
-                return step
-        return None
+        return find_step_in_template(template, step_id)
 
     async def _run_rules(
         self,

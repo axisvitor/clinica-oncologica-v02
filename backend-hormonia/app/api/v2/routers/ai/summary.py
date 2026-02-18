@@ -37,6 +37,7 @@ from app.schemas.v2.patient_summary import (
 )
 from app.services.ai.patient_summary_service import get_patient_summary_service
 from app.utils.rate_limiter import limiter
+from app.utils.auth_helpers import extract_user_context, ensure_uuid
 
 from .dependencies import verify_physician_or_admin
 
@@ -84,6 +85,10 @@ async def generate_patient_summary(
     Validates patient access before generating summary (HIPAA compliance).
     """
     try:
+        _, user_id = extract_user_context(current_user)
+        generated_by = ensure_uuid(user_id)
+        user_id_str = user_id or "unknown"
+
         # FIX: Validate patient access before generating summary (HIPAA compliance)
         await validate_patient_access(request.patient_id, current_user, patient_service)
 
@@ -91,12 +96,12 @@ async def generate_patient_summary(
 
         response = await service.generate_summary(
             request=request,
-            generated_by=current_user.id,
+            generated_by=generated_by,
         )
 
         logger.info(
             f"Summary generated for patient {request.patient_id} "
-            f"by user {current_user.id} - "
+            f"by user {user_id_str} - "
             f"{response.token_usage} tokens, {response.generation_time_ms}ms"
         )
 

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Brain,
@@ -16,10 +16,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { apiClient } from '../../lib/api-client'
 import { AIAnalyticsDashboard as AIAnalyticsData, AIInsight, AIRecommendation, PerformanceTrend, PatientEngagementMetrics } from '@/types/api'
+import type { AIInsights, AIRecommendations } from '@/lib/api-client/types'
 import { InsightType } from '@/types/api'
 import type { Priority } from '@/types/shared'
 import { FEATURES } from '../../config'
 import { createLogger } from '@/lib/logger'
+import { toAnalyticsDashboard } from '@/lib/ai-adapters'
 
 const logger = createLogger('AIAnalyticsDashboard')
 
@@ -27,25 +29,39 @@ interface AIAnalyticsDashboardProps {
   patientId?: string
   timeframe?: 'day' | 'week' | 'month' | 'quarter'
   className?: string
+  insights?: AIInsights
+  recommendations?: AIRecommendations
 }
 
 export function AIAnalyticsDashboard({
   patientId,
   timeframe = 'week',
-  className
+  className,
+  insights,
+  recommendations
 }: AIAnalyticsDashboardProps) {
+  const hasPatient = Boolean(patientId)
+  const insightsEnabled = FEATURES.AI_INSIGHTS
+  const analyticsEnabled = FEATURES.AI_ANALYTICS
+  const canUsePrefetched = hasPatient && Boolean(insights) && insightsEnabled
+  const shouldFetch = hasPatient && analyticsEnabled && insightsEnabled && !canUsePrefetched
 
   const { data: analyticsData, isLoading, error } = useQuery({
-    queryKey: ['ai-analytics', patientId || 'all', timeframe],
+    queryKey: ['ai-analytics', patientId, timeframe],
     queryFn: async () => {
-      if (!FEATURES.AI_CHAT) {
-        // Return mock data when AI is not configured
-        return getMockAnalyticsData()
+      if (!patientId) {
+        throw new Error('Missing patientId')
       }
       try {
-        const targetId = patientId || 'all'
-        const response = await apiClient.ai.insights(targetId, timeframe)
-        return response
+        const insightsPromise = apiClient.ai.insights(patientId, timeframe)
+        const recommendationsPromise = FEATURES.AI_RECOMMENDATIONS
+          ? apiClient.ai.recommendations(patientId)
+          : Promise.resolve(undefined)
+        const [insights, recommendations] = await Promise.all([
+          insightsPromise,
+          recommendationsPromise
+        ])
+        return toAnalyticsDashboard(insights, recommendations)
       } catch (error) {
         logger.error('Failed to fetch AI analytics:', error)
         throw error
@@ -55,10 +71,52 @@ export function AIAnalyticsDashboard({
     refetchInterval: 600000, // 10 minutes
     retry: 2,
     retryDelay: 1000,
-    enabled: !!patientId || patientId === undefined
+    enabled: shouldFetch
   })
 
-  if (isLoading) {
+  const resolvedData = useMemo(() => {
+    if (!hasPatient) {
+      return undefined
+    }
+    if (canUsePrefetched && insights) {
+      return toAnalyticsDashboard(insights, recommendations)
+    }
+    if (!analyticsEnabled) {
+      return getMockAnalyticsData()
+    }
+    return analyticsData
+  }, [analyticsData, analyticsEnabled, canUsePrefetched, hasPatient, insights, recommendations])
+
+  const isLoadingState = shouldFetch && isLoading
+  const errorState = shouldFetch ? error : null
+
+  if (!hasPatient) {
+    return (
+      <Card className={className}>
+        <CardContent className="pt-6">
+          <div className="text-center text-muted-foreground">
+            <AlertTriangle className="mx-auto h-8 w-8 mb-2" />
+            <p>Selecione um paciente para ver analytics de IA</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!insightsEnabled) {
+    return (
+      <Card className={className}>
+        <CardContent className="pt-6">
+          <div className="text-center text-muted-foreground">
+            <AlertTriangle className="mx-auto h-8 w-8 mb-2" />
+            <p>Análises automatizadas desativadas</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (isLoadingState) {
     return (
       <Card className={className}>
         <CardContent className="pt-6">
@@ -71,7 +129,7 @@ export function AIAnalyticsDashboard({
     )
   }
 
-  if (error) {
+  if (errorState) {
     return (
       <Card className={className}>
         <CardContent className="pt-6">
@@ -84,7 +142,20 @@ export function AIAnalyticsDashboard({
     )
   }
 
-  const data = analyticsData as AIAnalyticsData
+  if (!resolvedData) {
+    return (
+      <Card className={className}>
+        <CardContent className="pt-6">
+          <div className="text-center text-muted-foreground">
+            <AlertTriangle className="mx-auto h-8 w-8 mb-2" />
+            <p>Dados de analytics indisponíveis</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const data = resolvedData as AIAnalyticsData
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -161,7 +232,7 @@ export function AIAnalyticsDashboard({
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Lightbulb className="h-5 w-5" />
-                Insights de IA
+                Análises automatizadas
               </CardTitle>
               <CardDescription>
                 Padrões e anomalias detectados automaticamente
@@ -220,8 +291,11 @@ export function AIAnalyticsDashboard({
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {data.performance_trends.map((trend, index) => (
-                  <PerformanceTrendCard key={index} trend={trend} />
+                {data.performance_trends.map((trend) => (
+                  <PerformanceTrendCard
+                    key={`${trend.patient_id ?? 'patient'}-${trend.date}`}
+                    trend={trend}
+                  />
                 ))}
               </div>
             </CardContent>
@@ -370,7 +444,7 @@ function getMockAnalyticsData(): AIAnalyticsData {
         avg_response_time: 12,
         sentiment_trend: [],
         engagement_score: 88,
-        last_interaction: '2025-01-20T10:30:00Z',
+        last_interaction: '2025-01-20T10:30:00-03:00',
         total_interactions: 45
       },
       {
@@ -379,7 +453,7 @@ function getMockAnalyticsData(): AIAnalyticsData {
         avg_response_time: 18,
         sentiment_trend: [],
         engagement_score: 72,
-        last_interaction: '2025-01-20T09:15:00Z',
+        last_interaction: '2025-01-20T09:15:00-03:00',
         total_interactions: 32
       }
     ],
@@ -392,7 +466,7 @@ function getMockAnalyticsData(): AIAnalyticsData {
         confidence: 0.89,
         priority: 'medium' as Priority,
         metadata: {},
-        created_at: '2025-01-20T08:00:00Z',
+        created_at: '2025-01-20T08:00:00-03:00',
 
         patient_id: 'all'
       },
@@ -404,7 +478,7 @@ function getMockAnalyticsData(): AIAnalyticsData {
         confidence: 0.76,
         priority: 'high' as Priority,
         metadata: {},
-        created_at: '2025-01-19T16:00:00Z',
+        created_at: '2025-01-19T16:00:00-03:00',
 
         patient_id: 'all'
       }
@@ -427,8 +501,8 @@ function getMockAnalyticsData(): AIAnalyticsData {
             urgency: 'medium'
           }
         ],
-        created_at: '2025-01-20T08:00:00Z',
-        updated_at: '2025-01-20T08:00:00Z',
+        created_at: '2025-01-20T08:00:00-03:00',
+        updated_at: '2025-01-20T08:00:00-03:00',
         patient_id: 'all'
       }
     ],

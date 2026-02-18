@@ -35,6 +35,7 @@ import uuid
 from datetime import datetime
 
 
+from app.utils.timezone import now_sao_paulo_naive
 # revision identifiers, used by Alembic.
 revision = '018_seed_flow_templates'
 down_revision = '017_add_patient_soft_delete'
@@ -72,8 +73,8 @@ def upgrade() -> None:
                 'display_name': 'Initial 15 Days Onboarding',
                 'description': 'Standard patient onboarding flow for the first 15 days',
                 'is_active': True,
-                'created_at': datetime.utcnow(),
-                'updated_at': datetime.utcnow()
+                'created_at': now_sao_paulo_naive(),
+                'updated_at': now_sao_paulo_naive()
             }
         )
         flow_kind_id = str(ONBOARDING_FLOW_KIND_ID)
@@ -145,8 +146,8 @@ def upgrade() -> None:
                 'is_draft': False,
                 'steps': steps_json,
                 'metadata': metadata_json,
-                'created_at': datetime.utcnow(),
-                'updated_at': datetime.utcnow()
+                'created_at': now_sao_paulo_naive(),
+                'updated_at': now_sao_paulo_naive()
             }
         )
         print(f"✅ Created template version: Onboarding v1.0 (ID: {ONBOARDING_TEMPLATE_VERSION_ID})")
@@ -154,8 +155,6 @@ def upgrade() -> None:
         template_version_id = str(result[0])
         print(f"ℹ️  Template version already exists (ID: {template_version_id}), skipping...")
 
-    # Commit the transaction
-    conn.commit()
     print("✅ Flow template seeding complete!")
 
 
@@ -176,5 +175,4 @@ def downgrade() -> None:
         {'id': str(ONBOARDING_FLOW_KIND_ID)}
     )
 
-    conn.commit()
     print("✅ Flow template seeding rolled back!")

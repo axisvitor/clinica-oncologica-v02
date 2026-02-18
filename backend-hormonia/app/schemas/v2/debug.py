@@ -10,6 +10,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 from enum import Enum
+from app.utils.timezone import now_sao_paulo_naive
 
 
 # ============================================================================
@@ -69,7 +70,7 @@ class EnvironmentInfo(BaseModel):
     debug_mode: bool = Field(..., description="Debug mode status")
     python_version: str = Field(..., description="Python version")
     variables: List[EnvironmentVariable] = Field(default_factory=list)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -85,7 +86,7 @@ class EnvironmentInfo(BaseModel):
                         "is_masked": True,
                     }
                 ],
-                "timestamp": "2025-11-07T10:00:00Z",
+                "timestamp": "2025-11-07T10:00:00-03:00",
             }
         }
     )
@@ -118,7 +119,7 @@ class DatabaseDiagnostics(BaseModel):
         None, description="Query response time (ms)"
     )
     error: Optional[str] = Field(None, description="Error message if unhealthy")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -132,7 +133,7 @@ class DatabaseDiagnostics(BaseModel):
                     "checked_in": 7,
                 },
                 "response_time_ms": 2.5,
-                "timestamp": "2025-11-07T10:00:00Z",
+                "timestamp": "2025-11-07T10:00:00-03:00",
             }
         }
     )
@@ -253,8 +254,8 @@ class TokenDebugInfo(BaseModel):
                     {"claim": "user_id", "value": "123e4567", "is_masked": False},
                     {"claim": "role", "value": "admin", "is_masked": False},
                 ],
-                "issued_at": "2025-11-07T10:00:00Z",
-                "expires_at": "2025-11-08T10:00:00Z",
+                "issued_at": "2025-11-07T10:00:00-03:00",
+                "expires_at": "2025-11-08T10:00:00-03:00",
             }
         }
     )
@@ -378,7 +379,7 @@ class AuthSimulationResult(BaseModel):
                 "success": True,
                 "session_id": "debug_sess_abc123",
                 "token": "debug_***...***",
-                "expires_at": "2025-11-07T10:05:00Z",
+                "expires_at": "2025-11-07T10:05:00-03:00",
                 "user_info": {
                     "id": "123e4567",
                     "email": "admin@test.com",
@@ -400,7 +401,7 @@ class DebugSession(BaseModel):
     session_id: str = Field(..., description="Debug session ID")
     admin_user_id: str = Field(..., description="Admin user who started session")
     admin_email: str = Field(..., description="Admin email")
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: datetime = Field(default_factory=now_sao_paulo_naive)
     expires_at: datetime = Field(..., description="Session expiration (max 1 hour)")
     operations_count: int = Field(0, description="Number of debug operations")
 
@@ -410,8 +411,8 @@ class DebugSession(BaseModel):
                 "session_id": "debug_sess_abc123",
                 "admin_user_id": "admin_123",
                 "admin_email": "admin@test.com",
-                "started_at": "2025-11-07T10:00:00Z",
-                "expires_at": "2025-11-07T11:00:00Z",
+                "started_at": "2025-11-07T10:00:00-03:00",
+                "expires_at": "2025-11-07T11:00:00-03:00",
                 "operations_count": 5,
             }
         }
@@ -422,7 +423,7 @@ class DebugAuditLog(BaseModel):
     """Audit log for debug operations"""
 
     id: str = Field(..., description="Audit log ID")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=now_sao_paulo_naive)
     admin_user_id: str = Field(..., description="Admin user ID")
     admin_email: str = Field(..., description="Admin email")
     endpoint: str = Field(..., description="Debug endpoint called")
@@ -436,7 +437,7 @@ class DebugAuditLog(BaseModel):
         json_schema_extra={
             "example": {
                 "id": "audit_123",
-                "timestamp": "2025-11-07T10:00:00Z",
+                "timestamp": "2025-11-07T10:00:00-03:00",
                 "admin_user_id": "admin_123",
                 "admin_email": "admin@test.com",
                 "endpoint": "/api/v2/debug/database",
@@ -460,7 +461,7 @@ class DebugResponse(BaseModel):
     success: bool = Field(..., description="Whether operation succeeded")
     data: Any = Field(..., description="Debug data")
     audit_logged: bool = Field(True, description="Whether operation was audit logged")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=now_sao_paulo_naive)
     warning: Optional[str] = Field(None, description="Security warning if applicable")
 
     model_config = ConfigDict(
@@ -469,7 +470,7 @@ class DebugResponse(BaseModel):
                 "success": True,
                 "data": {"status": "healthy"},
                 "audit_logged": True,
-                "timestamp": "2025-11-07T10:00:00Z",
+                "timestamp": "2025-11-07T10:00:00-03:00",
                 "warning": "Debug mode enabled - disable in production",
             }
         }

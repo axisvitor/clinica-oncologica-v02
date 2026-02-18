@@ -225,7 +225,7 @@ await hive_mind.memory.store(
         "rationale": "See ADR-0006",
         "implemented_by": "backend-dev-agent",
         "reviewed_by": "code-reviewer-agent",
-        "timestamp": "2024-01-22T10:30:00Z"
+        "timestamp": "2024-01-22T10:30:00-03:00"
     },
     namespace="architecture",
     ttl=None  # Persistent

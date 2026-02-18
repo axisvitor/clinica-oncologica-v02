@@ -1,9 +1,0 @@
-rateLimits:
-  maxDispatchesPerSecond: 5
-  maxConcurrentDispatches: 10
-retryConfig:
-  maxAttempts: 1
-  maxRetryDuration: 0s
-  minBackoff: 10s
-  maxBackoff: 300s
-  maxDoublings: 0

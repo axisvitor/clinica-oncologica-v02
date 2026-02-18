@@ -9,8 +9,11 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 from uuid import UUID
 
-from app.services.ai import get_ai_service, PatientContext
-from app.integrations.openai_client import get_langchain_orchestrator
+from app.ai.models import PatientContext, ConcernLevel as ModelConcernLevel
+from app.ai.langgraph.graphs import get_sentiment_graph
+from app.ai.client import get_gemini_client
+from app.services.ai.ai_service import get_sentiment_analyzer
+from app.services.ai.guardrails import OutputKind
 from app.models.flow import PatientFlowState
 from app.repositories.patient import PatientRepository
 from app.repositories.flow import FlowStateRepository
@@ -26,6 +29,7 @@ from .models import (
 from .entity_extractor import EntityExtractor
 from .concern_detector import ConcernDetector
 from .preference_extractor import PreferenceExtractor
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -48,17 +52,18 @@ class DataExtractionService:
         self.patient_repo = PatientRepository(db)
         self.flow_state_repo = FlowStateRepository(db)
         self.message_repo = MessageRepository(db)
-        self.sentiment_analyzer = (
-            get_ai_service()
-        )  # Returns coroutine, will be awaited when used
-        self.langchain_orchestrator = get_langchain_orchestrator()
+        self.sentiment_graph = (
+            get_sentiment_graph()
+        )
+        self.gemini_client = get_gemini_client()
+        self.sentiment_analyzer = None
 
-        # Initialize specialized extractors
-        self.entity_extractor = EntityExtractor(self.langchain_orchestrator)
-        self.concern_detector = ConcernDetector(self.langchain_orchestrator)
-        self.preference_extractor = PreferenceExtractor(self.langchain_orchestrator)
+        # Initialize specialized extractors with GeminiClient
+        self.entity_extractor = EntityExtractor(self.gemini_client)
+        self.concern_detector = ConcernDetector(self.gemini_client)
+        self.preference_extractor = PreferenceExtractor(self.gemini_client)
 
-        logger.info("Data Extraction Service initialized")
+        logger.info("Data Extraction Service initialized with GeminiClient")
 
     async def extract_structured_data(
         self,
@@ -117,6 +122,8 @@ class DataExtractionService:
             processing_notes.append(f"Extracted {len(patient_preferences)} preferences")
 
             # Perform sentiment analysis
+            if self.sentiment_analyzer is None:
+                self.sentiment_analyzer = await get_sentiment_analyzer()
             (
                 sentiment_response,
                 concern_level,
@@ -135,7 +142,7 @@ class DataExtractionService:
 
             # Calculate overall confidence score
             confidence_score = self._calculate_confidence_score(
-                extracted_entities, medical_concerns, sentiment_response.confidence
+                extracted_entities, medical_concerns, sentiment_analysis.get("confidence", 0.0)
             )
 
             return StructuredExtractionResult(
@@ -176,22 +183,16 @@ class DataExtractionService:
                 for msg in recent_messages
             ]
 
-            # Build context - context_builder is AIService instance
-            ai_service = await get_ai_service()
-            return await ai_service.build_patient_context(  # type: ignore[attr-defined]
+            # Build context
+            return PatientContext(
                 patient_id=str(patient_id),
-                patient_data={
-                    "name": patient.name,
-                    "treatment_type": getattr(patient, "treatment_type", "general"),
-                    "current_day": flow_context.current_step if flow_context else 1,
-                    "treatment_start_date": flow_context.started_at.isoformat()
-                    if flow_context
-                    else None,
-                    "age": getattr(patient, "age", None),
-                    "preferences": getattr(patient, "preferences", {}),
-                },
-                recent_messages=recent_message_data,
-                medical_data=getattr(patient, "medical_history", {}),
+                name=patient.name,
+                treatment_type=getattr(patient, "treatment_type", "general"),
+                treatment_day=flow_context.current_step if flow_context else 1,
+                age=getattr(patient, "age", None),
+                recent_responses=[m["content"] for m in recent_message_data if m["direction"] == "inbound"],
+                medical_history=getattr(patient, "medical_history", {}),
+                preferences=getattr(patient, "preferences", {}),
             )
 
         except Exception as e:
@@ -224,8 +225,11 @@ class DataExtractionService:
             """
 
             try:
-                ai_category = await self.langchain_orchestrator.generate_text(
-                    categorization_prompt
+                ai_category = await self.gemini_client.generate_content(
+                    categorization_prompt,
+                    output_kind=OutputKind.MESSAGE,
+                    min_length=3,
+                    max_length=64,
                 )
                 ai_category = ai_category.strip().lower()
 
@@ -347,6 +351,7 @@ class DataExtractionService:
         Returns:
             Accuracy metrics
         """
+        _ = ground_truth_data
         try:
             metrics = {
                 "total_extractions": len(extraction_results),
@@ -401,14 +406,14 @@ class DataExtractionService:
         try:
             health_status = {
                 "service": "DataExtractionService",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "healthy": True,
                 "components": {},
             }
 
             # Check AI services
             try:
-                test_response = await self.langchain_orchestrator.generate_text(
+                test_response = await self.gemini_client.generate_content(
                     "Test message"
                 )
                 health_status["components"]["ai_service"] = {  # type: ignore[index]
@@ -431,13 +436,22 @@ class DataExtractionService:
                     treatment_type="test",
                     treatment_day=1,
                 )
-                ai_service = await get_ai_service()
-                sentiment_result, _ = await ai_service.analyze_sentiment(  # type: ignore[attr-defined]
-                    "Test message", test_context
+                initial_state = {
+                    "input_text": "Test message",
+                    "context": test_context.to_dict(),
+                }
+                sentiment_thread_id = (
+                    f"sentiment:health_check:patient:{test_context.patient_id}:"
+                    f"day:{test_context.treatment_day}"
                 )
+                sentiment_result = await self.sentiment_graph.ainvoke(
+                    initial_state,
+                    config={"configurable": {"thread_id": sentiment_thread_id}},
+                )
+                sentiment_data = sentiment_result.get("output", {})
                 health_status["components"]["sentiment_analyzer"] = {  # type: ignore[index]
                     "healthy": True,
-                    "sentiment_detected": bool(sentiment_result.sentiment),
+                    "sentiment_detected": bool(sentiment_data.get("sentiment")),
                 }
             except Exception as e:
                 health_status["components"]["sentiment_analyzer"] = {  # type: ignore[index]
@@ -463,7 +477,7 @@ class DataExtractionService:
             logger.error(f"Health check failed: {e}")
             return {
                 "service": "DataExtractionService",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "healthy": False,
                 "error": str(e),
             }

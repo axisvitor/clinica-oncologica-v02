@@ -15,6 +15,7 @@ from sqlalchemy import text
 from app.schemas.v2.system import ComponentHealth
 from app.config import settings
 from .auth import _get_redis_client
+from app.utils.timezone import now_sao_paulo
 
 
 async def _check_component_health(component_name: str, db: Any) -> ComponentHealth:
@@ -49,7 +50,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                 name="database",
                 status="healthy",
                 latency_ms=latency_ms,
-                last_check=datetime.now(timezone.utc),
+                last_check=now_sao_paulo(),
                 metadata={"type": "postgresql"},
             )
 
@@ -63,7 +64,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                     name="redis",
                     status="healthy",
                     latency_ms=latency_ms,
-                    last_check=datetime.now(timezone.utc),
+                    last_check=now_sao_paulo(),
                     metadata={"type": "cache"},
                 )
             else:
@@ -71,7 +72,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                     name="redis",
                     status="unhealthy",
                     error="Redis client unavailable",
-                    last_check=datetime.now(timezone.utc),
+                    last_check=now_sao_paulo(),
                 )
 
         elif component_name == "firebase":
@@ -89,7 +90,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                         name="firebase",
                         status="healthy",
                         latency_ms=latency_ms,
-                        last_check=datetime.now(timezone.utc),
+                        last_check=now_sao_paulo(),
                         metadata={
                             "configured": True,
                             "project_id": settings.FIREBASE_ADMIN_PROJECT_ID,
@@ -99,7 +100,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                     return ComponentHealth(
                         name="firebase",
                         status="degraded",
-                        last_check=datetime.now(timezone.utc),
+                        last_check=now_sao_paulo(),
                         metadata={"configured": False, "reason": "not_initialized"},
                     )
             except (ValueError, ImportError):
@@ -107,7 +108,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                 return ComponentHealth(
                     name="firebase",
                     status="unknown",
-                    last_check=datetime.now(timezone.utc),
+                    last_check=now_sao_paulo(),
                     metadata={
                         "configured": bool(settings.FIREBASE_ADMIN_PROJECT_ID),
                         "reason": "sdk_not_initialized",
@@ -119,7 +120,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
             return ComponentHealth(
                 name="external_apis",
                 status="unknown",
-                last_check=datetime.now(timezone.utc),
+                last_check=now_sao_paulo(),
                 metadata={"evolution_enabled": settings.WHATSAPP_ENABLE_SERVICE},
             )
 
@@ -128,7 +129,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                 name=component_name,
                 status="unknown",
                 error="Unknown component",
-                last_check=datetime.now(timezone.utc),
+                last_check=now_sao_paulo(),
             )
 
     except Exception as e:
@@ -138,7 +139,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
             status="unhealthy",
             latency_ms=latency_ms,
             error=str(e),
-            last_check=datetime.now(timezone.utc),
+            last_check=now_sao_paulo(),
         )
 
 

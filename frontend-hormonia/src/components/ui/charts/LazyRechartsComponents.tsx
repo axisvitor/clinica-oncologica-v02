@@ -19,7 +19,6 @@
  */
 
 import React, { lazy, Suspense, ComponentProps } from 'react';
-import * as RechartsTypes from 'recharts';
 
 // ============================================================================
 // TYPE DEFINITIONS (Using ComponentProps pattern)
@@ -29,17 +28,17 @@ import * as RechartsTypes from 'recharts';
  * Extract component types using ComponentProps instead of direct imports
  * This avoids the "Module has no exported member" TypeScript errors
  */
-type LineChartProps = ComponentProps<typeof RechartsTypes.LineChart>;
-type AreaChartProps = ComponentProps<typeof RechartsTypes.AreaChart>;
-type BarChartProps = ComponentProps<typeof RechartsTypes.BarChart>;
-type PieChartProps = ComponentProps<typeof RechartsTypes.PieChart>;
-type RadarChartProps = ComponentProps<typeof RechartsTypes.RadarChart>;
-type RadialBarChartProps = ComponentProps<typeof RechartsTypes.RadialBarChart>;
-type ScatterChartProps = ComponentProps<typeof RechartsTypes.ScatterChart>;
-type ComposedChartProps = ComponentProps<typeof RechartsTypes.ComposedChart>;
-type FunnelChartProps = ComponentProps<typeof RechartsTypes.FunnelChart>;
-type TreemapProps = ComponentProps<typeof RechartsTypes.Treemap>;
-type SankeyProps = ComponentProps<typeof RechartsTypes.Sankey>;
+type LineChartProps = ComponentProps<typeof import('recharts').LineChart>;
+type AreaChartProps = ComponentProps<typeof import('recharts').AreaChart>;
+type BarChartProps = ComponentProps<typeof import('recharts').BarChart>;
+type PieChartProps = ComponentProps<typeof import('recharts').PieChart>;
+type RadarChartProps = ComponentProps<typeof import('recharts').RadarChart>;
+type RadialBarChartProps = ComponentProps<typeof import('recharts').RadialBarChart>;
+type ScatterChartProps = ComponentProps<typeof import('recharts').ScatterChart>;
+type ComposedChartProps = ComponentProps<typeof import('recharts').ComposedChart>;
+type FunnelChartProps = ComponentProps<typeof import('recharts').FunnelChart>;
+type TreemapProps = ComponentProps<typeof import('recharts').Treemap>;
+type SankeyProps = ComponentProps<typeof import('recharts').Sankey>;
 
 // ============================================================================
 // TYPE-SAFE LAZY WRAPPER
@@ -131,65 +130,6 @@ export const Treemap = createLazyChart<TreemapProps>('Treemap');
 export const Sankey = createLazyChart<SankeyProps>('Sankey');
 
 // ============================================================================
-// DIRECT EXPORTS (Lightweight Components - No Lazy Loading Needed)
-// ============================================================================
-
-/**
- * These components are small and frequently used with charts,
- * so we import them directly to avoid additional lazy loading overhead.
- */
-export {
-  // Axes and Grid
-  XAxis,
-  YAxis,
-  ZAxis,
-  CartesianGrid,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-
-  // Interactive Components
-  Tooltip,
-  Legend,
-
-  // Container
-  ResponsiveContainer,
-
-  // Chart sub-components
-  Line,
-  Area,
-  Bar,
-  Cell,
-  Pie,
-  Radar,
-  RadialBar,
-  Scatter,
-  Funnel,
-
-  // Reference Components
-  ReferenceLine,
-  ReferenceArea,
-  ReferenceDot,
-  Brush,
-
-  // Labels
-  Label,
-  LabelList,
-  Customized,
-
-  // Shapes
-  Rectangle,
-  Sector,
-  Curve,
-  Cross,
-  Dot,
-  Polygon,
-
-  // Re-export types for convenience
-  type TooltipProps,
-} from 'recharts';
-
-// ============================================================================
 // LOADING SKELETON AND SUSPENSE WRAPPER
 // ============================================================================
 
@@ -243,9 +183,8 @@ export const LazyChartWrapper: React.FC<{
  * 1. BASIC USAGE (with lazy loading):
  *
  * ```tsx
- * import {
- *   LineChart, Line, XAxis, YAxis, LazyChartWrapper
- * } from '@/components/ui/charts/LazyRechartsComponents';
+ * import { LineChart, LazyChartWrapper } from '@/components/ui/charts/LazyRechartsComponents';
+ * import { Line, XAxis, YAxis } from '@/components/ui/charts/RechartsPrimitives';
  *
  * function MyChart() {
  *   return (

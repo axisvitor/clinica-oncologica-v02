@@ -2,13 +2,14 @@
 import pytest
 import sqlite3
 import uuid
-from datetime import timezone, timedelta
+from datetime import timedelta
 from uuid import uuid4
 from datetime import datetime
 
 from app.models.quiz import QuizTemplate, QuizSession
 from app.domain.quizzes.session import TokenManager
 
+from app.utils.timezone import now_sao_paulo
 sqlite3.register_adapter(uuid.UUID, lambda value: str(value))
 
 @pytest.fixture(autouse=True)
@@ -54,14 +55,14 @@ def test_access_quiz_compatibility(client, db_session, mock_quiz):
     token = token_manager.generate_token(
         patient_id=patient_id,
         quiz_template_id=mock_quiz.id,
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        expires_at=now_sao_paulo() + timedelta(hours=1),
         session_id=session_id,
         token_type="quiz_access",
     )
 
-    # Call /access endpoint
+    # Call canonical /access endpoint
     response = client.post(
-        "/api/v2/monthly-quiz-public/access",
+        "/api/v2/quiz-extensions/access",
         json={"token": token}
     )
     
@@ -82,6 +83,75 @@ def test_access_quiz_compatibility(client, db_session, mock_quiz):
     assert "quiz_session_id" in response.cookies
     assert response.cookies["quiz_session_id"] == data["id"]
 
+
+def test_access_quiz_canonical_quiz_extensions_path(client, db_session, mock_quiz):
+    patient_id = uuid.UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
+    session = QuizSession(
+        id=uuid4(),
+        quiz_template_id=mock_quiz.id,
+        patient_id=patient_id,
+        status="started",
+        started_at=datetime.now(),
+    )
+    db_session.add(session)
+    db_session.flush()
+    session_id = session.id
+    db_session.commit()
+
+    token_manager = TokenManager()
+    token = token_manager.generate_token(
+        patient_id=patient_id,
+        quiz_template_id=mock_quiz.id,
+        expires_at=now_sao_paulo() + timedelta(hours=1),
+        session_id=session_id,
+        token_type="quiz_access",
+    )
+
+    response = client.post(
+        "/api/v2/quiz-extensions/access",
+        json={"token": token}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["template_id"] == str(mock_quiz.id)
+    assert data["quiz_session_id"] == data["id"]
+
+
+def test_monthly_quiz_alias_removed(client, db_session, mock_quiz):
+    patient_id = uuid.UUID("dddddddd-dddd-dddd-dddd-dddddddddddd")
+    session = QuizSession(
+        id=uuid4(),
+        quiz_template_id=mock_quiz.id,
+        patient_id=patient_id,
+        status="started",
+        started_at=datetime.now(),
+    )
+    db_session.add(session)
+    db_session.flush()
+    session_id = session.id
+    db_session.commit()
+
+    token_manager = TokenManager()
+    token = token_manager.generate_token(
+        patient_id=patient_id,
+        quiz_template_id=mock_quiz.id,
+        expires_at=now_sao_paulo() + timedelta(hours=1),
+        session_id=session_id,
+        token_type="quiz_access",
+    )
+
+    response = client.post(
+        "/api/v2/monthly-quiz-public/access",
+        json={"token": token}
+    )
+    assert response.status_code == 404
+
+    client.cookies.set("quiz_session_id", str(session_id))
+    session_response = client.get("/api/v2/monthly-quiz-public/session/active")
+    assert session_response.status_code == 404
+
+
 def test_recover_session_compatibility(client, db_session, mock_quiz):
     patient_id = uuid.UUID("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
     # Create session manually
@@ -99,7 +169,7 @@ def test_recover_session_compatibility(client, db_session, mock_quiz):
 
     # Call /session/active endpoint with cookie
     client.cookies.set("quiz_session_id", str(session_id))
-    response = client.get("/api/v2/monthly-quiz-public/session/active")
+    response = client.get("/api/v2/quiz-extensions/session/active")
 
     assert response.status_code == 200
     data = response.json()

@@ -379,15 +379,12 @@ LIMIT 10;
 
 #### Application-Level Monitoring
 
-Query logging middleware in `/backend-hormonia/app/core/query_logging.py`:
+`app/core/query_logging.py` was removed in tombstone cleanup (2026-02-10).
+Use the current monitoring stack instead:
 
-```python
-from app.core.query_logging import QueryPerformanceMonitor
-
-# Automatically logs slow queries
-# Exports metrics to Prometheus
-# Alerts on N+1 queries
-```
+- PostgreSQL `pg_stat_statements` for query timing and frequency
+- Service-level instrumentation in `app/services/query_performance_monitor.py`
+- Application metrics endpoints under `app/api/v2/routers/health/`
 
 ### Index Usage Monitoring
 

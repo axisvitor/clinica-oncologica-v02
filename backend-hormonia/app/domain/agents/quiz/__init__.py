@@ -18,7 +18,6 @@ the monolithic quiz_conductor.py with 6 focused modules:
 
 Public API:
     QuizConductor - Main quiz conductor agent
-    QuizConductorAgent - Alias for backward compatibility
     SessionCoordinator - Session management
     QuestionPresenter - Question delivery
     ResponseHandler - Response processing
@@ -28,23 +27,25 @@ Public API:
     QuizAdaptationType - Adaptation type enum
 """
 
-from .conductor import QuizConductor, QuizConductorAgent
-from .session_coordinator import SessionCoordinator, QuizContext
+from .conductor import QuizConductor
+from .session_coordinator import SessionCoordinator
+from .types import QuizContext
 from .question_presenter import QuestionPresenter
 from .response_handler import ResponseHandler
 from .progress_tracker import ProgressTracker
 from .notification_manager import NotificationManager, QuizAdaptationType
+from .message_service import QuizMessageService
 
 __all__ = [
     # Main conductor
     "QuizConductor",
-    "QuizConductorAgent",  # Backward compatibility alias
     # Specialized modules
     "SessionCoordinator",
     "QuestionPresenter",
     "ResponseHandler",
     "ProgressTracker",
     "NotificationManager",
+    "QuizMessageService",
     # Context and types
     "QuizContext",
     "QuizAdaptationType",

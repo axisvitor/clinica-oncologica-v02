@@ -5,6 +5,7 @@ from uuid import uuid4
 from app.services.webhook_service import WebhookService
 from app.models.webhook import WebhookEndpoint, WebhookDelivery
 from app.schemas.v2.webhooks import WebhookCreate, WebhookTestRequest
+from app.utils.timezone import now_sao_paulo
 
 @pytest.fixture
 def mock_db():
@@ -25,7 +26,17 @@ async def test_create_webhook(service, mock_db):
     # Mock DB add/commit/refresh
     mock_db.add = MagicMock()
     mock_db.commit = MagicMock()
-    mock_db.refresh = MagicMock()
+    def _refresh_defaults(webhook_obj):
+        if getattr(webhook_obj, "created_at", None) is None:
+            webhook_obj.created_at = now_sao_paulo()
+        if getattr(webhook_obj, "updated_at", None) is None:
+            webhook_obj.updated_at = webhook_obj.created_at
+        if getattr(webhook_obj, "success_count", None) is None:
+            webhook_obj.success_count = 0
+        if getattr(webhook_obj, "failure_count", None) is None:
+            webhook_obj.failure_count = 0
+
+    mock_db.refresh = MagicMock(side_effect=_refresh_defaults)
     
     # Mock Redis
     with patch.object(service, '_get_redis', return_value=AsyncMock()) as mock_redis:
@@ -44,7 +55,9 @@ async def test_test_webhook(service, mock_db):
         url="https://example.com/webhook",
         status="active",
         timeout=30,
-        headers={}
+        headers={},
+        success_count=0,
+        failure_count=0,
     )
     
     # Mock DB query
@@ -79,7 +92,9 @@ async def test_retry_webhook_delivery(service, mock_db):
         id=webhook_id,
         url="https://example.com/webhook",
         max_retries=3,
-        timeout=30
+        timeout=30,
+        success_count=0,
+        failure_count=0,
     )
     
     original_delivery = WebhookDelivery(

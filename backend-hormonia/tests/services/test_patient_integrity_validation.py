@@ -10,13 +10,14 @@ File: tests/services/test_patient_integrity_validation.py
 import pytest
 from datetime import date, timedelta
 from uuid import uuid4
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, patch
 
 from app.services.patient.integrity_service import PatientIntegrityService
 from app.schemas.patient import PatientCreate, PatientUpdate
 from app.exceptions import ValidationError
 from app.models.patient import Patient
 from app.models.user import User, UserRole
+from app.utils.db_retry import reset_circuit_breaker
 
 
 @pytest.fixture
@@ -34,6 +35,7 @@ def mock_repository():
 @pytest.fixture
 def integrity_service(mock_db, mock_repository):
     """Create PatientIntegrityService instance."""
+    reset_circuit_breaker()
     return PatientIntegrityService(mock_db, mock_repository)
 
 
@@ -49,7 +51,7 @@ def valid_patient_data():
         treatment_type="Quimioterapia",
         treatment_start_date=date.today(),
         diagnosis="Câncer de mama",
-        treatment_phase="Tratamento inicial"
+        treatment_phase="inicial"
     )
 
 
@@ -74,20 +76,20 @@ class TestCPFValidation:
         patient_data.cpf = "123.456.789-01"
 
         normalized = integrity_service._normalize_cpf(patient_data.cpf)
-        assert normalized == "12345678909"
+        assert normalized == "12345678901"
 
     @pytest.mark.asyncio
     async def test_cpf_length_validation(self, integrity_service, valid_patient_data, mock_doctor):
         """Test CPF must have exactly 11 digits."""
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
                     # Test CPF with less than 11 digits
                     patient_data = valid_patient_data.copy()
                     patient_data.cpf = "123456789"  # 9 digits
 
                     with pytest.raises(ValidationError) as exc_info:
-                        await integrity_service.validate_patient_data(
+                        integrity_service.validate_patient_data(
                             patient_data=patient_data,
                             doctor_id=mock_doctor.id,
                             is_update=False
@@ -101,11 +103,11 @@ class TestCPFValidation:
         existing_patient = Mock(spec=Patient)
         existing_patient.name = "Existing Patient"
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=existing_patient):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=existing_patient):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
                     with pytest.raises(ValidationError) as exc_info:
-                        await integrity_service.validate_patient_data(
+                        integrity_service.validate_patient_data(
                             patient_data=valid_patient_data,
                             doctor_id=mock_doctor.id,
                             is_update=False
@@ -120,21 +122,21 @@ class TestPhoneValidation:
     @pytest.mark.asyncio
     async def test_phone_e164_formatting(self, integrity_service, valid_patient_data, mock_doctor):
         """Test phone is formatted to E.164."""
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
-                    with patch('app.services.patient.integrity_service.validate_and_format_phone', return_value=(True, "+5511987654321", None)):
-                        mock_doctor_obj = Mock(spec=User)
-                        mock_doctor_obj.id = mock_doctor.id
-                        integrity_service.db.query.return_value.filter.return_value.first.return_value = mock_doctor_obj
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
+                    mock_doctor_obj = Mock(spec=User)
+                    mock_doctor_obj.id = mock_doctor.id
+                    mock_doctor_obj.role = UserRole.DOCTOR
+                    integrity_service.db.query.return_value.filter.return_value.first.return_value = mock_doctor_obj
 
-                        validated = await integrity_service.validate_patient_data(
-                            patient_data=valid_patient_data,
-                            doctor_id=mock_doctor.id,
-                            is_update=False
-                        )
+                    validated = integrity_service.validate_patient_data(
+                        patient_data=valid_patient_data,
+                        doctor_id=mock_doctor.id,
+                        is_update=False
+                    )
 
-                        assert validated['phone'] == "+5511987654321"
+                    assert validated['phone'] == "+5511987654321"
 
     @pytest.mark.asyncio
     async def test_phone_duplicate_detection(self, integrity_service, valid_patient_data, mock_doctor):
@@ -142,11 +144,11 @@ class TestPhoneValidation:
         existing_patient = Mock(spec=Patient)
         existing_patient.name = "Existing Patient"
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=existing_patient):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=existing_patient):
                     with pytest.raises(ValidationError) as exc_info:
-                        await integrity_service.validate_patient_data(
+                        integrity_service.validate_patient_data(
                             patient_data=valid_patient_data,
                             doctor_id=mock_doctor.id,
                             is_update=False
@@ -164,10 +166,10 @@ class TestEmailValidation:
         patient_data = valid_patient_data.copy()
         patient_data.email = "invalid-email"
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
                 with pytest.raises(ValidationError) as exc_info:
-                    await integrity_service.validate_patient_data(
+                    integrity_service.validate_patient_data(
                         patient_data=patient_data,
                         doctor_id=mock_doctor.id,
                         is_update=False
@@ -181,11 +183,11 @@ class TestEmailValidation:
         existing_patient = Mock(spec=Patient)
         existing_patient.name = "Existing Patient"
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=existing_patient):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=existing_patient):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
                     with pytest.raises(ValidationError) as exc_info:
-                        await integrity_service.validate_patient_data(
+                        integrity_service.validate_patient_data(
                             patient_data=valid_patient_data,
                             doctor_id=mock_doctor.id,
                             is_update=False
@@ -205,11 +207,11 @@ class TestDoctorValidation:
         # Mock query to return None (doctor not found)
         integrity_service.db.query.return_value.filter.return_value.first.return_value = None
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
                     with pytest.raises(ValidationError) as exc_info:
-                        await integrity_service.validate_patient_data(
+                        integrity_service.validate_patient_data(
                             patient_data=valid_patient_data,
                             doctor_id=fake_doctor_id,
                             is_update=False
@@ -227,11 +229,11 @@ class TestTreatmentDateValidation:
         patient_data = valid_patient_data.copy()
         patient_data.treatment_start_date = date.today() + timedelta(days=60)  # 60 days in future
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
                     with pytest.raises(ValidationError) as exc_info:
-                        await integrity_service.validate_patient_data(
+                        integrity_service.validate_patient_data(
                             patient_data=patient_data,
                             doctor_id=mock_doctor.id,
                             is_update=False
@@ -249,11 +251,11 @@ class TestBirthDateValidation:
         patient_data = valid_patient_data.copy()
         patient_data.birth_date = date.today() + timedelta(days=1)
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
                     with pytest.raises(ValidationError) as exc_info:
-                        await integrity_service.validate_patient_data(
+                        integrity_service.validate_patient_data(
                             patient_data=patient_data,
                             doctor_id=mock_doctor.id,
                             is_update=False
@@ -271,11 +273,11 @@ class TestNameValidation:
         patient_data = valid_patient_data.copy()
         patient_data.name = "A"
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
                     with pytest.raises(ValidationError) as exc_info:
-                        await integrity_service.validate_patient_data(
+                        integrity_service.validate_patient_data(
                             patient_data=patient_data,
                             doctor_id=mock_doctor.id,
                             is_update=False
@@ -289,11 +291,11 @@ class TestNameValidation:
         patient_data = valid_patient_data.copy()
         patient_data.name = "A" * 201
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
                     with pytest.raises(ValidationError) as exc_info:
-                        await integrity_service.validate_patient_data(
+                        integrity_service.validate_patient_data(
                             patient_data=patient_data,
                             doctor_id=mock_doctor.id,
                             is_update=False
@@ -314,13 +316,13 @@ class TestUpdateValidation:
             email="new@example.com"
         )
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock) as mock_cpf:
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock) as mock_email:
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock) as mock_cpf:
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock) as mock_email:
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock):
                     mock_cpf.return_value = None
                     mock_email.return_value = None
 
-                    await integrity_service.validate_patient_data(
+                    integrity_service.validate_patient_data(
                         patient_data=update_data,
                         doctor_id=mock_doctor.id,
                         patient_id=patient_id,
@@ -329,7 +331,7 @@ class TestUpdateValidation:
 
                     # Verify exclude_patient_id was passed
                     mock_cpf.assert_called_once()
-                    assert mock_cpf.call_args[1]['exclude_patient_id'] == patient_id
+                    assert mock_cpf.call_args.args[2] == patient_id
 
 
 class TestFieldLengthValidation:
@@ -341,11 +343,11 @@ class TestFieldLengthValidation:
         patient_data = valid_patient_data.copy()
         patient_data.diagnosis = "A" * 501
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
                     with pytest.raises(ValidationError) as exc_info:
-                        await integrity_service.validate_patient_data(
+                        integrity_service.validate_patient_data(
                             patient_data=patient_data,
                             doctor_id=mock_doctor.id,
                             is_update=False
@@ -359,11 +361,11 @@ class TestFieldLengthValidation:
         patient_data = valid_patient_data.copy()
         patient_data.treatment_phase = "A" * 101
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
                     with pytest.raises(ValidationError) as exc_info:
-                        await integrity_service.validate_patient_data(
+                        integrity_service.validate_patient_data(
                             patient_data=patient_data,
                             doctor_id=mock_doctor.id,
                             is_update=False
@@ -380,21 +382,21 @@ class TestSuccessfulValidation:
         """Test valid patient data passes all validations."""
         mock_doctor_obj = Mock(spec=User)
         mock_doctor_obj.id = mock_doctor.id
+        mock_doctor_obj.role = UserRole.DOCTOR
         integrity_service.db.query.return_value.filter.return_value.first.return_value = mock_doctor_obj
 
-        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=AsyncMock, return_value=None):
-            with patch.object(integrity_service, '_check_duplicate_email', new_callable=AsyncMock, return_value=None):
-                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=AsyncMock, return_value=None):
-                    with patch('app.services.patient.integrity_service.validate_and_format_phone', return_value=(True, "+5511987654321", None)):
-                        validated = await integrity_service.validate_patient_data(
-                            patient_data=valid_patient_data,
-                            doctor_id=mock_doctor.id,
-                            is_update=False
-                        )
+        with patch.object(integrity_service, '_check_duplicate_cpf', new_callable=Mock, return_value=None):
+            with patch.object(integrity_service, '_check_duplicate_email', new_callable=Mock, return_value=None):
+                with patch.object(integrity_service, '_check_duplicate_phone', new_callable=Mock, return_value=None):
+                    validated = integrity_service.validate_patient_data(
+                        patient_data=valid_patient_data,
+                        doctor_id=mock_doctor.id,
+                        is_update=False
+                    )
 
-                        # Verify all expected fields are validated
-                        assert 'cpf' in validated
-                        assert 'email' in validated
-                        assert 'phone' in validated
-                        assert 'name' in validated
-                        assert validated['validation_errors'] == []
+                    # Verify all expected fields are validated
+                    assert 'cpf' in validated
+                    assert 'email' in validated
+                    assert 'phone' in validated
+                    assert 'name' in validated
+                    assert validated['validation_errors'] == []

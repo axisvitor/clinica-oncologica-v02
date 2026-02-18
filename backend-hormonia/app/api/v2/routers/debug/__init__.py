@@ -18,6 +18,7 @@ from fastapi import APIRouter
 from .environment import router as environment_router
 from .database import router as database_router
 from .auth import router as auth_router
+from .common import SAFE_ENV_VARS, mask_sensitive_value, sanitize_sql_query
 
 # Main debug router
 router = APIRouter()
@@ -27,4 +28,9 @@ router.include_router(environment_router, tags=["debug-environment"])
 router.include_router(database_router, tags=["debug-database"])
 router.include_router(auth_router, prefix="/auth", tags=["debug-auth"])
 
-__all__ = ["router"]
+__all__ = [
+    "router",
+    "SAFE_ENV_VARS",
+    "mask_sensitive_value",
+    "sanitize_sql_query",
+]

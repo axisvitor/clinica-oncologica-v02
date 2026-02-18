@@ -59,13 +59,13 @@ celery_app.conf.beat_schedule = {
 
 "send-daily-reminders": {
     "task": "flow_automation.send_daily_reminders",
-    "schedule": crontab(hour=9, minute=0),  # 9:00 AM UTC
+    "schedule": crontab(hour=9, minute=0),  # 9:00 AM Sao Paulo
     "options": {"queue": "flows"}
 },
 
 "send-daily-flow-questions": {
     "task": "flow_automation.send_daily_flow_questions",
-    "schedule": crontab(hour=8, minute=0),  # 8:00 AM UTC (PRIMARY FLOW DRIVER)
+    "schedule": crontab(hour=8, minute=0),  # 8:00 AM Sao Paulo (PRIMARY FLOW DRIVER)
     "options": {"queue": "flows"}
 },
 
@@ -604,7 +604,7 @@ async def transition_flow_phase(context: FlowContext):
         "phase_transition": {
             "from": "daily_intensive",
             "to": "monthly_recurring",
-            "transitioned_at": datetime.now(timezone.utc).isoformat(),
+            "transitioned_at": now_sao_paulo().isoformat(),
             "transitioned_by": agent_id
         }
     })
@@ -651,14 +651,14 @@ if current_day == 45:  # Day 45 transition
     "kwargs": {"limit": 100}
 },
 
-# DAILY QUESTIONS (8:00 AM UTC) ⭐ PRIMARY FLOW DRIVER
+# DAILY QUESTIONS (8:00 AM Sao Paulo) ⭐ PRIMARY FLOW DRIVER
 "send-daily-flow-questions": {
     "task": "flow_automation.send_daily_flow_questions",
     "schedule": crontab(hour=8, minute=0),
     "options": {"queue": "flows"}
 },
 
-# DAILY REMINDERS (9:00 AM UTC)
+# DAILY REMINDERS (9:00 AM Sao Paulo)
 "send-daily-reminders": {
     "task": "flow_automation.send_daily_reminders",
     "schedule": crontab(hour=9, minute=0),
@@ -879,7 +879,7 @@ print(health)
 ```json
 {
     "service": "FollowUpSystemService",
-    "timestamp": "2025-12-24T05:30:00Z",
+    "timestamp": "2025-12-24T05:30:00-03:00",
     "healthy": true,
     "storage": {
         "backend": "redis",
@@ -993,7 +993,7 @@ async def startup_event():
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  CELERY BEAT: send_daily_flow_questions (8:00 AM UTC)  │
+│  CELERY BEAT: send_daily_flow_questions (8:00 AM Sao Paulo)  │
 └────────────────────┬────────────────────────────────────┘
                      │
                      ▼
@@ -1371,7 +1371,7 @@ if flow_type == "day_16_45" and current_day == 45:
 
 ```python
 # Patient timezone-aware scheduling
-patient_tz = patient.timezone or "UTC"
+patient_tz = patient.timezone or "America/Sao_Paulo"
 preferred_hour = patient.preferred_message_hour or 10  # 10 AM default
 
 # Calculate send time
@@ -1425,9 +1425,9 @@ Fields: {
         "patient_id": "<uuid>",
         "follow_up_type": "empathetic_response",
         "priority": "high",
-        "scheduled_for": "2025-12-24T10:00:00Z",
+        "scheduled_for": "2025-12-24T10:00:00-03:00",
         "status": "pending",
-        "created_at": "2025-12-24T05:30:00Z",
+        "created_at": "2025-12-24T05:30:00-03:00",
         "parameters": {...}
     }
 }
@@ -1444,7 +1444,7 @@ Fields: {
         "concern_type": "severe_pain",
         "description": "...",
         "notification_channels": ["sms", "email"],
-        "created_at": "2025-12-24T05:30:00Z"
+        "created_at": "2025-12-24T05:30:00-03:00"
     }
 }
 
@@ -1457,7 +1457,7 @@ Fields: {
     "current_topic": "pain_management",
     "emotional_state": "anxious",
     "medical_context": {...},
-    "last_updated": "2025-12-24T05:30:00Z"
+    "last_updated": "2025-12-24T05:30:00-03:00"
 }
 ```
 

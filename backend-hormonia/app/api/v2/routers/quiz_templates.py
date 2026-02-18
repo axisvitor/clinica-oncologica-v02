@@ -32,7 +32,8 @@ from app.api.v2.templates_shared import (
     RATE_LIMIT_READ,
     RATE_LIMIT_WRITE,
 )
-from app.utils.audit_logger import AuditLogger, AuditAction
+from app.monitoring.audit_logger import TemplateAuditLogger as AuditLogger, TemplateAuditAction as AuditAction
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -248,7 +249,7 @@ async def update_quiz_template(
         if updates.randomize_questions is not None:
             template.randomize_questions = updates.randomize_questions
 
-        template.updated_at = datetime.now(timezone.utc)
+        template.updated_at = now_sao_paulo()
         db.commit()
         db.refresh(template)
         await _invalidate_template_cache("quiz", template_id)

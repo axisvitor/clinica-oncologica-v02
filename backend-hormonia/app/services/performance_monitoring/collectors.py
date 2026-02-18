@@ -14,6 +14,7 @@ from redis import Redis
 from app.services.performance_monitoring.models import MetricType, PerformanceMetric
 from app.models.message import Message
 from sqlalchemy import text
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ class MetricCollector:
                         metric_type=MetricType.RESPONSE_TIME,
                         value=avg_response_time,
                         component="api",
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=now_sao_paulo(),
                         metadata={
                             "p95": p95_response_time,
                             "sample_count": len(times),
@@ -69,7 +70,7 @@ class MetricCollector:
 
         try:
             # Get message count from last minute
-            one_minute_ago = datetime.now(timezone.utc) - timedelta(minutes=1)
+            one_minute_ago = now_sao_paulo() - timedelta(minutes=1)
 
             message_count = (
                 self.db.query(Message)
@@ -82,7 +83,7 @@ class MetricCollector:
                     metric_type=MetricType.THROUGHPUT,
                     value=float(message_count),
                     component="flow_processing",
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=now_sao_paulo(),
                     metadata={
                         "messages_per_minute": message_count,
                         "time_window": "1_minute",
@@ -113,7 +114,7 @@ class MetricCollector:
                     metric_type=MetricType.ERROR_RATE,
                     value=error_rate,
                     component="flow_processing",
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=now_sao_paulo(),
                     metadata={
                         "error_count": error_count,
                         "total_operations": total_operations,
@@ -141,7 +142,7 @@ class MetricCollector:
                     metric_type=MetricType.QUEUE_DEPTH,
                     value=float(queue_depth),
                     component="message_queue",
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=now_sao_paulo(),
                     metadata={"queue_name": "flow_processing"},
                 )
             )
@@ -170,7 +171,7 @@ class MetricCollector:
                         metric_type=MetricType.MEMORY_USAGE,
                         value=memory_usage,
                         component="redis",
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=now_sao_paulo(),
                         metadata={
                             "used_memory_mb": used_memory / (1024 * 1024),
                             "max_memory_mb": max_memory / (1024 * 1024),
@@ -201,7 +202,7 @@ class MetricCollector:
                     metric_type=MetricType.CACHE_HIT_RATE,
                     value=hit_rate,
                     component="redis",
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=now_sao_paulo(),
                     metadata={
                         "cache_hits": int(cache_hits),
                         "cache_misses": int(cache_misses),
@@ -230,7 +231,7 @@ class MetricCollector:
                     metric_type=MetricType.DATABASE_CONNECTIONS,
                     value=float(connection_count),
                     component="database",
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=now_sao_paulo(),
                     metadata={"active_connections": connection_count},
                 )
             )
@@ -268,8 +269,10 @@ class MetricCollector:
         metrics = []
 
         try:
-            # Get all metric keys
-            metric_keys = await self.redis.keys("metrics:*")
+            # Get all metric keys (non-blocking scan)
+            metric_keys = []
+            async for key in self.redis.scan_iter(match="metrics:*", count=100):
+                metric_keys.append(key)
 
             for key in metric_keys:
                 # Parse key to get component and metric type

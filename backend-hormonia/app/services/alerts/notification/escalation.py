@@ -18,6 +18,7 @@ from ..types import (
     NotificationTarget,
 )
 from ..config import get_config
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +236,7 @@ class EscalationManager:
 
             # Mark as executed
             escalation.status = "executed"
-            escalation.executed_at = datetime.now(timezone.utc)
+            escalation.executed_at = now_sao_paulo()
 
             # Update statistics
             self._total_executed += 1
@@ -276,7 +277,7 @@ class EscalationManager:
             escalation = self._escalations.get(escalation_id)
             if escalation and escalation.status == "scheduled":
                 escalation.status = "cancelled"
-                escalation.cancelled_at = datetime.now(timezone.utc)
+                escalation.cancelled_at = now_sao_paulo()
                 escalation.metadata["cancellation_reason"] = reason
 
                 cancelled_count += 1
@@ -302,7 +303,7 @@ class EscalationManager:
         Returns:
             List of pending escalations
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         cutoff = before or now
 
         pending = [
@@ -376,7 +377,7 @@ class EscalationManager:
         Returns:
             Datetime when escalation should occur
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
 
         if rule.escalation_strategy == EscalationStrategy.IMMEDIATE:
             # Escalate immediately

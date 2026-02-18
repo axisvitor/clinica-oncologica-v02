@@ -38,25 +38,84 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    message_direction_enum = postgresql.ENUM(
+        'INBOUND', 'OUTBOUND', name='message_direction', create_type=False
+    )
+    message_type_enum = postgresql.ENUM(
+        'TEXT',
+        'IMAGE',
+        'AUDIO',
+        'VIDEO',
+        'DOCUMENT',
+        'BUTTON',
+        'LIST',
+        'MEDIA',
+        'LOCATION',
+        'QUIZ_INTRO',
+        'QUIZ_QUESTION',
+        'QUIZ_ENCOURAGEMENT',
+        'QUIZ_COMPLETION',
+        'MONTHLY_QUIZ_LINK',
+        'MONTHLY_QUIZ_REMINDER',
+        'MONTHLY_QUIZ_EXPIRED',
+        'MONTHLY_QUIZ_COMPLETED',
+        name='messagetype',
+        create_type=False,
+    )
+    message_priority_enum = postgresql.ENUM(
+        'CRITICAL', 'HIGH', 'NORMAL', 'LOW', name='message_priority', create_type=False
+    )
+    message_status_enum = postgresql.ENUM(
+        'PENDING',
+        'SENT',
+        'DELIVERED',
+        'READ',
+        'FAILED',
+        'SCHEDULED',
+        'SENDING',
+        'CANCELLED',
+        name='message_status',
+        create_type=False,
+    )
+    message_delivery_status_enum = postgresql.ENUM(
+        'SCHEDULED',
+        'QUEUED',
+        'SENDING',
+        'SENT',
+        'DELIVERED',
+        'READ',
+        'FAILED',
+        'CANCELLED',
+        name='message_delivery_status',
+        create_type=False,
+    )
+
+    message_direction_enum.create(bind, checkfirst=True)
+    message_type_enum.create(bind, checkfirst=True)
+    message_priority_enum.create(bind, checkfirst=True)
+    message_status_enum.create(bind, checkfirst=True)
+    message_delivery_status_enum.create(bind, checkfirst=True)
+
     op.create_table('message_archives',
         sa.Column('id', sa.UUID(as_uuid=True), server_default=sa.text('gen_random_uuid()'), nullable=False),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('original_id', sa.UUID(as_uuid=True), nullable=False),
         sa.Column('patient_id', sa.UUID(as_uuid=True), nullable=False),
-        sa.Column('direction', sa.Enum('INBOUND', 'OUTBOUND', name='message_direction'), nullable=False),
-        sa.Column('type', sa.Enum('TEXT', 'IMAGE', 'AUDIO', 'VIDEO', 'DOCUMENT', 'BUTTON', 'LIST', 'MEDIA', 'LOCATION', 'QUIZ_INTRO', 'QUIZ_QUESTION', 'QUIZ_ENCOURAGEMENT', 'QUIZ_COMPLETION', 'MONTHLY_QUIZ_LINK', 'MONTHLY_QUIZ_REMINDER', 'MONTHLY_QUIZ_EXPIRED', 'MONTHLY_QUIZ_COMPLETED', name='messagetype'), nullable=False),
+        sa.Column('direction', message_direction_enum, nullable=False),
+        sa.Column('type', message_type_enum, nullable=False),
         sa.Column('content', sa.Text(), nullable=True),
         sa.Column('message_metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column('priority', sa.Enum('CRITICAL', 'HIGH', 'NORMAL', 'LOW', name='message_priority'), nullable=False),
+        sa.Column('priority', message_priority_enum, nullable=False),
         sa.Column('idempotency_key', sa.String(length=255), nullable=True),
         sa.Column('whatsapp_id', sa.String(length=255), nullable=True),
-        sa.Column('status', sa.Enum('PENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'SCHEDULED', 'SENDING', 'CANCELLED', name='message_status'), nullable=False),
+        sa.Column('status', message_status_enum, nullable=False),
         sa.Column('scheduled_for', sa.DateTime(timezone=True), nullable=True),
         sa.Column('sent_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('delivered_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('read_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('delivery_status', sa.Enum('SCHEDULED', 'QUEUED', 'SENDING', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'CANCELLED', name='message_delivery_status'), nullable=True),
+        sa.Column('delivery_status', message_delivery_status_enum, nullable=True),
         sa.Column('retry_count', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('last_retry_at', sa.DateTime(timezone=True), nullable=True),
         sa.Column('failure_reason', sa.Text(), nullable=True),

@@ -70,7 +70,7 @@ async def test_token_with_admin_custom_claim_sets_admin_role(db_session, monkeyp
     firebase_service = AsyncMock()
     firebase_service.verify_token.return_value = user_data
     monkeypatch.setattr(auth_dependencies, "_firebase_service", firebase_service)
-    monkeypatch.setattr(auth_dependencies, "_get_user_from_db", lambda uid: None)
+    monkeypatch.setattr(auth_dependencies, "_get_user_from_db_sync", lambda uid, db: None)
 
     from app.core import redis_manager as redis_manager_module
     monkeypatch.setattr(
@@ -110,7 +110,7 @@ async def test_token_with_doctor_custom_claim_sets_doctor_role(db_session, monke
     firebase_service = AsyncMock()
     firebase_service.verify_token.return_value = user_data
     monkeypatch.setattr(auth_dependencies, "_firebase_service", firebase_service)
-    monkeypatch.setattr(auth_dependencies, "_get_user_from_db", lambda uid: None)
+    monkeypatch.setattr(auth_dependencies, "_get_user_from_db_sync", lambda uid, db: None)
 
     from app.core import redis_manager as redis_manager_module
     monkeypatch.setattr(
@@ -150,7 +150,7 @@ async def test_token_without_custom_claims_defaults_to_doctor(db_session, monkey
     firebase_service = AsyncMock()
     firebase_service.verify_token.return_value = user_data
     monkeypatch.setattr(auth_dependencies, "_firebase_service", firebase_service)
-    monkeypatch.setattr(auth_dependencies, "_get_user_from_db", lambda uid: None)
+    monkeypatch.setattr(auth_dependencies, "_get_user_from_db_sync", lambda uid, db: None)
 
     from app.core import redis_manager as redis_manager_module
     monkeypatch.setattr(

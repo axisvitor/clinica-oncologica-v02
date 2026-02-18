@@ -151,7 +151,7 @@ try:
 
     # Final commit (rápido, apenas saga status)
     saga.status = SagaStatus.COMPLETED
-    saga.completed_at = datetime.now(timezone.utc)
+    saga.completed_at = now_sao_paulo()
     self.db.commit()
 
     return patient
@@ -201,7 +201,7 @@ if saga.patient_id:
         patient.patient_data["quarantine"] = {
             "reason": "saga_compensation_failed",
             "saga_id": str(saga.id),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
         self.db.commit()
 ```

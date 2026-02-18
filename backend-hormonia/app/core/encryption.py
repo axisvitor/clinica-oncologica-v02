@@ -1,10 +1,10 @@
 """
-Encryption service using Fernet (AES-256-GCM).
+Encryption service using Fernet.
 
 Security Features:
-- AES-256 encryption in GCM mode (authenticated encryption)
-- 128-bit authentication tag (prevents tampering)
-- Unique IV (initialization vector) per encryption
+- Fernet token format with authenticated encryption
+- AES-128-CBC encryption + HMAC-SHA256 integrity/authentication
+- Unique IV and timestamp per encrypted token
 - Cryptographically secure random key generation
 
 HIPAA Compliance:

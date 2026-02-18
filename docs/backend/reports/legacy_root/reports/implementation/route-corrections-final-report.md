@@ -428,4 +428,4 @@ O sistema Hormonia agora possui:
 
 *Relatório gerado automaticamente pelo Claude Flow Swarm em 2025-12-22*
 *Versão: 1.0.0*
-*Última atualização: 2025-12-22T03:45:00Z*
+*Última atualização: 2025-12-22T03:45:00-03:00*

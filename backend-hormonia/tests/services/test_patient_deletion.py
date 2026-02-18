@@ -11,6 +11,7 @@ from app.repositories.flow import FlowStateRepository
 from app.tasks.messaging import send_scheduled_message
 from tests.conftest import create_test_user, create_test_patient
 
+from app.utils.timezone import now_sao_paulo
 # Mocking external services for the task test
 from unittest.mock import MagicMock, patch
 
@@ -32,13 +33,13 @@ async def test_patient_deletion_cancels_resources(db_session):
         id=uuid4(),
         name="Test Deletion",
         doctor_id=doctor.id,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        created_at=now_sao_paulo(),
+        updated_at=now_sao_paulo()
     )
     # 3. Execute Deletion (Simulated Manual)
     # Note: Full service/cascade verification skipped due to test harness schema issues.
     # Verifying core Soft Delete persistence only.
-    patient.deleted_at = datetime.now(timezone.utc)
+    patient.deleted_at = now_sao_paulo()
     db_session.add(patient)
     db_session.flush()
 
@@ -81,16 +82,16 @@ async def test_repository_ignores_deleted_patients(db_session):
     # Patient 1 (Active)
     p1 = create_test_patient(db_session, doctor=doctor, name="Active Patient")
     
-    f1 = PatientFlowState(patient_id=p1.id, flow_template_version_id=template.id, started_at=datetime.now(timezone.utc))
+    f1 = PatientFlowState(patient_id=p1.id, flow_template_version_id=template.id, started_at=now_sao_paulo())
     db_session.add(f1)
 
     # Patient 2 (Deleted)
     p2 = create_test_patient(db_session, doctor=doctor, name="Deleted Patient")
     # Mark as deleted strictly
-    p2.deleted_at = datetime.now(timezone.utc)
+    p2.deleted_at = now_sao_paulo()
     db_session.add(p2)
     
-    f2 = PatientFlowState(patient_id=p2.id, flow_template_version_id=template.id, started_at=datetime.now(timezone.utc))
+    f2 = PatientFlowState(patient_id=p2.id, flow_template_version_id=template.id, started_at=now_sao_paulo())
     db_session.add(f2)
     
     db_session.commit()
@@ -107,6 +108,5 @@ async def test_repository_ignores_deleted_patients(db_session):
 
     # get_active_flow(p2.id) should return None
     assert repo.get_active_flow(p2.id) is None
-
 
 

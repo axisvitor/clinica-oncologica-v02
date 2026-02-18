@@ -68,7 +68,7 @@ export interface FrontendUser {
  *   full_name: "Dr. Maria Silva",
  *   role: "doctor",
  *   is_active: true,
- *   created_at: "2025-01-01T00:00:00Z"
+ *   created_at: "2025-01-01T00:00:00-03:00"
  * }
  *
  * const frontendUser = normalizeUser(backendUser)
@@ -80,7 +80,7 @@ export interface FrontendUser {
  * //   role: "doctor",
  * //   permissions: [],
  * //   is_active: true,
- * //   created_at: "2025-01-01T00:00:00Z"
+ * //   created_at: "2025-01-01T00:00:00-03:00"
  * // }
  * ```
  */

@@ -7,7 +7,8 @@ const mockFirebaseAuth = vi.hoisted(() => ({
   onIdTokenChanged: vi.fn(),
   getCurrentUser: vi.fn(),
   setPersistence: vi.fn(),
-  signOut: vi.fn()
+  signOut: vi.fn(),
+  isConfigured: vi.fn().mockReturnValue(true)
 }))
 
 const mockApiClient = vi.hoisted(() => ({
@@ -32,7 +33,9 @@ const mockWsManager = vi.hoisted(() => ({
 const mockFirebaseAuthService = vi.hoisted(() => ({
   loginUser: vi.fn(),
   logoutUser: vi.fn(),
-  logoutAllDevices: vi.fn()
+  logoutAllDevices: vi.fn(),
+  setSessionId: vi.fn(),
+  clearSessionId: vi.fn()
 }))
 
 vi.mock('@/lib/firebase-lazy', () => ({
@@ -68,7 +71,7 @@ const mockUser = {
   role: 'admin',
   is_active: true,
   permissions: ['users:read'],
-  created_at: '2024-01-01T00:00:00Z'
+  created_at: '2024-01-01T00:00:00-03:00'
 }
 
 const mockFirebaseUser = {

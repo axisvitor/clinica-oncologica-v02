@@ -6,7 +6,7 @@ Organized into 4 focused modules:
 - state: Flow state operations (get, advance, pause, resume, history)
 - analytics: Dashboard and analytics (metrics, engagement, risk, insights)
 - templates: Template management and patient customizations
-- advanced: Rules engine, A/B testing, and utility operations
+- advanced: Rules engine and utility operations
 """
 
 from fastapi import APIRouter

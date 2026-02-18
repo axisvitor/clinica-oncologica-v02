@@ -21,6 +21,7 @@ from app.infrastructure.cache import get_unified_cache_manager
 from .dependencies import get_admin_user
 from .utils import _status_count
 from app.schemas.v2.admin import ActivityStatsResponse, UserStatsResponse
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ async def get_system_stats(
     if cached_stats:
         return cached_stats
 
-    now = datetime.now(timezone.utc)
+    now = now_sao_paulo()
     start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     total_users = db.query(func.count(User.id)).scalar() or 0
@@ -147,7 +148,7 @@ async def get_user_stats(
     admin_user: User = Depends(get_admin_user),
 ) -> Dict[str, Any]:
     """Return user statistics for admin dashboards."""
-    now = datetime.now(timezone.utc)
+    now = now_sao_paulo()
     thirty_days_ago = now - timedelta(days=30)
 
     total_users = db.query(func.count(User.id)).scalar() or 0
@@ -194,7 +195,7 @@ async def get_activity_stats(
     admin_user: User = Depends(get_admin_user),
 ) -> Dict[str, Any]:
     """Return audit activity statistics for admin dashboards."""
-    now = datetime.now(timezone.utc)
+    now = now_sao_paulo()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = now - timedelta(days=7)
     month_start = now - timedelta(days=30)

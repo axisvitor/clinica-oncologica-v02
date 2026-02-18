@@ -58,9 +58,9 @@ OR content LIKE '%Sample%';
 DELETE FROM quiz_responses
 WHERE patient_id NOT IN (SELECT id FROM patients);
 
--- Clean up test flow states
+-- Clean up test patient flow states
 -- Remove flow states from deleted patients (should cascade, but ensuring cleanup)
-DELETE FROM flow_states
+DELETE FROM patient_flow_states
 WHERE patient_id NOT IN (SELECT id FROM patients);
 
 -- Clean up test medical reports
@@ -81,7 +81,7 @@ VACUUM ANALYZE users;
 VACUUM ANALYZE patients;
 VACUUM ANALYZE messages;
 VACUUM ANALYZE quiz_responses;
-VACUUM ANALYZE flow_states;
+VACUUM ANALYZE patient_flow_states;
 VACUUM ANALYZE medical_reports;
 VACUUM ANALYZE alerts;
 
@@ -100,7 +100,7 @@ INSERT INTO audit_logs (
     'system_backup'::audit_action_type,
     'database',
     'Test data cleanup',
-    '{"action": "cleanup_test_data", "tables_cleaned": ["users", "patients", "messages", "quiz_responses", "flow_states", "medical_reports", "alerts"], "note": "Removed test data during production preparation"}'::jsonb,
+    '{"action": "cleanup_test_data", "tables_cleaned": ["users", "patients", "messages", "quiz_responses", "patient_flow_states", "medical_reports", "alerts"], "note": "Removed test data during production preparation"}'::jsonb,
     '127.0.0.1'::inet,
     true,
     NOW()
@@ -113,7 +113,7 @@ SELECT '- users (healthcare providers)' as table1;
 SELECT '- patients' as table2;
 SELECT '- messages' as table3;
 SELECT '- quiz_responses' as table4;
-SELECT '- flow_states' as table5;
+SELECT '- patient_flow_states' as table5;
 SELECT '- medical_reports' as table6;
 SELECT '- alerts' as table7;
 SELECT 'Database is now ready for production use.' as result;

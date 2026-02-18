@@ -334,7 +334,7 @@ async def get_patient(patient_id: UUID):
     "patient_id": "123e4567-e89b-12d3-a456-426614174000"
   },
   "request_id": "req_abc123",
-  "timestamp": "2025-12-22T04:50:00Z"
+  "timestamp": "2025-12-22T04:50:00-03:00"
 }
 ```
 

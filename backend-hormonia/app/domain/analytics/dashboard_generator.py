@@ -18,6 +18,7 @@ from app.models.alert import Alert, AlertStatus
 from app.utils.db_retry import with_db_retry
 from app.services.query_performance_monitor import QueryPerformanceMonitor
 from app.schemas.report import DashboardResponse
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -259,7 +260,7 @@ class DashboardGenerator:
         Reduces 14 queries to 1 query for 95% reduction.
         Uses connection pooling and query optimization for better performance.
         """
-        end_date = datetime.now(timezone.utc).date()
+        end_date = now_sao_paulo().date()
         start_date = end_date - timedelta(days=6)  # 7 days total
 
         # Single query with GROUP BY on date and direction
@@ -430,7 +431,7 @@ class DashboardGenerator:
         """
         try:
             # Get data from previous 7-day period (days 8-14 ago)
-            end_date = datetime.now(timezone.utc).date() - timedelta(days=7)
+            end_date = now_sao_paulo().date() - timedelta(days=7)
             start_date = end_date - timedelta(days=6)
 
             # Previous period messages

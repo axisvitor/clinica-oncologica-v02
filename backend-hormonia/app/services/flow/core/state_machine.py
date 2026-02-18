@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 # Local application imports
 from ..execution.conditions import ConditionEvaluator
 from ..types import FlowContext, FlowStatus, FlowTransitionType
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -126,12 +127,12 @@ class FlowStateMachine:
             "from": from_step,
             "to": to_step,
             "type": transition_type.value,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         if to_step is None:
             context.status = FlowStatus.COMPLETED
-            context.completed_at = datetime.now(timezone.utc)
+            context.completed_at = now_sao_paulo()
             logger.info("Flow %s completed", context.flow_instance_id)
 
         return context

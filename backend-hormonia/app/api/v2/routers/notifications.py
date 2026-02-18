@@ -8,7 +8,7 @@ from sqlalchemy import and_, func, or_
 
 from app.database import get_db
 from app.models.notification import Notification
-from app.api.v2.dependencies import get_pagination_params
+from app.api.v2.dependencies import get_pagination_params_async
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 
@@ -18,6 +18,9 @@ from app.schemas.v2.auth import (
     NotificationMarkReadRequest,
     NotificationMarkReadResponse,
 )
+from app.utils.auth_helpers import extract_user_id as _extract_user_id
+from app.utils.timezone import now_sao_paulo
+from app.api.v2.routers import users as users_router_module
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -25,17 +28,10 @@ logger = logging.getLogger(__name__)
 CACHE_TTL_UNREAD_COUNT = 60  # 1 minute
 
 
-def _extract_user_id(current_user) -> str:
-    if isinstance(current_user, dict):
-        return current_user.get("id")
-    return str(getattr(current_user, "id", None))
-
-
 async def _get_redis_client():
     try:
-        from app.core.redis_client import get_async_redis_client
-
-        return await get_async_redis_client()
+        # Reuse users router provider so auth tests can patch one shared path.
+        return await users_router_module._get_redis_client()
     except Exception as e:
         logger.warning(f"Failed to get Redis client: {e}")
         return None
@@ -67,7 +63,7 @@ async def list_notifications(
     request: Request,
     current_user=Depends(get_current_user_from_session),
     db=Depends(get_db),
-    pagination=Depends(get_pagination_params),
+    pagination=Depends(get_pagination_params_async),
     unread_only: bool = Query(False, description="Show only unread notifications"),
 ):
     user_id = _extract_user_id(current_user)
@@ -83,7 +79,7 @@ async def list_notifications(
     filters = [Notification.user_id == user_uuid]
 
     if unread_only:
-        filters.append(not Notification.is_read)
+        filters.append(Notification.is_read.is_(False))
 
     query = db.query(Notification).filter(and_(*filters))
 
@@ -91,7 +87,7 @@ async def list_notifications(
     if cursor_data and "id" in cursor_data:
         cursor_id = UUID(cursor_data["id"])
         cursor_created = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
+            cursor_data["created_at"]
         )
         query = query.filter(
             or_(
@@ -111,7 +107,7 @@ async def list_notifications(
     # Get unread count
     unread_count = (
         db.query(func.count(Notification.id))
-        .filter(Notification.user_id == user_uuid, not Notification.is_read)
+        .filter(Notification.user_id == user_uuid, Notification.is_read.is_(False))
         .scalar()
     )
 
@@ -182,7 +178,7 @@ async def mark_notifications_read(
     for notification in notifications:
         if not notification.is_read:
             notification.is_read = True
-            notification.read_at = datetime.now(timezone.utc)
+            notification.read_at = now_sao_paulo()
             marked_count += 1
 
     db.commit()
@@ -227,7 +223,7 @@ async def get_unread_count(
 
     count = (
         db.query(func.count(Notification.id))
-        .filter(Notification.user_id == user_uuid, not Notification.is_read)
+        .filter(Notification.user_id == user_uuid, Notification.is_read.is_(False))
         .scalar()
     )
 

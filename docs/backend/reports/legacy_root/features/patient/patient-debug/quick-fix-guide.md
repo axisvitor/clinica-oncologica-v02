@@ -189,7 +189,7 @@ print(f"Result: {result.get(timeout=10)}")
     'executed_count': 5,
     'failed_count': 0,
     'cleaned_count': 2,
-    'timestamp': '2025-12-24T10:30:00Z'
+    'timestamp': '2025-12-24T10:30:00-03:00'
 }
 ```
 
@@ -232,7 +232,7 @@ print(result.get(timeout=10))
     'alerts_processed': 3,
     'notifications_sent': 3,
     'failed_count': 0,
-    'timestamp': '2025-12-24T10:30:00Z'
+    'timestamp': '2025-12-24T10:30:00-03:00'
 }
 ```
 

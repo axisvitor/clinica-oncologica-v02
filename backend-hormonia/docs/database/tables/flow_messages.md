@@ -9,19 +9,17 @@
 | **step_number** | `INTEGER` | ❌ | - |  |  |
 | **message_key** | `VARCHAR(100)` | ❌ | - |  |  |
 | **message_text** | `TEXT` | ❌ | - |  |  |
-| **message_type** | `VARCHAR(50)` | ✅ | `'text'::character varying` |  |  |
+| **message_type** | `VARCHAR(50)` | ✅ | - |  |  |
 | **buttons** | `JSONB` | ✅ | - |  |  |
 | **list_items** | `JSONB` | ✅ | - |  |  |
 | **conditions** | `JSONB` | ✅ | - |  |  |
-| **delay_seconds** | `INTEGER` | ✅ | `0` |  |  |
-| **created_at** | `TIMESTAMP` | ✅ | `now()` |  |  |
+| **delay_seconds** | `INTEGER` | ✅ | - |  |  |
+| **created_at** | `TIMESTAMP` | ❌ | `now()` |  |  |
+| **updated_at** | `TIMESTAMP` | ❌ | `now()` |  |  |
 
 ## Indexes
 
 | Name | Unique | Columns |
 | :--- | :--- | :--- |
-| idx_flow_messages_step | ❌ | `flow_template_version_id, step_number` |
-| idx_flow_messages_template | ❌ | `flow_template_version_id` |
-| idx_flow_messages_template_step | ❌ | `flow_template_version_id, step_number` |
-| idx_flow_messages_template_version_id | ❌ | `flow_template_version_id` |
-| unique_flow_message | ✅ | `flow_template_version_id, step_number, message_key` |
+| ix_flow_messages_flow_template_version_id | ❌ | `flow_template_version_id` |
+| ix_flow_messages_id | ❌ | `id` |

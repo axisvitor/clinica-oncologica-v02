@@ -254,7 +254,7 @@ class Patient:
         if not self.last_quiz_date:
             return True
 
-        days_since_last_quiz = (datetime.utcnow() - self.last_quiz_date).days
+        days_since_last_quiz = (now_sao_paulo() - self.last_quiz_date).days
         return days_since_last_quiz >= 30
 
     def mark_quiz_sent(self) -> None:
@@ -263,7 +263,7 @@ class Patient:
             raise BusinessRuleViolation(
                 f"Patient {self.id} received quiz less than 30 days ago"
             )
-        self.last_quiz_date = datetime.utcnow()
+        self.last_quiz_date = now_sao_paulo()
 ```
 
 ### Use Case Example
@@ -331,7 +331,7 @@ class SendQuizToPatientUseCase:
 
         return SendQuizToPatientResponse(
             quiz_id=quiz.id,
-            sent_at=datetime.utcnow(),
+            sent_at=now_sao_paulo(),
             status="sent"
         )
 ```

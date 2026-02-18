@@ -102,7 +102,7 @@ Can be done within the **same version**:
 {
   "patient_id": "123",
   "name": "João Silva",
-  "created_at": "2025-01-15T10:30:00Z"  # New field added
+  "created_at": "2025-01-15T10:30:00-03:00"  # New field added
 }
 ```
 
@@ -155,7 +155,7 @@ X-API-Warn: API version v2 will be sunset in 152 days. Please migrate to v3.
   "error": {
     "code": "API_VERSION_SUNSET",
     "message": "API v2 was sunset on 2025-07-01. Please use v3.",
-    "sunset_date": "2025-07-01T00:00:00Z",
+    "sunset_date": "2025-07-01T00:00:00-03:00",
     "current_version": "v3",
     "migration_guide": "https://api.clinica.com/docs/v2-to-v3"
   }

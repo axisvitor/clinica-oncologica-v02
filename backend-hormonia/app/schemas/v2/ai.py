@@ -8,38 +8,13 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
 from enum import Enum
+from app.schemas.ai import SentimentType, ConcernLevel, RiskLevel
+from app.utils.timezone import now_sao_paulo_naive
 
 
 # ============================================================================
 # Enums
 # ============================================================================
-
-
-class SentimentType(str, Enum):
-    """Sentiment classification types."""
-
-    POSITIVE = "positive"
-    NEUTRAL = "neutral"
-    NEGATIVE = "negative"
-    CONCERNING = "concerning"
-
-
-class ConcernLevel(str, Enum):
-    """Medical concern severity levels."""
-
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
-
-
-class RiskLevel(str, Enum):
-    """Patient risk assessment levels."""
-
-    LOW = "low"
-    MODERATE = "moderate"
-    HIGH = "high"
-    CRITICAL = "critical"
 
 
 class AIModelType(str, Enum):
@@ -92,7 +67,7 @@ class CacheInfo(BaseModel):
                 "hit": True,
                 "key": "ai:humanize:abc123",
                 "ttl_seconds": 7200,
-                "cached_at": "2025-01-17T10:00:00Z",
+                "cached_at": "2025-01-17T10:00:00-03:00",
             }
         }
     )
@@ -169,7 +144,7 @@ class HumanizeResponse(BaseModel):
     )
     token_usage: Optional[TokenUsage] = Field(None, description="Token usage stats")
     cache_info: Optional[CacheInfo] = Field(None, description="Cache information")
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -194,7 +169,7 @@ class HumanizeResponse(BaseModel):
                     "key": "ai:humanize:xyz",
                     "ttl_seconds": 7200,
                 },
-                "generated_at": "2025-01-17T10:00:00Z",
+                "generated_at": "2025-01-17T10:00:00-03:00",
             }
         }
     )
@@ -233,7 +208,7 @@ class BatchHumanizeResponse(BaseModel):
     results: List[HumanizeResponse] = Field(description="Humanized messages")
     total_token_usage: TokenUsage = Field(description="Total token usage")
     cache_hit_rate: float = Field(ge=0.0, le=1.0, description="Cache hit rate (0-1)")
-    processed_at: datetime = Field(default_factory=datetime.utcnow)
+    processed_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -244,7 +219,7 @@ class BatchHumanizeResponse(BaseModel):
                     "estimated_cost_usd": 0.0068,
                 },
                 "cache_hit_rate": 0.3,
-                "processed_at": "2025-01-17T10:00:00Z",
+                "processed_at": "2025-01-17T10:00:00-03:00",
             }
         }
     )
@@ -325,7 +300,7 @@ class InsightsResponse(BaseModel):
     last_contact: Optional[datetime] = Field(None, description="Last contact time")
     token_usage: Optional[TokenUsage] = Field(None, description="Token usage")
     cache_info: Optional[CacheInfo] = Field(None, description="Cache info")
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
 
 class PatientInsightsRequest(BaseModel):
@@ -381,7 +356,7 @@ class SentimentAnalysisResponse(BaseModel):
     )
     recommended_action: Optional[str] = Field(None, description="Recommended action")
     token_usage: Optional[TokenUsage] = Field(None, description="Token usage")
-    analyzed_at: datetime = Field(default_factory=datetime.utcnow)
+    analyzed_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
 
 class RiskAnalysisRequest(BaseModel):
@@ -420,7 +395,7 @@ class RiskAnalysisResponse(BaseModel):
     trend: str = Field(description="Risk trend: increasing, decreasing, stable")
     confidence: float = Field(ge=0.0, le=1.0, description="Analysis confidence")
     token_usage: Optional[TokenUsage] = Field(None, description="Token usage")
-    analyzed_at: datetime = Field(default_factory=datetime.utcnow)
+    analyzed_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
 
 class ResponseQualityRequest(BaseModel):
@@ -459,7 +434,7 @@ class ResponseQualityResponse(BaseModel):
     )
     strengths: List[str] = Field(default_factory=list, description="Message strengths")
     token_usage: Optional[TokenUsage] = Field(None, description="Token usage")
-    analyzed_at: datetime = Field(default_factory=datetime.utcnow)
+    analyzed_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
 
 # ============================================================================
@@ -475,7 +450,7 @@ class AIHealthResponse(BaseModel):
     redis_cache: Dict[str, Any] = Field(description="Redis cache status")
     gemini_api: Dict[str, Any] = Field(description="Gemini API status")
     response_time_ms: float = Field(description="Health check response time")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -493,7 +468,7 @@ class AIHealthResponse(BaseModel):
                 },
                 "gemini_api": {"status": "operational", "latency_ms": 245},
                 "response_time_ms": 12.5,
-                "timestamp": "2025-01-17T10:00:00Z",
+                "timestamp": "2025-01-17T10:00:00-03:00",
             }
         }
     )
@@ -514,7 +489,7 @@ class UsageStatsResponse(BaseModel):
     )
     cache_hit_rate: float = Field(ge=0.0, le=1.0, description="Overall cache hit rate")
     cost_savings_usd: float = Field(ge=0.0, description="Cost savings from caching")
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -535,7 +510,7 @@ class UsageStatsResponse(BaseModel):
                 },
                 "cache_hit_rate": 0.68,
                 "cost_savings_usd": 12.30,
-                "generated_at": "2025-01-17T10:00:00Z",
+                "generated_at": "2025-01-17T10:00:00-03:00",
             }
         }
     )
@@ -556,7 +531,7 @@ class CacheStatsResponse(BaseModel):
     oldest_entry_age_seconds: Optional[int] = Field(
         None, description="Age of oldest entry"
     )
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -571,7 +546,7 @@ class CacheStatsResponse(BaseModel):
                     "humanize": {"keys": 1500, "hit_rate": 0.85, "ttl_seconds": 7200}
                 },
                 "oldest_entry_age_seconds": 7190,
-                "generated_at": "2025-01-17T10:00:00Z",
+                "generated_at": "2025-01-17T10:00:00-03:00",
             }
         }
     )
@@ -590,7 +565,7 @@ class AIErrorResponse(BaseModel):
     details: Optional[Dict[str, Any]] = Field(None, description="Error details")
     fallback_used: bool = Field(False, description="Whether fallback response was used")
     request_id: Optional[str] = Field(None, description="Request ID for tracking")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=now_sao_paulo_naive)
 
 
 # ============================================================================

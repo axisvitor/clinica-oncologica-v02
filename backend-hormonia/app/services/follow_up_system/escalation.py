@@ -11,8 +11,10 @@ from uuid import UUID, uuid4
 from .enums import EscalationLevel, NotificationChannel, FollowUpType
 from .models import EscalationAlert, FollowUpAction
 from app.services.response_processor import StructuredResponse
-from app.services.analytics.data_extraction import ConcernLevel, MedicalConcernType
+from app.services.ai import ConcernLevel
+from app.services.analytics.data_extraction import MedicalConcernType
 from app.monitoring.metrics import response_escalation_failures_total
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +103,7 @@ class EscalationManager:
                 priority="critical"
                 if escalation_level == EscalationLevel.EMERGENCY
                 else "high",
-                scheduled_for=datetime.now(timezone.utc),  # Immediate
+                scheduled_for=now_sao_paulo(),  # Immediate
                 parameters={
                     "alert_id": str(alert.alert_id),
                     "escalation_level": escalation_level.value,

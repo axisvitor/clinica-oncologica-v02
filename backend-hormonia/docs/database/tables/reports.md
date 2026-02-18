@@ -5,11 +5,11 @@
 | Name | Type | Nullable | Default | PK | FK |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **patient_id** | `UUID` | ❌ | - |  | ➡️ [patients]( patients.md ).id |
-| **type** | `VARCHAR(15)` | ❌ | - |  |  |
+| **type** | `ENUM(reporttype)` | ❌ | - |  |  |
 | **title** | `VARCHAR` | ❌ | - |  |  |
 | **content** | `JSONB` | ✅ | - |  |  |
 | **pdf_data** | `BYTEA` | ✅ | - |  |  |
-| **status** | `VARCHAR(10)` | ✅ | - |  |  |
+| **status** | `ENUM(reportstatus)` | ✅ | - |  |  |
 | **generated_at** | `TIMESTAMP` | ✅ | - |  |  |
 | **metadata** | `JSONB` | ✅ | - |  |  |
 | **id** | `UUID` | ❌ | `gen_random_uuid()` | 🔑 |  |

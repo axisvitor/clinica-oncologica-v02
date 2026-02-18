@@ -23,6 +23,7 @@ from .helpers.health_checker import (
 )
 from .helpers.auth import is_admin
 from .helpers.redis_helper import get_redis_client
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -125,7 +126,7 @@ async def get_system_health(
 
         health_response = {
             "status": overall_status,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "components": components_dict,
             "overall_score": overall_score,
             "degraded_components": degraded_components,
@@ -159,7 +160,7 @@ async def get_system_health(
             content={
                 "status": "unhealthy",
                 "error": "Health check failed",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "overall_score": 0.0,
                 "components": {},
                 "degraded_components": [],

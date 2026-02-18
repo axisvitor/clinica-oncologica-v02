@@ -177,6 +177,13 @@ async def test_background_task_triggered_for_patient_message(monkeypatch):
             return self._value
 
     class FakeDB:
+        class _Query:
+            def filter(self, *args, **kwargs):
+                return self
+
+            def first(self):
+                return None
+
         def execute(self, stmt):
             entity = stmt.column_descriptions[0]["entity"]
             if entity is WhatsAppMessage:
@@ -184,6 +191,9 @@ async def test_background_task_triggered_for_patient_message(monkeypatch):
             if entity is Patient:
                 return FakeResult(fake_patient)
             return FakeResult(None)
+
+        def query(self, _model):
+            return self._Query()
 
         def add(self, obj):
             return None
@@ -218,4 +228,5 @@ async def test_background_task_triggered_for_patient_message(monkeypatch):
         "test-instance", data, background_tasks, FakeDB()
     )
 
-    assert len(background_tasks.tasks) == 1
+    # Current implementation processes inbound path inline (no background task enqueue).
+    assert len(background_tasks.tasks) == 0

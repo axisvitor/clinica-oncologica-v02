@@ -1,10 +1,19 @@
 """
-Flow Service
-Business logic for patient flows and interactions.
+Flow Service - V2 API facade for patient flow operations.
+
+Acts as the top-level orchestrator consumed by the V2 REST layer.
+Delegates to FlowManagement, FlowAnalytics, FlowDashboard, and EnhancedFlowEngine.
+Extends FlowCore for shared treatment-flow operations.
+
+Architecture note (QW-021 consolidation):
+    This facade provides cursor-based pagination, Redis caching, and V2 schema
+    mapping that do NOT exist in the ``app.services.flow`` package.
+    NOT a duplicate -- it is the API-facing service layer.
+
+    Canonical FlowType enum: ``app.services.flow.types.FlowType``
 """
 
 import logging
-import base64
 import json
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
@@ -28,15 +37,17 @@ from app.services.flow_management import FlowManagementService
 from app.services.analytics.flow_analytics import FlowAnalyticsService
 from app.services.flow_dashboard import FlowDashboardService
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.exceptions import (
     FlowStateNotFoundError,
     FlowStateConflictError,
     FlowOperationError,
     FlowValidationError,
-    NotFoundError as LegacyNotFoundError,
+    NotFoundError as DomainNotFoundError,
 )
 from app.core.exceptions import NotFoundError, BusinessRuleError
+from app.utils.cursor import encode_cursor
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +80,7 @@ class FlowService(FlowCore):
         # (FlowCore init handles this if we pass args, but here we just pass db and let it default)
 
     def _create_cursor(self, item_id: str, created_at: datetime) -> str:
-        cursor_data = {"id": str(item_id), "created_at": created_at.isoformat()}
-        return base64.b64encode(json.dumps(cursor_data).encode()).decode()
+        return encode_cursor(item_id, created_at)
 
     async def _get_cached_or_compute(self, cache_key: str, compute_fn, ttl: int) -> Any:
         redis_cache = await get_async_redis()
@@ -104,7 +114,7 @@ class FlowService(FlowCore):
                 template_version="",
                 current_step=0,
                 status=FlowStatusV2.COMPLETED,
-                started_at=datetime.now(timezone.utc),
+                started_at=now_sao_paulo(),
                 state_data={"message": flow_state_response.message or "No active flow"},
             )
         
@@ -124,18 +134,18 @@ class FlowService(FlowCore):
         started_at_str = flow_data.get("started_at")
         if started_at_str:
             try:
-                started_at = datetime.fromisoformat(started_at_str.replace("Z", "+00:00"))
+                started_at = datetime.fromisoformat(started_at_str)
             except (ValueError, AttributeError):
-                started_at = datetime.now(timezone.utc)
+                started_at = now_sao_paulo()
         else:
-            started_at = datetime.now(timezone.utc)
+            started_at = now_sao_paulo()
         
         # Parse completed_at if present
         completed_at = None
         completed_at_str = flow_data.get("completed_at")
         if completed_at_str:
             try:
-                completed_at = datetime.fromisoformat(completed_at_str.replace("Z", "+00:00"))
+                completed_at = datetime.fromisoformat(completed_at_str)
             except (ValueError, AttributeError):
                 pass
         
@@ -158,7 +168,7 @@ class FlowService(FlowCore):
             advancement = await self.flow_management.advance_patient_flow(
                 patient_id=patient_id, force_day=force_day
             )
-        except (FlowStateNotFoundError, LegacyNotFoundError) as e:
+        except (FlowStateNotFoundError, DomainNotFoundError) as e:
             raise NotFoundError("Flow state", patient_id) from e
         except (FlowStateConflictError, FlowValidationError, FlowOperationError) as e:
             raise BusinessRuleError(str(e)) from e
@@ -193,7 +203,7 @@ class FlowService(FlowCore):
                 duration_hours=duration_hours,
                 user_id=user_id,
             )
-        except (FlowStateNotFoundError, LegacyNotFoundError) as e:
+        except (FlowStateNotFoundError, DomainNotFoundError) as e:
             raise NotFoundError("Flow state", patient_id) from e
         except (FlowStateConflictError, FlowValidationError, FlowOperationError) as e:
             raise BusinessRuleError(str(e)) from e
@@ -208,7 +218,7 @@ class FlowService(FlowCore):
         return FlowPauseV2Response(
             success=True,
             patient_id=str(patient_id),
-            paused_at=pause_result.get("paused_at", datetime.now(timezone.utc)),
+            paused_at=pause_result.get("paused_at", now_sao_paulo()),
             reason=reason,
             auto_resume_at=pause_result.get("auto_resume_at"),
             message=pause_result.get("message", "Flow paused successfully"),
@@ -221,7 +231,7 @@ class FlowService(FlowCore):
             resume_result = await self.flow_management.resume_patient_flow(
                 patient_id=patient_id, user_id=user_id
             )
-        except (FlowStateNotFoundError, LegacyNotFoundError) as e:
+        except (FlowStateNotFoundError, DomainNotFoundError) as e:
             raise NotFoundError("Flow state", patient_id) from e
         except (FlowStateConflictError, FlowValidationError, FlowOperationError) as e:
             raise BusinessRuleError(str(e)) from e
@@ -235,7 +245,7 @@ class FlowService(FlowCore):
         return FlowResumeV2Response(
             success=True,
             patient_id=str(patient_id),
-            resumed_at=resume_result.get("resumed_at", datetime.now(timezone.utc)),
+            resumed_at=resume_result.get("resumed_at", now_sao_paulo()),
             paused_duration_hours=resume_result.get("paused_duration_hours", 0.0),
             next_message_at=resume_result.get("next_message_at"),
             message=resume_result.get("message", "Flow resumed successfully"),
@@ -259,7 +269,7 @@ class FlowService(FlowCore):
         if cursor_data and "id" in cursor_data:
             cursor_id = UUID(cursor_data["id"])
             cursor_created = datetime.fromisoformat(
-                cursor_data["created_at"].replace("Z", "+00:00")
+                cursor_data["created_at"]
             )
             query = query.filter(
                 (FlowStateModel.created_at < cursor_created)
@@ -294,11 +304,11 @@ class FlowService(FlowCore):
             else:
                 status = FlowStatusV2.ACTIVE
 
-            started_at = datetime.now(timezone.utc)
+            started_at = now_sao_paulo()
             started_at_str = flow_data.get("started_at")
             if started_at_str:
                 try:
-                    started_at = datetime.fromisoformat(started_at_str.replace("Z", "+00:00"))
+                    started_at = datetime.fromisoformat(started_at_str)
                 except (ValueError, AttributeError):
                     pass
 
@@ -306,7 +316,7 @@ class FlowService(FlowCore):
             completed_at_str = flow_data.get("completed_at")
             if completed_at_str:
                 try:
-                    completed_at = datetime.fromisoformat(completed_at_str.replace("Z", "+00:00"))
+                    completed_at = datetime.fromisoformat(completed_at_str)
                 except (ValueError, AttributeError):
                     completed_at = None
 
@@ -363,7 +373,7 @@ class FlowService(FlowCore):
         if cursor_data and "id" in cursor_data:
             cursor_id = UUID(cursor_data["id"])
             cursor_created = datetime.fromisoformat(
-                cursor_data["created_at"].replace("Z", "+00:00")
+                cursor_data["created_at"]
             )
             filters.append(
                 (FlowTemplateVersion.created_at < cursor_created)
@@ -404,7 +414,7 @@ class FlowService(FlowCore):
             flow_state = await self.flow_management.start_patient_flow(
                 patient_id=patient_id, flow_type=flow_type
             )
-        except (FlowStateNotFoundError, LegacyNotFoundError) as e:
+        except (FlowStateNotFoundError, DomainNotFoundError) as e:
             raise NotFoundError("Flow state", patient_id) from e
         except (FlowStateConflictError, FlowValidationError, FlowOperationError) as e:
             raise BusinessRuleError(str(e)) from e
@@ -419,7 +429,7 @@ class FlowService(FlowCore):
                 response_text=response_text,
                 response_metadata=metadata,
             )
-        except (FlowStateNotFoundError, LegacyNotFoundError) as e:
+        except (FlowStateNotFoundError, DomainNotFoundError) as e:
             raise NotFoundError("Flow state", patient_id) from e
         except (FlowStateConflictError, FlowValidationError, FlowOperationError) as e:
             raise BusinessRuleError(str(e)) from e

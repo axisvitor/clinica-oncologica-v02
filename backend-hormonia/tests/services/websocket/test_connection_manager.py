@@ -16,6 +16,7 @@ from unittest.mock import Mock, AsyncMock, patch
 from fastapi import WebSocket
 from sqlalchemy.orm import Session
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.websocket import (
     UnifiedWebSocketConnectionManager,
     ConnectionState,
@@ -300,7 +301,7 @@ class TestHeartbeat:
         await asyncio.sleep(0.1)
 
         ping_id = await manager.ping_connection(connection_id)
-        await manager.handle_pong(connection_id, ping_id, datetime.utcnow().timestamp())
+        await manager.handle_pong(connection_id, ping_id, now_sao_paulo_naive().timestamp())
 
         updated_heartbeat = manager.connection_info[connection_id].last_heartbeat
         assert updated_heartbeat > initial_heartbeat
@@ -318,7 +319,7 @@ class TestCleanup:
 
         # Make connection stale by setting old heartbeat
         manager.connection_info[connection_id].last_heartbeat = (
-            datetime.utcnow() - timedelta(seconds=manager.heartbeat_interval * 3)
+            now_sao_paulo_naive() - timedelta(seconds=manager.heartbeat_interval * 3)
         )
 
         # Run cleanup

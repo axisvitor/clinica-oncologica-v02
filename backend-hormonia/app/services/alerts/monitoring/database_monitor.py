@@ -7,7 +7,7 @@ integrating with the unified alert system.
 
 import logging
 from typing import Dict, Any, Optional, Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 from ..types import (
@@ -18,6 +18,7 @@ from ..types import (
     MonitoringThresholds,
 )
 from ..config import get_config
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ class DatabaseMonitor:
                     await self._execute_callbacks(alert)
 
                 # Update debounce tracking
-                self._last_alert_times[alert_key] = datetime.now(timezone.utc)
+                self._last_alert_times[alert_key] = now_sao_paulo()
 
                 return alert
 
@@ -207,7 +208,7 @@ class DatabaseMonitor:
                     await self._execute_callbacks(alert)
 
                 # Update debounce tracking
-                self._last_alert_times[alert_key] = datetime.now(timezone.utc)
+                self._last_alert_times[alert_key] = now_sao_paulo()
 
                 return alert
 
@@ -331,7 +332,7 @@ class DatabaseMonitor:
             return False
 
         last_alert_time = self._last_alert_times[alert_key]
-        time_since_last = datetime.now(timezone.utc) - last_alert_time
+        time_since_last = now_sao_paulo() - last_alert_time
 
         return time_since_last < timedelta(minutes=self._debounce_minutes)
 

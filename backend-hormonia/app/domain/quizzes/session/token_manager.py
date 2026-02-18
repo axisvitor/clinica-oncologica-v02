@@ -12,6 +12,7 @@ from uuid import UUID
 from app.core.monthly_quiz_config import get_monthly_quiz_config
 
 import logging
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class TokenManager:
             "patient_id": str(patient_id),
             "quiz_template_id": str(quiz_template_id),
             "exp": int(expires_at.timestamp()),
-            "iat": int(datetime.now(timezone.utc).timestamp()),
+            "iat": int(now_sao_paulo().timestamp()),
             "rotation": rotation_count,
             "jti": secrets.token_urlsafe(16),  # Unique token ID
             "type": token_type,
@@ -108,4 +109,4 @@ class TokenManager:
             Expiration datetime
         """
         expiry_hours = hours or self.config.MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS
-        return datetime.now(timezone.utc) + timedelta(hours=expiry_hours)
+        return now_sao_paulo() + timedelta(hours=expiry_hours)

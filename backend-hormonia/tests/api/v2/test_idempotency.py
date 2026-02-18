@@ -50,7 +50,7 @@ class RedisStub:
 
 @pytest.fixture
 def time_controller(monkeypatch: pytest.MonkeyPatch) -> TimeController:
-    controller = TimeController(datetime(2025, 1, 1, tzinfo=timezone.utc))
+    controller = TimeController(datetime(2025, 1, 1, tzinfo=SAO_PAULO_TZ))
 
     class FrozenDateTime(datetime):
         @classmethod
@@ -125,10 +125,11 @@ def auth_client_factory(client: TestClient, db: Session):
 
 
 def _patient_payload(doctor_id):
+    phone_digits = f"{uuid4().int:010d}"[-8:]
     return {
         "name": "Idempotent Patient",
-        "email": f"idem_{uuid4()}@example.com",
-        "phone": "(11) 98765-4321",
+        "email": f"idem_{uuid4()}@gmail.com",
+        "phone": f"(11) 9{phone_digits[:4]}-{phone_digits[4:]}",
         "doctor_id": str(doctor_id),  # Convert UUID to string for JSON
     }
 
@@ -289,3 +290,4 @@ def test_idempotency_expired_key_allows_new_creation(
     db.refresh(patient)
     assert patient.idempotency_key is None
 
+from app.utils.timezone import SAO_PAULO_TZ

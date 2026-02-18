@@ -16,46 +16,37 @@ from app.services.cache.invalidation import (
     InvalidationStrategy,
     get_cache_invalidator,
 )
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.cache.specialized import (
     JWTCache,
     TemplateCache,
     AnalyticsCache,
     QueryCache,
 )
-from app.services.ai.cache_layer import CacheLayer, CacheStrategy
 
 
 @pytest.fixture
-async def cache_layer():
-    """Create cache layer for testing."""
-    cache = CacheLayer(strategy=CacheStrategy.MEMORY)
-    await cache.initialize()
-    yield cache
-    await cache.close()
-
-
-@pytest.fixture
-async def jwt_cache(cache_layer):
+async def jwt_cache():
     """Create JWT cache instance."""
-    return JWTCache(cache_layer=cache_layer)
+    return JWTCache()
 
 
 @pytest.fixture
-async def template_cache(cache_layer):
+async def template_cache():
     """Create template cache instance."""
-    return TemplateCache(cache_layer=cache_layer)
+    return TemplateCache()
 
 
 @pytest.fixture
-async def analytics_cache(cache_layer):
+async def analytics_cache():
     """Create analytics cache instance."""
-    return AnalyticsCache(cache_layer=cache_layer)
+    return AnalyticsCache()
 
 
 @pytest.fixture
-async def query_cache(cache_layer):
+async def query_cache():
     """Create query cache instance."""
-    return QueryCache(cache_layer=cache_layer)
+    return QueryCache()
 
 
 @pytest.fixture
@@ -75,7 +66,7 @@ def sample_entity():
     return {
         "id": str(uuid4()),
         "name": "Test Entity",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": now_sao_paulo_naive().isoformat(),
     }
 
 

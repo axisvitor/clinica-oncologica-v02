@@ -54,8 +54,7 @@ def upgrade() -> None:
         'idx_quiz_sessions_patient_id',
         'quiz_sessions',
         ['patient_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Add composite index for common query patterns
@@ -63,8 +62,7 @@ def upgrade() -> None:
         'idx_quiz_sessions_patient_status',
         'quiz_sessions',
         ['patient_id', 'status'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Add index for session lookup by started_at (for sorting)
@@ -72,8 +70,7 @@ def upgrade() -> None:
         'idx_quiz_sessions_started_at',
         'quiz_sessions',
         ['started_at'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
 

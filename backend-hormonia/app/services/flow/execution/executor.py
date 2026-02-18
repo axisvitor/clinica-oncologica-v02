@@ -22,6 +22,7 @@ from ..types import (
 from ..config import get_flow_config
 from .scheduler import FlowScheduler
 from .conditions import ConditionEvaluator
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ class FlowStepExecutor:
             step_name=step_definition.get("name", step_id),
             status=FlowStepStatus.IN_PROGRESS,
             input_data=step_definition.get("input_data", {}),
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
             metadata=step_definition.get("metadata", {}),
         )
 
@@ -94,7 +95,7 @@ class FlowStepExecutor:
             output = await handler(context, step_definition)
             step_data.status = FlowStepStatus.COMPLETED
             step_data.output_data = output
-            step_data.completed_at = datetime.now(timezone.utc)
+            step_data.completed_at = now_sao_paulo()
 
             context.steps_completed.append(step_id)
             context.steps_history.append(step_data)
@@ -106,7 +107,7 @@ class FlowStepExecutor:
         except Exception as exc:
             step_data.status = FlowStepStatus.FAILED
             step_data.error = str(exc)
-            step_data.completed_at = datetime.now(timezone.utc)
+            step_data.completed_at = now_sao_paulo()
             context.steps_history.append(step_data)
             logger.exception("Step %s failed: %s", step_id, exc)
             raise
@@ -124,7 +125,7 @@ class FlowStepExecutor:
         return {
             "message_sent": True,
             "message_content": message_content,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "flow_data_updates": {},
             "variables_updates": {"last_message_sent": message_content},
         }
@@ -192,7 +193,7 @@ class FlowStepExecutor:
         wait_until = self.scheduler.compute_wait_until(context, step_def)
         if not wait_until:
             duration_seconds = step_def.get("duration_seconds", 0)
-            wait_until = datetime.now(timezone.utc) + timedelta(seconds=duration_seconds)
+            wait_until = now_sao_paulo() + timedelta(seconds=duration_seconds)
 
         return {
             "wait_started": True,
@@ -254,7 +255,7 @@ class FlowStepExecutor:
             "flow_ended": True,
             "end_reason": end_reason,
             "final_message": final_message,
-            "flow_data_updates": {"ended_at": datetime.now(timezone.utc).isoformat()},
+            "flow_data_updates": {"ended_at": now_sao_paulo().isoformat()},
             "variables_updates": {},
         }
 

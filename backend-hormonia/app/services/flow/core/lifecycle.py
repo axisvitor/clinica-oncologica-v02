@@ -9,13 +9,14 @@ from __future__ import annotations
 
 # Standard library imports
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, Optional
 from uuid import UUID
 
 # Local application imports
 from ..types import FlowContext, FlowStatus
 from .context import FlowContextRepository
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,23 @@ class FlowLifecycleManager:
         """
         self.repository = repository
 
+    def _ensure_transition(
+        self,
+        context: FlowContext,
+        *,
+        allowed_from: set[FlowStatus],
+        target: FlowStatus,
+        action: str,
+    ) -> None:
+        """Validate lifecycle transition before mutating context state."""
+        current_status = context.status
+        if current_status not in allowed_from:
+            allowed = ", ".join(sorted(status.value for status in allowed_from))
+            raise ValueError(
+                f"Invalid transition for action '{action}': "
+                f"{current_status.value} -> {target.value} (allowed from: {allowed})"
+            )
+
     async def start(
         self,
         context: FlowContext,
@@ -57,8 +75,14 @@ class FlowLifecycleManager:
         Returns:
             Updated flow context.
         """
+        self._ensure_transition(
+            context,
+            allowed_from={FlowStatus.PENDING},
+            target=FlowStatus.ACTIVE,
+            action="start",
+        )
         context.status = FlowStatus.ACTIVE
-        context.started_at = context.started_at or datetime.now(timezone.utc)
+        context.started_at = context.started_at or now_sao_paulo()
         context.expires_at = expires_at
         await self.repository.save(context, template)
         return context
@@ -74,9 +98,15 @@ class FlowLifecycleManager:
         Returns:
             Updated flow context.
         """
+        self._ensure_transition(
+            context,
+            allowed_from={FlowStatus.ACTIVE},
+            target=FlowStatus.PAUSED,
+            action="pause",
+        )
         context.status = FlowStatus.PAUSED
         context.metadata["pause_reason"] = reason or "manual"
-        context.metadata["paused_at"] = datetime.now(timezone.utc).isoformat()
+        context.metadata["paused_at"] = now_sao_paulo().isoformat()
         await self.repository.save(context)
         return context
 
@@ -90,8 +120,14 @@ class FlowLifecycleManager:
         Returns:
             Updated flow context.
         """
+        self._ensure_transition(
+            context,
+            allowed_from={FlowStatus.PAUSED},
+            target=FlowStatus.ACTIVE,
+            action="resume",
+        )
         context.status = FlowStatus.ACTIVE
-        context.metadata["resumed_at"] = datetime.now(timezone.utc).isoformat()
+        context.metadata["resumed_at"] = now_sao_paulo().isoformat()
         await self.repository.save(context)
         return context
 
@@ -110,8 +146,14 @@ class FlowLifecycleManager:
         Returns:
             Updated flow context.
         """
+        self._ensure_transition(
+            context,
+            allowed_from={FlowStatus.PENDING, FlowStatus.ACTIVE, FlowStatus.PAUSED, FlowStatus.FAILED},
+            target=FlowStatus.CANCELLED,
+            action="cancel",
+        )
         context.status = FlowStatus.CANCELLED
-        context.completed_at = datetime.now(timezone.utc)
+        context.completed_at = now_sao_paulo()
         context.metadata["cancel_reason"] = reason or "manual"
         await self.repository.save(context)
         return context
@@ -126,8 +168,14 @@ class FlowLifecycleManager:
         Returns:
             Updated flow context.
         """
+        self._ensure_transition(
+            context,
+            allowed_from={FlowStatus.ACTIVE},
+            target=FlowStatus.COMPLETED,
+            action="complete",
+        )
         context.status = FlowStatus.COMPLETED
-        context.completed_at = datetime.now(timezone.utc)
+        context.completed_at = now_sao_paulo()
         await self.repository.save(context)
         return context
 

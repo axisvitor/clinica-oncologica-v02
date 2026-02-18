@@ -56,7 +56,7 @@ This document describes the clinical fields stored in the `patient.patient_data`
   },
   "onboarding": {
     "completed": true,
-    "completed_at": "2024-01-15T10:00:00Z"
+    "completed_at": "2024-01-15T10:00:00-03:00"
   }
 }
 ```

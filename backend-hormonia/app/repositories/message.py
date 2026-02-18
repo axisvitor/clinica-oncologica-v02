@@ -1,6 +1,6 @@
 from typing import List, Optional, Dict
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import hashlib
 import logging
 
@@ -11,6 +11,7 @@ from sqlalchemy import and_, func, or_
 from app.models.message import Message, MessageDirection, MessageStatus, MessageType
 from app.repositories.base import BaseRepository
 from app.exceptions import ValidationError
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ class MessageRepository(BaseRepository[Message]):
             cdate = cursor_data["created_at"]
             # Assuming cdate is datetime object or handled before calling
             if isinstance(cdate, str):
-                cdate = datetime.fromisoformat(cdate.replace("Z", "+00:00"))
+                cdate = datetime.fromisoformat(cdate)
 
             if sort_order == "desc":
                 criteria.append(
@@ -123,6 +124,20 @@ class MessageRepository(BaseRepository[Message]):
             query = query.options(joinedload(Message.patient))
 
         return query.offset(skip).limit(limit).all()
+
+    def get_recent_for_patient(
+        self, patient_id: UUID, limit: int = 10, days: int = 7
+    ) -> List[Message]:
+        """Get recent messages for a patient within the last N days."""
+        cutoff = now_sao_paulo() - timedelta(days=days)
+        return (
+            self.db.query(Message)
+            .filter(Message.patient_id == patient_id)
+            .filter(Message.created_at >= cutoff)
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+            .all()
+        )
 
     def get_by_whatsapp_id(self, whatsapp_id: str) -> Optional[Message]:
         """Get message by WhatsApp ID"""
@@ -193,7 +208,7 @@ class MessageRepository(BaseRepository[Message]):
         """Get messages scheduled before a specific time"""
         return (
             self.db.query(Message)
-            .filter(Message.status == MessageStatus.PENDING)
+            .filter(Message.status.in_([MessageStatus.PENDING, MessageStatus.SCHEDULED]))
             .filter(Message.scheduled_for <= before_time)
             .order_by(Message.scheduled_for.asc())
             .offset(skip)
@@ -226,7 +241,7 @@ class MessageRepository(BaseRepository[Message]):
 
         def _normalize_datetime(value: Optional[datetime]) -> Optional[datetime]:
             if value and value.tzinfo is None:
-                return value.replace(tzinfo=timezone.utc)
+                return value.replace(tzinfo=SAO_PAULO_TZ)
             return value
 
         for message in query.all():
@@ -606,7 +621,7 @@ class MessageIntegrityService:
         """Validate message chronological order"""
         try:
             patient_id = message_data["patient_id"]
-            message_timestamp = message_data.get("created_at", datetime.now(timezone.utc))
+            message_timestamp = message_data.get("created_at", now_sao_paulo())
 
             # Get the most recent message for this patient
             latest_message = (
@@ -643,7 +658,7 @@ class MessageIntegrityService:
                 "type": message_data.get("type", ""),
                 "content": message_data.get("content", ""),
                 "created_at": message_data.get(
-                    "created_at", datetime.now(timezone.utc)
+                    "created_at", now_sao_paulo()
                 ).isoformat(),
             }
 

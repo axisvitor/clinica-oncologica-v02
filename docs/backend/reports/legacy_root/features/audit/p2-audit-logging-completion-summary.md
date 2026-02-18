@@ -25,7 +25,7 @@ Comprehensive audit logging has been successfully implemented across all templat
 **Features Implemented:**
 - ✅ Structured JSON logging for easy parsing
 - ✅ 10 distinct audit action types (CREATE, UPDATE, DELETE, READ, PUBLISH, ARCHIVE, DUPLICATE, ROLLBACK, SEARCH, VALIDATE)
-- ✅ Automatic UTC timestamp generation
+- ✅ Automatic Sao Paulo timestamp generation
 - ✅ IP address tracking for security
 - ✅ Success/failure tracking with error messages
 - ✅ Batch operation logging
@@ -97,7 +97,7 @@ AuditLogger.log(
 **Standard Entry:**
 ```json
 {
-  "timestamp": "2025-12-22T19:30:00.000Z",
+  "timestamp": "2025-12-22T19:30:00.000-03:00",
   "action": "create",
   "resource_type": "flow_template",
   "resource_id": "uuid",

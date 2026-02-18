@@ -1,5 +1,5 @@
 """WhatsApp integration services."""
 
-from .whatsapp_service import WhatsAppService
+from app.services.unified_whatsapp_service import UnifiedWhatsAppService as WhatsAppService
 
 __all__ = ["WhatsAppService"]

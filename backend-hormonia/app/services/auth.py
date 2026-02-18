@@ -15,6 +15,7 @@ from app.schemas.auth import TokenData
 
 # Redis client will be passed as generic object for compatibility
 from app.infrastructure.cache import cache, cache_user_data
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,23 @@ class AuthService:
         self._failed_attempts: Dict[str, Dict[str, Any]] = defaultdict(
             lambda: {"count": 0, "last_attempt": None, "ip_attempts": defaultdict(int)}
         )
+
+    @staticmethod
+    def _normalize_attempt_timestamp(
+        value: Optional[datetime], reference: datetime
+    ) -> Optional[datetime]:
+        """
+        Normalize in-memory attempt timestamps to the same timezone model.
+
+        Tests and legacy callers may store naive datetimes while runtime stores
+        timezone-aware values. Align everything with `reference` to avoid
+        subtracting naive vs aware datetimes.
+        """
+        if value is None or not isinstance(value, datetime):
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=reference.tzinfo)
+        return value.astimezone(reference.tzinfo)
 
     def create_access_token(
         self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None
@@ -295,12 +313,14 @@ class AuthService:
         Returns:
             True if rate limited, False otherwise
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         attempts = self._failed_attempts[email]
 
         # Check if we're within the lockout period
-        if attempts["last_attempt"]:
-            time_since_last = (now - attempts["last_attempt"]).total_seconds()
+        last_attempt = self._normalize_attempt_timestamp(attempts["last_attempt"], now)
+        if last_attempt:
+            attempts["last_attempt"] = last_attempt
+            time_since_last = (now - last_attempt).total_seconds()
             if time_since_last >= self.lockout_window:
                 attempts["count"] = 0
                 attempts["ip_attempts"].clear()
@@ -375,12 +395,14 @@ class AuthService:
             email: User email address
             client_ip: Client IP address
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         attempts = self._failed_attempts[email]
 
         # Check if lockout window has passed - reset if so
-        if attempts["last_attempt"]:
-            time_since_last = (now - attempts["last_attempt"]).total_seconds()
+        last_attempt = self._normalize_attempt_timestamp(attempts["last_attempt"], now)
+        if last_attempt:
+            attempts["last_attempt"] = last_attempt
+            time_since_last = (now - last_attempt).total_seconds()
             if time_since_last >= self.lockout_window:
                 attempts["count"] = 0
                 attempts["ip_attempts"].clear()

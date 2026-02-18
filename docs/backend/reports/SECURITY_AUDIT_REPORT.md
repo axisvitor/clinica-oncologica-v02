@@ -611,9 +611,9 @@ Proper CSRF token generation and validation with secure settings.
 ---
 
 ### 9. Rate Limiting
-**File**: `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/middleware/rate_limiter.py`
+**File**: `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/middleware/distributed_rate_limiter.py`
 
-Rate limiting on authentication and sensitive endpoints.
+Redis-backed rate limiting on authentication and sensitive endpoints.
 
 **Assessment**: ✅ GOOD - Mitigates brute force attacks
 

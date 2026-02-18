@@ -4,13 +4,11 @@ AI Batch Processor - Refactored
 
 Consolidates:
 - ai_batch_processor.py (parallel processing logic)
-- Integration with unified cache_layer.py
 - Integration with ai_service.py
 
 Features:
 - Parallel processing of AI operations (60-70% latency reduction)
 - Priority-based operation ordering
-- Integrated caching through CacheLayer
 - Performance metrics and statistics
 - Timeout handling and error recovery
 
@@ -22,14 +20,14 @@ Version: 2.0.0 (Refactored)
 import asyncio
 import logging
 from typing import Dict, Any, List, Optional, Union
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 from dataclasses import dataclass, field
 
-from app.integrations.gemini_client import get_gemini_client
-
-from .cache_layer import CacheLayer, CacheOperation, get_cache_layer
-from .ai_service import PatientContext
+from app.ai.models import PatientContext
+from app.ai.client import get_gemini_client
+from app.services.ai.guardrails import OutputKind
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +36,7 @@ logger = logging.getLogger(__name__)
 class AIOperation:
     """Single AI operation request."""
 
-    operation_type: CacheOperation
+    operation_type: str
     prompt: str
     context: Optional[Dict[str, Any]] = None
     priority: int = 5  # 1-10, higher is more important
@@ -50,7 +48,7 @@ class BatchResult:
     """Result of batch AI processing."""
 
     patient_id: UUID
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=now_sao_paulo_naive)
     results: Dict[str, Any] = field(default_factory=dict)
     errors: List[str] = field(default_factory=list)
     latency_ms: float = 0.0
@@ -74,12 +72,11 @@ class BatchProcessor:
     Batch processor for AI operations.
 
     Processes multiple AI operations in parallel to reduce latency
-    by 60-70%. Integrates with unified CacheLayer for intelligent caching.
+    by 60-70%. Handles parallel execution and timeout control.
 
     Features:
     - Parallel execution with asyncio
     - Priority-based ordering
-    - Automatic caching through CacheLayer
     - Timeout handling
     - Performance metrics
 
@@ -93,15 +90,11 @@ class BatchProcessor:
         ... )
     """
 
-    def __init__(self, cache_layer: Optional[CacheLayer] = None):
+    def __init__(self):
         """
         Initialize batch processor.
-
-        Args:
-            cache_layer: Cache layer instance (optional, uses singleton)
         """
         self.gemini_client = None
-        self.cache: Optional[CacheLayer] = cache_layer
         self.stats = {
             "batches_processed": 0,
             "total_operations": 0,
@@ -117,12 +110,7 @@ class BatchProcessor:
         if self._initialized:
             return
 
-        # Initialize Gemini client
         self.gemini_client = get_gemini_client()
-
-        # Initialize cache
-        if not self.cache:
-            self.cache = await get_cache_layer()
 
         self._initialized = True
         logger.info("BatchProcessor initialized successfully")
@@ -153,30 +141,33 @@ class BatchProcessor:
             >>> print(result.results['sentiment_analysis'])
             >>> print(result.latency_ms)
         """
-        start_time = datetime.now(timezone.utc)
+        if not self._initialized:
+            await self.initialize()
+
+        start_time = now_sao_paulo()
 
         # Define all operations for patient interaction
         operations = [
             AIOperation(
-                operation_type=CacheOperation.SENTIMENT_ANALYSIS,
+                operation_type="sentiment_analysis",
                 prompt=self._create_sentiment_prompt(message, patient_context),
                 context={"patient_id": str(patient_id)},
                 priority=8,
             ),
             AIOperation(
-                operation_type=CacheOperation.RESPONSE_GENERATION,
+                operation_type="response_generation",
                 prompt=self._create_response_prompt(message, patient_context),
                 context={"patient_id": str(patient_id)},
                 priority=9,
             ),
             AIOperation(
-                operation_type=CacheOperation.CONCERN_DETECTION,
+                operation_type="concern_detection",
                 prompt=self._create_concern_prompt(message, patient_context),
                 context={"patient_id": str(patient_id)},
                 priority=10,
             ),
             AIOperation(
-                operation_type=CacheOperation.INTENT_CLASSIFICATION,
+                operation_type="intent_classification",
                 prompt=self._create_intent_prompt(message),
                 context={"patient_id": str(patient_id)},
                 priority=7,
@@ -187,7 +178,7 @@ class BatchProcessor:
         results = await self._process_batch(operations)
 
         # Calculate latency
-        end_time = datetime.now(timezone.utc)
+        end_time = now_sao_paulo()
         latency_ms = (end_time - start_time).total_seconds() * 1000
 
         # Create batch result
@@ -197,15 +188,11 @@ class BatchProcessor:
         for operation, result in zip(operations, results):
             if isinstance(result, Exception):
                 batch_result.errors.append(
-                    f"{operation.operation_type.value}: {str(result)}"
+                    f"{operation.operation_type}: {str(result)}"
                 )
             else:
-                key = operation.operation_type.value
+                key = operation.operation_type
                 batch_result.results[key] = result
-
-                # Check if it was a cache hit (result will have _cache_hit marker)
-                if isinstance(result, dict) and result.get("_cache_hit", False):
-                    batch_result.cache_hits += 1
 
         # Update stats
         self._update_stats(batch_result)
@@ -234,11 +221,14 @@ class BatchProcessor:
         Returns:
             BatchResult with interpretation results
         """
-        start_time = datetime.now(timezone.utc)
+        if not self._initialized:
+            await self.initialize()
+
+        start_time = now_sao_paulo()
 
         operations = [
             AIOperation(
-                operation_type=CacheOperation.QUIZ_INTERPRETATION,
+                operation_type="quiz_interpretation",
                 prompt=self._create_quiz_interpretation_prompt(question, response),
                 context={
                     "patient_id": str(patient_id),
@@ -247,7 +237,7 @@ class BatchProcessor:
                 priority=9,
             ),
             AIOperation(
-                operation_type=CacheOperation.SENTIMENT_ANALYSIS,
+                operation_type="sentiment_analysis",
                 prompt=self._create_sentiment_prompt(response, None),
                 context={"patient_id": str(patient_id), "quiz": True},
                 priority=7,
@@ -257,16 +247,14 @@ class BatchProcessor:
         results = await self._process_batch(operations)
 
         # Calculate latency
-        end_time = datetime.now(timezone.utc)
+        end_time = now_sao_paulo()
         latency_ms = (end_time - start_time).total_seconds() * 1000
 
         batch_result = BatchResult(patient_id=patient_id, latency_ms=latency_ms)
 
         for operation, result in zip(operations, results):
             if not isinstance(result, Exception):
-                batch_result.results[operation.operation_type.value] = result
-                if isinstance(result, dict) and result.get("_cache_hit", False):
-                    batch_result.cache_hits += 1
+                batch_result.results[operation.operation_type] = result
             else:
                 batch_result.errors.append(str(result))
 
@@ -286,28 +274,26 @@ class BatchProcessor:
         Returns:
             List of results or exceptions
         """
-        # Sort by priority (higher priority first)
-        sorted_ops = sorted(operations, key=lambda x: x.priority, reverse=True)
+        # Sort by priority (higher priority first) while keeping original indices
+        indexed_ops = list(enumerate(operations))
+        sorted_ops = sorted(indexed_ops, key=lambda item: item[1].priority, reverse=True)
 
         # Create tasks for parallel execution
-        tasks = []
-        for operation in sorted_ops:
-            task = self._process_single_operation(operation)
-            tasks.append(task)
+        tasks = [self._process_single_operation(operation) for _, operation in sorted_ops]
 
         # Execute all tasks in parallel with timeout handling
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Reorder results to match original operation order
-        result_map = dict(zip(sorted_ops, results))
-        return [result_map[op] for op in operations]
+        result_by_index = {
+            original_index: result
+            for (original_index, _), result in zip(sorted_ops, results)
+        }
+        return [result_by_index[i] for i in range(len(operations))]
 
     async def _process_single_operation(self, operation: AIOperation) -> Any:
         """
-        Process a single AI operation with caching.
-
-        Uses CacheLayer for automatic caching. If cache miss, executes
-        the AI operation and caches the result.
+        Process a single AI operation.
 
         Args:
             operation: AI operation to process
@@ -316,51 +302,22 @@ class BatchProcessor:
             Operation result
         """
         try:
-            # Build cache key
-            cache_key = self._build_cache_key(operation)
-
-            # Try to get from cache
-            if self.cache:
-                cached = await self.cache.get(cache_key, operation.operation_type)
-
-                if cached is not None:
-                    # Mark as cache hit
-                    if isinstance(cached, dict):
-                        cached["_cache_hit"] = True
-                    return cached
-
-            # Cache miss - execute operation
+            # Execute operation
             result = await asyncio.wait_for(
                 self._execute_ai_operation(operation.operation_type, operation.prompt),
                 timeout=operation.timeout,
             )
-
-            # Cache the result
-            if self.cache:
-                # Mark as cache miss
-                if isinstance(result, dict):
-                    result["_cache_hit"] = False
-
-                await self.cache.set(
-                    cache_key,
-                    result,
-                    operation.operation_type,
-                    tags=[operation.context.get("patient_id")]
-                    if operation.context and operation.context.get("patient_id")
-                    else None,
-                )
-
             return result
 
         except asyncio.TimeoutError:
-            logger.error(f"Timeout for {operation.operation_type.value}")
-            raise TimeoutError(f"Operation {operation.operation_type.value} timed out")
+            logger.error(f"Timeout for {operation.operation_type}")
+            raise TimeoutError(f"Operation {operation.operation_type} timed out")
         except Exception as e:
-            logger.error(f"Error in {operation.operation_type.value}: {e}")
+            logger.error(f"Error in {operation.operation_type}: {e}")
             raise
 
     async def _execute_ai_operation(
-        self, operation_type: CacheOperation, prompt: str
+        self, operation_type: str, prompt: str
     ) -> Any:
         """
         Execute actual AI operation using Gemini.
@@ -377,68 +334,61 @@ class BatchProcessor:
 
         # Add operation-specific system prompts
         system_prompts = {
-            CacheOperation.SENTIMENT_ANALYSIS: "Analyze sentiment and return JSON with sentiment, confidence, and concerns.",
-            CacheOperation.RESPONSE_GENERATION: "Generate empathetic response in Portuguese.",
-            CacheOperation.CONCERN_DETECTION: "Identify medical concerns and return severity level.",
-            CacheOperation.INTENT_CLASSIFICATION: "Classify user intent from predefined categories.",
-            CacheOperation.QUIZ_INTERPRETATION: "Interpret quiz response and validate against options.",
-            CacheOperation.TEMPLATE_HUMANIZATION: "Humanize template message maintaining key information.",
+            "sentiment_analysis": "Analyze sentiment and return JSON with sentiment, confidence, and concerns.",
+            "response_generation": "Generate empathetic response in Portuguese.",
+            "concern_detection": "Identify medical concerns and return severity level.",
+            "intent_classification": "Classify user intent from predefined categories.",
+            "quiz_interpretation": "Interpret quiz response and validate against options.",
+            "template_humanization": "Humanize template message maintaining key information.",
         }
 
         system_prompt = system_prompts.get(operation_type, "")
         full_prompt = f"{system_prompt}\n\n{prompt}"
 
-        # Execute with Gemini
-        response = await self.gemini_client.generate_content(full_prompt)
+        output_kind = None
+        if operation_type in (
+            "sentiment_analysis",
+            "concern_detection",
+            "quiz_interpretation",
+            "intent_classification",
+        ):
+            output_kind = OutputKind.JSON
+
+        response = await self.gemini_client.generate_content(
+            full_prompt,
+            output_kind=output_kind,
+            min_length=2,
+            max_length=2000,
+        )
 
         # Parse response based on operation type
         return self._parse_response(operation_type, response)
 
-    def _parse_response(self, operation_type: CacheOperation, response: Any) -> Any:
+    def _parse_response(self, operation_type: str, response: Any) -> Any:
         """Parse AI response based on operation type."""
         # Simple text response
-        if hasattr(response, "text"):
+        if isinstance(response, str):
+            text = response
+        elif hasattr(response, "text"):
             text = response.text
+        else:
+            text = str(response)
 
-            # Try to parse as JSON for structured operations
-            if operation_type in (
-                CacheOperation.SENTIMENT_ANALYSIS,
-                CacheOperation.CONCERN_DETECTION,
-                CacheOperation.QUIZ_INTERPRETATION,
-            ):
-                try:
-                    import json
+        # Try to parse as JSON for structured operations
+        if operation_type in (
+            "sentiment_analysis",
+            "concern_detection",
+            "quiz_interpretation",
+        ):
+            try:
+                import json
 
-                    return json.loads(text)
-                except json.JSONDecodeError:
-                    # Return as text if not valid JSON
-                    return {"result": text}
+                return json.loads(text)
+            except json.JSONDecodeError:
+                # Return as text if not valid JSON
+                return {"result": text}
 
-            return {"result": text}
-
-        return {"result": str(response)}
-
-    def _build_cache_key(self, operation: AIOperation) -> str:
-        """Build cache key for operation."""
-        import hashlib
-
-        # Include operation type, prompt, and context in key
-        key_parts = [
-            operation.operation_type.value,
-            operation.prompt[:100],  # Truncate prompt
-        ]
-
-        if operation.context:
-            key_parts.append(str(operation.context))
-
-        key_string = ":".join(key_parts)
-
-        # Hash if too long (using SHA-256 for better collision resistance)
-        if len(key_string) > 100:
-            key_hash = hashlib.sha256(key_string.encode()).hexdigest()[:32]
-            return f"{operation.operation_type.value}:{key_hash}"
-
-        return key_string
+        return {"result": text}
 
     # Prompt creation methods
 

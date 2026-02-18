@@ -1,6 +1,20 @@
 """
 FlowCore - Base class for all flow operations.
 Contains shared functionality extracted from EnhancedFlowEngine and FlowEngineIntegrationService.
+
+Architecture note (QW-021 consolidation):
+    This file is the active production base class for day-based treatment flows.
+    It is the parent of both EnhancedFlowEngine (AI/ML) and FlowService (V2 API facade).
+    It operates on SQLAlchemy PatientFlowState models and the FlowStateRepository.
+
+    The organized ``app.services.flow`` package (QW-021) implements a separate,
+    step-based execution engine with Pydantic contexts.  The two systems coexist:
+    * flat files (flow_core, enhanced_flow_engine, flow_service, flow_management)
+      = active production treatment-flow system
+    * app.services.flow.core.manager.FlowManager / FlowEngine
+      = new consolidated step-execution engine (QW-021)
+
+    Canonical location for FlowType enum: ``app.services.flow.types.FlowType``
 """
 
 import logging
@@ -16,11 +30,13 @@ from app.domain.messaging.core import MessageTemplate
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
 from app.services.flow.event_broadcaster import flow_event_broadcaster
+from app.services.flow.flags import is_awaiting_response
+from app.utils.timezone import SAO_PAULO_TZ, SAO_PAULO_TZ_NAME, now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
 
-from app.services.flow.types import FlowType
+from app.services.flow.types import FlowType, normalize_flow_type
 
 
 class NotFoundError(Exception):
@@ -31,12 +47,17 @@ class ValidationError(Exception):
     pass
 
 
-# Import ConcurrentModificationError for optimistic locking
-from app.exceptions import ConcurrentModificationError
+# Import flow-specific exceptions for optimistic locking and conflict signaling
+from app.exceptions import ConcurrentModificationError, FlowStateConflictError
 
 from app.services.platform_synchronization import PlatformSynchronizationService
-from app.services.template_loader import EnhancedTemplateLoader
-from app.services.unified_cache import UnifiedCacheService
+from app.services.template_loader_pkg import EnhancedTemplateLoader
+from app.infrastructure.cache import UnifiedCacheManager as UnifiedCacheService
+
+
+FLOW_ADVANCE_BLOCKED_MESSAGE = "Cannot advance flow while awaiting patient response"
+FLOW_ADVANCE_BLOCKED_CODE = "flow_advance_blocked_awaiting_response"
+FLOW_ADVANCE_BLOCKED_REASON = "awaiting_response"
 
 
 class FlowCore:
@@ -56,7 +77,7 @@ class FlowCore:
         self.flow_state_repo = FlowStateRepository(db)
         self.flow_broadcaster = flow_event_broadcaster
 
-        # Dependency Injection with fallback for backward compatibility (optional, but safer during transition)
+        # Dependency injection with sensible defaults
         if platform_sync:
             self.platform_sync = platform_sync
         else:
@@ -132,7 +153,7 @@ class FlowCore:
     async def enroll_patient(
         self,
         patient_id: UUID,
-        flow_type: FlowType = FlowType.INITIAL_15_DAYS,
+        flow_type: FlowType = FlowType.ONBOARDING,
         auto_commit: bool = True,
     ) -> PatientFlowState:
         """
@@ -151,6 +172,8 @@ class FlowCore:
             NotFoundError: If patient not found
             ValidationError: If patient already enrolled
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         # Get patient
         patient = self.patient_repo.get(patient_id)
         if not patient:
@@ -193,13 +216,21 @@ class FlowCore:
         # NOTE: Use correct column names matching the database schema:
         # - flow_template_version_id (not template_version_id)
         # - step_data (not state_data)
+        start_dt = now_sao_paulo()
+        if patient.created_at:
+            start_dt = patient.created_at
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=SAO_PAULO_TZ)
+            else:
+                start_dt = start_dt.astimezone(SAO_PAULO_TZ)
+
         flow_state = PatientFlowState(
             patient_id=patient_id,
             flow_template_version_id=active_version.id,
             current_step=1,  # Start at day 1
-            started_at=datetime.now(timezone.utc),
+            started_at=start_dt,
             step_data={
-                "enrollment_date": datetime.now(timezone.utc).isoformat(),
+                "enrollment_date": start_dt.isoformat(),
                 "ai_enabled": True,
                 "personalization_level": "high",
             },
@@ -228,26 +259,11 @@ class FlowCore:
         Returns:
             Current day number
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.flow_state_repo to async, use await
         flow_state = self.flow_state_repo.get_active_flow(patient_id)
         if not flow_state:
             return 1
-
-        # Get patient timezone
-        timezone_str = "America/Sao_Paulo"
-        if flow_state.patient and hasattr(flow_state.patient, "timezone"):
-            timezone_str = flow_state.patient.timezone
-
-        try:
-            import pytz
-
-            tz = pytz.timezone(timezone_str)
-        except Exception:
-            logger.warning(
-                f"Invalid timezone {timezone_str} for patient {patient_id}, defaulting to America/Sao_Paulo"
-            )
-            import pytz
-
-            tz = pytz.timezone("America/Sao_Paulo")
 
         # Calculate days since enrollment using local time
         step_data = flow_state.step_data or {}
@@ -258,10 +274,10 @@ class FlowCore:
 
         # Ensure enrollment_dt is timezone aware
         if enrollment_dt.tzinfo is None:
-            enrollment_dt = pytz.utc.localize(enrollment_dt)
+            enrollment_dt = enrollment_dt.replace(tzinfo=SAO_PAULO_TZ)
 
-        enrollment_local = enrollment_dt.astimezone(tz)
-        now_local = datetime.now(tz)
+        enrollment_local = enrollment_dt.astimezone(SAO_PAULO_TZ)
+        now_local = now_sao_paulo()
 
         days_elapsed = (now_local.date() - enrollment_local.date()).days + 1
 
@@ -278,6 +294,7 @@ class FlowCore:
         Returns:
             Appropriate flow type
         """
+        # NOTE: Canonical flow kind keys are persisted in flow_kinds.kind_key.
         if current_day <= 15:
             return FlowType.ONBOARDING
         elif current_day <= 45:
@@ -297,17 +314,31 @@ class FlowCore:
         Returns:
             Flow advancement result
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             # Get current flow state
             flow_state = self.flow_state_repo.get_active_flow(patient_id)
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
+            if self._is_awaiting_response(flow_state.step_data):
+                raise FlowStateConflictError(
+                    FLOW_ADVANCE_BLOCKED_MESSAGE,
+                    details={
+                        "patient_id": str(patient_id),
+                        "blocked": True,
+                        "block_reason": FLOW_ADVANCE_BLOCKED_REASON,
+                        "current_step": flow_state.current_step,
+                    },
+                    code=FLOW_ADVANCE_BLOCKED_CODE,
+                )
+
             # Calculate current day
             current_day = force_day or await self.calculate_patient_day(patient_id)
 
             # Determine if flow type transition is needed
-            current_flow_type = FlowType(flow_state.flow_type)
+            current_flow_type = normalize_flow_type(flow_state.flow_type)
             required_flow_type = await self.determine_flow_type(patient_id, current_day)
 
             # Capture version for optimistic locking before any modifications
@@ -335,7 +366,9 @@ class FlowCore:
             previous_day = flow_state.current_step
             flow_state.current_step = current_day
             step_data = dict(flow_state.step_data or {})
-            step_data["last_advancement"] = datetime.now(timezone.utc).isoformat()
+            step_data["last_advancement"] = now_sao_paulo().isoformat()
+            step_data["current_flow_day"] = current_day
+            step_data["flow_kind"] = required_flow_type.value
             flow_state.step_data = step_data
 
             # Commit with optimistic locking to prevent race conditions
@@ -372,7 +405,7 @@ class FlowCore:
                         "current_day": current_day,
                         "flow_type": required_flow_type.value,
                         "transitioned": current_flow_type != required_flow_type,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": now_sao_paulo().isoformat(),
                     }
                 },
             )
@@ -404,6 +437,8 @@ class FlowCore:
         Returns:
             Pause result
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             flow_state = self.flow_state_repo.get_active_flow(patient_id)
             if not flow_state:
@@ -422,7 +457,7 @@ class FlowCore:
             # Update step data
             step_data = dict(flow_state.step_data or {})
             step_data["paused"] = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "reason": reason or "Manual pause",
                 "current_step": flow_state.current_step,
             }
@@ -444,7 +479,7 @@ class FlowCore:
                 "status": "paused",
                 "patient_id": str(patient_id),
                 "reason": reason,
-                "paused_at": datetime.now(timezone.utc).isoformat(),
+                "paused_at": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
@@ -462,6 +497,8 @@ class FlowCore:
         Returns:
             Resume result
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             flow_state = self.flow_state_repo.get_active_flow(patient_id)
             if not flow_state:
@@ -482,7 +519,7 @@ class FlowCore:
             if "paused" in step_data:
                 paused_data = step_data.pop("paused")
                 step_data["resumed"] = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": now_sao_paulo().isoformat(),
                     "was_paused_at": paused_data.get("timestamp"),
                     "pause_reason": paused_data.get("reason"),
                 }
@@ -503,7 +540,7 @@ class FlowCore:
             return {
                 "status": "resumed",
                 "patient_id": str(patient_id),
-                "resumed_at": datetime.now(timezone.utc).isoformat(),
+                "resumed_at": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
@@ -521,6 +558,8 @@ class FlowCore:
         Returns:
             Flow state information
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             patient = self.patient_repo.get(patient_id)
             if not patient:
@@ -565,14 +604,10 @@ class FlowCore:
     ) -> Optional[MessageTemplate]:
         """
         Get message template for specific flow type and day.
-        
-        DEPRECATED: Use SequentialMessageHandler.send_day_messages instead.
-        This method relies on the old single-message structure.
         """
-        logger.warning("get_message_template_for_day is deprecated. Use SequentialMessageHandler.")
         try:
             # Load flow template with proper error handling
-            from app.services.template_loader import TemplateLoadError, FlowTemplateData
+            from app.services.template_loader_pkg import TemplateLoadError, FlowTemplateData
 
             try:
                 flow_template: FlowTemplateData = (
@@ -580,20 +615,20 @@ class FlowCore:
                 )
             except TemplateLoadError as e:
                 logger.error(
-                    f"Template load error for {flow_type.value}: {e}. Using fallback message."
+                    f"Template load error for {flow_type.value}: {e}."
                 )
-                return await self._get_fallback_template(flow_type, day)
+                raise NotFoundError(f"Template load error for {flow_type.value}") from e
             except FileNotFoundError as e:
                 logger.error(
-                    f"Template file not found for {flow_type.value}: {e}. Using fallback message."
+                    f"Template file not found for {flow_type.value}: {e}."
                 )
-                return await self._get_fallback_template(flow_type, day)
+                raise NotFoundError(f"Template file not found for {flow_type.value}") from e
             except Exception as e:
                 logger.error(
-                    f"Unexpected error loading template {flow_type.value}: {e}. Using fallback message.",
+                    f"Unexpected error loading template {flow_type.value}: {e}.",
                     exc_info=True,
                 )
-                return await self._get_fallback_template(flow_type, day)
+                raise
 
             # Get message for specific day from FlowTemplateData.messages dict
             if day in flow_template.messages:
@@ -602,74 +637,18 @@ class FlowCore:
                 return message_template
 
             logger.warning(
-                f"No message template found for {flow_type.value} day {day}. Using fallback message."
+                f"No message template found for {flow_type.value} day {day}."
             )
-            return await self._get_fallback_template(flow_type, day)
+            raise NotFoundError(
+                f"No message template found for {flow_type.value} day {day}"
+            )
 
         except Exception as e:
             logger.error(
-                f"Critical error getting message template for {flow_type.value} day {day}: {e}. Using fallback message.",
+                f"Critical error getting message template for {flow_type.value} day {day}: {e}.",
                 exc_info=True,
             )
-            return await self._get_fallback_template(flow_type, day)
-
-    async def _get_fallback_template(
-        self, flow_type: FlowType, day: int
-    ) -> Optional[MessageTemplate]:
-        """Provide fallback template when primary template loading fails."""
-        try:
-            from app.services.template_loader import MessageType as TemplateMessageType
-
-            # Create a simple fallback message template in Portuguese
-            fallback_messages = {
-                FlowType.INITIAL_15_DAYS: {
-                    "content": "Olá! Como você está se sentindo hoje?",
-                    "intent": "daily_check_initial",
-                    "ai_instructions": "Generate a warm, caring message asking about patient well-being",
-                },
-                FlowType.DAYS_16_45: {
-                    "content": "Esperamos que você esteja bem. Como está seu tratamento?",
-                    "intent": "treatment_followup",
-                    "ai_instructions": "Generate an empathetic message about treatment progress",
-                },
-                FlowType.MONTHLY_RECURRING: {
-                    "content": "Olá! É hora de fazer seu check-in mensal.",
-                    "intent": "monthly_checkin",
-                    "ai_instructions": "Generate a friendly monthly check-in message",
-                },
-            }
-
-            fallback_data = fallback_messages.get(
-                flow_type,
-                {
-                    "content": "Olá! Como podemos ajudá-lo hoje?",
-                    "intent": "general_checkin",
-                    "ai_instructions": "Generate a supportive, caring message",
-                },
-            )
-
-            logger.warning(f"Using fallback template for {flow_type.value} day {day}")
-
-            return MessageTemplate(
-                day=day,
-                intent=fallback_data["intent"],
-                base_content=fallback_data["content"],
-                core_elements={"greeting": True, "care": True, "support": True},
-                personalization_hints=[
-                    "patient_name",
-                    "treatment_type",
-                    "patient_condition",
-                ],
-                ai_instructions=fallback_data["ai_instructions"],
-                message_type=TemplateMessageType.TEXT,
-                variations=[],  # No variations for fallback
-            )
-        except Exception as e:
-            logger.error(
-                f"Critical failure generating fallback template: {e}. Returning None.",
-                exc_info=True,
-            )
-            return None
+            raise
 
     async def reload_templates(self, flow_type: Optional[str] = None) -> Dict[str, str]:
         """Reload templates from database and invalidate cache."""
@@ -718,18 +697,6 @@ class FlowCore:
             datetime: Optimal send time (always returns valid datetime)
         """
         try:
-            # Get patient timezone with validation
-            try:
-                patient_tz = getattr(patient, "timezone", "UTC")
-                if not patient_tz or not isinstance(patient_tz, str):
-                    logger.warning(
-                        f"Invalid timezone for patient {patient.id}, using UTC"
-                    )
-                    patient_tz = "UTC"
-            except Exception as tz_error:
-                logger.warning(f"Error reading patient timezone: {tz_error}, using UTC")
-                patient_tz = "UTC"
-
             # Get patient preferences for message timing with validation
             try:
                 preferred_hour = getattr(patient, "preferred_message_hour", 10)
@@ -748,17 +715,17 @@ class FlowCore:
                 )
                 preferred_hour = 10
 
-            # Calculate send time for today
-            now = datetime.now(timezone.utc)
-            send_time = now.replace(
+            # Calculate send time in Sao Paulo for scheduling
+            now_local = now_sao_paulo()
+            send_time_local = now_local.replace(
                 hour=preferred_hour, minute=0, second=0, microsecond=0
             )
 
             # If the time has already passed today, schedule for tomorrow
-            if send_time <= now:
-                send_time += timedelta(days=1)
+            if send_time_local <= now_local:
+                send_time_local += timedelta(days=1)
                 logger.debug(
-                    f"Preferred time passed, scheduling for tomorrow: {send_time}"
+                    f"Preferred time passed, scheduling for tomorrow: {send_time_local}"
                 )
 
             # Add some randomization to avoid all messages at exact same time
@@ -766,13 +733,14 @@ class FlowCore:
                 import random
 
                 random_minutes = random.randint(-30, 30)  # ±30 minutes
-                send_time += timedelta(minutes=random_minutes)
+                send_time_local += timedelta(minutes=random_minutes)
             except Exception as rand_error:
                 logger.warning(f"Randomization failed: {rand_error}, using exact hour")
 
+            send_time = send_time_local.astimezone(SAO_PAULO_TZ)
             logger.info(
                 f"Calculated send time for patient {patient.id} on day {current_day}: "
-                f"{send_time.isoformat()} (tz: {patient_tz}, hour: {preferred_hour})"
+                f"{send_time.isoformat()} (tz: {SAO_PAULO_TZ_NAME}, hour: {preferred_hour})"
             )
             return send_time
 
@@ -783,7 +751,7 @@ class FlowCore:
                 exc_info=True,
             )
             # Fallback to 1 hour from now
-            return datetime.now(timezone.utc) + timedelta(hours=1)
+            return now_sao_paulo().astimezone(SAO_PAULO_TZ) + timedelta(hours=1)
 
     def is_transient_error(self, error: Exception) -> bool:
         """
@@ -805,6 +773,11 @@ class FlowCore:
         error_str = str(error).lower()
         return any(term in error_str for term in transient_errors)
 
+    @staticmethod
+    def _is_awaiting_response(step_data: Optional[dict[str, Any]]) -> bool:
+        """Interpret awaiting_response with tolerant truthy string handling."""
+        return is_awaiting_response(step_data)
+
     # =============================================================================
     # HEALTH MONITORING (Shared between both services)
     # =============================================================================
@@ -816,11 +789,13 @@ class FlowCore:
         Returns:
             Health check results
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(text("SELECT 1"))
         results = {
             "flow_core": True,
             "database": True,
             "template_cache": False,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         try:
@@ -863,7 +838,7 @@ class FlowCore:
         )
         flow_state.step_data["transitions"].append(
             {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "from_flow": old_flow_type,
                 "to_flow": new_flow_type.value,
                 "at_day": current_day,

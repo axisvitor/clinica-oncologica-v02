@@ -7,7 +7,7 @@ Consolidated from: app/services/message.py
 
 from typing import List, Optional, Any, Dict
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime
 import logging
 import hashlib
 
@@ -23,6 +23,9 @@ from app.models.message import (
 from app.repositories.message import MessageRepository
 from app.schemas.message import MessageCreate, MessageUpdate
 from app.utils.db_retry import with_db_retry
+from app.utils.idempotency import build_message_idempotency_key
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
+from app.domain.messaging.core.update_helpers import update_message_by_id
 
 
 logger = logging.getLogger(__name__)
@@ -58,9 +61,12 @@ class MessageService:
         Combines patient, type, scheduled time and content hash to prevent
         duplicação de envios quando o mesmo payload é gerado mais de uma vez.
         """
-        ts = scheduled_for.replace(microsecond=0).isoformat()
-        base = f"{patient_id}:{message_type.value}:{ts}:{content or ''}"
-        return hashlib.sha256(base.encode("utf-8")).hexdigest()
+        return build_message_idempotency_key(
+            patient_id=patient_id,
+            content=content,
+            scheduled_for=scheduled_for,
+            message_type_value=message_type.value,
+        )
 
     @with_db_retry(max_retries=3)
     def create_message(self, message_data: MessageCreate) -> Message:
@@ -75,7 +81,7 @@ class MessageService:
         """
         message_dict = message_data.dict()
         scheduled_time = message_dict.get("scheduled_for") or datetime.now(
-            timezone.utc
+            SAO_PAULO_TZ
         ).replace(microsecond=0)
         message_type = message_dict.get("type", MessageType.TEXT)
         message_dict["scheduled_for"] = scheduled_time
@@ -127,12 +133,11 @@ class MessageService:
         Returns:
             Updated Message object or None
         """
-        message = self.repository.get_by_id(message_id)
-        if not message:
-            return None
-
-        update_data = message_data.dict(exclude_unset=True)
-        return self.repository.update(message, update_data)
+        return update_message_by_id(
+            self.repository,
+            message_id=message_id,
+            message_data=message_data,
+        )
 
     @with_db_retry(max_retries=3)
     def get_patient_messages(
@@ -255,9 +260,11 @@ class MessageService:
         Returns:
             Scheduled Message object
         """
-        scheduled_time = (scheduled_for or datetime.now(timezone.utc)).replace(
+        scheduled_time = (scheduled_for or now_sao_paulo()).replace(
             microsecond=0
         )
+        if scheduled_time.tzinfo is None:
+            scheduled_time = SAO_PAULO_TZ.localize(scheduled_time)
         idempotency_key = self._generate_idempotency_key(
             patient_id=patient_id,
             content=content,
@@ -287,7 +294,7 @@ class MessageService:
         if not message:
             return None
 
-        update_data = {"status": MessageStatus.SENT, "sent_at": datetime.now(timezone.utc)}
+        update_data = {"status": MessageStatus.SENT, "sent_at": now_sao_paulo()}
         if whatsapp_id:
             update_data["whatsapp_id"] = whatsapp_id
 
@@ -308,7 +315,7 @@ class MessageService:
             "message_metadata": {
                 **(message.message_metadata or {}),
                 "error": error_message,
-                "failed_at": datetime.now(timezone.utc).isoformat(),
+                "failed_at": now_sao_paulo().isoformat(),
             },
         }
 

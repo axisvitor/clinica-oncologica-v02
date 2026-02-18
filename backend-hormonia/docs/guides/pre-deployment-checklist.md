@@ -333,14 +333,10 @@ cat .env.example | grep -E "^[A-Z_]+=" | wc -l
 
 ```bash
 # Run configuration validation
-python scripts/verify_configuration.py --env=staging
+python scripts/validate_env.py --strict
 
-# Or manually check:
-python -c "
-from app.core.secure_config import validate_environment
-validate_environment()
-print('✅ Configuration valid')
-"
+# Optional machine-readable report:
+python scripts/validate_env.py --json
 ```
 
 **Validation:**

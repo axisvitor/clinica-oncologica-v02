@@ -1,5 +1,5 @@
 """
-Database configuration module: PostgreSQL (AWS RDS) and Redis settings.
+Database configuration module: PostgreSQL (AWS RDS) and Redis/Dragonfly settings.
 ENV Variable Naming Convention: {CATEGORY}_{SUBCATEGORY}_{ATTRIBUTE}_{UNIT}
 """
 
@@ -75,7 +75,7 @@ class DatabaseSettings(BaseAppSettings):
     )
 
     # ============================================================================
-    # Redis Configuration
+    # Redis / Dragonfly Configuration
     # ============================================================================
 
     # Connection Settings
@@ -113,17 +113,17 @@ class DatabaseSettings(BaseAppSettings):
     REDIS_POOL_MAX_CONNECTIONS: int = Field(
         default=20,  # Reduced from 50 (Redis needs fewer connections than DB)
         ge=10,
-        le=100,
+        le=1000,
         description="Redis maximum connections in pool",
     )
     REDIS_SOCKET_TIMEOUT_SECONDS: float = Field(
-        default=5.0,  # OPTIMIZED: Reduced from 10.0 (SSL handshake should be fast)
+        default=10.0,  # More tolerant for TLS/network latency in production
         ge=1.0,
         le=30.0,
         description="Redis socket operation timeout in seconds",
     )
     REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS: float = Field(
-        default=2.0,  # OPTIMIZED: Reduced from 5.0 (connection should be quick)
+        default=5.0,  # Allow extra time for TLS handshakes
         ge=1.0,
         le=10.0,
         description="Redis connection timeout in seconds (SSL/TLS optimized)",
@@ -176,6 +176,10 @@ class DatabaseSettings(BaseAppSettings):
     # Redis Database Isolation - Direct ENV names
     REDIS_ENABLE_DB_ISOLATION: bool = Field(
         default=True, description="Enable separate DBs for cache vs broker"
+    )
+    REDIS_ENABLE_CLUSTER_MODE: bool = Field(
+        default=False,
+        description="Enable Dragonfly/Redis cluster-safe behavior (DB 0 only, avoid DB isolation)",
     )
     REDIS_CACHE_DB_NUMBER: int = Field(
         default=1, description="Redis database number for cache (0-15)"

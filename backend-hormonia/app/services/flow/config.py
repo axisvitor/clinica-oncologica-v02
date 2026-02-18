@@ -295,9 +295,9 @@ class FlowFeatureFlags(BaseSettings):
     )
 
     # Deprecation warnings
-    show_legacy_deprecation_warnings: bool = Field(
+    show_deprecation_warnings: bool = Field(
         default=True,
-        description="Show warnings when legacy flow services are used",
+        description="Show warnings when deprecated flow services are used",
     )
 
     @field_validator("consolidated_flows_rollout_percentage")

@@ -136,7 +136,6 @@ class EventLoopContext:
     def cleanup(self) -> None:
         """Cleanup resources."""
         self._executor.shutdown(wait=True)
-        logger.info("EventLoopContext cleanup completed")
 
 
 # Global event loop context
@@ -447,7 +446,6 @@ def cleanup_async_context() -> None:
             loop.run_until_complete(task_tracker.cleanup_all())
 
         event_loop_context.cleanup()
-        logger.info("Async context cleanup completed")
 
     except Exception as e:
         logger.error(f"Async context cleanup failed: {e}")

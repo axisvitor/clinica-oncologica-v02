@@ -202,7 +202,7 @@ class HealthResponse(BaseModel):
             "example": {
                 "status": "healthy",
                 "version": "2.0.0",
-                "timestamp": "2025-01-17T15:00:00Z",
+                "timestamp": "2025-01-17T15:00:00-03:00",
             }
         }
     )

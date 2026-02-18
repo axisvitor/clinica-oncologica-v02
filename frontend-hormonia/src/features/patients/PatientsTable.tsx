@@ -37,6 +37,7 @@ interface RowData {
   onSendQuiz: (patient: { id: string; name: string }) => void
   confirmDeleteId: string | null
   isResending: boolean
+  canDelete: boolean
 }
 
 const GRID_COLS = "grid-cols-[2.5fr_1.5fr_1fr_1fr_1fr_0.8fr_1.2fr_70px]"
@@ -55,7 +56,8 @@ export function PatientsTable({
     handleDelete,
     handleActivate,
     handleDeactivate,
-    confirmDeleteId
+    confirmDeleteId,
+    canDelete
   } = usePatientActions()
 
   const {
@@ -91,7 +93,8 @@ export function PatientsTable({
     onDeactivate: handleDeactivate,
     onSendQuiz: handleSendQuiz,
     confirmDeleteId,
-    isResending: resendQuizLinkMutation.isPending
+    isResending: resendQuizLinkMutation.isPending,
+    canDelete
   }
 
   return (

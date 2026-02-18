@@ -4,7 +4,6 @@ Redis Manager Package - Unified Redis Client Management
 Provides both async and sync Redis interfaces with automatic compatibility detection.
 Manages connection pooling, error handling, and proper resource cleanup.
 
-Main exports:
 - RedisManager: Core manager class
 - FirebaseRedisCache: 3-layer caching system for Firebase authentication
 - get_redis_manager: Get or create global Redis manager instance
@@ -16,14 +15,12 @@ Main exports:
 - redis_transaction: Async context manager for Redis transactions
 - cleanup_redis_connections: Cleanup all Redis connections
 - redis_health_check: Perform Redis health check
-- create_redis_ssl_context: Create SSL context for Redis connections
 - get_redis_connection_kwargs: Get kwargs for redis.from_url with SSL support
 """
 
-import ssl
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
-from .manager import RedisManager, REDIS_CA_CERT_PATH
+from .manager import RedisManager
 from .firebase_cache import FirebaseRedisCache
 from .async_client import (
     get_async_redis_client,
@@ -32,39 +29,13 @@ from .async_client import (
     redis_health_check,
 )
 from .sync_client import get_sync_redis_client, get_compatible_redis_client
-from .utils import get_redis_manager, get_cache_redis_manager, get_broker_redis_manager
+from .utils import (
+    get_redis_manager,
+    get_cache_redis_manager,
+    get_broker_redis_manager,
+    build_redis_url_for_db,
+)
 from app.config import settings
-
-
-def create_redis_ssl_context() -> Optional[ssl.SSLContext]:
-    """
-    Create SSL context for Redis connections.
-
-    Respects REDIS_SSL_CERT_REQS and REDIS_ENABLE_SSL settings.
-
-    Returns:
-        SSLContext if SSL is enabled, None otherwise
-    """
-    if not getattr(settings, "REDIS_ENABLE_SSL", False):
-        return None
-
-    ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
-
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
-
-    if ssl_cert_reqs == "none":
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-    else:
-        if REDIS_CA_CERT_PATH.exists():
-            ssl_context.load_verify_locations(cafile=str(REDIS_CA_CERT_PATH))
-        else:
-            ssl_context.load_default_certs()
-        ssl_context.check_hostname = True
-        ssl_context.verify_mode = ssl.CERT_REQUIRED
-
-    return ssl_context
 
 
 def get_redis_connection_kwargs(
@@ -112,10 +83,6 @@ def get_redis_connection_kwargs(
     # Use ssl_cert_reqs parameter (works universally with from_url() in redis-py 5.x and 6.x)
     kwargs["ssl_cert_reqs"] = ssl_cert_reqs
 
-    # Optionally add CA cert path for full verification
-    if ssl_cert_reqs != "none" and REDIS_CA_CERT_PATH.exists():
-        kwargs["ssl_ca_certs"] = str(REDIS_CA_CERT_PATH)
-
     return kwargs
 
 
@@ -146,6 +113,7 @@ __all__ = [
     "get_redis_manager",
     "get_cache_redis_manager",
     "get_broker_redis_manager",
+    "build_redis_url_for_db",
     # Client functions
     "get_async_redis_client",
     "get_sync_redis_client",
@@ -155,8 +123,6 @@ __all__ = [
     "cleanup_redis_connections",
     "redis_health_check",
     # SSL helpers
-    "create_redis_ssl_context",
     "get_redis_connection_kwargs",
     "get_redis_url_with_ssl",
-    "REDIS_CA_CERT_PATH",
 ]

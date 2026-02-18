@@ -7,11 +7,12 @@ delegate the responsibility and remain stateless.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
 from ..types import FlowContext
 from ..config import get_flow_config
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo, to_sao_paulo
 
 
 class FlowScheduler:
@@ -29,6 +30,20 @@ class FlowScheduler:
         Return the timestamp when the engine should resume execution
         after a wait step.
         """
+        wait_until = step_def.get("wait_until")
+        if isinstance(wait_until, datetime):
+            return to_sao_paulo(wait_until)
+        if isinstance(wait_until, str):
+            try:
+                parsed = datetime.fromisoformat(wait_until)
+            except ValueError:
+                parsed = None
+
+            if parsed is not None:
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=SAO_PAULO_TZ)
+                return to_sao_paulo(parsed)
+
         wait_seconds = step_def.get("wait_seconds")
         wait_minutes = step_def.get("wait_minutes")
 
@@ -36,7 +51,7 @@ class FlowScheduler:
             return None
 
         delta = timedelta(seconds=wait_seconds or 0, minutes=wait_minutes or 0)
-        return datetime.now(timezone.utc) + delta
+        return now_sao_paulo() + delta
 
     def expires_at(self, template: Dict[str, Any]) -> datetime:
         """Default expiration timestamp for a newly started flow."""
@@ -47,7 +62,7 @@ class FlowScheduler:
         timeout_minutes = min(
             timeout_minutes, self.execution_config.max_flow_timeout_hours * 60
         )
-        return datetime.now(timezone.utc) + timedelta(minutes=timeout_minutes)
+        return now_sao_paulo() + timedelta(minutes=timeout_minutes)
 
 
 __all__ = ["FlowScheduler"]

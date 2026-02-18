@@ -12,8 +12,9 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 
-from app.core.monthly_quiz_config import get_monthly_quiz_config
 from app.domain.quizzes.session import TokenManager
+from app.domain.quizzes.delivery import LinkBuilder
+from app.domain.quizzes.session.factory import generate_unique_short_code
 
 from ._shared import (
     UUID,
@@ -37,6 +38,7 @@ from ._shared import (
     asc,
     desc,
 )
+from .response_utils import build_quiz_response_detail
 
 router = APIRouter()
 
@@ -120,25 +122,15 @@ async def get_monthly_quiz_responses(
             if response.quiz_session_id
             else None
         )
-
-        enriched = QuizResponseV2Detail(
-            id=response.id,
-            patient_id=response.patient_id,
-            quiz_template_id=response.quiz_template_id,
-            quiz_session_id=response.quiz_session_id,
-            question_id=response.question_id,
-            question_text=response.question_text,
-            response_type=response.response_type,
-            response_value=response.response_value,
-            response_metadata=response.response_metadata or {},
-            other_text=response.other_text,
-            responded_at=response.responded_at,
-            created_at=response.created_at,
-            template_name=template.name if template else None,
-            template_version=template.version if template else None,
-            session_status=session.status if session else None,
+        enriched_responses.append(
+            QuizResponseV2Detail(
+                **build_quiz_response_detail(
+                    response,
+                    template=template,
+                    session=session,
+                )
+            )
         )
-        enriched_responses.append(enriched)
 
     next_cursor = None
     if has_more and responses:
@@ -155,6 +147,7 @@ async def get_monthly_quiz_responses(
 # --- New Endpoints matching Frontend monthly-quiz.ts ---
 
 from pydantic import BaseModel
+from app.utils.timezone import now_sao_paulo
 
 class QuizLinkCreate(BaseModel):
     patient_id: UUID
@@ -213,7 +206,7 @@ async def create_quiz_link(
             patient_id=link_data.patient_id,
             quiz_template_id=link_data.quiz_template_id,
             status="started",
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
             session_metadata={
                 "delivery_method": link_data.delivery_method,
                 "custom_message": link_data.custom_message
@@ -224,10 +217,18 @@ async def create_quiz_link(
         db.commit()
         db.refresh(session)
     
+    # Ensure short code exists (for short link)
+    metadata = session.session_metadata or {}
+    if session.expiration_date and not metadata.get("expires_at"):
+        metadata["expires_at"] = session.expiration_date.isoformat()
+    metadata.setdefault("link_status", "active")
+    if not metadata.get("short_code"):
+        metadata["short_code"] = generate_unique_short_code(db)
+
     # Generate JWT token for access (patient/session scoped)
     token_manager = TokenManager()
     expires_at = session.expiration_date or (
-        datetime.now(timezone.utc) + timedelta(hours=48)
+        now_sao_paulo() + timedelta(hours=48)
     )
     token = token_manager.generate_token(
         patient_id=session.patient_id,
@@ -237,9 +238,18 @@ async def create_quiz_link(
         token_type="quiz_access",
     )
 
-    # Construct Link using configured base URL
-    config = get_monthly_quiz_config()
-    link = f"{config.MONTHLY_QUIZ_BASE_URL}?token={token}"
+    # Keep metadata synchronized with token/expiry used by resolver and monitoring.
+    metadata["token_hash"] = token_manager.hash_token(token)
+    metadata["expires_at"] = expires_at.isoformat()
+    metadata["link_status"] = "active"
+    session.expiration_date = expires_at
+    session.session_metadata = metadata
+    db.commit()
+    db.refresh(session)
+
+    # Construct Link using configured base URL (prefer short)
+    link_builder = LinkBuilder()
+    link = link_builder.build_preferred_link(token, metadata.get("short_code"))
 
     return QuizLinkResponse(
         id=session.id, # Session ID as Link ID for now
@@ -249,7 +259,7 @@ async def create_quiz_link(
         link=link,
         token=token,
         status=session.status,
-        expires_at=session.expiration_date or (datetime.now(timezone.utc) + timedelta(hours=48)),
+        expires_at=session.expiration_date or (now_sao_paulo() + timedelta(hours=48)),
         created_at=session.started_at,
         delivery_method=session.session_metadata.get("delivery_method", "whatsapp")
     )
@@ -310,7 +320,7 @@ async def get_active_links(
     logger = logging.getLogger(__name__)
     
     try:
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         
         # Get active sessions (started, not expired)
         sessions = db.query(QuizSession).filter(
@@ -330,7 +340,7 @@ async def get_active_links(
                 "id": str(s.id),
                 "quiz_session_id": str(s.id),
                 "patient_id": str(s.patient_id),
-                "patient_name": patient.full_name if patient else "Unknown",
+                "patient_name": patient.name if patient and patient.name else "Unknown",
                 "quiz_template_id": str(s.quiz_template_id),
                 "template_name": template.name if template else "Unknown",
                 "status": s.status,

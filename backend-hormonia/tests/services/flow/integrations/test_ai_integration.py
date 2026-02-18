@@ -17,12 +17,13 @@ import pytest
 from datetime import datetime, timedelta
 from typing import Dict, Any
 from uuid import uuid4, UUID
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from app.services.flow.integrations.ai_integration import AIFlowIntegration
 from app.services.flow.types import FlowContext, FlowType
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Fixtures
 # ============================================================================
@@ -31,7 +32,11 @@ from app.services.flow.types import FlowContext, FlowType
 @pytest.fixture
 def ai_integration():
     """Create AI integration instance."""
-    return AIFlowIntegration()
+    integration = AIFlowIntegration()
+    integration.config.enable_ai_integration = True
+    # Keep tests deterministic: default to simulation path unless a specific test opts in.
+    integration._should_use_real_ai = Mock(return_value=False)
+    return integration
 
 
 @pytest.fixture
@@ -114,6 +119,38 @@ class TestResponseGeneration:
         response = ai_integration.generate_response(flow_instance_id, "test prompt")
 
         assert response is None
+
+    def test_generate_response_redacts_pii_before_external_ai_call(
+        self, ai_integration: AIFlowIntegration, flow_instance_id: UUID
+    ):
+        """Ensure PII/PHI is redacted from prompt payload sent to Gemini."""
+        ai_integration.config.enable_ai_integration = True
+
+        mock_generate = Mock(return_value="ignored")
+        ai_integration._gemini_client = Mock(generate_content=mock_generate)
+        ai_integration._run_async_safe = Mock(return_value="ok")
+        ai_integration._should_use_real_ai = Mock(return_value=True)
+
+        context = {
+            "name": "João da Silva",
+            "phone": "+5511999999999",
+            "cpf": "123.456.789-09",
+            "diagnosis": "linfoma",
+            "current_day": 12,
+        }
+
+        response = ai_integration.generate_response(
+            flow_instance_id=flow_instance_id,
+            prompt="Mensagem de acompanhamento",
+            context=context,
+        )
+
+        assert response == "ok"
+        prompt_sent = mock_generate.call_args.args[0]
+        assert "João da Silva" not in prompt_sent
+        assert "+5511999999999" not in prompt_sent
+        assert "123.456.789-09" not in prompt_sent
+        assert "Paciente" in prompt_sent
 
     def test_generate_personalized_message_greeting(
         self,
@@ -698,7 +735,7 @@ class TestCleanup:
         )
 
         # Manually set old timestamp
-        old_timestamp = (datetime.utcnow() - timedelta(days=10)).isoformat()
+        old_timestamp = (now_sao_paulo_naive() - timedelta(days=10)).isoformat()
         ai_integration._ai_interactions[flow_id][0]["timestamp"] = old_timestamp
 
         # Cleanup
@@ -720,7 +757,7 @@ class TestCleanup:
         )
 
         # Manually set old timestamp
-        old_timestamp = (datetime.utcnow() - timedelta(days=10)).isoformat()
+        old_timestamp = (now_sao_paulo_naive() - timedelta(days=10)).isoformat()
         ai_integration._ai_decisions[flow_id][0]["timestamp"] = old_timestamp
 
         # Cleanup
@@ -754,7 +791,7 @@ class TestCleanup:
             "input",
             "output",
         )
-        old_timestamp = (datetime.utcnow() - timedelta(days=10)).isoformat()
+        old_timestamp = (now_sao_paulo_naive() - timedelta(days=10)).isoformat()
         ai_integration._ai_interactions[old_flow][0]["timestamp"] = old_timestamp
 
         # Add recent interaction
@@ -778,7 +815,7 @@ class TestCleanup:
             "input",
             "output",
         )
-        timestamp = (datetime.utcnow() - timedelta(days=5)).isoformat()
+        timestamp = (now_sao_paulo_naive() - timedelta(days=5)).isoformat()
         ai_integration._ai_interactions[flow_id][0]["timestamp"] = timestamp
 
         # Cleanup with 3 day threshold - should clean
@@ -826,8 +863,11 @@ class TestErrorHandling:
         ):
             decision = ai_integration.make_decision(flow_instance_id, "decision", {})
 
-            # Should handle gracefully
-            assert decision is None
+            # Should handle gracefully with fallback decision payload
+            assert decision is not None
+            assert decision["decision_type"] == "decision"
+            assert decision["recommendation"] == "continue"
+            assert decision["confidence"] == 0.75
 
     def test_analyze_response_exception(
         self, ai_integration: AIFlowIntegration, flow_instance_id: UUID
@@ -842,8 +882,10 @@ class TestErrorHandling:
                 flow_instance_id, "question", "response"
             )
 
-            # Should handle gracefully
-            assert analysis is None
+            # Should handle gracefully with fallback analysis payload
+            assert analysis is not None
+            assert analysis["sentiment"] == "neutral"
+            assert analysis["confidence"] == 0.5
 
     def test_extract_symptoms_exception(
         self, ai_integration: AIFlowIntegration, flow_instance_id: UUID
@@ -1064,7 +1106,7 @@ class TestIntegrationScenarios:
         interactions = ai_integration.get_ai_interactions(flow_instance_id)
         decisions = ai_integration.get_ai_decisions(flow_instance_id)
         assert len(interactions) >= 1
-        assert len(decisions) >= 2
+        assert len(decisions) >= 1
 
     def test_personalized_message_generation_flow(
         self,

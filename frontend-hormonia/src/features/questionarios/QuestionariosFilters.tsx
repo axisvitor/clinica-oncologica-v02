@@ -2,6 +2,7 @@ import React from 'react'
 import { Search } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 /**
@@ -56,12 +57,22 @@ export const QuestionariosFilters = React.memo<QuestionariosFiltersProps>(({
           {/* Search */}
           <div className="w-full">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <Label htmlFor="questionarios-search" className="sr-only">
+                Buscar questionários
+              </Label>
               <Input
-                placeholder="Buscar questionários..."
+                id="questionarios-search"
+                name="search"
+                type="search"
+                placeholder="Buscar questionários…"
                 value={filters.search}
                 onChange={(e) => onSearchChange(e.target.value)}
                 className="pl-10"
+                autoComplete="off"
               />
             </div>
           </div>
@@ -72,7 +83,7 @@ export const QuestionariosFilters = React.memo<QuestionariosFiltersProps>(({
               value={filters.type}
               onValueChange={(value: 'all' | 'medical' | 'wellness') => onFilterChange('type', value)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full" aria-label="Filtrar por tipo">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -86,7 +97,7 @@ export const QuestionariosFilters = React.memo<QuestionariosFiltersProps>(({
               value={filters.status}
               onValueChange={(value: 'all' | 'active' | 'inactive') => onFilterChange('status', value)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full" aria-label="Filtrar por status">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -107,7 +118,7 @@ export const QuestionariosFilters = React.memo<QuestionariosFiltersProps>(({
                 onFilterChange('sortOrder', sortOrder)
               }}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="w-full" aria-label="Ordenar por">
                 <SelectValue placeholder="Ordenar por" />
               </SelectTrigger>
               <SelectContent>

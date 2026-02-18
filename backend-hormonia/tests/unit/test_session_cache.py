@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, AsyncMock, call
 from app.core.redis_manager.session_cache import SessionCache
 
+from app.utils.timezone import now_sao_paulo
 # Mock Redis Client
 @pytest.fixture
 def mock_redis_client():
@@ -26,7 +27,7 @@ def session_cache(mock_redis_client):
 
 @pytest.fixture
 def sample_session_data():
-    now = datetime.now(timezone.utc)
+    now = now_sao_paulo()
     return {
         "user_id": "user123",
         "firebase_uid": "firebase123",
@@ -69,7 +70,7 @@ async def test_get_session_valid_within_max_age(session_cache, mock_redis_client
     key = f"session:{session_id}"
     
     # Session created 1 day ago (well within 7 days max age)
-    created_at = datetime.now(timezone.utc) - timedelta(days=1)
+    created_at = now_sao_paulo() - timedelta(days=1)
     sample_session_data["created_at"] = created_at.isoformat()
     
     mock_redis_client.get.return_value = json.dumps(sample_session_data)
@@ -90,7 +91,7 @@ async def test_session_expires_after_max_age(session_cache, mock_redis_client, s
     key = f"session:{session_id}"
     
     # Session created 8 days ago (exceeds 7 days max age)
-    created_at = datetime.now(timezone.utc) - timedelta(days=8)
+    created_at = now_sao_paulo() - timedelta(days=8)
     sample_session_data["created_at"] = created_at.isoformat()
     mock_redis_client.get.return_value = json.dumps(sample_session_data)
     mock_redis_client.delete.return_value = 1
@@ -159,7 +160,7 @@ async def test_invalidate_all_user_sessions_uses_pipeline(session_cache, mock_re
 async def test_update_session_activity_max_age_check(session_cache, mock_redis_client, sample_session_data):
     """Test update_session_activity also respects max age"""
     session_id = "test-session-id"
-    created_at = datetime.now(timezone.utc) - timedelta(days=8) # Expired
+    created_at = now_sao_paulo() - timedelta(days=8) # Expired
     sample_session_data["created_at"] = created_at.isoformat()
     
     mock_redis_client.get.return_value = json.dumps(sample_session_data)

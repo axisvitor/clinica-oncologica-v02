@@ -4,7 +4,7 @@ Utility functions for quiz flow integration.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -40,6 +40,58 @@ def get_conversational_quiz_service(db: Session) -> ConversationalQuizService:
         ConversationalQuizService instance
     """
     return ConversationalQuizService(db)
+
+
+async def process_quiz_response_with_debounce(
+    db: Session,
+    *,
+    patient_id: UUID,
+    quiz_session_id: UUID,
+    current_question_id: str,
+    response_text: str,
+    message_metadata: Optional[dict[str, Any]] = None,
+    debounce_window_seconds: int = 3,
+) -> dict[str, Any]:
+    """
+    Canonical quiz response processing path with debounce + action handling.
+
+    This utility consolidates duplicated behavior across webhook handlers and agents.
+    """
+    from app.services.quiz_response_debounce import get_quiz_debouncer
+
+    debouncer = get_quiz_debouncer(debounce_window_seconds=debounce_window_seconds)
+    metadata = dict(message_metadata or {})
+
+    should_process = await debouncer.should_process_response(
+        session_id=quiz_session_id,
+        question_id=current_question_id,
+        message_metadata=metadata,
+    )
+
+    if not should_process:
+        return {
+            "success": False,
+            "action": "debounced",
+            "message": "Response ignored - within debounce window",
+        }
+
+    quiz_service = ConversationalQuizService(db)
+    result = await quiz_service.process_quiz_response(
+        patient_id=patient_id,
+        response_text=response_text,
+        message_metadata=metadata,
+    )
+
+    action = result.get("action")
+    if action == "quiz_completed":
+        await debouncer.clear_debounce(quiz_session_id)
+    elif action == "request_clarification":
+        await debouncer.clear_debounce(quiz_session_id, current_question_id)
+    elif action == "next_question":
+        # ConversationalQuizService already sends the next question inline.
+        result["next_question_sent"] = True
+
+    return result
 
 
 async def trigger_monthly_quiz_via_link(

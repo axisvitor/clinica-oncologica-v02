@@ -66,47 +66,57 @@ def upgrade() -> None:
     These indexes support efficient keyset pagination.
     """
 
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    patient_columns = {col["name"] for col in inspector.get_columns("patients")}
+
     # Patient cursor pagination index
     # Supports: WHERE (created_at, id) < (cursor_ts, cursor_id)
     #           ORDER BY created_at DESC, id DESC
-    op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patient_cursor_pagination
-        ON patients (created_at DESC, id DESC)
-        WHERE deleted_at IS NULL;
-    """)
+    if "deleted_at" in patient_columns:
+        op.execute("""
+            CREATE INDEX IF NOT EXISTS idx_patient_cursor_pagination
+            ON patients (created_at DESC, id DESC)
+            WHERE deleted_at IS NULL;
+        """)
+    else:
+        op.execute("""
+            CREATE INDEX IF NOT EXISTS idx_patient_cursor_pagination
+            ON patients (created_at DESC, id DESC);
+        """)
 
     # Message cursor pagination index
     # High-volume table - critical for performance
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_message_cursor_pagination
+        CREATE INDEX IF NOT EXISTS idx_message_cursor_pagination
         ON messages (created_at DESC, id DESC);
     """)
 
     # Quiz session cursor pagination index
     # Used for session history and analytics
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quiz_session_cursor_pagination
+        CREATE INDEX IF NOT EXISTS idx_quiz_session_cursor_pagination
         ON quiz_sessions (created_at DESC, id DESC);
     """)
 
     # Webhook events cursor pagination index
     # For webhook audit trail and monitoring
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_webhook_events_cursor_pagination
+        CREATE INDEX IF NOT EXISTS idx_webhook_events_cursor_pagination
         ON webhook_events (created_at DESC, id DESC);
     """)
 
     # Flow executions cursor pagination index (if table exists)
     # For flow history pagination
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_flow_executions_cursor_pagination
+        CREATE INDEX IF NOT EXISTS idx_flow_executions_cursor_pagination
         ON flow_executions (created_at DESC, id DESC);
     """)
 
     # Quiz responses cursor pagination index (if needed)
     # For response history
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_quiz_responses_cursor_pagination
+        CREATE INDEX IF NOT EXISTS idx_quiz_responses_cursor_pagination
         ON quiz_responses (created_at DESC, id DESC);
     """)
 
@@ -126,11 +136,11 @@ def downgrade() -> None:
     Safe to run - returns to offset-based pagination.
     """
 
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_patient_cursor_pagination;")
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_message_cursor_pagination;")
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_quiz_session_cursor_pagination;")
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_webhook_events_cursor_pagination;")
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_flow_executions_cursor_pagination;")
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_quiz_responses_cursor_pagination;")
+    op.execute("DROP INDEX IF EXISTS idx_patient_cursor_pagination;")
+    op.execute("DROP INDEX IF EXISTS idx_message_cursor_pagination;")
+    op.execute("DROP INDEX IF EXISTS idx_quiz_session_cursor_pagination;")
+    op.execute("DROP INDEX IF EXISTS idx_webhook_events_cursor_pagination;")
+    op.execute("DROP INDEX IF EXISTS idx_flow_executions_cursor_pagination;")
+    op.execute("DROP INDEX IF EXISTS idx_quiz_responses_cursor_pagination;")
 
     print("✓ Removed cursor pagination indexes")

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, EmailStr, field_validator, ConfigDict
 from enum import Enum
 
 from .common import CursorPaginatedResponse
+from app.utils.timezone import now_sao_paulo_naive
 
 
 class PhysicianStatus(str, Enum):
@@ -147,7 +148,7 @@ class PhysicianStatistics(BaseModel):
 
     # Timestamps
     calculated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When stats were calculated"
+        default_factory=now_sao_paulo_naive, description="When stats were calculated"
     )
 
     model_config = ConfigDict(
@@ -181,7 +182,7 @@ class PhysicianStatistics(BaseModel):
                 },
                 "patient_satisfaction_score": 4.5,
                 "avg_treatment_duration_days": 87.3,
-                "calculated_at": "2025-11-07T12:00:00Z",
+                "calculated_at": "2025-11-07T12:00:00-03:00",
             }
         }
     )
@@ -286,9 +287,9 @@ class PhysicianResponse(BaseModel):
                 "assigned_patients_count": 45,
                 "active_patients_count": 38,
                 "workload_level": "medium",
-                "created_at": "2024-01-15T10:00:00Z",
-                "updated_at": "2025-11-07T12:00:00Z",
-                "last_login": "2025-11-07T08:30:00Z",
+                "created_at": "2024-01-15T10:00:00-03:00",
+                "updated_at": "2025-11-07T12:00:00-03:00",
+                "last_login": "2025-11-07T08:30:00-03:00",
             }
         },
     )
@@ -335,8 +336,8 @@ class PhysicianList(CursorPaginatedResponse[PhysicianResponse]):
                         "assigned_patients_count": 45,
                         "active_patients_count": 38,
                         "workload_level": "medium",
-                        "created_at": "2024-01-15T10:00:00Z",
-                        "updated_at": "2025-11-07T12:00:00Z",
+                        "created_at": "2024-01-15T10:00:00-03:00",
+                        "updated_at": "2025-11-07T12:00:00-03:00",
                     }
                 ],
                 "next_cursor": "eyJpZCI6IjEyM2U0NTY3LWU4OWItMTJkMy1hNDU2LTQyNjYxNDE3NDAwMCJ9",

@@ -173,6 +173,13 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     description: 'Enable AI analytics features'
   },
 
+  VITE_AI_SUMMARY_ENABLED: {
+    required: false,
+    type: 'boolean',
+    allowedValues: ['true', 'false'],
+    description: 'Enable AI patient summary features'
+  },
+
   VITE_AI_INSIGHTS_ENABLED: {
     required: false,
     type: 'boolean',

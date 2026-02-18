@@ -11,7 +11,6 @@ MIGRATION STATUS: Phase 1 - Async Database Operations with Timeouts
 - ✅ _get_user_from_db_async() - New async function with timeout support
 - ✅ get_current_user_from_session() - Migrated to async DB with 5s timeout
 - ✅ get_current_user() - Migrated to async DB with 5s timeout
-- ⚠️  _get_user_from_db() - DEPRECATED, will be removed in Phase 2
 - 🔜 Phase 2: Migrate other endpoints (user_repository, etc.)
 - 🔜 Phase 3: Remove deprecated sync functions
 """
@@ -26,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 import logging
 import asyncio
+import inspect
 import re
 
 if TYPE_CHECKING:
@@ -33,9 +33,9 @@ if TYPE_CHECKING:
 
 from app.models.user import User, UserRole
 if TYPE_CHECKING:
-    from app.services import ServiceProvider
+    from app.service_provider import ServiceProvider
 from app.config import settings
-from app.database import SessionLocal
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -45,15 +45,15 @@ logger = logging.getLogger(__name__)
 
 def _is_test_mode_enabled() -> bool:
     """Check if test/debug mode is enabled (NEVER in production)."""
-    app_env = getattr(settings, "APP_ENVIRONMENT", "development").lower()
-    debug_enabled = getattr(settings, "APP_ENABLE_DEBUG", False)
+    app_env = settings.APP_ENVIRONMENT.lower()
+    debug_enabled = settings.APP_ENABLE_DEBUG
     # SECURITY: Never allow test tokens in production
     if app_env in ("production", "prod"):
         return False
     return debug_enabled
 
 # SECURITY: Disable TEST_TOKEN_REGISTRY in production environments
-_app_environment = getattr(settings, "APP_ENVIRONMENT", "development").lower()
+_app_environment = settings.APP_ENVIRONMENT.lower()
 if _app_environment in ("production", "prod"):
     logger.critical(
         "SECURITY NOTICE: TEST_TOKEN_REGISTRY is disabled in production. "
@@ -96,8 +96,7 @@ except Exception as e:
 # CORE AUTHENTICATION DEPENDENCIES
 # =============================================================================
 
-# Firebase UID validation patterns
-_FIREBASE_UID_PATTERN = re.compile(r"^[A-Za-z0-9]{20,128}$")
+# Firebase UID validation pattern (definitive contract)
 _FIREBASE_UID_STRICT_PATTERN = re.compile(r"^[A-Za-z0-9]{28}$")
 
 # Email validation pattern: basic RFC 5322 compliant pattern
@@ -142,8 +141,7 @@ def _validate_firebase_uid(firebase_uid: str) -> None:
     """
     Validate Firebase UID format to prevent injection attacks (SECURITY CRITICAL).
 
-    Firebase UIDs are typically 28 alphanumeric characters. Validation mode is
-    controlled by ENABLE_STRICT_UID_VALIDATION for safe rollout.
+    Definitive contract: Firebase UID must be exactly 28 alphanumeric characters.
 
     Args:
         firebase_uid: The Firebase UID to validate
@@ -161,26 +159,18 @@ def _validate_firebase_uid(firebase_uid: str) -> None:
             detail="Invalid Firebase UID (audit_id: firebase_uid_invalid)",
         )
 
-    validation_mode = (
-        "strict" if settings.ENABLE_STRICT_UID_VALIDATION else "relaxed"
-    )
-    pattern = (
-        _FIREBASE_UID_STRICT_PATTERN
-        if settings.ENABLE_STRICT_UID_VALIDATION
-        else _FIREBASE_UID_PATTERN
-    )
+    if _FIREBASE_UID_STRICT_PATTERN.match(firebase_uid):
+        return
 
-    if not pattern.match(firebase_uid):
-        logger.error(
-            "SECURITY: Invalid Firebase UID format (%s) uid_prefix=%s length=%s",
-            validation_mode,
-            firebase_uid[:8],
-            len(firebase_uid),
-        )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Firebase UID format (audit_id: firebase_uid_format)",
-        )
+    logger.error(
+        "SECURITY: Invalid Firebase UID format (strict) uid_prefix=%s length=%s",
+        firebase_uid[:8],
+        len(firebase_uid),
+    )
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid Firebase UID format (audit_id: firebase_uid_format)",
+    )
 
 
 def _resolve_user_role(
@@ -313,12 +303,17 @@ def user_to_cache_dict(user: User) -> Dict[str, Any]:
     }
 
 
-def _get_service_provider():
+async def _get_service_provider():
     """Lazy loader for ServiceProvider to avoid circular imports."""
     from app.dependencies import get_thread_safe_service_provider
 
-    # Yield from the actual generator function
-    yield from get_thread_safe_service_provider()
+    provider_stream = get_thread_safe_service_provider()
+    if inspect.isasyncgen(provider_stream):
+        async for provider in provider_stream:
+            yield provider
+    else:
+        for provider in provider_stream:
+            yield provider
 
 
 def get_permissions_for_role(role: str) -> List[str]:
@@ -390,6 +385,39 @@ def get_permissions_for_role(role: str) -> List[str]:
     return ["patients.read", "appointments.read"]
 
 
+class RedisAuthCacheAdapter:
+    """
+    Bridge object that preserves FirebaseRedisCache behavior while delegating
+    critical auth lookups to RedisManager methods.
+
+    This keeps legacy patch points used by tests that mock
+    RedisManager.get_session/get_user_by_uid.
+    """
+
+    def __init__(self, redis_manager, firebase_cache):
+        self._redis_manager = redis_manager
+        self._firebase_cache = firebase_cache
+        self.session_ttl = getattr(firebase_cache, "session_ttl", 86400)
+
+    async def get_session(self, session_id: str):
+        return await self._redis_manager.get_session(session_id)
+
+    async def get_user_by_uid(self, firebase_uid: str):
+        return await self._redis_manager.get_user_by_uid(firebase_uid)
+
+    async def create_session(self, *args, **kwargs):
+        return await self._redis_manager.create_session(*args, **kwargs)
+
+    async def cache_user_data(self, *args, **kwargs):
+        return await self._redis_manager.cache_user_data(*args, **kwargs)
+
+    async def update_session_activity(self, *args, **kwargs):
+        return await self._redis_manager.update_session_activity(*args, **kwargs)
+
+    def __getattr__(self, item):
+        return getattr(self._firebase_cache, item)
+
+
 async def get_redis_cache() -> "FirebaseRedisCache":
     """
     Dependency injection for FirebaseRedisCache with Redis client.
@@ -403,7 +431,8 @@ async def get_redis_cache() -> "FirebaseRedisCache":
         redis_manager = get_redis_manager()
         # Use sync client for FirebaseRedisCache as it mostly uses run_in_executor/to_thread
         redis_client = redis_manager.get_compatible_client("sync")
-        return FirebaseRedisCache(redis_client)
+        firebase_cache = FirebaseRedisCache(redis_client)
+        return RedisAuthCacheAdapter(redis_manager, firebase_cache)
     except Exception as e:
         import traceback
         import logging
@@ -452,9 +481,22 @@ class GenericRedisCache:
     async def delete_pattern(self, pattern: str) -> bool:
         """Delete all keys matching pattern."""
         try:
-            keys = self._client.keys(pattern)
-            if keys:
-                self._client.delete(*keys)
+            batch = []
+            for key in self._client.scan_iter(match=pattern, count=100):
+                batch.append(key)
+                if len(batch) >= 100:
+                    try:
+                        self._client.delete(*batch)
+                    except TypeError:
+                        for batch_key in batch:
+                            self._client.delete(batch_key)
+                    batch.clear()
+            if batch:
+                try:
+                    self._client.delete(*batch)
+                except TypeError:
+                    for batch_key in batch:
+                        self._client.delete(batch_key)
             return True
         except Exception:
             return False
@@ -515,22 +557,6 @@ async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
         )
 
 
-# DEPRECATED: Use _get_user_from_db_async() instead
-# This function will be removed in Phase 2 of async migration
-def _get_user_from_db(firebase_uid: str) -> Optional[User]:
-    """
-    Synchronous function to fetch a user from the database in a thread-safe manner.
-    Creates its own database session to avoid sharing sessions across threads.
-    """
-    with SessionLocal() as db:
-        from app.models.user import User
-        from sqlalchemy import select
-
-        stmt = select(User).where(User.firebase_uid == firebase_uid)
-        result = db.execute(stmt)
-        return result.scalar_one_or_none()
-
-
 def _get_user_from_db_sync(firebase_uid: str, db: Session) -> Optional[User]:
     """Fetch a user using an existing synchronous session."""
     from sqlalchemy import select
@@ -541,8 +567,16 @@ def _get_user_from_db_sync(firebase_uid: str, db: Session) -> Optional[User]:
 
 
 def _should_use_sync_db(services: "ServiceProvider") -> bool:
+    db = getattr(services, "db", None)
+    if db is None:
+        return False
+    if isinstance(db, AsyncSession):
+        return False
+    if isinstance(db, Session):
+        return True
+
     try:
-        bind = services.db.get_bind()
+        bind = db.get_bind()
     except Exception:
         return False
     return bind is not None and getattr(bind.dialect, "name", None) == "sqlite"
@@ -606,19 +640,25 @@ async def _get_user_from_db_by_session(
     from sqlalchemy import select
     from app.models.session import Session as SessionModel
 
-    try:
-        session_uuid = UUID(session_id)
-    except (ValueError, TypeError):
-        logger.warning("Invalid session ID format for fallback lookup")
+    if not session_id or not isinstance(session_id, str):
+        logger.warning("Invalid session ID value for fallback lookup")
         return None
 
-    stmt = (
+    base_stmt = (
         select(User)
         .join(SessionModel, SessionModel.user_id == User.id)
-        .where(SessionModel.id == session_uuid)
         .where(SessionModel.is_active.is_(True))
-        .where(SessionModel.expires_at > datetime.now(timezone.utc))
+        .where(SessionModel.revoked_at.is_(None))
+        .where(SessionModel.expires_at > now_sao_paulo())
     )
+
+    try:
+        session_uuid = UUID(session_id)
+        stmt = base_stmt.where(SessionModel.id == session_uuid)
+    except (ValueError, TypeError):
+        # Compatibility path for legacy callers that still pass session_token.
+        stmt = base_stmt.where(SessionModel.session_token == session_id)
+
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
 
@@ -971,6 +1011,9 @@ async def get_current_user_from_session(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Database temporarily unavailable. Please try again.",
                 )
+            except HTTPException:
+                # Preserve upstream timeout/auth semantics (e.g. 504 from DB retry logic)
+                raise
             except Exception as e:
                 logger.error(
                     f"Database error for firebase_uid={firebase_uid[:8]}...: {e}"
@@ -1157,10 +1200,7 @@ async def get_current_user(
 
     token_value = credentials.credentials
 
-    allow_test_tokens = (
-        getattr(settings, "APP_ENABLE_DEBUG", False)
-        and getattr(settings, "APP_ENVIRONMENT", "development").lower() != "production"
-    )
+    allow_test_tokens = settings.APP_ENABLE_DEBUG and settings.APP_ENVIRONMENT.lower() != "production"
 
     # Check test token registry (only exists in non-production environments)
     cached_local = None
@@ -1332,9 +1372,12 @@ async def get_current_user(
         try:
             bind = services.db.get_bind()
             if bind and getattr(bind.dialect, "name", None) == "postgresql":
+                timeout_ms = max(1, int(settings.DB_QUERY_TIMEOUT_WRITE * 1000))
                 services.db.execute(
-                    text("SET LOCAL statement_timeout = :timeout_ms"),
-                    {"timeout_ms": settings.DB_QUERY_TIMEOUT_WRITE * 1000},
+                    text(
+                        "SELECT set_config('statement_timeout', :statement_timeout, true)"
+                    ),
+                    {"statement_timeout": f"{timeout_ms}ms"},
                 )
             services.db.add(user)
             services.db.commit()

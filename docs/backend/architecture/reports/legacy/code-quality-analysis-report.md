@@ -492,7 +492,7 @@ def list_v2(self, ...) -> Tuple[List[Patient], int]:
 # TODO: Implement based on your database schema
 
 # Lines 327-329: Hardcoded sunset date
-sunset_date = datetime(2025, 7, 1, tzinfo=timezone.utc)
+sunset_date = datetime(2025, 7, 1, tzinfo=SAO_PAULO_TZ)
 ```
 
 **Recommendations:**

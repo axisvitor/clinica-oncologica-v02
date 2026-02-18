@@ -37,7 +37,7 @@ import secrets
 from datetime import datetime, timezone
 
 from app.models.user import User, UserRole
-from app.services import ServiceProvider
+from app.service_provider import ServiceProvider
 from app.services.audit_log import AuditLogService
 from app.config import settings
 from app.dependencies.auth_dependencies import (
@@ -50,6 +50,7 @@ from app.middleware.csrf import validate_csrf_token
 from app.middleware.csrf import validate_csrf_token
 from app.utils.rate_limiter import limiter
 from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/session", tags=["Session Authentication"])
@@ -205,7 +206,7 @@ async def test_simple_session():
     return {
         "status": "success",
         "message": "Simple session test working!",
-        "timestamp": "2025-10-10T19:32:00Z",
+        "timestamp": "2025-10-10T19:32:00-03:00",
     }
 
 
@@ -351,7 +352,7 @@ async def create_session(
         from datetime import timedelta
 
         ttl = getattr(settings, "FIREBASE_SESSION_TTL", 86400)
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
+        expires_at = now_sao_paulo() + timedelta(seconds=ttl)
 
         logger.info(f"✅ Session created: {session_id[:8]}... for {email}")
 

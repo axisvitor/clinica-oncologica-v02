@@ -47,8 +47,7 @@ from .service_dependencies import (
 # Import get_db directly from database module
 from app.database import get_db
 
-# Import from database for backward compatibility
-from app.database import get_db as get_thread_safe_db
+from app.utils.request_context import RequestContext, get_request_context
 
 # Thread-safe service provider implementation
 # Moved from app/dependencies.py to avoid package/module shadowing conflict
@@ -74,7 +73,7 @@ def get_thread_safe_service_provider() -> Generator:
     provider = None
     try:
         # Lazy imports to avoid circular dependencies
-        from app.services import ServiceProvider  # noqa: F401 - imported for type context
+        from app.service_provider import ServiceProvider  # noqa: F401 - imported for type context
         from app.core.session_manager import get_request_factory
 
         logger.debug("Starting thread-safe service provider creation")
@@ -179,7 +178,6 @@ __all__ = [
     "get_flow_management_service",
     "get_redis",
     "get_database",
-    "get_thread_safe_db",
     "get_thread_safe_service_provider",
     "get_message_service",
     "get_analytics_service",
@@ -194,4 +192,7 @@ __all__ = [
     # Database dependencies
     "get_db",
     "get_flow_analytics_service",
+    # Request context utilities
+    "RequestContext",
+    "get_request_context",
 ]

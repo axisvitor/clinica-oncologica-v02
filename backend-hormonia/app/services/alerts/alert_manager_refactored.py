@@ -6,9 +6,10 @@ clear separation of concerns through dependency injection.
 """
 
 import logging
+import inspect
 from typing import Dict, Any, List, Optional
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime
 
 from .types import (
     Alert,
@@ -22,11 +23,15 @@ from .types import (
     DispatchResult,
 )
 from .config import get_config, AlertSystemConfig
-from .notification_handler import NotificationHandler, get_notification_handler
+from .notification.dispatcher import (
+    NotificationDispatcher,
+    get_notification_dispatcher,
+)
 from .escalation_handler import EscalationHandler, get_escalation_handler
 from .persistence_handler import PersistenceHandler, get_persistence_handler
 from .threshold_manager import ThresholdManager, get_threshold_manager
 from .metrics import MetricsCollector, get_metrics_collector
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +42,7 @@ class AlertManager:
 
     This class orchestrates alert operations by composing specialized handlers.
     Each handler has a single responsibility:
-    - NotificationHandler: Dispatch notifications
+    - NotificationDispatcher: Dispatch notifications
     - EscalationHandler: Manage escalations
     - PersistenceHandler: Store/retrieve alerts
     - ThresholdManager: Debouncing and thresholds
@@ -49,7 +54,7 @@ class AlertManager:
 
     def __init__(
         self,
-        notification_handler: Optional[NotificationHandler] = None,
+        notification_handler: Optional[NotificationDispatcher] = None,
         escalation_handler: Optional[EscalationHandler] = None,
         persistence_handler: Optional[PersistenceHandler] = None,
         threshold_manager: Optional[ThresholdManager] = None,
@@ -57,6 +62,9 @@ class AlertManager:
         rule_engine: Optional[Any] = None,
         processor: Optional[Any] = None,
         config: Optional[AlertSystemConfig] = None,
+        dispatcher: Optional[NotificationDispatcher] = None,
+        escalation_manager: Optional[EscalationHandler] = None,
+        **legacy_kwargs: Any,
     ):
         """
         Initialize AlertManager with dependency injection.
@@ -70,13 +78,30 @@ class AlertManager:
             rule_engine: Rule evaluation engine (legacy support)
             processor: Alert processor (legacy support)
             config: Alert system configuration
+            dispatcher: Legacy alias for notification_handler
+            escalation_manager: Legacy alias for escalation_handler
+            legacy_kwargs: Backward-compatible kwargs accepted and ignored
         """
+        if legacy_kwargs:
+            logger.debug(
+                "Ignoring unsupported legacy AlertManager kwargs: %s",
+                ", ".join(sorted(legacy_kwargs.keys())),
+            )
+
         # Use provided handlers or get singletons
-        self.notification_handler = notification_handler or get_notification_handler()
-        self.escalation_handler = escalation_handler or get_escalation_handler()
+        self.notification_handler = (
+            notification_handler or dispatcher or get_notification_dispatcher()
+        )
+        self.escalation_handler = (
+            escalation_handler or escalation_manager or get_escalation_handler()
+        )
         self.persistence_handler = persistence_handler or get_persistence_handler()
         self.threshold_manager = threshold_manager or get_threshold_manager()
         self.metrics_collector = metrics_collector or get_metrics_collector()
+
+        # Compatibility aliases preserved for legacy callsites/tests
+        self.dispatcher = self.notification_handler
+        self.escalation_manager = self.escalation_handler
 
         # Legacy support
         self.rule_engine = rule_engine
@@ -110,7 +135,7 @@ class AlertManager:
 
         context["patient_id"] = str(patient_id)
 
-        evaluations = await self.rule_engine.evaluate_rules(
+        evaluations = await self._run_rule_evaluations(
             context=context,
             rule_types=[
                 AlertRuleType.NO_RESPONSE,
@@ -119,6 +144,7 @@ class AlertManager:
                 AlertRuleType.TREATMENT_ADHERENCE,
                 AlertRuleType.EMERGENCY_KEYWORDS,
             ],
+            patient_id=patient_id,
         )
 
         triggered_alerts = []
@@ -151,7 +177,7 @@ class AlertManager:
 
         logger.info("Evaluating infrastructure alerts")
 
-        evaluations = await self.rule_engine.evaluate_rules(
+        evaluations = await self._run_rule_evaluations(
             context=context,
             rule_types=[
                 AlertRuleType.POOL_EXHAUSTION,
@@ -182,7 +208,7 @@ class AlertManager:
         2. Alert processing (Processor)
         3. Persistence (PersistenceHandler)
         4. Target resolution
-        5. Notification dispatch (NotificationHandler)
+        5. Notification dispatch (NotificationDispatcher)
         6. Escalation scheduling (EscalationHandler)
         7. Metrics tracking (MetricsCollector)
 
@@ -274,7 +300,7 @@ class AlertManager:
 
         # Update alert
         alert.status = AlertStatus.ACKNOWLEDGED
-        alert.acknowledged_at = datetime.now(timezone.utc)
+        alert.acknowledged_at = now_sao_paulo()
         alert.acknowledged_by = user_id
 
         if notes:
@@ -319,7 +345,7 @@ class AlertManager:
 
         # Update alert
         alert.status = AlertStatus.RESOLVED
-        alert.resolved_at = datetime.now(timezone.utc)
+        alert.resolved_at = now_sao_paulo()
         alert.resolved_by = user_id
         alert.metadata["resolution"] = resolution
 
@@ -405,26 +431,105 @@ class AlertManager:
 
         return dashboard
 
+    async def _run_rule_evaluations(
+        self,
+        context: Dict[str, Any],
+        rule_types: List[AlertRuleType],
+        patient_id: Optional[UUID] = None,
+    ) -> List[Any]:
+        """
+        Execute rule engine evaluations with backward-compatible interfaces.
+
+        Supports both:
+        - rule_engine.evaluate_rules(context=..., rule_types=...)
+        - legacy rule_engine.evaluate(patient_id=..., context=...)
+        """
+        evaluate_rules = getattr(self.rule_engine, "evaluate_rules", None)
+        if callable(evaluate_rules):
+            maybe_result = evaluate_rules(
+                context=context,
+                rule_types=rule_types,
+            )
+            if inspect.isawaitable(maybe_result):
+                return await maybe_result
+
+        evaluate = getattr(self.rule_engine, "evaluate", None)
+        if callable(evaluate):
+            kwargs: Dict[str, Any] = {"context": context}
+            if patient_id is not None:
+                kwargs["patient_id"] = patient_id
+            maybe_result = evaluate(**kwargs)
+            if inspect.isawaitable(maybe_result):
+                return await maybe_result
+
+        raise RuntimeError("RuleEngine does not provide evaluate interface")
+
+    @staticmethod
+    def _coerce_rule_type(value: Any) -> AlertRuleType:
+        if isinstance(value, AlertRuleType):
+            return value
+        try:
+            return AlertRuleType(value)
+        except Exception:
+            return AlertRuleType.CUSTOM
+
+    @staticmethod
+    def _coerce_severity(value: Any) -> AlertSeverity:
+        if isinstance(value, AlertSeverity):
+            return value
+        try:
+            return AlertSeverity(value)
+        except Exception:
+            return AlertSeverity.WARNING
+
     async def _create_alert_from_evaluation(
-        self, evaluation, context: Dict[str, Any]
+        self, evaluation: Any, context: Dict[str, Any]
     ) -> Alert:
-        """Create alert from rule evaluation result."""
+        """Create alert from rule evaluation result (legacy-compatible)."""
         from uuid import uuid4
 
-        alert = Alert(
+        # Current shape: evaluation.rule.<...>; legacy shape: evaluation.<...>
+        rule = getattr(evaluation, "rule", None)
+
+        if rule is not None:
+            rule_id = getattr(rule, "id", uuid4())
+            rule_type = self._coerce_rule_type(
+                getattr(rule, "rule_type", AlertRuleType.CUSTOM)
+            )
+            severity = self._coerce_severity(
+                getattr(rule, "severity", AlertSeverity.WARNING)
+            )
+            title = getattr(rule, "name", "Alert triggered")
+        else:
+            rule_id = getattr(evaluation, "rule_id", uuid4())
+            rule_type = self._coerce_rule_type(
+                getattr(evaluation, "rule_type", AlertRuleType.CUSTOM)
+            )
+            severity = self._coerce_severity(
+                getattr(evaluation, "severity", AlertSeverity.WARNING)
+            )
+            title = getattr(evaluation, "title", "Alert triggered")
+
+        message = (
+            getattr(evaluation, "message", None)
+            or getattr(evaluation, "reason", None)
+            or "Alert triggered"
+        )
+        eval_context = getattr(evaluation, "context", context) or context
+        metadata = getattr(evaluation, "metadata", {}) or {}
+
+        return Alert(
             id=uuid4(),
-            rule_id=evaluation.rule.id,
-            rule_type=evaluation.rule.rule_type,
-            severity=evaluation.rule.severity,
+            rule_id=rule_id,
+            rule_type=rule_type,
+            severity=severity,
             status=AlertStatus.PENDING,
-            title=evaluation.rule.name,
-            message=evaluation.reason or "Alert triggered",
-            context=evaluation.context,
-            metadata=evaluation.metadata,
+            title=title,
+            message=message,
+            context=eval_context,
+            metadata=metadata,
             created_at=datetime.now(),
         )
-
-        return alert
 
     async def _get_notification_targets(self, alert: Alert) -> List[NotificationTarget]:
         """

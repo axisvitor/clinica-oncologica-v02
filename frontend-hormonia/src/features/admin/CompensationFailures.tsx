@@ -73,10 +73,10 @@ function CompensationFailuresContent() {
 
   const retryMutation = useMutation({
     mutationFn: (sagaId: string) => apiClient.adminV2.retryCompensation(sagaId),
-    onMutate: (sagaId) => {
+    onMutate: (sagaId: string) => {
       setActionStatuses((prev) => ({ ...prev, [sagaId]: 'retrying' }))
     },
-    onSuccess: (_result, sagaId) => {
+    onSuccess: (_result: unknown, sagaId: string) => {
       toast({
         title: 'Retry iniciado',
         description: 'A compensacao foi executada novamente.'
@@ -88,7 +88,7 @@ function CompensationFailuresContent() {
       })
       queryClient.invalidateQueries({ queryKey: ['compensation-failures'] })
     },
-    onError: (mutationError, sagaId) => {
+    onError: (mutationError: unknown, sagaId: string) => {
       const message =
         mutationError instanceof Error ? mutationError.message : 'Falha ao executar retry.'
       toast({
@@ -106,7 +106,7 @@ function CompensationFailuresContent() {
 
   const cleanupMutation = useMutation({
     mutationFn: (sagaId: string) => apiClient.adminV2.cleanupCompensation(sagaId),
-    onSuccess: (_result, sagaId) => {
+    onSuccess: (_result: unknown, sagaId: string) => {
       toast({
         title: 'Cleanup concluido',
         description: 'O paciente foi marcado como removido e a saga foi atualizada.'
@@ -121,7 +121,7 @@ function CompensationFailuresContent() {
         })
       }, 1500)
     },
-    onError: (mutationError, sagaId) => {
+    onError: (mutationError: unknown, sagaId: string) => {
       const message =
         mutationError instanceof Error ? mutationError.message : 'Falha ao executar cleanup.'
       toast({
@@ -188,7 +188,7 @@ function CompensationFailuresContent() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {failures.map((failure) => {
+                  {failures.map((failure: CompensationFailure) => {
                     const actionStatus = actionStatuses[failure.saga_id]
                     const status = getStatusLabel(failure, actionStatus)
                     const isRetrying =
@@ -218,7 +218,7 @@ function CompensationFailuresContent() {
                             <p className="text-sm">{failure.error_details}</p>
                             {failure.failed_steps.length > 0 && (
                               <div className="space-y-1 text-xs text-muted-foreground">
-                                {failure.failed_steps.map((step) => (
+                                {failure.failed_steps.map((step: { step: number; error: string }) => (
                                   <div key={`${failure.saga_id}-${step.step}`}>
                                     Step {step.step}: {step.error}
                                   </div>

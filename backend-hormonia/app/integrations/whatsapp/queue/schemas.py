@@ -7,6 +7,7 @@ Defines the data structures used for queue-based message processing.
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
+from app.utils.timezone import now_sao_paulo_naive
 
 
 class MessageRequest(BaseModel):
@@ -72,7 +73,7 @@ class MessageResponse(BaseModel):
         None, description="Error message if message failed"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Response timestamp"
+        default_factory=now_sao_paulo_naive, description="Response timestamp"
     )
     instance_name: str = Field(
         ..., description="Name of the Evolution instance that processed the message"

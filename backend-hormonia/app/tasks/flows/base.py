@@ -8,8 +8,8 @@ as well as helper functions like send_critical_alert_sync.
 import asyncio
 import logging
 from typing import Any
-from datetime import datetime, timezone
 from celery import Task
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def send_critical_alert_sync(task_name: str, error: str, context: dict = None):
             rule_type=AlertRuleType.CUSTOM,
             message=f"Critical failure in task {task_name}: {error}",
             context=context or {},
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
         # Get manager and process
@@ -146,42 +146,27 @@ class FlowTaskBase(Task):
             Failures are logged but don't raise exceptions to prevent task failure.
         """
         try:
-            import redis
             import json
-            from app.config import settings
+            from app.core.redis_manager import get_redis_manager
+            from app.config.settings.tasks import REDIS_TASK_RESULT_EXPIRY
 
-            # Use synchronous Redis client for Celery task context
-            from app.config.settings.tasks import (
-                REDIS_SOCKET_TIMEOUT,
-                REDIS_SOCKET_CONNECT_TIMEOUT,
-            )
-
-            redis_client = redis.from_url(
-                settings.REDIS_URL,
-                decode_responses=True,
-                socket_connect_timeout=REDIS_SOCKET_CONNECT_TIMEOUT,
-                socket_timeout=REDIS_SOCKET_TIMEOUT,
-                retry_on_timeout=True,
-            )
+            # Use centralized RedisManager sync client for Celery task context
+            manager = get_redis_manager()
+            redis_client = manager.get_sync_client()
 
             # Store task result with expiration
             result_data = {
                 "task_id": task_id,
                 "status": status,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "data": data,
             }
-
-            # Use synchronous Redis operations
-            from app.config.settings.tasks import REDIS_TASK_RESULT_EXPIRY
 
             redis_client.setex(
                 f"task_result:{task_id}",
                 REDIS_TASK_RESULT_EXPIRY,
                 json.dumps(result_data),
             )
-
-            redis_client.close()
 
         except Exception as e:
             logger.error(f"Failed to store task result in Redis: {e}")

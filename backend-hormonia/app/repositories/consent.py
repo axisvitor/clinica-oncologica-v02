@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.consent import Consent, ConsentType, ConsentStatus
 from app.repositories.base import BaseRepository
+from app.utils.timezone import now_sao_paulo
 
 
 class ConsentRepository(BaseRepository[Consent]):
@@ -134,7 +135,7 @@ class ConsentRepository(BaseRepository[Consent]):
         Returns:
             List of active consents with relationships pre-loaded
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         filters = [
             Consent.is_active,
             Consent.status == ConsentStatus.GRANTED,
@@ -273,7 +274,7 @@ class ConsentRepository(BaseRepository[Consent]):
         """
         from datetime import timedelta
 
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         expiry_date = now + timedelta(days=days)
 
         query = self.db.query(Consent).filter(
@@ -312,7 +313,7 @@ class ConsentRepository(BaseRepository[Consent]):
 
         if consent and consent.status == ConsentStatus.PENDING:
             consent.status = ConsentStatus.GRANTED
-            consent.granted_at = datetime.now(timezone.utc)
+            consent.granted_at = now_sao_paulo()
             consent.consented_by_id = consented_by_id
             self.db.commit()
             self.db.refresh(consent)
@@ -336,7 +337,7 @@ class ConsentRepository(BaseRepository[Consent]):
 
         if consent and consent.status == ConsentStatus.GRANTED:
             consent.status = ConsentStatus.REVOKED
-            consent.revoked_at = datetime.now(timezone.utc)
+            consent.revoked_at = now_sao_paulo()
             consent.is_active = False
             if reason:
                 consent.revocation_reason = reason

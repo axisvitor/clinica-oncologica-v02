@@ -48,6 +48,7 @@ from app.api.v2.dependencies import get_pagination_params, get_field_selection
 from app.services.monitoring_service import MonitoringService
 from app.monitoring.config import get_monitoring_config
 from app.monitoring.manager import get_monitoring_manager
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -60,8 +61,24 @@ CACHE_TTL_CONFIG = 1800
 CACHE_TTL_STATIC = 3600
 
 
-def get_monitoring_service() -> MonitoringService:
-    return MonitoringService()
+def _normalize_monitoring_config_payload(payload: Dict[str, object]) -> Dict[str, bool]:
+    """Ensure config responses always satisfy MonitoringConfigResponse contract."""
+    return {
+        "apm_enabled": bool(payload.get("apm_enabled", True)),
+        "db_monitoring_enabled": bool(payload.get("db_monitoring_enabled", True)),
+        "resource_monitoring_enabled": bool(
+            payload.get("resource_monitoring_enabled", True)
+        ),
+        "business_metrics_enabled": bool(payload.get("business_metrics_enabled", True)),
+        "anomaly_detection_enabled": bool(
+            payload.get("anomaly_detection_enabled", True)
+        ),
+        "export_enabled": bool(payload.get("export_enabled", True)),
+    }
+
+
+async def get_monitoring_service() -> MonitoringService:
+    return MonitoringService(get_monitoring_manager())
 
 
 async def get_admin_user(
@@ -260,7 +277,7 @@ async def dashboard_websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1003, reason="Dashboard not available")
         return
 
-    client_id = f"dashboard_{int(datetime.now(timezone.utc).timestamp() * 1000000)}"
+    client_id = f"dashboard_{int(now_sao_paulo().timestamp() * 1000000)}"
     try:
         await manager.dashboard.handle_websocket_connection(websocket, client_id)
     except WebSocketDisconnect:
@@ -312,7 +329,9 @@ async def query_grafana_metrics(
 @async_cache(cache_type="monitoring_config", ttl=CACHE_TTL_CONFIG)
 async def get_monitoring_config_endpoint(current_user: User = Depends(get_admin_user)):
     config = get_monitoring_config()
-    return MonitoringConfigResponse(**config.dict())
+    return MonitoringConfigResponse(
+        **_normalize_monitoring_config_payload(config.dict())
+    )
 
 
 @router.put("/config", response_model=MonitoringConfigResponse)
@@ -331,7 +350,9 @@ async def update_monitoring_config(
         config.resource_monitoring_enabled = config_update.resource_monitoring_enabled
 
     logger.info(f"Monitoring configuration updated by user {current_user.id}")
-    return MonitoringConfigResponse(**config.dict())
+    return MonitoringConfigResponse(
+        **_normalize_monitoring_config_payload(config.dict())
+    )
 
 
 @router.post("/actions/reset-stats", response_model=StatsResetResponse)

@@ -46,7 +46,7 @@ class TreatmentDistributionResponse(BaseModel):
                 ],
                 "period": "30d",
                 "total_patients": 126,
-                "timestamp": "2025-10-06T14:30:00Z",
+                "timestamp": "2025-10-06T14:30:00-03:00",
             }
         }
     )

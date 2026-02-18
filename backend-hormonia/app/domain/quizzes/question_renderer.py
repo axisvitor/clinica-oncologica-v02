@@ -207,7 +207,9 @@ class QuestionRenderer:
             "current_question": current_question,
             "is_first_question": current_question_index == 0,
             "is_last_question": current_question_index == total_questions - 1,
-            "questions_remaining": total_questions - current_question_index,
+            "questions_remaining": max(
+                total_questions - current_question_index - 1, 0
+            ),
         }
 
         # Add patient data if provided

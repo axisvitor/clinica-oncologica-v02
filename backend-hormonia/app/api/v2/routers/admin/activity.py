@@ -399,7 +399,6 @@ async def assign_permissions(
     permissions_data: PermissionAssignRequest,
     db=Depends(get_db),
     admin_user: User = Depends(get_admin_user),
-    context: RequestContext = Depends(get_request_context),
 ):
     """
     Update user permissions.
@@ -411,6 +410,13 @@ async def assign_permissions(
     - Audit logging
     """
     try:
+        context = RequestContext(
+            ip_address=request.client.host if request.client else "unknown",
+            user_agent=request.headers.get("user-agent", "unknown"),
+            user_id=admin_user.id,
+            session_id=getattr(request.state, "session_id", None),
+        )
+
         user_repo = UserRepository(db)
         user = user_repo.get(user_id)
 
@@ -426,7 +432,6 @@ async def assign_permissions(
         normalized_permissions = list(dict.fromkeys(permissions_data.permissions))
         user.permissions = normalized_permissions
         db.commit()
-        db.refresh(user)
 
         # Invalidate cache
         await invalidate_user_cache_async(str(user_id))
@@ -473,23 +478,6 @@ async def assign_permissions(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error updating permissions",
         )
-
-
-@router.post(
-    "/users/{user_id}/permissions",
-    summary="Create User Permissions (Not Implemented)",
-    description="Legacy placeholder for permissions assignment via POST.",
-)
-async def assign_permissions_not_implemented(
-    user_id: UUID,
-    permissions_data: PermissionAssignRequest,
-    admin_user: User = Depends(get_admin_user),
-):
-    """Return 501 for legacy POST permission updates."""
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Permissions assignment via POST is not implemented",
-    )
 
 
 @router.get(
@@ -578,7 +566,7 @@ async def unlock_user(
         db.refresh(user)
 
         # Invalidate cache
-        invalidate_user_cache(str(user_id))
+        await invalidate_user_cache_async(str(user_id))
 
         # Log action
         await _log_admin_action(

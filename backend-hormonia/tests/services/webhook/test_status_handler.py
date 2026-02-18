@@ -52,10 +52,10 @@ class TestStatusWebhookHandler:
     def mock_publish_ws(self):
         """Patch websocket publish."""
         with patch(
-            "app.services.webhook.handlers.status_handler.websocket_events",
+            "app.services.webhook.handlers.status_handler.websocket_events_module.websocket_events",
             new=Mock(),
         ) as mock_ws:
-            mock_ws.publish_message_event = AsyncMock()
+            mock_ws.broadcast_message_event = AsyncMock()
             yield mock_ws
 
     @pytest.fixture

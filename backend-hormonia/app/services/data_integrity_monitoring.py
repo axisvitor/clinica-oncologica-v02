@@ -19,6 +19,7 @@ from app.models.patient import Patient
 from app.models.flow import PatientFlowState
 from app.models.message import Message
 from app.exceptions import ValidationError
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +89,7 @@ class DataIntegrityMonitoringService:
             Comprehensive integrity scan results
         """
         try:
-            start_time = datetime.now(timezone.utc)
+            start_time = now_sao_paulo()
             self.detected_issues = []  # Reset issues list
 
             scan_results = {
@@ -155,7 +156,7 @@ class DataIntegrityMonitoringService:
             scan_results["issues_detected"]["by_entity_type"] = by_entity_type
 
             # Mark completion
-            end_time = datetime.now(timezone.utc)
+            end_time = now_sao_paulo()
             scan_results["completed_at"] = end_time.isoformat()
             scan_results["total_duration_seconds"] = (
                 end_time - start_time
@@ -179,8 +180,10 @@ class DataIntegrityMonitoringService:
         self, limit: Optional[int] = None
     ) -> Dict[str, Any]:
         """Scan patient data integrity"""
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
-            start_time = datetime.now(timezone.utc)
+            start_time = now_sao_paulo()
 
             # Get patients to scan
             query = self.db.query(Patient)
@@ -213,7 +216,7 @@ class DataIntegrityMonitoringService:
             results["issues_found"] = len(
                 [i for i in self.detected_issues if i.entity_type == "patient"]
             )
-            results["completed_at"] = datetime.now(timezone.utc).isoformat()
+            results["completed_at"] = now_sao_paulo().isoformat()
 
             return results
 
@@ -223,8 +226,10 @@ class DataIntegrityMonitoringService:
 
     async def _scan_flow_integrity(self, limit: Optional[int] = None) -> Dict[str, Any]:
         """Scan flow data integrity"""
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
-            start_time = datetime.now(timezone.utc)
+            start_time = now_sao_paulo()
 
             # Get flows to scan
             query = self.db.query(PatientFlowState)
@@ -281,7 +286,7 @@ class DataIntegrityMonitoringService:
             results["issues_found"] = len(
                 [i for i in self.detected_issues if i.entity_type == "flow"]
             )
-            results["completed_at"] = datetime.now(timezone.utc).isoformat()
+            results["completed_at"] = now_sao_paulo().isoformat()
 
             return results
 
@@ -293,8 +298,10 @@ class DataIntegrityMonitoringService:
         self, limit: Optional[int] = None
     ) -> Dict[str, Any]:
         """Scan message data integrity"""
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
-            start_time = datetime.now(timezone.utc)
+            start_time = now_sao_paulo()
 
             # Get unique patients to scan their conversations
             patient_query = self.db.query(Patient.id).distinct()
@@ -351,7 +358,7 @@ class DataIntegrityMonitoringService:
             results["issues_found"] = len(
                 [i for i in self.detected_issues if i.entity_type == "message"]
             )
-            results["completed_at"] = datetime.now(timezone.utc).isoformat()
+            results["completed_at"] = now_sao_paulo().isoformat()
 
             return results
 
@@ -440,6 +447,8 @@ class DataIntegrityMonitoringService:
 
     async def _check_patient_orphaned_relationships(self, patient: Patient) -> None:
         """Check for orphaned patient relationships"""
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             # Check if doctor exists
             from app.models.user import User
@@ -471,25 +480,27 @@ class DataIntegrityMonitoringService:
     ) -> None:
         """Add integrity issue to detected issues list"""
         issue = IntegrityIssue(
-            id=f"{entity_type}_{entity_id}_{type.value}_{int(datetime.now(timezone.utc).timestamp())}",
+            id=f"{entity_type}_{entity_id}_{type.value}_{int(now_sao_paulo().timestamp())}",
             type=type,
             severity=severity,
             entity_type=entity_type,
             entity_id=entity_id,
             description=description,
-            detected_at=datetime.now(timezone.utc),
+            detected_at=now_sao_paulo(),
             metadata=metadata,
         )
         self.detected_issues.append(issue)
 
     async def get_integrity_dashboard(self) -> Dict[str, Any]:
         """Get integrity monitoring dashboard data"""
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             # Recent issues summary
             recent_issues = [
                 i
                 for i in self.detected_issues
-                if i.detected_at > datetime.now(timezone.utc) - timedelta(days=7)
+                if i.detected_at > now_sao_paulo() - timedelta(days=7)
             ]
 
             # Severity distribution
@@ -517,7 +528,7 @@ class DataIntegrityMonitoringService:
                 health_score = 100
 
             return {
-                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "last_updated": now_sao_paulo().isoformat(),
                 "health_score": round(health_score, 2),
                 "recent_issues": {
                     "total": len(recent_issues),
@@ -539,7 +550,7 @@ class DataIntegrityMonitoringService:
             logger.error(f"Error generating integrity dashboard: {e}")
             return {
                 "error": str(e),
-                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "last_updated": now_sao_paulo().isoformat(),
                 "health_score": 0,
             }
 

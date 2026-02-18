@@ -134,7 +134,7 @@ class UserPreferencesV2Response(BaseModel):
                     "theme": "dark",
                     "language": "pt-BR",
                 },
-                "updated_at": "2025-11-07T10:30:00Z",
+                "updated_at": "2025-11-07T10:30:00-03:00",
             }
         }
     )
@@ -179,7 +179,7 @@ class NotificationV2Response(BaseModel):
                 "message": "You have a new message from Dr. Silva",
                 "type": "info",
                 "read": False,
-                "created_at": "2025-11-07T09:00:00Z",
+                "created_at": "2025-11-07T09:00:00-03:00",
                 "action_url": "/messages/msg_456def",
             }
         },
@@ -202,7 +202,7 @@ class NotificationV2List(CursorPaginatedResponse[NotificationV2Response]):
                         "message": "You have a new message",
                         "type": "info",
                         "read": False,
-                        "created_at": "2025-11-07T09:00:00Z",
+                        "created_at": "2025-11-07T09:00:00-03:00",
                     }
                 ],
                 "next_cursor": "eyJpZCI6Im5vdGlmXzEyMyJ9",
@@ -300,6 +300,7 @@ class UserV2Response(UserV2Base):
     created_at: datetime
     updated_at: datetime
     last_login: Optional[datetime] = Field(None, description="Last login timestamp")
+    photo_url: Optional[str] = Field(None, description="User profile photo URL")
 
     # Optional eager-loaded relationships
     role_details: Optional[RoleV2Brief] = Field(
@@ -326,9 +327,9 @@ class UserV2Response(UserV2Base):
                 "full_name": "Dr. Maria Silva",
                 "role": "doctor",
                 "is_active": True,
-                "created_at": "2025-01-01T10:00:00Z",
-                "updated_at": "2025-11-07T09:00:00Z",
-                "last_login": "2025-11-07T08:30:00Z",
+                "created_at": "2025-01-01T10:00:00-03:00",
+                "updated_at": "2025-11-07T09:00:00-03:00",
+                "last_login": "2025-11-07T08:30:00-03:00",
                 "patient_count": 45,
                 "notification_count": 3,
             }
@@ -349,8 +350,8 @@ class UserV2List(CursorPaginatedResponse[UserV2Response]):
                         "full_name": "Dr. Maria Silva",
                         "role": "doctor",
                         "is_active": True,
-                        "created_at": "2025-01-01T10:00:00Z",
-                        "updated_at": "2025-11-07T09:00:00Z",
+                        "created_at": "2025-01-01T10:00:00-03:00",
+                        "updated_at": "2025-11-07T09:00:00-03:00",
                     }
                 ],
                 "next_cursor": "eyJpZCI6IjEyM2U0NTY3In0=",
@@ -384,8 +385,8 @@ class SessionV2Response(BaseModel):
             "example": {
                 "session_id": "sess_abc123def456",
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
-                "created_at": "2025-11-07T08:00:00Z",
-                "expires_at": "2025-11-08T08:00:00Z",
+                "created_at": "2025-11-07T08:00:00-03:00",
+                "expires_at": "2025-11-08T08:00:00-03:00",
                 "ip_address": "192.168.1.100",
                 "user_agent": "Mozilla/5.0...",
                 "is_current": True,
@@ -407,7 +408,7 @@ class SessionV2List(BaseModel):
                     {
                         "session_id": "sess_abc123",
                         "user_id": "123e4567-e89b-12d3-a456-426614174000",
-                        "created_at": "2025-11-07T08:00:00Z",
+                        "created_at": "2025-11-07T08:00:00-03:00",
                         "is_current": True,
                     }
                 ],

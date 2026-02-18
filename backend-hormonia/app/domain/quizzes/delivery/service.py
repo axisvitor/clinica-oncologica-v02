@@ -9,11 +9,12 @@ from typing import Dict, Any, Optional
 from app.models.patient import Patient
 from app.models.quiz import QuizSession, QuizTemplate
 from app.domain.messaging.core import MessageFactory
-from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
+from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.schemas.monthly_quiz import DeliveryMethod
 from sqlalchemy.orm import Session
 
 import logging
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class DeliveryService:
         expiry_hours: int,
         custom_message: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Send the monthly quiz link to the patient via WhatsApp with retries.
+        """Send the monthly quiz link to the patient according to delivery method.
 
         Args:
             patient: Patient model
@@ -54,6 +55,40 @@ class DeliveryService:
         Raises:
             Exception: If all retry attempts fail
         """
+        if delivery_method == DeliveryMethod.MANUAL:
+            logger.info(
+                "Skipping automatic quiz link delivery (manual mode)",
+                extra={
+                    "patient_id": str(patient.id),
+                    "quiz_session_id": str(session.id),
+                    "delivery_method": delivery_method.value,
+                },
+            )
+            return {
+                "sent": False,
+                "message_id": None,
+                "attempts": 0,
+                "skipped": True,
+                "reason": "manual_delivery",
+            }
+
+        if delivery_method != DeliveryMethod.WHATSAPP:
+            logger.warning(
+                "Automatic delivery not implemented for requested channel",
+                extra={
+                    "patient_id": str(patient.id),
+                    "quiz_session_id": str(session.id),
+                    "delivery_method": delivery_method.value,
+                },
+            )
+            return {
+                "sent": False,
+                "message_id": None,
+                "attempts": 0,
+                "skipped": True,
+                "reason": f"unsupported_delivery_method:{delivery_method.value}",
+            }
+
         max_retries = 3
         retry_delay = 2  # seconds
         last_error = None
@@ -69,9 +104,7 @@ class DeliveryService:
             custom_message=custom_message,
         )
 
-        whatsapp_service = UnifiedWhatsAppService(
-            db=self.db, messaging_mode=MessagingMode.HYBRID
-        )
+        whatsapp_service = UnifiedWhatsAppService(db=self.db)
 
         for attempt in range(max_retries):
             try:
@@ -143,7 +176,7 @@ class DeliveryService:
             metadata["delivery_attempts"] = []
 
         attempt_record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "action": action,
             "delivery_method": delivery_method.value,
             "status": status,

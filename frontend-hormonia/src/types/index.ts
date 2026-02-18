@@ -27,6 +27,7 @@ export type {
   UseAIChatOptions,
   UseAIAnalyticsOptions,
   UseAIInsightsOptions,
+  UseAISummaryOptions,
   AnalysisRequest,
   AnalysisResult,
   InsightType,

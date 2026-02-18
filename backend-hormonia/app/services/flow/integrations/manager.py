@@ -26,6 +26,7 @@ from .quiz_integration import QuizFlowIntegration
 from .ai_integration import AIFlowIntegration
 from .base import FlowIntegration
 from .plugins import QuizIntegrationPlugin, AIIntegrationPlugin
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -335,7 +336,7 @@ class FlowIntegrationManager:
                 "active_flows": len(self.quiz.list_active_quiz_flows()),
             },
             "ai": self.ai.get_ai_usage_stats(),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
     # ========================================================================
@@ -427,7 +428,7 @@ class FlowIntegrationManager:
         Returns:
             True if quiz flow, False otherwise.
         """
-        quiz_flow_types = ["monthly_quiz", "onboarding", "symptom_tracking"]
+        quiz_flow_types = ["quiz_mensal", "onboarding", "symptom_tracking"]
         return context.flow_type.value in quiz_flow_types
 
     def _process_with_ai(

@@ -17,6 +17,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.webhook_event import WebhookEvent
 from app.database import get_db
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ class IdempotencyMiddleware:
                 webhook_event.mark_completed(
                     {
                         "status_code": response.status_code,
-                        "processed_at": datetime.now(timezone.utc).isoformat(),
+                        "processed_at": now_sao_paulo().isoformat(),
                     }
                 )
                 db.commit()
@@ -311,7 +312,7 @@ async def cleanup_expired_events(db: Session, batch_size: int = 1000) -> int:
             # Find expired events
             expired_events = (
                 db.query(WebhookEvent)
-                .filter(WebhookEvent.expires_at < datetime.now(timezone.utc))
+                .filter(WebhookEvent.expires_at < now_sao_paulo())
                 .limit(batch_size)
                 .all()
             )

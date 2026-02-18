@@ -40,15 +40,15 @@ def verify_flows():
 
         print('\n--------------------------------')
         print('INITIAL 15 DAYS:')
-        analyze_flow('initial_15_days')
+        analyze_flow('onboarding')
         
         print('\n--------------------------------')
         print('DAYS 16-45:')
-        analyze_flow('days_16_45')
+        analyze_flow('daily_follow_up')
         
         print('\n--------------------------------')
         print('MONTHLY RECURRING:')
-        analyze_flow('monthly_recurring')
+        analyze_flow('quiz_mensal')
         print('\n--------------------------------')
 
     finally:

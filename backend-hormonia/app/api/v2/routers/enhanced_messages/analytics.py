@@ -25,6 +25,7 @@ from app.schemas.v2.enhanced_messages import (
     DeliveryOptimizationV2Response,
 )
 from app.utils.rate_limiter import limiter
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -67,8 +68,8 @@ async def get_message_performance(
 
         # Calculate performance metrics
         # In production, this would query the database
-        period_start = datetime.now(timezone.utc) - timedelta(days=days)
-        period_end = datetime.now(timezone.utc)
+        period_start = now_sao_paulo() - timedelta(days=days)
+        period_end = now_sao_paulo()
 
         performance = MessagePerformanceV2Response(
             period_start=period_start,

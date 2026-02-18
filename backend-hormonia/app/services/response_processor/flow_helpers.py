@@ -240,10 +240,18 @@ class FlowHelpers:
             True if escalation required
         """
         severity_score = FlowHelpers._resolve_severity_score(structured_response)
-        return (
-            structured_response.concern_level
-            in [ConcernLevel.HIGH, ConcernLevel.CRITICAL]
-            or structured_response.requires_attention
-            or bool(structured_response.medical_concerns)
-            or severity_score >= 7
+        has_critical_level = structured_response.concern_level in [
+            ConcernLevel.HIGH,
+            ConcernLevel.CRITICAL,
+        ]
+        needs_attention = bool(structured_response.requires_attention)
+        has_medical_concerns = bool(structured_response.medical_concerns)
+        has_high_severity_score = bool(severity_score >= 7)
+
+        # Keep this strictly boolean to avoid leaking truthy payloads via `or`.
+        return bool(
+            has_critical_level
+            or needs_attention
+            or has_medical_concerns
+            or has_high_severity_score
         )

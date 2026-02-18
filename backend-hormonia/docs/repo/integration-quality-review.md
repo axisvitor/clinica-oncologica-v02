@@ -363,7 +363,7 @@ unsubscribeFromFlowEvents(flowId: string)
 {
   "detail": "Error message",
   "error_code": "SPECIFIC_ERROR_CODE",
-  "timestamp": "2025-11-25T14:00:00Z"
+  "timestamp": "2025-11-25T14:00:00-03:00"
 }
 ```
 
@@ -622,7 +622,7 @@ Overall Score:              8.2/10 ✅ GOOD
   "agent": "reviewer",
   "status": "completed",
   "task": "integration-review",
-  "timestamp": "2025-11-25T14:00:00Z",
+  "timestamp": "2025-11-25T14:00:00-03:00",
   "findings": {
     "critical_issues": 3,
     "major_issues": 3,

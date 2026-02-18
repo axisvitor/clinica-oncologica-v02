@@ -29,7 +29,7 @@ from .models import (
 # Import main service
 from .service import FollowUpSystemService, get_follow_up_system_service
 
-# Import legacy sub-services for backward compatibility
+# Import public sub-services
 from .generators import ResponseGenerator
 from .escalation import EscalationManager
 from .notifications import NotificationService
@@ -53,7 +53,7 @@ __all__ = [
     # Main service
     "FollowUpSystemService",
     "get_follow_up_system_service",
-    # Legacy sub-services (backward compatibility)
+    # Public sub-services
     "ResponseGenerator",
     "EscalationManager",
     "NotificationService",

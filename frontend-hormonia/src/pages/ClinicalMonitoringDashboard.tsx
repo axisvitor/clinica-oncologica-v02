@@ -7,10 +7,9 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { LineChart, PieChart, RadarChart } from '@/components/ui/charts/LazyRechartsComponents';
 import {
-  LineChart,
   Line,
-  PieChart,
   Pie,
   Cell,
   XAxis,
@@ -19,12 +18,11 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  RadarChart,
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-} from '@/components/ui/charts/LazyRechartsComponents';
+} from '@/components/ui/charts/RechartsPrimitives';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +43,7 @@ import {
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useClinicalMetrics } from '@/hooks/api/useClinicalMetrics';
 import { useRiskPatients } from '@/hooks/api/useRiskPatients';
+import type { PatientRisk } from '@/hooks/api/useRiskPatients';
 import { useAdherenceData } from '@/hooks/api/useAdherenceData';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -380,7 +379,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {riskPatients.map((patient) => (
+                {riskPatients.map((patient: PatientRisk) => (
                   <Alert key={patient.id} variant={patient.riskLevel === 'critical' ? 'destructive' : 'default'}>
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle className="flex justify-between">
@@ -398,7 +397,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                           <div className="mt-2">
                             <p className="font-medium">Alertas:</p>
                             <ul className="list-disc list-inside">
-                              {patient.alerts.map((alert, i) => (
+                              {patient.alerts.map((alert: string, i: number) => (
                                 <li key={i}>{alert}</li>
                               ))}
                             </ul>

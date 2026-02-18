@@ -1,12 +1,43 @@
-"""Script to generate database documentation from SQL schema"""
+"""Script to generate database documentation from SQL schema."""
+import os
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import inspect
-from app.database import engine
+from sqlalchemy import create_engine, inspect
+
+
+def _get_docs_engine():
+    db_url = os.getenv("DOCS_DATABASE_URL")
+    if not db_url:
+        raise SystemExit(
+            "DOCS_DATABASE_URL not set. Refusing to run to avoid using the wrong DB."
+        )
+
+    connect_args = {}
+    if db_url.startswith(("postgresql://", "postgresql+psycopg://")):
+        connect_args["options"] = (
+            "-c default_transaction_read_only=on "
+            "-c statement_timeout=5000 "
+            "-c lock_timeout=1000"
+        )
+
+    return create_engine(db_url, connect_args=connect_args)
+
+
+def _format_type(type_obj) -> str:
+    type_str = str(type_obj)
+    type_name = type_obj.__class__.__name__.upper()
+    if type_name == "ENUM":
+        enum_name = getattr(type_obj, "name", None)
+        if enum_name:
+            return f"ENUM({enum_name})"
+    return type_str
+
 
 def generate_db_docs():
+    engine = _get_docs_engine()
     inspector = inspect(engine)
     output_dir = Path("docs/database")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -34,7 +65,7 @@ def generate_db_docs():
 
         for col in columns:
             col_name = col['name']
-            col_type = str(col['type']).replace(" ", "_")
+            col_type = _format_type(col['type']).replace(" ", "_")
             key_type = "PK" if col_name in pks else ""
             
             # Map common types to mermaid friendly types
@@ -80,7 +111,7 @@ def generate_db_docs():
         
         for col in columns:
             name = col['name']
-            type_str = str(col['type'])
+            type_str = _format_type(col['type'])
             nullable = "✅" if col['nullable'] else "❌"
             default = f"`{col['default']}`" if col['default'] else "-"
             is_pk = "🔑" if name in pks else ""

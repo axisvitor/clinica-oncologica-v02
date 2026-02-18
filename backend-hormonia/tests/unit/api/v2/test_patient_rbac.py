@@ -20,7 +20,7 @@ from app.core.authorization import (
     check_patient_access,
     ensure_patient_access,
 )
-from app.core.permissions import Permission
+from app.core.permissions import Permission, PermissionChecker
 
 
 # ============================================================================
@@ -270,14 +270,12 @@ class TestCreatePatientRBAC:
     def test_admin_can_create_patient_for_any_doctor(self, admin_user):
         """Test admin can create patient for any doctor."""
         # Admin should have PATIENT_CREATE permission
-        from app.core.permissions import RolePermissions
-        assert RolePermissions.has_permission("admin", Permission.PATIENT_CREATE)
+        assert PermissionChecker.has_permission(UserRole.ADMIN, Permission.PATIENT_CREATE)
 
     def test_doctor_can_create_own_patient(self, doctor_user):
         """Test doctor can create patient for themselves."""
         # Doctor should have PATIENT_CREATE permission
-        from app.core.permissions import RolePermissions
-        assert RolePermissions.has_permission("doctor", Permission.PATIENT_CREATE)
+        assert PermissionChecker.has_permission(UserRole.DOCTOR, Permission.PATIENT_CREATE)
 
     def test_doctor_cannot_create_for_other_doctor(self, doctor_user, other_doctor_user):
         """Test doctor cannot create patient for another doctor."""
@@ -311,13 +309,11 @@ class TestDeletePatientRBAC:
 
     def test_only_admin_can_delete_patient(self, admin_user):
         """Test only admins can delete patients."""
-        from app.core.permissions import RolePermissions
-        assert RolePermissions.has_permission("admin", Permission.PATIENT_DELETE)
+        assert PermissionChecker.has_permission(UserRole.ADMIN, Permission.PATIENT_DELETE)
 
     def test_doctor_cannot_delete_patient(self, doctor_user):
         """Test doctors cannot delete patients."""
-        from app.core.permissions import RolePermissions
-        assert not RolePermissions.has_permission("doctor", Permission.PATIENT_DELETE)
+        assert not PermissionChecker.has_permission(UserRole.DOCTOR, Permission.PATIENT_DELETE)
 
 
 class TestSearchPatientsRBAC:
@@ -325,13 +321,11 @@ class TestSearchPatientsRBAC:
 
     def test_admin_can_search_all_patients(self, admin_user):
         """Test admin can search all patients."""
-        from app.core.permissions import RolePermissions
-        assert RolePermissions.has_permission("admin", Permission.PATIENT_READ)
+        assert PermissionChecker.has_permission(UserRole.ADMIN, Permission.PATIENT_READ)
 
     def test_doctor_can_only_search_own_patients(self, doctor_user):
         """Test doctor can only search their own patients."""
-        from app.core.permissions import RolePermissions
-        assert RolePermissions.has_permission("doctor", Permission.PATIENT_READ)
+        assert PermissionChecker.has_permission(UserRole.DOCTOR, Permission.PATIENT_READ)
         # Verify search is scoped to doctor_id
 
 
@@ -368,31 +362,23 @@ class TestPermissionValidation:
 
     def test_patient_read_permissions(self):
         """Test which roles have patient read permission."""
-        from app.core.permissions import RolePermissions
-
-        assert RolePermissions.has_permission("admin", Permission.PATIENT_READ)
-        assert RolePermissions.has_permission("doctor", Permission.PATIENT_READ)
+        assert PermissionChecker.has_permission(UserRole.ADMIN, Permission.PATIENT_READ)
+        assert PermissionChecker.has_permission(UserRole.DOCTOR, Permission.PATIENT_READ)
 
     def test_patient_create_permissions(self):
         """Test which roles have patient create permission."""
-        from app.core.permissions import RolePermissions
-
-        assert RolePermissions.has_permission("admin", Permission.PATIENT_CREATE)
-        assert RolePermissions.has_permission("doctor", Permission.PATIENT_CREATE)
+        assert PermissionChecker.has_permission(UserRole.ADMIN, Permission.PATIENT_CREATE)
+        assert PermissionChecker.has_permission(UserRole.DOCTOR, Permission.PATIENT_CREATE)
 
     def test_patient_update_permissions(self):
         """Test which roles have patient update permission."""
-        from app.core.permissions import RolePermissions
-
-        assert RolePermissions.has_permission("admin", Permission.PATIENT_UPDATE)
-        assert RolePermissions.has_permission("doctor", Permission.PATIENT_UPDATE)
+        assert PermissionChecker.has_permission(UserRole.ADMIN, Permission.PATIENT_UPDATE)
+        assert PermissionChecker.has_permission(UserRole.DOCTOR, Permission.PATIENT_UPDATE)
 
     def test_patient_delete_permissions(self):
         """Test which roles have patient delete permission."""
-        from app.core.permissions import RolePermissions
-
-        assert RolePermissions.has_permission("admin", Permission.PATIENT_DELETE)
-        assert not RolePermissions.has_permission("doctor", Permission.PATIENT_DELETE)
+        assert PermissionChecker.has_permission(UserRole.ADMIN, Permission.PATIENT_DELETE)
+        assert not PermissionChecker.has_permission(UserRole.DOCTOR, Permission.PATIENT_DELETE)
 
 
 if __name__ == "__main__":

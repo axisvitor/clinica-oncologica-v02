@@ -7,7 +7,8 @@ import logging
 
 from ..models import FollowUpAction
 from ..message_deduplication_service import MessageDeduplicationService
-from app.models.message import Message, MessageDirection, MessageType, MessageStatus
+from app.models.message import MessageType
+from app.domain.messaging.core.message_service.service import MessageService
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class MessageScheduler:
         self.db = db
         self.message_scheduler = message_scheduler
         self.dedup_service = MessageDeduplicationService()
+        self.message_service = MessageService(db)
 
     async def schedule_message_action(self, action: FollowUpAction) -> None:
         """
@@ -52,14 +54,12 @@ class MessageScheduler:
                 )
                 return
 
-            # Create message
-            message = Message(
+            # Create message with domain service (handles idempotency key)
+            message = self.message_service.schedule_message(
                 patient_id=action.patient_id,
-                direction=MessageDirection.OUTBOUND,
-                type=MessageType.TEXT,
                 content=message_content,
-                status=MessageStatus.PENDING,
                 scheduled_for=action.scheduled_for,
+                message_type=MessageType.TEXT,
                 message_metadata={
                     "follow_up_action_id": str(action.action_id),
                     "follow_up_type": action.follow_up_type.value,
@@ -68,16 +68,9 @@ class MessageScheduler:
                 },
             )
 
-            # Save message
-            self.db.add(message)
-            self.db.commit()
-            self.db.refresh(message)
-
-            # Schedule with message scheduler
-            await self.message_scheduler.schedule_message(
-                message_id=message.id,
-                send_time=action.scheduled_for,
-                priority=action.priority,
+            # Schedule delivery task at the desired time
+            await self.message_scheduler.task_scheduler.schedule_celery_task(
+                message, action.scheduled_for
             )
 
             # Mark message as sent in deduplication cache

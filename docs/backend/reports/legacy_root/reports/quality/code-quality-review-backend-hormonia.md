@@ -62,17 +62,17 @@ from app.config.settings import settings
 
 ---
 
-### ERROR-002: Deprecated `datetime.utcnow()` Usage
+### ERROR-002: Deprecated `now_sao_paulo()` Usage
 **File:** `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/main.py`
 **Lines:** 41, 147
 **Severity:** WARNING (Python 3.12+)
 
 **Issue:**
 ```python
-"timestamp": datetime.utcnow().isoformat() + "Z",
+"timestamp": now_sao_paulo().isoformat(),
 ```
 
-`datetime.utcnow()` is deprecated in Python 3.12+ in favor of `datetime.now(timezone.utc)`.
+`now_sao_paulo()` is deprecated in Python 3.12+ in favor of `now_sao_paulo()`.
 
 **Occurrences:**
 1. Line 41: `/health` endpoint
@@ -86,7 +86,7 @@ from app.config.settings import settings
 from datetime import datetime, timezone
 
 # Replace all instances:
-"timestamp": datetime.now(timezone.utc).isoformat(),
+"timestamp": now_sao_paulo().isoformat(),
 ```
 
 ---
@@ -800,7 +800,7 @@ async def lifespan(app: FastAPI):
 
 ### Immediate (Critical/Error)
 1. ✅ **Fix `await track_error()` issue** - Already fixed (ERROR-003)
-2. **Replace `datetime.utcnow()`** - 5 occurrences (ERROR-002)
+2. **Replace `now_sao_paulo()`** - 5 occurrences (ERROR-002)
 3. **Verify import chain** - Check for circular dependencies (ERROR-001)
 
 ### High Priority (Warnings)

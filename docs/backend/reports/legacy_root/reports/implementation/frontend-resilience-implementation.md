@@ -127,7 +127,7 @@ const SESSION_COOKIE_NAME = 'quiz_session_token';
 // Save token to cookie
 function saveSessionTokenToCookie(token: string, expiresAt?: string): void {
   const expiryDate = expiresAt ? new Date(expiresAt) : new Date(Date.now() + 24*60*60*1000);
-  document.cookie = `${SESSION_COOKIE_NAME}=${token}; expires=${expiryDate.toUTCString()}; path=/; SameSite=Strict`;
+  document.cookie = `${SESSION_COOKIE_NAME}=${token}; expires=${expiryDate.toGMTString()}; path=/; SameSite=Strict`;
 }
 
 // Retrieve token from cookie
@@ -139,7 +139,7 @@ function getSessionTokenFromCookie(): string | null {
 
 // Clear cookie
 function clearSessionTokenFromCookie(): void {
-  document.cookie = `${SESSION_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`;
+  document.cookie = `${SESSION_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 Sao Paulo; path=/; SameSite=Strict`;
 }
 ```
 

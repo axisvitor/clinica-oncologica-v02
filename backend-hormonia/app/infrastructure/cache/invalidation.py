@@ -2,7 +2,8 @@
 Cache Invalidation Module
 
 This module provides cache invalidation functionality including pattern matching,
-namespace invalidation, and backward compatibility functions for user/patient caches.
+namespace invalidation, and only the backward compatibility wrappers that still
+have active callers.
 """
 
 import re
@@ -171,12 +172,46 @@ class CacheInvalidator:
             if redis_client:
                 try:
                     # Clear all keys with our namespaces
+                    deleted_count = 0
                     for config in self.cache_manager._cache_configs.values():
                         pattern = f"{config.namespace}:{config.key_prefix}:*"
-                        keys = await redis_client.keys(pattern)
-                        if keys:
-                            await redis_client.delete(*keys)
-                    logger.info("Redis cache cleared")
+                        batch: List[Any] = []
+                        async for key in redis_client.scan_iter(match=pattern):
+                            batch.append(key)
+                            if len(batch) >= 500:
+                                for batch_key in batch:
+                                    try:
+                                        if hasattr(redis_client, "unlink"):
+                                            deleted_count += int(
+                                                (await redis_client.unlink(batch_key))
+                                                or 0
+                                            )
+                                        else:
+                                            deleted_count += int(
+                                                (await redis_client.delete(batch_key))
+                                                or 0
+                                            )
+                                    except Exception:
+                                        deleted_count += int(
+                                            (await redis_client.delete(batch_key)) or 0
+                                        )
+                                batch.clear()
+                        if batch:
+                            for batch_key in batch:
+                                try:
+                                    if hasattr(redis_client, "unlink"):
+                                        deleted_count += int(
+                                            (await redis_client.unlink(batch_key)) or 0
+                                        )
+                                    else:
+                                        deleted_count += int(
+                                            (await redis_client.delete(batch_key)) or 0
+                                        )
+                                except Exception:
+                                    deleted_count += int(
+                                        (await redis_client.delete(batch_key)) or 0
+                                    )
+                    logger.info(f"Redis cache cleared ({deleted_count} keys)")
                 except Exception as e:
                     logger.warning(f"Redis cache clear failed: {e}")
 
@@ -190,7 +225,7 @@ class CacheInvalidator:
             return False
 
 
-# Backward compatibility functions for user cache operations
+# Backward compatibility helpers with active callers (user cache operations)
 def cache_user_data(user_id: str, data: Any, ttl: int = 1800) -> bool:
     """Cache user data with 30-minute default TTL (backward compatibility)."""
     manager = get_unified_cache_manager()
@@ -209,25 +244,13 @@ def invalidate_user_cache(user_id: str) -> bool:
     return manager.delete("user_profile", [user_id])
 
 
-async def cache_user_data_async(user_id: str, data: Any, ttl: int = 1800) -> bool:
-    """Cache user data with 30-minute default TTL (async backward compatibility)."""
-    manager = get_unified_cache_manager()
-    return await manager.set_async("user_profile", data, [user_id], ttl)
-
-
-async def get_cached_user_data_async(user_id: str) -> Optional[Any]:
-    """Get cached user data (async backward compatibility)."""
-    manager = get_unified_cache_manager()
-    return await manager.get_async("user_profile", [user_id])
-
-
 async def invalidate_user_cache_async(user_id: str) -> bool:
     """Invalidate specific user cache (async backward compatibility)."""
     manager = get_unified_cache_manager()
     return await manager.delete_async("user_profile", [user_id])
 
 
-# Backward compatibility functions for patient cache operations
+# Backward compatibility helpers with active callers (patient cache operations)
 def cache_patient_data(patient_id: str, data: Any, ttl: int = 3600) -> bool:
     """Cache patient data with 1-hour default TTL (backward compatibility)."""
     manager = get_unified_cache_manager()
@@ -246,38 +269,19 @@ def invalidate_patient_cache(patient_id: str) -> bool:
     return manager.delete("patient_detail", [patient_id])
 
 
-async def cache_patient_data_async(patient_id: str, data: Any, ttl: int = 3600) -> bool:
-    """Cache patient data with 1-hour default TTL (async backward compatibility)."""
-    manager = get_unified_cache_manager()
-    return await manager.set_async("patient_detail", data, [patient_id], ttl)
+def invalidate_cache(cache_type: str, key_parts: Optional[List[str]] = None) -> bool:
+    """
+    Invalidate a specific cache entry (backward compatibility).
 
-
-async def get_cached_patient_data_async(patient_id: str) -> Optional[Any]:
-    """Get cached patient data (async backward compatibility)."""
-    manager = get_unified_cache_manager()
-    return await manager.get_async("patient_detail", [patient_id])
-
-
-async def invalidate_patient_cache_async(patient_id: str) -> bool:
-    """Invalidate specific patient cache (async backward compatibility)."""
-    manager = get_unified_cache_manager()
-    return await manager.delete_async("patient_detail", [patient_id])
-
-
-def invalidate_cache(cache_type: str, key_parts: List[str]):
-    """Invalidate specific cache entry (backward compatibility)."""
-
-    async def _invalidate():
+    Legacy callers often pass a single cache key string and ignore return values.
+    This helper must never raise for those callers.
+    """
+    try:
         cache_manager = get_unified_cache_manager()
-        await cache_manager.delete_async(cache_type, key_parts)
-
-    return _invalidate
-
-
-# Compatibility with old cache manager
-def get_cache_manager():
-    """Get cache manager (backward compatibility with caching.py)."""
-    return get_unified_cache_manager()
+        return cache_manager.delete(cache_type, key_parts)
+    except Exception as e:
+        logger.debug("invalidate_cache best-effort fallback for %s failed: %s", cache_type, e)
+        return False
 
 
 __all__ = [
@@ -285,15 +289,9 @@ __all__ = [
     "cache_user_data",
     "get_cached_user_data",
     "invalidate_user_cache",
-    "cache_user_data_async",
-    "get_cached_user_data_async",
     "invalidate_user_cache_async",
     "cache_patient_data",
     "get_cached_patient_data",
     "invalidate_patient_cache",
-    "cache_patient_data_async",
-    "get_cached_patient_data_async",
-    "invalidate_patient_cache_async",
     "invalidate_cache",
-    "get_cache_manager",
 ]

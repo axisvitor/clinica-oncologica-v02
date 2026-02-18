@@ -55,8 +55,11 @@ addopts =
 
 1. **Database Protection**
    ```python
-   if "test" not in db_url.lower():
+   allow_real_db = os.getenv("CONFIRM_REAL_DB") == "1"
+   if "test" not in db_url.lower() and not allow_real_db:
        pytest.fail("Refusing to run on production database!")
+   if "test" not in db_url.lower() and allow_real_db:
+       print("WARNING: Running integration tests against real database.")
    ```
 
 2. **Automatic Cleanup**
@@ -149,7 +152,7 @@ Set test database URL:
 export DATABASE_URL="postgresql://user:password@localhost/hormonia_test"
 ```
 
-**CRITICAL**: URL MUST contain "test" for safety!
+**CRITICAL**: URL MUST contain "test" for safety (or set CONFIRM_REAL_DB=1).
 
 ### 2. Database Setup
 
@@ -323,7 +326,7 @@ def test_bulk_patient_creation():
 ## ⚠️ Important Reminders
 
 1. **ALWAYS use cleanup fixtures** - Track every created record
-2. **NEVER run on production** - Database URL must contain "test"
+2. **NEVER run on production** - Database URL must contain "test" (or set CONFIRM_REAL_DB=1)
 3. **Use unique identifiers** - Prevent conflicts between tests
 4. **Test complete workflows** - Not individual functions
 5. **Document expected behavior** - Clear test names and docstrings

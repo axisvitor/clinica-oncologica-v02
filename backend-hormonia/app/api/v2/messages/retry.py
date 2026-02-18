@@ -4,7 +4,6 @@ Handles retry and resend operations: retry failed message, resend message.
 """
 
 from typing import Optional
-from datetime import datetime
 from uuid import UUID
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
@@ -13,7 +12,6 @@ from sqlalchemy import func
 
 from app.database import get_db
 from app.models.message import Message, MessageStatus
-from app.models.patient import Patient
 from app.models.user import UserRole
 from app.domain.messaging.core import MessageService
 from app.tasks.messaging import (
@@ -30,7 +28,9 @@ from app.dependencies.auth_dependencies import get_current_user_from_session
 from .helpers import (
     _extract_user_context,
     _serialize_message,
-    _create_cursor,
+    _apply_message_created_cursor_filter,
+    _paginate_query,
+    _load_message_with_access,
 )
 
 router = APIRouter()
@@ -51,29 +51,13 @@ async def retry_message(
     current_user=Depends(get_current_user_from_session),
 ):
     """Retry sending a failed message."""
-    try:
-        msg_uuid = UUID(message_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid message ID format"
-        )
-
     message_service = MessageService(db)
-    message = message_service.get_message(msg_uuid)
-
-    if not message:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Message not found"
-        )
-
-    # RBAC check
-    role_enum, user_id = _extract_user_context(current_user)
-    if role_enum != UserRole.ADMIN:
-        patient = db.query(Patient).filter(Patient.id == message.patient_id).first()
-        if not patient or str(patient.doctor_id) != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
-            )
+    msg_uuid, message, _ = _load_message_with_access(
+        db=db,
+        current_user=current_user,
+        message_id=message_id,
+        message_service=message_service,
+    )
 
     # Check if message can be retried
     if message.status not in [MessageStatus.FAILED, MessageStatus.PENDING]:
@@ -151,31 +135,13 @@ async def list_failed_messages(
         query = query.join(Patient, Message.patient_id == Patient.id)
         query = query.filter(Patient.doctor_id == user_uuid)
 
-    # Cursor pagination
-    if cursor_data and "id" in cursor_data:
-        cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
-        )
-        query = query.filter(
-            (Message.created_at < cursor_created_at)
-            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
-        )
-
-    total = None
-    if not cursor_data:
-        total = query.count()
-
-    query = query.order_by(Message.created_at.desc(), Message.id)
-    messages = query.limit(limit + 1).all()
-
-    has_more = len(messages) > limit
-    if has_more:
-        messages = messages[:limit]
-
-    next_cursor = None
-    if has_more and messages:
-        next_cursor = _create_cursor(messages[-1])
+    query = _apply_message_created_cursor_filter(query, cursor_data)
+    messages, has_more, next_cursor, total = _paginate_query(
+        query,
+        limit=limit,
+        cursor_data=cursor_data,
+        order_columns=(Message.created_at.desc(), Message.id),
+    )
 
     # Count retryable messages
     total_retryable = sum(1 for m in messages if (m.retry_count or 0) < 3)

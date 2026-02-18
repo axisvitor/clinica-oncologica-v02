@@ -473,7 +473,7 @@ GET /api/v2/system/initialization-status  # Admin only
 ```json
 {
   "status": "healthy",
-  "timestamp": "2025-12-21T20:00:00Z",
+  "timestamp": "2025-12-21T20:00:00-03:00",
   "components": {
     "database": {"status": "healthy", "latency_ms": "< 10"},
     "redis": {"status": "healthy", "latency_ms": "< 5"},

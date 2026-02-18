@@ -6,6 +6,7 @@ Tests cursor encoding/decoding functionality for cursor-based pagination.
 import sys
 from pathlib import Path
 
+from app.utils.timezone import SAO_PAULO_TZ
 # Add the backend-hormonia directory to the path
 backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
@@ -45,7 +46,7 @@ class TestCursorEncoder:
         """Test cursor encoding with timezone-aware datetime."""
         # Arrange
         last_id = 456
-        last_created_at = datetime(2025, 1, 17, 15, 30, 0, tzinfo=timezone.utc)
+        last_created_at = datetime(2025, 1, 17, 15, 30, 0, tzinfo=SAO_PAULO_TZ)
         
         # Act
         cursor = CursorEncoder.encode(last_id, last_created_at)

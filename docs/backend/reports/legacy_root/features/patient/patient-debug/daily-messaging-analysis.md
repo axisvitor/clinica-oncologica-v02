@@ -27,13 +27,13 @@ The daily messaging system uses a **multi-layered architecture** with Celery Bea
 # Line 189-193: Daily flow questions scheduler
 "send-daily-flow-questions": {
     "task": "flow_automation.send_daily_flow_questions",
-    "schedule": crontab(hour=8, minute=0),  # Daily at 8:00 AM UTC
+    "schedule": crontab(hour=8, minute=0),  # Daily at 8:00 AM Sao Paulo
     "options": {"queue": "flows"},
 }
 ```
 
 **Key Details:**
-- **Trigger:** Daily at 8:00 AM UTC (5:00 AM São Paulo time)
+- **Trigger:** Daily at 8:00 AM Sao Paulo (5:00 AM São Paulo time)
 - **Queue:** `flows` queue for flow-related tasks
 - **Task Name:** `flow_automation.send_daily_flow_questions`
 - **File Location:** `/app/tasks/flow_automation.py` lines 219-414
@@ -254,7 +254,7 @@ async def send_message(self, message: Message, retry_count: int = 0) -> Dict[str
     # Update message status
     message.status = MessageStatus.SENT
     message.whatsapp_id = result.get("key", {}).get("id")
-    message.sent_at = datetime.now(timezone.utc)
+    message.sent_at = now_sao_paulo()
 ```
 
 **Phone Number Formatting** (lines 301-322):
@@ -354,7 +354,7 @@ delay = policy["base_delay"] * (policy["backoff_factor"] ** (retry_count - 1))
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ 1. CELERY BEAT SCHEDULER (8:00 AM UTC Daily)                   │
+│ 1. CELERY BEAT SCHEDULER (8:00 AM Sao Paulo Daily)                   │
 │    File: app/celery_app.py line 189                             │
 └────────────────────────┬────────────────────────────────────────┘
                          │
@@ -572,10 +572,10 @@ async def should_trigger_quiz(self, flow_type: str, current_day: int, flow_state
 ### 8.1 Daily Schedule
 
 ```
-00:00 UTC - Daily quiz session cleanup (every 2 hours)
-02:00 UTC - Cleanup expired quiz links
-08:00 UTC - 🔥 SEND DAILY FLOW QUESTIONS (main task)
-09:00 UTC - Send daily reminders (pending quizzes)
+00:00 Sao Paulo - Daily quiz session cleanup (every 2 hours)
+02:00 Sao Paulo - Cleanup expired quiz links
+08:00 Sao Paulo - 🔥 SEND DAILY FLOW QUESTIONS (main task)
+09:00 Sao Paulo - Send daily reminders (pending quizzes)
 ```
 
 ### 8.2 Processing Time
@@ -653,7 +653,7 @@ return {
     "skipped": skipped,
     "errors_count": len(errors),
     "errors": errors[:10],
-    "timestamp": datetime.now(timezone.utc).isoformat(),
+    "timestamp": now_sao_paulo().isoformat(),
 }
 ```
 
@@ -741,7 +741,7 @@ return {
 ## 13. Key Findings Summary
 
 ✅ **Working Correctly:**
-- Daily scheduling via Celery Beat (8 AM UTC)
+- Daily scheduling via Celery Beat (8 AM Sao Paulo)
 - Flow phase calculation (3 distinct phases)
 - WhatsApp integration with retry
 - Template personalization
@@ -769,7 +769,7 @@ return {
 
 ---
 
-**Report Generated:** 2025-12-24T17:23:00Z
+**Report Generated:** 2025-12-24T17:23:00-03:00
 **Total Files Analyzed:** 12
 **Lines of Code Reviewed:** ~2,500
 **Critical Findings:** 3

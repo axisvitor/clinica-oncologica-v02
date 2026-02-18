@@ -13,28 +13,35 @@ Tests cover:
 """
 
 import pytest
-from uuid import uuid4
+from uuid import UUID, uuid4
 from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models.patient import Patient
 
 
 class TestPatientCRUDEndpoints:
     """Test patient CRUD operations via API endpoints."""
 
+    @pytest.fixture(autouse=True)
+    def _disable_flow_auto_enrollment(self, monkeypatch: pytest.MonkeyPatch):
+        """Disable flow auto-enrollment to avoid template dependencies in API tests."""
+        monkeypatch.setattr(settings, "FLOW_ENABLE_AUTO_ENROLLMENT", False)
+
     @pytest.fixture
-    def patient_data(self):
+    def patient_data(self, test_user):
         """Valid patient creation data."""
         return {
             "name": "Test Patient",
-            "email": "test.patient@example.com",
+            "email": "test.patient@gmail.com",
             "phone": "+5511999999999",
             "birth_date": "1990-01-01",
             "cpf": "12345678909",
             "treatment_type": "Quimioterapia",
             "diagnosis": "Test diagnosis",
+            "doctor_id": str(test_user.id),
             "metadata": {"test": "data"}
         }
 
@@ -60,10 +67,10 @@ class TestPatientCRUDEndpoints:
         assert data["email"] == patient_data["email"]
         assert data["phone"] == patient_data["phone"]
         assert "id" in data
-        assert data["deleted_at"] is None
+        assert data.get("deleted_at") is None
 
         # Verify in database
-        patient = db.query(Patient).filter(Patient.id == data["id"]).first()
+        patient = db.query(Patient).filter(Patient.id == UUID(data["id"])).first()
         assert patient is not None
         assert patient.name == patient_data["name"]
 
@@ -129,6 +136,7 @@ class TestPatientCRUDEndpoints:
             headers=authenticated_headers
         )
         patient_id = create_response.json()["id"]
+        patient_uuid = UUID(patient_id)
 
         # Retrieve patient
         response = client.get(
@@ -200,8 +208,9 @@ class TestPatientCRUDEndpoints:
         # Create multiple patients
         for i in range(5):
             data = patient_data.copy()
-            data["email"] = f"patient{i}@example.com"
+            data["email"] = f"patient{i}@gmail.com"
             data["phone"] = f"+551199999999{i}"
+            data.pop("cpf", None)
             client.post(
                 "/api/v2/patients",
                 json=data,
@@ -217,10 +226,9 @@ class TestPatientCRUDEndpoints:
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
 
-        assert len(data["items"]) == 3
+        assert len(data["data"]) == 3
         assert data["total"] >= 5
-        assert data["skip"] == 0
-        assert data["limit"] == 3
+        assert data["has_more"] is True
 
     @pytest.mark.api
     def test_update_patient_success(
@@ -290,6 +298,7 @@ class TestPatientCRUDEndpoints:
             headers=authenticated_headers
         )
         patient_id = create_response.json()["id"]
+        patient_uuid = UUID(patient_id)
 
         # Delete patient
         response = client.delete(
@@ -300,7 +309,7 @@ class TestPatientCRUDEndpoints:
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
         # Verify soft delete in database
-        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
         assert patient is not None
         assert patient.deleted_at is not None
 
@@ -333,7 +342,8 @@ class TestPatientCRUDEndpoints:
             json=patient_data
         )
 
-        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+        # CSRF middleware runs before auth dependencies for mutating requests.
+        assert response.status_code == status.HTTP_403_FORBIDDEN
 
     @pytest.mark.api
     @pytest.mark.performance
@@ -348,7 +358,7 @@ class TestPatientCRUDEndpoints:
         # Create patients
         for i in range(10):
             data = patient_data.copy()
-            data["email"] = f"patient{i}@example.com"
+            data["email"] = f"patient{i}@gmail.com"
             data["phone"] = f"+551199999999{i}"
             client.post(
                 "/api/v2/patients",
@@ -371,14 +381,71 @@ class TestPatientCRUDEndpoints:
 
 
 @pytest.fixture
-def authenticated_headers(client: TestClient, db: Session):
+def authenticated_headers(admin_user):
     """Create authenticated headers for testing."""
-    # This fixture should be implemented in conftest.py
-    # For now, returning a placeholder
-    return {
-        "Authorization": "Bearer test-token",
-        "X-Session-ID": "test-session-id"
+    from fastapi import Request
+
+    from app.dependencies import RequestContext, get_request_context
+    from app.dependencies.auth_dependencies import (
+        get_current_user,
+        get_current_user_from_session,
+        get_current_user_object_from_session,
+        get_optional_user,
+    )
+    from app.main import app
+    from app.middleware.csrf import get_csrf_token
+    from tests.conftest import TestUser
+
+    session_user = TestUser(admin_user, "testpass123").session_dict()
+    session_id = f"admin-session-{admin_user.id}"
+
+    async def _override_session(request: Request):
+        request.state.user_id = session_user.get("id")
+        request.state.user_role = session_user.get("role")
+        request.state.session_id = session_id
+        return session_user
+
+    async def _override_current_user(request: Request):
+        request.state.user = admin_user
+        request.state.user_id = str(admin_user.id)
+        request.state.user_role = (
+            admin_user.role.value
+            if hasattr(admin_user.role, "value")
+            else str(admin_user.role)
+        )
+        request.state.session_id = session_id
+        return admin_user
+
+    async def _override_optional_user(credentials=None, services=None):
+        return admin_user
+
+    async def _override_request_context(request: Request):
+        return RequestContext(
+            ip_address="127.0.0.1",
+            user_agent="pytest",
+            user_id=admin_user.id,
+            session_id=session_id,
+        )
+
+    app.dependency_overrides[get_current_user_from_session] = _override_session
+    app.dependency_overrides[get_current_user_object_from_session] = lambda: admin_user
+    app.dependency_overrides[get_current_user] = _override_current_user
+    app.dependency_overrides[get_optional_user] = _override_optional_user
+    app.dependency_overrides[get_request_context] = _override_request_context
+
+    csrf_token = get_csrf_token()
+    headers = {
+        "X-Session-ID": session_id,
+        "Authorization": f"Bearer admin-token-{admin_user.id}",
+        "X-CSRF-Token": csrf_token,
+        "Cookie": f"csrf_token={csrf_token}",
     }
+    yield headers
+    app.dependency_overrides.pop(get_current_user_from_session, None)
+    app.dependency_overrides.pop(get_current_user_object_from_session, None)
+    app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_optional_user, None)
+    app.dependency_overrides.pop(get_request_context, None)
 
 
 @pytest.fixture

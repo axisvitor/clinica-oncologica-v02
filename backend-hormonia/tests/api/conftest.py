@@ -36,25 +36,45 @@ def regular_user(db_session):
 
 @pytest.fixture
 def admin_token(admin_user):
+    from app.dependencies import auth_dependencies as auth_deps
+    from app.api.v2.routers.admin import dependencies as admin_deps
+
     token = f"admin_token_{admin_user.id}"
     app.dependency_overrides[get_current_user] = lambda: admin_user
-    if TEST_TOKEN_REGISTRY is not None:
-        TEST_TOKEN_REGISTRY[token] = admin_user
+    if auth_deps.TEST_TOKEN_REGISTRY is None:
+        auth_deps.TEST_TOKEN_REGISTRY = {}
+    if admin_deps.TEST_TOKEN_REGISTRY is None or admin_deps.TEST_TOKEN_REGISTRY is not auth_deps.TEST_TOKEN_REGISTRY:
+        admin_deps.TEST_TOKEN_REGISTRY = auth_deps.TEST_TOKEN_REGISTRY
+
+    auth_deps.TEST_TOKEN_REGISTRY[token] = admin_user
+    admin_deps.TEST_TOKEN_REGISTRY[token] = admin_user
     yield token
-    if TEST_TOKEN_REGISTRY is not None:
-        TEST_TOKEN_REGISTRY.pop(token, None)
+    if auth_deps.TEST_TOKEN_REGISTRY is not None:
+        auth_deps.TEST_TOKEN_REGISTRY.pop(token, None)
+    if admin_deps.TEST_TOKEN_REGISTRY is not None:
+        admin_deps.TEST_TOKEN_REGISTRY.pop(token, None)
     app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.fixture
 def user_token(regular_user):
+    from app.dependencies import auth_dependencies as auth_deps
+    from app.api.v2.routers.admin import dependencies as admin_deps
+
     token = f"test_token_{regular_user.id}"
     app.dependency_overrides[get_current_user] = lambda: regular_user
-    if TEST_TOKEN_REGISTRY is not None:
-        TEST_TOKEN_REGISTRY[token] = regular_user
+    if auth_deps.TEST_TOKEN_REGISTRY is None:
+        auth_deps.TEST_TOKEN_REGISTRY = {}
+    if admin_deps.TEST_TOKEN_REGISTRY is None or admin_deps.TEST_TOKEN_REGISTRY is not auth_deps.TEST_TOKEN_REGISTRY:
+        admin_deps.TEST_TOKEN_REGISTRY = auth_deps.TEST_TOKEN_REGISTRY
+
+    auth_deps.TEST_TOKEN_REGISTRY[token] = regular_user
+    admin_deps.TEST_TOKEN_REGISTRY[token] = regular_user
     yield token
-    if TEST_TOKEN_REGISTRY is not None:
-        TEST_TOKEN_REGISTRY.pop(token, None)
+    if auth_deps.TEST_TOKEN_REGISTRY is not None:
+        auth_deps.TEST_TOKEN_REGISTRY.pop(token, None)
+    if admin_deps.TEST_TOKEN_REGISTRY is not None:
+        admin_deps.TEST_TOKEN_REGISTRY.pop(token, None)
     app.dependency_overrides.pop(get_current_user, None)
 
 
@@ -101,7 +121,7 @@ def sample_appointments(db_session, sample_users):
             practitioner_id=user.id,
             appointment_type=AppointmentType.CONSULTATION.value,
             status=AppointmentStatus.SCHEDULED.value,
-            scheduled_at=datetime.now(timezone.utc),
+            scheduled_at=now_sao_paulo(),
         )
         db_session.add(appointment)
         appointments.append(appointment)
@@ -155,3 +175,4 @@ def clear_system_stats_cache():
     cache_manager.delete("system_metrics", ["admin-system-stats"])
     yield
     cache_manager.delete("system_metrics", ["admin-system-stats"])
+from app.utils.timezone import now_sao_paulo

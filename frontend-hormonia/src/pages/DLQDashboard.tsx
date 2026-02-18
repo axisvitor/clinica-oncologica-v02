@@ -463,7 +463,7 @@ export function DLQDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {messagesData?.messages.map((message) => (
+                  {messagesData?.messages.map((message: DLQMessage) => (
                     <TableRow key={message.id}>
                       <TableCell>{getStatusBadge(message.status)}</TableCell>
                       <TableCell>{getCategoryBadge(message.failure_reason)}</TableCell>

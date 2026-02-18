@@ -12,8 +12,12 @@ from app.repositories.message import MessageRepository
 from app.repositories.patient import PatientRepository
 from app.models.flow import PatientFlowState
 from app.services.ai import get_sentiment_analyzer, get_context_builder, ConcernLevel
-from app.integrations.openai_client import get_langchain_orchestrator
+from app.integrations import get_langchain_orchestrator
 from app.services.analytics.data_extraction.concern_detector import ConcernDetector
+from app.services.analytics.data_extraction.severity import (
+    concern_level_from_score,
+    concern_level_rank,
+)
 from app.exceptions import NotFoundError
 from app.utils.constants import (
     URGENT_KEYWORDS,
@@ -30,7 +34,6 @@ from .models import (
     StructuredResponse,
     InboundMessage,
     ResponseType,
-    ResponseFactory,
     ResponseProcessorConfig,
 )
 
@@ -117,49 +120,12 @@ class DataExtractor:
                 or not self.context_builder
                 or not self._sentiment_analyzer_enabled
             ):
-                detector_concerns, detector_score = (
-                    await self._detect_concerns_with_detector(
-                        inbound_message.content or normalized_text, None
-                    )
-                )
-                keyword_concerns = self._extract_medical_concerns(normalized_text)
-                medical_concerns = self._merge_concern_lists(
-                    keyword_concerns, detector_concerns
-                )
-                severity_score = self._calculate_severity_score(
+                return await self._build_fallback_structured_response(
+                    patient_id,
+                    inbound_message,
+                    response_type,
                     normalized_text,
-                    ConcernLevel.LOW,
-                    medical_concerns,
                     extracted_data,
-                )
-                severity_score = max(severity_score, detector_score)
-                concern_level = self._dominant_concern_level(
-                    ConcernLevel.LOW, severity_score
-                )
-                requires_attention = (
-                    severity_score >= 7
-                    or bool(medical_concerns)
-                    or self.contains_urgent_keywords(normalized_text)
-                )
-
-                extracted_data["concern_detector_severity_score"] = detector_score
-                extracted_data["severity_score"] = severity_score
-
-                return StructuredResponse(
-                    patient_id=patient_id,
-                    original_message=inbound_message.content,
-                    response_type=response_type,
-                    extracted_data=extracted_data,
-                    sentiment_analysis={
-                        "sentiment": "neutral",
-                        "confidence": 0.0,
-                        "severity_score": severity_score,
-                    },
-                    medical_concerns=medical_concerns,
-                    concern_level=concern_level,
-                    requires_attention=requires_attention,
-                    severity_score=severity_score,
-                    confidence_score=0.0,
                 )
 
             # Get patient context for AI analysis
@@ -197,41 +163,8 @@ class DataExtractor:
                 medical_data=getattr(patient, "medical_history", {}),
             )
 
-            # Check Redis cache for similar sentiment analysis
-            import hashlib
-            import json
-            from app.core.redis_manager import get_sync_redis_client
-            
-            # Create cache key from message content hash (short messages may have similar analyses)
-            content_hash = hashlib.sha256((inbound_message.content or "").encode()).hexdigest()[:16]
-            sentiment_cache_key = f"sentiment_analysis:{content_hash}"
-            sentiment_cache_ttl = 3600  # 1 hour
-            
-            cached_sentiment = None
-            redis_client = None
+            # Perform sentiment analysis (lazy-load service and keep flow explicit)
             try:
-                redis_client = get_sync_redis_client()
-                if redis_client:
-                    cached_data = redis_client.get(sentiment_cache_key)
-                    if cached_data:
-                        cached_sentiment = json.loads(cached_data)
-                        logger.debug(f"Sentiment cache hit for {sentiment_cache_key}")
-            except Exception as e:
-                logger.warning(f"Redis sentiment cache error: {e}")
-            
-            if cached_sentiment:
-                # Use cached result
-                sentiment_response = type(
-                    "SentimentResponse", (), cached_sentiment["response"]
-                )()
-                try:
-                    concern_level = ConcernLevel(
-                        cached_sentiment.get("concern_level", ConcernLevel.LOW.value)
-                    )
-                except ValueError:
-                    concern_level = ConcernLevel.LOW
-            else:
-                # Perform sentiment analysis (lazy load the async service)
                 sentiment_service = await self._get_sentiment_analyzer()
                 (
                     sentiment_response,
@@ -239,24 +172,19 @@ class DataExtractor:
                 ) = await sentiment_service.analyze_sentiment(
                     inbound_message.content, patient_context
                 )
-                
-                # Cache the result
-                try:
-                    if redis_client:
-                        cache_data = {
-                            "response": {
-                                "sentiment": sentiment_response.sentiment.value,
-                                "confidence": sentiment_response.confidence,
-                                "key_phrases": sentiment_response.key_phrases,
-                                "emotional_indicators": sentiment_response.emotional_indicators,
-                                "medical_concerns": sentiment_response.medical_concerns,
-                            },
-                            "concern_level": concern_level.value
-                        }
-                        redis_client.setex(sentiment_cache_key, sentiment_cache_ttl, json.dumps(cache_data))
-                        logger.debug(f"Cached sentiment analysis for {sentiment_cache_key}")
-                except Exception as e:
-                    logger.warning(f"Failed to cache sentiment analysis: {e}")
+            except Exception:
+                logger.warning(
+                    "Sentiment analysis failed; falling back to heuristic extraction",
+                    exc_info=True,
+                    extra={"patient_id": str(patient_id)},
+                )
+                return await self._build_fallback_structured_response(
+                    patient_id,
+                    inbound_message,
+                    response_type,
+                    normalized_text,
+                    extracted_data,
+                )
 
             sentiment_attr = getattr(sentiment_response, "sentiment", "neutral")
             sentiment_value = (
@@ -324,12 +252,59 @@ class DataExtractor:
 
         except Exception as e:
             logger.error(f"Failed to extract structured data: {e}")
-            # Return fallback response on failure
-            return ResponseFactory.create_fallback_response(
-                patient_id=patient_id,
-                original_message=inbound_message.content,
-                response_type=response_type,
-            )
+            raise
+
+    async def _build_fallback_structured_response(
+        self,
+        patient_id: UUID,
+        inbound_message: InboundMessage,
+        response_type: ResponseType,
+        normalized_text: str,
+        extracted_data: dict[str, Any],
+    ) -> StructuredResponse:
+        """Build a safe, heuristic-based structured response."""
+        detector_concerns, detector_score = await self._detect_concerns_with_detector(
+            inbound_message.content or normalized_text, None
+        )
+        keyword_concerns = self._extract_medical_concerns(normalized_text)
+        medical_concerns = self._merge_concern_lists(
+            keyword_concerns, detector_concerns
+        )
+        severity_score = self._calculate_severity_score(
+            normalized_text,
+            ConcernLevel.LOW,
+            medical_concerns,
+            extracted_data,
+        )
+        severity_score = max(severity_score, detector_score)
+        concern_level = self._dominant_concern_level(
+            ConcernLevel.LOW, severity_score
+        )
+        requires_attention = (
+            severity_score >= 7
+            or bool(medical_concerns)
+            or self.contains_urgent_keywords(normalized_text)
+        )
+
+        extracted_data["concern_detector_severity_score"] = detector_score
+        extracted_data["severity_score"] = severity_score
+
+        return StructuredResponse(
+            patient_id=patient_id,
+            original_message=inbound_message.content,
+            response_type=response_type,
+            extracted_data=extracted_data,
+            sentiment_analysis={
+                "sentiment": "neutral",
+                "confidence": 0.0,
+                "severity_score": severity_score,
+            },
+            medical_concerns=medical_concerns,
+            concern_level=concern_level,
+            requires_attention=requires_attention,
+            severity_score=severity_score,
+            confidence_score=0.0,
+        )
 
     async def extract_type_specific_data(
         self,
@@ -626,7 +601,16 @@ class DataExtractor:
         """Merge and deduplicate concern strings."""
         merged: list[str] = []
         for concerns in concern_lists:
-            for concern in concerns or []:
+            if not concerns or isinstance(concerns, bool):
+                continue
+            if isinstance(concerns, (str, bytes)):
+                concerns_iterable = [concerns]
+            else:
+                try:
+                    concerns_iterable = list(concerns)
+                except TypeError:
+                    continue
+            for concern in concerns_iterable:
                 if not concern:
                     continue
                 merged.append(concern.strip())
@@ -732,23 +716,11 @@ class DataExtractor:
 
     def _concern_level_from_score(self, severity_score: int) -> ConcernLevel:
         """Map numeric severity score to concern level."""
-        if severity_score >= 9:
-            return ConcernLevel.CRITICAL
-        if severity_score >= 7:
-            return ConcernLevel.HIGH
-        if severity_score >= 4:
-            return ConcernLevel.MEDIUM
-        return ConcernLevel.LOW
+        return concern_level_from_score(severity_score)
 
     def _concern_rank(self, concern_level: ConcernLevel) -> int:
         """Rank concern levels for comparison."""
-        ranks = {
-            ConcernLevel.LOW: 1,
-            ConcernLevel.MEDIUM: 2,
-            ConcernLevel.HIGH: 3,
-            ConcernLevel.CRITICAL: 4,
-        }
-        return ranks.get(concern_level, 1)
+        return concern_level_rank(concern_level)
 
     def _dominant_concern_level(
         self, concern_level: ConcernLevel, severity_score: int

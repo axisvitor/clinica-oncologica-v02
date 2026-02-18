@@ -1,5 +1,11 @@
 """
 Flow template management service using the new versioning system.
+
+Architecture note (QW-021 consolidation):
+    Unique template CRUD concern -- provides version creation, publishing,
+    archiving, and analytics for FlowTemplateVersion / FlowKind models.
+    ``app.services.flow.templates`` provides a lighter template manager that
+    reads templates; this service handles the full lifecycle.
 """
 
 from typing import List, Optional, Any, Dict
@@ -9,7 +15,7 @@ import logging
 from app.models.flow import FlowTemplateVersion
 from app.repositories.flow_kind import FlowKindRepository
 from app.repositories.flow_template_version import FlowTemplateVersionRepository
-from app.services.template_loader import EnhancedTemplateLoader, FlowTemplateData
+from app.services.template_loader_pkg import EnhancedTemplateLoader, FlowTemplateData
 from app.exceptions import ValidationError, NotFoundError
 
 logger = logging.getLogger(__name__)
@@ -86,7 +92,7 @@ class FlowTemplateService:
             ValidationError: If version already exists or data is invalid
         """
         # Get or create flow kind
-        flow_kind = self.flow_kind_repo.get_by_flow_type(flow_type)
+        flow_kind = self.flow_kind_repo.get_by_kind_key(flow_type)
         if not flow_kind:
             flow_kind = self.flow_kind_repo.create_kind(
                 flow_type=flow_type,
@@ -147,7 +153,7 @@ class FlowTemplateService:
         Returns:
             True if successful, False otherwise
         """
-        flow_kind = self.flow_kind_repo.get_by_flow_type(flow_type)
+        flow_kind = self.flow_kind_repo.get_by_kind_key(flow_type)
         if not flow_kind:
             raise NotFoundError(f"Flow type {flow_type} not found")
 
@@ -199,7 +205,7 @@ class FlowTemplateService:
         Returns:
             True if successful, False otherwise
         """
-        flow_kind = self.flow_kind_repo.get_by_flow_type(flow_type)
+        flow_kind = self.flow_kind_repo.get_by_kind_key(flow_type)
         if not flow_kind:
             raise NotFoundError(f"Flow type {flow_type} not found")
 
@@ -277,7 +283,7 @@ class FlowTemplateService:
         Returns:
             List of template versions
         """
-        flow_kind = self.flow_kind_repo.get_by_flow_type(flow_type)
+        flow_kind = self.flow_kind_repo.get_by_kind_key(flow_type)
         if not flow_kind:
             return []
 
@@ -309,7 +315,7 @@ class FlowTemplateService:
         Returns:
             Analytics data for the version
         """
-        flow_kind = self.flow_kind_repo.get_by_flow_type(flow_type)
+        flow_kind = self.flow_kind_repo.get_by_kind_key(flow_type)
         if not flow_kind:
             raise NotFoundError(f"Flow type {flow_type} not found")
 
@@ -356,7 +362,7 @@ class FlowTemplateService:
         try:
             return self.loader.load_flow_template(flow_type, version)
         except Exception as e:
-            from app.services.template_loader import TemplateLoadError
+            from app.services.template_loader_pkg import TemplateLoadError
 
             if isinstance(e, TemplateLoadError):
                 # Template not found is expected, return None

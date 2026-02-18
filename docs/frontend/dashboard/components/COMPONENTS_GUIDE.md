@@ -172,7 +172,7 @@ import { AIAnalyticsDashboard } from '@/components/ai/AIAnalyticsDashboard'
 ```
 
 **Configuration**:
-- Requires `VITE_AI_CHAT_ENABLED=true`
+- Requires `VITE_AI_ENABLE_CHAT=true`
 - 5-minute cache stale time
 - 10-minute auto-refresh interval
 
@@ -375,6 +375,7 @@ AI components are controlled by feature flags:
 // Feature flags in config.ts
 export const FEATURES = {
   AI_CHAT: config.ai.chatEnabled && hasValidAPIKey,
+  AI_SUMMARY: config.ai.summaryEnabled,
   AI_INSIGHTS: config.ai.insightsEnabled,
   AI_ANALYTICS: config.ai.analyticsEnabled,
   AI_RECOMMENDATIONS: config.ai.recommendationsEnabled
@@ -391,10 +392,11 @@ VITE_GEMINI_API_KEY=your-gemini-key
 VITE_LANGCHAIN_API_KEY=your-langchain-key
 
 # AI Feature Flags
-VITE_AI_CHAT_ENABLED=true
-VITE_AI_ANALYTICS_ENABLED=true
-VITE_AI_INSIGHTS_ENABLED=true
-VITE_AI_RECOMMENDATIONS_ENABLED=true
+VITE_AI_ENABLE_CHAT=true
+VITE_AI_ENABLE_SUMMARY=true
+VITE_AI_ENABLE_ANALYTICS=true
+VITE_AI_ENABLE_INSIGHTS=false
+VITE_AI_ENABLE_RECOMMENDATIONS=true
 ```
 
 ## Component Development Guidelines

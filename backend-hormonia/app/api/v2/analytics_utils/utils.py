@@ -4,14 +4,14 @@ Extracted from enhanced_analytics.py to reduce god class complexity.
 """
 
 from typing import Optional, Tuple
-from uuid import UUID
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import logging
 
-from app.models.user import UserRole
 from app.schemas.v2.enhanced_analytics import TimeRange
+from app.api.v2.analytics_utils.user_context import get_role_and_user
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -22,48 +22,6 @@ HISTORICAL_CACHE_TTL = 7200  # 2 hours
 
 # Rate limiting (handled by middleware)
 RATE_LIMIT_PER_MIN = 20
-
-
-def get_role_and_user(current_user) -> Tuple[UserRole, Optional[UUID]]:
-    """
-    Extract role and user UUID from current_user which can be model or dict.
-
-    Args:
-        current_user: User object or dictionary with user data
-
-    Returns:
-        Tuple of (UserRole, Optional[UUID])
-    """
-    if isinstance(current_user, dict):
-        role_value = current_user.get("role", "doctor")
-        user_id = current_user.get("id")
-    else:
-        role_value = getattr(current_user, "role", "doctor")
-        user_id = getattr(current_user, "id", None)
-
-    # Optimize role conversion
-    if isinstance(role_value, UserRole):
-        role = role_value
-    elif isinstance(role_value, str):
-        role_lower = role_value.lower()
-        if role_lower == "admin":
-            role = UserRole.ADMIN
-        else:
-            role = UserRole.DOCTOR
-    else:
-        role = UserRole.DOCTOR
-
-    # Optimize UUID conversion
-    if user_id:
-        try:
-            user_uuid = UUID(str(user_id))
-        except (TypeError, ValueError):
-            user_uuid = None
-    else:
-        user_uuid = None
-
-    return role, user_uuid
-
 
 def get_cache_key(endpoint: str, **params) -> str:
     """
@@ -142,7 +100,7 @@ def parse_date_range(
     Returns:
         Tuple of (start_date, end_date)
     """
-    now = datetime.now(timezone.utc)
+    now = now_sao_paulo()
 
     if start_date and end_date:
         return start_date, end_date

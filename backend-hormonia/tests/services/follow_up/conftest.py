@@ -8,6 +8,7 @@ from uuid import uuid4
 from datetime import datetime, timedelta
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 @pytest.fixture
 def event_loop():
     """Create an event loop for async tests."""
@@ -47,7 +48,7 @@ def sample_action():
         "id": str(uuid4()),
         "patient_id": str(uuid4()),
         "action_type": "follow_up_call",
-        "scheduled_for": (datetime.utcnow() + timedelta(hours=1)).isoformat(),
+        "scheduled_for": (now_sao_paulo_naive() + timedelta(hours=1)).isoformat(),
         "status": "pending",
         "priority": "medium",
         "metadata": {"reason": "Check treatment progress"}
@@ -63,7 +64,7 @@ def sample_alert():
         "alert_type": "missed_appointment",
         "escalation_level": 1,
         "status": "active",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": now_sao_paulo_naive().isoformat(),
         "metadata": {"appointment_date": "2024-01-15"}
     }
 
@@ -73,7 +74,7 @@ def sample_context():
     """Sample patient context."""
     return {
         "patient_id": str(uuid4()),
-        "last_interaction": datetime.utcnow().isoformat(),
+        "last_interaction": now_sao_paulo_naive().isoformat(),
         "conversation_state": "awaiting_response",
         "pending_questions": ["How are you feeling?"],
         "metadata": {"flow_id": str(uuid4())}

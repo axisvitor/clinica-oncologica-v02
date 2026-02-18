@@ -37,7 +37,8 @@ from app.api.v2.templates_shared import (
     RATE_LIMIT_READ,
     RATE_LIMIT_WRITE,
 )
-from app.utils.audit_logger import AuditLogger, AuditAction
+from app.monitoring.audit_logger import TemplateAuditLogger as AuditLogger, TemplateAuditAction as AuditAction
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -256,7 +257,7 @@ async def create_flow_template(
         is_draft = template.is_draft if template.is_draft is not None else True
         if is_active and is_draft:
             is_draft = False
-        published_at = None if is_draft else datetime.now(timezone.utc)
+        published_at = None if is_draft else now_sao_paulo()
 
         template_version = FlowTemplateVersion(
             flow_kind_id=flow_kind.id,
@@ -369,7 +370,7 @@ async def update_flow_template(
             db.flush()
             if new_template.is_active:
                 new_template.is_draft = False
-                new_template.published_at = datetime.now(timezone.utc)
+                new_template.published_at = now_sao_paulo()
                 db.query(FlowTemplateVersion).filter(
                     FlowTemplateVersion.flow_kind_id == template.flow_kind_id,
                     FlowTemplateVersion.id != new_template.id,
@@ -417,15 +418,15 @@ async def update_flow_template(
                 ).update({"is_active": False})
         if updates.is_draft is not None:
             if template.is_draft and not updates.is_draft:
-                template.published_at = datetime.now(timezone.utc)
+                template.published_at = now_sao_paulo()
             template.is_draft = updates.is_draft
             if not template.is_draft and template.published_at is None:
-                template.published_at = datetime.now(timezone.utc)
+                template.published_at = now_sao_paulo()
         if template.is_active and template.is_draft:
             template.is_draft = False
-            template.published_at = template.published_at or datetime.now(timezone.utc)
+            template.published_at = template.published_at or now_sao_paulo()
 
-        template.updated_at = datetime.now(timezone.utc)
+        template.updated_at = now_sao_paulo()
         db.commit()
         db.refresh(template)
         await _invalidate_template_cache("flow", template_id)
@@ -498,7 +499,7 @@ async def delete_flow_template(
 
         if soft_delete:
             template.is_active = False
-            template.updated_at = datetime.now(timezone.utc)
+            template.updated_at = now_sao_paulo()
             db.commit()
         else:
             db.delete(template)

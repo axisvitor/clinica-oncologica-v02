@@ -10,7 +10,10 @@ from fastapi import APIRouter, Request, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.integrations.whatsapp.api.webhooks import evolution_webhook
+from app.integrations.whatsapp.api.webhooks import (
+    evolution_webhook,
+    evolution_webhook_by_event,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +50,24 @@ async def whatsapp_webhook_with_idempotency(
     # This endpoint just needs to process the webhook normally
     return await evolution_webhook(
         instance_name=instance_name,
+        request=request,
+        background_tasks=background_tasks,
+        db=db,
+    )
+
+
+@router.post("/evolution/{instance_name}/{event_name}")
+async def whatsapp_webhook_with_idempotency_by_event(
+    instance_name: str,
+    event_name: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Handle Evolution webhooks with event-specific path segments."""
+    return await evolution_webhook_by_event(
+        instance_name=instance_name,
+        event_name=event_name,
         request=request,
         background_tasks=background_tasks,
         db=db,

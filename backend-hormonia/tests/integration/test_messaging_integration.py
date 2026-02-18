@@ -17,6 +17,7 @@ from app.models.patient import Patient
 from app.domain.messaging.core import MessageService
 
 
+from app.utils.timezone import now_sao_paulo
 @pytest.mark.integration
 class TestMessagingIntegration:
     """Test WhatsApp messaging integration."""
@@ -48,7 +49,7 @@ class TestMessagingIntegration:
         message = message_service.schedule_message(
             patient_id=patient.id,
             content="Test welcome message",
-            scheduled_for=datetime.now(timezone.utc),
+            scheduled_for=now_sao_paulo(),
             message_type=MessageType.TEXT,
             message_metadata={"test": True},
         )
@@ -94,7 +95,7 @@ class TestMessagingIntegration:
         message = message_service.schedule_message(
             patient_id=patient.id,
             content="Status test message",
-            scheduled_for=datetime.now(timezone.utc),
+            scheduled_for=now_sao_paulo(),
             message_type=MessageType.TEXT,
         )
 
@@ -139,7 +140,7 @@ class TestMessagingIntegration:
         message = message_service.schedule_message(
             patient_id=patient.id,
             content="Relationship test",
-            scheduled_for=datetime.now(timezone.utc),
+            scheduled_for=now_sao_paulo(),
             message_type=MessageType.TEXT,
         )
 
@@ -175,14 +176,14 @@ class TestMessagingIntegration:
         message1 = message_service.schedule_message(
             patient_id=patient.id,
             content="Message 1",
-            scheduled_for=datetime.now(timezone.utc),
+            scheduled_for=now_sao_paulo(),
             message_type=MessageType.TEXT,
         )
 
         message2 = message_service.schedule_message(
             patient_id=patient.id,
             content="Message 2",
-            scheduled_for=datetime.now(timezone.utc),
+            scheduled_for=now_sao_paulo(),
             message_type=MessageType.TEXT,
         )
 
@@ -238,7 +239,7 @@ class TestMessagingIntegration:
         message = message_service.schedule_message(
             patient_id=patient.id,
             content="Metadata test",
-            scheduled_for=datetime.now(timezone.utc),
+            scheduled_for=now_sao_paulo(),
             message_type=MessageType.TEXT,
             message_metadata=metadata,
         )
@@ -282,14 +283,14 @@ class TestMessagingIntegration:
         pending_msg = message_service.schedule_message(
             patient_id=patient.id,
             content="Pending message",
-            scheduled_for=datetime.now(timezone.utc),
+            scheduled_for=now_sao_paulo(),
             message_type=MessageType.TEXT,
         )
 
         sent_msg = message_service.schedule_message(
             patient_id=patient.id,
             content="Sent message",
-            scheduled_for=datetime.now(timezone.utc),
+            scheduled_for=now_sao_paulo(),
             message_type=MessageType.TEXT,
         )
         message_service.mark_as_sent(sent_msg.id, "external_123")

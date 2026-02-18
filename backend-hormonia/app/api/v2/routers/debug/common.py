@@ -22,11 +22,17 @@ from app.models.user import User
 from app.models.audit_log import AuditLog
 from app.schemas.v2.debug import DebugSeverity
 from app.dependencies.auth_dependencies import get_current_active_admin
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
-# Environment flag - MUST be explicitly enabled
-DEBUG_ENDPOINTS_ENABLED = os.getenv("ENABLE_DEBUG_ENDPOINTS", "false").lower() == "true"
+def is_debug_endpoints_enabled() -> bool:
+    """Return whether debug endpoints are enabled at runtime."""
+    return os.getenv("ENABLE_DEBUG_ENDPOINTS", "false").strip().lower() == "true"
+
+
+# Backward-compatible snapshot value for callers that import the constant.
+DEBUG_ENDPOINTS_ENABLED = is_debug_endpoints_enabled()
 
 # Safe environment variables (whitelist only)
 SAFE_ENV_VARS = {
@@ -65,8 +71,13 @@ SENSITIVE_CLAIMS = {"password", "secret", "token", "key", "private"}
 
 def check_debug_enabled():
     """Check if debug endpoints are enabled, raise 404 if not."""
-    if not DEBUG_ENDPOINTS_ENABLED:
+    if not is_debug_endpoints_enabled():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+
+async def require_debug_enabled():
+    """Async dependency wrapper to avoid threadpool dispatch overhead."""
+    check_debug_enabled()
 
 
 async def get_admin_user(
@@ -143,7 +154,7 @@ async def log_debug_operation(
             },
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
-            created_at=datetime.now(timezone.utc),
+            created_at=now_sao_paulo(),
         )
         db.add(audit_log)
         db.commit()
@@ -181,8 +192,9 @@ def mask_sensitive_value(key: str, value: str) -> tuple[str, bool]:
 
     key_lower = key.lower()
     is_sensitive = any(kw in key_lower for kw in sensitive_keywords)
+    is_url_key = "url" in key_lower
 
-    if is_sensitive:
+    if is_sensitive or is_url_key:
         # Show format but mask actual value
         if "://" in value:
             # URL format: show scheme and host, mask credentials
@@ -192,7 +204,9 @@ def mask_sensitive_value(key: str, value: str) -> tuple[str, bool]:
                 if "@" in rest:
                     # Has credentials
                     return f"{scheme}://***:***@{rest.split('@')[-1]}", True
-                return f"{scheme}://***", True
+                # URL without embedded credentials: still mask path/query details
+                host = rest.split("/", 1)[0]
+                return f"{scheme}://{host}/***", True
         # Generic masking
         if len(value) > 8:
             return f"{value[:3]}***{value[-3:]}", True

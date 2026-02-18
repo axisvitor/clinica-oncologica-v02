@@ -6,8 +6,8 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **patient_id** | `UUID` | ❌ | - |  | ➡️ [patients]( patients.md ).id |
 | **doctor_id** | `UUID` | ✅ | - |  | ➡️ [users]( users.md ).id |
-| **treatment_type** | `VARCHAR(15)` | ❌ | - |  |  |
-| **status** | `VARCHAR(9)` | ❌ | - |  |  |
+| **treatment_type** | `ENUM(treatmenttype)` | ❌ | - |  |  |
+| **status** | `ENUM(treatmentstatus)` | ❌ | - |  |  |
 | **start_date** | `DATE` | ✅ | - |  |  |
 | **end_date** | `DATE` | ✅ | - |  |  |
 | **planned_sessions** | `VARCHAR(100)` | ✅ | - |  |  |

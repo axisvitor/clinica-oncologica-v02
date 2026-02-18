@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api-client'
 import type { QuizLinkCreate } from '@/lib/api-client/monthly-quiz'
+import type { QuizTemplate, QuizTemplateResponse } from '@/lib/api-client/types'
 import { getErrorMessage } from '@/lib/utils/type-guards'
 
 interface SendQuizLinkModalProps {
@@ -48,13 +49,13 @@ export function SendQuizLinkModal({
   const [customMessage, setCustomMessage] = useState('')
 
   // Fetch quiz templates
-  const { data: templatesData, isLoading: isLoadingTemplates } = useQuery({
+  const { data: templatesData, isLoading: isLoadingTemplates } = useQuery<QuizTemplateResponse>({
     queryKey: ['quiz-templates'],
     queryFn: () => apiClient.quiz.templates(),
     enabled: open
   })
 
-  const templates = templatesData?.items || []
+  const templates: QuizTemplate[] = templatesData?.items ?? []
 
   const sendLinkMutation = useMutation({
     mutationFn: (data: QuizLinkCreate & { send_immediately?: boolean }) => {

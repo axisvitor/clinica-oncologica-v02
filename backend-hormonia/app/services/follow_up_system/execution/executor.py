@@ -10,6 +10,7 @@ from uuid import UUID
 
 from ..models import FollowUpAction
 from ..enums import FollowUpType
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class ActionExecutor:
         try:
             executed_count = 0
             failed_count = 0
-            current_time = datetime.now(timezone.utc)
+            current_time = now_sao_paulo()
 
             # Get actions ready for execution from Redis
             ready_action_dicts = await self.redis_store.get_pending_actions(
@@ -150,7 +151,7 @@ class ActionExecutor:
             """FIX P1-006: Ensure timezone-aware datetime parsing."""
             dt = datetime.fromisoformat(dt_str)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=SAO_PAULO_TZ)
             return dt
 
         action = FollowUpAction(

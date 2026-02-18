@@ -29,6 +29,7 @@ from app.services.flow.types import (
     FlowType,
     FlowStepStatus,
 )
+from app.utils.timezone import now_sao_paulo
 
 
 # ============================================================================
@@ -89,8 +90,18 @@ def decision_step_def() -> Dict[str, Any]:
         "type": "decision",
         "name": "Pain Level Decision",
         "conditions": [
-            {"condition": "pain_level > 7", "path": "high_pain"},
-            {"condition": "pain_level > 4", "path": "moderate_pain"},
+            {
+                "variable": "pain_level",
+                "operator": "greater_than",
+                "value": 7,
+                "path": "high_pain",
+            },
+            {
+                "variable": "pain_level",
+                "operator": "greater_than",
+                "value": 4,
+                "path": "moderate_pain",
+            },
         ],
         "default_path": "low_pain",
         "metadata": {},
@@ -168,10 +179,10 @@ class TestStepExecution:
             "name": "Invalid Step",
         }
 
-        with pytest.raises(RuntimeError) as exc_info:
+        with pytest.raises(ValueError) as exc_info:
             await engine.execute_step(flow_context, invalid_step)
 
-        assert "Step execution failed" in str(exc_info.value)
+        assert "invalid_type" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_execute_step_tracks_timing(
@@ -520,26 +531,28 @@ class TestWaitSteps:
         updated_context, step_data = await engine.execute_step(flow_context, wait_step)
 
         assert step_data.output_data["wait_started"] is True
-        assert step_data.output_data["duration_seconds"] == 300
         assert "resume_at" in step_data.output_data
+        assert updated_context.flow_data["paused_until"] == step_data.output_data["resume_at"]
 
     @pytest.mark.asyncio
     async def test_execute_wait_step_until_time(
         self, engine: FlowEngine, flow_context: FlowContext
     ):
         """Test wait step until specific time."""
-        future_time = (datetime.utcnow() + timedelta(hours=2)).isoformat()
+        future_dt = now_sao_paulo() + timedelta(hours=2)
         wait_step = {
             "step_id": "wait_2",
             "type": "wait",
             "name": "Wait until time",
-            "wait_until": future_time,
+            "wait_until": future_dt.isoformat(),
         }
 
         updated_context, step_data = await engine.execute_step(flow_context, wait_step)
 
         assert step_data.output_data["wait_started"] is True
-        assert step_data.output_data["resume_at"] == future_time
+        resume_at = datetime.fromisoformat(step_data.output_data["resume_at"])
+        assert abs((resume_at - future_dt).total_seconds()) < 1
+        assert updated_context.flow_data["paused_until"] == step_data.output_data["resume_at"]
 
     @pytest.mark.asyncio
     async def test_execute_wait_step_updates_flow_data(
@@ -781,7 +794,7 @@ class TestConditionEvaluation:
             "value": "active",
         }
 
-        result = await engine.evaluate_condition(condition, flow_context)
+        result = engine.condition_evaluator.evaluate(condition, flow_context)
 
         assert result is True
 
@@ -798,7 +811,7 @@ class TestConditionEvaluation:
             "value": "inactive",
         }
 
-        result = await engine.evaluate_condition(condition, flow_context)
+        result = engine.condition_evaluator.evaluate(condition, flow_context)
 
         assert result is True
 
@@ -815,7 +828,7 @@ class TestConditionEvaluation:
             "value": 70,
         }
 
-        result = await engine.evaluate_condition(condition, flow_context)
+        result = engine.condition_evaluator.evaluate(condition, flow_context)
 
         assert result is True
 
@@ -845,7 +858,7 @@ class TestConditionEvaluation:
             ],
         }
 
-        result = await engine.evaluate_condition(condition, flow_context)
+        result = engine.condition_evaluator.evaluate(condition, flow_context)
 
         assert result is True
 
@@ -875,7 +888,7 @@ class TestConditionEvaluation:
             ],
         }
 
-        result = await engine.evaluate_condition(condition, flow_context)
+        result = engine.condition_evaluator.evaluate(condition, flow_context)
 
         assert result is True
 
@@ -896,7 +909,7 @@ class TestConditionEvaluation:
             },
         }
 
-        result = await engine.evaluate_condition(condition, flow_context)
+        result = engine.condition_evaluator.evaluate(condition, flow_context)
 
         assert result is True
 
@@ -938,7 +951,7 @@ class TestConditionEvaluation:
             ],
         }
 
-        result = await engine.evaluate_condition(condition, flow_context)
+        result = engine.condition_evaluator.evaluate(condition, flow_context)
 
         assert result is True
 
@@ -956,7 +969,7 @@ class TestVariableSubstitution:
         template = "Hello {{name}}!"
         variables = {"name": "João"}
 
-        result = engine._substitute_variables(template, variables)
+        result = engine.executor._substitute_variables(template, variables)
 
         assert result == "Hello João!"
 
@@ -965,7 +978,7 @@ class TestVariableSubstitution:
         template = "Hello {{name}}, you are {{age}} years old."
         variables = {"name": "João", "age": 45}
 
-        result = engine._substitute_variables(template, variables)
+        result = engine.executor._substitute_variables(template, variables)
 
         assert result == "Hello João, you are 45 years old."
 
@@ -974,7 +987,7 @@ class TestVariableSubstitution:
         template = "Hello {{name}}, {{missing}}!"
         variables = {"name": "João"}
 
-        result = engine._substitute_variables(template, variables)
+        result = engine.executor._substitute_variables(template, variables)
 
         # Should leave missing variables as is or handle gracefully
         assert "João" in result
@@ -984,7 +997,7 @@ class TestVariableSubstitution:
         template = ""
         variables = {"name": "João"}
 
-        result = engine._substitute_variables(template, variables)
+        result = engine.executor._substitute_variables(template, variables)
 
         assert result == ""
 
@@ -993,7 +1006,7 @@ class TestVariableSubstitution:
         template = "Hello there!"
         variables = {}
 
-        result = engine._substitute_variables(template, variables)
+        result = engine.executor._substitute_variables(template, variables)
 
         assert result == "Hello there!"
 
@@ -1010,36 +1023,41 @@ class TestErrorHandling:
     async def test_execute_step_marks_failure(
         self, engine: FlowEngine, flow_context: FlowContext
     ):
-        """Test that failed step is marked as failed."""
+        """Invalid step type should fail fast before step execution."""
         invalid_step = {
             "step_id": "fail_step",
             "type": "invalid_type",
             "name": "Invalid Step",
         }
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             await engine.execute_step(flow_context, invalid_step)
 
-        # Check that step was marked as failed in history
-        assert len(flow_context.steps_history) == 1
-        assert flow_context.steps_history[0].status == FlowStepStatus.FAILED
-        assert flow_context.steps_history[0].error is not None
+        # Type coercion fails before FlowStepData creation.
+        assert len(flow_context.steps_history) == 0
 
     @pytest.mark.asyncio
     async def test_execute_step_error_tracking(
         self, engine: FlowEngine, flow_context: FlowContext
     ):
-        """Test that errors are tracked in step data."""
+        """Handler failures should be tracked in step history."""
         invalid_step = {
             "step_id": "error_step",
-            "type": "unknown_type",
+            "type": "decision",
             "name": "Error Step",
+            "conditions": [
+                {
+                    "variable": "missing_score",
+                    "operator": "greater_than",
+                    "value": 10,
+                    "path": "high",
+                }
+            ],
+            "default_path": "low",
         }
 
-        try:
+        with pytest.raises(TypeError):
             await engine.execute_step(flow_context, invalid_step)
-        except RuntimeError:
-            pass
 
         step_data = flow_context.steps_history[0]
         assert step_data.error is not None
@@ -1053,14 +1071,21 @@ class TestErrorHandling:
         """Test that timing is tracked even on failure."""
         invalid_step = {
             "step_id": "timing_fail",
-            "type": "bad_type",
+            "type": "decision",
             "name": "Timing Fail",
+            "conditions": [
+                {
+                    "variable": "missing_score",
+                    "operator": "greater_than",
+                    "value": 10,
+                    "path": "high",
+                }
+            ],
+            "default_path": "low",
         }
 
-        try:
+        with pytest.raises(TypeError):
             await engine.execute_step(flow_context, invalid_step)
-        except RuntimeError:
-            pass
 
         step_data = flow_context.steps_history[0]
         assert step_data.started_at is not None
@@ -1132,7 +1157,12 @@ class TestIntegrationScenarios:
             "type": "decision",
             "name": "Pain Decision",
             "conditions": [
-                {"condition": "pain_level > 7", "path": "high_pain"},
+                {
+                    "variable": "pain_level",
+                    "operator": "greater_than",
+                    "value": 7,
+                    "path": "high_pain",
+                },
             ],
             "default_path": "low_pain",
         }

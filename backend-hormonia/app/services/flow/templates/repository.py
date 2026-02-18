@@ -16,6 +16,7 @@ import logging
 
 from ..types import FlowType, FlowTemplate
 from ..config import get_flow_config
+from app.utils.timezone import now_sao_paulo_naive
 
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,10 @@ class FlowTemplateRepository:
 
         logger.info("FlowTemplateRepository initialized")
 
+    @staticmethod
+    def _clone_template(template: FlowTemplate) -> FlowTemplate:
+        return template.model_copy(deep=True)
+
     # ========================================================================
     # CRUD Operations
     # ========================================================================
@@ -63,24 +68,32 @@ class FlowTemplateRepository:
         if template.template_id in self._templates:
             raise ValueError(f"Template already exists: {template.template_id}")
 
+        stored_template = self._clone_template(template)
+
         # Store template
-        self._templates[template.template_id] = template
+        self._templates[stored_template.template_id] = stored_template
 
         # Index by flow type
-        if template.flow_type not in self._templates_by_type:
-            self._templates_by_type[template.flow_type] = []
-        self._templates_by_type[template.flow_type].append(template.template_id)
+        if stored_template.flow_type not in self._templates_by_type:
+            self._templates_by_type[stored_template.flow_type] = []
+        self._templates_by_type[stored_template.flow_type].append(
+            stored_template.template_id
+        )
 
         # Initialize version history
         if self.config.enable_template_versioning:
-            self._template_versions[template.template_id] = [template]
+            self._template_versions[stored_template.template_id] = [
+                self._clone_template(stored_template)
+            ]
 
         # Cache
         if self._cache_enabled:
-            self._cached_templates[template.template_id] = template
+            self._cached_templates[stored_template.template_id] = stored_template
 
-        logger.info(f"Created template: {template.template_id} (v{template.version})")
-        return template
+        logger.info(
+            f"Created template: {stored_template.template_id} (v{stored_template.version})"
+        )
+        return stored_template
 
     def get(self, template_id: str) -> Optional[FlowTemplate]:
         """
@@ -122,33 +135,54 @@ class FlowTemplateRepository:
             raise ValueError(f"Template not found: {template.template_id}")
 
         # Update timestamp
-        template.updated_at = datetime.now(timezone.utc)
+        updated_template = self._clone_template(template)
+        updated_template.updated_at = now_sao_paulo_naive()
 
         # Store updated template
         old_template = self._templates[template.template_id]
-        self._templates[template.template_id] = template
+        old_flow_type = old_template.flow_type
+        self._templates[template.template_id] = updated_template
+
+        # Update type index when flow type changes
+        if old_flow_type != updated_template.flow_type:
+            if old_flow_type in self._templates_by_type:
+                try:
+                    self._templates_by_type[old_flow_type].remove(
+                        updated_template.template_id
+                    )
+                except ValueError:
+                    pass
+                if not self._templates_by_type[old_flow_type]:
+                    del self._templates_by_type[old_flow_type]
+            type_list = self._templates_by_type.setdefault(
+                updated_template.flow_type, []
+            )
+            if updated_template.template_id not in type_list:
+                type_list.append(updated_template.template_id)
 
         # Add to version history
         if self.config.enable_template_versioning:
-            versions = self._template_versions.get(template.template_id, [])
-            versions.append(template)
+            versions = self._template_versions.get(updated_template.template_id, [])
+            if not versions:
+                versions = [self._clone_template(old_template)]
+            versions.append(self._clone_template(updated_template))
 
             # Limit version history
             max_versions = self.config.max_template_versions
             if len(versions) > max_versions:
                 versions = versions[-max_versions:]
 
-            self._template_versions[template.template_id] = versions
+            self._template_versions[updated_template.template_id] = versions
 
         # Update cache
         if self._cache_enabled:
-            self._cached_templates[template.template_id] = template
+            self._cached_templates[updated_template.template_id] = updated_template
 
         logger.info(
             f"Updated template: {template.template_id} "
-            f"(v{old_template.version} -> v{template.version})"
+            f"(v{old_template.version} -> v{updated_template.version})"
         )
-        return template
+        return updated_template
 
     def delete(self, template_id: str) -> bool:
         """

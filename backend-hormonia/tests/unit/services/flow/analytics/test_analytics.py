@@ -11,6 +11,7 @@ from uuid import uuid4
 from unittest.mock import Mock
 
 from app.services.flow.analytics.analytics import FlowAnalytics, get_flow_analytics
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.flow.types import (
     FlowContext,
     FlowType,
@@ -45,10 +46,10 @@ def sample_context(flow_instance_id, patient_id):
     """Create sample flow context for testing."""
     return FlowContext(
         flow_instance_id=flow_instance_id,
-        flow_type=FlowType.DAILY_CHECKIN,
+        flow_type=FlowType.DAILY_FOLLOW_UP,
         patient_id=patient_id,
         status=FlowStatus.ACTIVE,
-        started_at=datetime.utcnow() - timedelta(minutes=5),
+        started_at=now_sao_paulo_naive() - timedelta(minutes=5),
     )
 
 
@@ -60,8 +61,8 @@ def sample_step_data():
         step_type=FlowStepType.MESSAGE,
         step_name="Test Step",
         status=FlowStepStatus.COMPLETED,
-        started_at=datetime.utcnow() - timedelta(seconds=30),
-        completed_at=datetime.utcnow(),
+        started_at=now_sao_paulo_naive() - timedelta(seconds=30),
+        completed_at=now_sao_paulo_naive(),
     )
 
 
@@ -110,7 +111,7 @@ class TestFlowLifecycleTracking:
 
         # Complete flow
         sample_context.status = FlowStatus.COMPLETED
-        sample_context.completed_at = datetime.utcnow()
+        sample_context.completed_at = now_sao_paulo_naive()
         analytics.on_flow_completed(flow_instance_id, sample_context)
 
         # Verify metrics recorded
@@ -315,7 +316,7 @@ class TestHealthMonitoring:
             flow_id,
             FlowContext(
                 flow_instance_id=flow_id,
-                flow_type=FlowType.DAILY_CHECKIN,
+                flow_type=FlowType.DAILY_FOLLOW_UP,
                 patient_id=uuid4(),
             ),
         )
@@ -345,7 +346,7 @@ class TestMetricsQuery:
             flow_id = uuid4()
             context = FlowContext(
                 flow_instance_id=flow_id,
-                flow_type=FlowType.DAILY_CHECKIN,
+                flow_type=FlowType.DAILY_FOLLOW_UP,
                 patient_id=uuid4(),
             )
             analytics.on_flow_started(flow_id, context)
@@ -359,7 +360,7 @@ class TestMetricsQuery:
 
     def test_get_metrics_by_flow_type(self, analytics):
         """Test getting metrics by flow type."""
-        metrics = analytics.get_metrics_by_flow_type(FlowType.DAILY_CHECKIN)
+        metrics = analytics.get_metrics_by_flow_type(FlowType.DAILY_FOLLOW_UP)
 
         assert isinstance(metrics, dict)
         assert "flow_type" in metrics
@@ -382,7 +383,7 @@ class TestEventSubscription:
         flow_id = uuid4()
         context = FlowContext(
             flow_instance_id=flow_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
         )
         analytics.on_flow_started(flow_id, context)
@@ -402,7 +403,7 @@ class TestEventSubscription:
         flow_id = uuid4()
         context = FlowContext(
             flow_instance_id=flow_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
         )
         analytics.on_flow_started(flow_id, context)
@@ -441,7 +442,7 @@ class TestDashboardData:
             flow_id = uuid4()
             context = FlowContext(
                 flow_instance_id=flow_id,
-                flow_type=FlowType.DAILY_CHECKIN,
+                flow_type=FlowType.DAILY_FOLLOW_UP,
                 patient_id=uuid4(),
             )
             analytics.on_flow_started(flow_id, context)
@@ -474,7 +475,7 @@ class TestAnalyticsExport:
         flow_id = uuid4()
         context = FlowContext(
             flow_instance_id=flow_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
         )
         analytics.on_flow_started(flow_id, context)
@@ -527,9 +528,9 @@ class TestCompleteFlowScenario:
         # Create context
         context = FlowContext(
             flow_instance_id=flow_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=patient_id,
-            started_at=datetime.utcnow(),
+            started_at=now_sao_paulo_naive(),
         )
 
         # Start flow
@@ -541,12 +542,12 @@ class TestCompleteFlowScenario:
                 step_id=f"step_{i:03d}",
                 step_type=FlowStepType.MESSAGE,
                 step_name=f"Step {i}",
-                started_at=datetime.utcnow(),
+                started_at=now_sao_paulo_naive(),
             )
 
             analytics.on_step_started(flow_id, step_data)
 
-            step_data.completed_at = datetime.utcnow()
+            step_data.completed_at = now_sao_paulo_naive()
             step_data.status = FlowStepStatus.COMPLETED
             analytics.on_step_completed(flow_id, step_data)
 
@@ -554,7 +555,7 @@ class TestCompleteFlowScenario:
             context.steps_history.append(step_data)
 
         # Complete flow
-        context.completed_at = datetime.utcnow()
+        context.completed_at = now_sao_paulo_naive()
         context.status = FlowStatus.COMPLETED
         analytics.on_flow_completed(flow_id, context)
 
@@ -580,7 +581,7 @@ class TestMultipleFlowsScenario:
         for flow_id in flow_ids:
             context = FlowContext(
                 flow_instance_id=flow_id,
-                flow_type=FlowType.DAILY_CHECKIN,
+                flow_type=FlowType.DAILY_FOLLOW_UP,
                 patient_id=patient_id,
             )
             analytics.on_flow_started(flow_id, context)
@@ -589,9 +590,9 @@ class TestMultipleFlowsScenario:
         for i, flow_id in enumerate(flow_ids):
             context = FlowContext(
                 flow_instance_id=flow_id,
-                flow_type=FlowType.DAILY_CHECKIN,
+                flow_type=FlowType.DAILY_FOLLOW_UP,
                 patient_id=patient_id,
-                started_at=datetime.utcnow() - timedelta(minutes=5),
+                started_at=now_sao_paulo_naive() - timedelta(minutes=5),
             )
 
             if i < 3:
@@ -630,7 +631,7 @@ class TestEdgeCases:
         # Should not crash
         minimal_context = FlowContext(
             flow_instance_id=flow_instance_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
         )
 
@@ -640,7 +641,7 @@ class TestEdgeCases:
         """Test completing flow without starting."""
         context = FlowContext(
             flow_instance_id=flow_instance_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
         )
 
@@ -680,7 +681,7 @@ class TestIntegrationBetweenComponents:
         """Test that events and metrics are coordinated."""
         context = FlowContext(
             flow_instance_id=flow_instance_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
         )
 

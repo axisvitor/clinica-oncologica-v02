@@ -10,9 +10,9 @@ Migration Note:
     - Various template operations scattered across flow services
 """
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
 import logging
+from importlib import import_module
+from typing import Dict, Any, List, Optional
 
 from ..types import (
     FlowType,
@@ -23,6 +23,7 @@ from ..config import get_flow_config
 
 from .validator import FlowTemplateValidator
 from .repository import FlowTemplateRepository
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -123,7 +124,7 @@ class FlowTemplateManager:
         # Apply updates
         template_dict = template.model_dump()
         template_dict.update(updates)
-        template_dict["updated_at"] = datetime.now(timezone.utc)
+        template_dict["updated_at"] = now_sao_paulo()
 
         # Create updated template
         updated_template = FlowTemplate(**template_dict)
@@ -575,38 +576,29 @@ class FlowTemplateManager:
             "total_templates": len(templates),
             "templates_with_issues": len(issues),
             "issues": issues,
-            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "checked_at": now_sao_paulo().isoformat(),
         }
-
-
-# ============================================================================
-# Singleton Instance
-# ============================================================================
-
-_template_manager_instance: Optional[FlowTemplateManager] = None
 
 
 def get_template_manager() -> FlowTemplateManager:
     """
-    Get global template manager instance.
+    Backward-compatible accessor for package singleton.
 
     Returns:
-        Global FlowTemplateManager instance (singleton).
+        Global FlowTemplateManager instance.
     """
-    global _template_manager_instance
-    if _template_manager_instance is None:
-        _template_manager_instance = FlowTemplateManager()
-    return _template_manager_instance
+    templates_pkg = import_module("app.services.flow.templates")
+    return templates_pkg.get_template_manager()
 
 
 def reset_template_manager() -> None:
     """
-    Reset global template manager instance.
+    Backward-compatible reset for package singleton.
 
     Useful for testing.
     """
-    global _template_manager_instance
-    _template_manager_instance = None
+    templates_pkg = import_module("app.services.flow.templates")
+    templates_pkg.reset_template_manager()
 
 
 # ============================================================================

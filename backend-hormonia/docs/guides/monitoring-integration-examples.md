@@ -380,7 +380,7 @@ onboarding_completion_time = Histogram(
 )
 
 async def complete_onboarding(patient_id: int, start_time: datetime):
-    duration = (datetime.utcnow() - start_time).total_seconds()
+    duration = (now_sao_paulo() - start_time).total_seconds()
 
     onboarding_completion_time.labels(
         onboarding_type="standard"

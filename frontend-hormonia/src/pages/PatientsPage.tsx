@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Plus, ListFilter as Filter, Grid2x2 as Grid, List } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -14,16 +14,91 @@ import { usePatients, useTreatmentTypes } from '@/hooks/usePatients'
 import type { PatientFilters } from '@/hooks/usePatients'
 import type { Patient } from '@/types/api'
 
+type ViewMode = 'table' | 'grid'
+type PatientsTab = 'all' | 'active' | 'paused' | 'completed' | 'inactive'
+
+type TabMeta = {
+  label: string
+  title: string
+  description: string
+  errorMessage: string
+  countLabel: (total: number) => string
+}
+
+const TABS: PatientsTab[] = ['all', 'active', 'paused', 'completed', 'inactive']
+
+const TAB_TO_STATUS: Record<PatientsTab, PatientFilters['status']> = {
+  all: undefined,
+  active: 'active',
+  paused: 'paused',
+  completed: 'completed',
+  inactive: 'inactive'
+}
+
+const TAB_META: Record<PatientsTab, TabMeta> = {
+  all: {
+    label: 'Todos',
+    title: 'Lista de Pacientes',
+    description: 'Visualize e gerencie todos os pacientes cadastrados',
+    errorMessage: 'Erro ao carregar pacientes',
+    countLabel: (total) => `(${total} total)`
+  },
+  active: {
+    label: 'Ativos',
+    title: 'Pacientes Ativos',
+    description: 'Pacientes em tratamento ativo',
+    errorMessage: 'Erro ao carregar pacientes ativos',
+    countLabel: (total) => `(${total} pacientes)`
+  },
+  paused: {
+    label: 'Pausados',
+    title: 'Pacientes Pausados',
+    description: 'Pacientes com tratamento pausado',
+    errorMessage: 'Erro ao carregar pacientes pausados',
+    countLabel: (total) => `(${total} pacientes)`
+  },
+  completed: {
+    label: 'Concluídos',
+    title: 'Tratamentos Concluídos',
+    description: 'Pacientes que concluíram o tratamento',
+    errorMessage: 'Erro ao carregar tratamentos concluídos',
+    countLabel: (total) => `(${total} pacientes)`
+  },
+  inactive: {
+    label: 'Inativos',
+    title: 'Pacientes Inativos',
+    description: 'Pacientes com status inativo',
+    errorMessage: 'Erro ao carregar pacientes inativos',
+    countLabel: (total) => `(${total} pacientes)`
+  }
+}
+
+const STATUS_LABEL: Record<Exclude<PatientsTab, 'all'>, string> = {
+  active: 'Ativos',
+  paused: 'Pausados',
+  completed: 'Concluídos',
+  inactive: 'Inativos'
+}
+
+const SKELETON_ROWS = Array.from({ length: 5 }, (_, i) => i)
+
+function getTabFromStatus(status: PatientFilters['status']): PatientsTab {
+  if (status === 'active') return 'active'
+  if (status === 'paused') return 'paused'
+  if (status === 'completed') return 'completed'
+  if (status === 'inactive') return 'inactive'
+  return 'all'
+}
+
 export function PatientsPage() {
   const navigate = useNavigate()
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
-  const [activeTab, setActiveTab] = useState('all')
+  const [viewMode, setViewMode] = useState<ViewMode>('table')
+  const [activeTab, setActiveTab] = useState<PatientsTab>('all')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null)
   const [showFilters, setShowFilters] = useState(false)
 
-  // Use the patients hook for data fetching and filter management
   const {
     patients,
     total,
@@ -40,35 +115,11 @@ export function PatientsPage() {
     pageSize: 20
   })
 
-  // Fetch treatment types for filter dropdown
   const {
     data: treatmentTypes = [],
     isLoading: isLoadingTreatmentTypes
   } = useTreatmentTypes()
 
-  // Calculate status filter based on active tab
-  const getStatusFromTab = (tab: string): PatientFilters['status'] => {
-    switch (tab) {
-      case 'active': return 'active'
-      case 'paused': return 'paused'
-      case 'completed': return 'completed'
-      case 'inactive': return 'inactive'
-      default: return undefined
-    }
-  }
-
-  // Calculate tab based on status filter
-  const getTabFromStatus = (status: PatientFilters['status']): string => {
-    switch (status) {
-      case 'active': return 'active'
-      case 'paused': return 'paused'
-      case 'completed': return 'completed'
-      case 'inactive': return 'inactive'
-      default: return 'all'
-    }
-  }
-
-  // Sync active tab with status filter changes from other sources
   useEffect(() => {
     const expectedTab = getTabFromStatus(filters.status)
     if (activeTab !== expectedTab) {
@@ -76,24 +127,20 @@ export function PatientsPage() {
     }
   }, [filters.status, activeTab])
 
-  // Handle tab changes by updating status filter
   const handleTabChange = (value: string) => {
-    setActiveTab(value)
-    const statusFromTab = getStatusFromTab(value)
+    const nextTab = (TABS.includes(value as PatientsTab) ? value : 'all') as PatientsTab
+    setActiveTab(nextTab)
 
-    // Update status filter and reset page to 1
-    updateFilter('status', statusFromTab)
+    updateFilter('status', TAB_TO_STATUS[nextTab])
     if (filters.page !== 1) {
       updateFilter('page', 1)
     }
   }
 
-  // Handle filter changes from the PatientsFilters component
   const handleFiltersChange = (newFilters: PatientFilters) => {
     updateFilters(newFilters)
   }
 
-  // Calculate total pages for pagination
   const totalPages = limit > 0 ? Math.ceil(total / limit) : 0
 
   const handlePageChange = (pageNum: number) => {
@@ -106,39 +153,86 @@ export function PatientsPage() {
   }
 
   const handleMessagePatient = (patient: Patient) => {
-    // Navigate to messages page with patient selected
     navigate(`/messages?patient=${patient.id}`)
   }
 
-  // Get current tab display name for better UX
-  const getCurrentTabDisplayName = () => {
-    switch (activeTab) {
-      case 'active': return 'Ativos'
-      case 'paused': return 'Pausados'
-      case 'completed': return 'Concluídos'
-      case 'inactive': return 'Inativos'
-      default: return 'Todos'
+  const renderContent = (errorMessage: string) => {
+    if (isLoading) {
+      return (
+        <div className="space-y-4 p-4">
+          {SKELETON_ROWS.map((row) => (
+            <div key={row} className="flex items-center gap-4">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <div className="flex-1">
+                <Skeleton className="h-4 w-32 mb-2" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+              <Skeleton className="h-5 w-16" />
+            </div>
+          ))}
+        </div>
+      )
     }
+
+    if (error) {
+      return (
+        <div className="text-center py-8">
+          <p className="text-red-600">{errorMessage}</p>
+          <Button
+            variant="outline"
+            onClick={() => refetch()}
+            className="mt-2"
+          >
+            Tentar novamente
+          </Button>
+        </div>
+      )
+    }
+
+    if (viewMode === 'table') {
+      return (
+        <PatientsTable
+          patients={patients}
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          onEditPatient={handleEditPatient}
+        />
+      )
+    }
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {patients.map((patient: Patient) => (
+          <PatientCard
+            key={patient.id}
+            patient={patient}
+            onEdit={handleEditPatient}
+            onMessage={handleMessagePatient}
+          />
+        ))}
+      </div>
+    )
   }
+
+  const currentStatusLabel = activeTab !== 'all' ? STATUS_LABEL[activeTab] : null
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 truncate">
             Pacientes
-            {activeTab !== 'all' && (
+            {currentStatusLabel && (
               <span className="text-base md:text-lg font-medium text-blue-600 ml-2">
-                - {getCurrentTabDisplayName()}
+                - {currentStatusLabel}
               </span>
             )}
           </h1>
           <p className="text-sm md:text-base text-gray-600 mt-1">
-            {activeTab === 'all'
-              ? 'Gerencie os pacientes'
-              : `Status: ${getCurrentTabDisplayName().toLowerCase()}`
-            }
+            {currentStatusLabel
+              ? `Status: ${currentStatusLabel.toLowerCase()}`
+              : 'Gerencie os pacientes'}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -181,7 +275,6 @@ export function PatientsPage() {
         </div>
       </div>
 
-      {/* Filters */}
       {showFilters && (
         <Card>
           <CardContent className="pt-4 md:pt-6">
@@ -207,7 +300,9 @@ export function PatientsPage() {
             <PatientsFilters
               filters={filters}
               onFiltersChange={handleFiltersChange}
-              treatmentTypes={treatmentTypes.map((t: string | { name?: string }) => typeof t === 'string' ? t : (t?.name || String(t)))}
+              treatmentTypes={treatmentTypes.map((t: string | { name?: string }) => (
+                typeof t === 'string' ? t : (t?.name || String(t))
+              ))}
               isLoadingTreatmentTypes={isLoadingTreatmentTypes}
               disabled={isLoading}
             />
@@ -215,339 +310,39 @@ export function PatientsPage() {
         </Card>
       )}
 
-      {/* Stats */}
       <PatientStats />
 
-      {/* Patients Content */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="all">Todos</TabsTrigger>
-          <TabsTrigger value="active">Ativos</TabsTrigger>
-          <TabsTrigger value="paused">Pausados</TabsTrigger>
-          <TabsTrigger value="completed">Concluídos</TabsTrigger>
-          <TabsTrigger value="inactive">Inativos</TabsTrigger>
+          {TABS.map((tab) => (
+            <TabsTrigger key={tab} value={tab}>{TAB_META[tab].label}</TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="all" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Lista de Pacientes
-                <span className="text-sm font-normal text-gray-500 ml-2">
-                  ({total} total)
-                </span>
-              </CardTitle>
-              <CardDescription>
-                Visualize e gerencie todos os pacientes cadastrados
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-4 p-4">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-                      <div className="flex-1">
-                        <Skeleton className="h-4 w-32 mb-2" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                      <Skeleton className="h-5 w-16" />
-                    </div>
-                  ))}
-                </div>
-              ) : error ? (
-                <div className="text-center py-8">
-                  <p className="text-red-600">Erro ao carregar pacientes</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => refetch()}
-                    className="mt-2"
-                  >
-                    Tentar novamente
-                  </Button>
-                </div>
-              ) : viewMode === 'table' ? (
-                <PatientsTable
-                  patients={patients}
-                  currentPage={page}
-                  totalPages={totalPages}
-                  onPageChange={handlePageChange}
-                  onEditPatient={handleEditPatient}
-                />
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {patients.map((patient) => (
-                    <PatientCard
-                      key={patient.id}
-                      patient={patient}
-                      onEdit={handleEditPatient}
-                      onMessage={handleMessagePatient}
-                    />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="active" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Pacientes Ativos
-                {activeTab === 'active' && (
-                  <span className="text-sm font-normal text-gray-500 ml-2">
-                    ({total} pacientes)
-                  </span>
-                )}
-              </CardTitle>
-              <CardDescription>
-                Pacientes em tratamento ativo
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-4 p-4">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-                      <div className="flex-1">
-                        <Skeleton className="h-4 w-32 mb-2" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                      <Skeleton className="h-5 w-16" />
-                    </div>
-                  ))}
-                </div>
-              ) : error ? (
-                <div className="text-center py-8">
-                  <p className="text-red-600">Erro ao carregar pacientes ativos</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => refetch()}
-                    className="mt-2"
-                  >
-                    Tentar novamente
-                  </Button>
-                </div>
-              ) : viewMode === 'table' ? (
-                <PatientsTable
-                  patients={patients}
-                  currentPage={page}
-                  totalPages={totalPages}
-                  onPageChange={handlePageChange}
-                  onEditPatient={handleEditPatient}
-                />
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {patients.map((patient) => (
-                    <PatientCard
-                      key={patient.id}
-                      patient={patient}
-                      onEdit={handleEditPatient}
-                      onMessage={handleMessagePatient}
-                    />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="paused" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Pacientes Pausados
-                {activeTab === 'paused' && (
-                  <span className="text-sm font-normal text-gray-500 ml-2">
-                    ({total} pacientes)
-                  </span>
-                )}
-              </CardTitle>
-              <CardDescription>
-                Pacientes com tratamento pausado
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-4 p-4">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-                      <div className="flex-1">
-                        <Skeleton className="h-4 w-32 mb-2" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                      <Skeleton className="h-5 w-16" />
-                    </div>
-                  ))}
-                </div>
-              ) : error ? (
-                <div className="text-center py-8">
-                  <p className="text-red-600">Erro ao carregar pacientes pausados</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => refetch()}
-                    className="mt-2"
-                  >
-                    Tentar novamente
-                  </Button>
-                </div>
-              ) : viewMode === 'table' ? (
-                <PatientsTable
-                  patients={patients}
-                  currentPage={page}
-                  totalPages={totalPages}
-                  onPageChange={handlePageChange}
-                  onEditPatient={handleEditPatient}
-                />
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {patients.map((patient) => (
-                    <PatientCard
-                      key={patient.id}
-                      patient={patient}
-                      onEdit={handleEditPatient}
-                      onMessage={handleMessagePatient}
-                    />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="completed" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Tratamentos Concluídos
-                {activeTab === 'completed' && (
-                  <span className="text-sm font-normal text-gray-500 ml-2">
-                    ({total} pacientes)
-                  </span>
-                )}
-              </CardTitle>
-              <CardDescription>
-                Pacientes que concluíram o tratamento
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-4 p-4">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-                      <div className="flex-1">
-                        <Skeleton className="h-4 w-32 mb-2" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                      <Skeleton className="h-5 w-16" />
-                    </div>
-                  ))}
-                </div>
-              ) : error ? (
-                <div className="text-center py-8">
-                  <p className="text-red-600">Erro ao carregar tratamentos concluídos</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => refetch()}
-                    className="mt-2"
-                  >
-                    Tentar novamente
-                  </Button>
-                </div>
-              ) : viewMode === 'table' ? (
-                <PatientsTable
-                  patients={patients}
-                  currentPage={page}
-                  totalPages={totalPages}
-                  onPageChange={handlePageChange}
-                  onEditPatient={handleEditPatient}
-                />
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {patients.map((patient) => (
-                    <PatientCard
-                      key={patient.id}
-                      patient={patient}
-                      onEdit={handleEditPatient}
-                      onMessage={handleMessagePatient}
-                    />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="inactive" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Pacientes Inativos
-                {activeTab === 'inactive' && (
-                  <span className="text-sm font-normal text-gray-500 ml-2">
-                    ({total} pacientes)
-                  </span>
-                )}
-              </CardTitle>
-              <CardDescription>
-                Pacientes com status inativo
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="space-y-4 p-4">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-4">
-                      <Skeleton className="h-10 w-10 rounded-full" />
-                      <div className="flex-1">
-                        <Skeleton className="h-4 w-32 mb-2" />
-                        <Skeleton className="h-3 w-24" />
-                      </div>
-                      <Skeleton className="h-5 w-16" />
-                    </div>
-                  ))}
-                </div>
-              ) : error ? (
-                <div className="text-center py-8">
-                  <p className="text-red-600">Erro ao carregar pacientes inativos</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => refetch()}
-                    className="mt-2"
-                  >
-                    Tentar novamente
-                  </Button>
-                </div>
-              ) : viewMode === 'table' ? (
-                <PatientsTable
-                  patients={patients}
-                  currentPage={page}
-                  totalPages={totalPages}
-                  onPageChange={handlePageChange}
-                  onEditPatient={handleEditPatient}
-                />
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {patients.map((patient) => (
-                    <PatientCard
-                      key={patient.id}
-                      patient={patient}
-                      onEdit={handleEditPatient}
-                      onMessage={handleMessagePatient}
-                    />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {TABS.map((tab) => (
+          <TabsContent key={tab} value={tab} className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  {TAB_META[tab].title}
+                  {activeTab === tab && (
+                    <span className="text-sm font-normal text-gray-500 ml-2">
+                      {TAB_META[tab].countLabel(total)}
+                    </span>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  {TAB_META[tab].description}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {renderContent(TAB_META[tab].errorMessage)}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        ))}
       </Tabs>
 
-      {/* Dialogs */}
       <CreatePatientDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
@@ -561,4 +356,3 @@ export function PatientsPage() {
     </div>
   )
 }
-

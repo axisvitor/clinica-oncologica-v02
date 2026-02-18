@@ -418,6 +418,6 @@ WHATSAPP_CLINIC_SUPPORT_PHONE="+55 11 99999-9999"
 
 ---
 
-**Report Generated**: 2025-12-23 16:10:00 UTC
+**Report Generated**: 2025-12-23 16:10:00 Sao Paulo
 **Analysis Duration**: 147 seconds
 **Tools Used**: SQLAlchemy Inspector, PostgreSQL System Catalogs, Alembic CLI

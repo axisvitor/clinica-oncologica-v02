@@ -69,7 +69,7 @@ export function AIChatInterface({
           <div className="text-center text-muted-foreground">
             <Bot className="mx-auto h-8 w-8 mb-2" />
             <p>Chat com IA não disponível</p>
-            <p className="text-sm">Configure VITE_OPENAI_API_KEY para habilitar</p>
+            <p className="text-sm">Configure a integração de IA no backend para habilitar</p>
           </div>
         </CardContent>
       </Card>
@@ -198,7 +198,7 @@ export function AIChatInterface({
       } catch {
         // Fallback to mock response
         response = {
-          message: `Entendi sua mensagem: "${userMessage.content}". Esta é uma resposta simulada da IA. Configure a API do OpenAI para respostas reais.`,
+          message: `Entendi sua mensagem: "${userMessage.content}". Esta é uma resposta simulada da IA. Configure a integração de IA no backend para respostas reais.`,
           confidence: 0.85,
           intent: 'general_inquiry',
           suggestions: ['Como posso ajudar mais?', 'Precisa de informações específicas?'],

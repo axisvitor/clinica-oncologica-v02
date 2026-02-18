@@ -3,13 +3,16 @@ Evolution API client main orchestration class.
 Coordinates message sending, webhook handling, and API communication.
 """
 
-from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
+import asyncio
+import atexit
+import os
 
 import httpx
 import structlog
 
 from app.config import settings
+from app.utils.timezone import now_sao_paulo
 
 from .rate_limiter import RateLimiter
 from .request_handler import RequestHandler
@@ -62,16 +65,25 @@ class EvolutionClient:
         if self.railway_service and hasattr(settings, "WHATSAPP_EVOLUTION_RAILWAY_URL"):
             self.base_url = settings.WHATSAPP_EVOLUTION_RAILWAY_URL.rstrip("/")
         else:
+            env_base_url = os.getenv("WHATSAPP_EVOLUTION_API_URL")
             self.base_url = (
                 base_url
-                or getattr(settings, "WHATSAPP_EVOLUTION_API_URL", "http://localhost:8080")
+                or env_base_url
+                or getattr(
+                    settings, "WHATSAPP_EVOLUTION_API_URL", "http://localhost:8080"
+                )
             ).rstrip("/")
 
-        self.instance_name = instance_name or getattr(
+        env_instance = os.getenv("WHATSAPP_EVOLUTION_INSTANCE_NAME")
+        self.instance_name = instance_name or env_instance or getattr(
             settings, "WHATSAPP_EVOLUTION_INSTANCE_NAME", "meuwhatsapp"
         )
-        self.api_key = api_key or getattr(settings, "WHATSAPP_EVOLUTION_API_KEY", None)
-        self.webhook_secret = webhook_secret or getattr(
+        env_api_key = os.getenv("WHATSAPP_EVOLUTION_API_KEY")
+        self.api_key = api_key or env_api_key or getattr(
+            settings, "WHATSAPP_EVOLUTION_API_KEY", None
+        )
+        env_webhook_secret = os.getenv("WHATSAPP_EVOLUTION_WEBHOOK_SECRET")
+        self.webhook_secret = webhook_secret or env_webhook_secret or getattr(
             settings, "WHATSAPP_EVOLUTION_WEBHOOK_SECRET", None
         )
         self.timeout = timeout
@@ -154,11 +166,28 @@ class EvolutionClient:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
+        _ = exc_type, exc_val, exc_tb
         await self.close()
 
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()
+
+    async def _make_request(
+        self,
+        method: str,
+        endpoint: str,
+        data: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        retry_count: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Compatibility shim used by legacy tests and call sites.
+
+        Delegates to RequestHandler while preserving historical method name.
+        """
+        _ = retry_count
+        return await self.request_handler.make_request(method, endpoint, data, params)
 
     # Message sending methods - delegate to MessageSender
     async def send_text_message(
@@ -251,7 +280,7 @@ class EvolutionClient:
         health_status = {
             "service": "evolution_api",
             "healthy": False,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "details": {},
         }
 
@@ -260,12 +289,21 @@ class EvolutionClient:
             status_response = await self.get_instance_status()
 
             is_connected = False
+            # Evolution APIs can return either {"status": "success", "data": {...}}
+            # or {"instance": {...}} depending on deployment/version.
+            connection_data = {}
             if status_response.get("status") == "success":
-                connection_data = status_response.get("data", {})
-                is_connected = (
-                    connection_data.get("connected", False)
-                    or connection_data.get("state") == "open"
-                )
+                connection_data = status_response.get("data", {}) or {}
+            elif "instance" in status_response:
+                connection_data = status_response.get("instance", {}) or {}
+            else:
+                # Fallback: assume payload is already the connection object
+                connection_data = status_response or {}
+
+            is_connected = (
+                connection_data.get("connected", False)
+                or connection_data.get("state") == "open"
+            )
 
             health_status.update(
                 {
@@ -303,9 +341,6 @@ class EvolutionClient:
 
 
 # Global client instance with thread safety
-import asyncio
-import atexit
-
 _evolution_client: Optional[EvolutionClient] = None
 _client_lock: asyncio.Lock = asyncio.Lock()
 _shutdown_registered: bool = False

@@ -73,7 +73,7 @@ class TestCPFEncryption:
 
     def test_encrypt_cpf_with_formatting(self, service):
         """Should normalize CPF with formatting."""
-        cpf_formatted = "123.456.789-01"
+        cpf_formatted = "123.456.789-09"
         encrypted_cpf, cpf_hash = service.encrypt_cpf(cpf_formatted)
 
         assert encrypted_cpf is not None
@@ -115,7 +115,7 @@ class TestCPFEncryption:
     def test_hash_cpf_normalization(self, service):
         """CPF hash should be same regardless of formatting."""
         cpf_plain = "12345678909"
-        cpf_formatted = "123.456.789-01"
+        cpf_formatted = "123.456.789-09"
 
         _, hash1 = service.encrypt_cpf(cpf_plain)
         _, hash2 = service.encrypt_cpf(cpf_formatted)

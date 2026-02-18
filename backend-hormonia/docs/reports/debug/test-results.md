@@ -313,7 +313,7 @@ async def test_example(
                          │
          ┌───────────────▼───────────┐
          │ Saga Status: COMPLETED    │
-         │ completed_at = UTC now    │
+         │ completed_at = Sao Paulo now    │
          └───────────────────────────┘
                          │
                          ▼

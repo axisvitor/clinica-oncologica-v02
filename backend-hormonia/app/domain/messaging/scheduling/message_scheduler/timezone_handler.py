@@ -3,10 +3,11 @@ Timezone handling and optimal delivery time calculation.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import pytz
 
 from app.models.patient import Patient
+from app.utils.timezone import SAO_PAULO_TZ_NAME, now_sao_paulo
 from .models import SchedulingWindow, TimezoneError
 from .config import MessageSchedulerConfig
 
@@ -22,7 +23,7 @@ class TimezoneHandler:
 
     def get_patient_timezone(self, patient: Patient) -> str:
         """
-        Get patient timezone from metadata or default to Brazil timezone.
+        Get patient timezone (system-fixed to Sao Paulo).
 
         Args:
             patient: Patient object
@@ -30,17 +31,7 @@ class TimezoneHandler:
         Returns:
             Timezone string
         """
-        patient_data = patient.patient_data or {}
-
-        preferences = patient_data.get("preferences")
-        if isinstance(preferences, dict) and preferences.get("timezone"):
-            return preferences["timezone"]
-
-        legacy_timezone = patient_data.get("timezone")
-        if legacy_timezone:
-            return legacy_timezone
-
-        return self.config.DEFAULT_TIMEZONE
+        return SAO_PAULO_TZ_NAME
 
     async def calculate_optimal_delivery_time(
         self, patient: Patient, scheduling_window: SchedulingWindow
@@ -53,7 +44,7 @@ class TimezoneHandler:
             scheduling_window: Preferred scheduling window
 
         Returns:
-            Optimal delivery time in UTC
+            Optimal delivery time in Sao Paulo timezone
         """
         try:
             # Get patient timezone with validation
@@ -68,8 +59,7 @@ class TimezoneHandler:
                 patient_tz = pytz.timezone(self.config.DEFAULT_TIMEZONE)
 
             # Get current time in patient timezone
-            utc_now = datetime.now(timezone.utc)
-            patient_now = pytz.UTC.localize(utc_now).astimezone(patient_tz)
+            patient_now = now_sao_paulo().astimezone(patient_tz)
 
             # Validate scheduling window
             if scheduling_window not in self.scheduling_windows:
@@ -102,21 +92,16 @@ class TimezoneHandler:
                     datetime.combine(delivery_date, window_start)
                 )
 
-            # Convert back to UTC
-            delivery_time_utc = delivery_time_patient.astimezone(pytz.UTC).replace(
-                tzinfo=None
-            )
-
             # Ensure delivery time is not in the past
-            if delivery_time_utc <= datetime.now(timezone.utc):
-                delivery_time_utc = datetime.now(timezone.utc) + timedelta(
+            if delivery_time_patient <= now_sao_paulo():
+                delivery_time_patient = now_sao_paulo() + timedelta(
                     minutes=self.config.FALLBACK_DELAY_MINUTES
                 )
                 logger.warning(
                     f"Calculated delivery time was in the past, adjusted to {self.config.FALLBACK_DELAY_MINUTES} minutes from now"
                 )
 
-            return delivery_time_utc
+            return delivery_time_patient
 
         except Exception as e:
             logger.error(

@@ -64,10 +64,10 @@ describe('Authentication API (Firebase-based)', () => {
         role: 'doctor',
         permissions: ['patient:read'],
         is_active: true,
-        created_at: '2024-01-01T00:00:00Z'
+        created_at: '2024-01-01T00:00:00-03:00'
       },
       session: {
-        last_activity: '2024-01-15T10:00:00Z'
+        last_activity: '2024-01-15T10:00:00-03:00'
       },
       session_id: 'session-123'
     }

@@ -30,6 +30,7 @@ from app.services.cache import CacheInvalidationService, CacheKeyBuilder
 from app.utils.db_retry import with_db_retry
 from app.utils.transaction_manager import sync_transaction
 from app.core.executors import get_cache_executor
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +135,7 @@ class PatientCRUDService:
             NotFoundError: If patient does not exist
         """
         self._logger.debug(f"Fetching patient: {patient_id}")
-        patient = self.repository.get_by_id(patient_id)
+        patient = self.repository.get_by_id(patient_id, eager_load=False)
         if not patient:
             raise NotFoundError(f"Patient {patient_id} not found")
         return patient
@@ -248,7 +249,7 @@ class PatientCRUDService:
             # Use transaction context manager for atomic operations
             with sync_transaction(self.db) as session:
                 # 1. Mark patient as deleted
-                patient.deleted_at = datetime.now(timezone.utc)
+                patient.deleted_at = now_sao_paulo()
                 session.add(patient)
                 
                 # 2. Cancel active flows
@@ -266,7 +267,7 @@ class PatientCRUDService:
                 
                 for flow in active_flows:
                     flow.status = FlowState.CANCELLED.value
-                    flow.completed_at = datetime.now(timezone.utc)
+                    flow.completed_at = now_sao_paulo()
                     flow.step_data = {
                         **(flow.step_data or {}),
                         "cancellation_reason": "Patient deleted"

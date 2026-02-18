@@ -34,6 +34,7 @@ AnyService = Any
 
 from app.config import settings
 from app.models.user import User, UserRole
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +158,7 @@ class SessionService:
         firebase_cache.cache_user(firebase_uid, user_dict)
 
         # Calculate expiration
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
+        expires_at = now_sao_paulo() + timedelta(seconds=ttl)
 
         logger.info(f"✅ Session created: {session_id[:8]}... for {email}")
 

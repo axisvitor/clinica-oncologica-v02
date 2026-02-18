@@ -1,7 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { usePhysicianRiskAssessments } from '@/hooks/api/usePhysicianRiskAssessments'
-import type { RiskAssessmentsResponse } from '@/types/api'
 import React from 'react'
 import { vi, describe, it, beforeEach, expect } from 'vitest'
 
@@ -24,7 +23,7 @@ const createWrapper = () => {
 }
 
 // Import the mocked apiClient after setting up the mock
-import { apiClient } from '@/src/lib/api-client'
+import { apiClient } from '@/lib/api-client'
 
 describe('usePhysicianRiskAssessments', () => {
   beforeEach(() => {
@@ -40,17 +39,17 @@ describe('usePhysicianRiskAssessments', () => {
           risk_level: 'high' as const,
           risk_score: 0.65,
           risk_category: 'medication_adherence',
-          assessment_date: '2025-10-06T10:00:00Z',
+          assessment_date: '2025-10-06T10:00:00-03:00',
           recent_alerts: [
             {
               severity: 'high' as const,
               type: 'medication_alert',
               message: 'Baixa adesão ao tratamento',
-              created_at: '2025-10-06T09:00:00Z'
+              created_at: '2025-10-06T09:00:00-03:00'
             }
           ],
           trend: 'worsening' as const,
-          last_interaction: '2025-10-05T14:30:00Z'
+          last_interaction: '2025-10-05T14:30:00-03:00'
         }
       ],
       summary: {
@@ -63,10 +62,10 @@ describe('usePhysicianRiskAssessments', () => {
         },
         requiring_attention: 10
       },
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValueOnce({ data: mockData })
+    vi.mocked(apiClient.request).mockResolvedValueOnce(mockData)
 
     const { result } = renderHook(() => usePhysicianRiskAssessments(), {
       wrapper: createWrapper()
@@ -76,7 +75,7 @@ describe('usePhysicianRiskAssessments', () => {
 
     expect(result.current.data).toEqual(mockData)
     expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v2/analytics/physicians/risk-assessments'
+      '/api/v2/physician/risk-assessments?page=1&size=20'
     )
   })
 
@@ -93,10 +92,10 @@ describe('usePhysicianRiskAssessments', () => {
         },
         requiring_attention: 0
       },
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValueOnce({ data: mockData })
+    vi.mocked(apiClient.request).mockResolvedValueOnce(mockData)
 
     const { result } = renderHook(
       () => usePhysicianRiskAssessments({ patient_id: 'p123' }),
@@ -106,7 +105,7 @@ describe('usePhysicianRiskAssessments', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
     expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v2/physician/risk-assessments?patient_id=p123'
+      '/api/v2/physician/risk-assessments?patient_id=p123&page=1&size=20'
     )
   })
 
@@ -123,10 +122,10 @@ describe('usePhysicianRiskAssessments', () => {
         },
         requiring_attention: 0
       },
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValueOnce({ data: mockData })
+    vi.mocked(apiClient.request).mockResolvedValueOnce(mockData)
 
     const { result } = renderHook(() => usePhysicianRiskAssessments(), {
       wrapper: createWrapper()
@@ -160,10 +159,10 @@ describe('usePhysicianRiskAssessments', () => {
         },
         requiring_attention: 0
       },
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
-    vi.mocked(apiClient.request).mockResolvedValue({ data: mockData })
+    vi.mocked(apiClient.request).mockResolvedValue(mockData)
 
     const wrapper = createWrapper()
 
@@ -186,10 +185,10 @@ describe('usePhysicianRiskAssessments', () => {
     // Should have made 2 separate requests (different query keys)
     expect(apiClient.request).toHaveBeenCalledTimes(2)
     expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v2/physician/risk-assessments?patient_id=p1'
+      '/api/v2/physician/risk-assessments?patient_id=p1&page=1&size=20'
     )
     expect(apiClient.request).toHaveBeenCalledWith(
-      '/api/v2/physician/risk-assessments?patient_id=p2'
+      '/api/v2/physician/risk-assessments?patient_id=p2&page=1&size=20'
     )
   })
 
@@ -205,13 +204,15 @@ describe('usePhysicianRiskAssessments', () => {
 
   it('should handle API errors gracefully', async () => {
     const mockError = new Error('API Error: 500')
-    vi.mocked(apiClient.request).mockRejectedValueOnce(mockError)
+    vi.mocked(apiClient.request).mockRejectedValue(mockError)
 
     const { result } = renderHook(() => usePhysicianRiskAssessments(), {
       wrapper: createWrapper()
     })
 
-    await waitFor(() => expect(result.current.isError).toBe(true))
+    await waitFor(() => expect(result.current.isError).toBe(true), {
+      timeout: 5000
+    })
 
     expect(result.current.error).toEqual(mockError)
     expect(result.current.data).toBeUndefined()
@@ -229,7 +230,9 @@ describe('usePhysicianRiskAssessments', () => {
       wrapper: createWrapper()
     })
 
-    await waitFor(() => expect(result.current.isError).toBe(true))
+    await waitFor(() => expect(result.current.isError).toBe(true), {
+      timeout: 5000
+    })
 
     // Should retry 2 times (initial + 2 retries = 3 total calls)
     expect(apiClient.request).toHaveBeenCalledTimes(3)

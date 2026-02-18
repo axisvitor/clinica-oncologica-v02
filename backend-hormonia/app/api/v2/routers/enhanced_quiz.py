@@ -47,7 +47,7 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-def get_enhanced_quiz_service(db=Depends(get_db)) -> EnhancedQuizService:
+async def get_enhanced_quiz_service(db=Depends(get_db)) -> EnhancedQuizService:
     return EnhancedQuizService(db)
 
 

@@ -11,7 +11,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from app.domain.agents.quiz.session_coordinator import QuizContext
+    from app.domain.agents.quiz.types import QuizContext
 
 
 class ProgressTracker:
@@ -24,6 +24,7 @@ class ProgressTracker:
     Attributes:
         stress_threshold: Threshold for high stress detection.
         engagement_threshold: Minimum acceptable engagement score.
+        adaptation_distress_threshold: Distress threshold for quiz adaptation.
         intervention_distress_threshold: Threshold for triggering interventions.
     """
 
@@ -39,7 +40,18 @@ class ProgressTracker:
         # Thresholds
         self.stress_threshold = 0.7
         self.engagement_threshold = 0.4
+        self.adaptation_distress_threshold = 0.7
         self.intervention_distress_threshold = 0.9
+
+    @staticmethod
+    def _safe_float(value: Any, default: float = 0.0) -> float:
+        """Convert arbitrary values to float without raising."""
+        try:
+            if value is None:
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
 
     async def analyze_current_mood(self, context: QuizContext) -> Dict[str, Any]:
         """
@@ -133,7 +145,8 @@ class ProgressTracker:
         ]
         if mood_responses:
             avg_mood = sum(
-                float(r.get("processed_value", 3)) for r in mood_responses
+                self._safe_float(r.get("processed_value"), default=3.0)
+                for r in mood_responses
             ) / len(mood_responses)
 
             insights.append(
@@ -220,7 +233,62 @@ class ProgressTracker:
         if context.engagement_score < self.engagement_threshold:
             score += 0.3
 
-        if context.mood_indicators.get("distress", 0) > 0.7:
+        if (
+            context.mood_indicators.get("distress", 0)
+            > self.adaptation_distress_threshold
+        ):
             score += 0.3
 
         return min(1.0, score)
+
+    def should_adapt_quiz(self, context: "QuizContext") -> bool:
+        """Determine if quiz adaptation is needed."""
+        if context.stress_level > self.stress_threshold:
+            return True
+
+        if context.engagement_score < self.engagement_threshold:
+            return True
+
+        if (
+            context.mood_indicators.get("distress", 0)
+            > self.adaptation_distress_threshold
+        ):
+            return True
+
+        if len(context.responses_so_far) >= 3:
+            unclear_responses = sum(
+                1
+                for response in context.responses_so_far[-3:]
+                if response.get("confidence", 1.0) < 0.6
+            )
+            if unclear_responses >= 2:
+                return True
+
+        return False
+
+    def determine_adaptation(self, context: "QuizContext"):
+        """Determine adaptation type based on current context."""
+        from .notification_manager import QuizAdaptationType
+
+        if context.stress_level > self.stress_threshold:
+            return QuizAdaptationType.REDUCE_COMPLEXITY
+
+        if context.engagement_score < self.engagement_threshold:
+            return QuizAdaptationType.INCREASE_SUPPORT
+
+        if (
+            context.mood_indicators.get("distress", 0)
+            > self.adaptation_distress_threshold
+        ):
+            return QuizAdaptationType.FOCUS_ON_MOOD
+
+        if len(context.responses_so_far) >= 2:
+            recent_unclear = [
+                response
+                for response in context.responses_so_far[-2:]
+                if response.get("confidence", 1.0) < 0.6
+            ]
+            if recent_unclear:
+                return QuizAdaptationType.ADD_CLARIFICATION
+
+        return QuizAdaptationType.INCREASE_SUPPORT

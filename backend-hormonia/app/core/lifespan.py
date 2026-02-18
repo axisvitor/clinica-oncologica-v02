@@ -480,7 +480,7 @@ async def _initialize_enum_validation(app: FastAPI, logger) -> None:
     """Initialize enum validation middleware with timing."""
     start = time.time()
     try:
-        from app.middleware.enum_validation import setup_enum_validation
+        from app.models.enum_validation import setup_enum_validation
 
         setup_enum_validation()
         elapsed = time.time() - start

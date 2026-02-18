@@ -97,6 +97,7 @@ depends_on = None
 
 def upgrade() -> None:
     """Add missing foreign key and composite indexes for P0 performance optimization."""
+    inspector = sa.inspect(op.get_bind())
 
     # ========================================================================
     # PART 1: FOREIGN KEY INDEXES (16 indexes)
@@ -109,8 +110,7 @@ def upgrade() -> None:
         'idx_patients_doctor_id',
         'patients',
         ['doctor_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # 2. messages.patient_id - Used in patient chat interface
@@ -118,19 +118,16 @@ def upgrade() -> None:
         'idx_messages_patient_id',
         'messages',
         ['patient_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Priority 2: Flow state tracking
 
     # 3. patient_flow_states.patient_id - Used in flow state tracking
-    op.create_index(
-        'idx_patient_flow_states_patient_id',
-        'patient_flow_states',
-        ['patient_id'],
-        unique=False,
-        postgresql_concurrently=True
+    # Already created in migration 008 on some environments; keep idempotent here.
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS idx_patient_flow_states_patient_id "
+        "ON patient_flow_states (patient_id)"
     )
 
     # 4. patient_flow_states.flow_template_version_id - Used in flow template lookups
@@ -138,8 +135,7 @@ def upgrade() -> None:
         'idx_patient_flow_states_template_version_id',
         'patient_flow_states',
         ['flow_template_version_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Priority 3: Alert system
@@ -149,8 +145,7 @@ def upgrade() -> None:
         'idx_alerts_patient_id',
         'alerts',
         ['patient_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # 6. alerts.acknowledged_by - Used in acknowledgment tracking
@@ -159,7 +154,6 @@ def upgrade() -> None:
         'alerts',
         ['acknowledged_by'],
         unique=False,
-        postgresql_concurrently=True,
         postgresql_where=sa.text('acknowledged_by IS NOT NULL')
     )
 
@@ -170,8 +164,7 @@ def upgrade() -> None:
         'idx_medical_reports_patient_id',
         'medical_reports',
         ['patient_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # 8. medical_reports.generated_by - Used in user activity tracking
@@ -179,8 +172,7 @@ def upgrade() -> None:
         'idx_medical_reports_generated_by',
         'medical_reports',
         ['generated_by'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # 9. flow_analytics.patient_id - Used in analytics queries
@@ -188,8 +180,7 @@ def upgrade() -> None:
         'idx_flow_analytics_patient_id',
         'flow_analytics',
         ['patient_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # 10. flow_analytics.flow_template_version_id - Used in template analytics
@@ -198,7 +189,6 @@ def upgrade() -> None:
         'flow_analytics',
         ['flow_template_version_id'],
         unique=False,
-        postgresql_concurrently=True,
         postgresql_where=sa.text('flow_template_version_id IS NOT NULL')
     )
 
@@ -209,8 +199,7 @@ def upgrade() -> None:
         'idx_flow_messages_template_version_id',
         'flow_messages',
         ['flow_template_version_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # 12. flow_messages.patient_id - Used in legacy message queries
@@ -219,7 +208,6 @@ def upgrade() -> None:
         'flow_messages',
         ['patient_id'],
         unique=False,
-        postgresql_concurrently=True,
         postgresql_where=sa.text('patient_id IS NOT NULL')
     )
 
@@ -229,20 +217,19 @@ def upgrade() -> None:
         'flow_messages',
         ['message_id'],
         unique=False,
-        postgresql_concurrently=True,
         postgresql_where=sa.text('message_id IS NOT NULL')
     )
 
     # Priority 6: Quiz questions
 
     # 14. quiz_questions.quiz_template_id - Used in quiz question lookups
-    op.create_index(
-        'idx_quiz_questions_quiz_template_id',
-        'quiz_questions',
-        ['quiz_template_id'],
-        unique=False,
-        postgresql_concurrently=True
-    )
+    if inspector.has_table("quiz_questions"):
+        op.create_index(
+            'idx_quiz_questions_quiz_template_id',
+            'quiz_questions',
+            ['quiz_template_id'],
+            unique=False
+        )
 
     # ========================================================================
     # PART 2: COMPOSITE INDEXES (12 common query patterns)
@@ -253,8 +240,7 @@ def upgrade() -> None:
         'idx_patients_doctor_created',
         'patients',
         ['doctor_id', 'created_at'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Common Pattern 2: Message history per patient (chat interface)
@@ -262,8 +248,7 @@ def upgrade() -> None:
         'idx_messages_patient_created',
         'messages',
         ['patient_id', 'created_at'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Common Pattern 3: Pending/active messages per patient
@@ -271,8 +256,7 @@ def upgrade() -> None:
         'idx_messages_patient_status',
         'messages',
         ['patient_id', 'status'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Common Pattern 4: Recent alerts per patient
@@ -280,8 +264,7 @@ def upgrade() -> None:
         'idx_alerts_patient_created',
         'alerts',
         ['patient_id', 'created_at'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Common Pattern 5: Unacknowledged alerts per patient
@@ -289,8 +272,7 @@ def upgrade() -> None:
         'idx_alerts_patient_acknowledged',
         'alerts',
         ['patient_id', 'acknowledged'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Common Pattern 6: Quiz history per patient
@@ -298,8 +280,7 @@ def upgrade() -> None:
         'idx_quiz_sessions_patient_created',
         'quiz_sessions',
         ['patient_id', 'created_at'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Common Pattern 7: Analytics timeline per patient
@@ -307,8 +288,7 @@ def upgrade() -> None:
         'idx_flow_analytics_patient_created',
         'flow_analytics',
         ['patient_id', 'created_at'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Common Pattern 8: Medical reports by patient and time period
@@ -316,8 +296,7 @@ def upgrade() -> None:
         'idx_medical_reports_patient_period',
         'medical_reports',
         ['patient_id', 'period_start', 'period_end'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Common Pattern 9: Active flows per patient
@@ -325,8 +304,7 @@ def upgrade() -> None:
         'idx_patient_flow_states_patient_template',
         'patient_flow_states',
         ['patient_id', 'flow_template_version_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Common Pattern 10: Flow message sequences
@@ -334,8 +312,7 @@ def upgrade() -> None:
         'idx_flow_messages_template_step',
         'flow_messages',
         ['flow_template_version_id', 'step_number'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Common Pattern 11: Active sessions per user
@@ -343,8 +320,7 @@ def upgrade() -> None:
         'idx_sessions_user_active',
         'sessions',
         ['user_id', 'is_active', 'last_activity'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # Common Pattern 12: Unread notifications per user
@@ -352,8 +328,7 @@ def upgrade() -> None:
         'idx_notifications_user_unread',
         'notifications',
         ['user_id', 'is_read', 'created_at'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
 

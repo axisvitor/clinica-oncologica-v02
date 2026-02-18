@@ -1,0 +1,73 @@
+version: "3.8"
+
+services:
+  dragonfly:
+    image: ${DRAGONFLY_IMAGE:-docker.dragonflydb.io/dragonflydb/dragonfly:latest}
+    container_name: dragonfly
+    ports:
+      - "6379:6379"
+    ulimits:
+      memlock: -1
+    volumes:
+      - dragonfly-data:/data
+    command: dragonfly --logtostderr --num_dbs 16
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      REDIS_URL: redis://dragonfly:6379/0
+      REDIS_HOST: dragonfly
+      REDIS_PORT: 6379
+      RATE_LIMIT_REDIS_URL: redis://dragonfly:6379/3
+      CELERY_BROKER_URL: redis://dragonfly:6379/0
+      CELERY_RESULT_BACKEND: redis://dragonfly:6379/1
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=4
+    env_file: .env
+    environment:
+      REDIS_URL: redis://dragonfly:6379/0
+      REDIS_HOST: dragonfly
+      REDIS_PORT: 6379
+      RATE_LIMIT_REDIS_URL: redis://dragonfly:6379/3
+      CELERY_BROKER_URL: redis://dragonfly:6379/0
+      CELERY_RESULT_BACKEND: redis://dragonfly:6379/1
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.celery_app beat --loglevel=info
+    env_file: .env
+    environment:
+      REDIS_URL: redis://dragonfly:6379/0
+      REDIS_HOST: dragonfly
+      REDIS_PORT: 6379
+      RATE_LIMIT_REDIS_URL: redis://dragonfly:6379/3
+      CELERY_BROKER_URL: redis://dragonfly:6379/0
+      CELERY_RESULT_BACKEND: redis://dragonfly:6379/1
+    depends_on:
+      dragonfly:
+        condition: service_healthy
+
+volumes:
+  dragonfly-data:

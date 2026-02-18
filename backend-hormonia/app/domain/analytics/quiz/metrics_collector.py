@@ -12,11 +12,11 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime, UTC
 from typing import Dict
 from uuid import UUID
 
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,7 @@ class QuizMetricsCollector:
     - quiz_completion_total{template_id}: Total completions per template
     - quiz_send_latency_seconds{template_id, percentile}: Send latency distribution
     - quiz_response_latency_seconds{template_id, question_id}: Time from question → answer
+    - quiz_responses_total{template_id, question_id}: Total responses per question
     - quiz_abandonment_rate{template_id}: Sessions started but not completed
     - quiz_clarification_rate{template_id}: Invalid responses requiring clarification
     """
@@ -37,6 +38,7 @@ class QuizMetricsCollector:
     COMPLETION_KEY = "completions"
     SEND_LATENCY_KEY = "send_latency"
     RESPONSE_LATENCY_KEY = "response_latency"
+    RESPONSE_COUNT_KEY = "responses"
     ABANDONMENT_KEY = "abandonment"
     CLARIFICATION_KEY = "clarifications"
 
@@ -49,6 +51,32 @@ class QuizMetricsCollector:
         if not self._redis_client:
             self._redis_client = await get_async_redis()
         return self._redis_client
+
+    @staticmethod
+    def _calculate_percentiles_from_scores(values) -> Dict[str, float]:
+        """Calculate p50/p95/p99 metrics from sorted-set scores."""
+        if not values:
+            return {"p50": 0.0, "p95": 0.0, "p99": 0.0, "samples": 0}
+
+        latencies = sorted([score for _, score in values])
+        total = len(latencies)
+
+        def percentile(p: float) -> float:
+            index = (total - 1) * p
+            lower = int(index)
+            upper = int(index) + 1
+            if upper >= total:
+                return latencies[-1]
+            lower_weight = latencies[lower] * (upper - index)
+            upper_weight = latencies[upper] * (index - lower)
+            return lower_weight + upper_weight
+
+        return {
+            "p50": percentile(0.50),
+            "p95": percentile(0.95),
+            "p99": percentile(0.99),
+            "samples": total,
+        }
 
     async def record_quiz_completion(self, template_id: UUID, session_id: UUID) -> None:
         """
@@ -69,7 +97,7 @@ class QuizMetricsCollector:
             await redis.expire(key, 30 * 24 * 3600)
 
             # Track daily completion (for trend analysis)
-            today = datetime.now(UTC).strftime("%Y%m%d")
+            today = now_sao_paulo().strftime("%Y%m%d")
             daily_key = f"{key}:daily:{today}"
             await redis.incr(daily_key)
             await redis.expire(daily_key, 30 * 24 * 3600)
@@ -143,6 +171,11 @@ class QuizMetricsCollector:
 
             # Set TTL (7 days)
             await redis.expire(key, 7 * 24 * 3600)
+            response_count_key = (
+                f"{self.METRICS_KEY_PREFIX}:{self.RESPONSE_COUNT_KEY}:{template_id}:{question_id}"
+            )
+            await redis.incr(response_count_key)
+            await redis.expire(response_count_key, 7 * 24 * 3600)
 
             logger.debug(
                 f"Response latency recorded: template={template_id}, "
@@ -233,29 +266,7 @@ class QuizMetricsCollector:
 
             # Get all latency values
             values = await redis.zrange(key, 0, -1, withscores=True)
-
-            if not values:
-                return {"p50": 0.0, "p95": 0.0, "p99": 0.0, "samples": 0}
-
-            latencies = sorted([score for _, score in values])
-            n = len(latencies)
-
-            def percentile(p: float) -> float:
-                k = (n - 1) * p
-                f = int(k)
-                c = int(k) + 1
-                if c >= n:
-                    return latencies[-1]
-                d0 = latencies[f] * (c - k)
-                d1 = latencies[c] * (k - f)
-                return d0 + d1
-
-            return {
-                "p50": percentile(0.50),
-                "p95": percentile(0.95),
-                "p99": percentile(0.99),
-                "samples": n,
-            }
+            return self._calculate_percentiles_from_scores(values)
 
         except Exception as e:
             logger.error(f"Failed to calculate latency percentiles: {e}", exc_info=True)
@@ -279,29 +290,7 @@ class QuizMetricsCollector:
             key = f"{self.METRICS_KEY_PREFIX}:{self.RESPONSE_LATENCY_KEY}:{template_id}:{question_id}"
 
             values = await redis.zrange(key, 0, -1, withscores=True)
-
-            if not values:
-                return {"p50": 0.0, "p95": 0.0, "p99": 0.0, "samples": 0}
-
-            latencies = sorted([score for _, score in values])
-            n = len(latencies)
-
-            def percentile(p: float) -> float:
-                k = (n - 1) * p
-                f = int(k)
-                c = int(k) + 1
-                if c >= n:
-                    return latencies[-1]
-                d0 = latencies[f] * (c - k)
-                d1 = latencies[c] * (k - f)
-                return d0 + d1
-
-            return {
-                "p50": percentile(0.50),
-                "p95": percentile(0.95),
-                "p99": percentile(0.99),
-                "samples": n,
-            }
+            return self._calculate_percentiles_from_scores(values)
 
         except Exception as e:
             logger.error(f"Failed to calculate response latency: {e}", exc_info=True)
@@ -359,17 +348,36 @@ class QuizMetricsCollector:
         try:
             redis = await self._get_redis()
 
-            clarification_key = f"{self.METRICS_KEY_PREFIX}:{self.CLARIFICATION_KEY}:{template_id}:{question_id}"
-            clarifications = await redis.get(clarification_key)
+            clarifications = await self.get_clarification_count(template_id, question_id)
+            response_count_key = (
+                f"{self.METRICS_KEY_PREFIX}:{self.RESPONSE_COUNT_KEY}:{template_id}:{question_id}"
+            )
+            responses = await redis.get(response_count_key)
+            responses = int(responses) if responses else 0
 
-            # For rate calculation, would need total responses per question
-            # (not implemented here, would require additional tracking)
+            if responses <= 0:
+                # Backward-compatibility fallback:
+                # older behavior exposed raw count under this method name.
+                return float(clarifications)
 
-            return int(clarifications) if clarifications else 0
+            return clarifications / responses
 
         except Exception as e:
             logger.error(f"Failed to calculate clarification rate: {e}", exc_info=True)
             return 0.0
+
+    async def get_clarification_count(self, template_id: UUID, question_id: str) -> int:
+        """Get total clarification count for a template/question pair."""
+        try:
+            redis = await self._get_redis()
+            clarification_key = (
+                f"{self.METRICS_KEY_PREFIX}:{self.CLARIFICATION_KEY}:{template_id}:{question_id}"
+            )
+            clarifications = await redis.get(clarification_key)
+            return int(clarifications) if clarifications else 0
+        except Exception as e:
+            logger.error(f"Failed to get clarification count: {e}", exc_info=True)
+            return 0
 
 
 # Singleton instance

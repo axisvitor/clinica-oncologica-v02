@@ -7,17 +7,18 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import joinedload
 from sqlalchemy import or_, and_
+from pydantic import ValidationError as PydanticValidationError
 
 from app.database import get_db
 from app.models.user import User
 from app.models.session import Session as SessionModel
 from app.api.v2.dependencies import (
-    get_pagination_params,
-    get_field_selection,
+    get_pagination_params_async,
+    get_field_selection_async,
     apply_field_selection,
 )
 from app.dependencies.auth_dependencies import get_current_user_from_session
-from app.core.redis_client import get_async_redis_client
+from app.core.redis_manager import get_async_redis_client
 from app.utils.rate_limiter import limiter
 from app.schemas.v2.auth import (
     UserV2Response,
@@ -27,12 +28,23 @@ from app.schemas.v2.auth import (
     SessionV2List,
     SessionRevokeResponse,
 )
+from app.utils.auth_helpers import extract_user_id as _extract_user_id
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 CACHE_TTL_USER_PROFILE = 300
 CACHE_TTL_PREFERENCES = 600
+REQUIRED_USER_PROFILE_FIELDS = {
+    "id",
+    "email",
+    "full_name",
+    "role",
+    "is_active",
+    "created_at",
+    "updated_at",
+}
 
 
 async def _get_redis_client():
@@ -41,12 +53,6 @@ async def _get_redis_client():
     except Exception as redis_err:
         logger.debug(f"Redis client unavailable (non-critical): {redis_err}")
         return None
-
-
-def _extract_user_id(current_user) -> str:
-    if isinstance(current_user, dict):
-        return current_user.get("id")
-    return str(getattr(current_user, "id", None))
 
 
 def _serialize_user(user: User, include_relationships: bool = False) -> dict:
@@ -59,6 +65,7 @@ def _serialize_user(user: User, include_relationships: bool = False) -> dict:
         "created_at": user.created_at,
         "updated_at": user.updated_at,
         "last_login": getattr(user, "firebase_last_sign_in", None),
+        "photo_url": getattr(user, "firebase_photo_url", None),
     }
     if include_relationships:
         if hasattr(user, "patients"):
@@ -67,6 +74,14 @@ def _serialize_user(user: User, include_relationships: bool = False) -> dict:
             unread = [n for n in user.notifications if not n.is_read]
             data["notification_count"] = len(unread)
     return data
+
+
+def _apply_profile_field_selection(user_data: dict, fields: Optional[List[str]]) -> dict:
+    """Apply sparse fieldset while preserving required response-model fields."""
+    if not fields:
+        return user_data
+    selected_fields = list(set(fields) | REQUIRED_USER_PROFILE_FIELDS)
+    return apply_field_selection(user_data, selected_fields)
 
 
 def _get_user_preferences(user: User) -> UserPreferencesV2:
@@ -97,7 +112,7 @@ async def get_current_user_profile(
     request: Request,
     current_user=Depends(get_current_user_from_session),
     db=Depends(get_db),
-    fields: Optional[List[str]] = Depends(get_field_selection),
+    fields: Optional[List[str]] = Depends(get_field_selection_async),
 ):
     user_id = _extract_user_id(current_user)
     redis = await _get_redis_client()
@@ -108,9 +123,12 @@ async def get_current_user_profile(
             cached = await redis.get(cache_key)
             if cached:
                 user_data = json.loads(cached)
-                if fields:
-                    user_data = apply_field_selection(user_data, fields)
-                return user_data
+                if REQUIRED_USER_PROFILE_FIELDS.issubset(user_data.keys()):
+                    return _apply_profile_field_selection(user_data, fields)
+                logger.warning(
+                    "Ignoring stale profile cache with missing required fields for user %s",
+                    user_id,
+                )
         except Exception as cache_err:
             logger.debug(f"Cache read failed (non-critical): {cache_err}")
 
@@ -140,10 +158,7 @@ async def get_current_user_profile(
         except Exception as cache_err:
             logger.debug(f"Cache write failed (non-critical): {cache_err}")
 
-    if fields:
-        user_data = apply_field_selection(user_data, fields)
-
-    return user_data
+    return _apply_profile_field_selection(user_data, fields)
 
 
 @router.get("/preferences", response_model=UserPreferencesV2Response)
@@ -203,11 +218,23 @@ async def patch_preferences(
     current = _get_user_preferences(user).dict()
     update_data = updates.dict(exclude_unset=True)
     current.update(update_data)
+    try:
+        validated_preferences = UserPreferencesV2(**current).dict()
+    except PydanticValidationError as exc:
+        safe_errors = [
+            {
+                "loc": err.get("loc"),
+                "msg": err.get("msg"),
+                "type": err.get("type"),
+            }
+            for err in exc.errors()
+        ]
+        raise HTTPException(status_code=422, detail=safe_errors)
 
-    if not user.metadata:
-        user.metadata = {}
-    user.metadata["preferences"] = current
-    user.updated_at = datetime.now(timezone.utc)
+    claims = dict(getattr(user, "firebase_custom_claims", {}) or {})
+    claims["preferences"] = validated_preferences
+    user.firebase_custom_claims = claims
+    user.updated_at = now_sao_paulo()
 
     db.commit()
 
@@ -219,9 +246,26 @@ async def patch_preferences(
 
     return {
         "user_id": user_id,
-        "preferences": current,
+        "preferences": validated_preferences,
         "updated_at": user.updated_at.isoformat(),
     }
+
+
+@router.put("/preferences", response_model=UserPreferencesV2Response, include_in_schema=False)
+@limiter.limit("20/hour")
+async def put_preferences(
+    request: Request,
+    updates: UserPreferencesV2,
+    current_user=Depends(get_current_user_from_session),
+    db=Depends(get_db),
+):
+    """Backward-compatible full update endpoint for user preferences."""
+    return await patch_preferences(
+        request=request,
+        updates=UserPreferencesV2Update(**updates.dict()),
+        current_user=current_user,
+        db=db,
+    )
 
 
 @router.get("/sessions", response_model=SessionV2List)
@@ -230,7 +274,7 @@ async def list_sessions(
     request: Request,
     current_user=Depends(get_current_user_from_session),
     db=Depends(get_db),
-    pagination=Depends(get_pagination_params),
+    pagination=Depends(get_pagination_params_async),
 ):
     user_id = _extract_user_id(current_user)
     limit = pagination["limit"]
@@ -244,7 +288,7 @@ async def list_sessions(
 
     if cursor_data and "id" in cursor_data:
         cid = UUID(cursor_data["id"])
-        cdate = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cdate = datetime.fromisoformat(cursor_data["created_at"])
         query = query.filter(
             or_(
                 SessionModel.created_at < cdate,
@@ -286,7 +330,8 @@ async def revoke_session(
         raise HTTPException(status_code=404)
 
     session.is_active = False
-    session.revoked_at = datetime.now(timezone.utc)
+    session.revoked_at = now_sao_paulo()
+    session.revocation_reason = "User requested revocation"
     db.commit()
 
     return {"session_id": session_id, "revoked": True, "message": "Revoked"}

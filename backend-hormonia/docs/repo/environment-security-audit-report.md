@@ -311,7 +311,7 @@ SESSION_ENABLE_COOKIE_SECURE=false
 # ❌ VIOLATIONS - Missing ENABLE_:
 APP_ENVIRONMENT=production          # OK - not boolean
 REDIS_URL=...                       # OK - not boolean
-CELERY_ENABLE_UTC=true             # ✅ Correct
+CELERY_ENABLE_TZ_NORMALIZATION=false  # ✅ Correct
 CELERY_ENABLE_TRACK_STARTED=true  # ✅ Correct
 CELERY_ENABLE_DISABLE_RATE_LIMITS=true  # ❌ DOUBLE NEGATIVE!
 

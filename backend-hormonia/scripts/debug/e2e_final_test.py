@@ -11,6 +11,7 @@ from pathlib import Path
 from uuid import uuid4
 import random
 
+from app.utils.timezone import now_sao_paulo
 # Fix encoding for Windows console
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
@@ -231,7 +232,7 @@ class E2ETestRunner:
                     type=MessageType.TEXT,
                     content=content,
                     status=MessageStatus.PENDING,
-                    scheduled_for=datetime.now(timezone.utc),
+                    scheduled_for=now_sao_paulo(),
                     message_metadata={"day": day, "type": "daily_reminder"},
                 )
                 self.db.add(message)
@@ -300,7 +301,7 @@ class E2ETestRunner:
                 quiz_template_id=None,
                 status=QuizSessionStatus.PENDING,
                 token=token,
-                expires_at=datetime.now(timezone.utc) + timedelta(hours=72),
+                expires_at=now_sao_paulo() + timedelta(hours=72),
             )
             self.db.add(quiz_session)
             self.db.flush()

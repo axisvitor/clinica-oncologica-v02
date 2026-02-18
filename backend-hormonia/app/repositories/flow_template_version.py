@@ -11,6 +11,8 @@ from sqlalchemy import text, desc, func
 
 from app.models.flow import FlowTemplateVersion, PatientFlowState
 from app.repositories.base import BaseRepository
+from app.utils.timezone import now_sao_paulo
+from app.utils.versioning import parse_version_number
 
 
 class FlowTemplateVersionRepository(BaseRepository):
@@ -18,19 +20,6 @@ class FlowTemplateVersionRepository(BaseRepository):
 
     def __init__(self, db: Session):
         super().__init__(db, FlowTemplateVersion)
-
-    def _parse_version_number(self, version: Any) -> int:
-        if isinstance(version, int):
-            return version
-        if isinstance(version, str):
-            try:
-                return int(version)
-            except ValueError:
-                parts = version.split(".")
-                for part in parts:
-                    if part.isdigit():
-                        return int(part)
-        raise ValueError(f"Invalid version value: {version}")
 
     def get_by_kind_and_version(
         self, flow_kind_id: UUID, version_number: int
@@ -158,7 +147,7 @@ class FlowTemplateVersionRepository(BaseRepository):
         resolved_version = version_number if version_number is not None else version
         if resolved_version is None:
             raise ValueError("version_number is required")
-        parsed_version = self._parse_version_number(resolved_version)
+        parsed_version = parse_version_number(resolved_version)
 
         resolved_steps = steps if steps is not None else messages
         if resolved_steps is None and template_data:
@@ -190,7 +179,7 @@ class FlowTemplateVersionRepository(BaseRepository):
         resolved_is_draft = True if is_draft is None else is_draft
         resolved_published_at = published_at
         if not resolved_is_draft and resolved_published_at is None:
-            resolved_published_at = datetime.now(timezone.utc)
+            resolved_published_at = now_sao_paulo()
 
         if set_active:
             # Deactivate all other versions for this kind first
@@ -227,7 +216,7 @@ class FlowTemplateVersionRepository(BaseRepository):
                 return False
 
             version.is_draft = False
-            version.published_at = version.published_at or datetime.now(timezone.utc)
+            version.published_at = version.published_at or now_sao_paulo()
             if set_active:
                 self.db.execute(
                     text(
@@ -254,7 +243,7 @@ class FlowTemplateVersionRepository(BaseRepository):
                 return False
             version.is_active = False
             version.is_draft = False
-            version.deprecated_at = datetime.now(timezone.utc)
+            version.deprecated_at = now_sao_paulo()
             if archived_by:
                 version.created_by = version.created_by or archived_by
             self.db.flush()
@@ -327,7 +316,7 @@ class FlowTemplateVersionRepository(BaseRepository):
             # 2. Activate only this one
             version.is_active = True
             version.is_draft = False
-            version.published_at = version.published_at or datetime.now(timezone.utc)
+            version.published_at = version.published_at or now_sao_paulo()
             self.db.commit()
             return True
         except Exception:

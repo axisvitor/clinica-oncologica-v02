@@ -397,8 +397,8 @@ describe('SettingsPage - Integration Tests', () => {
 
     it('should track login history', async () => {
       const loginHistory = [
-        { timestamp: '2025-01-15T10:00:00Z', ip: '192.168.1.1', device: 'Chrome/Windows' },
-        { timestamp: '2025-01-14T14:30:00Z', ip: '192.168.1.1', device: 'Chrome/Windows' }
+        { timestamp: '2025-01-15T10:00:00-03:00', ip: '192.168.1.1', device: 'Chrome/Windows' },
+        { timestamp: '2025-01-14T14:30:00-03:00', ip: '192.168.1.1', device: 'Chrome/Windows' }
       ]
 
       expect(loginHistory).toHaveLength(2)

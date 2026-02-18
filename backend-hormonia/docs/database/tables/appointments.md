@@ -6,26 +6,28 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **id** | `UUID` | ❌ | `gen_random_uuid()` | 🔑 |  |
 | **patient_id** | `UUID` | ❌ | - |  | ➡️ [patients]( patients.md ).id |
-| **doctor_id** | `UUID` | ❌ | - |  | ➡️ [users]( users.md ).id |
-| **appointment_type** | `VARCHAR(100)` | ❌ | - |  |  |
-| **status** | `VARCHAR(50)` | ✅ | `'scheduled'::character varying` |  |  |
-| **scheduled_at** | `TIMESTAMP` | ❌ | - |  |  |
-| **duration_minutes** | `INTEGER` | ✅ | `60` |  |  |
+| **doctor_id** | `UUID` | ✅ | - |  | ➡️ [users]( users.md ).id |
+| **appointment_type** | `ENUM(appointment_type)` | ❌ | - |  |  |
+| **status** | `ENUM(appointment_status)` | ❌ | - |  |  |
+| **scheduled_at** | `TIMESTAMP` | ✅ | - |  |  |
+| **duration_minutes** | `INTEGER` | ✅ | - |  |  |
 | **completed_at** | `TIMESTAMP` | ✅ | - |  |  |
 | **cancelled_at** | `TIMESTAMP` | ✅ | - |  |  |
 | **pre_appointment_notes** | `TEXT` | ✅ | - |  |  |
 | **post_appointment_notes** | `TEXT` | ✅ | - |  |  |
-| **appointment_metadata** | `JSONB` | ✅ | `'{}'::jsonb` |  |  |
-| **created_at** | `TIMESTAMP` | ✅ | `now()` |  |  |
-| **updated_at** | `TIMESTAMP` | ✅ | `now()` |  |  |
+| **appointment_metadata** | `TEXT` | ✅ | - |  |  |
+| **created_at** | `TIMESTAMP` | ❌ | `now()` |  |  |
+| **updated_at** | `TIMESTAMP` | ❌ | `now()` |  |  |
+| **reminder_sent** | `BOOLEAN` | ❌ | - |  |  |
+| **confirmation_sent** | `BOOLEAN` | ❌ | - |  |  |
 
 ## Indexes
 
 | Name | Unique | Columns |
 | :--- | :--- | :--- |
-| idx_appointments_doctor | ❌ | `doctor_id` |
-| idx_appointments_patient | ❌ | `patient_id` |
-| idx_appointments_patient_id | ❌ | `patient_id` |
-| idx_appointments_scheduled | ❌ | `scheduled_at` |
-| idx_appointments_scheduled_at | ❌ | `scheduled_at` |
-| idx_appointments_status | ❌ | `status, scheduled_at` |
+| ix_appointments_appointment_type | ❌ | `appointment_type` |
+| ix_appointments_doctor_id | ❌ | `doctor_id` |
+| ix_appointments_id | ❌ | `id` |
+| ix_appointments_patient_id | ❌ | `patient_id` |
+| ix_appointments_scheduled_at | ❌ | `scheduled_at` |
+| ix_appointments_status | ❌ | `status` |

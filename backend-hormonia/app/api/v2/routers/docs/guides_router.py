@@ -6,6 +6,7 @@ Provides endpoints for listing and viewing documentation guides and tutorials.
 import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, status, Query, Request
+from fastapi.responses import JSONResponse
 
 from app.schemas.v2.docs import GuideList, GuideDetail
 from app.schemas.v2.common import ErrorResponse
@@ -58,7 +59,8 @@ async def list_guides(
         cache_key = get_cache_key("guides_list", category=category, tags=tags)
         cached = await get_cached_result(cache_key)
         if cached:
-            return cached
+            # Keep backward compatibility with previously cached payload shapes.
+            return JSONResponse(content=cached)
 
         guides = get_static_guides()
 

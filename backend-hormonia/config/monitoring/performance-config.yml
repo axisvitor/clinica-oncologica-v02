@@ -86,7 +86,7 @@ database:
       - name: "messages"
         warn_query_time_ms: 80
         critical_query_time_ms: 300
-      - name: "flow_states"
+      - name: "patient_flow_states"
         warn_query_time_ms: 60
         critical_query_time_ms: 250
   

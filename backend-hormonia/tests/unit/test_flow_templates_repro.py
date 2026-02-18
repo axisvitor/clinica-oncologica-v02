@@ -9,6 +9,7 @@ from app.models.flow import FlowTemplateVersion, FlowKind
 from starlette.requests import Request
 from fastapi import HTTPException
 
+from app.utils.timezone import now_sao_paulo
 @pytest.mark.asyncio
 async def test_list_flow_templates_serialization_error():
     """
@@ -32,9 +33,9 @@ async def test_list_flow_templates_serialization_error():
     
     mock_template.is_active = True
     mock_template.is_draft = False
-    mock_template.published_at = datetime.now(timezone.utc)
-    mock_template.created_at = datetime.now(timezone.utc)
-    mock_template.updated_at = datetime.now(timezone.utc)
+    mock_template.published_at = now_sao_paulo()
+    mock_template.created_at = now_sao_paulo()
+    mock_template.updated_at = now_sao_paulo()
     mock_template.created_by = uuid4()
     
     # Mock Kind
@@ -105,8 +106,16 @@ async def test_rollback_template_version_attribute_error():
     # Mock query result
     mock_query = mock_db.query.return_value
     mock_query.filter.return_value = mock_query
-    mock_query.first.return_value = mock_template
-    mock_query.scalar.return_value = 1 # Latest version number
+    mock_query.options.return_value = mock_query
+    mock_query.scalar.return_value = 1  # Latest version number
+
+    # First .first(): source version lookup
+    # Second .first(): reload rollback version with relationship
+    mock_rollback = MagicMock(spec=FlowTemplateVersion)
+    mock_rollback.id = uuid4()
+    mock_rollback.template_name = "Test Template (Rollback)"
+    mock_rollback.metadata_json = {"key": "value"}
+    mock_query.first.side_effect = [mock_template, mock_rollback]
     
     # Mock request and user
     mock_request = MagicMock(spec=Request)

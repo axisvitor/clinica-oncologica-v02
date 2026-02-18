@@ -18,9 +18,11 @@ Features:
 - Per-phone number tracking for webhook spam prevention
 """
 
+import asyncio
 import os
 import sys
 import time
+from urllib.parse import urlparse, urlunparse
 from typing import Callable
 from functools import wraps
 from pathlib import Path
@@ -50,6 +52,14 @@ def _is_test_environment() -> bool:
         or os.getenv("APP_ENVIRONMENT", "").lower() in ("test", "testing")
     )
 
+
+def _build_redis_url_for_db(redis_url: str, db_number: int) -> str:
+    """Return a Redis URL overriding only the DB path."""
+    parsed = urlparse(redis_url)
+    if not parsed.scheme or not parsed.netloc:
+        return redis_url
+    return urlunparse(parsed._replace(path=f"/{int(db_number)}"))
+
 def get_redis_url() -> str:
     """
     Get Redis URL from environment variables with fallback.
@@ -74,10 +84,12 @@ def get_redis_url() -> str:
         else:
             redis_url = f"redis://{redis_host}:{redis_port}/{redis_db}"
 
-    # Convert to SSL URL if REDIS_ENABLE_SSL is true
+    # Normalize URL scheme based on REDIS_ENABLE_SSL
     enable_ssl = os.getenv("REDIS_ENABLE_SSL", "false").lower() == "true"
     if enable_ssl and redis_url.startswith("redis://"):
         redis_url = "rediss://" + redis_url[8:]
+    elif not enable_ssl and redis_url.startswith("rediss://"):
+        redis_url = "redis://" + redis_url[9:]
 
     return redis_url
 
@@ -100,7 +112,17 @@ def get_rate_limit_storage_uri() -> str:
     if app_env in ("test", "testing") and not use_test_redis:
         return "memory://"
 
-    return get_redis_url()
+    base_redis_url = get_redis_url()
+    enable_db_isolation = os.getenv("REDIS_ENABLE_DB_ISOLATION", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    if enable_db_isolation:
+        rate_limit_db = int(os.getenv("REDIS_RATE_LIMIT_DB_NUMBER", "3"))
+        return _build_redis_url_for_db(base_redis_url, rate_limit_db)
+
+    return base_redis_url
 
 
 # Create the real rate limiter instance with Redis backend
@@ -128,6 +150,18 @@ auth_limiter = Limiter(
     swallow_errors=False,
 )
 
+if not _rate_limit_enabled:
+    # In tests we must fully bypass decorator wrapping to avoid slowapi runtime
+    # integration overhead/deadlocks while preserving endpoint call signatures.
+    def _noop_limit(*_args, **_kwargs):
+        def _decorator(func):
+            return func
+
+        return _decorator
+
+    limiter.limit = _noop_limit  # type: ignore[assignment]
+    auth_limiter.limit = _noop_limit  # type: ignore[assignment]
+
 logger.info(
     "✅ Rate limiting ENABLED with Redis backend"
     if _rate_limit_enabled
@@ -140,6 +174,7 @@ _storage_uri = get_rate_limit_storage_uri()
 logger.info(
     f"   Rate limit storage: {_storage_uri.split('@')[-1] if '@' in _storage_uri else _storage_uri}"
 )
+
 
 
 def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> Response:
@@ -251,16 +286,24 @@ async def get_redis_client():
     """
     Get Redis client for manual rate limiting.
 
+    Uses the centralized RedisManager (DB 3 for rate-limiting) instead of
+    creating standalone ``redis.from_url()`` connections.  Falls back to
+    ``None`` (in-memory or fail-open) when Redis is unavailable.
+
     Returns:
         Redis client or None if unavailable
     """
     try:
-        import redis.asyncio as redis
-
         redis_url = get_rate_limit_storage_uri()
         if redis_url.startswith("memory://"):
             return None
-        client = redis.from_url(redis_url, decode_responses=True)
+
+        from app.core.redis_manager import get_redis_manager
+
+        rate_limit_db = int(os.getenv("REDIS_RATE_LIMIT_DB_NUMBER", "3"))
+        manager = get_redis_manager(db_number=rate_limit_db)
+        client = await manager.get_async_client()
+        setattr(client, "_rate_limit_shared", True)
         return client
     except Exception as e:
         logger.warning(f"Redis client unavailable for rate limiting: {e}")
@@ -308,7 +351,18 @@ async def check_rate_limit_redis(
         # Set expiration
         pipe.expire(key, window_seconds)
 
-        results = await pipe.execute()
+        operation_timeout = float(os.getenv("REDIS_OPERATION_TIMEOUT", "5"))
+        try:
+            results = await asyncio.wait_for(
+                pipe.execute(),
+                timeout=operation_timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Rate limit check timed out - failing open",
+                extra={"rate_limit_key": key},
+            )
+            return True, 0
         request_count = results[2]
 
         if request_count > max_requests:
@@ -484,7 +538,7 @@ def multi_layer_rate_limit(
                     )
 
             # Close Redis connection
-            if redis_client:
+            if redis_client and not getattr(redis_client, "_rate_limit_shared", False):
                 try:
                     await redis_client.aclose()  # Redis 5.x uses aclose() for async
                 except Exception:

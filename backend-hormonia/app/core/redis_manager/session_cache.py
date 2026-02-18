@@ -7,9 +7,11 @@ Enables instant logout control and activity tracking.
 
 import logging
 import asyncio
+import inspect
 import json
 from typing import Optional, Any, Dict, List
 from datetime import datetime, timezone
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,13 @@ class SessionCache:
         self.redis = redis_client
         self.session_ttl = session_ttl
         self.max_session_age = max_session_age
+
+    async def _redis_call(self, method_name: str, *args, **kwargs):
+        """Call Redis methods supporting both sync and async clients."""
+        method = getattr(self.redis, method_name)
+        if inspect.iscoroutinefunction(method):
+            return await method(*args, **kwargs)
+        return await asyncio.to_thread(method, *args, **kwargs)
 
     async def create_session(
         self,
@@ -67,16 +76,14 @@ class SessionCache:
         session_data = {
             "user_id": user_id,
             "firebase_uid": firebase_uid,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "last_activity": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_sao_paulo().isoformat(),
+            "last_activity": now_sao_paulo().isoformat(),
             "max_age_seconds": self.max_session_age,
             **(metadata or {}),
         }
 
         try:
-            await asyncio.to_thread(
-                self.redis.setex, key, ttl_value, json.dumps(session_data)
-            )
+            await self._redis_call("setex", key, ttl_value, json.dumps(session_data))
             logger.info(f"🔐 Session created: {session_id[:16]}... (TTL: {ttl_value}s)")
             return True
         except Exception as e:
@@ -100,10 +107,10 @@ class SessionCache:
         key = f"session:{session_id}"
 
         try:
-            cached = await asyncio.to_thread(self.redis.get, key)
+            cached = await self._redis_call("get", key)
             if cached:
                 session_data = json.loads(cached)
-                now = datetime.now(timezone.utc)
+                now = now_sao_paulo()
 
                 # --- 1. Max Age Validation ---
                 created_at_str = session_data.get("created_at")
@@ -139,8 +146,8 @@ class SessionCache:
                 session_data["last_activity"] = now.isoformat()
 
                 # Refresh TTL for inactivity
-                await asyncio.to_thread(
-                    self.redis.setex, key, self.session_ttl, json.dumps(session_data)
+                await self._redis_call(
+                    "setex", key, self.session_ttl, json.dumps(session_data)
                 )
                 logger.debug(f"✅ Session active: {session_id[:16]}...")
                 return session_data
@@ -164,7 +171,7 @@ class SessionCache:
         key = f"session:{session_id}"
 
         try:
-            deleted = await asyncio.to_thread(self.redis.delete, key)
+            deleted = await self._redis_call("delete", key)
 
             if deleted:
                 logger.info(f"🚪 Session logged out: {session_id[:16]}...")
@@ -218,7 +225,7 @@ class SessionCache:
 
             # 2. Batch delete using pipeline
             def batch_delete(keys):
-                pipe = self.redis.pipeline()
+                pipe = self.redis.pipeline(transaction=False)
                 for key in keys:
                     pipe.delete(key)
                 results = pipe.execute()
@@ -319,7 +326,7 @@ class SessionCache:
 
             # Parse and update session data
             session_data = json.loads(cached)
-            now = datetime.now(timezone.utc)
+            now = now_sao_paulo()
             
             # --- Max Age Check ---
             created_at_str = session_data.get("created_at")

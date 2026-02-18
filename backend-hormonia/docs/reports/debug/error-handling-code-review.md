@@ -5,6 +5,11 @@ Scope: /mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia
 Reviewer: Code Review Agent
 Status: Comprehensive Review Complete
 
+> Status update (2026-02-10): `app/middleware/enhanced_error_handler.py (removed in tombstone cleanup on 2026-02-10)` was
+> removed during tombstone cleanup. References in this report are historical.
+> Current exception handling is centralized in
+> `app/core/exception_handlers.py`.
+
 ---
 
 ## Executive Summary
@@ -123,7 +128,7 @@ except Exception as e:
 
 ### 2. BARE EXCEPTION HANDLER (Critical)
 
-**File**: `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/middleware/enhanced_error_handler.py`
+**File**: `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/middleware/enhanced_error_handler.py (removed in tombstone cleanup on 2026-02-10)`
 **Line**: 308
 **Severity**: CRITICAL
 **Pattern**: `except Exception:` without context preservation
@@ -169,7 +174,7 @@ def _get_system_state(self) -> Dict[str, Any]:
 ```python
 # Lines 332-337
 try:
-    error_key = f"flow_errors:{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+    error_key = f"flow_errors:{now_sao_paulo().strftime('%Y-%m-%d')}"
     await self.redis.lpush(error_key, json.dumps(error_data))
     await self.redis.expire(error_key, 86400 * 7)
 except Exception:  # ❌ SWALLOWED
@@ -183,7 +188,7 @@ logger.error(f"Flow error logged: {json.dumps(error_data, indent=2)}")
 **Recommended Fix**:
 ```python
 try:
-    error_key = f"flow_errors:{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+    error_key = f"flow_errors:{now_sao_paulo().strftime('%Y-%m-%d')}"
     await self.redis.lpush(error_key, json.dumps(error_data))
     await self.redis.expire(error_key, 86400 * 7)
 except redis.ConnectionError as e:
@@ -492,7 +497,7 @@ async def _legacy_is_event_processed(event_id: str) -> bool:
 ## Strengths Identified
 
 ### 1. Comprehensive Error Categorization
-**File**: `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/middleware/enhanced_error_handler.py` (lines 216-276)
+**File**: `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/middleware/enhanced_error_handler.py (removed in tombstone cleanup on 2026-02-10)` (lines 216-276)
 
 The middleware implements excellent error categorization:
 
@@ -559,7 +564,7 @@ async def _log_error(self, error: Exception, context: dict[str, Any]) -> None:
         "error_type": type(error).__name__,
         "error_message": str(error),
         "context": context,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now_sao_paulo().isoformat(),
     }
 
     if isinstance(error, FlowException):
@@ -571,7 +576,7 @@ async def _log_error(self, error: Exception, context: dict[str, Any]) -> None:
 
     # Store in Redis for monitoring
     try:
-        error_key = f"flow_errors:{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
+        error_key = f"flow_errors:{now_sao_paulo().strftime('%Y-%m-%d')}"
         await self.redis.lpush(error_key, json.dumps(error_data))
     except Exception:
         pass
@@ -605,7 +610,7 @@ The codebase defines custom exceptions:
 | Issue | Files | Fix Effort | Impact |
 |-------|-------|-----------|--------|
 | 1. Information leaks in HTTP responses | `app/api/v2/flows/*.py`, `app/services/firebase_auth_service.py` | Medium | Security |
-| 2. Bare exception handlers | `app/middleware/enhanced_error_handler.py` | Low | Debugging |
+| 2. Bare exception handlers | `app/middleware/enhanced_error_handler.py (removed in tombstone cleanup on 2026-02-10)` | Low | Debugging |
 
 ### Priority 2 (Major - Address Within Sprint)
 
@@ -637,7 +642,7 @@ The codebase defines custom exceptions:
   - Pattern: Log detailed error, return generic message to client
 
 - [ ] **CFR-002**: Replace bare `except:` and `except Exception:` with specific types
-  - File: `app/middleware/enhanced_error_handler.py:308`
+  - File: `app/middleware/enhanced_error_handler.py (removed in tombstone cleanup on 2026-02-10):308`
   - Pattern: Specify exception types or use `except Exception as e:`
 
 ### Major Fixes

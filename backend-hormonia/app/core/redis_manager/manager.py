@@ -8,9 +8,8 @@ Provides both async and sync interfaces with automatic compatibility detection.
 import asyncio
 import logging
 import threading
-import ssl
-from pathlib import Path
-from typing import Optional, Union, TYPE_CHECKING
+from weakref import WeakKeyDictionary
+from typing import Optional, Union, TYPE_CHECKING, Any, Dict
 import redis.asyncio as redis_async
 import redis as redis_sync
 from redis.exceptions import ConnectionError, TimeoutError
@@ -19,15 +18,26 @@ if TYPE_CHECKING:
     from .sync_client import AsyncToSyncWrapper
 
 from app.config import settings
+from .utils import build_redis_url_for_db
 
 logger = logging.getLogger(__name__)
 
-# Detect redis-py version for SSL parameter compatibility
-REDIS_VERSION = tuple(int(x) for x in redis_sync.__version__.split(".")[:2])
-REDIS_6_OR_HIGHER = REDIS_VERSION >= (6, 0)
 
-# Path to Redis CA certificate for SSL/TLS connections
-REDIS_CA_CERT_PATH = Path(__file__).parent.parent.parent.parent / "certs" / "redis_ca.pem"
+def _coerce_bool(value: Any, default: bool = False) -> bool:
+    """Coerce config flags safely, ignoring truthy MagicMock objects."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off", ""}:
+            return False
+    return default
 
 
 class RedisManager:
@@ -43,14 +53,24 @@ class RedisManager:
     """
 
     def __init__(self, db_number: Optional[int] = None):
-        self._async_client: Optional[redis_async.Redis] = None
         self._sync_client: Optional[redis_sync.Redis] = None
-        self._async_pool: Optional[redis_async.ConnectionPool] = None
         self._sync_pool: Optional[redis_sync.ConnectionPool] = None
         self._lock = threading.Lock()
+        self._async_lock = threading.Lock()
+        self._async_clients: WeakKeyDictionary[
+            asyncio.AbstractEventLoop, redis_async.Redis
+        ] = WeakKeyDictionary()
+        self._async_pools: WeakKeyDictionary[
+            asyncio.AbstractEventLoop, redis_async.ConnectionPool
+        ] = WeakKeyDictionary()
 
         # Connection settings (use Redis Cloud URL from settings)
-        self.redis_url = settings.REDIS_URL
+        redis_url_setting = getattr(settings, "REDIS_URL", "redis://localhost:6379/0")
+        self.redis_url = (
+            redis_url_setting
+            if isinstance(redis_url_setting, str) and redis_url_setting
+            else "redis://localhost:6379/0"
+        )
 
         # SSL is now configured manually via connection_kwargs (see _create_*_client methods)
         # This approach works better with Python 3.13's strict SSL validation
@@ -58,16 +78,22 @@ class RedisManager:
 
         # DB isolation support
         self.db_number = db_number
-        if db_number is not None and getattr(
-            settings, "REDIS_ENABLE_DB_ISOLATION", True
+        cluster_mode = _coerce_bool(
+            getattr(settings, "REDIS_ENABLE_CLUSTER_MODE", False), default=False
+        )
+        if cluster_mode:
+            if db_number is not None and int(db_number) != 0:
+                logger.warning(
+                    "Redis cluster mode enabled: ignoring DB isolation for DB=%s; using DB 0",
+                    db_number,
+                )
+            self.db_number = 0
+            self.redis_url = build_redis_url_for_db(self.redis_url, 0)
+        elif db_number is not None and _coerce_bool(
+            getattr(settings, "REDIS_ENABLE_DB_ISOLATION", True), default=True
         ):
-            # Override DB in URL if isolation is enabled
-            base_url = (
-                self.redis_url.rsplit("/", 1)[0]
-                if "/" in self.redis_url
-                else self.redis_url
-            )
-            self.redis_url = f"{base_url}/{db_number}"
+            # Override DB in URL if isolation is enabled.
+            self.redis_url = build_redis_url_for_db(self.redis_url, db_number)
             logger.info(f"Redis DB isolation enabled: using DB {db_number}")
 
         # Connection settings from config - OPTIMIZED for SSL/TLS performance
@@ -111,9 +137,36 @@ class RedisManager:
         Returns:
             Async Redis client instance
         """
-        if self._async_client is None:
-            await self._create_async_client()
-        return self._async_client
+        current_loop = asyncio.get_running_loop()
+        existing_client = self._async_clients.get(current_loop)
+        if existing_client is not None:
+            return existing_client
+
+        client, pool = await self._create_async_client()
+        cleanup_client = None
+        cleanup_pool = None
+
+        with self._async_lock:
+            existing_client = self._async_clients.get(current_loop)
+            if existing_client is not None:
+                cleanup_client = client
+                cleanup_pool = pool
+            else:
+                self._async_clients[current_loop] = client
+                self._async_pools[current_loop] = pool
+
+        if cleanup_client is not None:
+            try:
+                await cleanup_client.aclose()
+            except Exception:
+                pass
+            try:
+                await cleanup_pool.aclose()
+            except Exception:
+                pass
+            return existing_client
+
+        return client
 
     def get_sync_client(self) -> redis_sync.Redis:
         """
@@ -128,50 +181,45 @@ class RedisManager:
                     self._create_sync_client()
         return self._sync_client
 
-    def _create_ssl_context(self) -> ssl.SSLContext:
-        """
-        Create SSL context for Redis Cloud connection.
+    def _build_connection_kwargs(self) -> Dict[str, Any]:
+        """Build shared Redis connection kwargs for sync/async clients."""
+        return {
+            "decode_responses": self.decode_responses,
+            "socket_timeout": self.socket_timeout,
+            "socket_connect_timeout": self.socket_connect_timeout,
+            "retry_on_timeout": self.retry_on_timeout,
+            "retry_on_error": [ConnectionError, TimeoutError],
+            "max_connections": self.max_connections,
+            "health_check_interval": self.health_check_interval
+            if self.enable_health_check
+            else 0,
+        }
 
-        Respects REDIS_SSL_CERT_REQS setting:
-        - "none": No certificate verification (common for Redis Cloud free tier)
-        - "required": Full certificate verification with CA cert
+    def _prepare_connection_config(self, client_kind: str) -> tuple[str, Dict[str, Any]]:
+        """Prepare URL + kwargs with SSL normalization for sync/async clients."""
+        connection_kwargs = self._build_connection_kwargs()
+        redis_url = self.redis_url
 
-        This is required for Python 3.13 compatibility with redis-py 5.x.
-        """
-        # Check if certificate verification is disabled
-        ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
+        if settings.REDIS_ENABLE_SSL:
+            if redis_url.startswith("redis://"):
+                redis_url = "rediss://" + redis_url[8:]
 
-        if ssl_cert_reqs == "none":
-            # Create SSL context without certificate verification
-            ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-            logger.info("Redis SSL: Enabled without certificate verification (CERT_NONE)")
-            return ssl_context
+            ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
+            verify_mode = "CERT_NONE" if ssl_cert_reqs == "none" else "CERT_REQUIRED"
+            connection_kwargs["ssl_cert_reqs"] = ssl_cert_reqs
 
-        # Full certificate verification
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
-
-        # Load CA certificate if it exists
-        if REDIS_CA_CERT_PATH.exists():
-            ssl_context.load_verify_locations(cafile=str(REDIS_CA_CERT_PATH))
-            logger.info(f"Redis SSL: Loaded CA certificate from {REDIS_CA_CERT_PATH}")
-        else:
-            # Use system CA certificates as fallback
-            ssl_context.load_default_certs()
-            logger.warning(
-                f"Redis CA cert not found at {REDIS_CA_CERT_PATH}, using system certs"
+            logger.info(
+                f"Redis {client_kind} SSL: Enabled (TLS >= 1.2, verify={verify_mode}, "
+                f"redis-py={redis_sync.__version__})"
             )
+        else:
+            if redis_url.startswith("rediss://"):
+                redis_url = "redis://" + redis_url[9:]
+            logger.info(f"Redis {client_kind}: Using non-SSL connection")
 
-        # Verify server certificate
-        ssl_context.check_hostname = True
-        ssl_context.verify_mode = ssl.CERT_REQUIRED
+        return redis_url, connection_kwargs
 
-        return ssl_context
-
-    async def _create_async_client(self):
+    async def _create_async_client(self) -> tuple[redis_async.Redis, redis_async.ConnectionPool]:
         """
         Create async Redis client with connection pool.
 
@@ -179,54 +227,18 @@ class RedisManager:
         This is the correct approach for redis-py 5.x with Python 3.13.
         """
         try:
-            # Base connection configuration - OPTIMIZED
-            connection_kwargs = {
-                "decode_responses": self.decode_responses,
-                "socket_timeout": self.socket_timeout,  # 5s (optimized for SSL)
-                "socket_connect_timeout": self.socket_connect_timeout,  # 2s (optimized)
-                "retry_on_timeout": self.retry_on_timeout,
-                "retry_on_error": [ConnectionError, TimeoutError],
-                "max_connections": self.max_connections,  # 20 (reduced from 50)
-                "health_check_interval": self.health_check_interval
-                if self.enable_health_check
-                else 0,
-            }
-
-            redis_url = self.redis_url
-
-            # Configure SSL if enabled
-            if settings.REDIS_ENABLE_SSL:
-                # Convert redis:// to rediss:// for SSL
-                if redis_url.startswith("redis://"):
-                    redis_url = "rediss://" + redis_url[8:]
-
-                # Use ssl_cert_reqs parameter (works in both redis-py 5.x and 6.x with from_url())
-                ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
-                verify_mode = "CERT_NONE" if ssl_cert_reqs == "none" else "CERT_REQUIRED"
-
-                # ssl_cert_reqs works universally with from_url() and ConnectionPool.from_url()
-                connection_kwargs["ssl_cert_reqs"] = ssl_cert_reqs
-
-                logger.info(
-                    f"Redis async SSL: Enabled (TLS >= 1.2, verify={verify_mode}, "
-                    f"redis-py={redis_sync.__version__})"
-                )
-            else:
-                # Ensure using non-SSL scheme
-                if redis_url.startswith("rediss://"):
-                    redis_url = "redis://" + redis_url[9:]
-                logger.info("Redis async: Using non-SSL connection")
+            redis_url, connection_kwargs = self._prepare_connection_config("async")
 
             # Create async connection pool
-            self._async_pool = redis_async.ConnectionPool.from_url(
+            async_pool = redis_async.ConnectionPool.from_url(
                 redis_url, **connection_kwargs
             )
 
             # Create client from pool
-            self._async_client = redis_async.Redis(connection_pool=self._async_pool)
+            async_client = redis_async.Redis(connection_pool=async_pool)
 
             # Test connection
-            await self._async_client.ping()
+            await async_client.ping()
             logger.info(
                 f"Async Redis client connected successfully "
                 f"(pool_size={self.max_connections}, "
@@ -236,10 +248,12 @@ class RedisManager:
 
             # OPTIMIZATION: Warmup connection pool for SSL/TLS
             if settings.REDIS_ENABLE_SSL and self.ssl_warmup_enabled:
-                await self._warmup_connection_pool_async()
+                await self._warmup_connection_pool_async(async_client)
                 logger.info(
                     f"Redis async pool warmed up with {self.ssl_warmup_connections} connections"
                 )
+
+            return async_client, async_pool
 
         except Exception as e:
             logger.error(f"Failed to create async Redis client: {e}")
@@ -252,43 +266,7 @@ class RedisManager:
         For redis-py 6.x, both sync and async use ssl_context parameter.
         """
         try:
-            # Base connection configuration - OPTIMIZED
-            connection_kwargs = {
-                "decode_responses": self.decode_responses,
-                "socket_timeout": self.socket_timeout,  # 5s (optimized for SSL)
-                "socket_connect_timeout": self.socket_connect_timeout,  # 2s (optimized)
-                "retry_on_timeout": self.retry_on_timeout,
-                "retry_on_error": [ConnectionError, TimeoutError],
-                "max_connections": self.max_connections,  # 20 (reduced from 50)
-                "health_check_interval": self.health_check_interval
-                if self.enable_health_check
-                else 0,
-            }
-
-            redis_url = self.redis_url
-
-            # Configure SSL if enabled
-            if settings.REDIS_ENABLE_SSL:
-                # Convert redis:// to rediss:// for SSL
-                if redis_url.startswith("redis://"):
-                    redis_url = "rediss://" + redis_url[8:]
-
-                # Use ssl_cert_reqs parameter (works in both redis-py 5.x and 6.x with from_url())
-                ssl_cert_reqs = getattr(settings, "REDIS_SSL_CERT_REQS", "required").lower()
-                verify_mode = "CERT_NONE" if ssl_cert_reqs == "none" else "CERT_REQUIRED"
-
-                # ssl_cert_reqs works universally with from_url() and ConnectionPool.from_url()
-                connection_kwargs["ssl_cert_reqs"] = ssl_cert_reqs
-
-                logger.info(
-                    f"Redis sync SSL: Enabled (TLS >= 1.2, verify={verify_mode}, "
-                    f"redis-py={redis_sync.__version__})"
-                )
-            else:
-                # Ensure using non-SSL scheme
-                if redis_url.startswith("rediss://"):
-                    redis_url = "redis://" + redis_url[9:]
-                logger.info("Redis sync: Using non-SSL connection")
+            redis_url, connection_kwargs = self._prepare_connection_config("sync")
 
             # Create sync connection pool
             self._sync_pool = redis_sync.ConnectionPool.from_url(
@@ -309,17 +287,27 @@ class RedisManager:
     async def close_async(self):
         """Close async Redis connections."""
         try:
-            if self._async_client:
-                # Use aclose() for proper async cleanup (redis 5.x)
-                await self._async_client.aclose()
-                self._async_client = None
-                logger.debug("Async Redis client closed")
+            with self._async_lock:
+                async_clients = list(self._async_clients.values())
+                async_pools = list(self._async_pools.values())
+                self._async_clients.clear()
+                self._async_pools.clear()
 
-            if self._async_pool:
-                # Use aclose() for ConnectionPool in redis 5.x
-                await self._async_pool.aclose()
-                self._async_pool = None
-                logger.debug("Async Redis pool closed")
+            for client in async_clients:
+                try:
+                    # Use aclose() for proper async cleanup (redis 5.x)
+                    await client.aclose()
+                    logger.debug("Async Redis client closed")
+                except Exception as e:
+                    logger.error(f"Error closing async Redis client: {e}")
+
+            for pool in async_pools:
+                try:
+                    # Use aclose() for ConnectionPool in redis 5.x
+                    await pool.aclose()
+                    logger.debug("Async Redis pool closed")
+                except Exception as e:
+                    logger.error(f"Error closing async Redis pool: {e}")
 
         except Exception as e:
             logger.error(f"Error closing async Redis connections: {e}")
@@ -346,14 +334,19 @@ class RedisManager:
         await self.close_async()
         self.close_sync()
 
-    async def _warmup_connection_pool_async(self):
+    async def _warmup_connection_pool_async(
+        self, client: Optional[redis_async.Redis] = None
+    ):
         """
         Pre-create connections in the pool to amortize SSL/TLS handshake cost.
 
         This is particularly beneficial for Redis Cloud with SSL/TLS enabled,
         as it moves the handshake overhead from request time to startup time.
         """
-        if not self._async_client:
+        target_client = client
+        if target_client is None:
+            target_client = self._async_clients.get(asyncio.get_running_loop())
+        if not target_client:
             logger.warning("Cannot warmup pool: async client not initialized")
             return
 
@@ -366,7 +359,7 @@ class RedisManager:
             # Perform multiple PING operations to force connection creation
             tasks = []
             for i in range(warmup_count):
-                tasks.append(self._async_client.ping())
+                tasks.append(target_client.ping())
 
             # Execute all PINGs concurrently
             await asyncio.gather(*tasks, return_exceptions=True)
@@ -412,7 +405,8 @@ class RedisManager:
         Returns:
             Dict with pool metrics
         """
-        if not self._async_pool:
+        async_pools = list(self._async_pools.values())
+        if not async_pools:
             return {"status": "not_initialized"}
 
         try:
@@ -420,6 +414,7 @@ class RedisManager:
             # We can only get basic info
             return {
                 "status": "healthy",
+                "pool_count": len(async_pools),
                 "max_connections": self.max_connections,
                 "socket_timeout": self.socket_timeout,
                 "connect_timeout": self.socket_connect_timeout,
@@ -488,3 +483,110 @@ class RedisManager:
             except RuntimeError:
                 # No event loop, use sync client
                 return self.get_sync_client()
+
+    # ------------------------------------------------------------------
+    # Legacy compatibility helpers
+    # ------------------------------------------------------------------
+    async def get_user_by_uid(self, firebase_uid: str) -> Optional[Dict[str, Any]]:
+        """
+        Backward-compatible user cache lookup.
+
+        Some legacy code paths and tests patch methods on RedisManager directly.
+        """
+        from .firebase_cache import FirebaseRedisCache
+
+        cache = FirebaseRedisCache(self.get_sync_client())
+        return await cache.get_user_by_uid(firebase_uid)
+
+    async def get(self, key: str) -> Optional[Any]:
+        """Backward-compatible async get helper."""
+        client = await self.get_async_client()
+        return await client.get(key)
+
+    async def delete_pattern(self, pattern: str) -> int:
+        """Backward-compatible async delete by key pattern."""
+        client = await self.get_async_client()
+        deleted_count = 0
+        batch: list[Any] = []
+
+        async for key in client.scan_iter(match=pattern):
+            batch.append(key)
+            if len(batch) >= 500:
+                for batch_key in batch:
+                    try:
+                        if hasattr(client, "unlink"):
+                            deleted_count += int((await client.unlink(batch_key)) or 0)
+                        else:
+                            deleted_count += int((await client.delete(batch_key)) or 0)
+                    except Exception:
+                        deleted_count += int((await client.delete(batch_key)) or 0)
+                batch.clear()
+
+        if batch:
+            for batch_key in batch:
+                try:
+                    if hasattr(client, "unlink"):
+                        deleted_count += int((await client.unlink(batch_key)) or 0)
+                    else:
+                        deleted_count += int((await client.delete(batch_key)) or 0)
+                except Exception:
+                    deleted_count += int((await client.delete(batch_key)) or 0)
+
+        return deleted_count
+
+    async def cache_user_data(
+        self, firebase_uid: str, user_data: Dict[str, Any], ttl: int = 900
+    ) -> None:
+        """Backward-compatible user cache write helper."""
+        from .firebase_cache import FirebaseRedisCache
+
+        cache = FirebaseRedisCache(self.get_sync_client())
+        await cache.cache_user_data(firebase_uid, user_data, ttl=ttl)
+
+    async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        """Backward-compatible session lookup helper."""
+        from .session_cache import SessionCache
+
+        session_cache = SessionCache(
+            self.get_sync_client(),
+            session_ttl=getattr(settings, "FIREBASE_SESSION_TTL", 86400),
+            max_session_age=getattr(settings, "SESSION_MAX_AGE_SECONDS", 604800),
+        )
+        return await session_cache.get_session(session_id)
+
+    async def create_session(
+        self,
+        session_id: str,
+        user_id: str,
+        firebase_uid: str,
+        ttl: int = 86400,
+    ) -> bool:
+        """Backward-compatible session creation helper."""
+        from .session_cache import SessionCache
+
+        session_cache = SessionCache(
+            self.get_sync_client(),
+            session_ttl=getattr(settings, "FIREBASE_SESSION_TTL", 86400),
+            max_session_age=getattr(settings, "SESSION_MAX_AGE_SECONDS", 604800),
+        )
+        return await session_cache.create_session(
+            session_id=session_id,
+            user_id=user_id,
+            firebase_uid=firebase_uid,
+            ttl=ttl,
+        )
+
+    async def update_session_activity(
+        self, session_id: str, extend_ttl: bool = True, custom_ttl: Optional[int] = None
+    ) -> bool:
+        """Backward-compatible session activity update helper."""
+        from .session_cache import SessionCache
+
+        session_cache = SessionCache(
+            self.get_sync_client(),
+            session_ttl=getattr(settings, "FIREBASE_SESSION_TTL", 86400),
+            max_session_age=getattr(settings, "SESSION_MAX_AGE_SECONDS", 604800),
+        )
+        return await session_cache.update_session_activity(
+            session_id=session_id, extend_ttl=extend_ttl, custom_ttl=custom_ttl
+        )

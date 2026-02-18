@@ -2,6 +2,19 @@
 FlowEngine - AI-powered flow execution engine.
 Pure execution engine inheriting shared functionality from FlowCore.
 Focuses only on AI/ML operations: message generation, response processing, and conversation memory.
+
+Architecture note (QW-021 consolidation):
+    This file provides *unique* AI/ML functionality that does NOT exist in
+    ``app.services.flow``.  It inherits from FlowCore and adds:
+    - Gemini AI client integration for message personalization
+    - LangGraph humanization / sentiment graphs
+    - Conversation memory and anti-repetition
+    - Patient response processing with engagement scoring
+
+    NOT a duplicate of ``app.services.flow.core.engine.FlowEngine`` which is the
+    QW-021 step-execution engine (stateless executor + scheduler + state machine).
+
+    Canonical FlowType enum: ``app.services.flow.types.FlowType``
 """
 
 import logging
@@ -10,17 +23,23 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from app.services.flow_core import FlowCore
-from app.services.flow.types import FlowType
-from app.services.template_loader import MessageTemplate, EnhancedTemplateLoader
+from app.services.flow.context_parsing import parse_optional_int, parse_optional_str
+from app.services.flow.flags import message_expects_response
+from app.services.flow.types import FlowType, normalize_flow_type
+from app.services.template_loader_pkg import MessageTemplate, EnhancedTemplateLoader
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.message import Message, MessageDirection
-from app.integrations.gemini_client import GeminiClient, get_gemini_client
+from app.ai.client import GeminiClient, get_gemini_client
+from app.ai.langgraph.graphs import get_humanization_graph, get_sentiment_graph
 from app.services.conversation_memory import ConversationMemory, get_conversation_memory
 from app.services.platform_synchronization import PlatformSynchronizationService
-from app.services.unified_cache import UnifiedCacheService
+from app.infrastructure.cache import UnifiedCacheManager as UnifiedCacheService
 from app.exceptions import NotFoundError
+from app.config import settings
 from app.utils.db_retry import with_db_retry
+from app.utils.text import clip_text
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +54,7 @@ class FlowContext:
         current_day: int,
         flow_type: str = None,  # New parameter for flow type
         conversation_history: List[str] = None,
+        recent_interactions: List[Dict[str, Any]] = None,
         communication_preferences: dict[str, Any] = None,
         medical_context: dict[str, Any] = None,
     ):
@@ -43,21 +63,38 @@ class FlowContext:
         self.current_day = current_day
         self.flow_type = flow_type or "unknown"  # Store flow type
         self.conversation_history = conversation_history or []
+        self.recent_interactions = recent_interactions or []
         self.communication_preferences = communication_preferences or {}
         self.medical_context = medical_context or {}
-        self.timestamp = datetime.now(timezone.utc)
+        self.timestamp = now_sao_paulo()
 
     def to_dict(self) -> dict[str, Any]:
         """Convert context to dictionary."""
+        state_data = {}
+        if self.flow_state:
+            try:
+                state_data = self.flow_state.state_data or {}
+            except Exception:
+                state_data = {}
+        flow_kind = state_data.get("flow_kind") or self.flow_type
+        send_mode = state_data.get("send_mode") or state_data.get("daily_send_mode")
+        message_index = state_data.get("current_day_message_index")
+        awaiting_response = state_data.get("awaiting_response")
+
         return {
             "patient_id": str(self.patient.id),
             "patient_name": self.patient.name,
             "flow_type": self.flow_type,  # Use stored flow type
+            "flow_kind": flow_kind,
             "current_day": self.current_day,
             "treatment_day": self._calculate_treatment_day(),
             "conversation_history": self.conversation_history,
+            "recent_interactions": self.recent_interactions,
             "communication_preferences": self.communication_preferences,
             "medical_context": self.medical_context,
+            "send_mode": send_mode or "single",
+            "current_day_message_index": message_index,
+            "awaiting_response": awaiting_response,
             "timestamp": self.timestamp.isoformat(),
         }
 
@@ -68,7 +105,7 @@ class FlowContext:
             and self.patient.treatment_start_date
         ):
             delta = (
-                datetime.now(timezone.utc).date() - self.patient.treatment_start_date
+                now_sao_paulo().date() - self.patient.treatment_start_date
             )
             return delta.days + 1
         return 1
@@ -114,18 +151,11 @@ class EnhancedFlowEngine(FlowCore):
         # Initialize AI/ML specific services
         self.gemini_client = gemini_client or get_gemini_client()
         self.conversation_memory = conversation_memory or get_conversation_memory()
+        self._reminder_handler = None
 
         logger.info("Enhanced FlowEngine initialized with AI integration")
 
-        # Intents related to quiz invitation/warmup to enforce light variation
-        self.QUIZ_INVITE_INTENTS: set[str] = {
-            "quiz_preparation_gentle",
-            "quiz_warmup_final",
-            "monthly_quiz_trigger",
-            "quiz_invitation",
-            "quiz_intro",
-            "quiz_reminder",
-        }
+        # No extra AI passes; rewrite happens once per message.
 
     def _get_flow_type_from_state(self, flow_state: PatientFlowState) -> str:
         """
@@ -160,6 +190,39 @@ class EnhancedFlowEngine(FlowCore):
             return "unknown"
 
         return flow_kind.flow_type
+
+    def _get_reminder_handler(self):
+        if self._reminder_handler is None:
+            from app.services.reminders import ReminderHandler
+
+            self._reminder_handler = ReminderHandler(self.db, self.gemini_client)
+        return self._reminder_handler
+
+    def _normalize_response_context(
+        self, response_context: Optional[Dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Normalize inbound response context for downstream correlation."""
+        context = dict(response_context or {})
+        prompt_message_id = parse_optional_str(context.get("prompt_message_id"))
+        response_message_id = parse_optional_str(context.get("response_message_id"))
+        normalized_context = {
+            "prompt_message_id": prompt_message_id,
+            "response_message_id": response_message_id,
+            "flow_day": parse_optional_int(
+                context.get("flow_day", context.get("current_flow_day"))
+            ),
+            "flow_kind": parse_optional_str(context.get("flow_kind")),
+            "message_index": parse_optional_int(
+                context.get(
+                    "message_index",
+                    context.get("current_message_index", context.get("current_day_message_index")),
+                )
+            ),
+            "awaiting_response": context.get("awaiting_response"),
+        }
+        for key, value in context.items():
+            normalized_context.setdefault(key, value)
+        return {key: value for key, value in normalized_context.items() if value is not None}
 
     # =============================================================================
     # AI MESSAGE GENERATION (FlowEngine specific - only AI/ML operations)
@@ -234,6 +297,7 @@ class EnhancedFlowEngine(FlowCore):
         patient_id: UUID,
         day: Optional[int] = None,
         message_template: Optional[MessageTemplate] = None,
+        strict: bool = False,
     ) -> str:
         """
         Generate personalized flow message using AI and database templates.
@@ -265,20 +329,20 @@ class EnhancedFlowEngine(FlowCore):
 
             # Load message template from database if not provided
             if message_template is None:
-                try:
-                    flow_type = FlowType(flow_type_str)
-                except ValueError:
-                    # If flow_type_str doesn't match enum, use a default
-                    flow_type = FlowType.INITIAL_15_DAYS
+                flow_type = normalize_flow_type(flow_type_str)
+                if flow_type == FlowType.CUSTOM:
+                    flow_type = FlowType.ONBOARDING
                 message_template = await self.get_message_template_for_day(
                     flow_type, day
                 )
                 if not message_template:
-                    # Fallback to simple message
-                    return f"Olá {patient.name}, como você está hoje? (Dia {day})"
+                    raise NotFoundError(
+                        f"Message template not found for flow {flow_type_str} day {day}"
+                    )
 
             # Build flow context
             conversation_history = await self._get_conversation_history(patient_id)
+            recent_interactions = await self._get_recent_interactions(patient_id)
             communication_preferences = (
                 await self.conversation_memory.get_communication_preferences(patient_id)
             )
@@ -289,6 +353,7 @@ class EnhancedFlowEngine(FlowCore):
                 current_day=day,
                 flow_type=flow_type_str,  # Pass the resolved flow type
                 conversation_history=conversation_history,
+                recent_interactions=recent_interactions,
                 communication_preferences=communication_preferences,
                 medical_context={
                     "treatment_type": getattr(
@@ -297,69 +362,69 @@ class EnhancedFlowEngine(FlowCore):
                 },
             )
 
-            # Check for repetition before generating
-            repetition_check = await self.conversation_memory.check_message_repetition(
-                patient_id, message_template.base_content
+            ai_humanization_enabled = bool(
+                getattr(settings, "AI_ENABLE_HUMANIZATION", True)
             )
 
-            # Get few-shot examples based on intent
-            intent = getattr(message_template, "intent", "check_in")
-            few_shot_examples = self._get_few_shot_examples(intent)
+            if not ai_humanization_enabled:
+                personalized_message = message_template.base_content
+            else:
+                # Check for repetition before generating
+                repetition_check = await self.conversation_memory.check_message_repetition(
+                    patient_id, message_template.base_content
+                )
 
-            # Generate personalized message
-            if repetition_check["recommendation"] in ["regenerate", "modify"]:
-                # Use AI to create variation
-                if (
-                    hasattr(message_template, "variations")
-                    and message_template.variations
-                ):
-                    # Use one of the pre-defined variations
-                    import random
+                # Get few-shot examples based on intent
+                intent = getattr(message_template, "intent", "check_in")
+                few_shot_examples = self._get_few_shot_examples(intent)
 
-                    base_content = random.choice(message_template.variations)
-                else:
-                    base_content = message_template.base_content
+                # Generate personalized message
+                if repetition_check["recommendation"] in ["regenerate", "modify"]:
+                    # Use AI to create variation
+                    if (
+                        hasattr(message_template, "variations")
+                        and message_template.variations
+                    ):
+                        # Use one of the pre-defined variations
+                        import random
 
-                personalized_message = (
-                    await self.gemini_client.generate_varied_question(
+                        base_content = random.choice(message_template.variations)
+                    else:
+                        base_content = message_template.base_content
+
+                    personalized_message = await self.gemini_client.generate_varied_question(
                         base_content,
                         conversation_history[-5:],  # Last 5 messages
                         flow_context.to_dict(),
                         few_shot_examples=few_shot_examples,
+                        ai_instructions=getattr(message_template, "ai_instructions", None),
+                        strict=strict,
                     )
-                )
-            else:
-                # Use AI to humanize the template
-                personalized_message = await self.gemini_client.humanize_flow_message(
-                    template=message_template.base_content,
-                    patient_name=patient.name,
-                    patient_context=flow_context.to_dict(),
-                    conversation_history=conversation_history,
-                    personalization_hints=getattr(
-                        message_template, "personalization_hints", []
-                    ),
-                    few_shot_examples=few_shot_examples,
-                )
-
-            # Enforce small variation for quiz invitations to reduce repetition
-            if intent in self.QUIZ_INVITE_INTENTS:
-                try:
-                    tone_hint = self._tone_for_time_of_day()
-                    varied = await self.gemini_client.generate_varied_question(
-                        personalized_message or message_template.base_content,
-                        conversation_history[-5:],
-                        {
-                            **flow_context.to_dict(),
-                            "tone_hint": tone_hint,
-                            "variation_target": "quiz_invite",
+                else:
+                    # Use LangGraph Humanization Graph
+                    graph = get_humanization_graph()
+                    initial_state = {
+                        "template": message_template.base_content,
+                        "context": {**flow_context.to_dict(), "patient_name": patient.name},
+                        "history": conversation_history,
+                        "hints": getattr(message_template, "personalization_hints", []),
+                        "metadata": {
+                            "ai_instructions": getattr(message_template, "ai_instructions", None)
                         },
-                        few_shot_examples=few_shot_examples,
+                    }
+                    result = await graph.ainvoke(
+                        initial_state,
+                        config={
+                            "configurable": {
+                                "thread_id": f"flow_humanize:{patient_id}"
+                            }
+                        },
                     )
-                    if varied:
-                        personalized_message = varied
-                except Exception as e:
-                    # Keep original personalized_message on any AI variation failure
-                    logger.warning(f"AI message variation failed: {e}", exc_info=True)
+                    personalized_message = result.get("output", "")
+                    if not personalized_message:
+                        raise ValueError("Humanization graph returned empty output")
+
+            # Single AI pass only: do not apply extra variation after the rewrite.
 
             # Store message pattern for future anti-repetition
             await self.conversation_memory.store_message_pattern(
@@ -373,16 +438,14 @@ class EnhancedFlowEngine(FlowCore):
 
         except Exception as e:
             logger.error(f"Failed to generate flow message: {e}")
-            # Fallback to basic template personalization
-            if message_template and hasattr(message_template, "base_content"):
-                return message_template.base_content.replace(
-                    "[nome]", patient.name if patient else ""
-                )
-            return f"Olá {patient.name if patient else ''}, como você está hoje?"
+            raise
 
     @with_db_retry(max_retries=3)
     async def process_patient_response(
-        self, patient_id: UUID, response_text: str
+        self,
+        patient_id: UUID,
+        response_text: str,
+        response_context: Optional[Dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """
         Process patient response with AI analysis.
@@ -406,16 +469,70 @@ class EnhancedFlowEngine(FlowCore):
                     f"No active flow for patient {patient_id}, processing response anyway"
                 )
 
+            context = self._normalize_response_context(response_context)
+            flow_day = context.get("flow_day")
+            flow_day = parse_optional_int(flow_day)
+
+            message_index = context.get("message_index")
+            message_index = parse_optional_int(message_index)
+            flow_kind = context.get("flow_kind")
+            if flow_state:
+                state_data_snapshot = flow_state.state_data or {}
+                if flow_day is None:
+                    flow_day = state_data_snapshot.get("current_flow_day")
+                if message_index is None:
+                    message_index = state_data_snapshot.get("current_day_message_index")
+                if flow_kind is None:
+                    flow_kind = state_data_snapshot.get("flow_kind")
+            if flow_day is not None:
+                context["flow_day"] = flow_day
+            if message_index is not None:
+                context["message_index"] = message_index
+            if flow_kind is not None:
+                context["flow_kind"] = flow_kind
+
             # Analyze response sentiment
             patient_context = {
                 "name": patient.name,
                 "treatment_type": getattr(patient, "treatment_type", "hormone_therapy"),
-                "current_day": await self.calculate_patient_day(patient_id),
+                "current_day": flow_day or await self.calculate_patient_day(patient_id),
             }
 
-            sentiment_analysis = await self.gemini_client.analyze_response_sentiment(
-                response_text, patient_context
+            sentiment_analysis: Dict[str, Any] | None = None
+            sentiment_analyzer = getattr(
+                self.gemini_client, "analyze_response_sentiment", None
             )
+            if callable(sentiment_analyzer):
+                try:
+                    sentiment_analysis = await sentiment_analyzer(
+                        response_text, patient_context
+                    )
+                except TypeError:
+                    # Backward compatibility for alternate adapter signatures.
+                    sentiment_analysis = await sentiment_analyzer(response_text)
+                except Exception:
+                    logger.warning(
+                        "Gemini sentiment analysis failed; falling back to LangGraph node",
+                        exc_info=True,
+                    )
+
+            if not isinstance(sentiment_analysis, dict):
+                graph = get_sentiment_graph()
+                initial_state = {
+                    "input_text": response_text,
+                    "context": patient_context,
+                }
+                result = await graph.ainvoke(
+                    initial_state,
+                    config={
+                        "configurable": {
+                            "thread_id": f"flow_sentiment:{patient_id}"
+                        }
+                    },
+                )
+                sentiment_analysis = result.get(
+                    "output", {"sentiment": "neutral", "confidence": 0.5}
+                )
 
             # Calculate engagement score and update memory
             engagement_score = self._calculate_engagement_score(
@@ -443,37 +560,125 @@ class EnhancedFlowEngine(FlowCore):
                 )
 
             # Update flow state with response data
+            commit_needed = False
+            state_data = {}
             if flow_state:
-                flow_state.state_data = flow_state.state_data or {}
-                flow_state.state_data.setdefault("responses", {})
-                flow_state.state_data.setdefault("step_timestamps", {})
-                flow_state.state_data.setdefault("flags", {})
+                state_data = dict(flow_state.state_data or {})
+                state_data.setdefault("responses", {})
+                state_data.setdefault("step_timestamps", {})
+                state_data.setdefault("flags", {})
 
-                current_step = flow_state.current_step or flow_state.state_data.get(
-                    "current_step"
-                )
+                current_step = flow_state.current_step
+                if current_step is None or current_step == 0:
+                    current_step = state_data.get("current_step") or flow_day
                 if current_step:
-                    flow_state.state_data["responses"][
+                    state_data["responses"][
                         f"step_{current_step}"
                     ] = response_text
-                    flow_state.state_data["step_timestamps"][
+                    state_data["step_timestamps"][
                         f"step_{current_step}"
-                    ] = datetime.now(timezone.utc).isoformat()
+                    ] = now_sao_paulo().isoformat()
 
-                flow_state.state_data["flags"]["needs_attention"] = sentiment_analysis.get(
+                response_key = None
+                if flow_day is not None:
+                    response_key = (
+                        f"day_{flow_day}_msg_{message_index}"
+                        if message_index is not None
+                        else f"day_{flow_day}"
+                    )
+                else:
+                    response_key = f"msg_{message_index}" if message_index is not None else "latest"
+
+                state_data.setdefault("responses_by_message", {})
+                state_data["responses_by_message"][response_key] = {
+                    "prompt_message_id": context.get("prompt_message_id"),
+                    "response_message_id": context.get("response_message_id"),
+                    "timestamp": now_sao_paulo().isoformat(),
+                    "flow_day": flow_day,
+                    "flow_kind": flow_kind,
+                    "message_index": message_index,
+                    "response_text": response_text,
+                    "sentiment": sentiment_analysis,
+                }
+
+                state_data["flags"]["needs_attention"] = sentiment_analysis.get(
                     "requires_attention", False
                 )
-                flow_state.state_data["flags"]["high_risk"] = sentiment_analysis.get(
-                    "medical_concerns", False
+                state_data["flags"]["high_risk"] = bool(
+                    sentiment_analysis.get("medical_concerns", [])
                 )
 
-                flow_state.state_data["last_response"] = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                state_data["last_response"] = {
+                    "prompt_message_id": context.get("prompt_message_id"),
+                    "response_message_id": context.get("response_message_id"),
+                    "timestamp": now_sao_paulo().isoformat(),
                     "sentiment": sentiment_analysis,
                     "text_length": len(response_text),
                     "engagement_score": engagement_score,
                 }
-                flow_state.last_interaction_at = datetime.now(timezone.utc)
+                flow_state.state_data = state_data
+                flow_state.last_interaction_at = now_sao_paulo()
+                commit_needed = True
+
+            reminder_result = None
+            try:
+                reminder_result = await self._get_reminder_handler().handle_response(
+                    patient=patient,
+                    response_text=response_text,
+                    flow_state=flow_state,
+                    state_data=state_data if flow_state else {},
+                    response_context=context,
+                )
+            except Exception as exc:
+                logger.warning("Reminder handling failed: %s", exc)
+
+            if reminder_result and reminder_result.follow_up_message:
+                deferred = False
+                if flow_state and reminder_result.action == "pending":
+                    current_step_data = flow_state.step_data or {}
+                    if not current_step_data.get("day_complete"):
+                        current_step_data = dict(current_step_data)
+                        current_step_data.setdefault("deferred_followups", [])
+                        dedupe_key = (
+                            "reminder",
+                            reminder_result.reminder_id,
+                            reminder_result.follow_up_message,
+                        )
+                        exists = False
+                        for existing in current_step_data["deferred_followups"]:
+                            existing_key = (
+                                (existing or {}).get("type"),
+                                (existing or {}).get("reminder_id"),
+                                (existing or {}).get("message"),
+                            )
+                            if existing_key == dedupe_key:
+                                exists = True
+                                break
+                        if not exists:
+                            current_step_data["deferred_followups"].append(
+                            {
+                                "type": "reminder",
+                                "message": reminder_result.follow_up_message,
+                                "reminder_id": reminder_result.reminder_id,
+                                "flow_day": flow_day,
+                                "flow_kind": flow_kind,
+                                "created_at": now_sao_paulo().isoformat(),
+                            }
+                            )
+                        flow_state.step_data = current_step_data
+                        commit_needed = True
+                        deferred = True
+
+                if not deferred and not follow_up_message:
+                    follow_up_message = reminder_result.follow_up_message
+
+            if reminder_result and flow_state:
+                # Re-assign to ensure MutableDict tracks reminder mutations
+                flow_state.state_data = state_data
+            if reminder_result and reminder_result.commit_needed:
+                commit_needed = True
+
+            if commit_needed:
                 self.db.commit()
 
             return {
@@ -485,7 +690,7 @@ class EnhancedFlowEngine(FlowCore):
                 "requires_attention": sentiment_analysis.get(
                     "requires_attention", False
                 ),
-                "medical_concerns": sentiment_analysis.get("medical_concerns", False),
+                "medical_concerns": sentiment_analysis.get("medical_concerns", []),
             }
 
         except Exception as e:
@@ -608,9 +813,94 @@ class EnhancedFlowEngine(FlowCore):
             logger.error(f"Failed to get conversation history for {patient_id}: {e}")
             return []
 
+    @with_db_retry(max_retries=3)
+    async def _get_recent_interactions(
+        self,
+        patient_id: UUID,
+        *,
+        interaction_limit: int = 2,
+        scan_limit: int = 40,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get the most recent question/answer interactions for the patient.
+
+        Interactions are derived from outbound flow messages that expect a response
+        and the subsequent inbound reply(ies). Returns the last N completed pairs.
+        """
+        try:
+            messages = (
+                self.db.query(Message)
+                .filter(
+                    Message.patient_id == patient_id,
+                    Message.content.isnot(None),
+                    Message.content != "",
+                )
+                .order_by(Message.created_at.desc())
+                .limit(scan_limit)
+                .all()
+            )
+            if not messages:
+                return []
+
+            def _build_interaction(
+                question_msg: Message, response_msgs: List[Message]
+            ) -> Dict[str, Any]:
+                metadata = question_msg.message_metadata or {}
+                answered_at = response_msgs[-1].created_at if response_msgs else None
+                response_texts = [
+                    msg.content for msg in response_msgs if msg.content
+                ]
+                response_text = "\n".join(response_texts).strip()
+                return {
+                    "question": clip_text(question_msg.content or "", max_len=360, ellipsis="…"),
+                    "answer": clip_text(response_text, max_len=360, ellipsis="…"),
+                    "flow_kind": metadata.get("flow_kind"),
+                    "flow_day": metadata.get("flow_day"),
+                    "message_index": metadata.get("message_index"),
+                    "asked_at": (
+                        question_msg.sent_at or question_msg.created_at
+                    ).isoformat()
+                    if (question_msg.sent_at or question_msg.created_at)
+                    else None,
+                    "answered_at": answered_at.isoformat() if answered_at else None,
+                }
+
+            interactions: List[Dict[str, Any]] = []
+            current_question: Optional[Message] = None
+            current_responses: List[Message] = []
+
+            for msg in reversed(messages):
+                if msg.direction == MessageDirection.OUTBOUND and message_expects_response(msg):
+                    if current_question and current_responses:
+                        interactions.append(
+                            _build_interaction(current_question, current_responses)
+                        )
+                    current_question = msg
+                    current_responses = []
+                    continue
+
+                if msg.direction == MessageDirection.INBOUND and current_question:
+                    current_responses.append(msg)
+
+            if current_question and current_responses:
+                interactions.append(
+                    _build_interaction(current_question, current_responses)
+                )
+
+            if not interactions:
+                return []
+
+            return interactions[-interaction_limit:]
+
+        except Exception as e:  # pylint: disable=broad-except
+            logger.error(
+                "Failed to get recent interactions for %s: %s", patient_id, e
+            )
+            return []
+
     def _tone_for_time_of_day(self) -> str:
         """Derive a gentle tone based on time of day to help variation."""
-        hour = datetime.now(timezone.utc).hour
+        hour = now_sao_paulo().hour
         if hour < 12:
             return "cheerful"
         if hour < 18:

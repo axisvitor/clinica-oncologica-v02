@@ -23,6 +23,7 @@ os.environ["PASSLIB_BUILTIN_BCRYPT"] = "enabled"
 import html
 import urllib.parse
 from fastapi import Request, HTTPException, status
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 
 # Regex patterns for input validation
 TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")  # JWT-like tokens
@@ -105,8 +106,8 @@ def create_pwd_context() -> CryptContext:
         try:
             from passlib.hash import bcrypt as passlib_bcrypt
 
-            preferred_backend = "bcrypt" if _is_test_environment() else "builtin"
-            fallback_backend = "builtin" if preferred_backend == "bcrypt" else "bcrypt"
+            preferred_backend = "builtin"
+            fallback_backend = "bcrypt"
             passlib_bcrypt.set_backend(preferred_backend)
             logger.info("Using %s bcrypt backend", preferred_backend)
         except (ValueError, RuntimeError, ImportError):
@@ -297,7 +298,7 @@ def create_access_token(
     """Create JWT access token using app settings."""
     settings = _get_settings()
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
+    expire = now_sao_paulo() + (
         expires_delta
         or timedelta(
             minutes=getattr(settings, "AUTH_ACCESS_TOKEN_EXPIRE_MINUTES", 30)
@@ -319,7 +320,7 @@ def create_refresh_token(data: dict[str, Any]) -> str:
     """Create JWT refresh token with REFRESH_TOKEN_EXPIRE_DAYS."""
     settings = _get_settings()
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(
+    expire = now_sao_paulo() + timedelta(
         days=getattr(settings, "AUTH_REFRESH_TOKEN_EXPIRE_DAYS", 7)
     )
     to_encode.update({"exp": int(expire.timestamp()), "type": "refresh"})
@@ -350,7 +351,7 @@ def verify_token(token: str, token_type: str = "access") -> Optional[Any]:
         if payload.get("type") != token_type:
             return None
         exp = payload.get("exp")
-        if exp is None or datetime.fromtimestamp(exp, tz=timezone.utc) < datetime.now(timezone.utc):
+        if exp is None or datetime.fromtimestamp(exp, tz=SAO_PAULO_TZ) < now_sao_paulo():
             return None
         from app.schemas.auth import TokenData
 

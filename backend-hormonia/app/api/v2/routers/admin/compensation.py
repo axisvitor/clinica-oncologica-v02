@@ -15,7 +15,7 @@ from sqlalchemy import cast, String
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from app.core.redis_client import get_redis_client
+from app.core.redis_manager import get_sync_redis_client as get_redis_client
 from app.database import get_db
 from app.utils.request_context import get_request_context, RequestContext
 from app.models.enums import SagaStatus
@@ -28,6 +28,7 @@ from app.repositories.patient import PatientRepository
 
 from .dependencies import get_admin_user
 from .utils import _log_admin_action
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -228,7 +229,7 @@ async def cleanup_compensation(
 
     # Manual cleanup: soft delete patient and mark saga for auditability.
     if patient:
-        patient.deleted_at = datetime.now(timezone.utc)
+        patient.deleted_at = now_sao_paulo()
         _clear_quarantine(patient)
 
     saga.status = SagaStatus.CLEANED_UP

@@ -12,30 +12,31 @@ from app.dependencies.service_dependencies import (
     get_patient_service,
     get_patient_repository,
 )
+from app.exceptions import (
+    NotFoundError as DomainNotFoundError,
+    patient_not_found_exception,
+)
+from app.core.exceptions import NotFoundError as CoreNotFoundError
 if TYPE_CHECKING:
-    from app.services import ServiceProvider
+    from app.service_provider import ServiceProvider
 from app.utils.auth_helpers import extract_user_context, ensure_uuid
-from typing import Generator
+from app.dependencies.thread_safe_provider import ThreadSafeProviderDependency
 
 
-# CRITICAL: Lazy import to avoid circular dependency
-class _ThreadSafeProviderDependency:
-    """Callable class for lazy importing to prevent circular import"""
+def _load_thread_safe_provider():
+    from app.dependencies import get_thread_safe_service_provider
 
-    def __call__(self) -> Generator:
-        from app.dependencies import get_thread_safe_service_provider
-
-        yield from get_thread_safe_service_provider()
+    return get_thread_safe_service_provider()
 
 
-_get_provider_dep = _ThreadSafeProviderDependency()
+_get_provider_dep = ThreadSafeProviderDependency(_load_thread_safe_provider)
 
 # =============================================================================
 # PAGINATION DEPENDENCIES
 # =============================================================================
 
 
-def get_pagination_params(
+async def get_pagination_params(
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=200, description="Maximum items to return"),
 ) -> PaginationParams:
@@ -61,17 +62,33 @@ async def validate_patient_access(
     try:
         patient = patient_service.get_patient(patient_id)
         if not patient:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
-            )
+            raise patient_not_found_exception(str(patient_id))
     except HTTPException:
         raise
+    except (DomainNotFoundError, CoreNotFoundError):
+        raise patient_not_found_exception(str(patient_id))
     except Exception as e:
         logger.error(f"Error retrieving patient {patient_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving patient information",
-        )
+        # Fallback path for transient service-layer failures (e.g., circuit breaker
+        # temporarily open) while repository access is still available.
+        try:
+            db_session = getattr(patient_service, "db", None)
+            patient = None
+            if db_session is not None:
+                patient = (
+                    db_session.query(Patient)
+                    .filter(Patient.id == patient_id)
+                    .first()
+                )
+            if not patient:
+                raise patient_not_found_exception(str(patient_id))
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error retrieving patient information",
+            )
 
     # Implement role-based authorization (supports dict or User)
     role_enum, user_id = extract_user_context(current_user)

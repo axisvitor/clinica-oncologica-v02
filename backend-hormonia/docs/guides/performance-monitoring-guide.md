@@ -43,7 +43,7 @@ async def get_pool_status(db: Session = Depends(get_db)):
         "status": "healthy" if utilization < 80 else "warning" if utilization < 90 else "critical",
         "pool_metrics": pool_status,
         "recommendations": _get_pool_recommendations(pool_status),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 
 
@@ -63,7 +63,7 @@ async def get_query_stats():
         "summary": stats,
         "slowest_queries": slowest,
         "alerts": _generate_query_alerts(stats),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 
 
@@ -110,7 +110,7 @@ async def get_index_usage(db: Session = Depends(get_db)):
         "indexes": indexes,
         "unused_indexes": [idx for idx in indexes if idx['scans'] == 0],
         "recommendations": _generate_index_recommendations(indexes),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 
 
@@ -266,7 +266,7 @@ async def get_redis_latency():
             "ms": del_time
         },
         "alerts": _generate_redis_alerts(set_times, get_times),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 
 
@@ -300,7 +300,7 @@ async def get_redis_memory():
             "current": len(redis.client_list())
         },
         "recommendations": _generate_redis_memory_recommendations(info),
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 
 
@@ -392,7 +392,7 @@ class APIMetricsCollector:
 
     def __init__(self):
         self.endpoints: Dict[str, EndpointMetrics] = defaultdict(EndpointMetrics)
-        self.start_time = datetime.utcnow()
+        self.start_time = now_sao_paulo()
 
     def record_request(self, endpoint: str, duration_ms: float, status_code: int):
         """Record API request metrics."""
@@ -465,7 +465,7 @@ async def get_endpoint_metrics():
     return {
         "summary": {
             "total_endpoints": len(all_stats),
-            "uptime_seconds": (datetime.utcnow() - metrics_collector.start_time).total_seconds()
+            "uptime_seconds": (now_sao_paulo() - metrics_collector.start_time).total_seconds()
         },
         "slow_endpoints": [
             {
@@ -486,7 +486,7 @@ async def get_endpoint_metrics():
             for endpoint, stats in error_endpoints
         ],
         "all_endpoints": all_stats,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 
 

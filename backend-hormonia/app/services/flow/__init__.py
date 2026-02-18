@@ -81,27 +81,13 @@ Example Usage:
     >>> from app.services.flow import FlowManager, FlowType
     >>> from app.services.flow.config import get_flow_config
     >>>
-    >>> # Check if consolidated system is enabled
     >>> config = get_flow_config()
-    >>> if config.is_consolidated_enabled():
-    ...     # Use new consolidated system
-    ...     manager = FlowManager(db)
-    ...     flow_id = await manager.start_flow(
-    ...         patient_id=patient_id,
-    ...         flow_type=FlowType.DAILY_CHECKIN
-    ...     )
-    ...     await manager.advance_flow(flow_id)
-    ... else:
-    ...     # Use legacy system (fallback)
-    ...     from app.services.flow_engine import FlowEngine
-    ...     engine = FlowEngine(db)
-
-Migration Strategy:
-    1. Feature flag: USE_CONSOLIDATED_FLOWS (default: True)
-    2. Gradual rollout: 0% → 10% → 50% → 100%
-    3. Backward compatibility via adapter pattern
-    4. Legacy deprecation warnings
-    5. Cleanup after 2-4 weeks of stable operation
+    >>> manager = FlowManager(db)
+    >>> flow_id = await manager.start_flow(
+    ...     patient_id=patient_id,
+    ...     flow_type=FlowType.DAILY_FOLLOW_UP
+    ... )
+    >>> await manager.advance_flow(flow_id)
 
 Version History:
     - v1.0: Legacy system (30 files, 15,000 LOC)
@@ -180,7 +166,7 @@ from .integrations import (
 
 
 # ============================================================================
-# Factory Functions (for gradual migration)
+# Factory Functions
 # ============================================================================
 
 
@@ -188,30 +174,20 @@ def get_flow_manager(db, **kwargs):
     """
     Get flow manager instance.
 
-    Factory function that respects feature flags and provides
-    backward compatibility during migration.
+    Factory function that returns the canonical FlowManager.
 
     Args:
         db: Database session
         **kwargs: Additional configuration
 
     Returns:
-        FlowManager instance (new)
+        FlowManager instance
 
     Example:
         >>> manager = get_flow_manager(db)
-        >>> flow_id = await manager.start_flow(patient_id, FlowType.DAILY_CHECKIN)
+        >>> flow_id = await manager.start_flow(patient_id, FlowType.DAILY_FOLLOW_UP)
     """
-    # Always return FlowManager as adapter is missing
     return FlowManager(db, **kwargs)
-
-
-# ============================================================================
-# Backward Compatibility Aliases
-# ============================================================================
-
-# Alias for legacy FlowEngineIntegrationService imports
-# FlowEngineIntegrationService = FlowManagerAdapter  # Removed as adapter is missing
 
 # ============================================================================
 # Public Exports
@@ -223,10 +199,7 @@ __all__ = [
     "FlowEngine",
     "FlowValidator",
     "FlowErrorHandler",
-    # "FlowManagerAdapter",  # Removed
     "get_flow_manager",
-    # Legacy Compatibility
-    # "FlowEngineIntegrationService",  # Removed
     # Analytics
     "FlowAnalytics",
     "FlowMetricsCollector",

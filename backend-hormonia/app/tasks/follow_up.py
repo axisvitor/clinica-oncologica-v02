@@ -10,7 +10,8 @@ Quick Win #5 - Sprint 1
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+import inspect
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple
 from uuid import UUID
 
@@ -24,6 +25,7 @@ from app.monitoring.metrics import (
     follow_up_pending_actions,
 )
 from app.task_queue import task_queue as celery_app
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -77,7 +79,7 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
             follow_up_service = FollowUpSystemService(db)
 
             # Get pending actions that are due
-            now = datetime.now(timezone.utc)
+            now = now_sao_paulo()
             executed_count = 0
             failed_count = 0
             skipped_count = 0
@@ -142,9 +144,23 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
                 )
                 status_label = "failed"
                 try:
+                    # Claim action atomically (when Redis implementation supports it)
+                    # to prevent duplicate execution by concurrent workers.
+                    claim_method = getattr(
+                        follow_up_service.redis_store, "claim_pending_action", None
+                    )
+                    if claim_method and inspect.iscoroutinefunction(claim_method):
+                        claimed = async_to_sync(claim_method)(
+                            action_id=action_id, in_progress_at=now_sao_paulo()
+                        )
+                        if not claimed:
+                            skipped_count += 1
+                            status_label = "skipped"
+                            continue
+
                     # Execute the action based on its type
                     result = _execute_follow_up_action(db, follow_up_service, action)
-                    executed_at = datetime.now(timezone.utc)
+                    executed_at = now_sao_paulo()
 
                     if result.get("success"):
                         action.status = "completed"
@@ -217,8 +233,26 @@ def execute_pending_follow_ups(self) -> Dict[str, Any]:
                             "follow_up_type": action_type,
                         },
                     )
+                    executed_at = now_sao_paulo()
+                    action.status = "failed"
+                    action.executed_at = executed_at
+                    action.execution_result = {"success": False, "error": str(e)}
                     failed_count += 1
                     errors.append({"action_id": str(action_id), "error": str(e)})
+                    try:
+                        async_to_sync(
+                            follow_up_service.redis_store.update_action_status
+                        )(
+                            action_id=action_id,
+                            status="failed",
+                            executed_at=executed_at,
+                            execution_result=action.execution_result,
+                        )
+                    except Exception as redis_err:
+                        logger.warning(
+                            "Failed to persist failed action status to Redis: %s",
+                            redis_err,
+                        )
                 finally:
                     duration = time.perf_counter() - action_start
                     follow_up_action_duration_seconds.labels(
@@ -330,7 +364,7 @@ def _get_last_follow_up_sent_at_db(
             try:
                 parsed = datetime.fromisoformat(last_sent_str)
                 if parsed.tzinfo is None:
-                    parsed = parsed.replace(tzinfo=timezone.utc)
+                    parsed = parsed.replace(tzinfo=SAO_PAULO_TZ)
                 if parsed >= since:
                     return parsed
             except ValueError:
@@ -405,6 +439,9 @@ def _acquire_follow_up_lock(follow_up_service, patient_id: UUID) -> bool:
 def _release_follow_up_lock(follow_up_service, patient_id: UUID) -> None:
     from asgiref.sync import async_to_sync
 
+    if not follow_up_service.redis_store.is_redis_available():
+        return
+
     try:
         async_to_sync(
             follow_up_service.redis_store.release_follow_up_lock
@@ -460,7 +497,16 @@ def _reserve_follow_up_message_slot(
         return True, "disabled"
 
     if not _acquire_follow_up_lock(follow_up_service, patient_id):
-        return False, "lock"
+        if follow_up_service.redis_store.is_redis_available():
+            return False, "lock"
+        # Redis unavailable: fallback to DB-based deduplication instead of dropping follow-up.
+        since = now - timedelta(seconds=FOLLOW_UP_DEDUP_WINDOW_SECONDS)
+        last_sent_db = _get_last_follow_up_sent_at_db(db, patient_id, since)
+        if last_sent_db:
+            window_seconds = (now - last_sent_db).total_seconds()
+            if window_seconds < FOLLOW_UP_DEDUP_WINDOW_SECONDS:
+                return False, "db_fallback"
+        return True, "db_fallback_allowed"
 
     last_sent = _get_last_follow_up_sent_at(follow_up_service, patient_id)
     if last_sent:
@@ -499,7 +545,7 @@ def _schedule_follow_up_message(
     if not content:
         return {"success": False, "error": "No message content provided"}
 
-    now = datetime.now(timezone.utc)
+    now = now_sao_paulo()
 
     eligible, eligibility_reason = _is_follow_up_eligible(
         follow_up_service, patient_id
@@ -635,7 +681,6 @@ def _send_escalation_notification(
         # Queue alert notification task
         alert_data = {
             "patient_id": str(patient_id),
-            "patient_name": patient.name,
             "doctor_id": str(patient.doctor_id) if patient.doctor_id else None,
             "escalation_level": params.get("escalation_level", "medium"),
             "concern_type": params.get("concern_type", "general"),
@@ -672,7 +717,6 @@ def _send_provider_alert(
 
         alert_data = {
             "patient_id": str(patient_id),
-            "patient_name": patient.name,
             "doctor_id": str(patient.doctor_id) if patient.doctor_id else None,
             "alert_type": "provider_alert",
             "priority": params.get("priority", "medium"),
@@ -733,7 +777,7 @@ def process_escalation_alerts(self) -> Dict[str, Any]:
 
             follow_up_service = FollowUpSystemService(db)
 
-            now = datetime.now(timezone.utc)
+            now = now_sao_paulo()
             processed_count = 0
             escalated_count = 0
 
@@ -807,7 +851,7 @@ def cleanup_old_contexts(self) -> Dict[str, Any]:
 
             follow_up_service = FollowUpSystemService(db)
 
-            now = datetime.now(timezone.utc)
+            now = now_sao_paulo()
             cleanup_threshold = now - timedelta(days=7)
             cleaned_count = 0
 

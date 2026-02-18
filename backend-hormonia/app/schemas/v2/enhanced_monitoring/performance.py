@@ -34,7 +34,7 @@ class APMGlobalStatsResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "total_requests": 10000,
                 "total_errors": 250,
                 "error_rate": 2.5,
@@ -105,7 +105,7 @@ class APMEndpointDetailResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "endpoint": "/api/v2/patients/123",
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "total_requests": 500,
                 "total_errors": 5,
                 "error_rate": 1.0,
@@ -116,7 +116,7 @@ class APMEndpointDetailResponse(BaseModel):
                 "p95": 200.0,
                 "p99": 450.0,
                 "recent_errors": [
-                    {"timestamp": "2025-11-07T11:55:00Z", "error": "Not Found"}
+                    {"timestamp": "2025-11-07T11:55:00-03:00", "error": "Not Found"}
                 ],
                 "status_code_distribution": {"200": 495, "404": 5},
             }
@@ -171,7 +171,7 @@ class PerformanceOverviewResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "performance_score": {
                     "score": 85.5,
                     "status": "good",

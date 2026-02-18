@@ -19,6 +19,7 @@ from uuid import uuid4
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.alerts import (
     AlertProcessor,
     Alert,
@@ -68,8 +69,8 @@ def sample_alert():
         title="Patient No Response",
         message="Patient has not responded in 48 hours",
         metadata={"days_without_response": 2},
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive(),
     )
 
 
@@ -84,8 +85,8 @@ def invalid_alert():
         status=AlertStatus.PENDING,
         title="",  # Invalid - empty title
         message="",  # Invalid - empty message
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive(),
     )
 
 
@@ -142,8 +143,8 @@ class TestAlertValidation:
             status=AlertStatus.PENDING,
             title="Test",
             message="Test message",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         # Execute
@@ -185,8 +186,8 @@ class TestAlertValidation:
             status=AlertStatus.PENDING,
             title="Test",
             message="Test message",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         # Execute
@@ -642,8 +643,8 @@ class TestBatchProcessing:
                 status=AlertStatus.PENDING,
                 title=f"Alert {i}",
                 message=f"Message {i}",
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=now_sao_paulo_naive(),
+                updated_at=now_sao_paulo_naive(),
             )
             for i in range(3)
         ]
@@ -677,8 +678,8 @@ class TestBatchProcessing:
             status=AlertStatus.PENDING,
             title="Valid Alert",
             message="Valid message",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
         alert2 = Alert(
             id=None,  # Invalid
@@ -688,8 +689,8 @@ class TestBatchProcessing:
             status=AlertStatus.PENDING,
             title="",
             message="",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         mock_repository.create.return_value = alert1

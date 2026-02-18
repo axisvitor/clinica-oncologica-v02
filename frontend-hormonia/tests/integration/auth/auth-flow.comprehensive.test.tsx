@@ -46,7 +46,9 @@ const mockWsManager = vi.hoisted(() => ({
 const mockFirebaseAuthService = vi.hoisted(() => ({
   loginUser: vi.fn(),
   logoutUser: vi.fn(),
-  logoutAllDevices: vi.fn()
+  logoutAllDevices: vi.fn(),
+  setSessionId: vi.fn(),
+  clearSessionId: vi.fn()
 }))
 
 const mockToast = vi.hoisted(() => vi.fn())
@@ -119,7 +121,7 @@ const mockUser = {
   role: 'admin',
   is_active: true,
   permissions: ['read:patients', 'write:patients'],
-  created_at: '2023-01-01T00:00:00Z'
+  created_at: '2023-01-01T00:00:00-03:00'
 }
 
 const mockFirebaseUser = {

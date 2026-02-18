@@ -4,7 +4,7 @@ Handles comprehensive reporting, trend analysis, and anomaly detection.
 """
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Any
 from collections import deque
 from statistics import mean, stdev
@@ -20,6 +20,8 @@ from app.models.alert import Alert
 from app.utils.db_retry import with_db_retry
 from app.services.query_performance_monitor import QueryPerformanceMonitor
 from app.schemas.report import AnalyticsRequest, AnalyticsResponse
+from app.domain.analytics.date_utils import build_date_window
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +64,11 @@ class ReportBuilder:
         self.query_monitor = QueryPerformanceMonitor(db)
 
         logger.info("ReportBuilder initialized")
+
+    @staticmethod
+    def _date_window(start_date: date, end_date: date) -> tuple[datetime, datetime]:
+        """Build inclusive date window [start, end+1day) in Sao Paulo timezone."""
+        return build_date_window(start_date, end_date)
 
     @with_db_retry(max_retries=3)
     def build_analytics_report(self, request: AnalyticsRequest) -> AnalyticsResponse:
@@ -150,7 +157,7 @@ class ReportBuilder:
                 date_filter = None
             else:
                 days = int(period.rstrip("d"))
-                date_filter = datetime.now(timezone.utc) - timedelta(days=days)
+                date_filter = now_sao_paulo() - timedelta(days=days)
 
             # Build base query for treatment type counts
             query = self.db.query(
@@ -178,7 +185,7 @@ class ReportBuilder:
                     "data": [],
                     "period": period,
                     "total_patients": 0,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": now_sao_paulo().isoformat(),
                 }
 
             # Build distribution list with percentages and colors
@@ -225,7 +232,7 @@ class ReportBuilder:
                 "data": distribution,
                 "period": period,
                 "total_patients": total,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
@@ -251,7 +258,7 @@ class ReportBuilder:
                 f"Detecting patterns for {'all patients' if not patient_id else f'patient {patient_id}'}"
             )
 
-            end_date = datetime.now(timezone.utc).date()
+            end_date = now_sao_paulo().date()
             start_date = end_date - timedelta(days=days_back)
 
             patterns = {
@@ -461,11 +468,12 @@ class ReportBuilder:
         self, patient_id: Optional[UUID], start_date: date, end_date: date
     ) -> Dict[str, Any]:
         """Analyze quiz completion trends."""
+        start_dt, end_dt_exclusive = self._date_window(start_date, end_date)
         query = self.db.query(QuizResponse).filter(
             and_(
-                QuizResponse.created_at >= start_date,
-                QuizResponse.created_at <= end_date,
                 QuizResponse.responded_at.isnot(None),
+                QuizResponse.responded_at >= start_dt,
+                QuizResponse.responded_at < end_dt_exclusive,
             )
         )
 

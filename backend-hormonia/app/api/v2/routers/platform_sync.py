@@ -46,6 +46,7 @@ from app.schemas.v2.platform_sync import (
     PlatformType,
 )
 from app.api.v2.dependencies import get_pagination_params
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -235,6 +236,12 @@ async def trigger_sync(
     Rate limit: 10 syncs per minute (sync operations are expensive)
     """
     try:
+        if sync_request.strategy == SyncStrategy.SELECTIVE and not sync_request.entity_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="entity_ids are required for selective sync strategy",
+            )
+
         # Generate transaction ID
         transaction_id = generate_sync_transaction_id()
 
@@ -254,7 +261,7 @@ async def trigger_sync(
                     status=SyncJobStatus.PENDING,
                     message="Duplicate sync request (idempotency)",
                     estimated_items=0,
-                    started_at=datetime.now(timezone.utc),
+                    started_at=now_sao_paulo(),
                 )
 
         # Estimate items to sync
@@ -287,9 +294,11 @@ async def trigger_sync(
             status=SyncJobStatus.PENDING,
             message="Sync job created successfully",
             estimated_items=estimated_items,
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error triggering sync: {e}", exc_info=True)
         raise HTTPException(
@@ -419,8 +428,8 @@ async def create_sync_config(
             timeout_seconds=config_data.timeout_seconds,
             custom_headers={},
             custom_settings={},
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=now_sao_paulo(),
+            updated_at=now_sao_paulo(),
             last_sync_at=None,
             last_sync_status=None,
             total_syncs=0,
@@ -677,7 +686,7 @@ async def resolve_conflict(
             if resolution_request.merged_data
             else {},
             message="Conflict resolved successfully",
-            resolved_at=datetime.now(timezone.utc),
+            resolved_at=now_sao_paulo(),
         )
 
     except Exception as e:
@@ -788,7 +797,7 @@ async def rollback_sync(
             status="pending",
             message="Rollback initiated successfully",
             estimated_items_to_revert=0,  # Mock
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
         )
 
     except Exception as e:

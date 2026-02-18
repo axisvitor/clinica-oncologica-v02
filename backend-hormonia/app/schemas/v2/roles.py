@@ -100,9 +100,9 @@ class UserRoleInfo(BaseModel):
                 "full_name": "Dr. Jane Smith",
                 "current_role": "doctor",
                 "is_active": True,
-                "created_at": "2025-01-01T00:00:00Z",
-                "updated_at": "2025-01-15T12:00:00Z",
-                "last_login": "2025-01-15T10:30:00Z",
+                "created_at": "2025-01-01T00:00:00-03:00",
+                "updated_at": "2025-01-15T12:00:00-03:00",
+                "last_login": "2025-01-15T10:30:00-03:00",
             }
         },
     )
@@ -170,7 +170,7 @@ class RoleAssignmentResponse(BaseModel):
                 "previous_role": "doctor",
                 "new_role": "admin",
                 "assigned_by": "660e8400-e29b-41d4-a716-446655440000",
-                "assigned_at": "2025-01-15T12:00:00Z",
+                "assigned_at": "2025-01-15T12:00:00-03:00",
                 "reason": "Promoted to admin",
             }
         }

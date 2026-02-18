@@ -11,7 +11,8 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from .flow_integration import QuizTriggerService, ConversationalQuizService
+from .flow_integration.response_handler import ConversationalQuizService
+from .flow_integration.trigger_service import QuizTriggerService
 from app.services.quiz import (
     QuizTemplateService,
     QuizSessionService,
@@ -20,6 +21,7 @@ from app.services.quiz import (
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +203,7 @@ class QuizFlowIntegrationService:
 
             # Update session status
             active_session.status = "cancelled"
-            active_session.completed_at = datetime.now(timezone.utc)
+            active_session.completed_at = now_sao_paulo()
             self.db.commit()
 
             logger.info(
@@ -271,47 +273,13 @@ class QuizFlowIntegrationService:
         Returns:
             Synchronization results
         """
-        try:
-            from app.services.quiz_template_loader import QuizTemplateLoader
-
-            loader = QuizTemplateLoader()
-            templates = loader.load_all_quiz_templates()
-
-            results = {}
-
-            for template_name, template_data in templates.items():
-                try:
-                    # Check if template exists
-                    existing = self.quiz_template_service.get_by_name(template_name)
-
-                    if existing:
-                        # Update existing template
-                        existing.version = template_data.get("version", "1.0.0")
-                        existing.description = template_data.get("description", "")
-                        existing.questions = template_data.get("questions", [])
-                        existing.is_active = template_data.get("is_active", True)
-                        self.db.commit()
-                        results[template_name] = "updated"
-                    else:
-                        # Create new template
-                        self.quiz_template_service.create_template(
-                            name=template_name,
-                            version=template_data.get("version", "1.0.0"),
-                            description=template_data.get("description", ""),
-                            questions=template_data.get("questions", []),
-                            is_active=template_data.get("is_active", True),
-                        )
-                        results[template_name] = "created"
-
-                except Exception as e:
-                    results[template_name] = f"error: {str(e)}"
-
-            logger.info(f"Quiz template sync results: {results}")
-            return results
-
-        except Exception as e:
-            logger.error(f"Failed to sync quiz templates: {e}")
-            return {"error": str(e)}
+        logger.warning(
+            "sync_quiz_templates is disabled: quiz templates are DB-only in production"
+        )
+        return {
+            "status": "disabled",
+            "message": "Quiz templates are managed in the database; YAML sync disabled",
+        }
 
     async def restart_quiz_session(self, patient_id: UUID) -> Optional[Dict[str, Any]]:
         """

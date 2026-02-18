@@ -6,8 +6,8 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **title** | `VARCHAR(255)` | ❌ | - |  |  |
 | **description** | `TEXT` | ✅ | - |  |  |
-| **severity** | `VARCHAR(8)` | ❌ | - |  |  |
-| **status** | `VARCHAR(13)` | ❌ | - |  |  |
+| **severity** | `ENUM(incidentseverity)` | ❌ | - |  |  |
+| **status** | `ENUM(incidentstatus)` | ❌ | - |  |  |
 | **service_name** | `VARCHAR(100)` | ❌ | - |  |  |
 | **started_at** | `TIMESTAMP` | ❌ | - |  |  |
 | **resolved_at** | `TIMESTAMP` | ✅ | - |  |  |

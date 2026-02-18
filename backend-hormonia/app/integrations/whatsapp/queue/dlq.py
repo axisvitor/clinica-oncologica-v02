@@ -1,12 +1,22 @@
 """
 Dead Letter Queue (DLQ) handler for failed WhatsApp messages.
 Routes failed messages to DLQ storage for manual review and retry.
+
+This is a **WhatsApp-specific** DLQ specialization that adds:
+- Patient validation before routing
+- Original message status updates
+- Admin review/approve workflow
+- Re-queue with scheduling integration
+- WhatsApp-specific analytics
+
+For the canonical (general-purpose) DLQ, see ``app.services.dlq.DLQService``.
+Shared types are imported from ``app.services.dlq.base``.
 """
 
 import logging
 from typing import Dict, Any, Optional, List
 from uuid import UUID
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -15,6 +25,7 @@ from app.models.message import Message, MessageStatus
 from app.models.patient import Patient
 from app.repositories.base import BaseRepository
 from app.exceptions import NotFoundError, ValidationError
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -22,14 +33,22 @@ logger = logging.getLogger(__name__)
 
 class DLQHandler:
     """
-    Dead Letter Queue handler for failed message management.
+    Dead Letter Queue handler for failed WhatsApp message management.
+
+    This is a WhatsApp-specific specialization of the DLQ pattern.
+    It extends the base concept with patient validation, message status
+    tracking, and an admin review/approve workflow.
 
     Responsibilities:
-    - Route failed messages to DLQ storage
-    - Categorize failure reasons
+    - Route failed messages to DLQ storage (FailedMessage model)
+    - Categorize failure reasons via FailureReason enum
     - Track retry attempts
-    - Enable manual review and re-queue
+    - Enable manual review and re-queue with scheduling
     - Provide DLQ analytics and monitoring
+
+    See Also:
+        ``app.services.dlq.DLQService`` - canonical general-purpose DLQ
+        ``app.services.webhook_dlq.WebhookDLQ`` - Redis-backed webhook DLQ
     """
 
     def __init__(self, db: Session):
@@ -99,13 +118,13 @@ class DLQHandler:
                 error_message=failure_details.get("error", str(failure_reason.value)),
                 error_code=failure_reason.value,
                 retry_count=retry_count,
-                last_retry_at=datetime.now(timezone.utc) if retry_count > 0 else None,
+                last_retry_at=now_sao_paulo() if retry_count > 0 else None,
                 status=DLQStatus.PENDING_REVIEW.value,
                 dlq_metadata={
                     **(metadata or {}),
                     "failure_reason": failure_reason.value,
                     "failure_details": failure_details,
-                    "routed_at": datetime.now(timezone.utc).isoformat(),
+                    "routed_at": now_sao_paulo().isoformat(),
                 },
             )
 
@@ -139,7 +158,7 @@ class DLQHandler:
                 if not message.message_metadata:
                     message.message_metadata = {}
                 message.message_metadata["dlq_routed_at"] = (
-                    datetime.now(timezone.utc).isoformat()
+                    now_sao_paulo().isoformat()
                 )
                 self.db.commit()
         except Exception as e:
@@ -226,11 +245,11 @@ class DLQHandler:
             # Update status inline (model doesn't have mark_reviewed method)
             failed_message.status = DLQStatus.RESOLVED.value if approve_retry else DLQStatus.DISCARDED.value
             failed_message.reviewed_by = reviewer_id
-            failed_message.resolved_at = datetime.now(timezone.utc)
+            failed_message.resolved_at = now_sao_paulo()
             failed_message.dlq_metadata = {
                 **(failed_message.dlq_metadata or {}),
                 "review_notes": notes,
-                "reviewed_at": datetime.now(timezone.utc).isoformat(),
+                "reviewed_at": now_sao_paulo().isoformat(),
                 "approve_retry": approve_retry,
             }
             self.db.commit()
@@ -292,7 +311,7 @@ class DLQHandler:
                     "dlq_entry_id": str(failed_message.id),
                     "original_failure_reason": failed_message.error_code,
                     "requeue_count": requeue_count + 1,
-                    "requeued_at": datetime.now(timezone.utc).isoformat(),
+                    "requeued_at": now_sao_paulo().isoformat(),
                 },
             )
 
@@ -305,10 +324,10 @@ class DLQHandler:
 
             if immediate:
                 # Schedule for immediate delivery (1 minute from now)
-                send_time = datetime.now(timezone.utc) + timedelta(minutes=1)
+                send_time = now_sao_paulo() + timedelta(minutes=1)
             else:
                 # Schedule for next business hours
-                send_time = datetime.now(timezone.utc) + timedelta(hours=1)
+                send_time = now_sao_paulo() + timedelta(hours=1)
 
             await scheduler.schedule_existing_message(
                 message_id=retry_message.id, send_time=send_time, priority="high"
@@ -319,7 +338,7 @@ class DLQHandler:
             failed_message.dlq_metadata = {
                 **(failed_message.dlq_metadata or {}),
                 "requeue_count": requeue_count + 1,
-                "requeued_at": datetime.now(timezone.utc).isoformat(),
+                "requeued_at": now_sao_paulo().isoformat(),
                 "new_message_id": str(retry_message.id),
             }
             self.db.commit()
@@ -353,7 +372,7 @@ class DLQHandler:
             DLQ metrics including failure reasons, counts, trends
         """
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
+            cutoff_date = now_sao_paulo() - timedelta(days=days_back)
 
             # Get all DLQ entries in period
             entries = (
@@ -408,7 +427,7 @@ class DLQHandler:
                 "avg_retry_count": round(avg_retry_count, 2),
                 "requeue_rate": round(requeue_rate, 2),
                 "period_days": days_back,
-                "analysis_date": datetime.now(timezone.utc).isoformat(),
+                "analysis_date": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
@@ -434,7 +453,7 @@ class DLQHandler:
             List of critical failed messages
         """
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+            cutoff_time = now_sao_paulo() - timedelta(hours=hours_back)
 
             critical_failures = (
                 self.db.query(FailedMessage)

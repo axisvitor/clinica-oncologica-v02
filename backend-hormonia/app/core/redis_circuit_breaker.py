@@ -33,6 +33,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, Optional
 
 from app.core import redis_manager as redis_manager_module
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -234,7 +235,7 @@ class RedisCircuitBreaker:
 
         try:
             last_failure_dt = datetime.fromisoformat(last_failure)
-            time_since_failure = datetime.now(timezone.utc) - last_failure_dt
+            time_since_failure = now_sao_paulo() - last_failure_dt
             return time_since_failure.total_seconds() >= self.recovery_timeout
         except (ValueError, TypeError):
             return True
@@ -281,7 +282,7 @@ class RedisCircuitBreaker:
         # Sync version updates memory state only
         self._memory_state["total_requests"] += 1
         self._memory_state["failed_requests"] += 1
-        self._memory_state["last_failure_time"] = datetime.now(timezone.utc).isoformat()
+        self._memory_state["last_failure_time"] = now_sao_paulo().isoformat()
         self._memory_state["consecutive_failures"] += 1
         self._memory_state["consecutive_successes"] = 0
 
@@ -377,7 +378,7 @@ class RedisCircuitBreaker:
 
             state["total_requests"] += 1
             state["failed_requests"] += 1
-            state["last_failure_time"] = datetime.now(timezone.utc).isoformat()
+            state["last_failure_time"] = now_sao_paulo().isoformat()
             state["consecutive_failures"] += 1
             state["consecutive_successes"] = 0
 
@@ -506,7 +507,7 @@ class RedisCircuitBreaker:
         async with self._lock:
             state = await self._get_state()
             state["state"] = CircuitState.OPEN.value
-            state["last_failure_time"] = datetime.now(timezone.utc).isoformat()
+            state["last_failure_time"] = now_sao_paulo().isoformat()
             await self._set_state(state)
             self._memory_state = state.copy()
             logger.warning(f"Circuit {self.name} manually forced OPEN")

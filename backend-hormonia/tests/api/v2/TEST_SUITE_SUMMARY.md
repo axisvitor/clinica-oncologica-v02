@@ -254,7 +254,7 @@ test_emergency_contact_phone_without_name_fails()
 ### Valid Filter Combinations:
 ```
 GET /api/v2/patients?treatment_phase=initial&has_active_flow=true&sort_by=name&sort_order=asc
-GET /api/v2/patients?created_after=2025-01-01T00:00:00Z&created_before=2025-12-31T23:59:59Z
+GET /api/v2/patients?created_after=2025-01-01T00:00:00-03:00&created_before=2025-12-31T23:59:59-03:00
 GET /api/v2/patients?treatment_phase=maintenance&sort_by=created_at&sort_order=desc
 ```
 

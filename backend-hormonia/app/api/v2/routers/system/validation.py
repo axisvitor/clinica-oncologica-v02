@@ -21,6 +21,7 @@ from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.config import settings
 from app.utils.auth_helpers import is_admin as _is_admin
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter(tags=["system-validation"])
 logger = get_logger(__name__)
@@ -143,7 +144,7 @@ async def validate_configuration(
             valid=len(errors) == 0,
             warnings=warnings,
             errors=errors,
-            checked_at=datetime.now(timezone.utc),
+            checked_at=now_sao_paulo(),
             categories_checked=categories_checked,
             recommendations=recommendations,
         )

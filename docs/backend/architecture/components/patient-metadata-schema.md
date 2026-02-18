@@ -173,7 +173,7 @@ Onboarding process metadata.
 {
   "onboarding": {
     "completed": true,
-    "completed_at": "2024-01-15T10:30:00Z",
+    "completed_at": "2024-01-15T10:30:00-03:00",
     "steps_completed": ["welcome", "assessment", "preferences"],
     "welcome_sent": true,
     "initial_assessment_done": true
@@ -236,7 +236,7 @@ System-managed metadata (internal use).
   "system": {
     "source": "whatsapp",
     "version": "1.0.0",
-    "last_sync": "2024-01-20T14:30:00Z"
+    "last_sync": "2024-01-20T14:30:00-03:00"
   }
 }
 ```

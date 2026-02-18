@@ -15,9 +15,9 @@ from __future__ import annotations
 
 # Standard library imports
 import logging
-from datetime import datetime, timezone
+from importlib import import_module
 from typing import Any, Dict, List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 # Local application imports
 from ..config import get_flow_config
@@ -34,6 +34,7 @@ from ..types import (
 from .event_broadcaster import FlowEventBroadcaster
 from .metrics_collector import FlowMetricsCollector
 from .monitor import FlowHealthMetrics, FlowMonitor
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -164,7 +165,7 @@ class FlowAnalytics:
         """
         # Broadcast event
         event = FlowEvent(
-            event_id=str(UUID),
+            event_id=str(uuid4()),
             event_type=FlowEventType.FLOW_PAUSED,
             flow_instance_id=flow_instance_id,
             data={"flow_type": context.flow_type.value},
@@ -184,7 +185,7 @@ class FlowAnalytics:
         """
         # Broadcast event
         event = FlowEvent(
-            event_id=str(UUID),
+            event_id=str(uuid4()),
             event_type=FlowEventType.FLOW_RESUMED,
             flow_instance_id=flow_instance_id,
             data={"flow_type": context.flow_type.value},
@@ -214,7 +215,7 @@ class FlowAnalytics:
 
         # Broadcast event
         event = FlowEvent(
-            event_id=str(UUID),
+            event_id=str(uuid4()),
             event_type=FlowEventType.FLOW_CANCELLED,
             flow_instance_id=flow_instance_id,
             data={"flow_type": context.flow_type.value},
@@ -334,7 +335,7 @@ class FlowAnalytics:
 
         # Broadcast event
         event = FlowEvent(
-            event_id=str(UUID),
+            event_id=str(uuid4()),
             event_type=FlowEventType.ERROR_OCCURRED,
             flow_instance_id=flow_instance_id,
             data={
@@ -546,7 +547,7 @@ class FlowAnalytics:
                 }
                 for e in self.get_recent_events(limit=10)
             ],
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
 
     def export_analytics_report(self) -> Dict[str, Any]:
@@ -563,7 +564,7 @@ class FlowAnalytics:
                 "queue_size": self.event_broadcaster.get_queue_size(),
                 "subscriber_count": self.event_broadcaster.get_subscriber_count(),
             },
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
 
     # ========================================================================
@@ -599,36 +600,25 @@ class FlowAnalytics:
         logger.info("FlowAnalytics shutdown complete")
 
 
-# ============================================================================
-# Singleton Instance
-# ============================================================================
-
-_flow_analytics_instance: Optional[FlowAnalytics] = None
-
-
 def get_flow_analytics() -> FlowAnalytics:
     """
-    Get global flow analytics instance.
+    Backward-compatible accessor for package singleton.
 
     Returns:
-        Global FlowAnalytics instance (singleton).
+        Global FlowAnalytics instance.
     """
-    global _flow_analytics_instance
-    if _flow_analytics_instance is None:
-        _flow_analytics_instance = FlowAnalytics()
-    return _flow_analytics_instance
+    analytics_pkg = import_module("app.services.flow.analytics")
+    return analytics_pkg.get_flow_analytics()
 
 
 def reset_flow_analytics() -> None:
     """
-    Reset global flow analytics instance.
+    Backward-compatible reset for package singleton.
 
     Useful for testing.
     """
-    global _flow_analytics_instance
-    if _flow_analytics_instance:
-        _flow_analytics_instance.shutdown()
-    _flow_analytics_instance = None
+    analytics_pkg = import_module("app.services.flow.analytics")
+    analytics_pkg.reset_flow_analytics()
 
 
 # ============================================================================

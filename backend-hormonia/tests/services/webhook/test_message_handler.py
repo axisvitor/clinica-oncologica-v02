@@ -3,6 +3,7 @@ Unit tests for MessageWebhookHandler.
 
 Tests message processing, flow routing, quiz handling, and security monitoring.
 """
+import asyncio
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from uuid import uuid4
@@ -54,10 +55,10 @@ class TestMessageWebhookHandler:
     def mock_publish_ws(self):
         """Patch websocket publish."""
         with patch(
-            "app.services.webhook.handlers.message_handler.websocket_events",
+            "app.services.webhook.handlers.message_handler.websocket_events_module.websocket_events",
             new=Mock(),
         ) as mock_ws:
-            mock_ws.publish_message_event = AsyncMock()
+            mock_ws.broadcast_message_event = AsyncMock()
             yield mock_ws
 
     @pytest.fixture
@@ -94,7 +95,6 @@ class TestMessageWebhookHandler:
         patient = Mock()
         patient.id = uuid4()
         patient.cpf = "12345678909"
-        patient.full_name = "Test Patient"
         patient.name = "Test Patient"
         patient.phone = "+5511987654321"
         patient.is_active = True
@@ -262,6 +262,33 @@ class TestPatientLookup(TestMessageWebhookHandler):
             )
 
             assert result is None
+
+    @pytest.mark.asyncio
+    async def test_find_patient_uses_remote_jid_alt_before_lid_resolution(
+        self, handler, sample_patient
+    ):
+        message_data = {
+            "phone": "173396503580849",
+            "content": "ok",
+            "whatsapp_id": "msg_lid_1",
+            "metadata": {
+                "remote_jid": "173396503580849@lid",
+                "remote_jid_alt": "5594991307744@s.whatsapp.net",
+                "instance_name": "meuwhatsapp",
+            },
+        }
+
+        handler.phone_normalizer.find_patient_by_phone = Mock(
+            side_effect=[None, sample_patient]
+        )
+        handler.phone_normalizer.resolve_phone_from_lid = AsyncMock(return_value=None)
+
+        result = await handler._find_patient_with_security(message_data, None, None)
+
+        assert result == sample_patient
+        assert message_data["phone"] == "5594991307744"
+        assert message_data["metadata"]["resolved_from_remote_jid_alt"] is True
+        handler.phone_normalizer.resolve_phone_from_lid.assert_not_called()
 
 
 class TestMessageTypes(TestMessageWebhookHandler):
@@ -591,6 +618,290 @@ class TestResponseSending(TestMessageWebhookHandler):
         handler.message_service.create_message.assert_called_once()
         scheduler.schedule_existing_message.assert_called_once()
 
+
+class TestSequentialProgressionGate(TestMessageWebhookHandler):
+    """Test sequential continuation gating with response context correlation."""
+
+    @pytest.mark.asyncio
+    async def test_trigger_sequential_continuation_blocks_when_not_awaiting(self, handler):
+        patient_id = uuid4()
+        flow_state = Mock()
+        flow_state.step_data = {
+            "current_flow_day": 5,
+            "flow_kind": "daily_follow_up",
+            "current_day_message_index": 2,
+            "awaiting_response": False,
+        }
+        handler.flow_state_repo.get_active_flow = Mock(return_value=flow_state)
+
+        result = await handler._trigger_sequential_continuation(
+            patient_id,
+            response_context={
+                "flow_day": 5,
+                "flow_kind": "daily_follow_up",
+                "message_index": 2,
+                "awaiting_response": False,
+                "prompt_message_id": str(uuid4()),
+                "response_message_id": str(uuid4()),
+            },
+        )
+
+        assert result["status"] == "not_awaiting"
+        assert result["advance_allowed"] is False
+
+    @pytest.mark.asyncio
+    async def test_trigger_sequential_continuation_blocks_on_context_mismatch(self, handler):
+        patient_id = uuid4()
+        flow_state = Mock()
+        flow_state.step_data = {
+            "current_flow_day": 5,
+            "flow_kind": "daily_follow_up",
+            "current_day_message_index": 2,
+            "awaiting_response": True,
+        }
+        handler.flow_state_repo.get_active_flow = Mock(return_value=flow_state)
+
+        result = await handler._trigger_sequential_continuation(
+            patient_id,
+            response_context={
+                "flow_day": 4,
+                "flow_kind": "daily_follow_up",
+                "message_index": 2,
+                "awaiting_response": True,
+                "prompt_message_id": str(uuid4()),
+                "response_message_id": str(uuid4()),
+            },
+        )
+
+        assert result["status"] == "context_mismatch"
+        assert result["reason"] == "flow_day_mismatch"
+        assert result["advance_allowed"] is False
+
+    @pytest.mark.asyncio
+    async def test_trigger_sequential_continuation_blocks_when_required_identifier_missing(
+        self, handler
+    ):
+        patient_id = uuid4()
+        flow_state = Mock()
+        flow_state.step_data = {
+            "current_flow_day": 5,
+            "flow_kind": "daily_follow_up",
+            "current_day_message_index": None,
+            "awaiting_response": True,
+        }
+        handler.flow_state_repo.get_active_flow = Mock(return_value=flow_state)
+
+        result = await handler._trigger_sequential_continuation(
+            patient_id,
+            response_context={
+                "flow_day": 5,
+                "flow_kind": "daily_follow_up",
+                "message_index": 2,
+                "awaiting_response": True,
+                "response_message_id": str(uuid4()),
+            },
+        )
+
+        assert result["status"] == "context_mismatch"
+        assert result["reason"] == "missing_message_index"
+        assert result["advance_allowed"] is False
+
+    @pytest.mark.asyncio
+    async def test_trigger_sequential_continuation_allows_valid_context(self, handler):
+        patient_id = uuid4()
+        response_message_id = str(uuid4())
+        flow_state = Mock()
+        flow_state.step_data = {
+            "current_flow_day": 5,
+            "flow_kind": "daily_follow_up",
+            "current_day_message_index": 2,
+            "awaiting_response": True,
+        }
+        handler.flow_state_repo.get_active_flow = Mock(side_effect=[flow_state, flow_state])
+
+        with patch("app.services.flow.sequential_message_handler.SequentialMessageHandler") as mock_cls, \
+             patch("app.services.webhook.handlers.message_handler.flag_modified"):
+            mock_handler = mock_cls.return_value
+            mock_handler.handle_response_and_continue = AsyncMock(
+                return_value={"status": "day_complete"}
+            )
+
+            result = await handler._trigger_sequential_continuation(
+                patient_id,
+                response_context={
+                    "flow_day": 5,
+                    "flow_kind": "daily_follow_up",
+                    "message_index": 2,
+                    "awaiting_response": True,
+                    "prompt_message_id": str(uuid4()),
+                    "response_message_id": response_message_id,
+                },
+            )
+
+        assert result["status"] == "day_complete"
+        assert result["advance_allowed"] is True
+        assert (
+            flow_state.step_data["last_processed_response_message_id"]
+            == response_message_id
+        )
+        mock_handler.handle_response_and_continue.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_trigger_sequential_continuation_does_not_mark_processed_when_graph_blocks(
+        self, handler
+    ):
+        patient_id = uuid4()
+        response_message_id = str(uuid4())
+        prompt_message_id = str(uuid4())
+        flow_state = Mock()
+        flow_state.step_data = {
+            "current_flow_day": 5,
+            "flow_kind": "daily_follow_up",
+            "current_day_message_index": 2,
+            "awaiting_response": True,
+            "pending_response_context": {
+                "flow_day": 5,
+                "flow_kind": "daily_follow_up",
+                "message_index": 2,
+                "prompt_message_id": prompt_message_id,
+            },
+        }
+        handler.flow_state_repo.get_active_flow = Mock(return_value=flow_state)
+
+        with patch("app.services.flow.sequential_message_handler.SequentialMessageHandler") as mock_cls:
+            mock_handler = mock_cls.return_value
+            mock_handler.handle_response_and_continue = AsyncMock(
+                return_value={"status": "waiting", "reason": "context_mismatch"}
+            )
+
+            result = await handler._trigger_sequential_continuation(
+                patient_id,
+                response_context={
+                    "flow_day": 5,
+                    "flow_kind": "daily_follow_up",
+                    "message_index": 2,
+                    "awaiting_response": True,
+                    "prompt_message_id": prompt_message_id,
+                    "response_message_id": response_message_id,
+                },
+            )
+
+        assert result["status"] == "waiting"
+        assert result["reason"] == "context_mismatch"
+        assert "last_processed_response_message_id" not in flow_state.step_data
+
+
+class TestFlowAdvanceGate(TestMessageWebhookHandler):
+    """Test flow advancement only after valid sequential continuation."""
+
+    @pytest.mark.asyncio
+    async def test_handle_flow_message_does_not_advance_when_gate_blocks(
+        self, handler, sample_patient
+    ):
+        flow_state = Mock()
+        flow_state.id = uuid4()
+        flow_state.step_data = {
+            "current_flow_day": 5,
+            "flow_kind": "daily_follow_up",
+            "current_day_message_index": 2,
+            "awaiting_response": False,
+        }
+        message = Mock()
+        message.id = uuid4()
+        message.content = "Resposta fora de contexto"
+
+        handler.enhanced_flow_engine.calculate_patient_day = AsyncMock(return_value=5)
+        handler.enhanced_flow_engine.process_patient_response = AsyncMock(return_value={})
+        handler._trigger_sequential_continuation = AsyncMock(
+            return_value={
+                "status": "not_awaiting",
+                "reason": "not_awaiting_response",
+                "advance_allowed": False,
+            }
+        )
+        handler.enhanced_flow_engine.advance_patient_flow = AsyncMock()
+
+        with patch("app.services.quiz.QuizSessionService") as quiz_cls:
+            quiz_service = quiz_cls.return_value
+            quiz_service.get_active_session.return_value = None
+            await handler._handle_flow_message(sample_patient, message, flow_state)
+
+        handler.enhanced_flow_engine.advance_patient_flow.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_handle_flow_message_does_not_use_pending_prompt_as_received_context(
+        self, handler, sample_patient
+    ):
+        prompt_message_id = str(uuid4())
+        flow_state = Mock()
+        flow_state.id = uuid4()
+        flow_state.step_data = {
+            "current_flow_day": 5,
+            "flow_kind": "daily_follow_up",
+            "current_day_message_index": 2,
+            "awaiting_response": True,
+            "pending_response_context": {
+                "prompt_message_id": prompt_message_id,
+            },
+        }
+        message = Mock()
+        message.id = uuid4()
+        message.content = "Resposta válida"
+        message.message_metadata = {}
+
+        handler.enhanced_flow_engine.calculate_patient_day = AsyncMock(return_value=5)
+        handler.enhanced_flow_engine.process_patient_response = AsyncMock(return_value={})
+        handler._trigger_sequential_continuation = AsyncMock(
+            return_value={
+                "status": "context_mismatch",
+                "reason": "missing_prompt_message_id",
+                "advance_allowed": False,
+            }
+        )
+        handler.enhanced_flow_engine.advance_patient_flow = AsyncMock()
+
+        with patch("app.services.quiz.QuizSessionService") as quiz_cls:
+            quiz_service = quiz_cls.return_value
+            quiz_service.get_active_session.return_value = None
+            await handler._handle_flow_message(sample_patient, message, flow_state)
+
+        trigger_call = handler._trigger_sequential_continuation.await_args
+        assert trigger_call is not None
+        response_context = trigger_call.kwargs["response_context"]
+        assert "prompt_message_id" not in response_context
+
+    @pytest.mark.asyncio
+    async def test_handle_flow_message_advances_when_day_complete(
+        self, handler, sample_patient
+    ):
+        flow_state = Mock()
+        flow_state.id = uuid4()
+        flow_state.step_data = {
+            "current_flow_day": 5,
+            "flow_kind": "daily_follow_up",
+            "current_day_message_index": 2,
+            "awaiting_response": True,
+        }
+        message = Mock()
+        message.id = uuid4()
+        message.content = "Resposta válida"
+
+        handler.enhanced_flow_engine.calculate_patient_day = AsyncMock(return_value=5)
+        handler.enhanced_flow_engine.process_patient_response = AsyncMock(return_value={})
+        handler._trigger_sequential_continuation = AsyncMock(
+            return_value={"status": "day_complete", "advance_allowed": True}
+        )
+        handler.enhanced_flow_engine.advance_patient_flow = AsyncMock(
+            return_value={"status": "success"}
+        )
+
+        with patch("app.services.quiz.QuizSessionService") as quiz_cls:
+            quiz_service = quiz_cls.return_value
+            quiz_service.get_active_session.return_value = None
+            await handler._handle_flow_message(sample_patient, message, flow_state)
+
+        handler.enhanced_flow_engine.advance_patient_flow.assert_called_once()
+
     @pytest.mark.asyncio
     async def test_send_response_with_empty_text_processed(self, handler, sample_patient):
         """Test that empty responses are still scheduled."""
@@ -614,3 +925,42 @@ class TestResponseSending(TestMessageWebhookHandler):
         assert result == response_message
         handler.message_service.create_message.assert_called_once()
         scheduler.schedule_existing_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_flow_message_continues_when_ai_analysis_times_out(
+        self, handler, sample_patient
+    ):
+        """Flow continuation must not block when AI response analysis is slow."""
+        flow_state = Mock()
+        flow_state.id = uuid4()
+        flow_state.step_data = {
+            "current_flow_day": 5,
+            "flow_kind": "daily_follow_up",
+            "current_day_message_index": 2,
+            "awaiting_response": True,
+        }
+        message = Mock()
+        message.id = uuid4()
+        message.content = "Resposta válida"
+        message.message_metadata = {}
+
+        handler.enhanced_flow_engine.calculate_patient_day = AsyncMock(return_value=5)
+        handler.enhanced_flow_engine.process_patient_response = AsyncMock(
+            side_effect=asyncio.TimeoutError()
+        )
+        handler._trigger_sequential_continuation = AsyncMock(
+            return_value={"status": "day_complete", "advance_allowed": True}
+        )
+        handler.enhanced_flow_engine.advance_patient_flow = AsyncMock(
+            return_value={"status": "success"}
+        )
+        handler._send_response = AsyncMock()
+
+        with patch("app.services.quiz.QuizSessionService") as quiz_cls:
+            quiz_service = quiz_cls.return_value
+            quiz_service.get_active_session.return_value = None
+            await handler._handle_flow_message(sample_patient, message, flow_state)
+
+        handler._trigger_sequential_continuation.assert_called_once()
+        handler.enhanced_flow_engine.advance_patient_flow.assert_called_once()
+        handler._send_response.assert_not_called()

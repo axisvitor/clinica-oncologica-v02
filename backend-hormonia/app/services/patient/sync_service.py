@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from uuid import UUID
 
 from app.exceptions import ValidationError
@@ -52,6 +52,33 @@ class PatientSyncService:
         self.repository = patient_repository or PatientRepository(db)
         self._logger = logging.getLogger(__name__)
 
+    def _check_duplicate_by_hashed_field(
+        self,
+        value: str,
+        hash_builder: Callable[[str], str],
+        patient_field: Any,
+        error_label: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """Shared duplicate-check query path for hashed patient fields."""
+        try:
+            field_hash = hash_builder(value)
+            query = self.db.query(Patient).filter(
+                patient_field == field_hash, Patient.deleted_at.is_(None)
+            )
+
+            if doctor_id:
+                query = query.filter(Patient.doctor_id == doctor_id)
+
+            if exclude_patient_id:
+                query = query.filter(Patient.id != exclude_patient_id)
+
+            return query.first()
+        except Exception as e:
+            self._logger.error(f"{error_label} duplicate check failed: {e}")
+            return None
+
     @with_db_retry(max_retries=3)
     def check_duplicate_cpf(
         self,
@@ -70,27 +97,17 @@ class PatientSyncService:
         Returns:
             Existing patient or None
         """
-        try:
-            from app.services.encryption import get_cpf_encryption_service
+        from app.services.encryption import get_cpf_encryption_service
 
-            service = get_cpf_encryption_service()
-            cpf_hash = service.hash_cpf(cpf)
-
-            query = self.db.query(Patient).filter(
-                Patient.cpf_hash == cpf_hash, Patient.deleted_at.is_(None)
-            )
-
-            if doctor_id:
-                query = query.filter(Patient.doctor_id == doctor_id)
-
-            if exclude_patient_id:
-                query = query.filter(Patient.id != exclude_patient_id)
-
-            return query.first()
-
-        except Exception as e:
-            self._logger.error(f"CPF duplicate check failed: {e}")
-            return None
+        service = get_cpf_encryption_service()
+        return self._check_duplicate_by_hashed_field(
+            value=cpf,
+            hash_builder=service.hash_cpf,
+            patient_field=Patient.cpf_hash,
+            error_label="CPF",
+            doctor_id=doctor_id,
+            exclude_patient_id=exclude_patient_id,
+        )
 
     @with_db_retry(max_retries=3)
     def check_duplicate_email(
@@ -110,27 +127,18 @@ class PatientSyncService:
         Returns:
             Existing patient or None
         """
-        try:
-            from app.services.encryption import get_lgpd_encryption_service
+        from app.services.encryption import get_lgpd_encryption_service
 
-            service = get_lgpd_encryption_service()
-            email_hash = service.hash_email(email.lower())
-
-            query = self.db.query(Patient).filter(
-                Patient.email_hash == email_hash, Patient.deleted_at.is_(None)
-            )
-
-            if doctor_id:
-                query = query.filter(Patient.doctor_id == doctor_id)
-
-            if exclude_patient_id:
-                query = query.filter(Patient.id != exclude_patient_id)
-
-            return query.first()
-
-        except Exception as e:
-            self._logger.error(f"Email duplicate check failed: {e}")
-            return None
+        service = get_lgpd_encryption_service()
+        normalized_email = email.lower()
+        return self._check_duplicate_by_hashed_field(
+            value=normalized_email,
+            hash_builder=service.hash_email,
+            patient_field=Patient.email_hash,
+            error_label="Email",
+            doctor_id=doctor_id,
+            exclude_patient_id=exclude_patient_id,
+        )
 
     @with_db_retry(max_retries=3)
     def check_duplicate_phone(
@@ -150,27 +158,17 @@ class PatientSyncService:
         Returns:
             Existing patient or None
         """
-        try:
-            from app.services.encryption import get_lgpd_encryption_service
+        from app.services.encryption import get_lgpd_encryption_service
 
-            service = get_lgpd_encryption_service()
-            phone_hash = service.hash_phone(phone)
-
-            query = self.db.query(Patient).filter(
-                Patient.phone_hash == phone_hash, Patient.deleted_at.is_(None)
-            )
-
-            if doctor_id:
-                query = query.filter(Patient.doctor_id == doctor_id)
-
-            if exclude_patient_id:
-                query = query.filter(Patient.id != exclude_patient_id)
-
-            return query.first()
-
-        except Exception as e:
-            self._logger.error(f"Phone duplicate check failed: {e}")
-            return None
+        service = get_lgpd_encryption_service()
+        return self._check_duplicate_by_hashed_field(
+            value=phone,
+            hash_builder=service.hash_phone,
+            patient_field=Patient.phone_hash,
+            error_label="Phone",
+            doctor_id=doctor_id,
+            exclude_patient_id=exclude_patient_id,
+        )
 
     @with_db_retry(max_retries=3)
     async def merge_patients(

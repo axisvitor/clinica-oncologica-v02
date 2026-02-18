@@ -12,6 +12,7 @@ from app.models.quiz import QuizSession, QuizTemplate
 from app.models.patient import Patient
 
 
+from app.utils.timezone import now_sao_paulo
 class TestQuizSessionExpirationModel:
     """Test QuizSession model expiration features."""
 
@@ -20,14 +21,13 @@ class TestQuizSessionExpirationModel:
         # Create test data
         patient = Patient(
             id=uuid4(),
-            first_name="Test",
-            last_name="Patient",
+            name="Test Patient",
             email="test@example.com",
             phone="+1234567890"
         )
         template = QuizTemplate(
             id=uuid4(),
-            name="Test Template",
+            name=f"Test Template {uuid4().hex[:8]}",
             version="1.0",
             questions={"questions": []}
         )
@@ -36,13 +36,13 @@ class TestQuizSessionExpirationModel:
         db.flush()
 
         # Create session with expiration_date
-        expiration = datetime.now(timezone.utc) + timedelta(hours=48)
+        expiration = now_sao_paulo() + timedelta(hours=48)
         session = QuizSession(
             id=uuid4(),
             patient_id=patient.id,
             quiz_template_id=template.id,
             status='started',
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
             expiration_date=expiration
         )
         db.add(session)
@@ -56,14 +56,13 @@ class TestQuizSessionExpirationModel:
         """Test that 'expired' is a valid status."""
         patient = Patient(
             id=uuid4(),
-            first_name="Test",
-            last_name="Patient",
+            name="Test Patient",
             email="test@example.com",
             phone="+1234567890"
         )
         template = QuizTemplate(
             id=uuid4(),
-            name="Test Template",
+            name=f"Test Template {uuid4().hex[:8]}",
             version="1.0",
             questions={"questions": []}
         )
@@ -77,8 +76,8 @@ class TestQuizSessionExpirationModel:
             patient_id=patient.id,
             quiz_template_id=template.id,
             status='expired',
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc)
+            started_at=now_sao_paulo(),
+            completed_at=now_sao_paulo()
         )
         db.add(session)
         db.commit()
@@ -90,14 +89,13 @@ class TestQuizSessionExpirationModel:
         """Test that invalid status raises ValueError."""
         patient = Patient(
             id=uuid4(),
-            first_name="Test",
-            last_name="Patient",
+            name="Test Patient",
             email="test@example.com",
             phone="+1234567890"
         )
         template = QuizTemplate(
             id=uuid4(),
-            name="Test Template",
+            name=f"Test Template {uuid4().hex[:8]}",
             version="1.0",
             questions={"questions": []}
         )
@@ -112,7 +110,7 @@ class TestQuizSessionExpirationModel:
                 patient_id=patient.id,
                 quiz_template_id=template.id,
                 status='invalid_status',
-                started_at=datetime.now(timezone.utc)
+                started_at=now_sao_paulo()
             )
             db.add(session)
             db.commit()
@@ -121,14 +119,13 @@ class TestQuizSessionExpirationModel:
         """Test is_expired property returns True for expired status."""
         patient = Patient(
             id=uuid4(),
-            first_name="Test",
-            last_name="Patient",
+            name="Test Patient",
             email="test@example.com",
             phone="+1234567890"
         )
         template = QuizTemplate(
             id=uuid4(),
-            name="Test Template",
+            name=f"Test Template {uuid4().hex[:8]}",
             version="1.0",
             questions={"questions": []}
         )
@@ -141,8 +138,8 @@ class TestQuizSessionExpirationModel:
             patient_id=patient.id,
             quiz_template_id=template.id,
             status='expired',
-            started_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc)
+            started_at=now_sao_paulo(),
+            completed_at=now_sao_paulo()
         )
         db.add(session)
         db.commit()
@@ -153,14 +150,13 @@ class TestQuizSessionExpirationModel:
         """Test is_expired property returns True when expiration_date has passed."""
         patient = Patient(
             id=uuid4(),
-            first_name="Test",
-            last_name="Patient",
+            name="Test Patient",
             email="test@example.com",
             phone="+1234567890"
         )
         template = QuizTemplate(
             id=uuid4(),
-            name="Test Template",
+            name=f"Test Template {uuid4().hex[:8]}",
             version="1.0",
             questions={"questions": []}
         )
@@ -169,13 +165,13 @@ class TestQuizSessionExpirationModel:
         db.flush()
 
         # Set expiration_date in the past
-        past_expiration = datetime.now(timezone.utc) - timedelta(hours=1)
+        past_expiration = now_sao_paulo() - timedelta(hours=1)
         session = QuizSession(
             id=uuid4(),
             patient_id=patient.id,
             quiz_template_id=template.id,
             status='started',
-            started_at=datetime.now(timezone.utc) - timedelta(hours=49),
+            started_at=now_sao_paulo() - timedelta(hours=49),
             expiration_date=past_expiration
         )
         db.add(session)
@@ -187,14 +183,13 @@ class TestQuizSessionExpirationModel:
         """Test is_expired property returns False when expiration_date is in future."""
         patient = Patient(
             id=uuid4(),
-            first_name="Test",
-            last_name="Patient",
+            name="Test Patient",
             email="test@example.com",
             phone="+1234567890"
         )
         template = QuizTemplate(
             id=uuid4(),
-            name="Test Template",
+            name=f"Test Template {uuid4().hex[:8]}",
             version="1.0",
             questions={"questions": []}
         )
@@ -203,13 +198,13 @@ class TestQuizSessionExpirationModel:
         db.flush()
 
         # Set expiration_date in the future
-        future_expiration = datetime.now(timezone.utc) + timedelta(hours=24)
+        future_expiration = now_sao_paulo() + timedelta(hours=24)
         session = QuizSession(
             id=uuid4(),
             patient_id=patient.id,
             quiz_template_id=template.id,
             status='started',
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
             expiration_date=future_expiration
         )
         db.add(session)
@@ -221,14 +216,13 @@ class TestQuizSessionExpirationModel:
         """Test set_expiration_date method sets correct expiration time."""
         patient = Patient(
             id=uuid4(),
-            first_name="Test",
-            last_name="Patient",
+            name="Test Patient",
             email="test@example.com",
             phone="+1234567890"
         )
         template = QuizTemplate(
             id=uuid4(),
-            name="Test Template",
+            name=f"Test Template {uuid4().hex[:8]}",
             version="1.0",
             questions={"questions": []}
         )
@@ -236,7 +230,7 @@ class TestQuizSessionExpirationModel:
         db.add(template)
         db.flush()
 
-        started_at = datetime.now(timezone.utc)
+        started_at = now_sao_paulo()
         session = QuizSession(
             id=uuid4(),
             patient_id=patient.id,
@@ -261,14 +255,13 @@ class TestQuizSessionExpirationModel:
         """Test set_expiration_date with custom hours."""
         patient = Patient(
             id=uuid4(),
-            first_name="Test",
-            last_name="Patient",
+            name="Test Patient",
             email="test@example.com",
             phone="+1234567890"
         )
         template = QuizTemplate(
             id=uuid4(),
-            name="Test Template",
+            name=f"Test Template {uuid4().hex[:8]}",
             version="1.0",
             questions={"questions": []}
         )
@@ -276,7 +269,7 @@ class TestQuizSessionExpirationModel:
         db.add(template)
         db.flush()
 
-        started_at = datetime.now(timezone.utc)
+        started_at = now_sao_paulo()
         session = QuizSession(
             id=uuid4(),
             patient_id=patient.id,
@@ -299,14 +292,13 @@ class TestQuizSessionExpirationModel:
         """Test set_expiration_date doesn't override existing expiration_date."""
         patient = Patient(
             id=uuid4(),
-            first_name="Test",
-            last_name="Patient",
+            name="Test Patient",
             email="test@example.com",
             phone="+1234567890"
         )
         template = QuizTemplate(
             id=uuid4(),
-            name="Test Template",
+            name=f"Test Template {uuid4().hex[:8]}",
             version="1.0",
             questions={"questions": []}
         )
@@ -314,7 +306,7 @@ class TestQuizSessionExpirationModel:
         db.add(template)
         db.flush()
 
-        started_at = datetime.now(timezone.utc)
+        started_at = now_sao_paulo()
         existing_expiration = started_at + timedelta(hours=72)
         session = QuizSession(
             id=uuid4(),
@@ -342,14 +334,13 @@ class TestQuizSessionExpirationQuery:
         """Test querying sessions that have expired."""
         patient = Patient(
             id=uuid4(),
-            first_name="Test",
-            last_name="Patient",
+            name="Test Patient",
             email="test@example.com",
             phone="+1234567890"
         )
         template = QuizTemplate(
             id=uuid4(),
-            name="Test Template",
+            name=f"Test Template {uuid4().hex[:8]}",
             version="1.0",
             questions={"questions": []}
         )
@@ -357,7 +348,16 @@ class TestQuizSessionExpirationQuery:
         db.add(template)
         db.flush()
 
-        current_time = datetime.now(timezone.utc)
+        current_time = now_sao_paulo()
+
+        active_patient = Patient(
+            id=uuid4(),
+            name="Active Patient",
+            email=f"active_{uuid4().hex[:8]}@example.com",
+            phone="+1987654321"
+        )
+        db.add(active_patient)
+        db.flush()
 
         # Create expired session
         expired_session = QuizSession(
@@ -372,7 +372,7 @@ class TestQuizSessionExpirationQuery:
         # Create active session
         active_session = QuizSession(
             id=uuid4(),
-            patient_id=patient.id,
+            patient_id=active_patient.id,
             quiz_template_id=template.id,
             status='started',
             started_at=current_time - timedelta(hours=1),
@@ -385,6 +385,8 @@ class TestQuizSessionExpirationQuery:
 
         # Query expired sessions
         expired = db.query(QuizSession).filter(
+            QuizSession.patient_id == patient.id,
+            QuizSession.quiz_template_id == template.id,
             QuizSession.status == 'started',
             QuizSession.expiration_date.isnot(None),
             QuizSession.expiration_date <= current_time
@@ -397,14 +399,13 @@ class TestQuizSessionExpirationQuery:
         """Test query excludes completed sessions even if expiration_date passed."""
         patient = Patient(
             id=uuid4(),
-            first_name="Test",
-            last_name="Patient",
+            name="Test Patient",
             email="test@example.com",
             phone="+1234567890"
         )
         template = QuizTemplate(
             id=uuid4(),
-            name="Test Template",
+            name=f"Test Template {uuid4().hex[:8]}",
             version="1.0",
             questions={"questions": []}
         )
@@ -412,7 +413,7 @@ class TestQuizSessionExpirationQuery:
         db.add(template)
         db.flush()
 
-        current_time = datetime.now(timezone.utc)
+        current_time = now_sao_paulo()
 
         # Create completed session with past expiration_date
         completed_session = QuizSession(
@@ -430,24 +431,11 @@ class TestQuizSessionExpirationQuery:
 
         # Query expired sessions
         expired = db.query(QuizSession).filter(
+            QuizSession.patient_id == patient.id,
+            QuizSession.quiz_template_id == template.id,
             QuizSession.status == 'started',
             QuizSession.expiration_date.isnot(None),
             QuizSession.expiration_date <= current_time
         ).all()
 
         assert len(expired) == 0
-
-
-# Fixtures
-@pytest.fixture
-def db():
-    """Database session fixture."""
-    # This would be provided by your test configuration
-    # Placeholder for actual implementation
-    from app.database import SessionLocal
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.rollback()
-        db.close()

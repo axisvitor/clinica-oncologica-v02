@@ -159,11 +159,12 @@ ws://localhost:8000/ws -> ws://localhost:8000/ws
 
 | Variavel | Descricao | Padrao |
 |----------|-----------|--------|
-| `VITE_ENABLE_WHATSAPP_INTEGRATION` | Integracao com WhatsApp | `true` |
-| `VITE_AI_CHAT_ENABLED` | Chat com IA | `true` |
-| `VITE_AI_ANALYTICS_ENABLED` | Dashboard de analytics com IA | `true` |
-| `VITE_AI_INSIGHTS_ENABLED` | Insights de IA sobre pacientes | `true` |
-| `VITE_AI_RECOMMENDATIONS_ENABLED` | Recomendacoes de IA | `true` |
+| `VITE_WHATSAPP_INSTANCE_NAME` | Nome da instancia WhatsApp (habilita integracao quando definido) | `hormonia-instance` |
+| `VITE_AI_ENABLE_CHAT` | Chat com IA | `true` |
+| `VITE_AI_ENABLE_SUMMARY` | Resumo de IA para pacientes | `true` |
+| `VITE_AI_ENABLE_ANALYTICS` | Dashboard de analytics com IA | `true` |
+| `VITE_AI_ENABLE_INSIGHTS` | Insights de IA sobre pacientes | `false` |
+| `VITE_AI_ENABLE_RECOMMENDATIONS` | Recomendacoes de IA | `true` |
 | `VITE_ENABLE_DEBUG_TOOLS` | Ferramentas de debug na UI | `false` |
 | `VITE_USE_MOCK_DATA` | Usa dados mockados | `false` |
 
@@ -183,15 +184,16 @@ const Dashboard = () => (
 
 | Variavel | Descricao | Tipo | Padrao |
 |----------|-----------|------|--------|
-| `VITE_SESSION_TIMEOUT` | Tempo ate expiracao da sessao | Number (ms) | `3600000` (1 hora) |
-| `VITE_TOKEN_REFRESH_THRESHOLD` | Tempo antes da expiracao para renovar | Number (ms) | `300000` (5 min) |
-| `VITE_FORCE_HTTPS` | Forca uso de HTTPS | Boolean | `false` dev, `true` prod |
-| `VITE_ENABLE_CSP` | Habilita Content Security Policy | Boolean | `true` |
+| `VITE_SESSION_TIMEOUT_MS` | Tempo ate expiracao da sessao | Number (ms) | `3600000` (1 hora) |
+| `VITE_SESSION_TOKEN_REFRESH_THRESHOLD_MS` | Tempo antes da expiracao para renovar | Number (ms) | `300000` (5 min) |
+| `VITE_SECURITY_ENABLE_HTTPS` | Forca uso de HTTPS | Boolean | `false` dev, `true` prod |
+| `VITE_SECURITY_ENABLE_CSP` | Habilita Content Security Policy | Boolean | `true` |
+| `VITE_SECURITY_ENABLE_HEADERS` | Habilita headers de seguranca | Boolean | `true` |
 
 **Logica de refresh**:
 ```typescript
 // Se token expira em menos de 5 min, renova automaticamente
-if (tokenExpiresIn < VITE_TOKEN_REFRESH_THRESHOLD) {
+if (tokenExpiresIn < VITE_SESSION_TOKEN_REFRESH_THRESHOLD_MS) {
   await refreshToken()
 }
 ```
@@ -346,7 +348,9 @@ VITE_FIREBASE_APP_ID=1:555555555555:web:production
 VITE_ENABLE_DEBUG_TOOLS=false
 VITE_USE_MOCK_DATA=false
 VITE_BUILD_SOURCEMAP=false
-VITE_FORCE_HTTPS=true
+VITE_SECURITY_ENABLE_HTTPS=true
+VITE_SECURITY_ENABLE_CSP=true
+VITE_SECURITY_ENABLE_HEADERS=true
 
 VITE_SENTRY_DSN=https://xxx@sentry.io/production
 VITE_ANALYTICS_TRACKING_ID=G-XXXXXXXXXX

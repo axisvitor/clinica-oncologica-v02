@@ -5,8 +5,7 @@ Handles broadcasting of system events, alerts, and flow updates via WebSocket.
 
 import logging
 from typing import Any, List, Optional
-from datetime import datetime, timezone
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from redis import Redis
 
@@ -21,6 +20,8 @@ from app.schemas.websocket import (
     ReportEventData,
 )
 from app.services.websocket import get_websocket_manager
+from app.utils.pii_redaction import redact_pii
+from app.utils.timezone import now_sao_paulo
 
 # Get unified WebSocket manager instance
 connection_manager = get_websocket_manager()
@@ -32,6 +33,11 @@ def _coerce_uuid(value: Any) -> UUID:
     if isinstance(value, UUID):
         return value
     return UUID(str(value))
+
+
+def _redact_payload(payload: Any) -> Any:
+    """Redact PII/secret data before pushing payloads over websocket."""
+    return redact_pii(payload)
 
 
 class WebSocketEventService:
@@ -55,7 +61,7 @@ class WebSocketEventService:
                 current_day=flow_data.get("current_day", 0),
                 previous_day=flow_data.get("previous_day"),
                 is_paused=flow_data.get("is_paused", False),
-                enrollment_date=flow_data.get("enrollment_date", datetime.now(timezone.utc)),
+                enrollment_date=flow_data.get("enrollment_date", now_sao_paulo()),
                 last_message_sent=flow_data.get("last_message_sent"),
                 monthly_cycle=flow_data.get("monthly_cycle"),
                 changes=flow_data.get("changes"),
@@ -65,10 +71,11 @@ class WebSocketEventService:
 
             # Create WebSocket message
             message = create_websocket_message(event_type, event_data)
+            payload = _redact_payload(message.dict())
 
             # Broadcast to patient room
             sent_count = await connection_manager.broadcast_to_patient_room(
-                message.dict(), str(patient_id)
+                str(patient_id), payload
             )
 
             logger.info(
@@ -108,16 +115,17 @@ class WebSocketEventService:
 
             # Create WebSocket message
             message = create_websocket_message(event_type, event_data)
+            payload = _redact_payload(message.dict())
 
             # Broadcast to all authenticated connections for alerts
             sent_count = await connection_manager.broadcast_to_all_authenticated(
-                message.dict()
+                payload
             )
 
             # Also broadcast to specific patient room if patient_id is provided
             if "patient_id" in alert_data:
                 patient_sent_count = await connection_manager.broadcast_to_patient_room(
-                    message.dict(), str(alert_data["patient_id"])
+                    str(alert_data["patient_id"]), payload
                 )
                 sent_count += patient_sent_count
 
@@ -149,10 +157,11 @@ class WebSocketEventService:
 
             # Create WebSocket message
             message = create_websocket_message(event_type, event_data)
+            payload = _redact_payload(message.dict())
 
             # Broadcast to patient room
             sent_count = await connection_manager.broadcast_to_patient_room(
-                message.dict(), str(message_data["patient_id"])
+                str(message_data["patient_id"]), payload
             )
 
             logger.info(
@@ -193,10 +202,11 @@ class WebSocketEventService:
 
             # Create WebSocket message
             message = create_websocket_message(event_type, event_data)
+            payload = _redact_payload(message.dict())
 
             # Broadcast to patient room
             sent_count = await connection_manager.broadcast_to_patient_room(
-                message.dict(), str(quiz_data["patient_id"])
+                str(quiz_data["patient_id"]), payload
             )
 
             logger.info(
@@ -226,10 +236,11 @@ class WebSocketEventService:
 
             # Create WebSocket message
             message = create_websocket_message(event_type, event_data)
+            payload = _redact_payload(message.dict())
 
             # Broadcast to patient room
             sent_count = await connection_manager.broadcast_to_patient_room(
-                message.dict(), str(report_data["patient_id"])
+                str(report_data["patient_id"]), payload
             )
 
             logger.info(
@@ -257,10 +268,11 @@ class WebSocketEventService:
 
             # Create WebSocket message
             message = create_websocket_message(event_type, event_data)
+            payload = _redact_payload(message.dict())
 
             # Broadcast to all authenticated connections for system events
             sent_count = await connection_manager.broadcast_to_all_authenticated(
-                message.dict()
+                payload
             )
 
             logger.info(
@@ -275,8 +287,9 @@ class WebSocketEventService:
     async def broadcast_to_all_authenticated(self, message: dict[str, Any]) -> int:
         """Broadcast message to all authenticated connections."""
         try:
+            payload = _redact_payload(message)
             sent_count = await connection_manager.broadcast_to_all_authenticated(
-                message
+                payload
             )
             logger.info(
                 f"Broadcasted message to {sent_count} authenticated connections"
@@ -291,8 +304,9 @@ class WebSocketEventService:
     ) -> int:
         """Broadcast message to specific patient room."""
         try:
+            payload = _redact_payload(message)
             sent_count = await connection_manager.broadcast_to_patient_room(
-                message, patient_id
+                patient_id, payload
             )
             logger.info(
                 f"Broadcasted message to patient {patient_id} room: {sent_count} connections"
@@ -305,7 +319,8 @@ class WebSocketEventService:
     async def broadcast_to_user(self, message: dict[str, Any], user_id: str) -> int:
         """Broadcast message to specific user."""
         try:
-            sent_count = await connection_manager.broadcast_to_user(message, user_id)
+            payload = _redact_payload(message)
+            sent_count = await connection_manager.broadcast_to_user(payload, user_id)
             logger.info(
                 f"Broadcasted message to user {user_id}: {sent_count} connections"
             )
@@ -447,108 +462,6 @@ class WebSocketEventService:
         }
         return await self.broadcast_quiz_event(event_type, quiz_data)
 
-    # =========================================================================
-    # Missing methods - Added to fix 17 files with broken WebSocket calls
-    # These are aliases/wrappers for the existing broadcast_* methods
-    # =========================================================================
-
-    async def publish_alert_event(
-        self,
-        event_type: WebSocketEventType,
-        alert_data: Optional[dict[str, Any]] = None,
-        **kwargs: Any,
-    ) -> int:
-        """Alias for broadcast_alert_event with legacy kwargs support."""
-        if alert_data is None:
-            if not kwargs:
-                logger.warning("publish_alert_event called without alert data")
-                return 0
-            alert_data = dict(kwargs)
-        elif kwargs:
-            alert_data = {**alert_data, **kwargs}
-
-        if "severity" not in alert_data and "priority" in alert_data:
-            alert_data["severity"] = alert_data.pop("priority")
-        if "title" not in alert_data and "message" in alert_data:
-            alert_data["title"] = alert_data["message"]
-        if "description" not in alert_data and "message" in alert_data:
-            alert_data["description"] = alert_data["message"]
-        if "alert_id" not in alert_data:
-            alert_data["alert_id"] = str(uuid4())
-
-        if "patient_id" not in alert_data:
-            logger.warning("publish_alert_event missing patient_id")
-            return 0
-
-        return await self.broadcast_alert_event(event_type, alert_data)
-
-    async def publish_flow_event(
-        self,
-        event_type: WebSocketEventType,
-        patient_id: UUID,
-        flow_data: Optional[dict[str, Any]] = None,
-        **kwargs: Any,
-    ) -> int:
-        """Alias for broadcast_flow_event with legacy kwargs support."""
-        if flow_data is None:
-            flow_data = dict(kwargs)
-        elif kwargs:
-            flow_data = {**flow_data, **kwargs}
-
-        metadata = dict(flow_data.get("metadata") or {})
-        if "flow_id" in flow_data and "flow_id" not in metadata:
-            metadata["flow_id"] = str(flow_data["flow_id"])
-        if "event_data" in flow_data and "event_data" not in metadata:
-            metadata["event_data"] = flow_data["event_data"]
-        if metadata:
-            flow_data["metadata"] = metadata
-
-        return await self.broadcast_flow_event(event_type, patient_id, flow_data)
-
-    async def publish_message_event(
-        self,
-        event_type: WebSocketEventType,
-        message_data: Optional[dict[str, Any]] = None,
-        **kwargs: Any,
-    ) -> int:
-        """Alias for broadcast_message_event with legacy kwargs support."""
-        if message_data is None:
-            if not kwargs:
-                logger.warning("publish_message_event called without message data")
-                return 0
-            message_data = dict(kwargs)
-        elif kwargs:
-            message_data = {**message_data, **kwargs}
-
-        if "type" not in message_data and "message_type" in message_data:
-            message_data["type"] = message_data.pop("message_type")
-        if "metadata" not in message_data and "message_metadata" in message_data:
-            message_data["metadata"] = message_data.pop("message_metadata")
-
-        return await self.broadcast_message_event(event_type, message_data)
-
-    async def publish_report_event(
-        self,
-        event_type: WebSocketEventType,
-        report_data: Optional[dict[str, Any]] = None,
-        **kwargs: Any,
-    ) -> int:
-        """Alias for broadcast_report_event with legacy kwargs support."""
-        if report_data is None:
-            if not kwargs:
-                logger.warning("publish_report_event called without report data")
-                return 0
-            report_data = dict(kwargs)
-        elif kwargs:
-            report_data = {**report_data, **kwargs}
-
-        if "title" in report_data:
-            metadata = dict(report_data.get("metadata") or {})
-            metadata.setdefault("title", report_data["title"])
-            report_data["metadata"] = metadata
-
-        return await self.broadcast_report_event(event_type, report_data)
-
     async def publish_patient_event(
         self,
         event_type: WebSocketEventType,
@@ -562,14 +475,15 @@ class WebSocketEventService:
         Used for patient lifecycle events (registration, status changes, etc.)
         """
         try:
+            redacted_data = _redact_payload(data)
             message = {
                 "type": event_type.value,
                 "patient_id": str(patient_id),
-                "data": data,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "data": redacted_data,
+                "timestamp": now_sao_paulo().isoformat(),
             }
             sent_count = await connection_manager.broadcast_to_patient_room(
-                message, str(patient_id)
+                str(patient_id), message
             )
             logger.info(
                 f"Published patient event {event_type.value} for {patient_id} to {sent_count} connections"
@@ -591,10 +505,11 @@ class WebSocketEventService:
         Used as a catch-all for events that don't fit other categories.
         """
         try:
+            redacted_data = _redact_payload(data)
             message = {
                 "type": event_type.value,
-                "data": data,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "data": redacted_data,
+                "timestamp": now_sao_paulo().isoformat(),
             }
             sent_count = await connection_manager.broadcast_to_all_authenticated(message)
             logger.info(
@@ -625,10 +540,11 @@ class WebSocketEventService:
             Number of connections reached
         """
         try:
+            redacted_data = _redact_payload(data)
             message = {
                 "type": event_type.value,
-                "data": data,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "data": redacted_data,
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
             sent_count = 0

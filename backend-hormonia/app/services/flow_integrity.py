@@ -1,6 +1,12 @@
 """
 Flow Integrity Service - Standalone validation and integrity checking for flow operations.
 Extracted from FlowEngineIntegrationService for better separation of concerns.
+
+Architecture note (QW-021 consolidation):
+    Unique data-integrity concern -- provides referential integrity checking,
+    flow-state checksums, transition validation, and automated repair.
+    NOT duplicated in ``app.services.flow.validation`` which validates template
+    structure and step definitions, not runtime flow-state consistency.
 """
 
 import hashlib
@@ -13,6 +19,7 @@ from app.models.flow import PatientFlowState
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
 from app.exceptions import ValidationError
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -107,11 +114,11 @@ class FlowIntegrityService:
 
         # Define treatment-flow compatibility matrix
         compatibility_matrix = {
-            "hormone_therapy": ["initial_15_days", "days_16_45", "monthly_recurring"],
-            "chemotherapy": ["initial_15_days", "days_16_45", "monthly_recurring"],
-            "radiation": ["initial_15_days", "days_16_45"],
-            "immunotherapy": ["initial_15_days", "monthly_recurring"],
-            "surgery": ["initial_15_days", "days_16_45"],
+            "hormone_therapy": ["onboarding", "daily_follow_up", "quiz_mensal"],
+            "chemotherapy": ["onboarding", "daily_follow_up", "quiz_mensal"],
+            "radiation": ["onboarding", "daily_follow_up"],
+            "immunotherapy": ["onboarding", "quiz_mensal"],
+            "surgery": ["onboarding", "daily_follow_up"],
         }
 
         compatible_flows = compatibility_matrix.get(treatment_type.lower(), [])
@@ -142,10 +149,10 @@ class FlowIntegrityService:
 
             # Define valid transitions
             valid_transitions = {
-                "initial_15_days": ["days_16_45", "monthly_recurring", "completed"],
-                "days_16_45": ["monthly_recurring", "completed"],
-                "monthly_recurring": ["completed", "paused"],
-                "paused": ["monthly_recurring", "completed"],
+                "onboarding": ["daily_follow_up", "quiz_mensal", "completed"],
+                "daily_follow_up": ["quiz_mensal", "completed"],
+                "quiz_mensal": ["completed", "paused"],
+                "paused": ["quiz_mensal", "completed"],
                 "completed": [],  # No transitions from completed
             }
 
@@ -192,9 +199,9 @@ class FlowIntegrityService:
             int: Maximum valid step
         """
         max_steps = {
-            "initial_15_days": 15,
-            "days_16_45": 30,  # 16-45 is 30 days
-            "monthly_recurring": 365,  # Up to a year
+            "onboarding": 15,
+            "daily_follow_up": 30,  # 16-45 is 30 days
+            "quiz_mensal": 365,  # Up to a year
         }
         return max_steps.get(flow_type, 365)
 
@@ -223,7 +230,7 @@ class FlowIntegrityService:
             if "last_updated" in state_data:
                 try:
                     last_updated = datetime.fromisoformat(state_data["last_updated"])
-                    if last_updated > datetime.now(timezone.utc):
+                    if last_updated > now_sao_paulo():
                         raise ValidationError(
                             "Flow last_updated cannot be in the future"
                         )
@@ -257,7 +264,7 @@ class FlowIntegrityService:
                 )
                 # Update with correct checksum
                 state_data["integrity_checksum"] = expected_checksum
-                state_data["checksum_updated"] = datetime.now(timezone.utc).isoformat()
+                state_data["checksum_updated"] = now_sao_paulo().isoformat()
                 self.db.commit()
 
         except ValidationError:
@@ -318,10 +325,10 @@ class FlowIntegrityService:
             if current_flow and current_flow.flow_type != new_flow_type:
                 # Check if transition is allowed
                 valid_transitions = {
-                    "initial_15_days": ["days_16_45", "monthly_recurring"],
-                    "days_16_45": ["monthly_recurring"],
-                    "monthly_recurring": [],  # Can only continue or complete
-                    "paused": ["monthly_recurring"],  # Can resume
+                    "onboarding": ["daily_follow_up", "quiz_mensal"],
+                    "daily_follow_up": ["quiz_mensal"],
+                    "quiz_mensal": [],  # Can only continue or complete
+                    "paused": ["quiz_mensal"],  # Can resume
                     "completed": [],  # No transitions allowed
                 }
 
@@ -437,7 +444,7 @@ class FlowIntegrityService:
                 if not stored_checksum or stored_checksum != expected_checksum:
                     flow_state.state_data["integrity_checksum"] = expected_checksum
                     flow_state.state_data["checksum_repaired"] = (
-                        datetime.now(timezone.utc).isoformat()
+                        now_sao_paulo().isoformat()
                     )
                     repair_results["repairs_applied"].append(
                         "integrity_checksum_updated"
@@ -450,7 +457,7 @@ class FlowIntegrityService:
 
                 if "last_updated" not in flow_state.state_data:
                     flow_state.state_data["last_updated"] = (
-                        datetime.now(timezone.utc).isoformat()
+                        now_sao_paulo().isoformat()
                     )
                     repair_results["repairs_applied"].append("last_updated_field_added")
 
@@ -501,7 +508,7 @@ class FlowIntegrityService:
         try:
             results = {
                 "service": "FlowIntegrityService",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "healthy": True,
                 "checks": {},
             }
@@ -532,7 +539,7 @@ class FlowIntegrityService:
             logger.error(f"Flow integrity health check failed: {e}")
             return {
                 "service": "FlowIntegrityService",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "healthy": False,
                 "error": str(e),
             }

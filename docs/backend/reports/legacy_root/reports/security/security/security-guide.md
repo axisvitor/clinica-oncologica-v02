@@ -196,8 +196,8 @@ session_data = {
     "role": "doctor",
     "permissions": ["read:patients", "write:patients"],
     "csrf_token": "random-token",
-    "created_at": "2025-01-01T00:00:00Z",
-    "expires_at": "2025-01-01T08:00:00Z",
+    "created_at": "2025-01-01T00:00:00-03:00",
+    "expires_at": "2025-01-01T08:00:00-03:00",
 }
 ```
 
@@ -551,7 +551,7 @@ app.add_middleware(LGPDMiddleware, enable_ip_logging=True)
   "method": "GET",
   "path": "/api/v2/patients/456",
   "ip_address": "192.168.1.100",
-  "timestamp": "2025-01-01T15:30:00Z"
+  "timestamp": "2025-01-01T15:30:00-03:00"
 }
 ```
 

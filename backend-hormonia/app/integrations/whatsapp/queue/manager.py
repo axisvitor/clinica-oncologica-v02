@@ -7,7 +7,7 @@ Handles message queuing, routing, and delivery to Evolution instances.
 import asyncio
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional, Dict, Any, List, Callable, Awaitable
 
 import redis.asyncio as redis
@@ -19,7 +19,9 @@ from app.models.failed_message import FailureReason
 from app.integrations.whatsapp.services.evolution_client import EvolutionAPIError
 from app.utils.logging import get_logger
 from app.config import settings
+from app.core.redis_manager import get_async_redis_client, get_redis_connection_kwargs
 from app.integrations.whatsapp.metrics import whatsapp_metrics
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -56,6 +58,7 @@ class QueueManager:
         self.default_instance = default_instance
         self.redis_url = redis_url or settings.REDIS_URL
         self.redis_client = redis_client
+        self._uses_shared_client = False
         self.message_sender = message_sender
         self.dlq_handler = DLQHandler(db) if db else None
 
@@ -75,13 +78,28 @@ class QueueManager:
     async def connect(self) -> None:
         """Connect to Redis if needed."""
         if not self.redis_client:
-            self.redis_client = redis.from_url(self.redis_url)
+            if self.redis_url == settings.REDIS_URL:
+                self.redis_client = await get_async_redis_client()
+                self._uses_shared_client = True
+            else:
+                kwargs = get_redis_connection_kwargs(
+                    decode_responses=getattr(settings, "REDIS_ENABLE_DECODE_RESPONSES", True),
+                    socket_timeout=getattr(settings, "REDIS_SOCKET_TIMEOUT_SECONDS", 5.0),
+                    socket_connect_timeout=getattr(
+                        settings, "REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS", 2.0
+                    ),
+                    mode="async",
+                    max_connections=getattr(settings, "REDIS_POOL_MAX_CONNECTIONS", 20),
+                    retry_on_timeout=getattr(settings, "REDIS_ENABLE_RETRY_ON_TIMEOUT", True),
+                )
+                self.redis_client = redis.from_url(self.redis_url, **kwargs)
 
     async def disconnect(self) -> None:
         """Disconnect Redis client."""
-        if self.redis_client:
+        if self.redis_client and not self._uses_shared_client:
             await self.redis_client.aclose()
             self.redis_client = None
+        self._uses_shared_client = False
 
     def _queue_key(self, instance_name: str) -> str:
         return f"whatsapp:queue:{instance_name}"
@@ -91,6 +109,9 @@ class QueueManager:
 
     def _failed_key(self, instance_name: str) -> str:
         return f"whatsapp:failed:{instance_name}"
+
+    def _delayed_key(self, instance_name: str) -> str:
+        return f"whatsapp:delayed:{instance_name}"
 
     def _idempotency_key(self, instance_name: str, message_id: str) -> str:
         return f"whatsapp:processed:{instance_name}:{message_id}"
@@ -113,7 +134,7 @@ class QueueManager:
         return MessageResponse(
             success=True,
             message_id=message_id,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             instance_name=request.instance_name,
         )
 
@@ -139,14 +160,14 @@ class QueueManager:
                 "request": request.model_dump(),
                 "retry_count": request.retry_count,
                 "retry_timestamps": [],
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": now_sao_paulo().isoformat(),
             }
 
             await self.redis_client.lpush(
                 self._queue_key(queue_name), json.dumps(message_payload, default=str)
             )
 
-            self._stats["last_activity"] = datetime.now(timezone.utc)
+            self._stats["last_activity"] = now_sao_paulo()
             logger.info("Message queued", extra={"instance": queue_name})
             return True
 
@@ -211,6 +232,7 @@ class QueueManager:
         batch_size = 10
 
         while self._is_running:
+            await self._drain_due_retries(instance_name)
             batch = await self._dequeue_batch(instance_name, batch_size)
             if not batch:
                 await asyncio.sleep(0.1)
@@ -227,14 +249,18 @@ class QueueManager:
     async def _dequeue_batch(
         self, instance_name: str, batch_size: int
     ) -> List[Dict[str, Any]]:
-        """Dequeue a batch of messages using RPOPLPUSH for atomicity."""
+        """Dequeue a batch of messages using atomic Redis move+metadata update."""
         queue_key = self._queue_key(instance_name)
         processing_key = self._processing_key(instance_name)
-        now = datetime.now(timezone.utc).isoformat()
+        now = now_sao_paulo().isoformat()
         batch: List[Dict[str, Any]] = []
 
         for _ in range(batch_size):
-            raw_message = await self.redis_client.rpoplpush(queue_key, processing_key)
+            raw_message = await self._atomic_dequeue_to_processing(
+                queue_key=queue_key,
+                processing_key=processing_key,
+                processing_started_at=now,
+            )
             if not raw_message:
                 break
 
@@ -242,16 +268,75 @@ class QueueManager:
                 raw_message = raw_message.decode("utf-8")
 
             payload = json.loads(raw_message)
-            payload["processing_started_at"] = now
-            updated_raw = json.dumps(payload, default=str)
-
-            # Replace processing entry with updated metadata
-            await self.redis_client.lrem(processing_key, 1, raw_message)
-            await self.redis_client.lpush(processing_key, updated_raw)
-
-            batch.append({"raw": updated_raw, "payload": payload})
+            batch.append({"raw": raw_message, "payload": payload})
 
         return batch
+
+    async def _atomic_dequeue_to_processing(
+        self, queue_key: str, processing_key: str, processing_started_at: str
+    ) -> Optional[str]:
+        """
+        Atomically move one payload to processing queue and stamp processing time.
+
+        Uses Lua to avoid non-atomic RPOPLPUSH + LREM/LPUSH sequences that can
+        race with watchdog requeue and cause duplicate processing.
+        """
+        lua = """
+        local moved = redis.call('RPOPLPUSH', KEYS[1], KEYS[2])
+        if not moved then
+            return nil
+        end
+        local payload = cjson.decode(moved)
+        payload['processing_started_at'] = ARGV[1]
+        local updated = cjson.encode(payload)
+        redis.call('LSET', KEYS[2], 0, updated)
+        return updated
+        """
+        return await self.redis_client.eval(
+            lua, 2, queue_key, processing_key, processing_started_at
+        )
+
+    def _calculate_retry_backoff(self, retry_count: int) -> int:
+        """Exponential backoff in seconds (1m, 2m, 4m...)."""
+        return 60 * (2 ** (retry_count - 1))
+
+    async def _schedule_retry(
+        self, instance_name: str, payload: Dict[str, Any], delay_seconds: int
+    ) -> None:
+        """
+        Persist retry schedule in Redis sorted set.
+
+        This avoids in-memory sleep-only scheduling, so retries survive worker restarts.
+        """
+        retry_at = now_sao_paulo().timestamp() + max(0, int(delay_seconds))
+        await self.redis_client.zadd(
+            self._delayed_key(instance_name),
+            {json.dumps(payload, default=str): retry_at},
+        )
+
+    async def _drain_due_retries(self, instance_name: str, max_items: int = 100) -> int:
+        """Move due delayed retries back to the main queue."""
+        delayed_key = self._delayed_key(instance_name)
+        queue_key = self._queue_key(instance_name)
+        now_ts = now_sao_paulo().timestamp()
+        moved = 0
+
+        for _ in range(max_items):
+            popped = await self.redis_client.zpopmin(delayed_key, 1)
+            if not popped:
+                break
+
+            value, score = popped[0]
+            score_val = float(score)
+
+            if score_val > now_ts:
+                await self.redis_client.zadd(delayed_key, {value: score_val})
+                break
+
+            await self.redis_client.lpush(queue_key, value)
+            moved += 1
+
+        return moved
 
     async def _process_payload(self, instance_name: str, item: Dict[str, Any]) -> None:
         """Process a queued message payload."""
@@ -277,7 +362,7 @@ class QueueManager:
             await self._ack_processing(instance_name, raw)
             await self.redis_client.set(idempotency_key, "1", ex=86400)
             self._stats["messages_sent"] += 1
-            self._stats["last_activity"] = datetime.now(timezone.utc)
+            self._stats["last_activity"] = now_sao_paulo()
             whatsapp_metrics.record_message_sent(instance_name, "sent")
             logger.info(
                 "Message processed successfully",
@@ -296,7 +381,7 @@ class QueueManager:
         return MessageResponse(
             success=True,
             message_id=request.message_id or str(uuid.uuid4()),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             instance_name=request.instance_name,
         )
 
@@ -311,17 +396,15 @@ class QueueManager:
         retry_count = payload.get("retry_count", 0) + 1
         payload["retry_count"] = retry_count
         payload.setdefault("retry_timestamps", []).append(
-            datetime.now(timezone.utc).isoformat()
+            now_sao_paulo().isoformat()
         )
 
         await self._ack_processing(instance_name, raw)
         self._stats["messages_failed"] += 1
 
         if retry_count < 3:
-            backoff_seconds = 60 * (2 ** (retry_count - 1))
-            asyncio.create_task(
-                self._requeue_with_delay(instance_name, payload, backoff_seconds)
-            )
+            backoff_seconds = self._calculate_retry_backoff(retry_count)
+            await self._schedule_retry(instance_name, payload, backoff_seconds)
             logger.warning(
                 "Message scheduled for retry",
                 extra={
@@ -355,11 +438,8 @@ class QueueManager:
     async def _requeue_with_delay(
         self, instance_name: str, payload: Dict[str, Any], delay_seconds: int
     ) -> None:
-        """Requeue a message after a delay."""
-        await asyncio.sleep(delay_seconds)
-        await self.redis_client.lpush(
-            self._queue_key(instance_name), json.dumps(payload, default=str)
-        )
+        """Backward-compatible wrapper for durable retry scheduling."""
+        await self._schedule_retry(instance_name, payload, delay_seconds)
 
     async def _ack_processing(self, instance_name: str, raw: str) -> None:
         """Remove a message from the processing list."""
@@ -371,7 +451,7 @@ class QueueManager:
         processing_key = self._processing_key(instance_name)
         while self._is_running:
             try:
-                now = datetime.now(timezone.utc)
+                now = now_sao_paulo()
                 entries = await self.redis_client.lrange(processing_key, 0, -1)
                 for entry in entries:
                     if isinstance(entry, bytes):

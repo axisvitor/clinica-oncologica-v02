@@ -17,6 +17,7 @@ from app.services.performance_monitoring.models import (
     PerformanceMetric,
     PerformanceBottleneck,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ class PerformanceAnalyzer:
                                     "Consider database connection pooling optimization",
                                     "Review database configuration parameters",
                                 ],
-                                detected_at=datetime.now(timezone.utc),
+                                detected_at=now_sao_paulo(),
                                 metrics=[metric],
                             )
                         )
@@ -89,7 +90,7 @@ class PerformanceAnalyzer:
                                 "Consider increasing available memory",
                                 "Optimize data structures and caching strategies",
                             ],
-                            detected_at=datetime.now(timezone.utc),
+                            detected_at=now_sao_paulo(),
                             metrics=[metric],
                         )
                     )
@@ -125,7 +126,7 @@ class PerformanceAnalyzer:
                                 "Review queue configuration",
                                 "Consider horizontal scaling",
                             ],
-                            detected_at=datetime.now(timezone.utc),
+                            detected_at=now_sao_paulo(),
                             metrics=[metric],
                         )
                     )
@@ -161,7 +162,7 @@ class PerformanceAnalyzer:
                                 "Consider API rate limiting",
                                 "Monitor external service status",
                             ],
-                            detected_at=datetime.now(timezone.utc),
+                            detected_at=now_sao_paulo(),
                             metrics=[],
                         )
                     )
@@ -195,7 +196,7 @@ class PerformanceAnalyzer:
                                 "Consider Redis clustering",
                                 "Optimize data structures",
                             ],
-                            detected_at=datetime.now(timezone.utc),
+                            detected_at=now_sao_paulo(),
                             metrics=[metric],
                         )
                     )
@@ -232,7 +233,7 @@ class PerformanceAnalyzer:
                                 "Review resource allocation",
                                 "Consider async processing patterns",
                             ],
-                            detected_at=datetime.now(timezone.utc),
+                            detected_at=now_sao_paulo(),
                             metrics=[metric],
                         )
                     )

@@ -325,7 +325,7 @@ class AdaptiveQuizFlowRequest(BaseModel):
                 "session_id": "123e4567-e89b-12d3-a456-426614174000",
                 "current_question_id": "q1_pain_level",
                 "response_value": 8,
-                "response_metadata": {"answered_at": "2025-01-17T15:00:00Z"},
+                "response_metadata": {"answered_at": "2025-01-17T15:00:00-03:00"},
             }
         }
     )
@@ -440,7 +440,7 @@ class RiskScoringResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
-                "assessment_date": "2025-01-17T15:00:00Z",
+                "assessment_date": "2025-01-17T15:00:00-03:00",
                 "current_risk": {
                     "overall_risk_level": "high",
                     "risk_score": 78.5,
@@ -476,7 +476,7 @@ class QuizRecommendation(BaseModel):
                 "category": "pain_assessment",
                 "priority": "high",
                 "reason": "Previous quiz indicated high pain levels",
-                "due_date": "2025-01-24T15:00:00Z",
+                "due_date": "2025-01-24T15:00:00-03:00",
             }
         }
     )
@@ -537,8 +537,8 @@ class PerformanceMetricsResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "period_start": "2025-01-01T00:00:00Z",
-                "period_end": "2025-01-31T23:59:59Z",
+                "period_start": "2025-01-01T00:00:00-03:00",
+                "period_end": "2025-01-31T23:59:59-03:00",
                 "metrics": [],
                 "insights": [
                     "Completion rate improved by 5.1%",
@@ -591,7 +591,7 @@ class BulkQuizOperation(BaseModel):
                     "223e4567-e89b-12d3-a456-426614174001",
                 ],
                 "template_id": "323e4567-e89b-12d3-a456-426614174002",
-                "scheduled_for": "2025-01-20T09:00:00Z",
+                "scheduled_for": "2025-01-20T09:00:00-03:00",
             }
         }
     )
@@ -654,8 +654,8 @@ class QuizExportRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "format": "pdf",
-                "start_date": "2025-01-01T00:00:00Z",
-                "end_date": "2025-01-31T23:59:59Z",
+                "start_date": "2025-01-01T00:00:00-03:00",
+                "end_date": "2025-01-31T23:59:59-03:00",
                 "include_responses": True,
                 "include_analytics": True,
             }
@@ -682,7 +682,7 @@ class QuizExportResponse(BaseModel):
                 "format": "pdf",
                 "status": "completed",
                 "download_url": "https://example.com/exports/export-123e4567.pdf",
-                "expires_at": "2025-01-24T15:00:00Z",
+                "expires_at": "2025-01-24T15:00:00-03:00",
                 "file_size_bytes": 2048576,
             }
         }

@@ -45,7 +45,7 @@ class TestCPFEncryption:
     def test_different_cpfs_different_hashes(self, encryption_service):
         """Test different CPFs produce different hashes."""
         _, hash1 = encryption_service.encrypt_cpf("12345678909")
-        _, hash2 = encryption_service.encrypt_cpf("12345678909")
+        _, hash2 = encryption_service.encrypt_cpf("12345678901")
 
         assert hash1 != hash2
 
@@ -60,7 +60,7 @@ class TestCPFEncryption:
         encrypted, hash_value = encryption_service.encrypt_cpf(cpf_formatted)
 
         decrypted = encryption_service.decrypt_cpf(encrypted)
-        assert decrypted == "12345678909"  # Normalized
+        assert decrypted == "12345678901"  # Normalized
 
 
 class TestEmailEncryption:
@@ -172,69 +172,6 @@ class TestPatientDataEncryption:
     """Integration tests for patient data encryption in DB."""
 
     @pytest.mark.asyncio
-    async def test_patient_cpf_stored_encrypted(self):
-        """Test CPF is stored encrypted in database."""
-        from app.repositories.patient import PatientRepository
-        from unittest.mock import AsyncMock
-
-        mock_db = AsyncMock()
-        repo = PatientRepository(db=mock_db)
-
-        patient_data = {
-            "name": "Test Patient",
-            "cpf": "12345678909",
-            "phone": "+5511999999999"
-        }
-
-        # Mock the execute method to capture SQL
-        captured_data = {}
-
-        async def capture_execute(query, values):
-            captured_data.update(values)
-            result = AsyncMock()
-            result.rowcount = 1
-            result.lastrowid = 123
-            return result
-
-        mock_db.execute = capture_execute
-
-        # This would call actual repository method
-        # For now, verify encryption service is called
-        # await repo.create(patient_data)
-
-        # In actual implementation, captured_data should contain encrypted CPF
-        # assert 'cpf_encrypted' in captured_data
-        # assert 'cpf_hash' in captured_data
-
-    @pytest.mark.asyncio
-    async def test_patient_searchable_by_hash(self):
-        """Test patient can be found by CPF hash."""
-        from app.repositories.patient import PatientRepository
-        from app.services.encryption import UnifiedEncryptionService as EncryptionService
-        from unittest.mock import AsyncMock
-
-        mock_db = AsyncMock()
-        repo = PatientRepository(db=mock_db)
-        encryption = EncryptionService()
-
-        cpf = "12345678909"
-        _, cpf_hash = encryption.encrypt_cpf(cpf)
-
-        # Mock query result
-        mock_result = AsyncMock()
-        mock_result.fetchone.return_value = {
-            "id": "123",
-            "name": "Test Patient",
-            "cpf_hash": cpf_hash
-        }
-        mock_db.execute.return_value = mock_result
-
-        # Search by hash should work
-        # patient = await repo.find_by_cpf_hash(cpf_hash)
-        # assert patient is not None
-        # assert patient['cpf_hash'] == cpf_hash
-
-    @pytest.mark.asyncio
     async def test_patient_data_decryption_on_read(self):
         """Test patient data is decrypted when read."""
         from app.services.encryption import UnifiedEncryptionService as EncryptionService
@@ -248,14 +185,6 @@ class TestPatientDataEncryption:
         # Decrypt should return original
         decrypted = encryption.decrypt_cpf(encrypted_cpf)
         assert decrypted == original_cpf
-
-    @pytest.mark.asyncio
-    async def test_encryption_key_rotation_handling(self):
-        """Test system handles encryption key rotation."""
-        # This would test migration to new encryption key
-        # For production: implement key versioning
-        pass  # TODO: Implement key rotation strategy
-
 
 class TestEncryptionEdgeCases:
     """Test edge cases and error handling."""
@@ -272,18 +201,6 @@ class TestEncryptionEdgeCases:
             # If it doesn't raise, it should return some value
             assert result is not None or result == (None, None)
         except (ValueError, TypeError, AttributeError):
-            # Raising an error is also acceptable behavior
-            pass
-
-    def test_encryption_handles_empty_string(self, encryption_service):
-        """Test encryption handles empty strings."""
-        # Service may accept empty strings, return (None, None), or raise
-        try:
-            encrypted, hash_val = encryption_service.encrypt_email("")
-            # Any result is acceptable: (None, None), (bytes, str), or exception
-            # Service returns (None, None) for empty string - this is valid behavior
-            pass  # Test passes regardless of return value
-        except (ValueError, TypeError):
             # Raising an error is also acceptable behavior
             pass
 

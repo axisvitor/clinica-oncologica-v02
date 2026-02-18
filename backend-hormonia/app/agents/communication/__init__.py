@@ -7,5 +7,11 @@ and response processing with intelligent personalization.
 
 from .message_composer import MessageComposerAgent
 from .response_processor import ResponseProcessorAgent, ResponseAnalysis
+from app.domain.agents.quiz import QuizConductor
 
-__all__ = ["MessageComposerAgent", "ResponseProcessorAgent", "ResponseAnalysis"]
+__all__ = [
+    "MessageComposerAgent",
+    "ResponseProcessorAgent",
+    "ResponseAnalysis",
+    "QuizConductor",
+]

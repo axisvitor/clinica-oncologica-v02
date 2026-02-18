@@ -46,7 +46,7 @@ class TestHealthEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert "status" in data
-        assert data["status"] in ["healthy", "live"]
+        assert data["status"] in ["healthy", "live", "alive"]
 
     def test_health_ready_endpoint(self, client):
         """Test /health/ready endpoint."""
@@ -78,34 +78,28 @@ class TestHealthEndpoints:
 
 
 class TestDebugEndpoints:
-    """Test suite for debug endpoints (enabled in development)."""
+    """Test suite for legacy root debug endpoints (must be absent)."""
 
     def test_debug_env_endpoint(self, client):
-        """Test /debug/env endpoint."""
+        """Test legacy /debug/env endpoint is not exposed."""
         response = client.get("/debug/env")
-        assert response.status_code == 200
+        assert response.status_code == 404
         data = response.json()
-        assert "environment_variables" in data
-        assert "python_path" in data
-        assert "app_state" in data
+        assert data["detail"] == "Not Found"
 
     def test_debug_imports_endpoint(self, client):
-        """Test /debug/imports endpoint."""
+        """Test legacy /debug/imports endpoint is not exposed."""
         response = client.get("/debug/imports")
-        assert response.status_code == 200
+        assert response.status_code == 404
         data = response.json()
-        assert "import_test_results" in data
-        assert "timestamp" in data
+        assert data["detail"] == "Not Found"
 
     def test_debug_health_endpoint(self, client):
-        """Test /debug/health endpoint."""
+        """Test legacy /debug/health endpoint is not exposed."""
         response = client.get("/debug/health")
-        assert response.status_code == 200
+        assert response.status_code == 404
         data = response.json()
-        assert data["status"] == "healthy"
-        assert "deployment_mode" in data
-        assert "version" in data
-        assert data["version"] == "2.0.0"
+        assert data["detail"] == "Not Found"
 
 
 class TestAuthEndpoints:
@@ -176,10 +170,13 @@ class TestCORSConfiguration:
         """Test CORS headers on OPTIONS preflight request."""
         response = client.options(
             "/api/v2/patients",
-            headers={"Origin": "http://localhost:5173"}
+            headers={
+                "Origin": "http://localhost:5173",
+                "Access-Control-Request-Method": "GET",
+            },
         )
         # OPTIONS should return 200 with CORS headers
-        assert response.status_code == 200
+        assert response.status_code in [200, 204]
         # Check for CORS headers
         assert "access-control-allow-origin" in response.headers
 
@@ -231,15 +228,15 @@ class TestCriticalEndpointsExist:
         "/api/v2/quiz/sessions",
         "/api/v2/appointments",
         "/api/v2/treatments",
-        "/api/v2/analytics",
+        "/api/v2/analytics/overview",
         "/api/v2/flows",
         "/api/v2/messages",
         "/api/v2/reports",
-        "/api/v2/admin",
-        "/api/v2/ai",
-        "/api/v2/dashboard",
+        "/api/v2/admin-extensions/audit-logs",
+        "/api/v2/ai/health/",
+        "/api/v2/dashboard/main",
         "/api/v2/physicians",
-        "/api/v2/system",
+        "/api/v2/system/health",
     ])
     def test_critical_endpoint_exists(self, client, endpoint):
         """Test that critical endpoints exist (not 404)."""

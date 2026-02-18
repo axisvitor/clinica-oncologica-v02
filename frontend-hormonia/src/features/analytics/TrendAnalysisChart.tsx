@@ -10,10 +10,9 @@
  */
 
 import React, { useMemo, useCallback, memo } from 'react';
+import { LineChart, AreaChart } from '@/components/ui/charts/LazyRechartsComponents';
 import {
-  LineChart,
   Line,
-  AreaChart,
   Area,
   XAxis,
   YAxis,
@@ -22,7 +21,7 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceDot,
-} from '@/components/ui/charts/LazyRechartsComponents';
+} from '@/components/ui/charts/RechartsPrimitives';
 import { TrendData } from '../../types/enhanced-analytics';
 
 export interface TrendAnalysisChartProps {

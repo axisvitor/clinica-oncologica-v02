@@ -150,8 +150,8 @@ Authorization: Bearer <token>
     {
       "session_id": "sess_123",
       "user_id": "550e8400-e29b-41d4-a716-446655440000",
-      "created_at": "2025-01-15T10:30:00Z",
-      "expires_at": "2025-01-20T10:30:00Z",
+      "created_at": "2025-01-15T10:30:00-03:00",
+      "expires_at": "2025-01-20T10:30:00-03:00",
       "ip_address": "192.168.1.100",
       "user_agent": "Mozilla/5.0...",
       "is_current": true,
@@ -224,8 +224,8 @@ Content-Type: application/json
 
 ```
 // DateTime (com timezone - RFC3339)
-"2025-01-15T10:30:00Z"
-"2025-01-15T10:30:00+00:00"
+"2025-01-15T10:30:00-03:00"
+"2025-01-15T10:30:00-03:00"
 
 // Date (apenas data)
 "2025-01-15"
@@ -251,8 +251,8 @@ Todos os IDs de recursos sao UUIDs v4:
   "id": "uuid",
   "field1": "value1",
   "field2": "value2",
-  "created_at": "2025-01-15T10:30:00Z",
-  "updated_at": "2025-01-15T10:30:00Z"
+  "created_at": "2025-01-15T10:30:00-03:00",
+  "updated_at": "2025-01-15T10:30:00-03:00"
 }
 ```
 
@@ -424,7 +424,7 @@ Authorization: Bearer <token>
       "id": "123e4567-e89b-12d3-a456-426614174000",
       "name": "Maria Silva",
       "email": "maria@example.com",
-      "created_at": "2025-01-15T10:30:00Z"
+      "created_at": "2025-01-15T10:30:00-03:00"
     }
   ],
   "next_cursor": "eyJpZCI6IjEyM2U0NTY3LWU4OWItMTJkMy1hNDU2LTQyNjYxNDE3NDAwMCIsImNyZWF0ZWRfYXQiOiIyMDI1LTAxLTE1VDEwOjMwOjAwWiJ9",
@@ -781,14 +781,14 @@ Content-Type: application/json
   "status": "active",
   "cancer_type": "breast",
   "diagnosis_date": "2025-01-10",
-  "created_at": "2025-01-16T10:30:00Z",
-  "updated_at": "2025-01-16T10:30:00Z",
+  "created_at": "2025-01-16T10:30:00-03:00",
+  "updated_at": "2025-01-16T10:30:00-03:00",
   "flow_state": {
     "id": "flow-state-123",
     "status": "active",
     "current_step": "welcome_message",
     "progress": 0,
-    "started_at": "2025-01-16T10:30:00Z"
+    "started_at": "2025-01-16T10:30:00-03:00"
   },
   "onboarding_saga": {
     "saga_id": "saga-789",
@@ -797,12 +797,12 @@ Content-Type: application/json
       {
         "name": "create_patient",
         "status": "completed",
-        "completed_at": "2025-01-16T10:30:01Z"
+        "completed_at": "2025-01-16T10:30:01-03:00"
       },
       {
         "name": "initialize_flow",
         "status": "in_progress",
-        "started_at": "2025-01-16T10:30:01Z"
+        "started_at": "2025-01-16T10:30:01-03:00"
       },
       {
         "name": "send_welcome_message",
@@ -833,7 +833,7 @@ Authorization: Bearer <token>
       "email": "maria.silva@example.com",
       "status": "active",
       "cancer_type": "breast",
-      "created_at": "2025-01-16T10:30:00Z",
+      "created_at": "2025-01-16T10:30:00-03:00",
       "doctor": {
         "id": "550e8400-e29b-41d4-a716-446655440000",
         "name": "Dr. Joao Silva"
@@ -879,8 +879,8 @@ Content-Type: application/json
   "current_question_index": 0,
   "total_questions": 15,
   "progress": 0,
-  "created_at": "2025-01-16T10:30:00Z",
-  "expires_at": "2025-01-18T10:30:00Z",
+  "created_at": "2025-01-16T10:30:00-03:00",
+  "expires_at": "2025-01-18T10:30:00-03:00",
   "delivery_method": "whatsapp",
   "quiz_url": "https://quiz.hormonia.example.com/session/quiz-session-456?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "first_question": {
@@ -927,7 +927,7 @@ Content-Type: application/json
     "selected": "good",
     "text": "Me sentindo bem hoje, sem dores"
   },
-  "answered_at": "2025-01-16T10:35:00Z",
+  "answered_at": "2025-01-16T10:35:00-03:00",
   "session_progress": {
     "current_question_index": 1,
     "total_questions": 15,
@@ -956,7 +956,7 @@ Content-Type: application/json
   "content": "Ola Maria! Lembre-se de tomar seus medicamentos as 14h.",
   "channel": "whatsapp",
   "priority": "normal",
-  "scheduled_for": "2025-01-16T14:00:00Z"
+  "scheduled_for": "2025-01-16T14:00:00-03:00"
 }
 ```
 
@@ -970,8 +970,8 @@ Content-Type: application/json
   "channel": "whatsapp",
   "priority": "normal",
   "status": "scheduled",
-  "scheduled_for": "2025-01-16T14:00:00Z",
-  "created_at": "2025-01-16T10:30:00Z",
+  "scheduled_for": "2025-01-16T14:00:00-03:00",
+  "created_at": "2025-01-16T10:30:00-03:00",
   "idempotency_key": "msg-789e4567-e89b-12d3-a456-426614174001-1737627600"
 }
 ```
@@ -996,8 +996,8 @@ Authorization: Bearer <token>
   "step_index": 3,
   "total_steps": 8,
   "progress": 37.5,
-  "started_at": "2025-01-16T10:30:00Z",
-  "last_activity": "2025-01-17T15:45:00Z",
+  "started_at": "2025-01-16T10:30:00-03:00",
+  "last_activity": "2025-01-17T15:45:00-03:00",
   "state_data": {
     "welcome_message_sent": true,
     "first_quiz_completed": true,
@@ -1007,12 +1007,12 @@ Authorization: Bearer <token>
   "history": [
     {
       "step": "welcome_message",
-      "completed_at": "2025-01-16T10:35:00Z",
+      "completed_at": "2025-01-16T10:35:00-03:00",
       "duration_seconds": 300
     },
     {
       "step": "initial_quiz",
-      "completed_at": "2025-01-16T12:00:00Z",
+      "completed_at": "2025-01-16T12:00:00-03:00",
       "duration_seconds": 1800
     }
   ]

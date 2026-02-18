@@ -173,7 +173,7 @@ async def update_context_with_message(
 
     # Add to conversation history
     history_entry = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now_sao_paulo().isoformat(),
         "message_id": str(message_id),
         "content": content[:500],  # Limit to 500 chars
         "direction": direction,

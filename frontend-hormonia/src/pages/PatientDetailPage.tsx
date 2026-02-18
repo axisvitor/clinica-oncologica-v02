@@ -18,7 +18,6 @@ import { PatientAISummary } from '@/features/ai/PatientAISummary'
 import { QuizResponseViewer } from '@/features/patients/QuizResponseViewer'
 import { QuizResponseTimeline } from '@/features/patients/QuizResponseTimeline'
 import { useMonthlyQuizAdmin } from '@/hooks/useMonthlyQuizAdmin'
-import { useAIInsights, useAIRecommendations } from '@/hooks/useAI'
 import { useAuth } from '@/app/providers/AuthContext'
 import { FEATURES } from '@/config'
 import { PatientDetailHeader } from '@/features/patients/components/PatientDetailHeader'
@@ -34,10 +33,8 @@ export function PatientDetailPage() {
   const [showSendQuizModal, setShowSendQuizModal] = useState(false)
   const { hasRole } = useAuth()
   const { useQuizLinkStatus, useQuizLinkHistory, resendQuizLink, cancelQuizLink } = useMonthlyQuizAdmin()
-
-  // AI Hooks - Hooks will return mock data if AI is not configured
-  const { data: aiInsights } = useAIInsights(id || '')
-  const { data: aiRecommendations } = useAIRecommendations(id || '')
+  const canAccessAiSummary = FEATURES.AI_SUMMARY && (hasRole('doctor') || hasRole('admin'))
+  const canAccessAiChat = FEATURES.AI_CHAT && (hasRole('doctor') || hasRole('admin'))
 
   const { data: patient, isLoading: patientLoading } = useQuery({
     queryKey: ['patient', id],
@@ -69,14 +66,6 @@ export function PatientDetailPage() {
     },
     enabled: !!id
   })
-
-  // Type guard to check if AI insights is an object (not an array)
-  const isAIInsightsObject = (data: typeof aiInsights): data is import('@/lib/api-client/types').AIInsights => {
-    return data != null && typeof data === 'object' && !Array.isArray(data) && 'patient_id' in data
-  }
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- isAIInsightsObject is a pure type guard function defined inline
-  const aiInsightsData = useMemo(() => isAIInsightsObject(aiInsights) ? aiInsights : undefined, [aiInsights])
 
   const totalQuizzes = quizHistory?.length ?? 0
   const completedQuizCount = useMemo(() => quizHistory
@@ -137,12 +126,11 @@ export function PatientDetailPage() {
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="timeline">Linha do Tempo</TabsTrigger>
           <TabsTrigger value="quiz-responses">Respostas de Quiz</TabsTrigger>
-          {FEATURES.AI_CHAT && (hasRole('doctor') || hasRole('admin')) && (
-            <>
-              <TabsTrigger value="ai-summary">Resumo IA</TabsTrigger>
-              <TabsTrigger value="ai-insights">Insights de IA</TabsTrigger>
-              <TabsTrigger value="ai-chat">Chat IA</TabsTrigger>
-            </>
+          {canAccessAiSummary && (
+            <TabsTrigger value="ai-summary">Resumo IA</TabsTrigger>
+          )}
+          {canAccessAiChat && (
+            <TabsTrigger value="ai-chat">Chat IA</TabsTrigger>
           )}
           <TabsTrigger value="messages">Mensagens</TabsTrigger>
         </TabsList>
@@ -209,20 +197,19 @@ export function PatientDetailPage() {
           </div>
         </TabsContent>
 
-        {FEATURES.AI_CHAT && (hasRole('doctor') || hasRole('admin')) && (
-          <>
-            <TabsContent value="ai-summary" className="space-y-6">
-              {id && patient && (
-                <PatientAISummary patientId={id} patientName={patient.name} />
-              )}
-            </TabsContent>
-            <PatientAIAnalysis
-              patientId={id || ''}
-              patientName={patient.name}
-              aiInsightsData={aiInsightsData}
-              aiRecommendations={aiRecommendations}
-            />
-          </>
+        {canAccessAiSummary && (
+          <TabsContent value="ai-summary" className="space-y-6">
+            {id && patient && (
+              <PatientAISummary patientId={id} patientName={patient.name} />
+            )}
+          </TabsContent>
+        )}
+        {canAccessAiChat && (
+          <PatientAIAnalysis
+            patientId={id || ''}
+            patientName={patient.name}
+            showChat={canAccessAiChat}
+          />
         )}
 
         <TabsContent value="messages" className="space-y-6">

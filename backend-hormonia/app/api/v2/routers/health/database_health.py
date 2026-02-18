@@ -13,9 +13,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from app.database import get_db, engine
-from app.dependencies.auth_dependencies import get_current_user
 from app.models.user import User
 from app.schemas.v2.health import DatabaseHealth, HealthStatus
+from .compat import call_health_attr, get_current_user_compat
 
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,8 @@ async def check_database_health(db: Any) -> DatabaseHealth:
 
 @router.get("/database", response_model=DatabaseHealth)
 async def database_health_check(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_compat),
 ) -> DatabaseHealth:
     """
     Database health check (Authenticated).
@@ -100,4 +101,17 @@ async def database_health_check(
     Returns detailed database health metrics.
     Cached for 1 minute.
     """
-    return await check_database_health(db)
+    try:
+        return await call_health_attr("check_database_health", check_database_health, db)
+    except Exception as e:
+        logger.warning(f"Database health endpoint fallback after check failure: {e}")
+        return DatabaseHealth(
+            status=HealthStatus.UNHEALTHY,
+            latency_ms=0.0,
+            pool_size=0,
+            active_connections=0,
+            available_connections=0,
+            pool_utilization_percent=0.0,
+            rls_enabled=False,
+            migrations_current=False,
+        )

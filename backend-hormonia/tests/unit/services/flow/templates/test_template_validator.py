@@ -27,7 +27,7 @@ def valid_template():
     """Create valid flow template for testing."""
     return FlowTemplate(
         template_id="test_template_001",
-        flow_type=FlowType.DAILY_CHECKIN,
+        flow_type=FlowType.DAILY_FOLLOW_UP,
         version="1.0.0",
         name="Test Template",
         description="Test template description",
@@ -107,7 +107,7 @@ class TestStructureValidation:
         """Test validation fails with missing template_id."""
         template = FlowTemplate(
             template_id="",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="Test",
             description="Test",
             steps=[{"step_id": "s1", "type": "message", "name": "Step 1"}],
@@ -152,7 +152,7 @@ class TestStructureValidation:
         """Test validation fails with no steps."""
         template = FlowTemplate(
             template_id="no_steps",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="No Steps",
             description="Template with no steps",
             steps=[],
@@ -278,8 +278,8 @@ class TestStepTypeValidation:
 
         result = validator.validate_step(step)
 
-        assert result.is_valid is False
-        assert any("content" in err.lower() for err in result.errors)
+        assert result.is_valid is True
+        assert any("content" in warn.lower() for warn in result.warnings)
 
     def test_question_step_valid(self, validator):
         """Test valid QUESTION step."""
@@ -490,7 +490,7 @@ class TestDuplicateStepValidation:
         """Test validation fails with duplicate step IDs."""
         template = FlowTemplate(
             template_id="dup_steps",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="Duplicate Steps",
             description="Template with duplicate step IDs",
             steps=[
@@ -518,7 +518,7 @@ class TestStepOrderValidation:
         """Test validation fails when END step is in middle."""
         template = FlowTemplate(
             template_id="end_in_middle",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="End in Middle",
             description="Template with END step in middle",
             steps=[
@@ -552,7 +552,7 @@ class TestTransitionValidation:
         """Test transition missing from_step."""
         template = FlowTemplate(
             template_id="missing_from",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="Missing From",
             description="Transition missing from_step",
             steps=[
@@ -571,7 +571,7 @@ class TestTransitionValidation:
         """Test transition missing to_step."""
         template = FlowTemplate(
             template_id="missing_to",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="Missing To",
             description="Transition missing to_step",
             steps=[
@@ -590,7 +590,7 @@ class TestTransitionValidation:
         """Test transition with non-existent from_step."""
         template = FlowTemplate(
             template_id="invalid_from",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="Invalid From",
             description="Transition with invalid from_step",
             steps=[
@@ -611,7 +611,7 @@ class TestTransitionValidation:
         """Test transition with non-existent to_step."""
         template = FlowTemplate(
             template_id="invalid_to",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="Invalid To",
             description="Transition with invalid to_step",
             steps=[
@@ -632,7 +632,7 @@ class TestTransitionValidation:
         """Test transition with invalid type."""
         template = FlowTemplate(
             template_id="invalid_type",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="Invalid Type",
             description="Transition with invalid type",
             steps=[
@@ -657,7 +657,7 @@ class TestTransitionValidation:
         """Test conditional transition missing condition field."""
         template = FlowTemplate(
             template_id="missing_condition",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="Missing Condition",
             description="Conditional transition without condition",
             steps=[
@@ -692,7 +692,7 @@ class TestFlowGraphValidation:
         """Test flow without start step (all have incoming transitions)."""
         template = FlowTemplate(
             template_id="no_start",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="No Start",
             description="Flow without start step",
             steps=[
@@ -714,7 +714,7 @@ class TestFlowGraphValidation:
         """Test flow with multiple start steps (warning)."""
         template = FlowTemplate(
             template_id="multi_start",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="Multiple Starts",
             description="Flow with multiple start steps",
             steps=[
@@ -736,7 +736,7 @@ class TestFlowGraphValidation:
         """Test flow without end step (warning)."""
         template = FlowTemplate(
             template_id="no_end",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="No End",
             description="Flow without explicit end",
             steps=[
@@ -756,7 +756,7 @@ class TestFlowGraphValidation:
         """Test flow with unreachable steps (warning)."""
         template = FlowTemplate(
             template_id="unreachable",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="Unreachable Steps",
             description="Flow with unreachable steps",
             steps=[
@@ -812,7 +812,7 @@ class TestCycleDetection:
         """Test flow with unintentional cycle (warning)."""
         template = FlowTemplate(
             template_id="unintentional_cycle",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="Unintentional Cycle",
             description="Flow with unintentional cycle",
             steps=[
@@ -896,7 +896,7 @@ class TestBusinessRulesValidation:
         """Test flow without error handling (warning)."""
         template = FlowTemplate(
             template_id="no_error_handling",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="No Error Handling",
             description="Flow without error handling",
             steps=[
@@ -917,7 +917,7 @@ class TestCompleteTemplateValidation:
         """Test complex but valid template."""
         template = FlowTemplate(
             template_id="complex_valid",
-            flow_type=FlowType.MONTHLY_QUIZ,
+            flow_type=FlowType.QUIZ_MENSAL,
             version="2.1.0",
             name="Complex Valid Template",
             description="Complex template with multiple step types",

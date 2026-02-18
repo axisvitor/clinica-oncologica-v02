@@ -203,7 +203,7 @@ async def register_flow_message_for_followup(
         from app.services.follow_up_system.models import FollowUpAction
         from app.services.follow_up_system.enums import FollowUpType
 
-        check_time = datetime.now(timezone.utc) + timedelta(hours=24)
+        check_time = now_sao_paulo() + timedelta(hours=24)
 
         action = FollowUpAction(
             action_id=uuid4(),

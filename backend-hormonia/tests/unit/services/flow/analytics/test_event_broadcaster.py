@@ -12,6 +12,7 @@ from uuid import uuid4
 from unittest.mock import Mock, AsyncMock
 
 from app.services.flow.analytics.event_broadcaster import FlowEventBroadcaster
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.flow.types import (
     FlowEvent,
     FlowEventType,
@@ -53,7 +54,7 @@ def sample_context(flow_instance_id):
     """Create sample flow context for testing."""
     return FlowContext(
         flow_instance_id=flow_instance_id,
-        flow_type=FlowType.DAILY_CHECKIN,
+        flow_type=FlowType.DAILY_FOLLOW_UP,
         patient_id=uuid4(),
         status=FlowStatus.ACTIVE,
     )
@@ -258,8 +259,8 @@ class TestConvenienceBroadcastMethods:
         handler = Mock()
         broadcaster.subscribe(FlowEventType.FLOW_COMPLETED, handler)
 
-        sample_context.started_at = datetime.utcnow()
-        sample_context.completed_at = datetime.utcnow()
+        sample_context.started_at = now_sao_paulo_naive()
+        sample_context.completed_at = now_sao_paulo_naive()
 
         broadcaster.broadcast_flow_completed(flow_instance_id, sample_context)
 
@@ -301,8 +302,8 @@ class TestConvenienceBroadcastMethods:
         handler = Mock()
         broadcaster.subscribe(FlowEventType.STEP_COMPLETED, handler)
 
-        sample_step_data.started_at = datetime.utcnow()
-        sample_step_data.completed_at = datetime.utcnow()
+        sample_step_data.started_at = now_sao_paulo_naive()
+        sample_step_data.completed_at = now_sao_paulo_naive()
 
         broadcaster.broadcast_step_completed(flow_instance_id, sample_step_data)
 

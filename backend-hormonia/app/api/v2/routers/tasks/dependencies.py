@@ -2,26 +2,32 @@
 Tasks Router Dependencies - Shared dependencies for task endpoints.
 """
 
-from typing import Dict, Any
-from datetime import datetime, timezone
-from uuid import UUID, uuid4
+from typing import Dict, Any, Optional, List, Tuple
+from uuid import UUID
 import logging
 
 from fastapi import Depends, HTTPException, status, Header, Cookie
-from celery.result import AsyncResult
-from celery import states
 
 from app.database import get_db
-from app.models.user import User, UserRole
-from app.schemas.v2.tasks import TaskStatus
+from app.models.user import UserRole
+from app.schemas.v2.tasks import TaskStatus, TaskType, TaskPriority
 from app.dependencies.auth_dependencies import get_redis_cache
-from app.config import settings
-from app.task_queue import get_task as get_stored_task, store_task
+from app.api.v2.auth_session_shared import resolve_session_id, get_user_data_from_session
+from app.utils.auth_helpers import extract_user_role as _extract_user_role
+
+from .registry import (
+    get_task_by_celery_id as _registry_get_task_by_celery_id,
+    get_task_by_id as _registry_get_task_by_id,
+    task_registry,
+)
+from .utils.celery_integration import (
+    _celery_status_to_task_status as _celery_status_to_task_status_impl,
+    _get_task_from_celery as _get_task_from_celery_impl,
+    _register_task as _register_task_impl,
+)
+from .utils.serializers import _serialize_task as _serialize_task_impl
 
 logger = logging.getLogger(__name__)
-
-# In-memory task tracking (should be replaced with Redis or DB in production)
-task_registry: Dict[str, Dict[str, Any]] = {}
 
 
 async def _get_current_user_simple(
@@ -38,19 +44,11 @@ async def _get_current_user_simple(
     2. X-Session-ID header
     3. session_id cookie
     """
-    final_session_id = None
-    
-    # Priority 1: Authorization Header (Bearer <session_id>)
-    if authorization and authorization.startswith("Bearer "):
-        final_session_id = authorization.split(" ")[1]
-    
-    # Priority 2: X-Session-ID Header
-    if not final_session_id and session_id:
-        final_session_id = session_id
-        
-    # Priority 3: Cookie
-    if not final_session_id and session_cookie_id:
-        final_session_id = session_cookie_id
+    final_session_id = resolve_session_id(
+        authorization=authorization,
+        x_session_id=session_id,
+        session_cookie_id=session_cookie_id,
+    )
 
     if not final_session_id:
         raise HTTPException(
@@ -58,54 +56,11 @@ async def _get_current_user_simple(
             detail="Session ID not provided",
         )
 
-    session_data = await redis_cache.get_session(final_session_id)
-    if not session_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
-        )
-
-    firebase_uid = session_data.get("firebase_uid")
-    if not firebase_uid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
-        )
-
-    # Get user from cache or DB
-    user_data = await redis_cache.get_user_by_uid(firebase_uid)
-    if not user_data:
-        user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-            )
-        user_data = {
-            "id": str(user.id),
-            "firebase_uid": user.firebase_uid,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
-            "is_active": user.is_active,
-        }
-        await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
-
-    if not user_data.get("is_active", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
-        )
-
-    return user_data
-
-
-def _extract_user_role(current_user: Dict[str, Any]) -> UserRole:
-    """Extract UserRole enum from user data."""
-    role_str = current_user.get("role", "").lower()
-    try:
-        return UserRole(role_str)
-    except ValueError:
-        # FIXED: Invalid role - default to DOCTOR instead of removed PATIENT role
-        # Only ADMIN and DOCTOR roles exist in the system
-        return UserRole.DOCTOR
+    return await get_user_data_from_session(
+        session_id=final_session_id,
+        db=db,
+        redis_cache=redis_cache,
+    )
 
 
 def _check_admin_role(current_user: Dict[str, Any]) -> None:
@@ -120,154 +75,76 @@ def _check_admin_role(current_user: Dict[str, Any]) -> None:
 
 def _celery_status_to_task_status(celery_status: str) -> TaskStatus:
     """Convert Celery task state to TaskStatus enum."""
-    status_mapping = {
-        states.PENDING: TaskStatus.PENDING,
-        states.STARTED: TaskStatus.RUNNING,
-        states.SUCCESS: TaskStatus.SUCCESS,
-        states.FAILURE: TaskStatus.FAILURE,
-        states.RETRY: TaskStatus.RETRY,
-        states.REVOKED: TaskStatus.CANCELLED,
-    }
-    return status_mapping.get(celery_status, TaskStatus.PENDING)
+    return _celery_status_to_task_status_impl(celery_status)
 
 
 def _get_task_from_celery(task_id: str) -> Dict[str, Any]:
     """Get task information from Celery."""
-    if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-        stored = get_stored_task(task_id)
-        if not stored:
-            return {
-                "celery_task_id": task_id,
-                "status": TaskStatus.PENDING,
-                "result": None,
-                "error": None,
-                "traceback": None,
-            }
-
-        status_value = stored.get("status", TaskStatus.PENDING)
-        if isinstance(status_value, TaskStatus):
-            status = status_value
-        else:
-            try:
-                status = TaskStatus(str(status_value))
-            except ValueError:
-                status = TaskStatus.PENDING
-
-        return {
-            "celery_task_id": task_id,
-            "status": status,
-            "result": stored.get("result"),
-            "error": stored.get("error"),
-            "traceback": stored.get("traceback"),
-            "runtime_seconds": stored.get("runtime_seconds"),
-            "started_at": stored.get("started_at"),
-            "completed_at": stored.get("completed_at"),
-            "scheduled_at": stored.get("scheduled_at"),
-        }
-
-    from app.celery_app import celery_app
-
-    try:
-        result = AsyncResult(task_id, app=celery_app)
-
-        task_data = {
-            "celery_task_id": task_id,
-            "status": _celery_status_to_task_status(result.status),
-            "result": None,
-            "error": None,
-            "traceback": None,
-        }
-
-        if result.ready():
-            if result.successful():
-                task_data["result"] = result.result
-            elif result.failed():
-                task_data["error"] = str(result.info)
-                task_data["traceback"] = result.traceback
-
-        # Get task info from registry if available
-        if task_id in task_registry:
-            registry_data = task_registry[task_id]
-            task_data.update(registry_data)
-
-        return task_data
-
-    except Exception as e:
-        logger.error(f"Error getting task {task_id} from Celery: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve task information",
-        )
+    return _get_task_from_celery_impl(task_id, task_registry)
 
 
 def _register_task(
     celery_task_id: str,
     task_name: str,
-    task_type,
-    priority,
-    user_id: UUID,
-    metadata: Dict[str, Any] = None,
+    task_type: TaskType,
+    priority: TaskPriority,
+    user_id: Optional[UUID],
+    metadata: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Register a task in the task registry."""
-    task_id = str(uuid4())
-
-    task_registry[celery_task_id] = {
-        "id": task_id,
-        "celery_task_id": celery_task_id,
-        "task_name": task_name,
-        "task_type": task_type.value,
-        "priority": priority.value,
-        "user_id": str(user_id) if user_id else None,
-        "metadata": metadata or {},
-        "created_at": datetime.now(timezone.utc),
-        "retry_count": 0,
-        "logs": [],
-    }
-
-    if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-        store_task(task_registry[celery_task_id])
-
+    task_id = _register_task_impl(
+        celery_task_id=celery_task_id,
+        task_name=task_name,
+        task_type=task_type,
+        priority=priority,
+        user_id=user_id,
+        task_registry=task_registry,
+        metadata=metadata,
+    )
+    # Preserve existing response shape used by endpoints that serialize registry-only data.
+    if celery_task_id in task_registry:
+        task_registry[celery_task_id]["celery_task_id"] = celery_task_id
     return task_id
 
 
-def _serialize_task(task_data: Dict[str, Any], fields: list = None) -> Dict[str, Any]:
+def _serialize_task(
+    task_data: Dict[str, Any], fields: Optional[List[str]] = None
+) -> Dict[str, Any]:
     """Serialize task data to response format."""
-    from app.api.v2.dependencies import apply_field_selection
+    return _serialize_task_impl(task_data, fields)
 
-    serialized = {
-        "id": task_data.get("id", "unknown"),
-        "celery_task_id": task_data.get("celery_task_id", ""),
-        "task_name": task_data.get("task_name", "Unknown Task"),
-        "task_type": task_data.get("task_type", "custom"),
-        "status": task_data.get("status", TaskStatus.PENDING).value
-        if hasattr(task_data.get("status"), "value")
-        else task_data.get("status", "PENDING"),
-        "priority": task_data.get("priority", "medium"),
-        "description": task_data.get("description"),
-        "metadata": task_data.get("metadata", {}),
-        "progress": task_data.get("progress"),
-        "result": task_data.get("result"),
-        "error": task_data.get("error"),
-        "traceback": task_data.get("traceback"),
-        "retry_count": task_data.get("retry_count", 0),
-        "retry_config": task_data.get("retry_config"),
-        "worker_name": task_data.get("worker_name"),
-        "queue_name": task_data.get("queue_name", "celery"),
-        "created_at": task_data.get("created_at", datetime.now(timezone.utc)).isoformat()
-        if isinstance(task_data.get("created_at"), datetime)
-        else task_data.get("created_at"),
-        "started_at": task_data.get("started_at").isoformat()
-        if isinstance(task_data.get("started_at"), datetime)
-        else task_data.get("started_at"),
-        "completed_at": task_data.get("completed_at").isoformat()
-        if isinstance(task_data.get("completed_at"), datetime)
-        else task_data.get("completed_at"),
-        "scheduled_at": task_data.get("scheduled_at").isoformat()
-        if isinstance(task_data.get("scheduled_at"), datetime)
-        else task_data.get("scheduled_at"),
-        "timeout_seconds": task_data.get("timeout_seconds"),
-        "user_id": task_data.get("user_id"),
-        "runtime_seconds": task_data.get("runtime_seconds"),
-    }
 
-    return apply_field_selection(serialized, fields) if fields else serialized
+def _find_task_in_registry(
+    task_id: str,
+) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+    """Find task by public task ID."""
+    task_data = _registry_get_task_by_id(task_id)
+    if task_data:
+        celery_task_id = task_data.get("celery_task_id")
+        if celery_task_id:
+            return celery_task_id, task_data
+    return None, None
+
+
+def _get_task_or_404(task_id: str) -> Tuple[str, Dict[str, Any]]:
+    """Get task registry entry by task ID or raise 404."""
+    celery_task_id, task_data = _find_task_in_registry(task_id)
+    if not celery_task_id or task_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found",
+        )
+    return celery_task_id, task_data
+
+
+def _get_task_with_celery_data(
+    celery_task_id: str, task_data: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """Merge registry data with live Celery state for a task."""
+    base_task_data = (
+        task_data
+        if task_data is not None
+        else (_registry_get_task_by_celery_id(celery_task_id) or {})
+    )
+    celery_data = _get_task_from_celery(celery_task_id)
+    return {**base_task_data, **celery_data}

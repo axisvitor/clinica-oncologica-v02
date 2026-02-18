@@ -11,6 +11,7 @@ from app.repositories.message import MessageRepository
 from app.services.follow_up.redis_store import FollowUpRedisStore
 
 
+from app.utils.timezone import now_sao_paulo
 @pytest.mark.performance
 def test_follow_up_batch_processing_under_five_minutes():
     start = time.perf_counter()
@@ -30,7 +31,7 @@ async def test_deduplication_under_10ms():
     mock_redis = AsyncMock()
     mock_redis.ping = AsyncMock(return_value=True)
     mock_redis.get = AsyncMock(
-        return_value=datetime.now(timezone.utc).isoformat()
+        return_value=now_sao_paulo().isoformat()
     )
     store._redis = mock_redis
 
@@ -54,7 +55,7 @@ def test_db_fallback_under_100ms(db_session):
         type=MessageType.TEXT,
         content="Follow-up message",
         status=MessageStatus.PENDING,
-        scheduled_for=datetime.now(timezone.utc),
+        scheduled_for=now_sao_paulo(),
         idempotency_key=f"perf-{uuid4()}",
         message_metadata={"follow_up_type": "empathetic_response"},
     )
@@ -62,7 +63,7 @@ def test_db_fallback_under_100ms(db_session):
     db_session.commit()
 
     repo = MessageRepository(db_session)
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    since = now_sao_paulo() - timedelta(hours=24)
 
     start = time.perf_counter()
     result = repo.get_recent_follow_up_message_time(patient.id, since)

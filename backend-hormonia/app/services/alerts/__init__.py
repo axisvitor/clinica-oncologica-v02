@@ -41,7 +41,7 @@ Architecture:
     ├── __init__.py                    # This file (public API)
     ├── types.py                       # Shared types and enums
     ├── config.py                      # Configuration system
-    ├── alert_manager.py               # Core orchestrator
+    ├── alert_manager_refactored.py    # Canonical AlertManager (SOLID, DI-based)
     │
     ├── evaluation/                    # Alert evaluation
     │   ├── rule_engine.py            # Generic rule engine
@@ -95,7 +95,7 @@ from .config import (
     PagerDutyChannelConfig,
 )
 
-# Refactored modular components (NEW)
+# Refactored modular components
 from .base import (
     NotificationHandlerProtocol,
     EscalationHandlerProtocol,
@@ -105,12 +105,6 @@ from .base import (
     AlertRepository,
     NotificationChannelHandler,
     TargetResolverProtocol,
-)
-
-from .notification_handler import (
-    NotificationHandler,
-    get_notification_handler,
-    set_notification_handler,
 )
 
 from .escalation_handler import (
@@ -137,45 +131,12 @@ from .metrics import (
     set_metrics_collector,
 )
 
-# NEW MODULAR COMPONENTS
-from .evaluator import AlertEvaluator
-from .processor import AlertProcessor as AlertProcessorSimple  # noqa: F401
-from .escalation import AlertEscalation
-from .statistics import AlertStatisticsCollector
-from .target_resolver import TargetResolver
-
-# NEW: Modular AlertManager (RECOMMENDED)
-from .manager import (
-    AlertManager as AlertManagerModular,
-    get_alert_manager as get_alert_manager_modular,
-    set_alert_manager as set_alert_manager_modular,
-)
-
-# Refactored AlertManager (NEW - recommended)
+# Canonical AlertManager (consolidated - SOLID, DI-based)
 from .alert_manager_refactored import (
-    AlertManager as AlertManagerRefactored,
-    get_alert_manager as get_alert_manager_refactored,
-    set_alert_manager as set_alert_manager_refactored,
+    AlertManager,
+    get_alert_manager,
+    set_alert_manager,
 )
-
-# Legacy AlertManager (for backward compatibility)
-from .alert_manager import (
-    AlertManager as AlertManagerLegacy,
-    get_alert_manager as get_alert_manager_legacy,
-    set_alert_manager as set_alert_manager_legacy,
-)
-
-# Migration utilities
-from .migration import (
-    migrate_to_refactored,
-    rollback_to_legacy,
-    AlertManagerProxy,
-)
-
-# Default exports (use NEW modular version)
-AlertManager = AlertManagerModular
-get_alert_manager = get_alert_manager_modular
-set_alert_manager = set_alert_manager_modular
 
 from .evaluation.rule_engine import (
     RuleEngine,
@@ -233,20 +194,7 @@ from .monitoring.database_monitor import (
     start_monitoring,
 )
 
-from .adapter import (
-    AlertManagerAdapter,
-)
-
 __all__ = [
-    # ===== NEW MODULAR COMPONENTS =====
-    "AlertEvaluator",
-    "AlertProcessor",
-    "AlertEscalation",
-    "AlertStatisticsCollector",
-    "TargetResolver",
-    "AlertManagerModular",  # NEW recommended version
-    "get_alert_manager_modular",
-    "set_alert_manager_modular",
     # ===== TYPES =====
     # Enums
     "AlertSeverity",
@@ -287,9 +235,6 @@ __all__ = [
     "NotificationChannelHandler",
     "TargetResolverProtocol",
     # ===== MODULAR HANDLERS (NEW) =====
-    "NotificationHandler",
-    "get_notification_handler",
-    "set_notification_handler",
     "EscalationHandler",
     "get_escalation_handler",
     "set_escalation_handler",
@@ -303,24 +248,13 @@ __all__ = [
     "get_metrics_collector",
     "set_metrics_collector",
     # ===== CORE COMPONENTS =====
-    "AlertManager",  # Refactored version
+    "AlertManager",  # Canonical (SOLID, DI-based)
     "get_alert_manager",
     "set_alert_manager",
-    "AlertManagerRefactored",  # Explicit refactored
-    "AlertManagerLegacy",  # Explicit legacy
-    "get_alert_manager_refactored",
-    "set_alert_manager_refactored",
-    "get_alert_manager_legacy",
-    "set_alert_manager_legacy",
-    # ===== MIGRATION =====
-    "migrate_to_refactored",
-    "rollback_to_legacy",
-    "AlertManagerProxy",
     # ===== EVALUATION =====
     "RuleEngine",
     "get_rule_engine",
     "set_rule_engine",
-    # ===== EVALUATION =====
     "evaluate_no_response",
     "evaluate_missed_quiz",
     "evaluate_negative_sentiment",
@@ -355,8 +289,6 @@ __all__ = [
     "get_database_monitor",
     "set_database_monitor",
     "start_monitoring",
-    # ===== ADAPTER (MIGRATION BRIDGE) =====
-    "AlertManagerAdapter",
 ]
 
 # Package metadata
@@ -410,20 +342,20 @@ def initialize_alert_system(
     # Register default channel handlers
     _register_default_channels(dispatcher)
 
-    # Create AlertManager with dependencies
-    alert_manager = AlertManager(
+    # Create AlertManager with dependencies (canonical SOLID version)
+    alert_mgr = AlertManager(
         rule_engine=rule_engine,
         processor=processor,
-        dispatcher=dispatcher,
+        config=config,
     )
 
     # Set as global instance
-    set_alert_manager(alert_manager)
+    set_alert_manager(alert_mgr)
 
     # Connect database monitor to alert manager
-    db_monitor.alert_manager = alert_manager
+    db_monitor.alert_manager = alert_mgr
 
-    return alert_manager
+    return alert_mgr
 
 
 def _register_default_channels(dispatcher: NotificationDispatcher) -> None:

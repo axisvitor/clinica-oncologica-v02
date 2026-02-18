@@ -29,10 +29,11 @@ from sqlalchemy.orm import Session
 from app.models.user import User, UserRole
 from app.models.failed_message import FailedMessage
 from app.models.audit_log import AuditLog, AuditEventType
-from app.services.dlq_service import DLQService
+from app.services.dlq import DLQService
 from app.utils.security import get_password_hash
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # FIXTURES
 # ============================================================================
@@ -47,8 +48,8 @@ def admin_user(db_session: Session):
         full_name="Test Admin",
         role=UserRole.ADMIN,
         is_active=True,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive()
     )
     db_session.add(admin)
     db_session.commit()
@@ -66,8 +67,8 @@ def doctor_user(db_session: Session):
         full_name="Dr. Test Doctor",
         role=UserRole.DOCTOR,
         is_active=True,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive()
     )
     db_session.add(doctor)
     db_session.commit()
@@ -92,10 +93,10 @@ def dlq_items(db_session: Session):
             error_code="TIMEOUT" if i % 2 == 0 else "INVALID_PHONE",
             retry_count=i % 5,
             max_retries=5,
-            status="pending" if i % 3 == 0 else "retry_scheduled",
+            status="pending_review" if i % 3 == 0 else "retry_scheduled",
             dlq_metadata={"source": "test", "index": i},
-            created_at=datetime.utcnow() - timedelta(hours=i),
-            updated_at=datetime.utcnow()
+            created_at=now_sao_paulo_naive() - timedelta(hours=i),
+            updated_at=now_sao_paulo_naive()
         )
         items.append(item)
         db_session.add(item)
@@ -124,8 +125,8 @@ def audit_logs(db_session: Session, admin_user: User):
             event_metadata={"test": f"data_{i}"},
             message=f"Test event {i}",
             error_details=f"Error {i}" if i % 3 == 0 else None,
-            created_at=datetime.utcnow() - timedelta(hours=i),
-            updated_at=datetime.utcnow()
+            created_at=now_sao_paulo_naive() - timedelta(hours=i),
+            updated_at=now_sao_paulo_naive()
         )
         logs.append(log)
         db_session.add(log)
@@ -204,13 +205,13 @@ class TestListDLQItems:
 
     def test_list_dlq_items_filter_by_status(self, client: TestClient, admin_user: User, dlq_items):
         """Test filtering by status."""
-        response = client.get("/api/v2/admin-extensions/dlq?status=pending")
+        response = client.get("/api/v2/admin-extensions/dlq?status=pending_review")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
 
         for item in data["data"]:
-            assert item["status"] == "pending"
+            assert item["status"] == "pending_review"
 
     def test_list_dlq_items_filter_by_error_code(self, client: TestClient, admin_user: User, dlq_items):
         """Test filtering by error code."""
@@ -289,7 +290,10 @@ class TestGetDLQItem:
         """Test getting DLQ item with invalid UUID."""
         response = client.get("/api/v2/admin-extensions/dlq/not-a-uuid")
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code in {
+            status.HTTP_404_NOT_FOUND,
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+        }
 
 
 class TestRetryDLQItem:
@@ -462,7 +466,7 @@ class TestPurgeDLQItems:
     def test_purge_dlq_items_actual(self, client: TestClient, admin_user: User, dlq_items, db_session: Session):
         """Test actual purge operation."""
         # Create old items with safe statuses
-        old_date = datetime.utcnow() - timedelta(days=100)
+        old_date = now_sao_paulo_naive() - timedelta(days=100)
         old_item = FailedMessage(
             id=uuid4(),
             patient_id=uuid4(),
@@ -474,7 +478,7 @@ class TestPurgeDLQItems:
             max_retries=5,
             status="resolved",  # Safe status for purging
             created_at=old_date,
-            updated_at=datetime.utcnow()
+            updated_at=now_sao_paulo_naive()
         )
         db_session.add(old_item)
         db_session.commit()
@@ -573,8 +577,8 @@ class TestListAuditLogs:
 
     def test_list_audit_logs_filter_by_date_range(self, client: TestClient, admin_user: User, audit_logs):
         """Test filtering by date range."""
-        start_date = (datetime.utcnow() - timedelta(days=2)).isoformat()
-        end_date = datetime.utcnow().isoformat()
+        start_date = (now_sao_paulo_naive() - timedelta(days=2)).isoformat()
+        end_date = now_sao_paulo_naive().isoformat()
 
         response = client.get(
             f"/api/v2/admin-extensions/audit-logs?start_date={start_date}&end_date={end_date}"

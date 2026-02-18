@@ -93,7 +93,7 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
         self.webhook_paths = webhook_paths or ["/webhooks/"]
 
         # Get environment from settings
-        from app.core.config import settings
+        from app.config import settings
         environment = getattr(settings, 'APP_ENVIRONMENT', 'production')
         is_production = environment.lower() in ('production', 'prod')
 

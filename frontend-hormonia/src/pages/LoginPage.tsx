@@ -114,7 +114,10 @@ export function LoginPage() {
           <Card className="bg-blue-50 border-blue-200">
             <CardContent className="pt-4 md:pt-6 px-4 md:px-6">
               <div className="flex items-start space-x-2">
-                <AlertCircle className="h-4 w-4 md:h-5 md:w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <AlertCircle
+                  className="h-4 w-4 md:h-5 md:w-5 text-blue-600 mt-0.5 flex-shrink-0"
+                  aria-hidden="true"
+                />
                 <div className="flex-1 min-w-0">
                   <h3 className="text-xs md:text-sm font-medium text-blue-800">
                     Credenciais Demo
@@ -164,30 +167,31 @@ export function LoginPage() {
                   tabIndex={-1}
                   className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 >
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{authError}</AlertDescription>
-                </Alert>
-              )}
+                <AlertCircle className="h-4 w-4" aria-hidden="true" />
+                <AlertDescription>{authError}</AlertDescription>
+              </Alert>
+            )}
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder={
-                      showDemoCredentials
-                        ? 'admin@neoplasiaslitoral.com'
-                        : 'seu@email.com'
-                    }
-                    className="pl-10"
-                    autoComplete="email"
-                    autoFocus={!isMobile}
-                    aria-invalid={errors.email ? 'true' : 'false'}
-                    aria-describedby={
-                      errors.email ? emailErrorId : undefined
-                    }
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" aria-hidden="true" />
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder={
+                    showDemoCredentials
+                      ? 'admin@neoplasiaslitoral.com…'
+                      : 'seu@email.com…'
+                  }
+                  className="pl-10"
+                  autoComplete="email"
+                  spellCheck={false}
+                  autoFocus={!isMobile}
+                  aria-invalid={errors.email ? 'true' : 'false'}
+                  aria-describedby={
+                    errors.email ? emailErrorId : undefined
+                  }
                     {...register('email')}
                   />
                 </div>
@@ -202,15 +206,15 @@ export function LoginPage() {
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="Ex.: Senha@123…"
-                    className="pl-10 pr-10"
+            <div className="space-y-2">
+              <Label htmlFor="password">Senha</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" aria-hidden="true" />
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Ex.: Senha@123…"
+                  className="pl-10 pr-10"
                     autoComplete="current-password"
                     aria-invalid={errors.password ? 'true' : 'false'}
                     aria-describedby={
@@ -228,9 +232,9 @@ export function LoginPage() {
                     tabIndex={0}
                   >
                     {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
+                      <EyeOff className="h-4 w-4" aria-hidden="true" />
                     ) : (
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-4 w-4" aria-hidden="true" />
                     )}
                   </button>
                 </div>
@@ -283,7 +287,7 @@ export function LoginPage() {
                   className="text-sm text-blue-600 hover:text-blue-700 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 rounded disabled:opacity-50"
                   aria-label="Solicitar redefinição de senha"
                 >
-                  <KeyRound className="inline h-4 w-4 mr-1" />
+                  <KeyRound className="inline h-4 w-4 mr-1" aria-hidden="true" />
                   {showForgotPassword
                     ? 'Processando…'
                     : 'Esqueci minha senha'}
@@ -295,7 +299,7 @@ export function LoginPage() {
 
         {showForgotPassword && (
           <Alert className="bg-blue-50 border-blue-200">
-            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertCircle className="h-4 w-4 text-blue-600" aria-hidden="true" />
             <AlertTitle className="text-blue-800">
               Redefinição de Senha
             </AlertTitle>
@@ -311,7 +315,7 @@ export function LoginPage() {
             </AlertDescription>
             <button
               onClick={() => setShowForgotPassword(false)}
-              className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline"
+              className="mt-2 text-sm text-blue-600 hover:text-blue-800 underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 rounded"
               aria-label="Fechar mensagem"
             >
               Fechar

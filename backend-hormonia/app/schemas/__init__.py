@@ -139,7 +139,18 @@ from .common import (
 )
 
 # Example data
-from .examples import ALL_EXAMPLES
+ALL_EXAMPLES = {
+    "auth": {},
+    "patient": {},
+    "message": {},
+    "flow": {},
+    "quiz": {},
+    "report": {},
+    "alert": {},
+    "websocket": {},
+    "error": {},
+    "common": {},
+}
 
 __all__ = [
     # Authentication

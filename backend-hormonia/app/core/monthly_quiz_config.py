@@ -100,6 +100,42 @@ class MonthlyQuizConfig(BaseSettings):
 
         return url_str
 
+    # Optional short-link base (recommended for WhatsApp brevity)
+    MONTHLY_QUIZ_SHORT_BASE_URL: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "QUIZ_SHORT_BASE_URL", "MONTHLY_QUIZ_SHORT_BASE_URL"
+        ),
+        description="Base URL for short quiz links (optional, e.g., https://api.example.com/q)",
+    )
+
+    @field_validator("MONTHLY_QUIZ_SHORT_BASE_URL", mode="before")
+    @classmethod
+    def validate_short_base_url(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str) and v.strip() == "":
+            return None
+
+        v = str(v).strip()
+        try:
+            validated_url = HttpUrl(v)
+            url_str = str(validated_url)
+        except Exception as e:
+            raise ValueError(
+                f"MONTHLY_QUIZ_SHORT_BASE_URL must be a valid URL. Got: '{v}'. Error: {e}"
+            )
+
+        if not url_str.startswith(("http://", "https://")):
+            raise ValueError(
+                f"MONTHLY_QUIZ_SHORT_BASE_URL must use HTTP or HTTPS scheme. Got: '{v}'"
+            )
+
+        if url_str.endswith("/"):
+            url_str = url_str[:-1]
+
+        return url_str
+
     # Token configuration - REQUIRED, no default
     MONTHLY_QUIZ_TOKEN_SECRET: str = Field(
         ...,  # REQUIRED: Must be set via environment variable
@@ -167,8 +203,8 @@ class MonthlyQuizConfig(BaseSettings):
 
     # Template settings
     MONTHLY_QUIZ_DEFAULT_TEMPLATE: Optional[str] = Field(
-        default="Quizz de Bem-Estar Mensal",
-        description="Default monthly quiz template name",
+        default="monthly_comprehensive",
+        description="Default monthly quiz template name (DB template name)",
     )
 
     # Reminder settings

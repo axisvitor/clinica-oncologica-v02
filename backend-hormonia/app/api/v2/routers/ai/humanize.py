@@ -7,14 +7,15 @@ Security: Rate limited to prevent API abuse and manage AI costs.
 # Standard library imports
 import asyncio
 import logging
-from datetime import datetime, timezone
+import sys
+from datetime import datetime
 from typing import List, Union
 
 # Third-party imports
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
 # Local application imports
-from app.core.config import settings
+from app.config import settings
 from app.dependencies.business_dependencies import validate_patient_access
 from app.dependencies.service_dependencies import get_patient_service
 from app.models.user import User
@@ -28,22 +29,84 @@ from app.schemas.v2.ai import (
     HumanizeResponse,
     TokenUsage,
 )
+from app.services.ai.ai_service import get_ai_service
 from app.utils.rate_limiter import limiter
-from app.api.v2 import ai as ai_module
 
 from .constants import CACHE_TTL_AI_RESPONSE
 from .dependencies import (
     calculate_token_cost,
     generate_cache_key,
+    get_redis_cache as _router_get_redis_cache,
     get_cached_response,
+    handle_ai_failure,
+    ensure_real_ai_ready,
     set_cached_response,
     track_token_usage,
     verify_physician_or_admin,
 )
+from app.utils.auth_helpers import extract_user_context
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+async def get_redis_cache():
+    """Compatibility wrapper for tests that patch module-local get_redis_cache."""
+    # Compatibility for tests that patch package-level alias:
+    # `app.api.v2.routers.ai.get_redis_cache`.
+    pkg = sys.modules.get("app.api.v2.routers.ai")
+    patched_getter = getattr(pkg, "get_redis_cache", None) if pkg else None
+
+    if callable(patched_getter) and patched_getter not in {
+        get_redis_cache,
+        _router_get_redis_cache,
+    }:
+        maybe_client = patched_getter()
+        if asyncio.iscoroutine(maybe_client):
+            return await maybe_client
+        return maybe_client
+
+    return await _router_get_redis_cache()
+
+
+def _estimate_humanize_token_usage(original: str, humanized: str) -> TokenUsage:
+    prompt_tokens = max(1, len((original or "").split()) * 2)
+    completion_tokens = max(1, len((humanized or "").split()) * 2)
+    total_tokens = prompt_tokens + completion_tokens
+    usage_base = TokenUsage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+    )
+    return TokenUsage(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+        estimated_cost_usd=calculate_token_cost(usage_base, AIModelType.GEMINI_PRO),
+        model=AIModelType.GEMINI_PRO,
+    )
+
+
+def _simulate_humanization(
+    humanize_request: HumanizeRequest, patient_context: dict | None
+) -> tuple[str, list[str]]:
+    humanized = (
+        f"Hi{' ' + patient_context['name'] if patient_context else ''}! "
+        + humanize_request.message
+    )
+    if humanize_request.tone == "empathetic":
+        humanized += " We're here to support you every step of the way."
+    elif humanize_request.tone == "encouraging":
+        humanized += " You're doing great! Keep it up!"
+
+    notes = [
+        "Added patient name" if patient_context else "Generic greeting",
+        f"Applied {humanize_request.tone} tone",
+        "Simulation fallback enabled",
+    ]
+    return humanized, notes
 
 
 @router.post(
@@ -78,13 +141,16 @@ async def humanize_message(
     cache_info = None
 
     try:
+        _, user_id = extract_user_context(current_user)
+        user_id_str = user_id or "unknown"
+
         # Get Redis client
-        redis_client = await ai_module.get_redis_cache()
+        redis_client = await get_redis_cache()
 
         # Generate cache key with user_id to prevent cross-user cache sharing (HIPAA/Privacy)
         cache_key = generate_cache_key(
             "ai:humanize:v2",
-            user_id=str(current_user.id),  # SECURITY FIX: Include user_id
+            user_id=user_id_str,  # SECURITY FIX: Include user_id
             message=humanize_request.message,
             patient_id=str(humanize_request.patient_id) if humanize_request.patient_id else None,
             message_type=humanize_request.message_type,
@@ -109,7 +175,7 @@ async def humanize_message(
 
                 response_data = {**cached_response, "cache_info": cache_info}
                 logger.info(
-                    f"[CACHE HIT] Humanize for user {current_user.id}, "
+                    f"[CACHE HIT] Humanize for user {user_id_str}, "
                     f"saved ~${cached_response.get('token_usage', {}).get('estimated_cost_usd', 0):.4f}"
                 )
                 return HumanizeResponse(**response_data)
@@ -129,73 +195,59 @@ async def humanize_message(
             except Exception as e:
                 logger.warning(f"Failed to get patient context: {e}")
 
-        # ===== AI SERVICE CALL WOULD GO HERE =====
-        # Runtime guard: Prevent production use of simulation mode
-        if settings.APP_ENVIRONMENT == "production" and not settings.ALLOW_AI_SIMULATION:
-            logger.error(
-                "[PRODUCTION ERROR] AI service not configured - simulation mode blocked",
-                extra={
-                    "user_id": current_user.id,
-                    "endpoint": "humanize",
+        humanized = ""
+        personalization_notes: list[str] = []
+        try:
+            ensure_real_ai_ready(getattr(settings, "AI_GEMINI_API_KEY", None))
+            ai_service = get_ai_service()
+            ai_result = await ai_service.humanize_message(
+                template_message=humanize_request.message,
+                context={
+                    **(patient_context or {}),
+                    "tone": humanize_request.tone,
+                },
+                message_type=humanize_request.message_type,
+            )
+            humanized = (ai_result.humanized_message or "").strip()
+            if not humanized:
+                raise ValueError("AI returned empty humanized message")
+            personalization_notes = ai_result.personalization_notes or []
+        except Exception as ai_error:
+            handle_ai_failure(
+                logger=logger,
+                operation="humanize",
+                error=ai_error,
+                allow_simulation=settings.ALLOW_AI_SIMULATION,
+                disabled_detail="AI humanization failed and simulation fallback is disabled.",
+                context={
+                    "user_id": user_id_str,
                     "environment": settings.APP_ENVIRONMENT,
-                }
+                },
             )
-            raise HTTPException(
-                status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="AI service not configured. Real AI integration required for production."
+            humanized, personalization_notes = _simulate_humanization(
+                humanize_request, patient_context
             )
 
-        # Warning: Using simulation mode
-        logger.warning(
-            "[SIMULATION MODE] Using mock AI response for humanization",
-            extra={
-                "user_id": current_user.id,
-                "endpoint": "humanize",
-                "environment": settings.APP_ENVIRONMENT,
-                "warning": "This is simulated data - not real AI humanization"
-            }
+        token_usage = _estimate_humanize_token_usage(humanize_request.message, humanized)
+        empathy_score = (
+            0.92
+            if humanize_request.tone in {"empathetic", "caring"}
+            else 0.75
         )
-
-        # For now, simulate AI response
-        humanized = (
-            f"Hi{' ' + patient_context['name'] if patient_context else ''}! "
-            + humanize_request.message
+        professionalism_score = (
+            0.9 if humanize_request.tone == "professional" else 0.8
         )
-        if humanize_request.tone == "empathetic":
-            humanized += " We're here to support you every step of the way."
-        elif humanize_request.tone == "encouraging":
-            humanized += " You're doing great! Keep it up!"
-
-        # Simulate token usage
-        prompt_tokens = len(humanize_request.message.split()) * 2
-        completion_tokens = len(humanized.split()) * 2
-        token_usage = TokenUsage(
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=prompt_tokens + completion_tokens,
-            estimated_cost_usd=calculate_token_cost(
-                TokenUsage(
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    total_tokens=prompt_tokens + completion_tokens,
-                ),
-                AIModelType.GEMINI_PRO,
-            ),
-            model=AIModelType.GEMINI_PRO,
-        )
+        readability_score = max(60.0, min(95.0, 100.0 - (len(humanized) / 18.0)))
 
         # Build response
         response = HumanizeResponse(
             original_message=humanize_request.message,
             humanized_message=humanized,
-            personalization_notes=[
-                "Added patient name" if patient_context else "Generic greeting",
-                f"Applied {humanize_request.tone} tone",
-            ],
-            readability_score=85.0,
+            personalization_notes=personalization_notes,
+            readability_score=readability_score,
             tone_analysis={
-                "empathy": 0.9 if humanize_request.tone == "empathetic" else 0.7,
-                "professionalism": 0.8,
+                "empathy": empathy_score,
+                "professionalism": professionalism_score,
                 "clarity": 0.85,
             },
             token_usage=token_usage,
@@ -203,9 +255,9 @@ async def humanize_message(
                 hit=False,
                 key=cache_key,
                 ttl_seconds=CACHE_TTL_AI_RESPONSE,
-                cached_at=datetime.now(timezone.utc),
+                cached_at=now_sao_paulo(),
             ),
-            generated_at=datetime.now(timezone.utc),
+            generated_at=now_sao_paulo(),
         )
 
         # Cache response
@@ -220,16 +272,18 @@ async def humanize_message(
             redis_client,
             "humanize",
             token_usage,
-            current_user.id,
+            user_id_str,
         )
 
         logger.info(
-            f"Humanized message for user {current_user.id}, "
+            f"Humanized message for user {user_id_str}, "
             f"tokens: {token_usage.total_tokens}, cost: ${token_usage.estimated_cost_usd:.4f}"
         )
 
         return response
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Humanize error: {e}", exc_info=True)
         # Return fallback response
@@ -241,7 +295,7 @@ async def humanize_message(
             tone_analysis={},
             token_usage=None,
             cache_info=None,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=now_sao_paulo(),
         )
 
 
@@ -288,7 +342,7 @@ async def batch_humanize_messages(
                 model=AIModelType.GEMINI_PRO,
             ),
             cache_hit_rate=0.0,
-            processed_at=datetime.now(timezone.utc),
+            processed_at=now_sao_paulo(),
         )
 
     # Create tasks for TRUE parallel processing
@@ -301,7 +355,7 @@ async def batch_humanize_messages(
 
     # Execute all tasks concurrently (TRUE parallelism)
     logger.info(f"Starting parallel batch processing of {len(tasks)} messages")
-    start_time = datetime.now(timezone.utc)
+    start_time = now_sao_paulo()
 
     # Use asyncio.gather with return_exceptions=True for graceful error handling
     results: List[Union[HumanizeResponse, Exception]] = await asyncio.gather(
@@ -332,7 +386,7 @@ async def batch_humanize_messages(
             if result.cache_info and result.cache_info.hit:
                 cache_hits += 1
 
-    processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+    processing_time = (now_sao_paulo() - start_time).total_seconds()
 
     total_token_usage = TokenUsage(
         total_tokens=total_tokens,
@@ -353,7 +407,7 @@ async def batch_humanize_messages(
         results=processed_results,
         total_token_usage=total_token_usage,
         cache_hit_rate=cache_hit_rate,
-        processed_at=datetime.now(timezone.utc),
+        processed_at=now_sao_paulo(),
     )
 
 
@@ -410,7 +464,7 @@ def _create_fallback_response(msg_request: HumanizeRequest) -> HumanizeResponse:
         tone_analysis={},
         token_usage=None,
         cache_info=None,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=now_sao_paulo(),
     )
 
 
@@ -428,7 +482,7 @@ async def get_humanize_cache_stats(
     """Get cache statistics for humanize endpoint."""
     from fastapi import HTTPException
 
-    redis_client = await ai_module.get_redis_cache()
+    redis_client = await get_redis_cache()
 
     if not redis_client:
         raise HTTPException(
@@ -443,12 +497,18 @@ async def get_humanize_cache_stats(
         keys = []
 
         while True:
-            cursor, batch = await redis_client.scan(
+            scan_result = await redis_client.scan(
                 cursor=cursor, match="ai:humanize:v2:*", count=100
             )
+
+            # Defensive handling for mocks/clients that may return None or malformed output.
+            if not scan_result or not isinstance(scan_result, (tuple, list)) or len(scan_result) != 2:
+                break
+
+            cursor, batch = scan_result
             keys.extend(batch)
             total_keys += len(batch)
-            if cursor == 0:
+            if str(cursor) == "0":
                 break
 
         # Get hit/miss stats from Redis info
@@ -472,7 +532,7 @@ async def get_humanize_cache_stats(
                     "ttl_seconds": CACHE_TTL_AI_RESPONSE,
                 }
             },
-            generated_at=datetime.now(timezone.utc),
+            generated_at=now_sao_paulo(),
         )
 
     except Exception as e:

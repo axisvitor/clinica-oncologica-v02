@@ -160,12 +160,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if self.enable_hsts and request.url.scheme == "https":
             response.headers["Strict-Transport-Security"] = self._build_hsts_header()
 
-        # Content-Security-Policy: Prevents XSS and injection attacks
-        # Check if CSP nonce is available from CSPNonceMiddleware
+        # Content-Security-Policy: Prevents XSS and injection attacks.
+        # A nonce may be set upstream in request.state by CSP-aware handlers.
         nonce = getattr(request.state, "csp_nonce", None)
         csp = self.csp_policy if self.csp_policy else self._get_default_csp(nonce)
 
-        # Only set CSP if not already set by CSPNonceMiddleware
+        # Respect an existing CSP header when one was already set upstream.
         if "Content-Security-Policy" not in response.headers:
             response.headers["Content-Security-Policy"] = csp
 

@@ -18,17 +18,13 @@ from app.schemas.v2.medication import (
     MedicationV2Create,
     MedicationV2Update,
 )
-from app.api.v2.dependencies import (
-    get_pagination_params,
-    get_field_selection,
-    get_eager_load_params,
-    apply_field_selection,
-)
-from app.api.v2.patients_utils import (
-    _get_current_user_simple,
-    _extract_user_context,
-    _ensure_uuid,
-)
+from app.api.v2.dependencies import apply_field_selection
+from app.api.v2.dependencies import get_eager_load_params
+from app.api.v2.dependencies import get_field_selection
+from app.api.v2.dependencies import get_pagination_params
+from app.api.v2.patients_utils import _ensure_uuid
+from app.api.v2.patients_utils import _extract_user_context
+from app.api.v2.patients_utils import _get_current_user_simple
 from app.utils.auth_helpers import is_admin
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
@@ -39,15 +35,10 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _is_admin(current_user) -> bool:
-    """Check if current user is admin."""
-    return is_admin(current_user)
-
-
 def _ensure_medication_access(
     current_user, medication_prescribed_by_id, patient_doctor_id
 ):
-    if _is_admin(current_user):
+    if is_admin(current_user):
         return
     _, user_id = _extract_user_context(current_user)
     user_uuid = _ensure_uuid(user_id)
@@ -55,6 +46,30 @@ def _ensure_medication_access(
         raise HTTPException(status_code=403, detail="No permissions")
     if user_uuid != medication_prescribed_by_id and user_uuid != patient_doctor_id:
         raise HTTPException(status_code=403, detail="Not enough permissions")
+
+
+def _resolve_medication_for_mutation(
+    *,
+    medication_id: str,
+    db,
+    repo,
+    current_user,
+) -> tuple[UUID, Medication]:
+    """Parse medication ID, load record and enforce RBAC for mutating operations."""
+    try:
+        mid = UUID(medication_id)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid medication_id UUID") from exc
+
+    med = repo.get_by_id(mid)
+    if not med:
+        raise HTTPException(status_code=404)
+
+    patient = db.query(Patient).get(med.patient_id)
+    if patient:
+        _ensure_medication_access(current_user, med.prescribed_by_id, patient.doctor_id)
+
+    return mid, med
 
 
 def _serialize_medication(medication) -> Optional[dict]:
@@ -152,7 +167,7 @@ async def list_medications(
 
     if cursor_data and "id" in cursor_data:
         cid = UUID(cursor_data["id"])
-        cdate = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cdate = datetime.fromisoformat(cursor_data["created_at"])
         filters.append(
             or_(
                 Medication.created_at < cdate,
@@ -439,30 +454,17 @@ async def update_medication(
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
 ):
-    try:
-        mid = UUID(medication_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid medication_id UUID")
-
     from app.services.medication_service import MedicationService
     from app.repositories.medication import MedicationRepository
 
     repo = MedicationRepository(db)
     service = MedicationService(db, repo)
-
-    med = repo.get_by_id(mid)
-    if not med:
-        raise HTTPException(status_code=404)
-
-    # Permission check
-    # This part is tricky because repo.get_by_id might not load patient if eager_load=False default?
-    # We need to ensure access. Let's assume we fetch it if needed or trust service.
-    # But service doesn't check auth usually.
-    # Let's fetch patient manually for Auth check if med.patient not loaded
-    patient_id = med.patient_id
-    patient = db.query(Patient).get(patient_id)
-    if patient:
-        _ensure_medication_access(current_user, med.prescribed_by_id, patient.doctor_id)
+    mid, _ = _resolve_medication_for_mutation(
+        medication_id=medication_id,
+        db=db,
+        repo=repo,
+        current_user=current_user,
+    )
 
     try:
         updated = service.update_medication(mid, medication_data)
@@ -484,25 +486,17 @@ async def delete_medication(
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
 ):
-    try:
-        mid = UUID(medication_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid medication_id UUID")
-
     from app.services.medication_service import MedicationService
     from app.repositories.medication import MedicationRepository
 
     repo = MedicationRepository(db)
     service = MedicationService(db, repo)
-
-    med = repo.get_by_id(mid)
-    if not med:
-        raise HTTPException(status_code=404)
-
-    # Permission check
-    patient = db.query(Patient).get(med.patient_id)
-    if patient:
-        _ensure_medication_access(current_user, med.prescribed_by_id, patient.doctor_id)
+    mid, _ = _resolve_medication_for_mutation(
+        medication_id=medication_id,
+        db=db,
+        repo=repo,
+        current_user=current_user,
+    )
 
     service.delete_medication(mid)
     return None

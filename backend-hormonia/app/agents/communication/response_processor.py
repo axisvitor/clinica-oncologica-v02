@@ -10,12 +10,12 @@ for handling inbound patient messages, including:
 """
 
 from typing import Dict, Any, List
-from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.agents.base import BaseAgent, MessagePriority
+from app.agents.registry import ALERT_ANALYZER_ID, RESPONSE_PROCESSOR_ID
 from app.services.response_processor import (
     ResponseProcessor,
     ResponseProcessorConfig,
@@ -24,7 +24,6 @@ from app.services.response_processor import (
     ResponseType,
 )
 from app.models.message import MessageType
-from app.repositories.patient import PatientRepository
 
 
 # Re-export for agent package
@@ -52,10 +51,12 @@ class ResponseProcessorAgent(BaseAgent):
     - Coordinate with other agents (e.g., QuizConductor)
     """
 
+    VALID_TASK_TYPES = {"process_inbound_message", "handle_interactive_response"}
+
     def __init__(self, db_session: Session, **kwargs):
         """Initialize ResponseProcessorAgent."""
         super().__init__(
-            agent_id=f"response_processor_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            agent_id=RESPONSE_PROCESSOR_ID,
             agent_type="processing",
             specialization="message_processing",
             db_session=db_session,
@@ -69,8 +70,6 @@ class ResponseProcessorAgent(BaseAgent):
                 enable_ai_processing=True, enable_sentiment_analysis=True
             ),
         )
-
-        self.patient_repo = PatientRepository(db_session)
 
         # Agent capabilities
         self.capabilities = [
@@ -88,18 +87,25 @@ class ResponseProcessorAgent(BaseAgent):
         """Cleanup agent resources."""
         pass
 
+    @staticmethod
+    def _parse_enum_member(enum_cls, raw_value: Any, default):
+        """Parse enum member safely from string payload values."""
+        enum_key = str(raw_value or "").upper()
+        try:
+            return enum_cls[enum_key]
+        except KeyError:
+            return default
+
     async def get_capabilities(self) -> List[str]:
         """Return agent capabilities."""
         return self.capabilities
 
     async def validate_task(self, task_data: Dict[str, Any]) -> bool:
         """Validate if agent can handle the task."""
-        task_type = task_data.get("type", "")
+        task_type = task_data.get("task_type", "")
         payload = task_data.get("payload", {})
 
-        compatible_tasks = ["process_inbound_message", "handle_interactive_response"]
-
-        if task_type not in compatible_tasks:
+        if task_type not in self.VALID_TASK_TYPES:
             return False
 
         if task_type == "process_inbound_message":
@@ -117,7 +123,7 @@ class ResponseProcessorAgent(BaseAgent):
 
     async def process_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """Process assigned task."""
-        task_type = task_data.get("type")
+        task_type = task_data.get("task_type")
         payload = task_data.get("payload", {})
 
         self.logger.info(f"Processing task: {task_type}")
@@ -137,11 +143,9 @@ class ResponseProcessorAgent(BaseAgent):
     async def _process_inbound_message(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Process inbound message task."""
         # Convert payload to InboundMessage
-        message_type_str = payload.get("message_type", "text").upper()
-        try:
-            message_type = MessageType[message_type_str]
-        except KeyError:
-            message_type = MessageType.TEXT
+        message_type = self._parse_enum_member(
+            MessageType, payload.get("message_type"), MessageType.TEXT
+        )
 
         inbound_message = InboundMessage(
             patient_phone=payload["patient_phone"],
@@ -156,13 +160,18 @@ class ResponseProcessorAgent(BaseAgent):
 
         # If escalation required, notify appropriate agent
         if result.escalation_required:
+            structured_response = (
+                result.structured_response.extracted_data
+                if result.structured_response
+                else {}
+            )
             await self.send_message(
-                "alert_analyzer_agent",
+                ALERT_ANALYZER_ID,
                 "analyze_escalation",
                 {
                     "patient_id": str(result.patient_id),
                     "reason": "escalation_required_by_processor",
-                    "structured_response": result.structured_response.extracted_data,
+                    "structured_response": structured_response,
                 },
                 MessagePriority.HIGH,
             )
@@ -180,11 +189,9 @@ class ResponseProcessorAgent(BaseAgent):
     ) -> Dict[str, Any]:
         """Handle interactive response task."""
         # Convert payload to InteractiveResponse
-        response_type_str = payload.get("response_type", "text").upper()
-        try:
-            response_type = ResponseType[response_type_str]
-        except KeyError:
-            response_type = ResponseType.TEXT
+        response_type = self._parse_enum_member(
+            ResponseType, payload.get("response_type"), ResponseType.TEXT
+        )
 
         interactive_response = InteractiveResponse(
             patient_id=UUID(payload["patient_id"]),

@@ -5,22 +5,21 @@ This module contains Celery tasks for monitoring the health of the flow processi
 system, including database, Redis, and external service connectivity checks.
 """
 
-import asyncio
 import logging
 from typing import Any
-from datetime import datetime, timezone
 from sqlalchemy import text
 
 from app.task_queue import task_queue as celery_app
-from app.task_queue import list_tasks as list_stored_tasks
-from app.database import get_db, get_scoped_session
-from app.config import settings
-from app.repositories.flow import FlowStateRepository
+from app.database import get_scoped_session
+from app.models.flow import PatientFlowState
 from app.models.message import Message, MessageStatus
-from app.integrations.gemini_client import get_gemini_client
+from app.models.patient import Patient
+from app.ai.client import get_gemini_client
 from app.services.flow_alerts import FlowAlertsService
+from app.utils.async_helpers import run_async_in_sync, run_async_in_thread
 
 from .base import FlowTaskBase
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,7 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
                 "active_flows_count": 0,
                 "pending_messages_count": 0,
                 "failed_tasks_count": 0,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
             # Test database connection
@@ -65,20 +64,13 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
             except Exception as e:
                 logger.error(f"Database health check failed: {e}")
 
-            # Test Redis connection using synchronous client
+            # Test Redis connection using centralized RedisManager
             try:
-                import redis
-                from app.config import settings
+                from app.core.redis_manager import get_redis_manager
 
-                redis_client = redis.from_url(
-                    settings.REDIS_URL,
-                    decode_responses=True,
-                    socket_connect_timeout=5,
-                    socket_timeout=5,
-                )
-
+                manager = get_redis_manager()
+                redis_client = manager.get_sync_client()
                 redis_client.ping()
-                redis_client.close()
                 health_results["redis_connection"] = True
             except Exception as e:
                 logger.error(f"Redis health check failed: {e}")
@@ -86,86 +78,74 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
             # Test Gemini client using proper async handling
             try:
                 gemini_client = get_gemini_client()
+                from app.config.settings.tasks import HEALTH_CHECK_TIMEOUT
+
                 try:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        health_results["gemini_client"] = loop.run_until_complete(
-                            gemini_client.health_check()
-                        )
-                    finally:
-                        loop.close()
-                except RuntimeError as e:
-                    if "cannot be called from a running event loop" in str(e):
-                        import concurrent.futures
-
-                        with concurrent.futures.ThreadPoolExecutor() as executor:
-                            from app.config.settings.tasks import HEALTH_CHECK_TIMEOUT
-
-                            future = executor.submit(
-                                lambda: asyncio.run(gemini_client.health_check())
-                            )
-                            health_results["gemini_client"] = future.result(
-                                timeout=HEALTH_CHECK_TIMEOUT
-                            )
-                    else:
-                        raise
+                    health_results["gemini_client"] = run_async_in_sync(
+                        gemini_client.health_check(),
+                        timeout=HEALTH_CHECK_TIMEOUT,
+                    )
+                except RuntimeError:
+                    health_results["gemini_client"] = run_async_in_thread(
+                        gemini_client.health_check(),
+                        timeout=HEALTH_CHECK_TIMEOUT,
+                    )
             except Exception as e:
                 logger.error(f"Gemini client health check failed: {e}")
 
-            # Count active flows
+            # Count active flows (lightweight, capped)
             try:
                 from app.config.settings.tasks import HEALTH_ACTIVE_FLOWS_LIMIT
 
-                flow_repo = FlowStateRepository(db)
-                active_flows = flow_repo.get_active_flows(
-                    limit=HEALTH_ACTIVE_FLOWS_LIMIT
+                active_flows = (
+                    db.query(PatientFlowState.id)
+                    .join(Patient)
+                    .filter(
+                        PatientFlowState.completed_at.is_(None),
+                        Patient.deleted_at.is_(None),
+                    )
+                    .limit(HEALTH_ACTIVE_FLOWS_LIMIT)
+                    .all()
                 )
                 health_results["active_flows_count"] = len(active_flows)
             except Exception as e:
                 logger.error(f"Failed to count active flows: {e}")
 
-            # Count pending messages
+            # Count pending messages (lightweight, capped)
             try:
+                from app.config.settings.tasks import HEALTH_ACTIVE_FLOWS_LIMIT
+
                 pending_messages = (
-                    db.query(Message)
+                    db.query(Message.id)
                     .filter(Message.status == MessageStatus.PENDING)
-                    .count()
+                    .limit(HEALTH_ACTIVE_FLOWS_LIMIT)
+                    .all()
                 )
-                health_results["pending_messages_count"] = pending_messages
+                health_results["pending_messages_count"] = len(pending_messages)
             except Exception as e:
                 logger.error(f"Failed to count pending messages: {e}")
 
-            # Check for failed tasks in Redis using synchronous client
+            # Check for failed tasks in Redis using centralized RedisManager
             try:
-                if settings.TASK_QUEUE_PROVIDER.lower() == "cloud_tasks":
-                    stored_tasks = list_stored_tasks()
-                    failed_count = sum(
-                        1
-                        for task in stored_tasks
-                        if str(task.get("status", "")).upper() in ("FAILURE", "FAILED")
-                    )
-                    health_results["failed_tasks_count"] = failed_count
-                else:
-                    import redis
+                from app.core.redis_manager import get_redis_manager
 
-                    redis_client = redis.from_url(
-                        settings.REDIS_URL,
-                        decode_responses=True,
-                        socket_connect_timeout=5,
-                        socket_timeout=5,
-                    )
+                manager = get_redis_manager()
+                redis_client = manager.get_sync_client()
 
-                    failed_tasks = redis_client.keys("task_result:*")
-                    failed_count = 0
+                failed_count = 0
+                scanned_count = 0
+                max_scan = 500
 
-                    for task_key in failed_tasks:
-                        task_data = redis_client.get(task_key)
-                        if task_data and "failure" in str(task_data):
-                            failed_count += 1
+                for task_key in redis_client.scan_iter(match="task_result:*", count=100):
+                    scanned_count += 1
+                    if scanned_count > max_scan:
+                        break
+                    task_data = redis_client.get(task_key)
+                    if task_data and "failure" in str(task_data):
+                        failed_count += 1
 
-                    redis_client.close()
-                    health_results["failed_tasks_count"] = failed_count
+                health_results["failed_tasks_count"] = failed_count
+                health_results["failed_tasks_scanned"] = min(scanned_count, max_scan)
             except Exception as e:
                 logger.error(f"Failed to check task failures: {e}")
 
@@ -185,12 +165,12 @@ def monitor_flow_task_health(self) -> dict[str, Any]:
         logger.error(f"Flow task health monitoring failed: {e}")
         return {
             "error": str(e),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "overall_healthy": False,
         }
 
 
-@celery_app.task(bind=True, base=FlowTaskBase)
+@celery_app.task(bind=True, base=FlowTaskBase, max_retries=3, default_retry_delay=60)
 def evaluate_flow_alerts(self) -> dict[str, Any]:
     """
     Evaluate flow analytics alerts and dispatch notifications.
@@ -198,20 +178,12 @@ def evaluate_flow_alerts(self) -> dict[str, Any]:
     with get_scoped_session() as db:
         try:
             service = FlowAlertsService(db)
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                alerts = loop.run_until_complete(service.evaluate_alerts())
-            finally:
-                loop.close()
+            alerts = run_async_in_sync(service.evaluate_alerts(), timeout=60)
 
             return {
                 "alerts_created": len(alerts),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
         except Exception as exc:
             logger.error(f"Flow alerts evaluation failed: {exc}")
-            return {
-                "error": str(exc),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
+            raise self.retry(exc=exc, countdown=60)

@@ -9,6 +9,7 @@ from uuid import UUID
 from dataclasses import dataclass, field
 
 from app.services.ai import ConcernLevel
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 
 
 class ResponseType(str, Enum):
@@ -35,6 +36,8 @@ class ResponseProcessorConfig:
     enable_ai_processing: bool = True
     enable_pattern_extraction: bool = True
     enable_sentiment_analysis: bool = True
+    # When True, allow natural-language text even if it doesn't match strict formats/options.
+    lenient_validation: bool = True
 
 
 @dataclass
@@ -48,7 +51,7 @@ class ResponseValidationResult:
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return now_sao_paulo()
 
 
 @dataclass
@@ -90,7 +93,7 @@ class ResponseProcessingResult:
     follow_up_message: Optional[str] = None
     state_updates: Optional[dict[str, Any]] = None
     escalation_required: bool = False
-    processed_at: datetime = field(default_factory=datetime.utcnow)
+    processed_at: datetime = field(default_factory=now_sao_paulo_naive)
 
 
 @dataclass
@@ -102,7 +105,7 @@ class InboundMessage:
     whatsapp_id: str
     message_type: Any = None  # MessageType from models
     metadata: dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=now_sao_paulo_naive)
 
 
 @dataclass

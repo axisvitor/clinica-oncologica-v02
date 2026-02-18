@@ -30,7 +30,9 @@ from app.dependencies.auth_dependencies import get_current_user_from_session
 from .helpers import (
     _extract_user_context,
     _serialize_message,
-    _create_cursor,
+    _apply_message_created_cursor_filter,
+    _paginate_messages_query,
+    _paginate_query,
 )
 
 router = APIRouter()
@@ -96,17 +98,6 @@ async def list_messages(
         query = query.join(Patient, Message.patient_id == Patient.id)
         filters.append(Patient.doctor_id == user_uuid)
 
-    # Cursor pagination
-    if cursor_data and "id" in cursor_data:
-        cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
-        )
-        filters.append(
-            (Message.created_at < cursor_created_at)
-            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
-        )
-
     # Additional filters
     if patient_id:
         filters.append(Message.patient_id == UUID(patient_id))
@@ -147,25 +138,13 @@ async def list_messages(
 
     if filters:
         query = query.filter(and_(*filters))
-
-    # Count total (only on first page)
-    total = None
-    if not cursor_data:
-        total = query.count()
-
-    # Order and limit
-    query = query.order_by(Message.created_at.desc(), Message.id)
-    messages = query.limit(limit + 1).all()
-
-    # Check if there are more results
-    has_more = len(messages) > limit
-    if has_more:
-        messages = messages[:limit]
-
-    # Create next cursor
-    next_cursor = None
-    if has_more and messages:
-        next_cursor = _create_cursor(messages[-1])
+    query = _apply_message_created_cursor_filter(query, cursor_data)
+    messages, has_more, next_cursor, total = _paginate_query(
+        query,
+        limit=limit,
+        cursor_data=cursor_data,
+        order_columns=(Message.created_at.desc(), Message.id),
+    )
 
     # Convert to response models
     message_responses = []
@@ -282,35 +261,5 @@ async def filter_by_status(
         query = query.join(Patient, Message.patient_id == Patient.id)
         query = query.filter(Patient.doctor_id == user_uuid)
 
-    # Cursor pagination
-    if cursor_data and "id" in cursor_data:
-        cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
-        )
-        query = query.filter(
-            (Message.created_at < cursor_created_at)
-            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
-        )
-
-    total = None
-    if not cursor_data:
-        total = query.count()
-
-    query = query.order_by(Message.created_at.desc(), Message.id)
-    messages = query.limit(limit + 1).all()
-
-    has_more = len(messages) > limit
-    if has_more:
-        messages = messages[:limit]
-
-    next_cursor = None
-    if has_more and messages:
-        next_cursor = _create_cursor(messages[-1])
-
-    return {
-        "data": [_serialize_message(msg) for msg in messages],
-        "next_cursor": next_cursor,
-        "has_more": has_more,
-        "total": total,
-    }
+    query = _apply_message_created_cursor_filter(query, cursor_data)
+    return _paginate_messages_query(query, limit=limit, cursor_data=cursor_data)

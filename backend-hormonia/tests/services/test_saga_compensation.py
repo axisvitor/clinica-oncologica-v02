@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
 from uuid import uuid4
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.orchestration.saga_orchestrator import (
     SagaOrchestrator,
     SagaCompensationError
@@ -346,7 +347,7 @@ class TestSagaCompensationInternal:
         # Should call compensation for steps 4, 3, 1 (step 2 is skipped)
         assert compensator._compensate_step_with_retry.call_count == 3
         mock_db.commit.assert_called_once()
-        assert mock_saga.status == SagaStatus.FAILED
+        assert mock_saga.status == SagaStatus.COMPENSATED
 
     @pytest.mark.asyncio
     async def test_compensate_saga_internal_raises_on_failure(self, compensator, mock_saga, mock_db):
@@ -362,6 +363,7 @@ class TestSagaCompensationInternal:
             await compensator._compensate_saga_internal(mock_saga)
 
         assert str(mock_saga.id) in str(exc_info.value.saga_id)
+        assert mock_saga.status == SagaStatus.FAILED
 
 
 class TestSagaCompensationError:
@@ -466,8 +468,8 @@ class TestGetSagaStatus:
         saga.current_step = 4
         saga.patient_id = uuid4()
         saga.doctor_id = uuid4()
-        saga.started_at = datetime.utcnow()
-        saga.completed_at = datetime.utcnow()
+        saga.started_at = now_sao_paulo_naive()
+        saga.completed_at = now_sao_paulo_naive()
         saga.failed_at = None
         saga.error_message = None
         saga.error_type = None
@@ -518,7 +520,7 @@ class TestListFailedSagas:
         saga1.current_step = 2
         saga1.error_message = "Error 1"
         saga1.error_type = "Exception"
-        saga1.failed_at = datetime.utcnow()
+        saga1.failed_at = now_sao_paulo_naive()
         saga1.retry_count = 1
 
         saga2 = MagicMock(spec=PatientOnboardingSaga)
@@ -527,7 +529,7 @@ class TestListFailedSagas:
         saga2.current_step = 3
         saga2.error_message = "Error 2"
         saga2.error_type = "ValueError"
-        saga2.failed_at = datetime.utcnow()
+        saga2.failed_at = now_sao_paulo_naive()
         saga2.retry_count = 0
 
         mock_db.query.return_value.filter.return_value.order_by.return_value.limit.return_value.all.return_value = [saga1, saga2]

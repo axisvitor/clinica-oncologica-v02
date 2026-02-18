@@ -8,12 +8,12 @@ systems, with proper formatting, context injection, and alert correlation.
 import json
 import logging
 import time
-from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from contextlib import contextmanager
 from functools import wraps
 
 from app.core.logging_config import RateLimitedLogger
+from app.utils.timezone import now_sao_paulo
 
 
 class MonitoringLogger:
@@ -63,7 +63,7 @@ class MonitoringLogger:
             Structured log entry dictionary
         """
         log_entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "timestamp": now_sao_paulo().isoformat(),
             "level": level,
             "message": message,
             "event_type": event_type,
@@ -342,6 +342,7 @@ class MonitoringLogger:
                 return self
 
             def __exit__(self, exc_type, exc_val, exc_tb):
+                _ = exc_tb
                 duration_ms = (time.time() - self.start_time) * 1000
 
                 # Log performance metric
@@ -394,88 +395,82 @@ def monitoring_decorator(
             pass
     """
 
+    def _build_monitoring_context(func, args, kwargs):
+        context = {"function": func.__name__, "module": func.__module__}
+        if log_args:
+            context["args"] = str(args)
+            context["kwargs"] = {k: str(v) for k, v in kwargs.items()}
+        return context
+
+    def _log_success_event(monitoring_logger, func, context, result):
+        if log_result:
+            context["result"] = str(result)[:100]
+        monitoring_logger.log_system_event(
+            event_type=event_type,
+            message=f"Function '{func.__name__}' completed successfully",
+            level="DEBUG",
+            context=context,
+        )
+
+    def _log_error_event(monitoring_logger, func, context, error):
+        if not alert_on_error:
+            return
+        monitoring_logger.log_system_event(
+            event_type=f"{event_type}_error",
+            message=f"Function '{func.__name__}' failed: {str(error)}",
+            level="ERROR",
+            context={
+                **context,
+                "error_type": type(error).__name__,
+                "error_message": str(error),
+            },
+            alert_level="MEDIUM",
+        )
+
+    async def _run_async_call(func, monitoring_logger, context, *args, **kwargs):
+        with monitoring_logger.performance_timer(func.__name__, **context):
+            try:
+                result = await func(*args, **kwargs)
+                _log_success_event(monitoring_logger, func, context, result)
+                return result
+            except Exception as exc:
+                _log_error_event(monitoring_logger, func, context, exc)
+                raise
+
+    def _run_sync_call(func, monitoring_logger, context, *args, **kwargs):
+        with monitoring_logger.performance_timer(func.__name__, **context):
+            try:
+                result = func(*args, **kwargs)
+                _log_success_event(monitoring_logger, func, context, result)
+                return result
+            except Exception as exc:
+                _log_error_event(monitoring_logger, func, context, exc)
+                raise
+
     def decorator(func):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             monitoring_logger = MonitoringLogger()
-
-            context = {"function": func.__name__, "module": func.__module__}
-
-            if log_args:
-                context["args"] = str(args)
-                context["kwargs"] = {k: str(v) for k, v in kwargs.items()}
-
-            with monitoring_logger.performance_timer(func.__name__, **context):
-                try:
-                    result = await func(*args, **kwargs)
-
-                    if log_result:
-                        context["result"] = str(result)[:100]  # Truncate long results
-
-                    monitoring_logger.log_system_event(
-                        event_type=event_type,
-                        message=f"Function '{func.__name__}' completed successfully",
-                        level="DEBUG",
-                        context=context,
-                    )
-
-                    return result
-
-                except Exception as e:
-                    if alert_on_error:
-                        monitoring_logger.log_system_event(
-                            event_type=f"{event_type}_error",
-                            message=f"Function '{func.__name__}' failed: {str(e)}",
-                            level="ERROR",
-                            context={
-                                **context,
-                                "error_type": type(e).__name__,
-                                "error_message": str(e),
-                            },
-                            alert_level="MEDIUM",
-                        )
-                    raise
+            context = _build_monitoring_context(func, args, kwargs)
+            return await _run_async_call(
+                func,
+                monitoring_logger,
+                context,
+                *args,
+                **kwargs,
+            )
 
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             monitoring_logger = MonitoringLogger()
-
-            context = {"function": func.__name__, "module": func.__module__}
-
-            if log_args:
-                context["args"] = str(args)
-                context["kwargs"] = {k: str(v) for k, v in kwargs.items()}
-
-            with monitoring_logger.performance_timer(func.__name__, **context):
-                try:
-                    result = func(*args, **kwargs)
-
-                    if log_result:
-                        context["result"] = str(result)[:100]  # Truncate long results
-
-                    monitoring_logger.log_system_event(
-                        event_type=event_type,
-                        message=f"Function '{func.__name__}' completed successfully",
-                        level="DEBUG",
-                        context=context,
-                    )
-
-                    return result
-
-                except Exception as e:
-                    if alert_on_error:
-                        monitoring_logger.log_system_event(
-                            event_type=f"{event_type}_error",
-                            message=f"Function '{func.__name__}' failed: {str(e)}",
-                            level="ERROR",
-                            context={
-                                **context,
-                                "error_type": type(e).__name__,
-                                "error_message": str(e),
-                            },
-                            alert_level="MEDIUM",
-                        )
-                    raise
+            context = _build_monitoring_context(func, args, kwargs)
+            return _run_sync_call(
+                func,
+                monitoring_logger,
+                context,
+                *args,
+                **kwargs,
+            )
 
         # Return appropriate wrapper based on function type
         import asyncio

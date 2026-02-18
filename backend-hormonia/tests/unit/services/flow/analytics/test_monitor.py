@@ -9,6 +9,7 @@ import pytest
 from datetime import datetime, timedelta
 from uuid import uuid4
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.flow.analytics.monitor import (
     FlowMonitor,
     FlowHealthMetrics,
@@ -42,10 +43,10 @@ def sample_flow_context(flow_instance_id):
     """Create sample flow context for testing."""
     return FlowContext(
         flow_instance_id=flow_instance_id,
-        flow_type=FlowType.DAILY_CHECKIN,
+        flow_type=FlowType.DAILY_FOLLOW_UP,
         patient_id=uuid4(),
         status=FlowStatus.ACTIVE,
-        started_at=datetime.utcnow() - timedelta(minutes=5),
+        started_at=now_sao_paulo_naive() - timedelta(minutes=5),
     )
 
 
@@ -54,10 +55,10 @@ def healthy_context(flow_instance_id):
     """Create healthy flow context."""
     context = FlowContext(
         flow_instance_id=flow_instance_id,
-        flow_type=FlowType.DAILY_CHECKIN,
+        flow_type=FlowType.DAILY_FOLLOW_UP,
         patient_id=uuid4(),
         status=FlowStatus.ACTIVE,
-        started_at=datetime.utcnow() - timedelta(minutes=2),
+        started_at=now_sao_paulo_naive() - timedelta(minutes=2),
     )
     context.steps_history = [
         FlowStepData(
@@ -76,10 +77,10 @@ def unhealthy_context(flow_instance_id):
     """Create unhealthy flow context (high error rate)."""
     context = FlowContext(
         flow_instance_id=flow_instance_id,
-        flow_type=FlowType.DAILY_CHECKIN,
+        flow_type=FlowType.DAILY_FOLLOW_UP,
         patient_id=uuid4(),
         status=FlowStatus.ACTIVE,
-        started_at=datetime.utcnow() - timedelta(hours=2),
+        started_at=now_sao_paulo_naive() - timedelta(hours=2),
     )
     # High failure rate
     context.steps_history = [
@@ -179,10 +180,10 @@ class TestFlowHealthMonitoring:
         # Create context with long execution time
         context = FlowContext(
             flow_instance_id=flow_instance_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
             status=FlowStatus.ACTIVE,
-            started_at=datetime.utcnow() - timedelta(hours=2),
+            started_at=now_sao_paulo_naive() - timedelta(hours=2),
         )
 
         metrics = monitor.check_flow_health(flow_instance_id, context)
@@ -196,11 +197,11 @@ class TestFlowHealthMonitoring:
 
         context = FlowContext(
             flow_instance_id=flow_instance_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
             status=FlowStatus.ACTIVE,
-            started_at=datetime.utcnow() - timedelta(minutes=5),
-            expires_at=datetime.utcnow() - timedelta(minutes=1),
+            started_at=now_sao_paulo_naive() - timedelta(minutes=5),
+            expires_at=now_sao_paulo_naive() - timedelta(minutes=1),
         )
 
         metrics = monitor.check_flow_health(flow_instance_id, context)
@@ -316,10 +317,10 @@ class TestSystemHealthMonitoring:
 
             context = FlowContext(
                 flow_instance_id=flow_id,
-                flow_type=FlowType.DAILY_CHECKIN,
+                flow_type=FlowType.DAILY_FOLLOW_UP,
                 patient_id=uuid4(),
                 status=FlowStatus.ACTIVE,
-                started_at=datetime.utcnow() - timedelta(minutes=2),
+                started_at=now_sao_paulo_naive() - timedelta(minutes=2),
             )
             monitor.check_flow_health(flow_id, context)
 
@@ -336,10 +337,10 @@ class TestSystemHealthMonitoring:
             monitor.start_monitoring(flow_id)
             context = FlowContext(
                 flow_instance_id=flow_id,
-                flow_type=FlowType.DAILY_CHECKIN,
+                flow_type=FlowType.DAILY_FOLLOW_UP,
                 patient_id=uuid4(),
                 status=FlowStatus.ACTIVE,
-                started_at=datetime.utcnow() - timedelta(minutes=2),
+                started_at=now_sao_paulo_naive() - timedelta(minutes=2),
             )
             monitor.check_flow_health(flow_id, context)
 
@@ -370,7 +371,7 @@ class TestSystemHealthMonitoring:
             else:
                 context = FlowContext(
                     flow_instance_id=flow_id,
-                    flow_type=FlowType.DAILY_CHECKIN,
+                    flow_type=FlowType.DAILY_FOLLOW_UP,
                     patient_id=uuid4(),
                     status=FlowStatus.ACTIVE,
                 )
@@ -510,10 +511,10 @@ class TestAlertMethods:
 
         context = FlowContext(
             flow_instance_id=flow_instance_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
             status=FlowStatus.ACTIVE,
-            started_at=datetime.utcnow() - timedelta(hours=3),
+            started_at=now_sao_paulo_naive() - timedelta(hours=3),
         )
         monitor.check_flow_health(flow_instance_id, context)
 
@@ -552,7 +553,7 @@ class TestCleanupMethods:
         # Create old inactive flow
         old_flow = uuid4()
         monitor._flow_health[old_flow] = FlowHealthMetrics(old_flow)
-        monitor._flow_health[old_flow].last_check = datetime.utcnow() - timedelta(
+        monitor._flow_health[old_flow].last_check = now_sao_paulo_naive() - timedelta(
             hours=48
         )
 
@@ -570,7 +571,7 @@ class TestCleanupMethods:
         """Test that active flows are not cleaned up."""
         flow_id = uuid4()
         monitor.start_monitoring(flow_id)
-        monitor._flow_health[flow_id].last_check = datetime.utcnow() - timedelta(
+        monitor._flow_health[flow_id].last_check = now_sao_paulo_naive() - timedelta(
             hours=48
         )
 
@@ -629,10 +630,10 @@ class TestHealthStatusCalculation:
 
         context = FlowContext(
             flow_instance_id=flow_instance_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
             status=FlowStatus.ACTIVE,
-            started_at=datetime.utcnow() - timedelta(minutes=1),
+            started_at=now_sao_paulo_naive() - timedelta(minutes=1),
         )
         metrics = monitor.check_flow_health(flow_instance_id, context)
 
@@ -652,10 +653,10 @@ class TestHealthStatusCalculation:
 
         context = FlowContext(
             flow_instance_id=flow_instance_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
             status=FlowStatus.ACTIVE,
-            started_at=datetime.utcnow() - timedelta(hours=2),
+            started_at=now_sao_paulo_naive() - timedelta(hours=2),
         )
         monitor.check_flow_health(flow_instance_id, context)
 

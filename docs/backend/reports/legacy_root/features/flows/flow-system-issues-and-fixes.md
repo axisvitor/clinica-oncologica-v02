@@ -271,7 +271,7 @@ async def schedule_flow_message(
             "flow_type": flow_type,
             "template_id": template_id,
             "personalized": True,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
 
             # NEW: Complete context for recovery
             "flow_state_id": str(flow_state_id),  # For updating on failure
@@ -335,7 +335,7 @@ async def process_daily_flows_with_logging(limit: int = 100):
         "processed_count": 0,
         "success_count": 0,
         "error_count": 0,
-        "start_time": datetime.now(timezone.utc),
+        "start_time": now_sao_paulo(),
         "batch_id": str(uuid.uuid4()),
     }
 
@@ -356,7 +356,7 @@ async def process_daily_flows_with_logging(limit: int = 100):
                 patient_id=flow.patient_id,
                 status=result["status"],
                 details=result.get("error", ""),
-                processed_at=datetime.now(timezone.utc),
+                processed_at=now_sao_paulo(),
             )
 
             # Periodic commit to flush
@@ -374,7 +374,7 @@ async def process_daily_flows_with_logging(limit: int = 100):
             )
 
     db.commit()
-    summary["end_time"] = datetime.now(timezone.utc)
+    summary["end_time"] = now_sao_paulo()
     summary["duration"] = (summary["end_time"] - summary["start_time"]).total_seconds()
 
     # Log summary only
@@ -416,8 +416,8 @@ class TimezoneHandler:
             try:
                 self._tz_cache[tz_name] = pytz.timezone(tz_name)
             except pytz.exceptions.UnknownTimeZoneError:
-                logger.warning(f"Unknown timezone {tz_name}, using UTC")
-                self._tz_cache[tz_name] = pytz.utc
+                logger.warning(f"Unknown timezone {tz_name}, using Sao Paulo")
+                self._tz_cache[tz_name] = pytz.timezone("America/Sao_Paulo")
         return self._tz_cache[tz_name]
 
     async def calculate_optimal_delivery_time(self, patient, scheduling_window):

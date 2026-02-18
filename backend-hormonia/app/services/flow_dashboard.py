@@ -1,6 +1,12 @@
 """
 Flow Dashboard Service for real-time analytics and reporting.
 Provides dashboard data, trend analysis, and optimization recommendations.
+
+Architecture note (QW-021 consolidation):
+    Unique analytics/dashboard concern -- provides timeframe-based dashboards,
+    patient engagement trends, at-risk patient analysis, and flow optimization
+    recommendations.  NOT duplicated in ``app.services.flow.analytics`` which
+    provides lower-level event/metrics collection.
 """
 
 import logging
@@ -18,6 +24,7 @@ from app.services.analytics import (
 )
 from app.models.flow_analytics import FlowAnalytics
 from app.database import get_db
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +150,7 @@ class FlowDashboardService:
                 "flow_type_breakdown": flow_type_metrics,
                 "trends": trends,
                 "recent_alerts": recent_alerts,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
@@ -284,7 +291,7 @@ class FlowDashboardService:
                 "risk_factor_analysis": risk_factor_analysis,
                 "intervention_recommendations": interventions,
                 "risk_trends": risk_trends,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
@@ -305,7 +312,7 @@ class FlowDashboardService:
             Flow optimization recommendations
         """
         try:
-            end_date = datetime.now(timezone.utc)
+            end_date = now_sao_paulo()
             start_date = end_date - timedelta(days=analysis_days)
 
             # Get flow performance metrics
@@ -348,7 +355,7 @@ class FlowDashboardService:
                 "dropoff_analysis": dropoff_analysis,
                 "recommendations": recommendations,
                 "priority_actions": self._prioritize_recommendations(recommendations),
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
@@ -368,7 +375,7 @@ class FlowDashboardService:
             Real-time alerts data
         """
         try:
-            current_time = datetime.now(timezone.utc)
+            current_time = now_sao_paulo()
 
             alerts = []
 
@@ -423,7 +430,7 @@ class FlowDashboardService:
         if timeframe == DashboardTimeframe.CUSTOM and custom_range:
             return custom_range
 
-        end_date = datetime.now(timezone.utc)
+        end_date = now_sao_paulo()
 
         if timeframe == DashboardTimeframe.LAST_24_HOURS:
             start_date = end_date - timedelta(hours=24)
@@ -442,6 +449,8 @@ class FlowDashboardService:
         self, date_range: Tuple[datetime, datetime]
     ) -> Dict[str, Any]:
         """Get breakdown of metrics by flow type."""
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         flow_types = self.db.query(FlowAnalytics.flow_type).distinct().all()
         breakdown = {}
 
@@ -531,6 +540,8 @@ class FlowDashboardService:
         self, date_range: Tuple[datetime, datetime]
     ) -> List[Dict[str, Any]]:
         """Get recent alerts within date range."""
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         # This would typically query an alerts table, but for now we'll generate based on analytics
         alerts = []
 
@@ -624,6 +635,8 @@ class FlowDashboardService:
         self, date_range: Tuple[datetime, datetime], flow_type: Optional[str]
     ) -> Dict[str, Any]:
         """Get engagement score distribution."""
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         query = self.db.query(FlowAnalytics.engagement_score).filter(
             and_(
                 FlowAnalytics.engagement_score.isnot(None),
@@ -794,7 +807,9 @@ class FlowDashboardService:
             "high_performing_templates": [],
             "low_performing_templates": [],
             "sentiment_by_template": {},
-            "recommendations": ["Consider A/B testing different message approaches"],
+            "recommendations": [
+                "Evaluate and iterate message copy based on engagement trends"
+            ],
         }
 
     async def _analyze_flow_dropoffs(
@@ -828,7 +843,7 @@ class FlowDashboardService:
                     "description": f"Current response rate is {response_rate:.1f}%. Consider message timing and content optimization.",
                     "actions": [
                         "Review message timing",
-                        "A/B test message content",
+                        "Test and refine message content",
                         "Personalize messages more",
                     ],
                 }
@@ -864,7 +879,7 @@ class FlowDashboardService:
         alerts = []
 
         # Get patients with no responses in last 48 hours
-        datetime.now(timezone.utc) - timedelta(hours=48)
+        now_sao_paulo() - timedelta(hours=48)
 
         # This would involve complex queries
         # For now, return empty list
@@ -872,6 +887,8 @@ class FlowDashboardService:
 
     async def _check_sentiment_alerts(self) -> List[Dict[str, Any]]:
         """Check for concerning sentiment patterns."""
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         alerts = []
 
         # Get recent negative sentiment patterns
@@ -880,7 +897,7 @@ class FlowDashboardService:
             .filter(
                 and_(
                     FlowAnalytics.sentiment_score < -0.5,
-                    FlowAnalytics.timestamp >= datetime.now(timezone.utc) - timedelta(hours=24),
+                    FlowAnalytics.timestamp >= now_sao_paulo() - timedelta(hours=24),
                 )
             )
             .all()

@@ -8,12 +8,15 @@ from uuid import uuid4
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+# LangGraph is an optional dependency in some environments.
+pytest.importorskip("langgraph")
+
 from app.ai.langgraph.graphs import (
     build_flow_message_graph,
     build_flow_response_graph,
     build_humanization_graph,
 )
-from app.ai.langgraph import nodes as langgraph_nodes
+from app.ai.langgraph import nodes_ai as langgraph_nodes
 from app.models.patient import Patient
 
 
@@ -67,7 +70,12 @@ async def test_flow_message_graph_patient_flow(db, patient):
             "day_number": 1,
             "flow_kind": "onboarding",
         },
-        config={"configurable": {"handler": handler}},
+        config={
+            "configurable": {
+                "thread_id": f"test:flow_message:{patient.id}",
+                "handler": handler,
+            }
+        },
     )
 
     assert result["result"]["status"] == "ok"
@@ -78,6 +86,7 @@ async def test_flow_message_graph_patient_flow(db, patient):
 @pytest.mark.asyncio
 async def test_flow_response_graph_response_reception(db, patient):
     """Run real LangGraph flow for response continuation."""
+    pending_message_id = str(uuid4())
     flow_state = SimpleNamespace(
         step_data={
             "current_flow_day": 2,
@@ -85,6 +94,12 @@ async def test_flow_response_graph_response_reception(db, patient):
             "awaiting_response": True,
             "day_complete": False,
             "current_day_message_index": 0,
+            "pending_response_context": {
+                "flow_day": 2,
+                "flow_kind": "onboarding",
+                "message_index": 0,
+                "prompt_message_id": pending_message_id,
+            },
         }
     )
     day_config = {
@@ -99,14 +114,135 @@ async def test_flow_response_graph_response_reception(db, patient):
 
     graph = build_flow_response_graph()
     result = await graph.ainvoke(
-        {"patient_id": patient.id},
-        config={"configurable": {"handler": handler}},
+        {
+            "patient_id": patient.id,
+            "response_context": {
+                "flow_day": 2,
+                "flow_kind": "onboarding",
+                "message_index": 0,
+                "prompt_message_id": pending_message_id,
+                "response_message_id": str(uuid4()),
+            },
+        },
+        config={
+            "configurable": {
+                "thread_id": f"test:flow_response:{patient.id}",
+                "handler": handler,
+            }
+        },
     )
 
     assert result["result"]["status"] == "continued"
     assert handler._send_remaining_after_response.await_count == 1
     assert db.commit.called
     assert "last_response_at" in flow_state.step_data
+
+
+@pytest.mark.asyncio
+async def test_flow_response_graph_blocks_on_context_mismatch(db, patient):
+    """Flow response graph should not continue if correlation context does not match."""
+    pending_message_id = str(uuid4())
+    flow_state = SimpleNamespace(
+        step_data={
+            "current_flow_day": 2,
+            "flow_kind": "onboarding",
+            "awaiting_response": True,
+            "day_complete": False,
+            "current_day_message_index": 0,
+            "pending_response_context": {
+                "flow_day": 2,
+                "flow_kind": "onboarding",
+                "message_index": 0,
+                "prompt_message_id": pending_message_id,
+            },
+        }
+    )
+    day_config = {
+        "day": 2,
+        "send_mode": "wait_response",
+        "messages": [
+            {"content": "Pergunta", "expects_response": True},
+            {"content": "Obrigado", "expects_response": False},
+        ],
+    }
+    handler = _StubHandler(db, flow_state, day_config)
+
+    graph = build_flow_response_graph()
+    result = await graph.ainvoke(
+        {
+            "patient_id": patient.id,
+            "response_context": {
+                "flow_day": 3,
+                "flow_kind": "onboarding",
+                "message_index": 0,
+                "prompt_message_id": pending_message_id,
+                "response_message_id": str(uuid4()),
+            },
+        },
+        config={
+            "configurable": {
+                "thread_id": f"test:flow_response:{patient.id}",
+                "handler": handler,
+            }
+        },
+    )
+
+    assert result["result"]["status"] == "waiting"
+    assert result["result"]["reason"] == "context_mismatch"
+    assert handler._send_remaining_after_response.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_flow_response_graph_accepts_matching_context(db, patient):
+    """Flow response graph should continue when correlation context matches pending state."""
+    pending_message_id = str(uuid4())
+    flow_state = SimpleNamespace(
+        step_data={
+            "current_flow_day": 2,
+            "flow_kind": "onboarding",
+            "awaiting_response": True,
+            "day_complete": False,
+            "current_day_message_index": 0,
+            "pending_response_context": {
+                "flow_day": 2,
+                "flow_kind": "onboarding",
+                "message_index": 0,
+                "prompt_message_id": pending_message_id,
+            },
+        }
+    )
+    day_config = {
+        "day": 2,
+        "send_mode": "wait_response",
+        "messages": [
+            {"content": "Pergunta", "expects_response": True},
+            {"content": "Obrigado", "expects_response": False},
+        ],
+    }
+    handler = _StubHandler(db, flow_state, day_config)
+
+    graph = build_flow_response_graph()
+    result = await graph.ainvoke(
+        {
+            "patient_id": patient.id,
+            "response_context": {
+                "flow_day": 2,
+                "flow_kind": "onboarding",
+                "message_index": 0,
+                "prompt_message_id": pending_message_id,
+                "response_message_id": str(uuid4()),
+            },
+        },
+        config={
+            "configurable": {
+                "thread_id": f"test:flow_response:{patient.id}",
+                "handler": handler,
+            }
+        },
+    )
+
+    assert result["result"]["status"] == "continued"
+    assert handler._send_remaining_after_response.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -127,7 +263,8 @@ async def test_humanization_graph_ai_question_optimization(monkeypatch):
             "history": ["Oi"],
             "hints": ["gentil"],
             "output_kind": "message",
-        }
+        },
+        config={"configurable": {"thread_id": "test:humanization:ana"}},
     )
 
     assert result["output"] == "Como você está se sentindo hoje?"

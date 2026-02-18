@@ -10,11 +10,25 @@ Validates comprehensive API documentation for external consumers.
 import json
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.core.application_factory import create_application
+from app.main import app as main_app
+
+
+app = main_app
+if app.openapi_url is None:
+    app = create_application(deployment_mode="development")
 
 
 class TestOpenAPISpecCompleteness:
     """Test that OpenAPI spec documents all endpoints."""
+
+    @staticmethod
+    def _endpoint_documented(paths: dict, endpoint: str) -> bool:
+        if endpoint in paths:
+            return True
+        if endpoint.endswith("/"):
+            return endpoint.rstrip("/") in paths
+        return f"{endpoint}/" in paths
 
     def test_openapi_spec_is_available(self):
         """Test that OpenAPI spec endpoint returns valid JSON."""
@@ -51,12 +65,14 @@ class TestOpenAPISpecCompleteness:
         key_endpoints = [
             "/api/v2/patients",
             "/api/v2/auth/login",
-            "/api/v2/quiz",
+            "/api/v2/quiz/sessions",
             "/api/v2/messages",
         ]
 
         for endpoint in key_endpoints:
-            assert endpoint in paths, f"{endpoint} should be documented"
+            assert self._endpoint_documented(
+                paths, endpoint
+            ), f"{endpoint} should be documented"
 
     def test_each_endpoint_has_methods(self):
         """Test that each endpoint documents HTTP methods."""

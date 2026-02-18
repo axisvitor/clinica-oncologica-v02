@@ -26,6 +26,7 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy import asc
+from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
@@ -37,7 +38,7 @@ from app.schemas.v2.quiz_extensions import (
     ResponseAnalyticsV2,
 )
 from app.api.v2.dependencies import (
-    get_pagination_params,
+    get_pagination_params_async,
     create_cursor,
 )
 from app.dependencies.auth_dependencies import get_redis_cache
@@ -46,9 +47,18 @@ from app.api.v2._quiz_shared import (
     _get_current_user_simple,
     _check_patient_access,
 )
+from app.api.v2.routers.monthly_quiz_operations.response_utils import (
+    build_quiz_response_detail,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _role_name(role) -> str:
+    if hasattr(role, "value"):
+        return str(role.value).lower()
+    return str(role).lower()
 
 
 @router.get(
@@ -65,7 +75,7 @@ async def list_quiz_responses(
     template_id: Optional[UUID] = Query(None, description="Filter by quiz template"),
     start_date: Optional[datetime] = Query(None, description="Filter from date"),
     end_date: Optional[datetime] = Query(None, description="Filter to date"),
-    pagination: dict = Depends(get_pagination_params),
+    pagination: dict = Depends(get_pagination_params_async),
     db=Depends(get_db),
     current_user: User = Depends(_get_current_user_simple),
     redis_cache=Depends(get_redis_cache),
@@ -84,17 +94,29 @@ async def list_quiz_responses(
     - Optimized with joinedload()
     """
     # Build base query
-    query = db.query(QuizResponse)
+    query = db.query(QuizResponse).options(
+        selectinload(QuizResponse.quiz_template),
+        selectinload(QuizResponse.quiz_session),
+    )
 
-    # FIXED: Removed UserRole.PATIENT check - only ADMIN and DOCTOR roles exist
     # Apply RBAC filtering
-    if current_user.role == UserRole.DOCTOR:
+    role = _role_name(current_user.role)
+    if role == UserRole.DOCTOR.value:
         # Doctors see assigned patients' responses
         patient_ids = (
             db.query(Patient.id).filter(Patient.doctor_id == current_user.id).all()
         )
         patient_ids = [p[0] for p in patient_ids]
         query = query.filter(QuizResponse.patient_id.in_(patient_ids))
+    elif role == UserRole.ADMIN.value:
+        pass
+    elif role == "patient":
+        query = query.filter(QuizResponse.patient_id == current_user.id)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access quiz responses",
+        )
 
     # Apply additional filters
     if patient_id:
@@ -114,6 +136,8 @@ async def list_quiz_responses(
     if end_date:
         query = query.filter(QuizResponse.responded_at <= end_date)
 
+    total = query.count()
+
     # Apply cursor pagination
     cursor_data = pagination.get("cursor_data")
     limit = pagination.get("limit", 20)
@@ -132,52 +156,26 @@ async def list_quiz_responses(
     if has_more:
         responses = responses[:limit]
 
-    # Enrich responses with context
+    # Enrich responses with context (relationships already pre-loaded)
     enriched_responses = []
     for response in responses:
-        # Get template info
-        template = (
-            db.query(QuizTemplate)
-            .filter(QuizTemplate.id == response.quiz_template_id)
-            .first()
-        )
-
-        # Get session info
-        session = None
-        if response.quiz_session_id:
-            session = (
-                db.query(QuizSession)
-                .filter(QuizSession.id == response.quiz_session_id)
-                .first()
+        template = response.quiz_template
+        session = response.quiz_session
+        enriched_responses.append(
+            QuizResponseV2Detail(
+                **build_quiz_response_detail(
+                    response,
+                    template=template,
+                    session=session,
+                )
             )
-
-        enriched = QuizResponseV2Detail(
-            id=response.id,
-            patient_id=response.patient_id,
-            quiz_template_id=response.quiz_template_id,
-            quiz_session_id=response.quiz_session_id,
-            question_id=response.question_id,
-            question_text=response.question_text,
-            response_type=response.response_type,
-            response_value=response.response_value,
-            response_metadata=response.response_metadata or {},
-            other_text=response.other_text,
-            responded_at=response.responded_at,
-            created_at=response.created_at,
-            template_name=template.name if template else None,
-            template_version=template.version if template else None,
-            session_status=session.status if session else None,
         )
-        enriched_responses.append(enriched)
 
     # Generate next cursor
     next_cursor = None
     if has_more and responses:
         last_item = responses[-1]
-        next_cursor = create_cursor(last_item.id, last_item.created_at)
-
-    # Get total count (cached)
-    total = query.count()
+        next_cursor = create_cursor(last_item.id)
 
     logger.info(
         f"Listed {len(enriched_responses)} quiz responses for user {current_user.id}"
@@ -189,7 +187,7 @@ async def list_quiz_responses(
 
 
 @router.get(
-    "/responses/{response_id}",
+    "/responses/{response_id:uuid}",
     response_model=QuizResponseV2Detail,
     summary="Get quiz response details",
     description="Get detailed information about a specific quiz response",
@@ -234,21 +232,11 @@ async def get_quiz_response_detail(
         )
 
     return QuizResponseV2Detail(
-        id=response.id,
-        patient_id=response.patient_id,
-        quiz_template_id=response.quiz_template_id,
-        quiz_session_id=response.quiz_session_id,
-        question_id=response.question_id,
-        question_text=response.question_text,
-        response_type=response.response_type,
-        response_value=response.response_value,
-        response_metadata=response.response_metadata or {},
-        other_text=response.other_text,
-        responded_at=response.responded_at,
-        created_at=response.created_at,
-        template_name=template.name if template else None,
-        template_version=template.version if template else None,
-        session_status=session.status if session else None,
+        **build_quiz_response_detail(
+            response,
+            template=template,
+            session=session,
+        )
     )
 
 
@@ -282,14 +270,23 @@ async def get_response_analytics(
     # Build query
     query = db.query(QuizResponse)
 
-    # FIXED: Removed UserRole.PATIENT check - only ADMIN and DOCTOR roles exist
     # Apply RBAC
-    if current_user.role == UserRole.DOCTOR:
+    role = _role_name(current_user.role)
+    if role == UserRole.DOCTOR.value:
         patient_ids = (
             db.query(Patient.id).filter(Patient.doctor_id == current_user.id).all()
         )
         patient_ids = [p[0] for p in patient_ids]
         query = query.filter(QuizResponse.patient_id.in_(patient_ids))
+    elif role == UserRole.ADMIN.value:
+        pass
+    elif role == "patient":
+        query = query.filter(QuizResponse.patient_id == current_user.id)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access quiz response analytics",
+        )
 
     # Apply filters
     if patient_id:
@@ -308,11 +305,22 @@ async def get_response_analytics(
     # Get responses
     responses = query.all()
     total_responses = len(responses)
+    response_patient_ids = {r.patient_id for r in responses}
+    response_session_ids = {r.quiz_session_id for r in responses if r.quiz_session_id}
+
+    sessions_by_id = {}
+    if response_session_ids:
+        sessions = (
+            db.query(QuizSession)
+            .filter(QuizSession.id.in_(response_session_ids))
+            .all()
+        )
+        sessions_by_id = {session.id: session for session in sessions}
 
     # Calculate completion rate
-    session_query = db.query(QuizSession).filter(
-        QuizSession.patient_id.in_([r.patient_id for r in responses])
-    )
+    session_query = db.query(QuizSession).filter(QuizSession.patient_id.in_(response_patient_ids))
+    if template_id:
+        session_query = session_query.filter(QuizSession.quiz_template_id == template_id)
     if start_date:
         session_query = session_query.filter(QuizSession.started_at >= start_date)
     if end_date:
@@ -337,15 +345,9 @@ async def get_response_analytics(
         monthly_data = defaultdict(list)
         for resp in responses:
             month_key = resp.responded_at.strftime("%Y-%m")
-            # Get session score if available
-            if resp.quiz_session_id:
-                session = (
-                    db.query(QuizSession)
-                    .filter(QuizSession.id == resp.quiz_session_id)
-                    .first()
-                )
-                if session and session.score:
-                    monthly_data[month_key].append(float(session.score))
+            session = sessions_by_id.get(resp.quiz_session_id)
+            if session and session.score:
+                monthly_data[month_key].append(float(session.score))
 
         for month, scores in sorted(monthly_data.items()):
             avg_score = sum(scores) / len(scores) if scores else 0

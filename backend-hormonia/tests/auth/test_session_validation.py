@@ -17,9 +17,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 from uuid import uuid4
 
+from app.main import app
 from app.models.user import UserRole
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # =============================================================================
 # FIXTURES - Firebase and Redis Mocking
 # =============================================================================
@@ -35,13 +37,13 @@ def mock_firebase_auth():
 
     # Default successful verification
     mock.verify_token.return_value = {
-        "uid": "firebase-uid-123",
+        "uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
         "email": "test@example.com",
         "name": "Test User",
         "email_verified": True,
         "custom_claims": {"role": "doctor"},
-        "auth_time": int(datetime.utcnow().timestamp()),
-        "exp": int((datetime.utcnow() + timedelta(hours=1)).timestamp())
+        "auth_time": int(now_sao_paulo_naive().timestamp()),
+        "exp": int((now_sao_paulo_naive() + timedelta(hours=1)).timestamp())
     }
 
     return mock
@@ -119,15 +121,15 @@ class TestSessionValidation:
         """
         # Setup: Mock session and user data
         mock_firebase_cache.get_session.return_value = {
-            "firebase_uid": "firebase-uid-123",
-            "user_id": "user-uuid-123",
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
+            "user_id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4",
             "email": "test@example.com",
             "role": "doctor"
         }
 
         mock_firebase_cache.get_cached_user.return_value = {
-            "id": "user-uuid-123",
-            "firebase_uid": "firebase-uid-123",
+            "id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4",
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
             "email": "test@example.com",
             "full_name": "Test User",
             "role": "doctor",
@@ -300,8 +302,8 @@ class TestSessionValidation:
         """
         # Setup: Session exists but user cache miss
         mock_firebase_cache.get_session.return_value = {
-            "firebase_uid": "firebase-uid-123",
-            "user_id": "user-uuid-123"
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
+            "user_id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4"
         }
 
         # First call: cache miss
@@ -311,7 +313,7 @@ class TestSessionValidation:
         from app.models.user import User
         user = User(
             id=uuid4(),
-            firebase_uid="firebase-uid-123",
+            firebase_uid="A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
             email="test@example.com",
             full_name="Test User",
             role=UserRole.DOCTOR,
@@ -354,13 +356,13 @@ class TestSessionValidation:
 
         # Setup: Valid session
         mock_firebase_cache.get_session.return_value = {
-            "firebase_uid": "firebase-uid-123",
-            "user_id": "user-uuid-123"
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
+            "user_id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4"
         }
 
         mock_firebase_cache.get_cached_user.return_value = {
-            "id": "user-uuid-123",
-            "firebase_uid": "firebase-uid-123",
+            "id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4",
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
             "email": "test@example.com",
             "full_name": "Test User",
             "role": "doctor",
@@ -408,8 +410,8 @@ class TestSessionValidation:
         """
         # Setup: Valid session
         mock_firebase_cache.get_session.return_value = {
-            "user_id": "user-uuid-123",
-            "firebase_uid": "firebase-uid-123"
+            "user_id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4",
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4"
         }
 
         mock_firebase_cache.invalidate_session.return_value = True
@@ -418,7 +420,7 @@ class TestSessionValidation:
         from app.models.user import User
         user = User(
             id=uuid4(),
-            firebase_uid="firebase-uid-123",
+            firebase_uid="A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
             email="test@example.com",
             full_name="Test User",
             role=UserRole.DOCTOR,
@@ -436,9 +438,14 @@ class TestSessionValidation:
                 mock_manager.return_value.get_compatible_client.return_value = MagicMock()
     
                 with patch('app.routers.auth_session.AuditLogService'):
+                    csrf_response = client.get("/api/v2/auth/csrf-token")
+                    csrf_token = csrf_response.json().get("csrf_token")
                     response = client.delete(
                         "/session/logout",
-                        headers={"X-Session-ID": valid_session_id}
+                        headers={
+                            "X-Session-ID": valid_session_id,
+                            "X-CSRF-Token": csrf_token,
+                        },
                     )
         finally:
              if validate_csrf_token in app.dependency_overrides:
@@ -481,13 +488,13 @@ class TestAdvancedSessionSecurity:
         header_session = "header-session-id"
 
         mock_firebase_cache.get_session.return_value = {
-            "firebase_uid": "uid-123",
+            "firebase_uid": "B1C2D3E4F5G6H7I8J9K0L1M2N3O4",
             "user_id": "user-123"
         }
 
         mock_firebase_cache.get_cached_user.return_value = {
             "id": "user-123",
-            "firebase_uid": "uid-123",
+            "firebase_uid": "B1C2D3E4F5G6H7I8J9K0L1M2N3O4",
             "email": "test@example.com",
             "role": "doctor",
             "is_active": True
@@ -520,7 +527,7 @@ class TestAdvancedSessionSecurity:
         SECURITY: Prevents disabled accounts from accessing system.
         """
         mock_firebase_cache.get_session.return_value = {
-            "firebase_uid": "uid-123",
+            "firebase_uid": "B1C2D3E4F5G6H7I8J9K0L1M2N3O4",
             "user_id": "user-123"
         }
 
@@ -528,7 +535,7 @@ class TestAdvancedSessionSecurity:
         from app.models.user import User
         user = User(
             id=uuid4(),
-            firebase_uid="uid-123",
+            firebase_uid="B1C2D3E4F5G6H7I8J9K0L1M2N3O4",
             email="inactive@example.com",
             full_name="Inactive User",
             role=UserRole.DOCTOR,

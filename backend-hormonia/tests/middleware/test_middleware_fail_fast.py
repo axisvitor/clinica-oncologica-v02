@@ -334,16 +334,18 @@ class TestRateLimitingRetryFailProduction:
         with patch('app.core.middleware_setup.settings', mock_settings):
             with patch('app.core.redis_client.get_redis_client', side_effect=mock_get_redis):
                 with patch('app.middleware.distributed_rate_limiter.RateLimitMiddleware'):
-                    app = FastAPI()
-                    
-                    # Should NOT raise - succeeds on 3rd attempt
-                    setup_middleware(app)
-                    
-                    # Verify retry attempts
-                    assert call_count[0] == 3
-                    
-                    # Rate limiting should be marked as loaded
-                    assert CRITICAL_MIDDLEWARES["rate_limiting"] is True
+                    # Force full middleware path (not minimal pytest stack)
+                    with patch('app.core.middleware_setup._is_test_environment', return_value=False):
+                        app = FastAPI()
+
+                        # Should NOT raise - succeeds on 3rd attempt
+                        setup_middleware(app)
+
+                        # Verify retry attempts
+                        assert call_count[0] == 3
+
+                        # Rate limiting should be marked as loaded
+                        assert CRITICAL_MIDDLEWARES["rate_limiting"] is True
 
 
 # =============================================================================

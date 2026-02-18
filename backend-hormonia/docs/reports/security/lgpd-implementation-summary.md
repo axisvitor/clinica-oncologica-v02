@@ -132,7 +132,7 @@ app.add_middleware(LGPDMiddleware, enable_ip_logging=True)
   "method": "GET",
   "path": "/api/v1/patients/456",
   "ip_address": "192.168.1.100",
-  "timestamp": "2025-11-26T15:30:00Z",
+  "timestamp": "2025-11-26T15:30:00-03:00",
   "user_agent": "Mozilla/5.0..."
 }
 ```
@@ -228,7 +228,7 @@ if deleted:
   "event": "patient_hard_delete",
   "patient_id": "123-456...",
   "reason": "LGPD Art. 16 - Patient requested data deletion",
-  "timestamp": "2025-11-26T20:00:00Z",
+  "timestamp": "2025-11-26T20:00:00-03:00",
   "compliance_article": "LGPD Art. 16 (Right to deletion)"
 }
 ```

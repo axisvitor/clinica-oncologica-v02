@@ -10,33 +10,27 @@ See: docs/deployment/SERVICE_DI_REFACTOR.md
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
-from typing import Optional, Generator, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import redis.asyncio as redis
 
 from app.database import get_db
 if TYPE_CHECKING:
-    from app.services import ServiceProvider
-from app.services.cache_service import CacheService
+    from app.service_provider import ServiceProvider
+from app.infrastructure.cache import UnifiedCacheManager as CacheService
+from app.dependencies.thread_safe_provider import ThreadSafeProviderDependency
 
 # =============================================================================
 # THREAD-SAFE SERVICE PROVIDER (Lazy Import to Avoid Circular Dependency)
 # =============================================================================
 
 
-class _ThreadSafeProviderDependency:
-    """
-    Callable class for lazy importing get_thread_safe_service_provider.
-    Prevents circular import by deferring the import until call time.
-    """
+def _load_thread_safe_provider():
+    from app.dependencies import get_thread_safe_service_provider
 
-    def __call__(self) -> Generator:
-        from app.dependencies import get_thread_safe_service_provider
-
-        yield from get_thread_safe_service_provider()
+    return get_thread_safe_service_provider()
 
 
-# Create singleton instance
-_get_provider_dep = _ThreadSafeProviderDependency()
+_get_provider_dep = ThreadSafeProviderDependency(_load_thread_safe_provider)
 
 # =============================================================================
 # DATABASE & EXTERNAL SERVICE DEPENDENCIES
@@ -78,7 +72,7 @@ def get_patient_repository(db: Session = Depends(get_db)):
     return PatientRepository(db)
 
 
-def get_patient_service(services: "ServiceProvider" = Depends(_get_provider_dep)):
+async def get_patient_service(services: "ServiceProvider" = Depends(_get_provider_dep)):
     """Get PatientCRUDService with thread-safe session."""
     return services.patient_service
 

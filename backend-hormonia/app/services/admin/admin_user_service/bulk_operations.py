@@ -37,6 +37,7 @@ class BulkOperationsMixin:
         """
         # Check admin permissions
         self._check_admin_permissions(admin_user, f"bulk_{bulk_request.operation}")
+        _ = request_info
 
         successful = []
         failed = []

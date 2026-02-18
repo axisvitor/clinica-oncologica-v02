@@ -1,29 +1,18 @@
 # ==============================================================================
-# Python - Bytecode and Cache
+# Python
 # ==============================================================================
 __pycache__/
 *.py[cod]
 *$py.class
-*.pyc
-*.pyo
 *.so
 .Python
 
-# ==============================================================================
-# Python - Build and Distribution
-# ==============================================================================
+# Build / packaging
 build/
-develop-eggs/
 dist/
 downloads/
-eggs/
 .eggs/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 MANIFEST
 *.manifest
@@ -31,37 +20,57 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
-# ==============================================================================
-# Python - Virtual Environments
-# ==============================================================================
-# Python lib directories (NOT frontend/src/lib)
-**/venv/lib/
-**/env/lib/
-**/ENV/lib/
-**/.venv/lib/
-lib64/
-
-# Note: lib/ folders in frontend/quiz contain source code, not dependencies
-# They are explicitly allowed in their respective .gitignore files
-
-# Virtual environment directories
+# Virtual environments
 venv/
-ENV/
 env/
+ENV/
 .venv/
+.venv*/
+**/.venv/
+**/.venv*/
 venv_linux/
 **/venv_linux/
-**/.venv/
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
+# Test / analysis caches
+.pytest_cache/
+**/.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+**/.tox/
+.hypothesis/
+.mypy_cache/
+**/.mypy_cache/
+.ruff_cache/
+**/.ruff_cache/
+.pytype/
+coverage.xml
 
-# Environment variables
+# ==============================================================================
+# Node / Frontend
+# ==============================================================================
+node_modules/
+.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+.next/
+out/
+.parcel-cache/
+.cache/
+/build
+/dist
+
+# Firebase build artifacts
+quiz-mensal-interface/.firebase/
+quiz-mensal-interface/.firebaserc.local
+
+# ==============================================================================
+# Environment / Secrets
+# ==============================================================================
 .env
 .env.local
 .env.*.local
@@ -71,100 +80,59 @@ venv_linux/
 !.env.example
 !.env.*.example
 !.env.sentry.example
-.env.local
-.env.*.local
+
 *.pem
 *.key
+firebase-adminsdk-*.json
+*-firebase-adminsdk-*.json
+serviceAccountKey.json
+config_dump.json
+backend-hormonia/config/firebase_key.txt
 
 # ==============================================================================
-# Testing - Python
+# Logs / runtime / temp
 # ==============================================================================
-.pytest_cache/
-**/.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-.tox/
-**/.tox/
-*.cover
-.hypothesis/
-.mypy_cache/
-**/.mypy_cache/
-.ruff_cache/
-**/.ruff_cache/
-.pytype/
-coverage.xml
-*.coveragerc
-
-# Logs
 *.log
-logs/
 *.log.*
+logs/
+backend-hormonia/logs/
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnp
-.pnp.js
-
-# Production
-/build
-/dist
-
-# Misc
-.cache
-.parcel-cache
-.next
-out
-
-# OS
-Thumbs.db
-.DS_Store
-
-# Temporary files
 *.tmp
 *.temp
 nul
+.tmp/
 
-# Alembic
-alembic/versions/*.pyc
-
-# Firebase
-firebase-adminsdk-*.json
-serviceAccountKey.json
-
-# Supabase
-.supabase/
-
-# Redis
+# DB / queue runtime artifacts
+*.db
+*.db-journal
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
 dump.rdb
 appendonly.aof
+celerybeat-schedule
+backend-hormonia/celerybeat-schedule
 
-# Removed Windows wrapper files per user request
-hive-mind-prompt-*.txt
+# ==============================================================================
+# Tooling local state
+# ==============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
 
-# Migration and script backups
-docs/backups/
-
-
-
-# Removed Windows wrapper files per user request
-hive-mind-prompt-*.txt
-
-# Claude Flow generated files
 .claude/settings.local.json
 .mcp.json
 claude-flow.config.json
 .swarm/
 .hive-mind/
 .claude-flow/
+
 memory/
 coordination/
 memory/claude-flow-data.json
@@ -175,22 +143,14 @@ memory/agents/*
 coordination/memory_bank/*
 coordination/subtasks/*
 coordination/orchestration/*
-*.db
-*.db-journal
-*.db-wal
-*.sqlite
-*.sqlite-journal
-*.sqlite-wal
-claude-flow
-# Removed Windows wrapper files per user request
+
+# AIOS local files
+.aios-core/local/
+.aios/install-log.txt
+
+# Removed Windows wrapper files
 hive-mind-prompt-*.txt
 
-# GCP Service Account Keys
-*.json
-
-# User requested ignores
-.claude/
-.codex/
-skills/
+# Project local artifacts
 uploads/
-
+backend-hormonia/debug_log.txt

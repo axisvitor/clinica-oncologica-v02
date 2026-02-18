@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies.auth_dependencies import get_current_user
 from app.models.user import User
 from app.schemas.v2.health import (
     RedisHealth,
@@ -22,6 +21,8 @@ from app.schemas.v2.health import (
     HealthStatus,
 )
 from app.config import settings
+from .compat import call_health_attr, get_current_user_compat
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ async def check_worker_health(db: Any) -> WorkerHealth:
             db.query(Message)
             .filter(
                 Message.status == MessageStatus.FAILED,
-                Message.updated_at >= datetime.now(timezone.utc) - timedelta(hours=24),
+                Message.updated_at >= now_sao_paulo() - timedelta(hours=24),
             )
             .count()
         )
@@ -159,7 +160,7 @@ async def check_external_services() -> List[ExternalServiceHealth]:
                     name="Evolution API",
                     status=HealthStatus.HEALTHY,
                     latency_ms=round(latency_ms, 2),
-                    last_check=datetime.now(timezone.utc),
+                    last_check=now_sao_paulo(),
                     error_message=None,
                 )
             )
@@ -169,7 +170,7 @@ async def check_external_services() -> List[ExternalServiceHealth]:
                     name="Evolution API",
                     status=HealthStatus.DEGRADED,
                     latency_ms=None,
-                    last_check=datetime.now(timezone.utc),
+                    last_check=now_sao_paulo(),
                     error_message=str(e),
                 )
             )
@@ -179,7 +180,7 @@ async def check_external_services() -> List[ExternalServiceHealth]:
 
 @router.get("/redis", response_model=RedisHealth)
 async def redis_health_check(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_compat),
 ) -> RedisHealth:
     """
     Redis/cache health check (Authenticated).
@@ -187,12 +188,13 @@ async def redis_health_check(
     Returns detailed Redis health metrics.
     Cached for 1 minute.
     """
-    return await check_redis_health()
+    return await call_health_attr("check_redis_health", check_redis_health)
 
 
 @router.get("/workers", response_model=WorkerHealth)
 async def worker_health_check(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_compat),
 ) -> WorkerHealth:
     """
     Background worker health check (Authenticated).
@@ -200,12 +202,12 @@ async def worker_health_check(
     Returns detailed worker health metrics.
     Cached for 1 minute.
     """
-    return await check_worker_health(db)
+    return await call_health_attr("check_worker_health", check_worker_health, db)
 
 
 @router.get("/external", response_model=List[ExternalServiceHealth])
 async def external_services_health_check(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_compat),
 ) -> List[ExternalServiceHealth]:
     """
     External services health check (Authenticated).
@@ -213,4 +215,4 @@ async def external_services_health_check(
     Returns health status of external API dependencies.
     Cached for 2 minutes.
     """
-    return await check_external_services()
+    return await call_health_attr("check_external_services", check_external_services)

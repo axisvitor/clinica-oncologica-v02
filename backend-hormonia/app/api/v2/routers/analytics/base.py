@@ -2,7 +2,7 @@
 Base module for analytics - Common utilities and types.
 """
 
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Dict, Any
 import json
 import hashlib
 from uuid import UUID
@@ -11,6 +11,7 @@ from fastapi import APIRouter
 from app.models.user import UserRole
 from app.models.patient import Patient
 from app.services.analytics import RiskLevel, PatientRisk
+from app.api.v2.analytics_utils.user_context import get_role_and_user
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,48 +27,6 @@ COLOR_PALETTE = [
     "#8b5cf6",  # violet
     "#0ea5e9",  # sky
 ]
-
-
-def get_role_and_user(current_user) -> Tuple[UserRole, Optional[UUID]]:
-    """
-    Extract role and user UUID from current_user which can be model or dict.
-
-    Args:
-        current_user: User object or dict containing role and id
-
-    Returns:
-        Tuple of (UserRole, Optional[UUID])
-    """
-    if isinstance(current_user, dict):
-        role_value = current_user.get("role", "doctor")
-        user_id = current_user.get("id")
-    else:
-        role_value = getattr(current_user, "role", "doctor")
-        user_id = getattr(current_user, "id", None)
-
-    # Optimize role conversion
-    if isinstance(role_value, UserRole):
-        role = role_value
-    elif isinstance(role_value, str):
-        role_lower = role_value.lower()
-        if role_lower == "admin":
-            role = UserRole.ADMIN
-        else:
-            role = UserRole.DOCTOR
-    else:
-        role = UserRole.DOCTOR
-
-    # Optimize UUID conversion
-    if user_id:
-        try:
-            user_uuid = UUID(str(user_id))
-        except (TypeError, ValueError):
-            user_uuid = None
-    else:
-        user_uuid = None
-
-    return role, user_uuid
-
 
 def serialize_patient_risk(
     patient_risk: PatientRisk,
@@ -137,7 +96,7 @@ async def get_cached_result(cache_key: str):
         Cached data dict or None if not found
     """
     try:
-        from app.core.redis_unified import get_async_redis
+        from app.core.redis_manager import get_async_redis_client as get_async_redis
 
         redis_client = await get_async_redis()
         if redis_client is None:
@@ -164,7 +123,7 @@ async def set_cached_result(cache_key: str, data: dict, ttl: int = ANALYTICS_CAC
         ttl: Time to live in seconds
     """
     try:
-        from app.core.redis_unified import get_async_redis
+        from app.core.redis_manager import get_async_redis_client as get_async_redis
 
         redis_client = await get_async_redis()
         if redis_client is None:

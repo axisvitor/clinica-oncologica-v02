@@ -14,6 +14,7 @@ from app.exceptions import ExternalServiceError
 from app.core.redis_circuit_breaker import CircuitOpenError, CircuitState
 from app.models.message import Message, MessageType, MessageStatus, MessageDirection, MessagePriority
 from app.models.patient import Patient
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.integrations.whatsapp.models.message import (
     MessageRequest, MessageType as WhatsAppMessageType
 )
@@ -152,8 +153,8 @@ class TestUnifiedWhatsAppService:
     @pytest.mark.asyncio
     async def test_flow_context_retry_policy(self, service, mock_message):
         """Test retry policy selection based on flow context"""
-        # Test initial_15_days flow
-        flow_context = {'flow_type': 'initial_15_days'}
+        # Test onboarding flow
+        flow_context = {'flow_type': 'onboarding'}
         service._add_unified_metadata(mock_message, flow_context=flow_context)
         assert mock_message.message_metadata['retry_policy'] == 'flow_message'
 
@@ -233,7 +234,7 @@ class TestUnifiedWhatsAppService:
         failed_msg.message_metadata = {
             'retry_attempts': 1,
             'retry_policy': 'default',
-            'last_retry_at': (datetime.utcnow() - timedelta(minutes=10)).isoformat()
+            'last_retry_at': (now_sao_paulo_naive() - timedelta(minutes=10)).isoformat()
         }
 
         with patch.object(service.message_service, 'get_failed_messages') as mock_get:
@@ -321,7 +322,7 @@ class TestUnifiedWhatsAppService:
     async def test_flow_message_with_context(self, service, mock_message):
         """Test flow-specific message sending with context"""
         flow_context = {
-            'flow_type': 'initial_15_days',
+            'flow_type': 'onboarding',
             'patient_day': 5,
             'template_id': str(uuid4())
         }
@@ -330,7 +331,7 @@ class TestUnifiedWhatsAppService:
             mock_send.return_value = True
 
             # Act
-            result = await service.send_flow_message(mock_message, flow_context)
+            result = await service.send_message(mock_message, flow_context=flow_context)
 
             # Assert
             assert result is True

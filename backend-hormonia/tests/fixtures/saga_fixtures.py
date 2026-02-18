@@ -20,6 +20,7 @@ from app.models.enums import SagaStatus
 from app.orchestration.saga_orchestrator import SagaOrchestrator
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 @pytest.fixture
 def test_patient_data() -> Dict[str, Any]:
     """
@@ -133,7 +134,7 @@ def failed_saga_record(
         execution_log=[],
         error_message="Simulated failure for testing",
         error_type="TestError",
-        started_at=datetime.utcnow(),
+        started_at=now_sao_paulo_naive(),
     )
     db_session.add(saga)
     db_session.commit()
@@ -189,12 +190,12 @@ def completed_flow_state(
     from app.models.flow import FlowKind, FlowTemplateVersion
 
     flow_kind = db_session.query(FlowKind).filter(
-        FlowKind.flow_type == "initial_15_days"
+        FlowKind.flow_type == "onboarding"
     ).first()
 
     if not flow_kind:
         flow_kind = FlowKind(
-            flow_type="initial_15_days",
+            flow_type="onboarding",
             display_name="Onboarding - First 15 Days",
             description="Initial patient onboarding flow",
         )
@@ -263,19 +264,19 @@ def saga_with_partial_completion(
                 "step": 1,
                 "action": "create_patient",
                 "status": "success",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": now_sao_paulo_naive().isoformat(),
             },
             {
                 "step": 2,
                 "action": "create_flow_state",
                 "status": "failed",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": now_sao_paulo_naive().isoformat(),
                 "message": "Simulated flow state creation failure",
             },
         ],
         error_message="Flow state creation failed",
         error_type="FlowStateError",
-        started_at=datetime.utcnow(),
+        started_at=now_sao_paulo_naive(),
     )
     db_session.add(saga)
     db_session.commit()

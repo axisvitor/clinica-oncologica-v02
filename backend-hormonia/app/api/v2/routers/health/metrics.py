@@ -13,7 +13,6 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies.auth_dependencies import get_current_user
 from app.models.user import User
 from app.schemas.v2.health import (
     SystemMetrics,
@@ -24,6 +23,8 @@ from app.schemas.v2.health import (
 from .database_health import check_database_health
 from .service_health import check_redis_health, check_worker_health
 from .storage_external import check_storage_health
+from .compat import call_health_attr, get_current_user_compat
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,8 @@ router = APIRouter()
 
 @router.get("/metrics", response_class=PlainTextResponse)
 async def prometheus_metrics(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user_compat),
+    db: Session = Depends(get_db),
 ) -> str:
     """
     Prometheus-compatible metrics endpoint (Authenticated).
@@ -40,10 +42,10 @@ async def prometheus_metrics(
     Returns metrics in Prometheus text format.
     Cached for 2 minutes.
     """
-    database = await check_database_health(db)
-    redis_health = await check_redis_health()
-    workers = await check_worker_health(db)
-    storage = await check_storage_health()
+    database = await call_health_attr("check_database_health", check_database_health, db)
+    redis_health = await call_health_attr("check_redis_health", check_redis_health)
+    workers = await call_health_attr("check_worker_health", check_worker_health, db)
+    storage = await call_health_attr("check_storage_health", check_storage_health)
 
     # Convert statuses to numeric values
     status_values = {
@@ -96,7 +98,7 @@ async def prometheus_metrics(
 
 @router.get("/metrics/system", response_model=SystemMetrics)
 async def system_metrics_endpoint(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_compat),
 ) -> SystemMetrics:
     """
     System resource metrics (Authenticated).
@@ -124,7 +126,8 @@ async def system_metrics_endpoint(
 
 @router.get("/metrics/application", response_model=ApplicationMetrics)
 async def application_metrics_endpoint(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user_compat),
+    db: Session = Depends(get_db),
 ) -> ApplicationMetrics:
     """
     Application-level metrics (Authenticated).
@@ -144,7 +147,8 @@ async def application_metrics_endpoint(
 
 @router.get("/metrics/custom", response_model=CustomMetrics)
 async def custom_metrics_endpoint(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user_compat),
+    db: Session = Depends(get_db),
 ) -> CustomMetrics:
     """
     Custom business metrics (Authenticated).
@@ -157,23 +161,26 @@ async def custom_metrics_endpoint(
     from app.models.quiz import QuizSession
     from app.models.alert import Alert
 
-    active_patients = db.query(Patient).filter(Patient.is_active).count()
+    active_patients_query = db.query(Patient)
+    if hasattr(Patient, "deleted_at"):
+        active_patients_query = active_patients_query.filter(Patient.deleted_at.is_(None))
+    active_patients = active_patients_query.count()
 
     messages_24h = (
         db.query(Message)
-        .filter(Message.created_at >= datetime.now(timezone.utc) - timedelta(hours=24))
+        .filter(Message.created_at >= now_sao_paulo() - timedelta(hours=24))
         .count()
     )
 
     quizzes_24h = (
         db.query(QuizSession)
-        .filter(QuizSession.created_at >= datetime.now(timezone.utc) - timedelta(hours=24))
+        .filter(QuizSession.created_at >= now_sao_paulo() - timedelta(hours=24))
         .count()
     )
 
     alerts_24h = (
         db.query(Alert)
-        .filter(Alert.created_at >= datetime.now(timezone.utc) - timedelta(hours=24))
+        .filter(Alert.created_at >= now_sao_paulo() - timedelta(hours=24))
         .count()
     )
 

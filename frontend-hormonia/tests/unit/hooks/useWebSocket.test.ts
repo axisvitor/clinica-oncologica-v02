@@ -211,7 +211,7 @@ describe('useWebSocket', () => {
       const mockMessage = {
         type: 'test',
         data: { content: 'test message' },
-        timestamp: '2024-01-01T00:00:00Z'
+        timestamp: '2024-01-01T00:00:00-03:00'
       }
 
       const mockWs = result.current as any

@@ -10,6 +10,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
 from enum import Enum
+from app.utils.timezone import now_sao_paulo_naive
 
 
 class SentimentType(str, Enum):
@@ -89,7 +90,7 @@ class ChatResponse(BaseModel):
         default_factory=list, description="Follow-up suggestions"
     )
     context_used: bool = Field(..., description="Whether patient context was used")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -102,7 +103,7 @@ class ChatResponse(BaseModel):
                     "Schedule follow-up",
                 ],
                 "context_used": True,
-                "timestamp": "2024-01-01T12:00:00Z",
+                "timestamp": "2024-01-01T12:00:00-03:00",
             }
         }
     )
@@ -168,7 +169,7 @@ class AnalysisResponse(BaseModel):
     data_quality_score: float = Field(
         ..., ge=0.0, le=1.0, description="Quality score of analyzed data"
     )
-    analyzed_at: datetime = Field(default_factory=datetime.utcnow)
+    analyzed_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -188,7 +189,7 @@ class AnalysisResponse(BaseModel):
                     "Monitor fatigue levels",
                 ],
                 "data_quality_score": 0.87,
-                "analyzed_at": "2024-01-01T12:00:00Z",
+                "analyzed_at": "2024-01-01T12:00:00-03:00",
             }
         }
     )
@@ -266,7 +267,7 @@ class GenerateResponseResponse(BaseModel):
     tone_analysis: Dict[str, float] = Field(
         default_factory=dict, description="Tone analysis scores"
     )
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -280,7 +281,7 @@ class GenerateResponseResponse(BaseModel):
                 ],
                 "readability_score": 87.5,
                 "tone_analysis": {"empathy": 0.9, "professionalism": 0.8},
-                "generated_at": "2024-01-01T12:00:00Z",
+                "generated_at": "2024-01-01T12:00:00-03:00",
             }
         }
     )
@@ -337,7 +338,7 @@ class SentimentAnalysisResponse(BaseModel):
     recommended_action: Optional[str] = Field(
         None, description="Recommended action based on analysis"
     )
-    analyzed_at: datetime = Field(default_factory=datetime.utcnow)
+    analyzed_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -351,7 +352,7 @@ class SentimentAnalysisResponse(BaseModel):
                 "urgency_indicators": ["very tired"],
                 "emotion_scores": {"anxiety": 0.3, "fatigue": 0.8},
                 "recommended_action": "Schedule follow-up consultation",
-                "analyzed_at": "2024-01-01T12:00:00Z",
+                "analyzed_at": "2024-01-01T12:00:00-03:00",
             }
         }
     )
@@ -395,7 +396,7 @@ class InsightResponse(BaseModel):
         default_factory=dict, description="Patient engagement metrics"
     )
     last_contact: Optional[datetime] = Field(None, description="Last contact datetime")
-    insights_generated_at: datetime = Field(default_factory=datetime.utcnow)
+    insights_generated_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -421,8 +422,8 @@ class InsightResponse(BaseModel):
                     "response_rate": 0.92,
                     "avg_response_time_hours": 2.5,
                 },
-                "last_contact": "2024-01-01T10:00:00Z",
-                "insights_generated_at": "2024-01-01T12:00:00Z",
+                "last_contact": "2024-01-01T10:00:00-03:00",
+                "insights_generated_at": "2024-01-01T12:00:00-03:00",
             }
         }
     )
@@ -467,7 +468,7 @@ class RecommendationResponse(BaseModel):
     confidence_level: float = Field(
         ..., ge=0.0, le=1.0, description="Overall recommendation confidence"
     )
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -481,7 +482,7 @@ class RecommendationResponse(BaseModel):
                         "priority": "medium",
                         "category": "clinical",
                         "estimated_impact": "high",
-                        "due_date": "2024-01-15T00:00:00Z",
+                        "due_date": "2024-01-15T00:00:00-03:00",
                     }
                 ],
                 "clinical_insights": [
@@ -494,11 +495,11 @@ class RecommendationResponse(BaseModel):
                 ],
                 "intervention_suggestions": [],
                 "follow_up_schedule": {
-                    "next_check_in": "2024-01-08T00:00:00Z",
+                    "next_check_in": "2024-01-08T00:00:00-03:00",
                     "frequency": "weekly",
                 },
                 "confidence_level": 0.85,
-                "generated_at": "2024-01-01T12:00:00Z",
+                "generated_at": "2024-01-01T12:00:00-03:00",
             }
         }
     )
@@ -535,7 +536,7 @@ class PatientSummaryResponse(BaseModel):
     data_completeness: float = Field(
         ..., ge=0.0, le=1.0, description="Completeness of available data"
     )
-    summary_generated_at: datetime = Field(default_factory=datetime.utcnow)
+    summary_generated_at: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -555,7 +556,7 @@ class PatientSummaryResponse(BaseModel):
                     {
                         "concern": "Occasional fatigue",
                         "severity": "low",
-                        "date": "2024-01-01T00:00:00Z",
+                        "date": "2024-01-01T00:00:00-03:00",
                     }
                 ],
                 "progress_indicators": {
@@ -570,7 +571,7 @@ class PatientSummaryResponse(BaseModel):
                     "Schedule monthly follow-up",
                 ],
                 "data_completeness": 0.92,
-                "summary_generated_at": "2024-01-01T12:00:00Z",
+                "summary_generated_at": "2024-01-01T12:00:00-03:00",
             }
         }
     )
@@ -589,7 +590,7 @@ class AIErrorResponse(BaseModel):
     details: Optional[Dict[str, Any]] = Field(
         None, description="Additional error details"
     )
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=now_sao_paulo_naive)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -597,7 +598,7 @@ class AIErrorResponse(BaseModel):
                 "error": "ai_service_error",
                 "message": "Failed to generate AI response",
                 "details": {"reason": "Service temporarily unavailable"},
-                "timestamp": "2024-01-01T12:00:00Z",
+                "timestamp": "2024-01-01T12:00:00-03:00",
             }
         }
     )

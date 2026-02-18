@@ -6,6 +6,7 @@ and validates its functionality for SQLite thread-safety in tests.
 """
 import pytest
 from concurrent.futures import Future
+from uuid import UUID
 
 
 def test_sync_executor_fixture_available(sync_executor):
@@ -98,4 +99,4 @@ def test_sync_executor_database_simulation(sync_executor, db_session):
     user_id = future.result()
 
     assert user_id is not None
-    assert isinstance(user_id, int)
+    assert isinstance(user_id, UUID)

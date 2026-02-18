@@ -15,10 +15,9 @@ Pattern: Facade, Composition
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 from uuid import UUID
 
-from app.exceptions import ValidationError
 from app.models.patient import Patient
 from app.repositories.patient import PatientRepository
 from app.schemas.patient import PatientCreate, PatientUpdate
@@ -65,6 +64,9 @@ class PatientIntegrityService:
         self._sync_service = PatientSyncService(db, self.repository)
         self._validation_service = PatientValidationService(db, self._sync_service)
         self._audit_service = PatientAuditService()
+        # Backward compatibility: route validation duplicate checks through this
+        # facade so existing mocks on `_check_duplicate_*` keep working.
+        self._validation_service._duplicate_checker = self
 
     # ========================================================================
     # VALIDATION - Delegates to PatientValidationService
@@ -102,31 +104,6 @@ class PatientIntegrityService:
             is_update=is_update,
         )
 
-    @with_db_retry(max_retries=3)
-    def validate_patient_creation(
-        self, patient_data: PatientCreate, doctor_id: UUID
-    ) -> None:
-        """
-        @deprecated Use validate_patient_data() instead.
-
-        Maintained for backward compatibility.
-
-        Raises:
-            ValidationError: If any validation fails
-        """
-        import warnings
-
-        warnings.warn(
-            "validate_patient_creation is deprecated, use validate_patient_data instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        result = self.validate_patient_data(
-            patient_data=patient_data, doctor_id=doctor_id, is_update=False
-        )
-        if result.get("validation_errors"):
-            raise ValidationError("; ".join(result["validation_errors"]))
-
     def _normalize_cpf(self, cpf: Optional[str]) -> Optional[str]:
         """
         Normalize CPF by removing non-digit characters.
@@ -147,50 +124,49 @@ class PatientIntegrityService:
     # SYNCHRONIZATION - Delegates to PatientSyncService
     # ========================================================================
 
-    @with_db_retry(max_retries=3)
-    def _check_duplicate_cpf(
+    def check_duplicate_cpf(
         self,
         cpf: str,
         doctor_id: Optional[UUID] = None,
         exclude_patient_id: Optional[UUID] = None,
     ) -> Optional[Patient]:
-        """
-        Check for existing patient with same CPF.
+        """Public duplicate-check contract used by validation service."""
+        return self._check_duplicate_cpf(cpf, doctor_id, exclude_patient_id)
 
-        Delegates to PatientSyncService.
-        """
-        return self._sync_service.check_duplicate_cpf(cpf, doctor_id, exclude_patient_id)
-
-    @with_db_retry(max_retries=3)
-    def _check_duplicate_email(
+    def check_duplicate_email(
         self,
         email: str,
         doctor_id: Optional[UUID] = None,
         exclude_patient_id: Optional[UUID] = None,
     ) -> Optional[Patient]:
-        """
-        Check for existing patient with same email.
+        """Public duplicate-check contract used by validation service."""
+        return self._check_duplicate_email(email, doctor_id, exclude_patient_id)
 
-        Delegates to PatientSyncService.
-        """
-        return self._sync_service.check_duplicate_email(email, doctor_id, exclude_patient_id)
-
-    @with_db_retry(max_retries=3)
-    def _check_duplicate_phone(
+    def check_duplicate_phone(
         self,
         phone: str,
         doctor_id: Optional[UUID] = None,
         exclude_patient_id: Optional[UUID] = None,
     ) -> Optional[Patient]:
-        """
-        Check for existing patient with same phone.
+        """Public duplicate-check contract used by validation service."""
+        return self._check_duplicate_phone(phone, doctor_id, exclude_patient_id)
 
-        Delegates to PatientSyncService.
-        """
+    def _delegate_duplicate_check(
+        self,
+        checker: Callable[[str, Optional[UUID], Optional[UUID]], Optional[Patient]],
+        value: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """Shared call-path for duplicate checks delegated to sync service."""
+        return checker(value, doctor_id, exclude_patient_id)
+
+    def _normalize_phone_for_duplicate_check(self, phone: str) -> Optional[str]:
+        """Normalize phone to E.164 before duplicate checks."""
         if not phone:
             return None
 
-        from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
+        from app.schemas.validators.phone import PhoneValidationMode, normalize_phone
 
         try:
             normalized_phone = normalize_phone(
@@ -207,9 +183,60 @@ class PatientIntegrityService:
             "Phone normalized for duplicate check",
             extra={"phone_original": phone, "phone_normalized": normalized_phone},
         )
+        return normalized_phone
 
-        return self._sync_service.check_duplicate_phone(
-            normalized_phone, doctor_id, exclude_patient_id
+    @with_db_retry(max_retries=3)
+    def _check_duplicate_cpf(
+        self,
+        cpf: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """
+        Check for existing patient with same CPF.
+
+        Delegates to PatientSyncService.
+        """
+        return self._delegate_duplicate_check(
+            self._sync_service.check_duplicate_cpf, cpf, doctor_id, exclude_patient_id
+        )
+
+    @with_db_retry(max_retries=3)
+    def _check_duplicate_email(
+        self,
+        email: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """
+        Check for existing patient with same email.
+
+        Delegates to PatientSyncService.
+        """
+        return self._delegate_duplicate_check(
+            self._sync_service.check_duplicate_email, email, doctor_id, exclude_patient_id
+        )
+
+    @with_db_retry(max_retries=3)
+    def _check_duplicate_phone(
+        self,
+        phone: str,
+        doctor_id: Optional[UUID] = None,
+        exclude_patient_id: Optional[UUID] = None,
+    ) -> Optional[Patient]:
+        """
+        Check for existing patient with same phone.
+
+        Delegates to PatientSyncService.
+        """
+        normalized_phone = self._normalize_phone_for_duplicate_check(phone)
+        if not normalized_phone:
+            return None
+        return self._delegate_duplicate_check(
+            self._sync_service.check_duplicate_phone,
+            normalized_phone,
+            doctor_id,
+            exclude_patient_id,
         )
 
     @with_db_retry(max_retries=3)

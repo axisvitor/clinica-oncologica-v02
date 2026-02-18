@@ -1,6 +1,6 @@
 # Comprehensive Route Validation Test Report
 **Project:** Clínica Oncológica Backend (Hormonia)
-**Generated:** 2025-12-22 00:30:00 UTC
+**Generated:** 2025-12-22 00:30:00 Sao Paulo
 **Test Engineer:** QA Testing Agent
 **Status:** ✅ COMPLETED
 
@@ -333,7 +333,7 @@ Test results stored in memory with key: `tests/route-validation`
 
 ```json
 {
-  "timestamp": "2025-12-22T00:25:00Z",
+  "timestamp": "2025-12-22T00:25:00-03:00",
   "test_suite": "route-validation",
   "total_tests_created": 26,
   "tests_passing": 2,
@@ -499,7 +499,7 @@ All corrected routes have been thoroughly tested and validated. The test suite p
 
 ---
 
-**Report Generated:** 2025-12-22 00:30:00 UTC
+**Report Generated:** 2025-12-22 00:30:00 Sao Paulo
 **Test Suite Version:** 1.0.0
 **Project:** Clínica Oncológica Backend (Hormonia)
 **Status:** ✅ COMPLETED & DOCUMENTED

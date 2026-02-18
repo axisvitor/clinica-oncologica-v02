@@ -14,6 +14,7 @@ from app.services.flow.integrations.quiz_integration import QuizFlowIntegration
 from app.services.flow.types import FlowType
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 class TestQuizFlowIntegrationCreation:
     """Test suite for quiz flow creation."""
 
@@ -56,7 +57,7 @@ class TestQuizFlowIntegrationCreation:
         )
 
         # Assert
-        assert result["flow_type"] == FlowType.MONTHLY_QUIZ.value
+        assert result["flow_type"] == FlowType.QUIZ_MENSAL.value
 
     def test_create_quiz_flow_stores_mappings(
         self, integration: QuizFlowIntegration, patient_id: UUID
@@ -276,7 +277,7 @@ class TestQuizFlowIntegrationResponses:
         response_data = {
             "question_id": "q1",
             "answer": "Yes",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": now_sao_paulo_naive().isoformat(),
         }
 
         # Act
@@ -334,7 +335,7 @@ class TestQuizFlowIntegrationReminders:
     ):
         """Test scheduling a quiz reminder."""
         # Arrange
-        remind_at = datetime.utcnow() + timedelta(hours=24)
+        remind_at = now_sao_paulo_naive() + timedelta(hours=24)
 
         # Act
         result = integration.schedule_reminder(
@@ -354,7 +355,7 @@ class TestQuizFlowIntegrationReminders:
     ):
         """Test canceling a scheduled reminder."""
         # Arrange
-        remind_at = datetime.utcnow() + timedelta(hours=24)
+        remind_at = now_sao_paulo_naive() + timedelta(hours=24)
         reminder = integration.schedule_reminder(
             created_quiz_flow["quiz_id"], remind_at=remind_at
         )
@@ -372,7 +373,7 @@ class TestQuizFlowIntegrationReminders:
     ):
         """Test getting pending reminders."""
         # Arrange
-        remind_at = datetime.utcnow() + timedelta(hours=24)
+        remind_at = now_sao_paulo_naive() + timedelta(hours=24)
         integration.schedule_reminder(created_quiz_flow["quiz_id"], remind_at=remind_at)
 
         # Act
@@ -405,7 +406,7 @@ class TestQuizFlowIntegrationExpiration:
         )
 
         # Manually set expiration in the past
-        quiz_flow["expires_at"] = datetime.utcnow() - timedelta(hours=1)
+        quiz_flow["expires_at"] = now_sao_paulo_naive() - timedelta(hours=1)
         integration._quiz_flows[quiz_flow["quiz_id"]] = quiz_flow
 
         # Act
@@ -423,7 +424,7 @@ class TestQuizFlowIntegrationExpiration:
         quiz_flow = integration.create_quiz_flow(
             patient_id=patient_id, quiz_type="monthly"
         )
-        quiz_flow["expires_at"] = datetime.utcnow() - timedelta(hours=1)
+        quiz_flow["expires_at"] = now_sao_paulo_naive() - timedelta(hours=1)
         integration._quiz_flows[quiz_flow["quiz_id"]] = quiz_flow
 
         # Act

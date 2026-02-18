@@ -583,7 +583,7 @@ class TTLDict:
     def set(self, key: UUID, value: Any) -> None:
         """Set value with timestamp."""
         self._data[key] = value
-        self._timestamps[key] = datetime.now(timezone.utc)
+        self._timestamps[key] = now_sao_paulo()
         self._cleanup()
 
     def get(self, key: UUID) -> Optional[Any]:
@@ -601,7 +601,7 @@ class TTLDict:
         timestamp = self._timestamps.get(key)
         if not timestamp:
             return True
-        age = datetime.now(timezone.utc) - timestamp
+        age = now_sao_paulo() - timestamp
         return age.total_seconds() > self.ttl_seconds
 
     def _cleanup(self) -> None:

@@ -3,23 +3,24 @@ Validation test for middleware refactoring.
 Tests that all middleware modules can be imported correctly.
 """
 
-import os
 import sys
 from pathlib import Path
+import secrets
+import pytest
 
 # Add backend directory to Python path
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
-# Set up minimal environment variables for testing
-os.environ["APP_ENVIRONMENT"] = "development"
-os.environ["DATABASE_URL"] = "postgresql+psycopg://test:test@localhost:5432/test"
-os.environ["REDIS_URL"] = "redis://localhost:6379"
-
-# Generate proper secrets
-import secrets
-os.environ["JWT_SECRET_KEY"] = secrets.token_urlsafe(32)
-os.environ["SECURITY_CSRF_SECRET_KEY"] = secrets.token_urlsafe(32)
+# Set up minimal environment variables for testing without leaking globally.
+@pytest.fixture(autouse=True)
+def _set_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "development")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://test:test@localhost:5432/test")
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379")
+    # Generate proper secrets per-test to avoid sharing global state
+    monkeypatch.setenv("JWT_SECRET_KEY", secrets.token_urlsafe(32))
+    monkeypatch.setenv("SECURITY_CSRF_SECRET_KEY", secrets.token_urlsafe(32))
 
 
 def test_cors_imports():

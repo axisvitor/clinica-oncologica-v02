@@ -16,6 +16,7 @@ from app.models.audit_log import AuditEventType
 from app.services.audit import AuditService, AuditEventContext
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 class TestAuditService:
     """Test suite for AuditService."""
 
@@ -190,8 +191,8 @@ class TestAuditService:
         """Test compliance statistics generation."""
         # Arrange
         audit_service = AuditService(db_session)
-        start_date = datetime.utcnow() - timedelta(days=1)
-        end_date = datetime.utcnow() + timedelta(days=1)
+        start_date = now_sao_paulo_naive() - timedelta(days=1)
+        end_date = now_sao_paulo_naive() + timedelta(days=1)
 
         # Create diverse audit logs
         categories = ["AUTHENTICATION", "PHI_ACCESS", "DATA_MODIFICATION"]

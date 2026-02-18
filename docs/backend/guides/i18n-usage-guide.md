@@ -509,6 +509,6 @@ To migrate existing code to use i18n:
 - Translation files: `backend-hormonia/app/locales/`
 - Exception classes: `backend-hormonia/app/exceptions/i18n_exceptions.py`
 - Configuration: `backend-hormonia/app/config/i18n.py`
-- Middleware: `backend-hormonia/app/middleware/i18n_middleware.py`
+- Request locale helpers: `backend-hormonia/app/config/i18n.py` (`i18n_middleware.py` removed on 2026-02-10)
 - Tests: `backend-hormonia/tests/api/test_i18n.py`
 - Extraction script: `backend-hormonia/scripts/extract_translatable_strings.py`

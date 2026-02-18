@@ -107,7 +107,7 @@ export function MessagesPage() {
 
   const filteredPatients = useMemo(() => {
     if (!patientsData?.items) return []
-    return patientsData.items.filter((patient) =>
+    return patientsData.items.filter((patient: Patient) =>
       (patient.name || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       patient.phone?.includes(debouncedSearch)
     )
@@ -157,7 +157,7 @@ export function MessagesPage() {
                 </div>
               ) : (
                 <div className="space-y-1 p-2">
-                  {filteredPatients.map((patient) => (
+                  {filteredPatients.map((patient: Patient) => (
                     <div
                       key={patient.id}
                       className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${selectedPatient?.id === patient.id

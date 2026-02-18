@@ -1,0 +1,150 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: clinica-whatsapp-worker
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: '1'
+        autoscaling.knative.dev/maxScale: '1'
+        run.googleapis.com/cpu-throttling: 'false'
+        run.googleapis.com/network-interfaces: '[{"network":"default","subnetwork":"default"}]'
+        run.googleapis.com/startup-cpu-boost: 'true'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+    spec:
+      containerConcurrency: 1
+      timeoutSeconds: 300
+      serviceAccountName: 217549452180-compute@developer.gserviceaccount.com
+      containers:
+      - image: us-central1-docker.pkg.dev/woven-framework-484323-n7/clinica-repo/clinica-backend:20260202-021232
+        command:
+        - uvicorn
+        args:
+        - app.workers.whatsapp_queue_app:app
+        - --host
+        - 0.0.0.0
+        - --port
+        - '8080'
+        ports:
+        - containerPort: 8080
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+        startupProbe:
+          failureThreshold: 1
+          periodSeconds: 240
+          tcpSocket:
+            port: 8080
+          timeoutSeconds: 240
+        env:
+        - name: APP_ENVIRONMENT
+          value: production
+        - name: DATABASE_URL
+          value: REPLACE_WITH_DATABASE_URL
+        - name: REDIS_URL
+          value: REPLACE_WITH_REDIS_URL
+        - name: SECURITY_SECRET_KEY
+          value: REPLACE_WITH_SECURITY_SECRET_KEY
+        - name: ENCRYPTION_KEY_CURRENT
+          value: REPLACE_WITH_ENCRYPTION_KEY_CURRENT
+        - name: WHATSAPP_ENABLE_SERVICE
+          value: 'true'
+        - name: FIREBASE_ADMIN_PROJECT_ID
+          value: clinica-oncologica-hosting
+        - name: FIREBASE_ADMIN_CLIENT_EMAIL
+          value: firebase-adminsdk-fbsvc@clinica-oncologica-hosting.iam.gserviceaccount.com
+        - name: SECURITY_CSRF_SECRET_KEY
+          value: REPLACE_WITH_SECURITY_CSRF_SECRET_KEY
+        - name: SECURITY_ALGORITHM
+          value: HS256
+        - name: PHI_ENCRYPTION_KEY
+          value: REPLACE_WITH_PHI_ENCRYPTION_KEY
+        - name: HASH_SALT
+          value: REPLACE_WITH_HASH_SALT
+        - name: SECURITY_ENABLE_FIELD_ENCRYPTION
+          value: 'true'
+        - name: SECURITY_ENABLE_SSL_REDIRECT
+          value: 'true'
+        - name: REDIS_HOST
+          value: REPLACE_WITH_REDIS_HOST
+        - name: REDIS_PORT
+          value: '6379'
+        - name: REDIS_ENABLE_SERVICE
+          value: 'true'
+        - name: REDIS_ENABLE_SSL
+          value: 'false'
+        - name: REDIS_POOL_MAX_CONNECTIONS
+          value: '1000'
+        - name: QUIZ_ENABLE_VIA_LINK
+          value: 'true'
+        - name: QUIZ_BASE_URL
+          value: https://clinica-quiz-217549452180.us-central1.run.app/quiz/monthly
+        - name: QUIZ_TOKEN_SECRET
+          value: REPLACE_WITH_QUIZ_TOKEN_SECRET
+        - name: QUIZ_TOKEN_EXPIRY_HOURS
+          value: '72'
+        - name: AI_GEMINI_API_KEY
+          value: REPLACE_WITH_AI_GEMINI_API_KEY
+        - name: AI_GEMINI_MODEL
+          value: gemini-3-flash-preview
+        - name: SESSION_ENABLE_COOKIE_SECURE
+          value: 'true'
+        - name: SESSION_ENABLE_COOKIE_HTTPONLY
+          value: 'true'
+        - name: SESSION_COOKIE_SAMESITE
+          value: none
+        - name: SESSION_COOKIE_NAME
+          value: session_id
+        - name: SESSION_COOKIE_MAX_AGE_SECONDS
+          value: '28800'
+        - name: LOGGING_LEVEL
+          value: INFO
+        - name: AUTH_ACCESS_TOKEN_EXPIRE_MINUTES
+          value: '30'
+        - name: AUTH_REFRESH_TOKEN_EXPIRE_DAYS
+          value: '7'
+        - name: WHATSAPP_EVOLUTION_API_URL
+          value: https://evolution-api-217549452180.us-east1.run.app
+        - name: WHATSAPP_EVOLUTION_INSTANCE_NAME
+          value: clinica_oncologica_prod
+        - name: WHATSAPP_EVOLUTION_WEBHOOK_URL
+          value: https://clinica-api-217549452180.us-central1.run.app/webhooks/whatsapp/evolution/clinica_oncologica_prod
+        - name: WHATSAPP_WEBHOOK_HMAC_ENABLED
+          value: 'false'
+        - name: SECURITY_ALLOW_WEAK_KEYS
+          value: 'true'
+        - name: WHATSAPP_EVOLUTION_WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: WHATSAPP_EVOLUTION_WEBHOOK_SECRET
+        - name: WHATSAPP_EVOLUTION_API_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: EVOLUTION_API_KEY
+        - name: APP_ENABLE_DEBUG
+          value: 'false'
+        - name: ALLOW_AI_SIMULATION
+          value: 'false'
+        - name: FIREBASE_ADMIN_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              key: latest
+              name: FIREBASE_ADMIN_PRIVATE_KEY
+        - name: TZ
+          value: America/Sao_Paulo
+        - name: CELERY_TIMEZONE
+          value: America/Sao_Paulo
+        - name: CELERY_ENABLE_TZ_NORMALIZATION
+          value: 'true'
+        - name: REDIS_SSL_CERT_REQS
+          value: none
+        - name: CELERY_BROKER_URL
+          value: REPLACE_WITH_CELERY_BROKER_URL
+        - name: CELERY_RESULT_BACKEND
+          value: REPLACE_WITH_CELERY_RESULT_BACKEND
+        - name: RATE_LIMIT_REDIS_URL
+          value: REPLACE_WITH_RATE_LIMIT_REDIS_URL

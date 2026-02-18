@@ -4,7 +4,7 @@ Simplified service provider dependency for debugging
 
 from fastapi import Depends
 from sqlalchemy.orm import Session
-from app.services import ServiceProvider
+from app.service_provider import ServiceProvider
 from app.database import get_db
 import logging
 

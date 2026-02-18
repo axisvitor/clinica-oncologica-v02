@@ -5,7 +5,7 @@ Implements the same interface as the real Evolution API client.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from uuid import uuid4
 import random
@@ -20,6 +20,7 @@ from ..models.message import (
     MessageStatus,
     MessageType,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,7 @@ class MockEvolutionAPIClient:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
+        _ = exc_type, exc_val, exc_tb
         await self.disconnect()
 
     async def connect(self):
@@ -113,7 +115,7 @@ class MockEvolutionAPIClient:
             "qr_code": qr_code,
             "webhook_url": webhook_url or self.global_webhook_url,
             "webhook_events": webhook_events or [],
-            "created_at": datetime.now(timezone.utc),
+            "created_at": now_sao_paulo(),
             "phone_number": None,
             "profile_name": None,
         }
@@ -138,13 +140,13 @@ class MockEvolutionAPIClient:
 
         # Simulate connection after some time
         created_at = instance["created_at"]
-        if datetime.now(timezone.utc) - created_at > timedelta(seconds=10):
+        if now_sao_paulo() - created_at > timedelta(seconds=10):
             if not instance["is_connected"]:
                 instance["status"] = "open"
                 instance["is_connected"] = True
                 instance["phone_number"] = f"55119{random.randint(10000000, 99999999)}"
                 instance["profile_name"] = f"Mock User {instance_name}"
-                instance["last_activity"] = datetime.now(timezone.utc)
+                instance["last_activity"] = now_sao_paulo()
 
                 # Add some mock contacts
                 self._generate_mock_contacts(instance_name)
@@ -208,7 +210,7 @@ class MockEvolutionAPIClient:
             "text": text,
             "type": "text",
             "status": MessageStatus.SENT,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": now_sao_paulo(),
             "message_data": message_data or {},
         }
 
@@ -222,7 +224,7 @@ class MockEvolutionAPIClient:
             external_id=message_id,
             status=MessageStatus.SENT,
             message="Mock message sent successfully",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             message_data=message_data,
         )
 
@@ -258,7 +260,7 @@ class MockEvolutionAPIClient:
             "filename": filename,
             "type": "media",
             "status": MessageStatus.SENT,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": now_sao_paulo(),
             "message_data": message_data or {},
         }
 
@@ -272,7 +274,7 @@ class MockEvolutionAPIClient:
             external_id=message_id,
             status=MessageStatus.SENT,
             message="Mock media message sent successfully",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             message_data=message_data,
         )
 

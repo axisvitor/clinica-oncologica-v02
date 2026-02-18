@@ -7,7 +7,8 @@ from enum import Enum
 from datetime import datetime, timezone
 from dataclasses import dataclass
 
-from app.services.template_loader import FlowTemplateData, FlowStep, FlowStepCondition
+from app.services.template_loader_pkg import FlowTemplateData, FlowStep, FlowStepCondition
+from app.utils.timezone import now_sao_paulo
 
 
 class TransitionResult(Enum):
@@ -101,7 +102,7 @@ class ConditionEvaluator:
         condition: FlowStepCondition, context: dict[str, Any]
     ) -> Tuple[bool, str]:
         """Evaluate time-based condition."""
-        current_time = context.get("current_time", datetime.now(timezone.utc))
+        current_time = context.get("current_time", now_sao_paulo())
 
         if condition.field == "hours_since_start":
             start_time = context.get("flow_start_time")
@@ -272,7 +273,7 @@ class StateMachine:
         Returns:
             StateTransition: Result of the transition attempt
         """
-        timestamp = datetime.now(timezone.utc)
+        timestamp = now_sao_paulo()
 
         # Check if current step exists
         current_step = self.get_current_step(from_step_id)

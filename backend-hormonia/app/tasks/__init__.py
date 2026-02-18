@@ -61,21 +61,24 @@ from app.tasks.monitoring import (
 )
 
 # Quiz flow tasks
-from app.tasks.quiz_flow import (
+from app.tasks.quiz_flow.question_tasks import (
     send_quiz_question_task,
-    process_quiz_response_task,
-    check_quiz_triggers_task,
-    cleanup_expired_quiz_sessions_task,
     send_quiz_progress_update_task,
+)
+from app.tasks.quiz_flow.response_tasks import (
+    process_quiz_response_task,
     generate_quiz_report_task,
+)
+from app.tasks.quiz_flow.trigger_tasks import (
+    check_quiz_triggers_task,
     send_quiz_link_reminder_task,
     monitor_quiz_links_task,
 )
+from app.tasks.quiz_flow.cleanup_tasks import cleanup_expired_quiz_sessions_task
 
 # Flow tasks
 from app.tasks.flows import (
     process_daily_flows,
-    send_flow_message,
     cleanup_old_flow_data,
     process_monthly_quizzes,
     generate_quiz_report,
@@ -157,7 +160,6 @@ __all__ = [
     "monitor_quiz_links_task",
     # Flow tasks
     "process_daily_flows",
-    "send_flow_message",
     "cleanup_old_flow_data",
     "process_monthly_quizzes",
     "generate_quiz_report",
@@ -173,4 +175,3 @@ __all__ = [
     "persist_lgpd_audit_log",
     "cleanup_expired_lgpd_audit_logs",
 ]
-

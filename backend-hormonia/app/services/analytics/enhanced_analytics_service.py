@@ -3,8 +3,6 @@ Enhanced Analytics Service
 Business logic for advanced analytics, predictive modeling, and custom metrics.
 """
 
-import json
-import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Tuple
 from uuid import UUID
@@ -21,8 +19,9 @@ from app.schemas.v2.enhanced_analytics import (
     CohortFilter,
     FunnelStage,
 )
-from app.core.redis_unified import get_async_redis
+from app.services.cache.json_cache_mixin import RedisJsonCacheMixin
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -32,46 +31,14 @@ AGGREGATED_CACHE_TTL = 1800
 HISTORICAL_CACHE_TTL = 7200
 
 
-class EnhancedAnalyticsService:
+class EnhancedAnalyticsService(RedisJsonCacheMixin):
     """Service for enhanced analytics operations."""
+
+    _cache_namespace = "enhanced_analytics"
 
     def __init__(self, db: Any):
         self.db = db
-
-    async def _get_cached_result(self, cache_key: str) -> Optional[Dict[str, Any]]:
-        try:
-            redis_client = await get_async_redis()
-            if redis_client is None:
-                return None
-            cached = await redis_client.get(cache_key)
-            if cached:
-                return json.loads(cached)
-            return None
-        except Exception as e:
-            logger.warning(f"Cache read failed: {e}")
-            return None
-
-    async def _set_cached_result(self, cache_key: str, data: Any, ttl: int) -> None:
-        try:
-            redis_client = await get_async_redis()
-            if redis_client is None:
-                return
-
-            if hasattr(data, "dict"):
-                serialized = json.dumps(data.dict(), default=str)
-            elif hasattr(data, "model_dump"):
-                serialized = json.dumps(data.model_dump(), default=str)
-            else:
-                serialized = json.dumps(data, default=str)
-
-            await redis_client.setex(cache_key, ttl, serialized)
-        except Exception as e:
-            logger.warning(f"Cache write failed: {e}")
-
-    def _get_cache_key(self, endpoint: str, **params) -> str:
-        param_str = json.dumps(params, sort_keys=True, default=str)
-        param_hash = hashlib.md5(param_str.encode()).hexdigest()
-        return f"enhanced_analytics:v2:{endpoint}:{param_hash}"
+        self._logger = logger
 
     def _parse_date_range(
         self,
@@ -79,7 +46,7 @@ class EnhancedAnalyticsService:
         start_date: Optional[datetime],
         end_date: Optional[datetime],
     ) -> Tuple[datetime, datetime]:
-        end = end_date or datetime.now(timezone.utc)
+        end = end_date or now_sao_paulo()
         if time_range == TimeRange.CUSTOM:
             if not start_date:
                 raise HTTPException(
@@ -236,7 +203,7 @@ class EnhancedAnalyticsService:
             },
             "treatment_distribution": treatment_distribution,
             "alerts": {"critical": 0, "warning": 0, "info": 0},
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
         await self._set_cached_result(cache_key, result, REALTIME_CACHE_TTL)
         return result
@@ -360,7 +327,7 @@ class EnhancedAnalyticsService:
                 "next_cursor": next_cursor,
                 "has_more": len(cohort_patients) >= limit,
             },
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
         await self._set_cached_result(cache_key, result, AGGREGATED_CACHE_TTL)
         return result
@@ -518,7 +485,7 @@ class EnhancedAnalyticsService:
             "overall_conversion": round(overall_conversion, 2),
             "total_enrolled": enrolled_count,
             "total_converted": high_engagement,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
         await self._set_cached_result(cache_key, result, AGGREGATED_CACHE_TTL)
         return result
@@ -545,23 +512,32 @@ class EnhancedAnalyticsService:
 
         # Background logic here usually, simplified for synchronous execution
         lookback_days = 90
-        end_date = datetime.now(timezone.utc)
+        end_date = now_sao_paulo()
         start_date = end_date - timedelta(days=lookback_days)
         historical_data = []
+        dialect_name = getattr(getattr(self.db, "bind", None), "dialect", None)
+        dialect_name = getattr(dialect_name, "name", "")
+
+        def _day_bucket(column):
+            if dialect_name == "sqlite":
+                return func.date(column)
+            return func.date_trunc("day", column)
 
         if metric_type == MetricType.PATIENTS:
+            bucket_expr = _day_bucket(Patient.created_at)
             query = self.db.query(
-                func.date_trunc("day", Patient.created_at).label("date"),
+                bucket_expr.label("date"),
                 func.count(Patient.id).label("value"),
             ).filter(Patient.created_at >= start_date, Patient.created_at <= end_date)
             if role != UserRole.ADMIN and user_uuid:
                 query = query.filter(Patient.doctor_id == user_uuid)
-            results = query.group_by(func.date_trunc("day", Patient.created_at)).all()
+            results = query.group_by(bucket_expr).all()
             historical_data = [{"date": r.date, "value": r.value} for r in results]
         elif metric_type == MetricType.QUIZ:
+            bucket_expr = _day_bucket(QuizSession.created_at)
             query = (
                 self.db.query(
-                    func.date_trunc("day", QuizSession.created_at).label("date"),
+                    bucket_expr.label("date"),
                     func.count(QuizSession.id).label("value"),
                 )
                 .join(Patient, Patient.id == QuizSession.patient_id)
@@ -572,9 +548,7 @@ class EnhancedAnalyticsService:
             )
             if role != UserRole.ADMIN and user_uuid:
                 query = query.filter(Patient.doctor_id == user_uuid)
-            results = query.group_by(
-                func.date_trunc("day", QuizSession.created_at)
-            ).all()
+            results = query.group_by(bucket_expr).all()
             historical_data = [{"date": r.date, "value": r.value} for r in results]
 
         predictions = []
@@ -616,7 +590,7 @@ class EnhancedAnalyticsService:
             "predictions": filtered_predictions,
             "trend_direction": trend,
             "model_accuracy": 0.85,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
             "notes": "Predictions based on linear regression",
         }
         await self._set_cached_result(cache_key, result, HISTORICAL_CACHE_TTL)
@@ -629,7 +603,7 @@ class EnhancedAnalyticsService:
             func.count(func.distinct(QuizSession.patient_id))
         ).filter(
             QuizSession.status == "started",
-            QuizSession.created_at >= datetime.now(timezone.utc) - timedelta(hours=24),
+            QuizSession.created_at >= now_sao_paulo() - timedelta(hours=24),
         )
         if role != UserRole.ADMIN and user_uuid:
             active_sessions_query = active_sessions_query.join(
@@ -638,7 +612,7 @@ class EnhancedAnalyticsService:
         active_count = active_sessions_query.scalar() or 0
 
         recent_quizzes_query = self.db.query(func.count(QuizSession.id)).filter(
-            QuizSession.created_at >= datetime.now(timezone.utc) - timedelta(hours=1)
+            QuizSession.created_at >= now_sao_paulo() - timedelta(hours=1)
         )
         if role != UserRole.ADMIN and user_uuid:
             recent_quizzes_query = recent_quizzes_query.join(
@@ -647,7 +621,7 @@ class EnhancedAnalyticsService:
         recent_count = recent_quizzes_query.scalar() or 0
 
         return {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "active_sessions": active_count,
             "recent_activity_1h": recent_count,
             "system_health": {
@@ -728,7 +702,7 @@ class EnhancedAnalyticsService:
                 if absolute_change < 0
                 else "stable",
             },
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
         await self._set_cached_result(cache_key, result, AGGREGATED_CACHE_TTL)
         return result

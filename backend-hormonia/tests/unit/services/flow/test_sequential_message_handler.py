@@ -9,6 +9,7 @@ Tests cover:
 """
 
 import pytest
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 from datetime import datetime, timezone
@@ -134,14 +135,14 @@ class TestSkipForMissingDayConfig:
         assert "day 6" in result["message"].lower()
 
 
-class TestResetIndexOnDayChange:
-    """FIX 2: Message index should reset when day changes."""
+class TestDayChangeWaitingBehavior:
+    """Day-change behavior must respect pending patient responses."""
 
     @pytest.mark.asyncio
-    async def test_index_resets_when_day_changes(
+    async def test_index_preserved_when_day_changes_and_awaiting_response(
         self, handler, mock_db, mock_patient, mock_flow_state
     ):
-        """current_day_message_index should reset to 0 when day changes."""
+        """When awaiting response, day change must keep pending message position."""
         # Arrange
         mock_db.query.return_value.filter.return_value.first.return_value = mock_patient
         
@@ -168,11 +169,12 @@ class TestResetIndexOnDayChange:
             flow_kind="onboarding"
         )
         
-        # Assert - step_data should have been reset
+        # Assert - waiting context must be preserved (no forced reset)
         step_data = mock_flow_state.step_data
-        assert step_data.get("current_day_message_index", -1) == 0
-        assert step_data.get("day_complete") == False
-        assert step_data.get("awaiting_response") == False
+        assert step_data.get("current_flow_day") == 3
+        assert step_data.get("current_day_message_index", -1) == 2
+        assert step_data.get("day_complete") is True
+        assert step_data.get("awaiting_response") is True
 
     @pytest.mark.asyncio
     async def test_index_not_reset_when_same_day(
@@ -307,15 +309,248 @@ class TestWaitEachAutoAdvance:
 class TestFlowAutomationSkipHandling:
     """FIX 4: Skip status should not count as questions_sent."""
 
-    def test_skip_increments_skipped_not_sent(self):
-        """When handler returns skip, increment skipped counter."""
-        # This would be an integration test with flow_automation.py
-        # For now, we just document the expected behavior
-        
-        # Expected behavior:
-        # if result.get("status") == "skip":
-        #     skipped += 1
-        #     continue  # Don't increment questions_sent
-        
-        # The actual test would mock the entire flow_automation task
-        pass
+
+class TestResponseContextCorrelation:
+    @pytest.mark.asyncio
+    async def test_handle_response_and_continue_forwards_response_context(
+        self, handler, mock_patient, monkeypatch
+    ):
+        captured_state = {}
+
+        class _CapturingResponseGraph:
+            async def ainvoke(self, state, config=None):
+                captured_state.update(state)
+                return {"result": {"status": "waiting"}}
+
+        monkeypatch.setattr(
+            "app.services.flow.sequential_message_handler.get_flow_response_graph",
+            lambda: _CapturingResponseGraph(),
+        )
+
+        response_context = {
+            "flow_day": 2,
+            "flow_kind": "onboarding",
+            "message_index": 0,
+            "prompt_message_id": str(uuid4()),
+            "response_message_id": str(uuid4()),
+        }
+
+        result = await handler.handle_response_and_continue(
+            mock_patient.id,
+            response_context=response_context,
+        )
+
+        assert result["status"] == "waiting"
+        assert captured_state["patient_id"] == mock_patient.id
+        assert captured_state["response_context"] == response_context
+
+    @pytest.mark.asyncio
+    async def test_handle_response_and_continue_keeps_backward_compatibility(
+        self, handler, mock_patient, monkeypatch
+    ):
+        captured_state = {}
+
+        class _CapturingResponseGraph:
+            async def ainvoke(self, state, config=None):
+                captured_state.update(state)
+                return {"result": {"status": "ok"}}
+
+        monkeypatch.setattr(
+            "app.services.flow.sequential_message_handler.get_flow_response_graph",
+            lambda: _CapturingResponseGraph(),
+        )
+
+        result = await handler.handle_response_and_continue(mock_patient.id)
+
+        assert result["status"] == "ok"
+        assert captured_state["patient_id"] == mock_patient.id
+        assert "response_context" not in captured_state
+
+
+class TestAIPersonalizationHardening:
+    """AI personalization should be grounded and fail-safe."""
+
+    def _enable_ai_with_engine(self, handler, engine_side_effect=None, engine_result=None):
+        handler.use_ai_personalization = True
+        engine = MagicMock()
+        if engine_side_effect is not None:
+            engine.generate_flow_message = AsyncMock(side_effect=engine_side_effect)
+        else:
+            engine.generate_flow_message = AsyncMock(return_value=engine_result)
+        handler._enhanced_flow_engine = engine
+        return engine
+
+    @pytest.mark.asyncio
+    async def test_uses_ai_output_when_grounded(self, handler, mock_patient):
+        self._enable_ai_with_engine(
+            handler,
+            engine_result="Olá Test Patient, continue sua medicação conforme orientação.",
+        )
+
+        result = await handler._personalize_message_ai(
+            message={"content": "Olá [NOME], continue sua medicação conforme orientação."},
+            patient=mock_patient,
+            day_number=2,
+            flow_kind="onboarding",
+        )
+
+        assert result == "Olá Test Patient, continue sua medicação conforme orientação."
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_ai_output_not_grounded(self, handler, mock_patient):
+        self._enable_ai_with_engine(
+            handler,
+            engine_result="Oferta relâmpago de investimentos para multiplicar renda.",
+        )
+
+        result = await handler._personalize_message_ai(
+            message={"content": "Olá [NOME], continue sua medicação conforme orientação."},
+            patient=mock_patient,
+            day_number=2,
+            flow_kind="onboarding",
+        )
+
+        assert result == "Olá Test Patient, continue sua medicação conforme orientação."
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_ai_generation_raises(self, handler, mock_patient):
+        self._enable_ai_with_engine(
+            handler,
+            engine_side_effect=RuntimeError("gemini unavailable"),
+        )
+
+        result = await handler._personalize_message_ai(
+            message={"content": "Olá [NOME], continue sua medicação conforme orientação."},
+            patient=mock_patient,
+            day_number=2,
+            flow_kind="onboarding",
+        )
+
+        assert result == "Olá Test Patient, continue sua medicação conforme orientação."
+
+    @pytest.mark.asyncio
+    async def test_send_all_sequential_uses_centralized_fallback(self, handler, mock_patient, mock_flow_state):
+        self._enable_ai_with_engine(
+            handler,
+            engine_side_effect=RuntimeError("gemini unavailable"),
+        )
+        handler._send_flow_message = AsyncMock(return_value=True)
+
+        result = await handler._send_all_sequential(
+            patient=mock_patient,
+            messages=[{"content": "Olá [NOME], msg 1", "expects_response": False}],
+            flow_state=mock_flow_state,
+            day_number=3,
+            flow_kind="onboarding",
+        )
+
+        assert result["status"] == "ok"
+        assert handler._send_flow_message.await_args.args[1] == "Olá Test Patient, msg 1"
+
+    @pytest.mark.asyncio
+    async def test_send_message_and_wait_uses_centralized_fallback(self, handler, mock_patient, mock_flow_state):
+        self._enable_ai_with_engine(
+            handler,
+            engine_side_effect=asyncio.TimeoutError(),
+        )
+        handler._send_flow_message = AsyncMock(return_value=True)
+
+        result = await handler._send_message_and_wait(
+            patient=mock_patient,
+            messages=[{"content": "Olá [NOME], responda por favor.", "expects_response": True}],
+            index=0,
+            flow_state=mock_flow_state,
+            day_number=7,
+            flow_kind="onboarding",
+        )
+
+        assert result["status"] == "waiting"
+        assert handler._send_flow_message.await_args.args[1] == "Olá Test Patient, responda por favor."
+
+    @pytest.mark.asyncio
+    async def test_send_remaining_after_response_uses_centralized_fallback(
+        self, handler, mock_patient, mock_flow_state
+    ):
+        self._enable_ai_with_engine(
+            handler,
+            engine_side_effect=RuntimeError("gemini unavailable"),
+        )
+        handler._send_flow_message = AsyncMock(return_value=True)
+
+        result = await handler._send_remaining_after_response(
+            patient=mock_patient,
+            messages=[
+                {"content": "Mensagem anterior"},
+                {"content": "Olá [NOME], mensagem final.", "expects_response": False},
+            ],
+            start_index=1,
+            flow_state=mock_flow_state,
+            day_number=8,
+            flow_kind="onboarding",
+        )
+
+        assert result["status"] == "complete"
+        assert handler._send_flow_message.await_args.args[1] == "Olá Test Patient, mensagem final."
+
+    @pytest.mark.asyncio
+    async def test_send_wait_each_uses_centralized_fallback(self, handler, mock_patient, mock_flow_state):
+        self._enable_ai_with_engine(
+            handler,
+            engine_side_effect=RuntimeError("gemini unavailable"),
+        )
+        handler._send_flow_message = AsyncMock(return_value=True)
+
+        result = await handler._send_wait_each_with_auto_advance(
+            patient=mock_patient,
+            messages=[{"content": "Olá [NOME], confirme recebimento.", "expects_response": True}],
+            start_index=0,
+            flow_state=mock_flow_state,
+            day_number=9,
+            flow_kind="onboarding",
+        )
+
+        assert result["status"] == "waiting"
+        assert handler._send_flow_message.await_args.args[1] == "Olá Test Patient, confirme recebimento."
+
+    @pytest.mark.asyncio
+    async def test_fallback_prefers_template_variations_for_questions(self, handler, mock_patient):
+        handler.use_ai_personalization = False
+
+        message = {
+            "content": "Como você está se sentindo hoje?",
+            "expects_response": True,
+            "variations": [
+                "Como você se sentiu ao longo do dia?",
+                "Como você descreveria seu bem-estar hoje?",
+            ],
+        }
+
+        result = await handler._personalize_message_ai(
+            message=message,
+            patient=mock_patient,
+            day_number=4,
+            flow_kind="onboarding",
+            message_index=1,
+        )
+
+        assert "Como você está se sentindo hoje?" not in result
+        assert (
+            "Como você se sentiu ao longo do dia?" in result
+            or "Como você descreveria seu bem-estar hoje?" in result
+        )
+
+    @pytest.mark.asyncio
+    async def test_fallback_applies_light_rephrase_for_plain_question(self, handler, mock_patient):
+        handler.use_ai_personalization = False
+        base_question = "Você tomou sua medicação hoje?"
+
+        result = await handler._personalize_message_ai(
+            message={"content": base_question, "expects_response": True},
+            patient=mock_patient,
+            day_number=2,
+            flow_kind="onboarding",
+            message_index=0,
+        )
+
+        assert result != base_question
+        assert result.endswith(base_question)

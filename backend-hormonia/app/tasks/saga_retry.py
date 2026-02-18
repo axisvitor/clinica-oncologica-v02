@@ -13,28 +13,31 @@ Features:
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
+from html import escape as html_escape
 from typing import List
+from urllib.parse import quote
 from uuid import UUID
 
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.database import get_db, get_scoped_session
+from app.database import get_scoped_session
 from app.task_queue import task_queue as celery_app
 from app.utils.async_helpers import run_async
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
 from app.orchestration.saga_orchestrator import SagaOrchestrator
-from app.core.redis_client import get_redis_client
+from app.core.redis_manager import get_sync_redis_client as get_redis_client
 from app.core.monitoring_config import capture_exception, capture_message
 from app.config import settings
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
 
 @celery_app.task(
-    name="retry_patient_onboarding_saga",
+    name="app.tasks.saga_retry.retry_patient_onboarding_saga",
     bind=True,
     max_retries=3,
     default_retry_delay=60,
@@ -71,7 +74,12 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
                 return {"status": "error", "message": "Saga not found"}
 
             # Check if saga is eligible for retry
-            if saga.status not in [SagaStatus.FAILED, SagaStatus.COMPENSATING]:
+            retryable_statuses = [
+                SagaStatus.FAILED,
+                SagaStatus.COMPENSATING,
+                SagaStatus.RETRY_SCHEDULED,
+            ]
+            if saga.status not in retryable_statuses:
                 logger.info(f"Saga {saga_id} is not in a retryable state: {saga.status}")
                 return {
                     "status": "skipped",
@@ -90,11 +98,24 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
                     "saga_id": saga_id,
                 }
 
+            now = now_sao_paulo()
+            if saga.next_retry_at and now < saga.next_retry_at:
+                return {
+                    "status": "backoff",
+                    "message": "Waiting for scheduled retry window",
+                    "next_retry_at": saga.next_retry_at.isoformat(),
+                }
+
+            if saga.status == SagaStatus.RETRY_SCHEDULED:
+                saga.status = SagaStatus.FAILED
+                saga.next_retry_at = None
+                db.commit()
+
             # Calculate backoff delay
             backoff_seconds = _calculate_exponential_backoff(saga.retry_count)
             if saga.last_retry_at:
                 next_retry_time = saga.last_retry_at + timedelta(seconds=backoff_seconds)
-                if datetime.now(timezone.utc) < next_retry_time:
+                if now < next_retry_time:
                     logger.info(
                         f"Saga {saga_id} not ready for retry yet (backoff: {backoff_seconds}s)"
                     )
@@ -106,7 +127,7 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
 
             # Increment retry count
             saga.retry_count += 1
-            saga.last_retry_at = datetime.now(timezone.utc)
+            saga.last_retry_at = now
             db.commit()
 
             logger.info(
@@ -153,7 +174,7 @@ def retry_patient_onboarding_saga(self, saga_id: str) -> dict:
 
 
 @celery_app.task(
-    name="scan_and_retry_failed_sagas",
+    name="app.tasks.saga_retry.scan_and_retry_failed_sagas",
     bind=True,
 )
 def scan_and_retry_failed_sagas(self) -> dict:
@@ -195,10 +216,17 @@ def scan_and_retry_failed_sagas(self) -> dict:
                         max_retries_count += 1
                         continue
 
+                    backoff_seconds = _calculate_exponential_backoff(saga.retry_count)
+                    saga.status = SagaStatus.RETRY_SCHEDULED
+                    saga.next_retry_at = now_sao_paulo() + timedelta(
+                        seconds=backoff_seconds
+                    )
+                    db.commit()
+
                     # Schedule retry task
                     retry_patient_onboarding_saga.apply_async(
                         args=[str(saga.id)],
-                        countdown=_calculate_exponential_backoff(saga.retry_count),
+                        countdown=backoff_seconds,
                     )
 
                     scheduled_count += 1
@@ -206,6 +234,9 @@ def scan_and_retry_failed_sagas(self) -> dict:
 
                 except Exception as e:
                     logger.error(f"Failed to schedule retry for saga {saga.id}: {e}")
+                    saga.status = SagaStatus.FAILED
+                    saga.next_retry_at = None
+                    db.commit()
                     continue
 
             logger.info(
@@ -229,7 +260,7 @@ def scan_and_retry_failed_sagas(self) -> dict:
             }
 
 
-@celery_app.task(name="cleanup_old_completed_sagas")
+@celery_app.task(name="app.tasks.saga_retry.cleanup_old_completed_sagas")
 def cleanup_old_completed_sagas() -> dict:
     """
     Clean up completed sagas older than retention period.
@@ -243,7 +274,7 @@ def cleanup_old_completed_sagas() -> dict:
     with get_scoped_session() as db:
         try:
             retention_days = getattr(settings, "SAGA_RETENTION_DAYS", 30)
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+            cutoff_date = now_sao_paulo() - timedelta(days=retention_days)
 
             logger.info(
                 f"Starting cleanup of completed sagas older than {retention_days} days"
@@ -309,7 +340,7 @@ def _find_failed_sagas_for_retry(db: Session) -> List[PatientOnboardingSaga]:
     Find failed sagas that are eligible for retry.
 
     A saga is eligible if:
-    - Status is FAILED or COMPENSATING
+    - Status is FAILED, COMPENSATING, or RETRY_SCHEDULED (overdue)
     - Retry count < max retries
     - Last retry was more than backoff period ago (or never retried)
 
@@ -325,7 +356,11 @@ def _find_failed_sagas_for_retry(db: Session) -> List[PatientOnboardingSaga]:
     query = db.query(PatientOnboardingSaga).filter(
         and_(
             PatientOnboardingSaga.status.in_(
-                [SagaStatus.FAILED, SagaStatus.COMPENSATING]
+                [
+                    SagaStatus.FAILED,
+                    SagaStatus.COMPENSATING,
+                    SagaStatus.RETRY_SCHEDULED,
+                ]
             ),
             PatientOnboardingSaga.retry_count < max_retries,
         )
@@ -344,7 +379,7 @@ def _find_failed_sagas_for_retry(db: Session) -> List[PatientOnboardingSaga]:
 
 def _is_ready_for_retry(saga: PatientOnboardingSaga) -> bool:
     """
-    Check if saga is ready for retry based on backoff period.
+    Check if saga is ready for retry based on backoff period or scheduled retry time.
 
     Args:
         saga: PatientOnboardingSaga object
@@ -352,6 +387,10 @@ def _is_ready_for_retry(saga: PatientOnboardingSaga) -> bool:
     Returns:
         bool: True if saga is ready for retry
     """
+    # If a scheduled retry exists, respect it
+    if saga.next_retry_at:
+        return now_sao_paulo() >= saga.next_retry_at
+
     # If never retried, ready immediately
     if not saga.last_retry_at:
         return True
@@ -361,7 +400,7 @@ def _is_ready_for_retry(saga: PatientOnboardingSaga) -> bool:
     next_retry_time = saga.last_retry_at + timedelta(seconds=backoff_seconds)
 
     # Check if backoff period has elapsed
-    return datetime.now(timezone.utc) >= next_retry_time
+    return now_sao_paulo() >= next_retry_time
 
 
 def _calculate_exponential_backoff(retry_count: int) -> int:
@@ -371,8 +410,12 @@ def _calculate_exponential_backoff(retry_count: int) -> int:
     #   Retry 1 -> 60s (1 min)
     #   Retry 2 -> 120s (2 min)
     #   Retry 3 -> 240s (4 min)
-    base_delay = getattr(settings, "SAGA_RETRY_BASE_DELAY_SECONDS", 60)
-    max_delay = getattr(settings, "SAGA_RETRY_MAX_DELAY_SECONDS", 600)  # 10 min
+    base_delay = getattr(settings, "SAGA_RETRY_DELAY", None)
+    if base_delay is None:
+        base_delay = getattr(settings, "SAGA_RETRY_INITIAL_DELAY_SECONDS", 60)
+    max_delay = getattr(settings, "SAGA_RETRY_MAX_DELAY_SECONDS", base_delay)
+    if max_delay < base_delay:
+        max_delay = base_delay
 
     delay = base_delay * (2**retry_count)
 
@@ -460,6 +503,28 @@ async def _send_admin_email_alert(saga: PatientOnboardingSaga) -> None:
 
         subject = f"[URGENT] Patient Onboarding Saga Failed: {saga.id}"
 
+        safe_saga_id = html_escape(str(saga.id), quote=True)
+        safe_patient_id = html_escape(
+            str(saga.patient_id) if saga.patient_id else "Not created yet",
+            quote=True,
+        )
+        safe_doctor_id = html_escape(str(saga.doctor_id), quote=True)
+        safe_status = html_escape(str(saga.status), quote=True)
+        safe_retry_count = html_escape(str(saga.retry_count), quote=True)
+        safe_last_step = html_escape(str(saga.current_step), quote=True)
+        safe_created_at = html_escape(str(saga.created_at), quote=True)
+        safe_last_retry = html_escape(str(saga.last_retry_at), quote=True)
+        safe_error_message = html_escape(
+            str(saga.error_message) if saga.error_message else "No error message available",
+            quote=True,
+        )
+
+        dashboard_url = str(getattr(settings, "APP_ADMIN_DASHBOARD_URL", "")).rstrip("/")
+        saga_path_segment = quote(str(saga.id), safe="")
+        safe_view_saga_url = html_escape(
+            f"{dashboard_url}/sagas/{saga_path_segment}", quote=True
+        )
+
         body = f'''
         <h2>Patient Onboarding Saga Failed</h2>
 
@@ -467,23 +532,23 @@ async def _send_admin_email_alert(saga: PatientOnboardingSaga) -> None:
 
         <h3>Saga Details:</h3>
         <ul>
-            <li><strong>Saga ID:</strong> {saga.id}</li>
-            <li><strong>Patient ID:</strong> {saga.patient_id or "Not created yet"}</li>
-            <li><strong>Doctor ID:</strong> {saga.doctor_id}</li>
-            <li><strong>Status:</strong> {saga.status}</li>
-            <li><strong>Retry Count:</strong> {saga.retry_count}</li>
-            <li><strong>Last Step:</strong> {saga.current_step}</li>
-            <li><strong>Created At:</strong> {saga.created_at}</li>
-            <li><strong>Last Retry:</strong> {saga.last_retry_at}</li>
+            <li><strong>Saga ID:</strong> {safe_saga_id}</li>
+            <li><strong>Patient ID:</strong> {safe_patient_id}</li>
+            <li><strong>Doctor ID:</strong> {safe_doctor_id}</li>
+            <li><strong>Status:</strong> {safe_status}</li>
+            <li><strong>Retry Count:</strong> {safe_retry_count}</li>
+            <li><strong>Last Step:</strong> {safe_last_step}</li>
+            <li><strong>Created At:</strong> {safe_created_at}</li>
+            <li><strong>Last Retry:</strong> {safe_last_retry}</li>
         </ul>
 
         <h3>Error Details:</h3>
-        <pre>{saga.error_message or "No error message available"}</pre>
+        <pre>{safe_error_message}</pre>
 
         <h3>Action Required:</h3>
         <p>Please review the saga logs and take appropriate action to resolve the issue.</p>
 
-        <p><strong>View Saga:</strong> <a href="{settings.APP_ADMIN_DASHBOARD_URL}/sagas/{saga.id}">Click here</a></p>
+        <p><strong>View Saga:</strong> <a href="{safe_view_saga_url}">Click here</a></p>
         '''
 
         admin_email = getattr(settings, "ADMIN_EMAIL", "admin@example.com")

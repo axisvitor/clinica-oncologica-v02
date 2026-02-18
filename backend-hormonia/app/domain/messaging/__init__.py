@@ -1,45 +1,39 @@
-"""
-Domain layer for messaging and communication.
+"""Domain messaging exports with lazy loading.
 
-This package contains all messaging-related business logic organized by subdomain:
-- core: Base message services and factories
-- scheduling: Message scheduling and queueing
-- delivery: Message sending and delivery management
-- whatsapp: WhatsApp integration
-
-Consolidated Services (from /app/services migration):
-- MessageService (core/)
-- WhatsAppService (whatsapp/)
-- MessageScheduler (scheduling/)
-- MessageSender (delivery/)
-- IdempotentMessageSender (delivery/)
+Avoid eager imports that recursively pull scheduling/delivery/integrations during
+task bootstrap, which can trigger circular imports in Celery workers.
 """
 
-# Core messaging
-from .core.message_service import MessageService
-from .core.message_base import MessageService as MessageBaseService
-from .core.message_factory import MessageFactory
+from __future__ import annotations
 
-# Scheduling
-from .scheduling.message_scheduler import MessageScheduler
+from typing import Dict, Tuple
 
-# Delivery
-from .delivery import MessageSender
-from .delivery.idempotent_sender import IdempotentMessageSender
+from .lazy_exports import resolve_lazy_export
 
-# WhatsApp integration
-from .whatsapp.whatsapp_service import WhatsAppService
+_EXPORTS: Dict[str, Tuple[str, str]] = {
+    "MessageService": ("app.domain.messaging.core.message_service", "MessageService"),
+    "MessageFactory": ("app.domain.messaging.core.message_factory", "MessageFactory"),
+    "MessageScheduler": (
+        "app.domain.messaging.scheduling.message_scheduler",
+        "MessageScheduler",
+    ),
+    "IdempotentMessageSender": (
+        "app.domain.messaging.delivery.idempotent_sender",
+        "IdempotentMessageSender",
+    ),
+    "WhatsAppService": (
+        "app.services.unified_whatsapp_service",
+        "UnifiedWhatsAppService",
+    ),
+}
 
-__all__ = [
-    # Core
-    "MessageService",
-    "MessageBaseService",
-    "MessageFactory",
-    # Scheduling
-    "MessageScheduler",
-    # Delivery
-    "MessageSender",
-    "IdempotentMessageSender",
-    # WhatsApp
-    "WhatsAppService",
-]
+__all__ = sorted(_EXPORTS.keys())
+
+
+def __getattr__(name: str):
+    return resolve_lazy_export(
+        name=name,
+        exports=_EXPORTS,
+        module_name=__name__,
+        target_globals=globals(),
+    )

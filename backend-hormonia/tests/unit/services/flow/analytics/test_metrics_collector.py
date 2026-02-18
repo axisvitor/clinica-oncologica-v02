@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 from app.services.flow.analytics.metrics_collector import FlowMetricsCollector
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.flow.types import (
     FlowStatus,
     FlowStepStatus,
@@ -38,11 +39,11 @@ def sample_flow_context(flow_instance_id):
     """Create sample flow context for testing."""
     return FlowContext(
         flow_instance_id=flow_instance_id,
-        flow_type=FlowType.DAILY_CHECKIN,
+        flow_type=FlowType.DAILY_FOLLOW_UP,
         patient_id=uuid4(),
         current_step_id="step_001",
         status=FlowStatus.ACTIVE,
-        started_at=datetime.utcnow() - timedelta(minutes=5),
+        started_at=now_sao_paulo_naive() - timedelta(minutes=5),
     )
 
 
@@ -54,8 +55,8 @@ def sample_step_data():
         step_type=FlowStepType.QUESTION,
         step_name="Test Question",
         status=FlowStepStatus.COMPLETED,
-        started_at=datetime.utcnow() - timedelta(seconds=30),
-        completed_at=datetime.utcnow(),
+        started_at=now_sao_paulo_naive() - timedelta(seconds=30),
+        completed_at=now_sao_paulo_naive(),
     )
 
 
@@ -111,8 +112,8 @@ class TestFlowTracking:
                 step_type=FlowStepType.MESSAGE,
                 step_name=f"Step {i}",
                 status=FlowStepStatus.COMPLETED,
-                started_at=datetime.utcnow() - timedelta(seconds=10),
-                completed_at=datetime.utcnow(),
+                started_at=now_sao_paulo_naive() - timedelta(seconds=10),
+                completed_at=now_sao_paulo_naive(),
             )
             for i in range(3)
         ]
@@ -242,9 +243,9 @@ class TestMetricsQueries:
 
             context = FlowContext(
                 flow_instance_id=flow_id,
-                flow_type=FlowType.DAILY_CHECKIN,
+                flow_type=FlowType.DAILY_FOLLOW_UP,
                 patient_id=uuid4(),
-                started_at=datetime.utcnow() - timedelta(minutes=5),
+                started_at=now_sao_paulo_naive() - timedelta(minutes=5),
             )
 
             metrics_collector.record_flow_completion(flow_id, status, context)
@@ -260,7 +261,7 @@ class TestMetricsQueries:
         """Test getting recent metrics."""
         # Create old flow
         old_flow = uuid4()
-        metrics_collector._flow_start_times[old_flow] = datetime.utcnow() - timedelta(
+        metrics_collector._flow_start_times[old_flow] = now_sao_paulo_naive() - timedelta(
             hours=2
         )
         metrics_collector._flow_metrics[old_flow] = FlowMetrics()
@@ -336,7 +337,7 @@ class TestAggregateCalculations:
                 FlowStatus.COMPLETED,
                 FlowContext(
                     flow_instance_id=flow_id,
-                    flow_type=FlowType.DAILY_CHECKIN,
+                    flow_type=FlowType.DAILY_FOLLOW_UP,
                     patient_id=uuid4(),
                 ),
             )
@@ -351,15 +352,15 @@ class TestAggregateCalculations:
         for duration in durations:
             flow_id = uuid4()
             metrics_collector._flow_start_times[flow_id] = (
-                datetime.utcnow() - timedelta(seconds=duration)
+                now_sao_paulo_naive() - timedelta(seconds=duration)
             )
             metrics_collector.start_flow_tracking(flow_id)
 
             context = FlowContext(
                 flow_instance_id=flow_id,
-                flow_type=FlowType.DAILY_CHECKIN,
+                flow_type=FlowType.DAILY_FOLLOW_UP,
                 patient_id=uuid4(),
-                started_at=datetime.utcnow() - timedelta(seconds=duration),
+                started_at=now_sao_paulo_naive() - timedelta(seconds=duration),
             )
 
             metrics_collector.record_flow_completion(
@@ -414,11 +415,11 @@ class TestFlowTypeMetrics:
 
     def test_get_metrics_by_flow_type(self, metrics_collector):
         """Test getting metrics for specific flow type."""
-        metrics = metrics_collector.get_metrics_by_flow_type(FlowType.DAILY_CHECKIN)
+        metrics = metrics_collector.get_metrics_by_flow_type(FlowType.DAILY_FOLLOW_UP)
 
         assert isinstance(metrics, dict)
         assert "flow_type" in metrics
-        assert metrics["flow_type"] == FlowType.DAILY_CHECKIN.value
+        assert metrics["flow_type"] == FlowType.DAILY_FOLLOW_UP.value
 
 
 class TestStepMetricsCalculation:
@@ -428,9 +429,9 @@ class TestStepMetricsCalculation:
         """Test average step duration calculation."""
         context = FlowContext(
             flow_instance_id=flow_instance_id,
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             patient_id=uuid4(),
-            started_at=datetime.utcnow() - timedelta(minutes=5),
+            started_at=now_sao_paulo_naive() - timedelta(minutes=5),
         )
 
         # Add steps with different durations
@@ -440,8 +441,8 @@ class TestStepMetricsCalculation:
                 step_type=FlowStepType.MESSAGE,
                 step_name=f"Step {i}",
                 status=FlowStepStatus.COMPLETED,
-                started_at=datetime.utcnow() - timedelta(seconds=(i + 1) * 10),
-                completed_at=datetime.utcnow() - timedelta(seconds=i * 10),
+                started_at=now_sao_paulo_naive() - timedelta(seconds=(i + 1) * 10),
+                completed_at=now_sao_paulo_naive() - timedelta(seconds=i * 10),
             )
             for i in range(3)
         ]

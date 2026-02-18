@@ -4,10 +4,11 @@ WhatsApp message models for Evolution API integration.
 
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from pydantic import BaseModel, Field
 from sqlalchemy import Column, String, DateTime, Text, JSON, Boolean, Integer
 from app.database import Base
+from app.utils.timezone import now_sao_paulo_naive
 
 
 class MessageStatus(str, Enum):
@@ -51,8 +52,8 @@ class WhatsAppMessage(Base):
     media_caption = Column(Text)
     status = Column(String, default=MessageStatus.PENDING)
     external_id = Column(String, unique=True, index=True)  # Evolution API message ID
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_sao_paulo_naive)
+    updated_at = Column(DateTime, default=now_sao_paulo_naive, onupdate=now_sao_paulo_naive)
     sent_at = Column(DateTime)
     delivered_at = Column(DateTime)
     read_at = Column(DateTime)
@@ -75,8 +76,8 @@ class WhatsAppContact(Base):
     profile_picture_url = Column(String)
     is_whatsapp_user = Column(Boolean, default=True)
     last_seen = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_sao_paulo_naive)
+    updated_at = Column(DateTime, default=now_sao_paulo_naive, onupdate=now_sao_paulo_naive)
     contact_data = Column(JSON)
 
 
@@ -94,8 +95,8 @@ class WhatsAppInstance(Base):
     profile_name = Column(String)
     profile_picture_url = Column(String)
     is_connected = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=now_sao_paulo_naive)
+    updated_at = Column(DateTime, default=now_sao_paulo_naive, onupdate=now_sao_paulo_naive)
     last_activity = Column(DateTime)
     settings = Column(JSON)  # Instance-specific settings
 
@@ -163,9 +164,9 @@ class WebhookPayload(BaseModel):
     """Webhook payload model for incoming messages."""
 
     instance: str
-    data: Dict[str, Any]
+    data: Union[Dict[str, Any], List[Dict[str, Any]]]
     event: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=now_sao_paulo_naive)
 
 
 class MessageStatusUpdate(BaseModel):
@@ -173,5 +174,5 @@ class MessageStatusUpdate(BaseModel):
 
     message_id: str
     status: MessageStatus
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=now_sao_paulo_naive)
     error_message: Optional[str] = None

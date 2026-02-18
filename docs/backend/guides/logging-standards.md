@@ -522,7 +522,7 @@ logger.info(
         "user_id": current_user.id,
         "patient_id": patient.id,
         "action": "read",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 )
 ```

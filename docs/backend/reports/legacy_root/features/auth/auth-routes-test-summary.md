@@ -176,7 +176,7 @@ async def logout(...):
 
 ## Test Execution Details
 
-**Test Date**: December 22, 2025, 18:00 UTC
+**Test Date**: December 22, 2025, 18:00 Sao Paulo
 **Backend**: Running on localhost:8000
 **HTTP Client**: curl with proper headers
 **Test Coverage**: 8 endpoint combinations

@@ -9,6 +9,7 @@ from datetime import datetime
 from uuid import UUID
 from enum import Enum
 from dataclasses import dataclass, field
+from app.utils.timezone import now_sao_paulo_naive
 
 
 class TrendDirection(Enum):
@@ -81,4 +82,4 @@ class QuizAnalysisResult:
     overall_health_score: float
     concern_flags: List[str]
     recommendations: List[str]
-    analysis_timestamp: datetime = field(default_factory=datetime.utcnow)
+    analysis_timestamp: datetime = field(default_factory=now_sao_paulo_naive)

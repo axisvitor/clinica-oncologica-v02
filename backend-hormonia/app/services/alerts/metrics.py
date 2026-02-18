@@ -18,6 +18,8 @@ from .types import (
     AlertRuleType,
     DispatchResult,
 )
+from .utils import apply_alert_filters
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -274,7 +276,7 @@ class MetricsCollector:
         Returns:
             List of hourly buckets with counts
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         timeline = []
 
         for hour_offset in range(hours):
@@ -303,26 +305,7 @@ class MetricsCollector:
         self, alerts: List[Alert], filters: Dict[str, Any]
     ) -> List[Alert]:
         """Apply filters to alert list."""
-        filtered = alerts
-
-        if "severity" in filters:
-            filtered = [a for a in filtered if a.severity == filters["severity"]]
-
-        if "rule_type" in filters:
-            filtered = [a for a in filtered if a.rule_type == filters["rule_type"]]
-
-        if "status" in filters:
-            filtered = [a for a in filtered if a.status == filters["status"]]
-
-        if "start_date" in filters:
-            start_date = filters["start_date"]
-            filtered = [a for a in filtered if a.created_at >= start_date]
-
-        if "end_date" in filters:
-            end_date = filters["end_date"]
-            filtered = [a for a in filtered if a.created_at <= end_date]
-
-        return filtered
+        return apply_alert_filters(alerts, filters)
 
     def _calc_avg_resolution_time(self, alerts: List[Alert]) -> Optional[float]:
         """Calculate average resolution time."""

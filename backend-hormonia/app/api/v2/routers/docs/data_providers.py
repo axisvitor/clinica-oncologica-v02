@@ -94,8 +94,8 @@ All responses follow this structure:
 """,
             "tags": ["basics", "authentication", "quickstart"],
             "order": 1,
-            "created_at": "2025-01-01T00:00:00Z",
-            "updated_at": "2025-01-17T00:00:00Z",
+            "created_at": "2025-01-01T00:00:00-03:00",
+            "updated_at": "2025-01-17T00:00:00-03:00",
         },
         {
             "id": "authentication",
@@ -131,8 +131,8 @@ Sessions expire after 7 days of inactivity.
 """,
             "tags": ["authentication", "security", "sessions"],
             "order": 2,
-            "created_at": "2025-01-01T00:00:00Z",
-            "updated_at": "2025-01-17T00:00:00Z",
+            "created_at": "2025-01-01T00:00:00-03:00",
+            "updated_at": "2025-01-17T00:00:00-03:00",
         },
         {
             "id": "pagination",
@@ -186,8 +186,8 @@ while True:
 """,
             "tags": ["pagination", "basics", "best-practices"],
             "order": 3,
-            "created_at": "2025-01-01T00:00:00Z",
-            "updated_at": "2025-01-17T00:00:00Z",
+            "created_at": "2025-01-01T00:00:00-03:00",
+            "updated_at": "2025-01-17T00:00:00-03:00",
         },
         {
             "id": "error-handling",
@@ -246,8 +246,8 @@ def retry_request(func, max_retries=3):
 """,
             "tags": ["errors", "best-practices"],
             "order": 4,
-            "created_at": "2025-01-01T00:00:00Z",
-            "updated_at": "2025-01-17T00:00:00Z",
+            "created_at": "2025-01-01T00:00:00-03:00",
+            "updated_at": "2025-01-17T00:00:00-03:00",
         },
         {
             "id": "rate-limiting",
@@ -300,8 +300,8 @@ def make_request_with_retry(url):
 """,
             "tags": ["rate-limiting", "performance"],
             "order": 5,
-            "created_at": "2025-01-01T00:00:00Z",
-            "updated_at": "2025-01-17T00:00:00Z",
+            "created_at": "2025-01-01T00:00:00-03:00",
+            "updated_at": "2025-01-17T00:00:00-03:00",
         },
     ]
 
@@ -339,7 +339,7 @@ if data["has_more"]:
 """,
             "tags": ["python", "patients", "pagination"],
             "endpoint": "/api/v2/patients",
-            "created_at": "2025-01-01T00:00:00Z",
+            "created_at": "2025-01-01T00:00:00-03:00",
         },
         {
             "id": "example-002",
@@ -373,7 +373,7 @@ createPatient();
 """,
             "tags": ["javascript", "patients", "create"],
             "endpoint": "/api/v2/patients",
-            "created_at": "2025-01-01T00:00:00Z",
+            "created_at": "2025-01-01T00:00:00-03:00",
         },
         {
             "id": "example-003",
@@ -410,7 +410,7 @@ patients = requests.get(
 """,
             "tags": ["python", "authentication", "firebase"],
             "endpoint": "/api/v2/auth/login",
-            "created_at": "2025-01-01T00:00:00Z",
+            "created_at": "2025-01-01T00:00:00-03:00",
         },
         {
             "id": "example-004",
@@ -429,7 +429,7 @@ curl -X GET "https://api.hormonia.com/api/v2/docs/endpoints?category=patients"
 """,
             "tags": ["curl", "documentation", "search"],
             "endpoint": "/api/v2/docs/search",
-            "created_at": "2025-01-01T00:00:00Z",
+            "created_at": "2025-01-01T00:00:00-03:00",
         },
         {
             "id": "example-005",
@@ -494,7 +494,7 @@ if (result.success) {
 """,
             "tags": ["javascript", "error-handling", "best-practices"],
             "endpoint": None,
-            "created_at": "2025-01-01T00:00:00Z",
+            "created_at": "2025-01-01T00:00:00-03:00",
         },
     ]
 

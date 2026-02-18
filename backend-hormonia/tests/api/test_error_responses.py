@@ -102,7 +102,7 @@ def app():
 @pytest.fixture
 def client(app):
     """Create test client."""
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=False)
 
 
 # =========================================================================

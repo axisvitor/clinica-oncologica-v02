@@ -10,13 +10,15 @@ from typing import Any, Callable, Dict, List, Optional, TypedDict
 
 try:
     from langgraph.graph import END, StateGraph
+
     _LANGGRAPH_IMPORT_ERROR: Exception | None = None
-except Exception as exc:  # noqa: BLE001
+except ImportError as exc:
     END = None  # type: ignore[assignment]
     StateGraph = None  # type: ignore[assignment]
     _LANGGRAPH_IMPORT_ERROR = exc
 
 from app.agents.base import MessagePriority
+from .runtime import compile_graph, instrument_node
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ class ConsensusState(TypedDict, total=False):
 def _load_default_agents() -> List[str]:
     try:
         from app.agents.registry import ALERT_ANALYZER_ID, PATIENT_MONITOR_ID
-    except Exception as exc:  # noqa: BLE001
+    except ImportError as exc:
         raise RuntimeError(
             "Default agent registry unavailable; pass 'agents' explicitly."
         ) from exc
@@ -108,8 +110,8 @@ async def dispatch_consensus_requests(state: ConsensusState) -> ConsensusState:
                 MessagePriority.HIGH,
                 requires_response=True,
             )
-        except Exception as exc:
-            logger.error("Failed to request consensus from %s: %s", agent_id, exc)
+        except Exception:
+            logger.exception("Failed to request consensus from %s", agent_id)
             correlation_ids[agent_id] = None
 
     return {**state, "correlation_ids": correlation_ids}
@@ -135,8 +137,8 @@ async def collect_votes(state: ConsensusState) -> ConsensusState:
         votes_result = fetch_votes_fn(correlation_ids)
         if inspect.isawaitable(votes_result):
             votes_result = await votes_result
-    except Exception as exc:
-        logger.error("Failed to fetch consensus votes: %s", exc)
+    except Exception:
+        logger.exception("Failed to fetch consensus votes")
         return {**state, "poll_attempts": attempts}
 
     if isinstance(votes_result, dict) and votes_result:
@@ -214,11 +216,40 @@ def build_consensus_graph() -> Any:
     """Build consensus graph."""
     if StateGraph is None:
         raise RuntimeError("LangGraph is not installed") from _LANGGRAPH_IMPORT_ERROR
+    graph_name = "consensus_graph"
     graph = StateGraph(ConsensusState)
-    graph.add_node("prepare_consensus", prepare_consensus)
-    graph.add_node("dispatch_consensus_requests", dispatch_consensus_requests)
-    graph.add_node("collect_votes", collect_votes)
-    graph.add_node("evaluate_consensus", evaluate_consensus)
+    graph.add_node(
+        "prepare_consensus",
+        instrument_node(
+            "prepare_consensus",
+            prepare_consensus,
+            graph_name=graph_name,
+        ),
+    )
+    graph.add_node(
+        "dispatch_consensus_requests",
+        instrument_node(
+            "dispatch_consensus_requests",
+            dispatch_consensus_requests,
+            graph_name=graph_name,
+        ),
+    )
+    graph.add_node(
+        "collect_votes",
+        instrument_node(
+            "collect_votes",
+            collect_votes,
+            graph_name=graph_name,
+        ),
+    )
+    graph.add_node(
+        "evaluate_consensus",
+        instrument_node(
+            "evaluate_consensus",
+            evaluate_consensus,
+            graph_name=graph_name,
+        ),
+    )
     graph.set_entry_point("prepare_consensus")
     graph.add_edge("prepare_consensus", "dispatch_consensus_requests")
     graph.add_edge("dispatch_consensus_requests", "collect_votes")
@@ -232,7 +263,7 @@ def build_consensus_graph() -> Any:
         },
     )
     graph.add_edge("evaluate_consensus", END)
-    return graph.compile()
+    return compile_graph(graph, graph_name=graph_name)
 
 
 @lru_cache(maxsize=1)

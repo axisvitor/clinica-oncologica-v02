@@ -305,7 +305,7 @@ class UserLanguagePreferenceV2(BaseModel):
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
                 "language": "pt-BR",
                 "is_default": False,
-                "updated_at": "2025-01-17T15:00:00Z",
+                "updated_at": "2025-01-17T15:00:00-03:00",
             }
         }
     )
@@ -314,7 +314,7 @@ class UserLanguagePreferenceV2(BaseModel):
 class UserLanguagePreferenceV2Update(BaseModel):
     """Schema for updating user language preference."""
 
-    language: LanguageCode = Field(description="Language code to set as preference")
+    language: str = Field(description="Language code to set as preference")
 
     model_config = ConfigDict(json_schema_extra={"example": {"language": "pt-BR"}})
 
@@ -434,7 +434,7 @@ class TranslationStatsV2(BaseModel):
                     "es-ES": 88.0,
                     "pt-PT": 92.0,
                 },
-                "last_updated": "2025-01-17T15:00:00Z",
+                "last_updated": "2025-01-17T15:00:00-03:00",
             }
         }
     )

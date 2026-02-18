@@ -155,64 +155,25 @@ class RetryManager:
                 else:
                     result = func(*args, **kwargs)
 
-                # Success!
-                attempt.end_time = time.time()
-                attempt.result = result
-                execution.attempts.append(attempt)
-                execution.final_result = result
-                execution.result = RetryResult.SUCCESS
-                execution.end_time = time.time()
-
-                self._record_success(execution)
-
-                if self.config.log_attempts:
-                    logger.log(
-                        self.config.log_level,
-                        f"Retry manager '{self.name}' succeeded on attempt {attempt_num + 1}",
-                    )
-
-                return result
+                return self._record_attempt_success(
+                    execution=execution,
+                    attempt=attempt,
+                    attempt_num=attempt_num,
+                    result=result,
+                    async_mode=False,
+                )
 
             except Exception as e:
-                attempt.end_time = time.time()
-                attempt.exception = e
-                execution.attempts.append(attempt)
-
-                # Check if we should retry this exception
-                if not self._should_retry(e, attempt_num):
-                    execution.final_exception = e
-                    execution.result = RetryResult.FAILED
-                    execution.end_time = time.time()
-
-                    self._record_failure(execution, stop_retry=True)
-                    raise e
-
-                # Last attempt?
-                if attempt_num == self.config.max_attempts - 1:
-                    execution.final_exception = e
-                    execution.result = RetryResult.FAILED
-                    execution.end_time = time.time()
-
-                    # Send to dead letter queue
-                    if self.dead_letter_queue:
-                        self._send_to_dead_letter(func, args, kwargs, execution)
-                        execution.result = RetryResult.DEAD_LETTER
-
-                    self._record_failure(execution)
-                    raise e
-
-                # Calculate delay for next attempt
-                delay = self.backoff.get_delay(attempt_num)
-                attempt.delay = delay
-
-                if self.config.log_attempts:
-                    logger.log(
-                        self.config.log_level,
-                        f"Retry manager '{self.name}' attempt {attempt_num + 1} failed: "
-                        f"{type(e).__name__}: {str(e)}. Retrying in {delay:.3f}s",
-                    )
-
-                # Wait before retry
+                self._handle_attempt_failure(
+                    execution=execution,
+                    attempt=attempt,
+                    attempt_num=attempt_num,
+                    exception=e,
+                    func=func,
+                    args=args,
+                    kwargs=kwargs,
+                    async_mode=False,
+                )
                 self.backoff.wait(attempt_num)
 
         # Should never reach here, but just in case
@@ -238,74 +199,109 @@ class RetryManager:
                 else:
                     result = await func(*args, **kwargs)
 
-                # Success!
-                attempt.end_time = time.time()
-                attempt.result = result
-                execution.attempts.append(attempt)
-                execution.final_result = result
-                execution.result = RetryResult.SUCCESS
-                execution.end_time = time.time()
-
-                self._record_success(execution)
-
-                if self.config.log_attempts:
-                    logger.log(
-                        self.config.log_level,
-                        f"Async retry manager '{self.name}' succeeded on attempt {attempt_num + 1}",
-                    )
-
-                return result
+                return self._record_attempt_success(
+                    execution=execution,
+                    attempt=attempt,
+                    attempt_num=attempt_num,
+                    result=result,
+                    async_mode=True,
+                )
 
             except Exception as e:
-                attempt.end_time = time.time()
-                attempt.exception = e
-                execution.attempts.append(attempt)
-
-                # Check if we should retry this exception
-                if not self._should_retry(e, attempt_num):
-                    execution.final_exception = e
-                    execution.result = RetryResult.FAILED
-                    execution.end_time = time.time()
-
-                    self._record_failure(execution, stop_retry=True)
-                    raise e
-
-                # Last attempt?
-                if attempt_num == self.config.max_attempts - 1:
-                    execution.final_exception = e
-                    execution.result = RetryResult.FAILED
-                    execution.end_time = time.time()
-
-                    # Send to dead letter queue
-                    if self.dead_letter_queue:
-                        self._send_to_dead_letter(func, args, kwargs, execution)
-                        execution.result = RetryResult.DEAD_LETTER
-
-                    self._record_failure(execution)
-                    raise e
-
-                # Calculate delay for next attempt
-                delay = self.backoff.get_delay(attempt_num)
-                attempt.delay = delay
-
-                if self.config.log_attempts:
-                    logger.log(
-                        self.config.log_level,
-                        f"Async retry manager '{self.name}' attempt {attempt_num + 1} failed: "
-                        f"{type(e).__name__}: {str(e)}. Retrying in {delay:.3f}s",
-                    )
-
-                # Wait before retry
+                self._handle_attempt_failure(
+                    execution=execution,
+                    attempt=attempt,
+                    attempt_num=attempt_num,
+                    exception=e,
+                    func=func,
+                    args=args,
+                    kwargs=kwargs,
+                    async_mode=True,
+                )
                 await self.backoff.await_delay(attempt_num)
 
         # Should never reach here, but just in case
         raise RuntimeError("Async retry logic error")
+
+    def _record_attempt_success(
+        self,
+        *,
+        execution: RetryExecution,
+        attempt: RetryAttempt,
+        attempt_num: int,
+        result: Any,
+        async_mode: bool,
+    ) -> Any:
+        """Record success metadata and return the function result."""
+        attempt.end_time = time.time()
+        attempt.result = result
+        execution.attempts.append(attempt)
+        execution.final_result = result
+        execution.result = RetryResult.SUCCESS
+        execution.end_time = time.time()
+        self._record_success(execution)
+
+        if self.config.log_attempts:
+            manager_name = "Async retry manager" if async_mode else "Retry manager"
+            logger.log(
+                self.config.log_level,
+                f"{manager_name} '{self.name}' succeeded on attempt {attempt_num + 1}",
+            )
+
+        return result
+
+    def _handle_attempt_failure(
+        self,
+        *,
+        execution: RetryExecution,
+        attempt: RetryAttempt,
+        attempt_num: int,
+        exception: Exception,
+        func: Callable,
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+        async_mode: bool,
+    ) -> None:
+        """Handle failure metadata, raising when retry should stop."""
+        attempt.end_time = time.time()
+        attempt.exception = exception
+        execution.attempts.append(attempt)
+
+        if not self._should_retry(exception, attempt_num):
+            execution.final_exception = exception
+            execution.result = RetryResult.FAILED
+            execution.end_time = time.time()
+            self._record_failure(execution, stop_retry=True)
+            raise exception
+
+        if attempt_num == self.config.max_attempts - 1:
+            execution.final_exception = exception
+            execution.result = RetryResult.FAILED
+            execution.end_time = time.time()
+            if self.dead_letter_queue:
+                self._send_to_dead_letter(func, args, kwargs, execution)
+                execution.result = RetryResult.DEAD_LETTER
+            self._record_failure(execution)
+            raise exception
+
+        delay = self.backoff.get_delay(attempt_num)
+        attempt.delay = delay
+
+        if self.config.log_attempts:
+            manager_name = "Async retry manager" if async_mode else "Retry manager"
+            logger.log(
+                self.config.log_level,
+                f"{manager_name} '{self.name}' attempt {attempt_num + 1} failed: "
+                f"{type(exception).__name__}: {str(exception)}. Retrying in {delay:.3f}s",
+            )
 
     def _execute_with_timeout(self, func: Callable, *args, **kwargs) -> Any:
         """Execute function with timeout (sync version)"""
         import signal
 
         def timeout_handler(signum, frame):
+            _ = signum
+            _ = frame
             raise TimeoutError(
                 f"Function execution timed out after {self.config.timeout}s"
             )

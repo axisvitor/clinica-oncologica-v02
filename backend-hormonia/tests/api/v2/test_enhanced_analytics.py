@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 class TestEnhancedDashboard:
     """Test suite for enhanced dashboard endpoint."""
 
@@ -432,8 +433,8 @@ class TestAnalyticsExport:
 
     def test_export_with_date_range(self, client: TestClient, db: Session, auth_headers: dict):
         """Test export with custom date range."""
-        start_date = (datetime.utcnow() - timedelta(days=30)).isoformat()
-        end_date = datetime.utcnow().isoformat()
+        start_date = (now_sao_paulo_naive() - timedelta(days=30)).isoformat()
+        end_date = now_sao_paulo_naive().isoformat()
 
         response = client.get(
             f"/api/v2/enhanced-analytics/export?metric_type=patients&time_range=custom&start_date={start_date}&end_date={end_date}",
@@ -448,10 +449,10 @@ class TestComparativeAnalytics:
 
     def test_get_comparative_analytics(self, client: TestClient, db: Session, auth_headers: dict):
         """Test comparative analytics retrieval."""
-        current_start = (datetime.utcnow() - timedelta(days=30)).isoformat()
-        current_end = datetime.utcnow().isoformat()
-        compare_start = (datetime.utcnow() - timedelta(days=60)).isoformat()
-        compare_end = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        current_start = (now_sao_paulo_naive() - timedelta(days=30)).isoformat()
+        current_end = now_sao_paulo_naive().isoformat()
+        compare_start = (now_sao_paulo_naive() - timedelta(days=60)).isoformat()
+        compare_end = (now_sao_paulo_naive() - timedelta(days=30)).isoformat()
 
         response = client.get(
             f"/api/v2/enhanced-analytics/comparative?metric_type=patients&current_start={current_start}&current_end={current_end}&compare_start={compare_start}&compare_end={compare_end}",
@@ -475,10 +476,10 @@ class TestComparativeAnalytics:
 
     def test_comparative_analytics_trend_calculation(self, client: TestClient, db: Session, auth_headers: dict):
         """Test trend direction calculation."""
-        current_start = datetime.utcnow().isoformat()
-        current_end = (datetime.utcnow() + timedelta(days=1)).isoformat()
-        compare_start = (datetime.utcnow() - timedelta(days=2)).isoformat()
-        compare_end = (datetime.utcnow() - timedelta(days=1)).isoformat()
+        current_start = now_sao_paulo_naive().isoformat()
+        current_end = (now_sao_paulo_naive() + timedelta(days=1)).isoformat()
+        compare_start = (now_sao_paulo_naive() - timedelta(days=2)).isoformat()
+        compare_end = (now_sao_paulo_naive() - timedelta(days=1)).isoformat()
 
         response = client.get(
             f"/api/v2/enhanced-analytics/comparative?metric_type=patients&current_start={current_start}&current_end={current_end}&compare_start={compare_start}&compare_end={compare_end}",
@@ -520,14 +521,14 @@ class TestEnhancedAnalyticsAuth:
 class TestEnhancedAnalyticsPerformance:
     """Test suite for performance and caching."""
 
-    @patch('app.api.v2.enhanced_analytics._get_cached_result')
+    @patch('app.api.v2.routers.enhanced_analytics._get_cached_result')
     def test_cache_hit_performance(self, mock_cache, client: TestClient, db: Session, auth_headers: dict):
         """Test cache hit improves performance."""
         # Mock cache hit
         mock_cache.return_value = {
             "time_range": "30d",
             "metrics": {},
-            "generated_at": datetime.utcnow().isoformat()
+            "generated_at": now_sao_paulo_naive().isoformat()
         }
 
         response = client.get(

@@ -4,7 +4,7 @@ Unit tests for PhoneNormalizer utility.
 Tests E.164 phone number normalization with multiple fallback strategies.
 """
 import pytest
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import app.services.webhook.utils.phone_normalizer as phone_normalizer_module
@@ -179,3 +179,101 @@ class TestEdgeCases:
         
         # Should handle error gracefully and return None
         assert result is None
+
+
+class TestLidResolution:
+    """Test LID JID resolution logic."""
+
+    @pytest.mark.asyncio
+    async def test_resolve_phone_from_lid_success(self, normalizer, monkeypatch):
+        monkeypatch.setattr(
+            phone_normalizer_module.settings,
+            "WHATSAPP_EVOLUTION_API_URL",
+            "http://localhost:8080",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            phone_normalizer_module.settings,
+            "WHATSAPP_EVOLUTION_API_KEY",
+            "test-key",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            phone_normalizer_module.settings,
+            "WHATSAPP_EVOLUTION_INSTANCE_NAME",
+            "meuwhatsapp",
+            raising=False,
+        )
+
+        chats = [
+            {
+                "remoteJid": "173396503580849@lid",
+                "pushName": "Joao Vitor",
+                "profilePicUrl": "https://img.example/abc.jpg",
+                "updatedAt": "2026-02-17T20:31:11.000Z",
+            },
+            {
+                "remoteJid": "559491307744@s.whatsapp.net",
+                "pushName": "Joao Vitor",
+                "profilePicUrl": "https://img.example/abc.jpg",
+                "updatedAt": "2026-02-17T20:30:41.000Z",
+            },
+        ]
+
+        with patch.object(
+            normalizer, "_fetch_evolution_chats", new_callable=AsyncMock
+        ) as mock_fetch:
+            mock_fetch.return_value = chats
+            result = await normalizer.resolve_phone_from_lid("173396503580849@lid")
+
+        assert result == "559491307744"
+
+    @pytest.mark.asyncio
+    async def test_resolve_phone_from_lid_ambiguous_prefers_best_candidate(self, normalizer, monkeypatch):
+        monkeypatch.setattr(
+            phone_normalizer_module.settings,
+            "WHATSAPP_EVOLUTION_API_URL",
+            "http://localhost:8080",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            phone_normalizer_module.settings,
+            "WHATSAPP_EVOLUTION_API_KEY",
+            "test-key",
+            raising=False,
+        )
+        monkeypatch.setattr(
+            phone_normalizer_module.settings,
+            "WHATSAPP_EVOLUTION_INSTANCE_NAME",
+            "meuwhatsapp",
+            raising=False,
+        )
+
+        chats = [
+            {
+                "remoteJid": "888888888888888@lid",
+                "pushName": "Paciente",
+                "profilePicUrl": "https://img.example/abc.jpg",
+                "updatedAt": "2026-02-17T20:31:11.000Z",
+            },
+            {
+                "remoteJid": "559491307744@s.whatsapp.net",
+                "pushName": "Paciente",
+                "profilePicUrl": "https://img.example/abc.jpg",
+                "updatedAt": "2026-02-17T20:30:41.000Z",
+            },
+            {
+                "remoteJid": "559499999999@s.whatsapp.net",
+                "pushName": "Paciente",
+                "profilePicUrl": "https://img.example/abc.jpg",
+                "updatedAt": "2026-02-17T20:30:41.000Z",
+            },
+        ]
+
+        with patch.object(
+            normalizer, "_fetch_evolution_chats", new_callable=AsyncMock
+        ) as mock_fetch:
+            mock_fetch.return_value = chats
+            result = await normalizer.resolve_phone_from_lid("888888888888888@lid")
+
+        assert result == "559491307744"

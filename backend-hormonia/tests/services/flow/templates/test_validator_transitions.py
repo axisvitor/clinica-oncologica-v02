@@ -14,10 +14,10 @@ from typing import Dict, Any
 
 from app.services.flow.templates.validator import FlowTemplateValidator
 from app.services.flow.types import (
-    FlowTemplate,
     FlowTransitionType,
     FlowStepType,
 )
+from tests.services.flow.templates._template_test_utils import build_template
 
 
 class TestTransitionValidation:
@@ -81,7 +81,7 @@ class TestTransitionValidation:
             {"from_step": "step2", "to_step": "end", "type": "direct"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -109,7 +109,7 @@ class TestTransitionValidation:
             },
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -131,7 +131,7 @@ class TestTransitionValidation:
             },
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -151,7 +151,7 @@ class TestTransitionValidation:
             {"to_step": "step1", "type": "direct"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert not result.is_valid
@@ -167,7 +167,7 @@ class TestTransitionValidation:
             {"from_step": "start", "type": "direct"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert not result.is_valid
@@ -183,7 +183,7 @@ class TestTransitionValidation:
             {"type": "direct"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert not result.is_valid
@@ -204,7 +204,7 @@ class TestTransitionValidation:
             {"from_step": "nonexistent", "to_step": "step1", "type": "direct"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert not result.is_valid
@@ -222,7 +222,7 @@ class TestTransitionValidation:
             {"from_step": "start", "to_step": "nonexistent", "type": "direct"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert not result.is_valid
@@ -240,7 +240,7 @@ class TestTransitionValidation:
             {"from_step": "invalid1", "to_step": "invalid2", "type": "direct"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert not result.is_valid
@@ -261,7 +261,7 @@ class TestTransitionValidation:
             {"from_step": "start", "to_step": "step1", "type": "invalid_type"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert not result.is_valid
@@ -295,7 +295,7 @@ class TestTransitionValidation:
             {
                 "from_step": "start",
                 "to_step": "step1",
-                "type": FlowTransitionType.DIRECT.value,
+                "type": FlowTransitionType.AUTOMATIC.value,
             },
             {
                 "from_step": "step1",
@@ -312,16 +312,16 @@ class TestTransitionValidation:
             {
                 "from_step": "step3",
                 "to_step": "step4",
-                "type": FlowTransitionType.ERROR.value,
+                "type": FlowTransitionType.USER_RESPONSE.value,
             },
             {
                 "from_step": "step4",
                 "to_step": "end",
-                "type": FlowTransitionType.DIRECT.value,
+                "type": FlowTransitionType.AUTOMATIC.value,
             },
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -345,7 +345,7 @@ class TestTransitionValidation:
             },
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert not result.is_valid
@@ -369,7 +369,7 @@ class TestTransitionValidation:
             },
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         # Empty string still counts as having condition field
@@ -405,7 +405,7 @@ class TestTransitionValidation:
             },
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -426,7 +426,7 @@ class TestTransitionValidation:
             {"from_step": "step1", "to_step": "step1", "type": "direct"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         # Self-loops should be valid structurally
@@ -448,7 +448,7 @@ class TestTransitionValidation:
             },
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         # Multiple transitions between same steps should be valid
@@ -466,7 +466,7 @@ class TestTransitionValidation:
             {"from_step": "step2", "to_step": "step1", "type": "direct"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         # Bidirectional should be valid (creates a cycle, but that's OK)
@@ -499,7 +499,7 @@ class TestTransitionValidation:
             },
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert not result.is_valid
@@ -524,7 +524,7 @@ class TestTransitionValidation:
         """Test template with no transitions."""
         base_template_dict["transitions"] = []
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         # No transitions is valid structurally, but may generate warnings
@@ -540,7 +540,7 @@ class TestTransitionValidation:
             {"from_step": "start", "to_step": "end", "type": "direct"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -561,7 +561,7 @@ class TestTransitionValidation:
             },
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         # Extra fields should be allowed (flexible schema)
@@ -580,7 +580,7 @@ class TestTransitionValidation:
             {"to_step": "end", "type": "direct"},
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert not result.is_valid
@@ -614,28 +614,28 @@ class TestTransitionValidation:
             },
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert result.is_valid
         assert len(result.errors) == 0
 
-    def test_error_transition_type(
+    def test_manual_transition_type(
         self,
         validator: FlowTemplateValidator,
         base_template_dict: Dict[str, Any],
     ):
-        """Test ERROR transition type."""
+        """Test MANUAL transition type."""
         base_template_dict["transitions"] = [
             {"from_step": "start", "to_step": "step1", "type": "direct"},
             {
                 "from_step": "step1",
                 "to_step": "end",
-                "type": FlowTransitionType.ERROR.value,
+                "type": FlowTransitionType.MANUAL.value,
             },
         ]
 
-        template = FlowTemplate(**base_template_dict)
+        template = build_template(base_template_dict)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -682,7 +682,7 @@ class TestOrphanedStepDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -724,7 +724,7 @@ class TestOrphanedStepDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict)
         result = validator.validate_template(template)
 
         # Should have warnings about unreachable steps
@@ -769,7 +769,7 @@ class TestOrphanedStepDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict)
         result = validator.validate_template(template)
 
         # Should warn about multiple unreachable steps

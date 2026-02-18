@@ -384,7 +384,7 @@ class TestFlowTemplateRepositoryQuery:
                 "version": "1.0.0",
                 "flow_type": FlowType.ONBOARDING.value
                 if i < 3
-                else FlowType.MONTHLY_QUIZ.value,
+                else FlowType.QUIZ_MENSAL.value,
                 "description": f"Test template {i}",
                 "steps": [
                     {
@@ -444,14 +444,14 @@ class TestFlowTemplateRepositoryQuery:
             FlowType.ONBOARDING, include_inactive=True
         )
         quiz_templates = repository.list_by_type(
-            FlowType.MONTHLY_QUIZ, include_inactive=True
+            FlowType.QUIZ_MENSAL, include_inactive=True
         )
 
         # Assert
         assert len(onboarding_templates) == 3  # 0, 1, 2
         assert len(quiz_templates) == 2  # 3, 4
         assert all(t.flow_type == FlowType.ONBOARDING for t in onboarding_templates)
-        assert all(t.flow_type == FlowType.MONTHLY_QUIZ for t in quiz_templates)
+        assert all(t.flow_type == FlowType.QUIZ_MENSAL for t in quiz_templates)
 
     def test_list_by_type_active_only(
         self, repository: FlowTemplateRepository, multiple_templates: List[FlowTemplate]
@@ -939,7 +939,7 @@ class TestFlowTemplateRepositoryStatistics:
                 version="1.0.0",
                 flow_type=FlowType.ONBOARDING.value
                 if i < 3
-                else FlowType.MONTHLY_QUIZ.value,
+                else FlowType.QUIZ_MENSAL.value,
                 description="Test",
                 steps=[],
                 transitions=[],
@@ -971,7 +971,7 @@ class TestFlowTemplateRepositoryStatistics:
         # Assert
         templates_by_type = stats["templates_by_type"]
         assert templates_by_type[FlowType.ONBOARDING.value] == 3
-        assert templates_by_type[FlowType.MONTHLY_QUIZ.value] == 2
+        assert templates_by_type[FlowType.QUIZ_MENSAL.value] == 2
 
     def test_get_stats_cache_info(self, populated_repository: FlowTemplateRepository):
         """Test get_stats returns cache information."""

@@ -77,7 +77,7 @@ Already created at `backend-hormonia/tests/api/v2/test_quiz_pagination.py` with 
 **SQL Error Scenario:**
 ```sql
 -- Before fix: String comparison causes error
-WHERE created_at > '2025-10-18T10:30:00Z'  -- ERROR!
+WHERE created_at > '2025-10-18T10:30:00-03:00'  -- ERROR!
 
 -- After fix: Datetime comparison works
 WHERE created_at > TIMESTAMP '2025-10-18 10:30:00+00'  -- OK

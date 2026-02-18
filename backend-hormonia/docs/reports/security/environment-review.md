@@ -259,7 +259,7 @@ CELERY_WORKER_SOFT_TIME_LIMIT_SECONDS=240  ✅ 4-minute soft limit
 
 **Settings**:
 ```
-CELERY_ENABLE_UTC=true                      ✅ Timezone consistency
+CELERY_ENABLE_TZ_NORMALIZATION=false        ✅ Timezone consistency
 CELERY_ENABLE_TRACK_STARTED=true            ✅ Task monitoring
 CELERY_TASK_SERIALIZER=json                 ✅ Secure serialization
 CELERY_RESULT_SERIALIZER=json               ✅ Secure serialization

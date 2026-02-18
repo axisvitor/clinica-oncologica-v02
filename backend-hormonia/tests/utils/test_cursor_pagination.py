@@ -9,6 +9,7 @@ from datetime import datetime
 from uuid import uuid4, UUID
 from unittest.mock import Mock
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.utils.cursor_pagination import (
     CursorPaginator,
     CursorPage
@@ -45,7 +46,7 @@ class TestCursorEncoding:
     def test_cursor_roundtrip(self):
         """Test encoding and decoding roundtrip."""
         original_id = uuid4()
-        original_timestamp = datetime.utcnow()
+        original_timestamp = now_sao_paulo_naive()
 
         cursor = CursorPaginator.encode_cursor(original_id, original_timestamp)
         decoded_id, decoded_timestamp = CursorPaginator.decode_cursor(cursor)
@@ -131,70 +132,13 @@ class TestCursorPage:
 class TestCursorPaginator:
     """Test cursor pagination functionality."""
 
-    async def test_paginate_first_page(self):
-        """Test pagination for first page (no cursor)."""
-        # This test requires actual database integration
-        # For now, we'll test the logic flow
-        pass
-
-    async def test_paginate_with_cursor(self):
-        """Test pagination with cursor."""
-        # This test requires actual database integration
-        pass
-
-    async def test_paginate_limit_respected(self):
-        """Test that limit is respected."""
-        # Test that we fetch limit + 1 items to check for more pages
-        pass
-
-    async def test_paginate_has_more_detection(self):
-        """Test detection of more pages."""
-        # When we get limit + 1 items, has_more should be True
-        pass
-
-    def test_limit_clamping(self):
+    async def test_limit_clamping(self):
         """Test that limit is clamped between 1 and 100."""
         # Limit should be clamped to [1, 100] range
         # This would be tested in the actual paginate method
         assert min(max(1, 50), 100) == 50
         assert min(max(1, 0), 100) == 1
         assert min(max(1, 150), 100) == 100
-
-    async def test_paginate_direction_next(self):
-        """Test forward pagination direction."""
-        # Test that next direction uses < comparison for descending order
-        pass
-
-    async def test_paginate_direction_prev(self):
-        """Test backward pagination direction."""
-        # Test that prev direction uses > comparison
-        # and reverses items at the end
-        pass
-
-    async def test_invalid_cursor_starts_from_beginning(self):
-        """Test that invalid cursor starts from beginning."""
-        # When cursor is invalid, should start from beginning
-        pass
-
-
-@pytest.mark.asyncio
-class TestPaginateModel:
-    """Test paginate_model convenience function."""
-
-    async def test_paginate_model_basic(self):
-        """Test basic pagination with paginate_model."""
-        # This requires database integration
-        pass
-
-    async def test_paginate_model_with_filters(self):
-        """Test pagination with filters."""
-        # Test that filters are applied correctly
-        pass
-
-    async def test_paginate_model_with_eager_loading(self):
-        """Test pagination with eager loading."""
-        # Test that relationships are loaded
-        pass
 
 
 class TestPaginationPerformance:
@@ -203,7 +147,7 @@ class TestPaginationPerformance:
     def test_cursor_size_reasonable(self):
         """Test that cursor size is reasonable."""
         test_id = uuid4()
-        test_timestamp = datetime.utcnow()
+        test_timestamp = now_sao_paulo_naive()
 
         cursor = CursorPaginator.encode_cursor(test_id, test_timestamp)
 
@@ -213,7 +157,7 @@ class TestPaginationPerformance:
     def test_cursor_url_safe(self):
         """Test that cursor is URL-safe."""
         test_id = uuid4()
-        test_timestamp = datetime.utcnow()
+        test_timestamp = now_sao_paulo_naive()
 
         cursor = CursorPaginator.encode_cursor(test_id, test_timestamp)
 
@@ -242,75 +186,3 @@ class TestPaginationEdgeCases:
 
         assert len(page.items) == 1
         assert page.has_next is False
-
-    def test_exact_page_size(self):
-        """Test pagination when results exactly match page size."""
-        # When items == limit, we need to check if there are more
-        # This is why we fetch limit + 1
-        pass
-
-    async def test_pagination_consistency(self):
-        """Test that pagination is consistent across calls."""
-        # Same cursor should always return same results
-        pass
-
-    async def test_concurrent_pagination(self):
-        """Test pagination with concurrent modifications."""
-        # Cursor pagination should handle concurrent inserts better than offset
-        pass
-
-
-class TestCursorPaginationVsOffset:
-    """Test cursor pagination advantages over offset."""
-
-    def test_offset_calculation_skipped(self):
-        """Test that cursor pagination doesn't calculate offsets."""
-        # Cursor pagination uses keyset, not OFFSET
-        # This makes it O(1) instead of O(N)
-        pass
-
-    def test_consistent_results_with_inserts(self):
-        """Test that cursor pagination handles concurrent inserts."""
-        # Cursor pagination should give consistent results even with inserts
-        # Offset pagination may skip/duplicate items
-        pass
-
-    def test_performance_scales_with_dataset(self):
-        """Test that performance doesn't degrade with large offsets."""
-        # Cursor pagination should have same performance for page 1 and page 1000
-        # Offset pagination degrades linearly
-        pass
-
-
-# Integration test example (requires database)
-@pytest.mark.integration
-@pytest.mark.asyncio
-class TestCursorPaginationIntegration:
-    """Integration tests for cursor pagination with database."""
-
-    async def test_full_pagination_flow(self, db_session):
-        """Test complete pagination flow with real database."""
-        # 1. Create test data (100 items)
-        # 2. Page through all results
-        # 3. Verify all items retrieved
-        # 4. Verify no duplicates
-        # 5. Verify correct ordering
-        pass
-
-    async def test_pagination_performance_comparison(self, db_session):
-        """Compare cursor vs offset pagination performance."""
-        # 1. Create large dataset (10,000+ items)
-        # 2. Time offset pagination at various pages
-        # 3. Time cursor pagination at same pages
-        # 4. Verify cursor is faster for large offsets
-        pass
-
-    async def test_pagination_with_filters(self, db_session):
-        """Test pagination with WHERE filters."""
-        # Verify cursor pagination works with complex filters
-        pass
-
-    async def test_pagination_with_joins(self, db_session):
-        """Test pagination with joined relationships."""
-        # Verify cursor pagination works with eager loading
-        pass

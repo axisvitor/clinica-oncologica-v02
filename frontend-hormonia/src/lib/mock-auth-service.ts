@@ -52,7 +52,7 @@ const MOCK_USERS: MockUser[] = [
     role: 'admin',
     is_active: true,
     permissions: ['*'],
-    created_at: '2024-01-01T00:00:00Z'
+    created_at: '2024-01-01T00:00:00-03:00'
   },
   {
     id: 'admin-002',
@@ -61,7 +61,7 @@ const MOCK_USERS: MockUser[] = [
     role: 'admin',
     is_active: true,
     permissions: ['read:*', 'write:*', 'delete:patients', 'manage:users'],
-    created_at: '2024-01-15T00:00:00Z'
+    created_at: '2024-01-15T00:00:00-03:00'
   },
 
   // Medico users
@@ -72,7 +72,7 @@ const MOCK_USERS: MockUser[] = [
     role: 'medico',
     is_active: true,
     permissions: ['read:pacientes', 'write:consultas', 'read:exames', 'write:prescricoes'],
-    created_at: '2024-01-10T00:00:00Z',
+    created_at: '2024-01-10T00:00:00-03:00',
     crm: '123456',
     especialidade: 'Oncologia',
     conselho_regional: 'CRM-SC',
@@ -85,7 +85,7 @@ const MOCK_USERS: MockUser[] = [
     role: 'medico',
     is_active: true,
     permissions: ['read:pacientes', 'write:consultas', 'read:exames', 'write:prescricoes'],
-    created_at: '2024-01-12T00:00:00Z',
+    created_at: '2024-01-12T00:00:00-03:00',
     crm: '789012',
     especialidade: 'Oncologia Clínica',
     conselho_regional: 'CRM-SC',
@@ -98,7 +98,7 @@ const MOCK_USERS: MockUser[] = [
     role: 'medico',
     is_active: true,
     permissions: ['read:pacientes', 'write:consultas', 'read:exames', 'write:prescricoes'],
-    created_at: '2024-01-20T00:00:00Z',
+    created_at: '2024-01-20T00:00:00-03:00',
     crm: '345678',
     especialidade: 'Radioterapia',
     conselho_regional: 'CRM-SC',
@@ -113,7 +113,7 @@ const MOCK_USERS: MockUser[] = [
     role: 'user',
     is_active: true,
     permissions: ['read:pacientes', 'read:mensagens'],
-    created_at: '2024-02-01T00:00:00Z'
+    created_at: '2024-02-01T00:00:00-03:00'
   }
 ]
 

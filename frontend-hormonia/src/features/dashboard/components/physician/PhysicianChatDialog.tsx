@@ -35,7 +35,7 @@ export function PhysicianChatDialog({
             Chat com IA - Orientação Clínica
           </DialogTitle>
           <DialogDescription>
-            Obtenha insights e orientações clínicas baseadas em IA
+            Obtenha orientações clínicas baseadas em IA
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col h-[60vh]">

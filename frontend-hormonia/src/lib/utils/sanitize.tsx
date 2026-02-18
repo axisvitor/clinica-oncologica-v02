@@ -18,6 +18,7 @@
  * ```
  */
 
+import * as React from 'react'
 import DOMPurify from 'dompurify'
 import { logger } from '@/lib/logger';
 import type { Config } from 'dompurify';

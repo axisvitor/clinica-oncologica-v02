@@ -198,10 +198,6 @@ tests/services/test_firebase_auth_circuit_breaker.py
 tests/services/test_auth.py
   Source: app/services/auth.py
   Impact: CRITICAL - Core auth logic
-
-tests/services/test_token_rotation_service.py
-  Source: app/services/token_rotation_service.py
-  Impact: HIGH - Token lifecycle
 ```
 
 ### Patient Management (8 files)

@@ -39,7 +39,9 @@ const mockWsManager = {
 const mockFirebaseAuthService = {
   loginUser: vi.fn(),
   logoutUser: vi.fn(),
-  logoutAllDevices: vi.fn()
+  logoutAllDevices: vi.fn(),
+  setSessionId: vi.fn(),
+  clearSessionId: vi.fn()
 }
 
 const mockMockAuthService = {

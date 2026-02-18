@@ -163,7 +163,7 @@ function getColor(index: number): string {
 }
 
 function normalizeMonthPoint(point: CompletionTrendPoint) {
-  const date = new Date(Date.UTC(point.year, point.month - 1, 1))
+  const date = new Date(point.year, point.month - 1, 1)
   return {
     date: date.toISOString(),
     response_rate: point.completion_rate ?? 0,

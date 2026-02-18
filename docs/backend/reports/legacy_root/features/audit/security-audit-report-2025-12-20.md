@@ -22,7 +22,7 @@ Comprehensive security audit of the Hormonia backend authentication and security
 
 ## Critical Security Issues
 
-### 🔴 CRITICAL-001: JWT Token Uses Deprecated `datetime.utcnow()` (Timezone Naive)
+### 🔴 CRITICAL-001: JWT Token Uses Deprecated `now_sao_paulo()` (Timezone Naive)
 **File**: `/backend-hormonia/app/core/security.py`
 **Lines**: 40, 144
 **Severity**: **CRITICAL**
@@ -30,13 +30,13 @@ Comprehensive security audit of the Hormonia backend authentication and security
 **Issue**:
 ```python
 # Line 40-43
-expire = datetime.utcnow() + (
+expire = now_sao_paulo() + (
     expires_delta or timedelta(hours=PASSWORD_RESET_TOKEN_EXPIRE_HOURS)
 )
 ```
 
 **Problem**:
-- `datetime.utcnow()` returns timezone-naive datetime objects
+- `now_sao_paulo()` returns timezone-naive datetime objects
 - Can cause timezone comparison errors and authentication bypasses
 - Deprecated in Python 3.12+
 
@@ -49,8 +49,8 @@ expire = datetime.utcnow() + (
 ```python
 from datetime import datetime, timezone
 
-# Replace datetime.utcnow() with:
-expire = datetime.now(timezone.utc) + (
+# Replace now_sao_paulo() with:
+expire = now_sao_paulo() + (
     expires_delta or timedelta(hours=PASSWORD_RESET_TOKEN_EXPIRE_HOURS)
 )
 ```
@@ -537,7 +537,7 @@ def create_password_reset_token(
     secret_key: Optional[str] = None,
     algorithm: str = "HS256",  # ⚠️ Algorithm hardcoded, no options
 ) -> str:
-    expire = datetime.utcnow() + (
+    expire = now_sao_paulo() + (
         expires_delta or timedelta(hours=PASSWORD_RESET_TOKEN_EXPIRE_HOURS)
     )
     payload = {"sub": email, "exp": expire}  # ⚠️ Only email and expiration
@@ -576,7 +576,7 @@ def create_password_reset_token(
     - Purpose claim to prevent token reuse
     - IAT (issued at) claim for additional validation
     """
-    expire = datetime.now(timezone.utc) + (
+    expire = now_sao_paulo() + (
         expires_delta or timedelta(hours=PASSWORD_RESET_TOKEN_EXPIRE_HOURS)
     )
 
@@ -586,7 +586,7 @@ def create_password_reset_token(
     payload = {
         "sub": email,
         "exp": expire,
-        "iat": datetime.now(timezone.utc),  # Issued at
+        "iat": now_sao_paulo(),  # Issued at
         "jti": jti,                          # Unique token ID
         "purpose": "password_reset",         # Prevent token reuse
     }
@@ -759,7 +759,7 @@ if not session_data:
 # Explicit expiration check
 if "expires_at" in session_data:
     expires_at = datetime.fromisoformat(session_data["expires_at"])
-    if datetime.now(timezone.utc) > expires_at:
+    if now_sao_paulo() > expires_at:
         logger.warning(f"Session expired: {final_session_id}")
         await redis_cache.invalidate_session(final_session_id)
         raise HTTPException(401, detail="Session expired")
@@ -807,7 +807,7 @@ class RolePermission(Base):
     role = Column(String(50), nullable=False, index=True)
     permission = Column(String(100), nullable=False)
     granted_by = Column(UUID, ForeignKey("users.id"))
-    granted_at = Column(DateTime(timezone=True), default=datetime.now(timezone.utc))
+    granted_at = Column(DateTime(timezone=True), default=now_sao_paulo())
 
     __table_args__ = (
         UniqueConstraint('role', 'permission', name='uq_role_permission'),
@@ -1212,7 +1212,7 @@ async def get_sensitive_data(current_user = Depends(get_current_user_from_sessio
 **Recommendation**:
 ```
 Contact: security@hormonia.com
-Expires: 2026-12-31T23:59:59.000Z
+Expires: 2026-12-31T23:59:59.000-03:00
 Preferred-Languages: en, pt
 ```
 
@@ -1486,7 +1486,7 @@ await redis_cache.update_session_activity(
 
 ### Phase 1: Immediate (This Week)
 1. **CRITICAL-003**: Replace default `SECURITY_SECRET_KEY` with strong random key
-2. **CRITICAL-001**: Fix all `datetime.utcnow()` to `datetime.now(timezone.utc)`
+2. **CRITICAL-001**: Fix all `now_sao_paulo()` to `now_sao_paulo()`
 3. **HIGH-001**: Add Firebase credential validation
 4. **HIGH-003**: Implement session regeneration on login
 

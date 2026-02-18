@@ -27,6 +27,7 @@ from .base import (
     get_cached_result,
     set_cached_result,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -142,7 +143,7 @@ async def get_completion_trend(
         return cached_result
 
     # Calculate date range
-    end_date = datetime.now(timezone.utc)
+    end_date = now_sao_paulo()
     start_date = end_date - timedelta(days=months * 30)
 
     # Get monthly stats using date functions

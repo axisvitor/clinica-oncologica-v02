@@ -13,10 +13,12 @@ from app.integrations.whatsapp.queue.manager import QueueManager
 from app.integrations.whatsapp.queue.schemas import MessageRequest, MessageResponse
 
 
+from app.utils.timezone import now_sao_paulo
 class FakeRedis:
     def __init__(self):
         self.lists = {}
         self.values = {}
+        self.zsets = {}
 
     async def lpush(self, key, value):
         self.lists.setdefault(key, [])
@@ -59,6 +61,41 @@ class FakeRedis:
     async def exists(self, key):
         return 1 if key in self.values else 0
 
+    async def eval(self, script, numkeys, queue_key, processing_key, processing_started_at):
+        moved = await self.rpoplpush(queue_key, processing_key)
+        if moved is None:
+            return None
+
+        payload = json.loads(moved)
+        payload["processing_started_at"] = processing_started_at
+        updated = json.dumps(payload, default=str)
+        self.lists[processing_key][0] = updated
+        return updated
+
+    async def zadd(self, key, mapping):
+        zset = self.zsets.setdefault(key, {})
+        for member, score in mapping.items():
+            zset[member] = float(score)
+        return len(mapping)
+
+    async def zpopmin(self, key, count=1):
+        zset = self.zsets.get(key, {})
+        if not zset:
+            return []
+
+        ordered = sorted(zset.items(), key=lambda item: item[1])[:count]
+        for member, _ in ordered:
+            zset.pop(member, None)
+        return ordered
+
+
+async def _wait_for_queue_size(redis_client: FakeRedis, key: str, expected: int, attempts: int = 50):
+    for _ in range(attempts):
+        if await redis_client.llen(key) >= expected:
+            return
+        await asyncio.sleep(0)
+    pytest.fail(f"Queue {key} did not reach size {expected}")
+
 
 @pytest.mark.asyncio
 async def test_fifo_processing_order(monkeypatch):
@@ -70,7 +107,7 @@ async def test_fifo_processing_order(monkeypatch):
         return MessageResponse(
             success=True,
             message_id=request.message_id,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             instance_name=request.instance_name,
         )
 
@@ -99,11 +136,6 @@ async def test_fifo_processing_order(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_retry_requeues_message(monkeypatch):
-    async def fast_sleep(*args, **kwargs):
-        return None
-
-    monkeypatch.setattr(asyncio, "sleep", fast_sleep)
-
     redis_client = FakeRedis()
 
     async def sender(request: MessageRequest) -> MessageResponse:
@@ -114,6 +146,7 @@ async def test_retry_requeues_message(monkeypatch):
         redis_client=redis_client,
         message_sender=sender,
     )
+    monkeypatch.setattr(manager, "_calculate_retry_backoff", lambda _: 0)
 
     await manager.queue_message(
         MessageRequest(
@@ -126,18 +159,13 @@ async def test_retry_requeues_message(monkeypatch):
 
     batch = await manager._dequeue_batch("primary", 1)
     await manager._process_payload("primary", batch[0])
-    await asyncio.sleep(0)
+    await manager._drain_due_retries("primary")
 
     assert await redis_client.llen("whatsapp:queue:primary") == 1
 
 
 @pytest.mark.asyncio
 async def test_dlq_after_max_retries(monkeypatch):
-    async def fast_sleep(*args, **kwargs):
-        return None
-
-    monkeypatch.setattr(asyncio, "sleep", fast_sleep)
-
     redis_client = FakeRedis()
 
     async def sender(request: MessageRequest) -> MessageResponse:
@@ -149,6 +177,7 @@ async def test_dlq_after_max_retries(monkeypatch):
         message_sender=sender,
     )
     manager.dlq_handler = AsyncMock()
+    monkeypatch.setattr(manager, "_calculate_retry_backoff", lambda _: 0)
 
     await manager.queue_message(
         MessageRequest(
@@ -160,10 +189,12 @@ async def test_dlq_after_max_retries(monkeypatch):
         )
     )
 
-    for _ in range(3):
+    for attempt in range(3):
+        await manager._drain_due_retries("primary")
+        await _wait_for_queue_size(redis_client, "whatsapp:queue:primary", 1)
         batch = await manager._dequeue_batch("primary", 1)
+        assert batch, f"Expected payload on retry attempt {attempt + 1}"
         await manager._process_payload("primary", batch[0])
-        await asyncio.sleep(0)
 
     assert await redis_client.llen("whatsapp:failed:primary") == 1
     assert manager.dlq_handler.route_to_dlq.called
@@ -190,7 +221,7 @@ async def test_manual_requeue_from_failed_payload():
         },
         "retry_count": 3,
         "retry_timestamps": [],
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now_sao_paulo().isoformat(),
     }
 
     await redis_client.lpush(

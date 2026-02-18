@@ -152,7 +152,7 @@ describe('API Hooks', () => {
           { treatment_type: 'Reposicao Hormonal', count: 2, percentage: 10 },
         ],
         total_patients: 20,
-        last_updated: '2024-01-01T00:00:00Z',
+        last_updated: '2024-01-01T00:00:00-03:00',
       }
 
       mockApiClient.medico.getTreatmentDistribution.mockResolvedValue(mockDistribution)
@@ -195,7 +195,7 @@ describe('API Hooks', () => {
       mockApiClient.medico.getTreatmentDistribution.mockResolvedValue({
         distributions: [],
         total_patients: 0,
-        last_updated: '2024-01-01T00:00:00Z',
+        last_updated: '2024-01-01T00:00:00-03:00',
       })
 
       renderHook(() => useTreatmentDistribution(dateRange), {
@@ -232,8 +232,8 @@ describe('API Hooks', () => {
         completed_quizzes_today: 8,
         high_risk_patients: 3,
         recent_activities: [
-          { type: 'quiz_completed', patient_name: 'Joao Silva', timestamp: '2024-01-01T10:00:00Z' },
-          { type: 'patient_registered', patient_name: 'Maria Santos', timestamp: '2024-01-01T09:30:00Z' },
+          { type: 'quiz_completed', patient_name: 'Joao Silva', timestamp: '2024-01-01T10:00:00-03:00' },
+          { type: 'patient_registered', patient_name: 'Maria Santos', timestamp: '2024-01-01T09:30:00-03:00' },
         ],
         trends: {
           patients_growth: 10.5,

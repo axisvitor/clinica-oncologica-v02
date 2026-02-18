@@ -39,7 +39,7 @@ async def redis_transaction():
             results = await pipe.execute()
     """
     client = await get_async_redis_client()
-    pipe = client.pipeline()
+    pipe = client.pipeline(transaction=False)
     try:
         yield pipe
     finally:

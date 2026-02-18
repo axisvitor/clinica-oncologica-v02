@@ -1,18 +1,51 @@
 """
 Task Registry Management
 
-Provides the in-memory task registry and management functions.
-
-NOTE: In production, this should be replaced with Redis or database-backed storage.
-This is a temporary solution for tracking task metadata alongside Celery.
+Provides task metadata registry helpers backed by in-memory cache plus
+Dragonfly/Redis persistence via ``app.task_queue`` store functions.
 """
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from uuid import UUID
+from app.task_queue import (
+    delete_task as delete_stored_task,
+    get_task as get_stored_task,
+    list_tasks as list_stored_tasks,
+    update_task as update_stored_task,
+)
 
-# In-memory task tracking (should be replaced with Redis or DB in production)
+# Process-local hot cache for task metadata.
 task_registry: Dict[str, Dict[str, Any]] = {}
+
+
+def _coerce_datetime(value: Any) -> Optional[datetime]:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
+def hydrate_registry_from_store(limit: Optional[int] = None) -> int:
+    """
+    Hydrate in-memory registry from persisted task store.
+
+    Returns number of tasks merged into local registry.
+    """
+    merged = 0
+    for stored_task in list_stored_tasks(limit=limit):
+        celery_task_id = stored_task.get("celery_task_id")
+        task_public_id = stored_task.get("id")
+        if not celery_task_id or not task_public_id:
+            continue
+        if celery_task_id not in task_registry:
+            task_registry[celery_task_id] = stored_task
+            merged += 1
+    return merged
 
 
 def get_task_by_id(task_id: str) -> Optional[Dict[str, Any]]:
@@ -28,6 +61,12 @@ def get_task_by_id(task_id: str) -> Optional[Dict[str, Any]]:
     for celery_task_id, task_data in task_registry.items():
         if task_data.get("id") == task_id:
             return {**task_data, "celery_task_id": celery_task_id}
+    stored_task = get_stored_task(task_id)
+    if stored_task:
+        celery_task_id = stored_task.get("celery_task_id")
+        if celery_task_id:
+            task_registry.setdefault(celery_task_id, stored_task)
+            return {**stored_task, "celery_task_id": celery_task_id}
     return None
 
 
@@ -41,7 +80,15 @@ def get_task_by_celery_id(celery_task_id: str) -> Optional[Dict[str, Any]]:
     Returns:
         Task data dictionary if found, None otherwise
     """
-    return task_registry.get(celery_task_id)
+    if celery_task_id in task_registry:
+        return task_registry[celery_task_id]
+
+    for stored_task in list_stored_tasks():
+        if stored_task.get("celery_task_id") != celery_task_id:
+            continue
+        task_registry.setdefault(celery_task_id, stored_task)
+        return stored_task
+    return None
 
 
 def update_task(celery_task_id: str, updates: Dict[str, Any]) -> None:
@@ -52,8 +99,16 @@ def update_task(celery_task_id: str, updates: Dict[str, Any]) -> None:
         celery_task_id: Celery task ID
         updates: Dictionary of fields to update
     """
-    if celery_task_id in task_registry:
-        task_registry[celery_task_id].update(updates)
+    task_data = task_registry.get(celery_task_id) or get_task_by_celery_id(celery_task_id)
+    if not task_data:
+        return
+
+    task_data.update(updates)
+    task_registry[celery_task_id] = task_data
+
+    task_public_id = task_data.get("id")
+    if task_public_id:
+        update_stored_task(task_public_id, updates)
 
 
 def delete_task(celery_task_id: str) -> bool:
@@ -66,10 +121,19 @@ def delete_task(celery_task_id: str) -> bool:
     Returns:
         True if task was deleted, False if not found
     """
-    if celery_task_id in task_registry:
+    task_data = task_registry.get(celery_task_id) or get_task_by_celery_id(celery_task_id)
+    task_public_id = task_data.get("id") if task_data else None
+
+    removed_local = celery_task_id in task_registry
+    if removed_local:
         del task_registry[celery_task_id]
-        return True
-    return False
+
+    removed_store = False
+    if task_public_id:
+        delete_stored_task(task_public_id)
+        removed_store = True
+
+    return removed_local or removed_store
 
 
 def list_tasks(
@@ -94,6 +158,7 @@ def list_tasks(
     Returns:
         List of task data dictionaries
     """
+    hydrate_registry_from_store()
     tasks = []
 
     for celery_task_id, task_data in task_registry.items():
@@ -101,8 +166,12 @@ def list_tasks(
         if user_id and task_data.get("user_id") != str(user_id):
             continue
 
-        if status_filter and task_data.get("status") != status_filter:
-            continue
+        if status_filter:
+            task_status = task_data.get("status")
+            if hasattr(task_status, "value"):
+                task_status = task_status.value
+            if str(task_status) != status_filter:
+                continue
 
         if task_type_filter and task_data.get("task_type") != task_type_filter:
             continue
@@ -111,13 +180,13 @@ def list_tasks(
             continue
 
         if start_date:
-            created_at = task_data.get("created_at")
-            if isinstance(created_at, datetime) and created_at < start_date:
+            created_at = _coerce_datetime(task_data.get("created_at"))
+            if created_at and created_at < start_date:
                 continue
 
         if end_date:
-            created_at = task_data.get("created_at")
-            if isinstance(created_at, datetime) and created_at > end_date:
+            created_at = _coerce_datetime(task_data.get("created_at"))
+            if created_at and created_at > end_date:
                 continue
 
         tasks.append({**task_data, "celery_task_id": celery_task_id})
@@ -132,6 +201,7 @@ def get_task_count() -> int:
     Returns:
         Number of tasks
     """
+    hydrate_registry_from_store()
     return len(task_registry)
 
 

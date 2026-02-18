@@ -623,7 +623,7 @@ async def _compensate_step_with_retry(self, ...):
                     "saga_id": str(saga.id),
                     "step": step_num,
                     "error": str(last_error),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": now_sao_paulo().isoformat(),
                 }
                 self.db.commit()
         except Exception as quarantine_err:

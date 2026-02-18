@@ -6,9 +6,10 @@ Events expire after 24 hours for automatic cleanup.
 """
 
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import Column, String, DateTime, Integer, Index, text
+from sqlalchemy import Column, String, DateTime, Integer, Index, text, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from app.models.base import Base
+from app.utils.timezone import now_sao_paulo
 
 
 class WebhookEvent(Base):
@@ -70,7 +71,15 @@ class WebhookEvent(Base):
 
     # Processing metadata
     status = Column(
-        String(20),
+        SAEnum(
+            "processing",
+            "completed",
+            "failed",
+            name="webhook_idempotency_status",
+            native_enum=True,
+            create_type=False,
+            validate_strings=True,
+        ),
         nullable=False,
         default="processing",
         comment="Processing status: processing, completed, failed",
@@ -123,7 +132,7 @@ class WebhookEvent(Base):
         Returns:
             WebhookEvent instance
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         expires_at = now + timedelta(hours=ttl_hours)
 
         return cls(
@@ -140,14 +149,14 @@ class WebhookEvent(Base):
     def mark_completed(self, response_data: dict | None = None) -> None:
         """Mark event as successfully processed."""
         self.status = "completed"
-        self.processed_at = datetime.now(timezone.utc)
+        self.processed_at = now_sao_paulo()
         if response_data:
             self.response_data = response_data
 
     def mark_failed(self, error_data: dict | None = None) -> None:
         """Mark event as failed processing."""
         self.status = "failed"
-        self.processed_at = datetime.now(timezone.utc)
+        self.processed_at = now_sao_paulo()
         if error_data:
             self.response_data = error_data
 
@@ -157,7 +166,7 @@ class WebhookEvent(Base):
 
     def is_expired(self) -> bool:
         """Check if idempotency record has expired."""
-        return datetime.now(timezone.utc) > self.expires_at
+        return now_sao_paulo() > self.expires_at
 
     def __repr__(self) -> str:
         return (

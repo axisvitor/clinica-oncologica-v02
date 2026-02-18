@@ -20,7 +20,7 @@ interface LoadingStateProps {
 }
 
 export const LoadingState: React.FC<LoadingStateProps> = ({
-  message = 'Loading...',
+  message = 'Loading\u2026',
   className = ''
 }) => (
   <div className={`flex flex-col items-center justify-center p-8 ${className}`}>

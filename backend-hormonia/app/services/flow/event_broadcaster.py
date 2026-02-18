@@ -25,6 +25,7 @@ from app.schemas.websocket import (
 from app.models.flow import PatientFlowState
 from app.models.message import Message
 from app.models.alert import Alert
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,17 @@ class FlowEventBroadcaster:
                 return 0
 
             # Determine what changed
+            step_data = flow_state.step_data or {}
+            current_day = flow_state.current_step
+            is_paused = bool(step_data.get("paused"))
+
+            def _to_iso(value: Any) -> Optional[str]:
+                if isinstance(value, datetime):
+                    return value.isoformat()
+                if isinstance(value, str):
+                    return value
+                return None
+
             changes = {}
             if previous_state:
                 if previous_state.get("flow_type") != flow_state.flow_type:
@@ -74,16 +86,24 @@ class FlowEventBroadcaster:
                         "from": previous_state.get("flow_type"),
                         "to": flow_state.flow_type,
                     }
-                if previous_state.get("current_day") != flow_state.current_day:
+                if previous_state.get("current_day") != current_day:
                     changes["current_day"] = {
                         "from": previous_state.get("current_day"),
-                        "to": flow_state.current_day,
+                        "to": current_day,
                     }
-                if previous_state.get("is_paused") != flow_state.is_paused:
+                if previous_state.get("is_paused") != is_paused:
                     changes["is_paused"] = {
                         "from": previous_state.get("is_paused"),
-                        "to": flow_state.is_paused,
+                        "to": is_paused,
                     }
+
+            enrollment_date = _to_iso(step_data.get("enrollment_date")) or _to_iso(
+                flow_state.started_at
+            )
+            last_message_sent = _to_iso(
+                step_data.get("last_message_sent")
+                or step_data.get("last_message_sent_at")
+            )
 
             # Create event data
             event_data = PatientEventData(
@@ -91,13 +111,11 @@ class FlowEventBroadcaster:
                 changes=changes,
                 metadata={
                     "flow_type": flow_state.flow_type,
-                    "current_day": flow_state.current_day,
-                    "is_paused": flow_state.is_paused,
-                    "enrollment_date": flow_state.enrollment_date.isoformat(),
-                    "last_message_sent": flow_state.last_message_sent.isoformat()
-                    if flow_state.last_message_sent
-                    else None,
-                    "monthly_cycle": flow_state.monthly_cycle,
+                    "current_day": current_day,
+                    "is_paused": is_paused,
+                    "enrollment_date": enrollment_date,
+                    "last_message_sent": last_message_sent,
+                    "monthly_cycle": step_data.get("monthly_cycle"),
                 },
             )
 
@@ -109,7 +127,7 @@ class FlowEventBroadcaster:
             # Broadcast to patient room with error handling
             try:
                 sent_count = await self.connection_manager.broadcast_to_patient_room(
-                    message.dict(), str(patient_id)
+                    str(patient_id), message.dict()
                 )
 
                 logger.info(
@@ -154,6 +172,7 @@ class FlowEventBroadcaster:
                 return 0
 
             # Create event data
+            metadata = message.message_metadata or {}
             event_data = MessageEventData(
                 message_id=message.id,
                 patient_id=patient_id,
@@ -167,7 +186,7 @@ class FlowEventBroadcaster:
                 metadata={
                     "interaction_type": interaction_type,
                     "timestamp": message.created_at.isoformat(),
-                    "has_media": bool(message.media_url),
+                    "has_media": bool(metadata.get("media_url") or metadata.get("url")),
                     "is_interactive": message.type in ["button", "list", "quick_reply"],
                 },
             )
@@ -180,7 +199,7 @@ class FlowEventBroadcaster:
             # Broadcast to patient room with error handling
             try:
                 sent_count = await self.connection_manager.broadcast_to_patient_room(
-                    message_ws.dict(), str(patient_id)
+                    str(patient_id), message_ws.dict()
                 )
 
                 logger.info(
@@ -240,7 +259,7 @@ class FlowEventBroadcaster:
 
             # Broadcast to patient room and all authenticated users for critical alerts
             sent_count = await self.connection_manager.broadcast_to_patient_room(
-                message.dict(), str(patient_id)
+                str(patient_id), message.dict()
             )
 
             # For critical alerts, also broadcast to all authenticated healthcare providers
@@ -296,7 +315,7 @@ class FlowEventBroadcaster:
                 file_path=file_path,
                 error_message=error_message,
                 metadata={
-                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "generated_at": now_sao_paulo().isoformat(),
                     "success": success,
                     "downloadable": success and file_path is not None,
                 },
@@ -313,7 +332,7 @@ class FlowEventBroadcaster:
 
             # Broadcast to patient room
             sent_count = await self.connection_manager.broadcast_to_patient_room(
-                message.dict(), str(patient_id)
+                str(patient_id), message.dict()
             )
 
             logger.info(
@@ -337,7 +356,7 @@ class FlowEventBroadcaster:
             patient_id: Patient who received the message
             message: Message that was sent
             flow_day: Day in the flow sequence
-            flow_type: Type of flow (initial_15_days, etc.)
+            flow_type: Type of flow (onboarding, etc.)
 
         Returns:
             Number of connections that received the broadcast
@@ -378,7 +397,7 @@ class FlowEventBroadcaster:
             # Broadcast to patient room with error handling
             try:
                 sent_count = await self.connection_manager.broadcast_to_patient_room(
-                    message_ws.dict(), str(patient_id)
+                    str(patient_id), message_ws.dict()
                 )
 
                 logger.debug(
@@ -432,7 +451,7 @@ class FlowEventBroadcaster:
                 },
                 metadata={
                     "flow_type": flow_type,
-                    "progression_date": datetime.now(timezone.utc).isoformat(),
+                    "progression_date": now_sao_paulo().isoformat(),
                     "milestone_reached": milestone_reached,
                     "days_progressed": to_day - from_day,
                 },
@@ -445,7 +464,7 @@ class FlowEventBroadcaster:
 
             # Broadcast to patient room
             sent_count = await self.connection_manager.broadcast_to_patient_room(
-                message.dict(), str(patient_id)
+                str(patient_id), message.dict()
             )
 
             logger.info(
@@ -484,7 +503,7 @@ class FlowEventBroadcaster:
                 message=message,
                 level=level,
                 metadata={
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": now_sao_paulo().isoformat(),
                     "source": "flow_system",
                     "affected_patients": [str(pid) for pid in affected_patients]
                     if affected_patients

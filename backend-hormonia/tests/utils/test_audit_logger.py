@@ -4,13 +4,13 @@ Verifies structured audit logging functionality.
 """
 
 from unittest.mock import patch
-from app.utils.audit_logger import AuditLogger, AuditAction
+from app.monitoring.audit_logger import TemplateAuditLogger as AuditLogger, TemplateAuditAction as AuditAction
 
 
 class TestAuditLogger:
     """Test suite for AuditLogger class."""
 
-    @patch("app.utils.audit_logger.logger")
+    @patch("app.monitoring.audit_logger.template_audit_logger")
     def test_log_basic_action(self, mock_logger):
         """Test basic audit log entry."""
         AuditLogger.log(
@@ -39,7 +39,7 @@ class TestAuditLogger:
         assert audit_data["user_role"] == "admin"
         assert audit_data["success"] is True
 
-    @patch("app.utils.audit_logger.logger")
+    @patch("app.monitoring.audit_logger.template_audit_logger")
     def test_log_with_details(self, mock_logger):
         """Test audit log with additional details."""
         details = {
@@ -61,7 +61,7 @@ class TestAuditLogger:
 
         assert audit_data["details"] == details
 
-    @patch("app.utils.audit_logger.logger")
+    @patch("app.monitoring.audit_logger.template_audit_logger")
     def test_log_with_ip_address(self, mock_logger):
         """Test audit log with IP address tracking."""
         AuditLogger.log(
@@ -77,7 +77,7 @@ class TestAuditLogger:
 
         assert audit_data["ip_address"] == "192.168.1.100"
 
-    @patch("app.utils.audit_logger.logger")
+    @patch("app.monitoring.audit_logger.template_audit_logger")
     def test_log_failed_action(self, mock_logger):
         """Test logging failed operations."""
         AuditLogger.log(
@@ -98,7 +98,7 @@ class TestAuditLogger:
         assert audit_data["success"] is False
         assert audit_data["error_message"] == "Permission denied"
 
-    @patch("app.utils.audit_logger.logger")
+    @patch("app.monitoring.audit_logger.template_audit_logger")
     def test_log_batch_operation(self, mock_logger):
         """Test batch operation logging."""
         resource_ids = ["id-1", "id-2", "id-3"]
@@ -118,7 +118,7 @@ class TestAuditLogger:
         assert audit_data["resource_ids"] == resource_ids
         assert audit_data["resource_count"] == 3
 
-    @patch("app.utils.audit_logger.logger")
+    @patch("app.monitoring.audit_logger.template_audit_logger")
     def test_log_access(self, mock_logger):
         """Test access logging for sensitive resources."""
         AuditLogger.log_access(
@@ -136,7 +136,7 @@ class TestAuditLogger:
         assert audit_data["action"] == "read"
         assert audit_data["details"]["access_type"] == "view"
 
-    @patch("app.utils.audit_logger.logger")
+    @patch("app.monitoring.audit_logger.template_audit_logger")
     def test_log_security_event(self, mock_logger):
         """Test security event logging."""
         AuditLogger.log_security_event(
@@ -156,7 +156,7 @@ class TestAuditLogger:
         assert security_event["event_type"] == "permission_denied"
         assert security_event["severity"] == "high"
 
-    @patch("app.utils.audit_logger.logger")
+    @patch("app.monitoring.audit_logger.template_audit_logger")
     def test_all_audit_actions(self, mock_logger):
         """Test all audit action types."""
         actions = [
@@ -184,7 +184,7 @@ class TestAuditLogger:
             audit_data = call_args[1]["extra"]["audit_data"]
             assert audit_data["action"] == action.value
 
-    @patch("app.utils.audit_logger.logger")
+    @patch("app.monitoring.audit_logger.template_audit_logger")
     def test_timestamp_format(self, mock_logger):
         """Test that timestamp is in ISO format."""
         AuditLogger.log(
@@ -201,4 +201,4 @@ class TestAuditLogger:
         assert "timestamp" in audit_data
         timestamp = audit_data["timestamp"]
         assert "T" in timestamp  # ISO format includes 'T'
-        assert timestamp.endswith("Z") or "+" in timestamp  # Timezone info
+        assert timestamp.endswith("-03:00") or timestamp.endswith("-02:00")

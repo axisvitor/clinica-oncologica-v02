@@ -5,10 +5,20 @@
  * active users, and engagement trends over time.
  */
 import React, { Suspense } from 'react';
+import { LineChart, AreaChart, BarChart, PieChart } from '@/components/ui/charts/LazyRechartsComponents';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell
-} from '@/components/ui/charts/LazyRechartsComponents';
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Area,
+  Bar,
+  Pie,
+  Cell
+} from '@/components/ui/charts/RechartsPrimitives';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 
@@ -287,7 +297,7 @@ export const EngagementChart: React.FC<EngagementChartProps> = ({
                   border: '1px solid #E5E7EB',
                   borderRadius: '8px'
                 }}
-                formatter={(value: ValueType, name: NameType, item) => {
+                formatter={(value: ValueType, name: NameType, item: { payload?: { unit: string; metric: string } }) => {
                   const payload = item.payload as { unit: string; metric: string };
                   return [`${Number(value).toFixed(1)}${payload.unit}`, payload.metric];
                 }}

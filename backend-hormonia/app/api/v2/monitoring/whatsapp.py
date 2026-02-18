@@ -14,6 +14,7 @@ from app.integrations.whatsapp.metrics import whatsapp_metrics
 from app.integrations.whatsapp.queue.manager import QueueManager
 from app.integrations.whatsapp.queue.dlq import DLQHandler
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 
@@ -50,7 +51,7 @@ async def get_queue_stats(
         status = await manager.get_queue_status(instance_name)
         return {
             "queue": status.model_dump(),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
     finally:
         await manager.disconnect()
@@ -66,5 +67,5 @@ async def get_dlq_stats(
     metrics = await handler.get_dlq_metrics(days_back=days_back)
     return {
         "dlq": metrics,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now_sao_paulo().isoformat(),
     }

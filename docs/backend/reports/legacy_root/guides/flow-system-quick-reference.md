@@ -36,7 +36,7 @@ Message status updated: SCHEDULED → SENT → DELIVERED
 | Task | Schedule | Purpose | Key Code |
 |------|----------|---------|----------|
 | `process-daily-flows` | Every hour | Process active flows, schedule messages | `app/tasks/flows/flow_tasks.py` |
-| `send-daily-reminders` | 9 AM UTC daily | Send quiz reminders | `app/tasks/flow_automation.py` |
+| `send-daily-reminders` | 9 AM Sao Paulo daily | Send quiz reminders | `app/tasks/flow_automation.py` |
 | `check-pending-flows` | Every 15 min | Auto-enroll new patients | `app/tasks/flow_automation.py` |
 | `resume-paused-flows` | Every 6 hours | Resume paused flows | `app/tasks/flow_automation.py` |
 | `cleanup-expired-quiz-links` | Daily 2 AM | Mark expired sessions | `app/tasks/flow_automation.py` |
@@ -128,7 +128,7 @@ beat_schedule = {
         "kwargs": {"limit": 100},
     },
     "send-daily-reminders": {
-        "schedule": crontab(hour=9, minute=0),  # 9 AM UTC
+        "schedule": crontab(hour=9, minute=0),  # 9 AM Sao Paulo
     },
     ...
 }
@@ -203,15 +203,15 @@ Patient preferred_message_hour = 10 (10 AM in patient's timezone)
 calculate_optimal_send_time():
   1. Get patient.timezone (e.g., "America/Sao_Paulo")
   2. Calculate: 10 AM in that timezone
-  3. Convert to UTC for scheduling
+  3. Convert to Sao Paulo for scheduling
   4. Add randomization: ±30 minutes
   5. Store in message.scheduled_for
 
 Example:
   Patient: timezone="America/Sao_Paulo", preferred_hour=10
-  Current time: 2025-12-22 14:00 UTC (11:00 AM in São Paulo)
-  Scheduled: 2025-12-22 13:00 UTC (10:00 AM in São Paulo) ± 30 min
-  → Actually schedules for 12:30-13:30 UTC
+  Current time: 2025-12-22 14:00 Sao Paulo (11:00 AM in São Paulo)
+  Scheduled: 2025-12-22 13:00 Sao Paulo (10:00 AM in São Paulo) ± 30 min
+  → Actually schedules for 12:30-13:30 Sao Paulo
 ```
 
 ## Message Status Flow

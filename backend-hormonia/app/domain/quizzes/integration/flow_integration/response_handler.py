@@ -17,15 +17,16 @@ from app.services.quiz import (
     QuizResponseService,
     QuizTemplateService,
 )
-from app.domain.messaging.delivery import MessageSender
+from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSender
 from app.domain.messaging.core import MessageFactory
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
 from app.schemas.quiz import QuizResponseCreate, QuestionType
-from app.integrations.gemini_client import get_gemini_client
+from app.ai.client import get_gemini_client
 from app.domain.analytics.quiz import get_quiz_metrics_collector
 
 from .enums import QuizFlowState
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +39,21 @@ class ConversationalQuizService:
         self.quiz_session_service = QuizSessionService(db)
         self.quiz_response_service = QuizResponseService(db)
         self.quiz_template_service = QuizTemplateService(db)
-        self.message_sender = MessageSender(db)
+        self.message_sender = IdempotentMessageSender(db)
         self.flow_repo = FlowStateRepository(db)
         self.patient_repo = PatientRepository(db)
         self.message_factory = MessageFactory(db)
+
+    @staticmethod
+    def _resolve_option_value(option: Any) -> str:
+        """Resolve option value safely, even when 'value' key is missing."""
+        if isinstance(option, dict):
+            raw_value = option.get("value")
+            if raw_value is None:
+                raw_value = option.get("text") or option.get("label")
+            return str(raw_value).strip() if raw_value is not None else ""
+
+        return str(option).strip() if option is not None else ""
 
     async def process_quiz_response(
         self,
@@ -72,7 +84,7 @@ class ConversationalQuizService:
                 }
 
             # Get quiz template
-            template = self.quiz_template_service.get_template(
+            template = await self.quiz_template_service.get_template(
                 active_session.quiz_template_id
             )
             questions = template.questions
@@ -107,6 +119,7 @@ class ConversationalQuizService:
             response_data = QuizResponseCreate(
                 patient_id=patient_id,
                 quiz_template_id=active_session.quiz_template_id,
+                quiz_session_id=active_session.id,
                 question_id=current_question["id"],
                 question_text=current_question["text"],
                 response_type=current_question["type"],
@@ -117,10 +130,10 @@ class ConversationalQuizService:
                     "session_id": str(active_session.id),
                     "question_index": active_session.current_question_index,
                 },
-                responded_at=datetime.now(timezone.utc),
+                responded_at=now_sao_paulo(),
             )
 
-            await self.quiz_response_service.create_response(response_data)
+            self.quiz_response_service.create_response(response_data)
 
             # Record response latency metric
             try:
@@ -132,7 +145,7 @@ class ConversationalQuizService:
                         question_sent_at = datetime.fromisoformat(question_sent_at)
 
                     response_latency = (
-                        datetime.now(timezone.utc) - question_sent_at
+                        now_sao_paulo() - question_sent_at
                     ).total_seconds()
 
                     metrics = await get_quiz_metrics_collector()
@@ -157,20 +170,27 @@ class ConversationalQuizService:
                 }
             else:
                 # Advance to next question
-                self.quiz_session_service.advance_session(active_session.id)
+                advanced_session = self.quiz_session_service.advance_session(
+                    active_session.id
+                )
+                next_question_index = (
+                    advanced_session.current_question_index
+                    if advanced_session
+                    else active_session.current_question_index + 1
+                )
 
                 # Send next question
                 await self._send_next_question(
                     patient_id,
                     active_session,
                     questions,
-                    active_session.current_question_index + 1,
+                    next_question_index,
                 )
 
                 return {
                     "success": True,
                     "action": "next_question",
-                    "question_index": active_session.current_question_index + 1,
+                    "question_index": next_question_index,
                 }
 
         except Exception as e:
@@ -183,6 +203,10 @@ class ConversationalQuizService:
         """Process and validate question response."""
         try:
             question_type = question["type"]
+            if question_type == QuestionType.SINGLE_CHOICE.value:
+                question_type = QuestionType.MULTIPLE_CHOICE.value
+            elif question_type == "free_text":
+                question_type = QuestionType.OPEN_TEXT.value
             response_text = response_text.strip()
 
             if question_type == QuestionType.OPEN_TEXT.value:
@@ -225,13 +249,23 @@ class ConversationalQuizService:
 
                 # Direct text match
                 for option in options:
+                    if isinstance(option, dict):
+                        option_text = option.get("text") or option.get("label") or ""
+                    else:
+                        option_text = str(option)
+
+                    if not option_text:
+                        continue
                     if (
-                        response_text.lower() in option["text"].lower()
-                        or option["text"].lower() in response_text.lower()
+                        response_text.lower() in option_text.lower()
+                        or option_text.lower() in response_text.lower()
                     ):
+                        option_value = self._resolve_option_value(option)
+                        if not option_value:
+                            continue
                         return {
                             "valid": True,
-                            "value": option["value"],
+                            "value": option_value,
                             "type": "multiple_choice",
                         }
 
@@ -249,7 +283,14 @@ class ConversationalQuizService:
                     }
 
                 # Show options again
-                options_text = "\n".join([f"• {opt['text']}" for opt in options])
+                options_text = "\n".join(
+                    [
+                        f"• {opt.get('text') or opt.get('label') or self._resolve_option_value(opt)}"
+                        if isinstance(opt, dict)
+                        else f"• {self._resolve_option_value(opt)}"
+                        for opt in options
+                    ]
+                )
                 return {
                     "valid": False,
                     "error": f"Por favor, escolha uma das opções:\n{options_text}",
@@ -322,9 +363,20 @@ class ConversationalQuizService:
         try:
             gemini_client = get_gemini_client()
 
-            options_text = "\n".join(
-                [f"- {opt['value']}: {opt['text']}" for opt in options]
-            )
+            option_values: List[str] = []
+            rendered_options: List[str] = []
+            for opt in options:
+                opt_value = self._resolve_option_value(opt)
+                if not opt_value:
+                    continue
+                option_values.append(opt_value)
+                if isinstance(opt, dict):
+                    opt_label = opt.get("text") or opt.get("label") or opt_value
+                else:
+                    opt_label = str(opt)
+                rendered_options.append(f"- {opt_value}: {opt_label}")
+
+            options_text = "\n".join(rendered_options)
 
             prompt = f"""
             Analise a resposta do paciente e determine qual opção ela melhor representa:
@@ -342,7 +394,6 @@ class ConversationalQuizService:
 
             if response and response.strip() != "INVALID":
                 # Validate that returned value exists in options
-                option_values = [opt["value"] for opt in options]
                 if response.strip() in option_values:
                     return response.strip()
 
@@ -411,7 +462,7 @@ class ConversationalQuizService:
         """Complete quiz session and send completion message."""
         try:
             # Complete the session
-            await self.quiz_session_service.complete_session(session.id)
+            self.quiz_session_service.complete_session(session.id)
 
             # Schedule report generation
             from app.tasks.flows import generate_quiz_report
@@ -428,7 +479,7 @@ class ConversationalQuizService:
                 ) == str(session.id):
                     flow_state.state_data["quiz_state"] = QuizFlowState.COMPLETED.value
                     flow_state.state_data["quiz_completed_at"] = (
-                        datetime.now(timezone.utc).isoformat()
+                        now_sao_paulo().isoformat()
                     )
 
                     # Get delivery method from flow state
@@ -488,7 +539,7 @@ class ConversationalQuizService:
                 ) == str(active_session.id):
                     flow_state.state_data["quiz_state"] = QuizFlowState.PAUSED.value
                     flow_state.state_data["quiz_paused_at"] = (
-                        datetime.now(timezone.utc).isoformat()
+                        now_sao_paulo().isoformat()
                     )
                     break
 
@@ -541,7 +592,7 @@ class ConversationalQuizService:
                             QuizFlowState.IN_PROGRESS.value
                         )
                         flow_state.state_data["quiz_resumed_at"] = (
-                            datetime.now(timezone.utc).isoformat()
+                            now_sao_paulo().isoformat()
                         )
                     break
 
@@ -551,7 +602,7 @@ class ConversationalQuizService:
             self.db.commit()
 
             # Get current question and send it
-            template = self.quiz_template_service.get_template(
+            template = await self.quiz_template_service.get_template(
                 active_session.quiz_template_id
             )
             questions = template.questions

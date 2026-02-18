@@ -6,6 +6,7 @@ import { MessageForm } from '../components/MessageForm'
 import { StatusBadge } from '../components/StatusBadge'
 import { useMessageForm } from '../hooks/useMessageForm'
 import { useWhatsAppMessages } from '../hooks/useWhatsAppMessages'
+import type { WhatsAppMessage } from '../types'
 
 interface MessagesTabProps {
   selectedInstance: string
@@ -57,7 +58,7 @@ export function MessagesTab({ selectedInstance }: MessagesTabProps) {
                 No messages found
               </div>
             ) : (
-              recentMessages.map((message) => (
+              recentMessages.map((message: WhatsAppMessage) => (
                 <div key={message.id} className="border rounded p-3">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">

@@ -11,19 +11,14 @@ from typing import Dict, List, Optional
 from celery import Celery
 from redis import Redis
 from app.tasks.celery_metrics import update_queue_length
-from app.core.redis_client import get_redis_client
+from app.core.redis_manager import get_sync_redis_client as get_redis_client
+from app.utils.async_helpers import run_async
 
 logger = logging.getLogger(__name__)
 
 # Default queues to monitor
 DEFAULT_QUEUES = [
     "celery",  # Default queue
-    "high_priority",  # High priority tasks
-    "low_priority",  # Low priority tasks
-    "quiz_flow",  # Quiz workflow tasks
-    "alerts",  # Alert processing
-    "whatsapp",  # WhatsApp message sending
-    "reports",  # Report generation
 ]
 
 
@@ -67,7 +62,7 @@ class QueueMonitor:
         try:
             # Celery uses Redis lists with specific key format
             queue_key = f"celery:queue:{queue_name}"
-            length = await self.redis_client.llen(queue_key)
+            length = await asyncio.to_thread(self.redis_client.llen, queue_key)
             return length or 0
 
         except Exception as e:
@@ -217,15 +212,7 @@ def monitor_queue_lengths_sync(celery_app: Celery):
         celery_app: Celery application instance
     """
     try:
-        # Create event loop if needed
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        # Run async task
-        loop.run_until_complete(monitor_queue_lengths_task(celery_app))
+        run_async(monitor_queue_lengths_task(celery_app))
 
     except Exception as e:
         logger.error(f"Error in sync queue monitor: {e}", exc_info=True)
@@ -267,4 +254,5 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    asyncio.run(run_queue_monitor_service(celery_app))
+    # Long timeout keeps the service effectively unbounded while using shared async helper.
+    run_async(run_queue_monitor_service(celery_app), timeout=2_147_483_647)

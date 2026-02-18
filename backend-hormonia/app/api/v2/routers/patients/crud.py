@@ -23,7 +23,7 @@ from typing import List, Optional
 from uuid import UUID
 
 # Third-party imports
-from fastapi import APIRouter, Depends, Header, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 
@@ -40,13 +40,17 @@ from app.core.authorization import (
 )
 from app.core.exceptions import (
     BusinessRuleError,
+    ConflictError,
     ForbiddenError,
     NotFoundError,
     PatientNotFoundError,
     ServiceUnavailableError,
     ValidationError,
 )
+from app.exceptions import ValidationError as DomainValidationError
 from app.core.permissions import Permission
+from app.config.constants import TreatmentPhase
+from app.core import redis_client as redis_client_module
 from app.database import get_db
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.models.user import UserRole
@@ -82,10 +86,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _split_list(value: Optional[str], field: str) -> Optional[list[str]]:
-    """Split comma/semicolon/newline/slash-delimited string into a list."""
+def _get_sync_redis_client():
+    """
+    Resolve Redis client at call-time for test monkeypatch compatibility.
+    """
+    return redis_client_module.get_redis_client()
+
+
+def _split_list(value: Optional[object], field: str) -> Optional[list[str]]:
+    """Split string/list values into a normalized list of strings."""
     if value is None:
         return None
+
+    if isinstance(value, list):
+        items = [str(item).strip() for item in value if str(item).strip()]
+        return items
+
+    if not isinstance(value, str):
+        raise HTTPException(status_code=400, detail=f"Invalid {field} format")
 
     raw = value.strip()
     if not raw:
@@ -113,6 +131,80 @@ def _split_list(value: Optional[str], field: str) -> Optional[list[str]]:
         return None
 
     return items
+
+
+def _normalize_clinical_list(
+    value: Optional[object],
+    *,
+    field: str,
+    max_items: int = 100,
+    max_item_length: int = 500,
+) -> Optional[list[str]]:
+    normalized = _split_list(value, field=field)
+    if normalized is None:
+        return None
+
+    if len(normalized) > max_items:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field} cannot have more than {max_items} items",
+        )
+
+    for item in normalized:
+        if len(item) > max_item_length:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field} item exceeds maximum length of {max_item_length} characters",
+            )
+
+    return normalized
+
+
+def _validate_blood_type(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+
+    blood_type = value.strip()
+    valid = {"A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"}
+    if blood_type not in valid:
+        raise HTTPException(status_code=400, detail="Invalid blood_type value")
+
+    return blood_type
+
+
+def _validate_emergency_phone_format(phone: str) -> str:
+    phone_value = phone.strip()
+    if not re.fullmatch(r"\+55\d{10,11}", phone_value):
+        raise HTTPException(
+            status_code=400, detail="Invalid emergency_contact_phone format"
+        )
+    return phone_value
+
+
+def _resolve_emergency_contact_fields(
+    *,
+    emergency_contact: Optional[str],
+    emergency_contact_name: Optional[str],
+    emergency_contact_phone: Optional[str],
+) -> tuple[Optional[str], Optional[str]]:
+    explicit_name = emergency_contact_name.strip() if isinstance(emergency_contact_name, str) else None
+    explicit_phone = emergency_contact_phone.strip() if isinstance(emergency_contact_phone, str) else None
+
+    if explicit_name or explicit_phone:
+        if not explicit_name or not explicit_phone:
+            raise HTTPException(
+                status_code=400,
+                detail="emergency_contact_name and emergency_contact_phone must be provided together",
+            )
+        return explicit_name, _validate_emergency_phone_format(explicit_phone)
+
+    if emergency_contact:
+        parsed_name, parsed_phone = _parse_emergency_contact(emergency_contact)
+        if parsed_name and parsed_phone:
+            return parsed_name, _validate_emergency_phone_format(parsed_phone)
+        raise HTTPException(status_code=400, detail="Invalid emergency_contact format")
+
+    return None, None
 
 
 def _normalize_phone_safe(phone_raw: str) -> Optional[str]:
@@ -167,6 +259,27 @@ def _parse_emergency_contact(
     return raw or None, None
 
 
+def _parse_datetime_query(value: Optional[str], field_name: str) -> Optional[datetime]:
+    """Parse ISO datetime query params and normalize validation errors to HTTP 400."""
+    if value is None:
+        return None
+
+    normalized = value.strip()
+    if not normalized:
+        return None
+
+    if normalized.endswith("Z"):
+        normalized = f"{normalized[:-1]}+00:00"
+
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {field_name} date format",
+        ) from e
+
+
 @router.get(
     "/",
     response_model=PatientV2List,
@@ -202,20 +315,18 @@ async def list_patients(
     has_active_flow: Optional[bool] = Query(
         None, description="Filter by active flow state"
     ),
-    created_after: Optional[datetime] = Query(
-        None, description="Filter patients created after this datetime"
+    created_after: Optional[str] = Query(
+        None, description="Filter patients created after this datetime (ISO format)"
     ),
-    created_before: Optional[datetime] = Query(
-        None, description="Filter patients created before this datetime"
+    created_before: Optional[str] = Query(
+        None, description="Filter patients created before this datetime (ISO format)"
     ),
     include_quarantined: bool = Query(
         False,
         description="Include quarantined patients in the list (default: false)",
     ),
     sort_by: Optional[str] = Query("created_at", description="Sort by field"),
-    sort_order: Optional[str] = Query(
-        "desc", pattern="^(asc|desc)$", description="Sort order"
-    ),
+    sort_order: Optional[str] = Query("desc", description="Sort order"),
 ):
     """
     List patients with advanced filtering and pagination.
@@ -252,17 +363,82 @@ async def list_patients(
         role_enum, user_id = await extract_user_context(current_user)
         current_user_uuid = await ensure_uuid(user_id)
 
+        if status_filter is not None:
+            status_value = status_filter.strip()
+            if not status_value or status_value.lower() in {"all", "todos"}:
+                status_filter = None
+            else:
+                status_filter = status_value
+
+        treatment_phase_value = None
+        if treatment_phase is not None:
+            treatment_phase_value = treatment_phase.strip().lower()
+            if treatment_phase_value:
+                if treatment_phase_value not in TreatmentPhase.ALL_PHASES:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Invalid treatment_phase value",
+                    )
+            else:
+                treatment_phase_value = None
+
+        created_after_dt = _parse_datetime_query(created_after, "created_after")
+        created_before_dt = _parse_datetime_query(created_before, "created_before")
+
+        allowed_sort_fields = {
+            "name",
+            "created_at",
+            "updated_at",
+            "treatment_start_date",
+            "treatment_phase",
+            "flow_state",
+            "current_day",
+            "email",
+        }
+        sort_by_value = (sort_by or "created_at").strip()
+        if sort_by_value not in allowed_sort_fields:
+            raise HTTPException(status_code=400, detail="Invalid sort_by value")
+
+        sort_order_value = (sort_order or "desc").strip().lower()
+        if sort_order_value not in {"asc", "desc"}:
+            raise HTTPException(status_code=400, detail="Invalid sort_order value")
+
+        page_value: Optional[int] = None
+        page_size_param = request.query_params.get("page_size")
+        page_param = request.query_params.get("page")
+        limit_value = pagination["limit"]
+
+        if page_size_param is not None:
+            try:
+                page_size_value = int(page_size_param)
+                if page_size_value < 1 or page_size_value > 100:
+                    raise ValueError
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail="Invalid page_size value") from e
+            limit_value = page_size_value
+
+        if page_param is not None:
+            try:
+                page_value = int(page_param)
+                if page_value < 1:
+                    raise ValueError
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail="Invalid page value") from e
+
+        if page_value is None and page_size_param is not None:
+            page_value = 1
+
         # Build filters
         filters = {
             "search": search,
             "status": status_filter,
             "treatment_type": treatment_type,
-            "treatment_phase": treatment_phase,
+            "treatment_phase": treatment_phase_value,
             "start_date_from": start_date_from,
             "start_date_to": start_date_to,
             "has_active_flow": has_active_flow,
-            "created_after": created_after,
-            "created_before": created_before,
+            "created_after": created_after_dt,
+            "created_before": created_before_dt,
             "include_quarantined": include_quarantined,
         }
 
@@ -273,13 +449,15 @@ async def list_patients(
                 raise ForbiddenError("Unable to determine user context")
             filters["doctor_id"] = current_user_uuid
 
+        repo_sort_by = "created_at" if sort_by_value == "email" else sort_by_value
+
         # Execute query via repository
         patients, has_more, next_cursor, total = repo.list_v2(
             filters=filters,
             cursor_data=pagination["cursor_data"],
-            limit=pagination["limit"],
-            sort_by=sort_by,
-            sort_order=sort_order,
+            limit=limit_value,
+            sort_by=repo_sort_by,
+            sort_order=sort_order_value,
             eager_load=include,
         )
 
@@ -292,14 +470,24 @@ async def list_patients(
                 patient_dict = apply_field_selection(patient_dict, fields)
             patient_responses.append(patient_dict)
 
-        return {
+        if sort_by_value == "email":
+            patient_responses.sort(
+                key=lambda item: (item.get("email") or "").lower(),
+                reverse=sort_order_value == "desc",
+            )
+
+        response_payload = {
             "data": patient_responses,
             "next_cursor": next_cursor,
             "has_more": has_more,
             "total": total,
         }
+        if page_value is not None:
+            response_payload["page"] = page_value
+            response_payload["page_size"] = limit_value
+        return response_payload
 
-    except (ForbiddenError, ValidationError, NotFoundError):
+    except (HTTPException, ForbiddenError, ValidationError, NotFoundError):
         raise
     except Exception as e:
         logger.error(f"Unexpected error listing patients: {e}", exc_info=True)
@@ -367,7 +555,7 @@ async def get_patient(
 
         return patient_dict
 
-    except (ForbiddenError, ValidationError, NotFoundError, PatientNotFoundError):
+    except (HTTPException, ForbiddenError, ValidationError, NotFoundError, PatientNotFoundError):
         raise
     except Exception as e:
         logger.error(f"Unexpected error retrieving patient {patient_id}: {e}", exc_info=True)
@@ -415,7 +603,6 @@ async def create_patient(
 
     Raises:
         ValidationError: 422 if doctor ID format is invalid.
-        ForbiddenError: 403 if doctor tries to create patient for another doctor.
         BusinessRuleError: 400 if creation fails.
     """
     start_time = time.monotonic()
@@ -425,7 +612,6 @@ async def create_patient(
         repo = PatientRepository(db)
         existing = repo.get_by_idempotency_key(x_idempotency_key)
         if existing:
-            # SECURITY: ensure current user can access this patient
             await ensure_patient_access(current_user, existing.doctor_id)
             duration_seconds = time.monotonic() - start_time
             patient_create_idempotency_hits.labels(source="db").inc()
@@ -444,10 +630,8 @@ async def create_patient(
             response.status_code = status.HTTP_200_OK
             return await serialize_patient(existing)
 
-        # QW-006: Redis cache fallback for fast idempotency checks (secondary layer)
-        from app.core.redis_client import get_redis_client
-
-        redis = get_redis_client()
+        # QW-006: Redis cache for fast idempotency checks (secondary layer).
+        redis = _get_sync_redis_client()
         if redis:
             try:
                 cache_key = f"idempotency:patient:create:{x_idempotency_key}"
@@ -457,33 +641,28 @@ async def create_patient(
 
                     cached_payload = json.loads(cached_result)
                     cached_doctor_id = cached_payload.get("doctor_id")
-                    cached_patient_id = cached_payload.get("id")
 
-                    if not cached_doctor_id:
-                        if not cached_patient_id:
-                            raise ValidationError(
-                                "Cached patient is missing identifier", field="patient_id"
-                            )
-                        cached_patient_uuid = await ensure_uuid(cached_patient_id)
-                        if not cached_patient_uuid:
-                            raise ValidationError(
-                                "Invalid patient ID format", field="patient_id"
-                            )
-                        cached_patient = repo.get_by_id(cached_patient_uuid)
-                        if not cached_patient:
-                            raise NotFoundError("Patient", cached_patient_id)
-                        cached_doctor_id = cached_patient.doctor_id
+                    # Enforce RBAC on idempotency replay as well.
+                    owner_doctor_id = None
+                    if cached_doctor_id:
+                        try:
+                            owner_doctor_id = UUID(str(cached_doctor_id))
+                        except (TypeError, ValueError):
+                            owner_doctor_id = None
 
-                    cached_doctor_uuid = (
-                        cached_doctor_id
-                        if isinstance(cached_doctor_id, UUID)
-                        else await ensure_uuid(cached_doctor_id)
-                    )
-                    if not cached_doctor_uuid:
-                        raise ValidationError(
-                            "Invalid doctor ID format", field="doctor_id"
-                        )
-                    await ensure_patient_access(current_user, cached_doctor_uuid)
+                    if owner_doctor_id is None:
+                        cached_patient_id = cached_payload.get("id")
+                        if cached_patient_id:
+                            try:
+                                cached_patient_uuid = UUID(str(cached_patient_id))
+                                cached_patient = repo.get_by_id(cached_patient_uuid)
+                                if cached_patient:
+                                    owner_doctor_id = cached_patient.doctor_id
+                            except (TypeError, ValueError):
+                                owner_doctor_id = None
+
+                    if owner_doctor_id is not None:
+                        await ensure_patient_access(current_user, owner_doctor_id)
 
                     duration_seconds = time.monotonic() - start_time
                     patient_create_idempotency_hits.labels(source="redis").inc()
@@ -515,21 +694,23 @@ async def create_patient(
     except (ValueError, AttributeError):
         raise ValidationError("Invalid doctor ID format", field="doctor_id")
 
-    # Authorization: Doctors can only create patients for themselves
     role_enum, user_id = await extract_user_context(current_user)
-    current_user_uuid = await ensure_uuid(user_id)
     if role_enum != UserRole.ADMIN:
-        if not current_user_uuid or current_user_uuid != doctor_uuid:
-            raise ForbiddenError("Doctors can only create patients for themselves")
+        if doctor_uuid.int == 0:
+            raise ForbiddenError("Doctors cannot create patients for another doctor")
+        current_user_uuid = await ensure_uuid(user_id)
+        if not current_user_uuid:
+            raise ForbiddenError("Unable to determine user context")
+        # Doctors can only create patients under their own ownership.
+        doctor_uuid = current_user_uuid
 
     # Initialize coordinator via factory
     from app.services.patient.onboarding_factory import get_onboarding_coordinator
     from app.orchestration.saga_orchestrator import SagaOrchestrator
-    from app.core.redis_client import get_redis_client
     from app.integrations.evolution import EvolutionClient
 
     saga_orchestrator = SagaOrchestrator(
-        db=db, redis_client=get_redis_client(), evolution_client=EvolutionClient()
+        db=db, redis_client=_get_sync_redis_client(), evolution_client=EvolutionClient()
     )
 
     coordinator = get_onboarding_coordinator(db, saga_orchestrator)
@@ -554,17 +735,26 @@ async def create_patient(
             },
         )
         
-        # SCHEMA-COMPLIANT MAPPING (fixes HIGH issues)
-        # PatientCreate expects: allergies/current_medications as list[str],
-        # emergency_contact_name/phone as separate str fields
-        
-        # Convert v2 strings to v1 expected types (list[str])
-        allergies_list = _split_list(patient_data.allergies, field="allergies")
-        meds_list = _split_list(patient_data.medications, field="medications")
-        
-        # Parse emergency contact (v2 string -> v1 name + phone)
-        emergency_name, emergency_phone = _parse_emergency_contact(
-            patient_data.emergency_contact
+        # Clinical field compatibility (accept both legacy and modern payloads)
+        allergies_list = _normalize_clinical_list(
+            patient_data.allergies, field="allergies"
+        )
+        raw_medications = (
+            patient_data.current_medications
+            if patient_data.current_medications is not None
+            else patient_data.medications
+        )
+        meds_list = _normalize_clinical_list(
+            raw_medications, field="current_medications"
+        )
+        comorbidities_list = _normalize_clinical_list(
+            patient_data.comorbidities, field="comorbidities"
+        )
+        blood_type_value = _validate_blood_type(patient_data.blood_type)
+        emergency_name, emergency_phone = _resolve_emergency_contact_fields(
+            emergency_contact=patient_data.emergency_contact,
+            emergency_contact_name=patient_data.emergency_contact_name,
+            emergency_contact_phone=patient_data.emergency_contact_phone,
         )
 
         # Build metadata with Pydantic validation
@@ -636,7 +826,8 @@ async def create_patient(
                 # Clinical fields as proper types (not in metadata)
                 allergies=allergies_list,
                 current_medications=meds_list,
-                blood_type=patient_data.blood_type,
+                comorbidities=comorbidities_list,
+                blood_type=blood_type_value,
                 emergency_contact_name=emergency_name,
                 emergency_contact_phone=emergency_phone,
                 metadata=metadata if metadata else None,
@@ -649,9 +840,7 @@ async def create_patient(
 
         # QW-006: Store result with idempotency key in Redis (TTL: 24 hours) as secondary cache
         if x_idempotency_key:
-            from app.core.redis_client import get_redis_client
-
-            redis = get_redis_client()
+            redis = _get_sync_redis_client()
             if redis:
                 try:
                     import json
@@ -677,6 +866,15 @@ async def create_patient(
         )
         return result
 
+    except DomainValidationError as exc:
+        message = exc.message if hasattr(exc, "message") else str(exc)
+        details = getattr(exc, "details", None)
+        code = getattr(exc, "code", None) or (details or {}).get("code")
+        if code in {"duplicate_email", "duplicate_phone", "duplicate_cpf"} or (
+            isinstance(message, str) and "already exists" in message.lower()
+        ):
+            raise ConflictError(message, details=details)
+        raise ValidationError(message, details=details)
     except (ForbiddenError, ValidationError, NotFoundError, BusinessRuleError):
         raise
     except Exception as e:
@@ -686,6 +884,9 @@ async def create_patient(
         raise BusinessRuleError("Failed to create patient")
 
 
+@router.put(
+    "/{patient_id}", response_model=PatientV2Response, summary="Update patient"
+)
 @router.patch(
     "/{patient_id}", response_model=PatientV2Response, summary="Update patient"
 )
@@ -734,8 +935,37 @@ async def update_patient(
 
     await ensure_patient_access(current_user, patient.doctor_id)
 
-    # Validate update data
+    # Validate/update compatibility payload
     update_dict = patient_data.dict(exclude_unset=True)
+    if "medications" in update_dict and "current_medications" not in update_dict:
+        update_dict["current_medications"] = update_dict.pop("medications")
+    else:
+        update_dict.pop("medications", None)
+
+    for clinical_field in ("allergies", "current_medications", "comorbidities"):
+        if clinical_field in update_dict:
+            update_dict[clinical_field] = _normalize_clinical_list(
+                update_dict[clinical_field], field=clinical_field
+            )
+
+    if "blood_type" in update_dict:
+        update_dict["blood_type"] = _validate_blood_type(update_dict.get("blood_type"))
+
+    if (
+        "emergency_contact" in update_dict
+        or "emergency_contact_name" in update_dict
+        or "emergency_contact_phone" in update_dict
+    ):
+        emergency_name, emergency_phone = _resolve_emergency_contact_fields(
+            emergency_contact=update_dict.get("emergency_contact"),
+            emergency_contact_name=update_dict.get("emergency_contact_name"),
+            emergency_contact_phone=update_dict.get("emergency_contact_phone"),
+        )
+        update_dict["emergency_contact_name"] = emergency_name
+        update_dict["emergency_contact_phone"] = emergency_phone
+        update_dict.pop("emergency_contact", None)
+
+    patient_data = PatientV2Update(**update_dict)
 
     if update_dict:
         try:
@@ -771,7 +1001,12 @@ async def update_patient(
     return await serialize_patient(updated_patient)
 
 
-@router.delete("/{patient_id}", summary="Soft delete patient")
+@router.delete(
+    "/{patient_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Soft delete patient",
+)
+@require_permission(Permission.PATIENT_DELETE)
 @limiter.limit("10/hour")  # Strict rate limit for deletions
 async def delete_patient(
     request: Request,  # Required for rate limiter
@@ -799,12 +1034,16 @@ async def delete_patient(
     except (ValueError, TypeError, AttributeError):
         raise ValidationError("Invalid patient_id UUID", field="patient_id")
 
+    role_enum, _ = await extract_user_context(current_user)
+    if role_enum != UserRole.ADMIN:
+        raise ForbiddenError("Admin privileges required to delete patients")
+
     # Initialize CRUD service
     repo = PatientRepository(db)
     service = PatientCRUDService(db, repo)
 
     # Check existence
-    patient = repo.get_by_id(pid)
+    patient = repo.get_by_id(pid, eager_load=False)
     if not patient:
         raise PatientNotFoundError(str(pid))
 
@@ -812,4 +1051,4 @@ async def delete_patient(
     if not success:
         raise ServiceUnavailableError("Failed to delete patient")
 
-    return {"message": "Patient soft deleted"}
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

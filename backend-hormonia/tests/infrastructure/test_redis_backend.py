@@ -12,6 +12,23 @@ from decimal import Decimal
 from uuid import uuid4, UUID
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
+
+
+class _AsyncIteratorMock:
+    def __init__(self, values):
+        self._iterator = iter(values)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return next(self._iterator)
+        except StopIteration:
+            raise StopAsyncIteration
+
+
 class TestRedisBackendInitialization:
     """Test RedisBackend initialization."""
 
@@ -77,7 +94,7 @@ class TestSerialization:
         """Test serializing datetime to JSON."""
         from app.infrastructure.cache.redis_backend import SerializationMethod
 
-        now = datetime.utcnow()
+        now = now_sao_paulo_naive()
         data = {"timestamp": now}
         result = backend.serialize_for_cache(data, SerializationMethod.JSON)
 
@@ -238,7 +255,7 @@ class TestLocalCache:
         # Set with negative TTL to make it expired
         backend._local_cache["test_key"] = {
             "data": "test_value",
-            "expires_at": datetime.utcnow() - timedelta(seconds=1)
+            "expires_at": now_sao_paulo_naive() - timedelta(seconds=1)
         }
 
         result = backend.get_from_local_cache("test_key")
@@ -388,21 +405,21 @@ class TestSyncRedisOperations:
         assert result is None
 
     def test_redis_keys_success(self, backend_with_mock_client):
-        """Test KEYS pattern matching."""
+        """Test SCAN pattern matching."""
         backend, mock_client = backend_with_mock_client
-        mock_client.keys.return_value = [b"key1", b"key2"]
+        mock_client.scan_iter.return_value = iter([b"key1", b"key2"])
 
         result = backend.redis_keys("test:*")
 
         assert result == [b"key1", b"key2"]
-        mock_client.keys.assert_called_once_with("test:*")
+        mock_client.scan_iter.assert_called_once_with(match="test:*")
 
 
 class TestAsyncRedisOperations:
     """Test asynchronous Redis operations."""
 
     @pytest.fixture
-    async def backend_with_mock_client(self):
+    def backend_with_mock_client(self):
         """Create RedisBackend with mock async client."""
         from app.infrastructure.cache.redis_backend import RedisBackend
 
@@ -417,7 +434,7 @@ class TestAsyncRedisOperations:
     @pytest.mark.asyncio
     async def test_redis_get_async_success(self, backend_with_mock_client):
         """Test successful async GET from Redis."""
-        backend, mock_client = await backend_with_mock_client
+        backend, mock_client = backend_with_mock_client
         mock_client.get.return_value = b"test_value"
 
         with patch.object(backend, 'get_async_redis_client', return_value=mock_client):
@@ -428,7 +445,7 @@ class TestAsyncRedisOperations:
     @pytest.mark.asyncio
     async def test_redis_set_async_success(self, backend_with_mock_client):
         """Test successful async SET to Redis."""
-        backend, mock_client = await backend_with_mock_client
+        backend, mock_client = backend_with_mock_client
         mock_client.set.return_value = True
 
         with patch.object(backend, 'get_async_redis_client', return_value=mock_client):
@@ -439,7 +456,7 @@ class TestAsyncRedisOperations:
     @pytest.mark.asyncio
     async def test_redis_delete_async_success(self, backend_with_mock_client):
         """Test successful async DELETE from Redis."""
-        backend, mock_client = await backend_with_mock_client
+        backend, mock_client = backend_with_mock_client
         mock_client.delete.return_value = 1
 
         with patch.object(backend, 'get_async_redis_client', return_value=mock_client):
@@ -450,7 +467,7 @@ class TestAsyncRedisOperations:
     @pytest.mark.asyncio
     async def test_redis_exists_async_true(self, backend_with_mock_client):
         """Test async EXISTS returns true."""
-        backend, mock_client = await backend_with_mock_client
+        backend, mock_client = backend_with_mock_client
         mock_client.exists.return_value = 1
 
         with patch.object(backend, 'get_async_redis_client', return_value=mock_client):
@@ -460,14 +477,15 @@ class TestAsyncRedisOperations:
 
     @pytest.mark.asyncio
     async def test_redis_keys_async_success(self, backend_with_mock_client):
-        """Test async KEYS pattern matching."""
-        backend, mock_client = await backend_with_mock_client
-        mock_client.keys.return_value = [b"key1", b"key2"]
+        """Test async SCAN pattern matching."""
+        backend, mock_client = backend_with_mock_client
+        mock_client.scan_iter.return_value = _AsyncIteratorMock([b"key1", b"key2"])
 
         with patch.object(backend, 'get_async_redis_client', return_value=mock_client):
             result = await backend.redis_keys_async("test:*")
 
         assert result == [b"key1", b"key2"]
+        mock_client.scan_iter.assert_called_once_with(match="test:*")
 
 
 class TestClientGetters:
@@ -480,7 +498,7 @@ class TestClientGetters:
 
         mock_client = AsyncMock()
 
-        with patch('app.infrastructure.cache.redis_backend.get_async_redis', return_value=mock_client):
+        with patch('app.infrastructure.cache.redis_backend.get_async_redis_client', return_value=mock_client):
             backend = RedisBackend()
             client = await backend.get_async_redis_client()
 
@@ -491,7 +509,7 @@ class TestClientGetters:
         """Test async client getter handles failure."""
         from app.infrastructure.cache.redis_backend import RedisBackend
 
-        with patch('app.infrastructure.cache.redis_backend.get_async_redis', side_effect=Exception("Connection failed")):
+        with patch('app.infrastructure.cache.redis_backend.get_async_redis_client', side_effect=Exception("Connection failed")):
             backend = RedisBackend()
             client = await backend.get_async_redis_client()
 
@@ -514,7 +532,7 @@ class TestClientGetters:
 
         mock_client = Mock()
 
-        with patch('app.infrastructure.cache.redis_backend.get_sync_redis', return_value=mock_client):
+        with patch('app.infrastructure.cache.redis_backend.get_sync_redis_client', return_value=mock_client):
             backend = RedisBackend()
             client = backend.get_sync_redis_client()
 
@@ -524,7 +542,7 @@ class TestClientGetters:
         """Test sync client getter handles failure."""
         from app.infrastructure.cache.redis_backend import RedisBackend
 
-        with patch('app.infrastructure.cache.redis_backend.get_sync_redis', side_effect=Exception("Connection failed")):
+        with patch('app.infrastructure.cache.redis_backend.get_sync_redis_client', side_effect=Exception("Connection failed")):
             backend = RedisBackend()
             client = backend.get_sync_redis_client()
 

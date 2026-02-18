@@ -373,7 +373,7 @@ async def list_patients(
 ### 19. **Missing Type Hints in Lambdas**
 **File:** `flow.py:384`
 ```python
-events.sort(key=lambda x: x["date"] if x["date"] else datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+events.sort(key=lambda x: x["date"] if x["date"] else datetime.min.replace(tzinfo=SAO_PAULO_TZ), reverse=True)
 ```
 **Solução:** Extrair para função nomeada com type hints
 

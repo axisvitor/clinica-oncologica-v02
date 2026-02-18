@@ -114,15 +114,17 @@ VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon-key>
 
 # Seguranca
-VITE_FORCE_HTTPS=true
-VITE_ENABLE_CSP=true
-VITE_SECURITY_HEADERS_ENABLED=true
-VITE_SESSION_TIMEOUT=3600000
+VITE_SECURITY_ENABLE_HTTPS=true
+VITE_SECURITY_ENABLE_CSP=true
+VITE_SECURITY_ENABLE_HEADERS=true
+VITE_SESSION_TIMEOUT_MS=3600000
 
 # AI Features
-VITE_AI_CHAT_ENABLED=true
-VITE_AI_ANALYTICS_ENABLED=true
-VITE_AI_INSIGHTS_ENABLED=true
+VITE_AI_ENABLE_CHAT=true
+VITE_AI_ENABLE_SUMMARY=true
+VITE_AI_ENABLE_ANALYTICS=true
+VITE_AI_ENABLE_INSIGHTS=false
+VITE_AI_ENABLE_RECOMMENDATIONS=true
 
 # Monitoramento
 VITE_SENTRY_DSN=<sentry-dsn>
@@ -261,8 +263,8 @@ CMD ["nginx", "-g", "daemon off;"]
 - [ ] Variaveis de ambiente configuradas
 - [ ] VITE_API_URL aponta para producao
 - [ ] Firebase credenciais configuradas
-- [ ] HTTPS forcado (VITE_FORCE_HTTPS=true)
-- [ ] CSP habilitado (VITE_ENABLE_CSP=true)
+- [ ] HTTPS forcado (VITE_SECURITY_ENABLE_HTTPS=true)
+- [ ] CSP habilitado (VITE_SECURITY_ENABLE_CSP=true)
 - [ ] Sem secrets hardcoded
 
 ### Build

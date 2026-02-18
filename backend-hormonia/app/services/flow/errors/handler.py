@@ -22,7 +22,6 @@ Migration Note:
 """
 
 from typing import Dict, Any, Optional, List, Callable, Tuple
-from datetime import datetime, timezone
 from enum import Enum
 import logging
 import asyncio
@@ -30,6 +29,14 @@ from uuid import UUID
 
 from ..types import FlowContext, FlowStatus
 from ..config import get_flow_config
+from app.utils.pii_redaction import (
+    mask_cpf,
+    mask_email,
+    mask_name,
+    mask_phone,
+    mask_pii_in_log_message,
+)
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +155,7 @@ class FlowError:
             recovery_strategy or self._determine_recovery_strategy()
         )
         self.metadata = metadata or {}
-        self.timestamp = datetime.now(timezone.utc)
+        self.timestamp = now_sao_paulo()
 
         # Error details
         self.error_type = type(error).__name__
@@ -218,6 +225,32 @@ class FlowErrorHandler:
         self.error_history: Dict[UUID, List[FlowError]] = {}
         self.circuit_breakers: Dict[str, Dict[str, Any]] = {}
         logger.info("FlowErrorHandler initialized")
+
+    def _sanitize_log_payload(
+        self, payload: Any, key_hint: Optional[str] = None
+    ) -> Any:
+        """Best-effort sanitization to prevent PII leakage in logs."""
+        key = (key_hint or "").lower()
+        if isinstance(payload, dict):
+            return {
+                k: self._sanitize_log_payload(v, key_hint=str(k))
+                for k, v in payload.items()
+            }
+        if isinstance(payload, list):
+            return [self._sanitize_log_payload(item, key_hint=key_hint) for item in payload]
+        if isinstance(payload, tuple):
+            return tuple(self._sanitize_log_payload(item, key_hint=key_hint) for item in payload)
+        if isinstance(payload, str):
+            if key in {"cpf", "document", "documento"}:
+                return mask_cpf(payload)
+            if key in {"phone", "phone_number", "telefone", "whatsapp"}:
+                return mask_phone(payload)
+            if key in {"email", "user_email"}:
+                return mask_email(payload)
+            if key in {"name", "patient_name", "full_name"}:
+                return mask_name(payload)
+            return mask_pii_in_log_message(payload)
+        return payload
 
     async def handle_error(
         self,
@@ -408,7 +441,7 @@ class FlowErrorHandler:
         logger.error("Cancelling flow due to unrecoverable error")
 
         flow_error.context.status = FlowStatus.FAILED
-        flow_error.context.completed_at = datetime.now(timezone.utc)
+        flow_error.context.completed_at = now_sao_paulo()
         flow_error.context.metadata["cancellation_reason"] = flow_error.error_message
 
         return False, None
@@ -493,7 +526,7 @@ class FlowErrorHandler:
 
     async def _log_error(self, flow_error: FlowError) -> None:
         """Log error with appropriate level."""
-        log_data = flow_error.to_dict()
+        log_data = self._sanitize_log_payload(flow_error.to_dict())
 
         if flow_error.severity == ErrorSeverity.CRITICAL:
             logger.critical(f"Critical flow error: {log_data}")
@@ -506,7 +539,10 @@ class FlowErrorHandler:
 
         # In production, would send to error tracking service (Sentry, etc.)
         if self.config.error_handling.log_detailed_errors:
-            logger.debug(f"Error details: {flow_error.error}")
+            logger.debug(
+                "Error details: %s",
+                self._sanitize_log_payload(str(flow_error.error)),
+            )
 
     def _add_to_history(self, flow_error: FlowError) -> None:
         """Add error to history."""
@@ -546,7 +582,10 @@ class FlowErrorHandler:
 
     async def _escalate_error(self, flow_error: FlowError) -> None:
         """Escalate error to administrators."""
-        logger.critical(f"Escalating error: {flow_error.to_dict()}")
+        logger.critical(
+            "Escalating error: %s",
+            self._sanitize_log_payload(flow_error.to_dict()),
+        )
 
         # In production, would:
         # - Send email to admins
@@ -572,7 +611,7 @@ class FlowErrorHandler:
             breaker["state"] = "closed"
         else:
             breaker["failures"] += 1
-            breaker["last_failure"] = datetime.now(timezone.utc)
+            breaker["last_failure"] = now_sao_paulo()
 
             # Open circuit breaker after N failures
             if breaker["failures"] >= 5:

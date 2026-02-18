@@ -231,7 +231,7 @@ process_daily_flows() Task
 | Task | Frequency | Purpose | File |
 |------|-----------|---------|------|
 | process-daily-flows | Every hour | Process active flows | flow_tasks.py |
-| send-daily-reminders | 9 AM UTC | Quiz reminders | flow_automation.py |
+| send-daily-reminders | 9 AM Sao Paulo | Quiz reminders | flow_automation.py |
 | check-pending-flows | Every 15 min | Auto-enroll patients | flow_automation.py |
 | resume-paused-flows | Every 6 hours | Resume paused flows | flow_automation.py |
 | cleanup-expired-links | Daily 2 AM | Mark expired quizzes | flow_automation.py |

@@ -10,12 +10,11 @@ from starlette.requests import Request
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
-from app.api.v2.routers.admin.dependencies import get_admin_user
 from app.dependencies.auth_dependencies import (
+    get_admin_user,
     get_current_user_from_session,
     get_permissions_for_role,
 )
-from app.dependencies import RequestContext
 from app.models.user import User, UserRole
 
 
@@ -90,6 +89,6 @@ async def test_session_doctor_cannot_access_admin_endpoint():
     )
 
     with pytest.raises(HTTPException) as exc_info:
-        await get_admin_user(current_user=doctor_user, context=RequestContext())
+        await get_admin_user(current_user=doctor_user)
 
     assert exc_info.value.status_code == 403

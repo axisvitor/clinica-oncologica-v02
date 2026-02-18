@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Optional, Any
 
 from app.models.flow import PatientFlowState
+from app.utils.constants import YES_PATTERNS, NO_PATTERNS
 
 from .models import (
     ResponseValidationResult,
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 class ResponseValidator:
     """Validates patient responses against expected contexts."""
 
-    def __init__(self, message_limit: int = 4096):
+    def __init__(self, message_limit: int = 4096, *, lenient_validation: bool = True):
         """
         Initialize response validator.
 
@@ -31,6 +32,7 @@ class ResponseValidator:
             message_limit: Maximum message length
         """
         self.message_limit = message_limit
+        self.lenient_validation = lenient_validation
 
     def _normalize_text(self, text: str) -> str:
         """Normalize text for validation comparisons."""
@@ -64,6 +66,10 @@ class ResponseValidator:
         cleaned = self._normalize_text(text)
         if not cleaned:
             return None
+        # Extract date-like substrings when text includes extra words.
+        date_match = re.search(r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b", cleaned)
+        if date_match:
+            cleaned = date_match.group(0)
         formats = formats or ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"]
         for fmt in formats:
             try:
@@ -167,13 +173,19 @@ class ResponseValidator:
                 ]:
                     if self._normalize_for_match(inbound_message.content) not in normalized_expected:
                         errors.append("Resposta nao corresponde as opcoes esperadas")
+                elif not self.lenient_validation:
+                    # Strict validation for text responses
+                    if self._normalize_for_match(inbound_message.content) not in normalized_expected:
+                        errors.append("Resposta nao corresponde as opcoes esperadas")
 
             expected_type = rules.get("expected_response_type")
             if expected_type:
                 expected_type_value = (
                     expected_type.value if hasattr(expected_type, "value") else str(expected_type)
                 )
-                if expected_type_value != response_type.value:
+                if expected_type_value != response_type.value and not (
+                    self.lenient_validation and response_type == ResponseType.TEXT
+                ):
                     errors.append(
                         f"Tipo de resposta incorreto: esperado {expected_type_value}"
                     )
@@ -194,13 +206,14 @@ class ResponseValidator:
                 format_key = str(expected_format).lower()
                 if format_key in ["yes_no", "sim_nao", "boolean"]:
                     cleaned = re.sub(r"[^\w\s]", "", normalized_content).casefold()
-                    if cleaned not in ["sim", "s", "yes", "y", "claro", "certo", "ok", "okay", "positivo"]:
-                        if cleaned not in ["nao", "n", "no", "negativo", "jamais", "nunca"]:
+                    if not re.search(YES_PATTERNS, cleaned) and not re.search(NO_PATTERNS, cleaned):
+                        if not self.lenient_validation:
                             errors.append("Formato invalido: esperado sim/nao")
                 elif format_key in ["number", "numeric", "float", "int", "integer"]:
                     parsed = self._parse_number(normalized_content)
                     if parsed is None:
-                        errors.append("Formato invalido: esperado numero")
+                        if not self.lenient_validation:
+                            errors.append("Formato invalido: esperado numero")
                     else:
                         min_value = rules.get("min_value")
                         max_value = rules.get("max_value")
@@ -211,7 +224,7 @@ class ResponseValidator:
                 elif format_key in ["date", "data"]:
                     date_formats = [rules.get("date_format")] if rules.get("date_format") else None
                     parsed_date = self._parse_date(normalized_content, date_formats)
-                    if parsed_date is None:
+                    if parsed_date is None and not self.lenient_validation:
                         errors.append("Formato invalido: esperado data")
                 elif format_key in ["range", "interval", "scale"]:
                     range_match = re.search(
@@ -219,7 +232,8 @@ class ResponseValidator:
                         normalized_content.casefold(),
                     )
                     if not range_match:
-                        errors.append("Formato invalido: esperado intervalo")
+                        if not self.lenient_validation:
+                            errors.append("Formato invalido: esperado intervalo")
                     else:
                         start_value = float(range_match.group(1).replace(",", "."))
                         end_value = float(range_match.group(2).replace(",", "."))
@@ -232,7 +246,7 @@ class ResponseValidator:
 
             response_regex = rules.get("response_regex")
             if response_regex and normalized_content:
-                if not re.search(response_regex, normalized_content):
+                if not re.search(response_regex, normalized_content) and not self.lenient_validation:
                     errors.append("Formato invalido para a resposta")
 
             is_valid = len(errors) == 0

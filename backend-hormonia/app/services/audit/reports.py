@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from app.models.audit_log import AuditLog
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,7 @@ class AuditReportsMixin:
 
         export_data = {
             "patient_id": str(patient_id),
-            "export_date": datetime.now(timezone.utc).isoformat(),
+            "export_date": now_sao_paulo().isoformat(),
             "total_logs": len(logs),
             "logs": [
                 {

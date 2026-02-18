@@ -13,8 +13,9 @@ from app.models.message_events import MessageStatusEvent
 from app.domain.messaging.core import MessageService
 import app.services.websocket_events as websocket_events_module
 from app.schemas.websocket import WebSocketEventType
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.utils.db_retry import with_db_retry
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -88,16 +89,51 @@ class StatusWebhookHandler:
             # FIX: Use atomic SET NX BEFORE database operation to prevent race conditions
             # Bug: Previous code used exists() which is read-only, allowing race condition
             # where two workers could both see key doesn't exist and process same status
-            redis_client = await get_async_redis()
+            redis_client = None
+            try:
+                redis_client = await get_async_redis()
+            except Exception as redis_error:
+                logger.error(
+                    "Redis unavailable for status webhook idempotency; "
+                    "falling back to DB-only processing",
+                    exc_info=True,
+                    extra={
+                        "instance": "status_webhook_handler",
+                        "error_type": type(redis_error).__name__,
+                    },
+                )
             idempotency_key = f"webhook:status:{whatsapp_id}:{status}"
 
-            # Atomic acquire: SET NX returns True only if key was set (first worker wins)
-            acquired = await redis_client.set(
-                idempotency_key,
-                "processing",
-                nx=True,  # Only set if key doesn't exist
-                ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
-            )
+            if not redis_client:
+                # DB-only fallback: check for existing status event
+                existing_event = (
+                    self.db.query(MessageStatusEvent)
+                    .filter(
+                        MessageStatusEvent.whatsapp_id == whatsapp_id,
+                        MessageStatusEvent.status == self._map_evolution_status(status).value,
+                    )
+                    .first()
+                )
+                if existing_event:
+                    logger.info(
+                        f"Duplicate status webhook detected (DB fallback): "
+                        f"{whatsapp_id} -> {status}"
+                    )
+                    if stored_event_id and webhook_store:
+                        await webhook_store.mark_processed(
+                            stored_event_id, True, "Duplicate status event (DB)"
+                        )
+                    return True
+                # Not a duplicate -- fall through to processing below
+                acquired = True
+            else:
+                # Atomic acquire: SET NX returns True only if key was set (first worker wins)
+                acquired = await redis_client.set(
+                    idempotency_key,
+                    "processing",
+                    nx=True,  # Only set if key doesn't exist
+                    ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
+                )
 
             if not acquired:
                 # Another worker is processing or already processed this status
@@ -131,7 +167,7 @@ class StatusWebhookHandler:
                     status=new_status.value,
                     previous_status=previous_status,
                     whatsapp_id=whatsapp_id,
-                    created_at=datetime.now(timezone.utc),
+                    created_at=now_sao_paulo(),
                     event_metadata={"source": "webhook", "event_type": "message.status"}
                 )
                 self.db.add(status_event)
@@ -139,25 +175,29 @@ class StatusWebhookHandler:
                 # Publish WebSocket event for status update
                 websocket_events = websocket_events_module.websocket_events
                 if websocket_events:
-                    await websocket_events.publish_message_event(
+                    await websocket_events.broadcast_message_event(
                         event_type=WebSocketEventType.MESSAGE_STATUS_UPDATED,
-                        message_id=message.id,
-                        patient_id=message.patient_id,
-                        direction=message.direction.value,
-                        message_type=message.type.value,
-                        status=message.status.value,
-                        metadata={"whatsapp_id": whatsapp_id},
+                        message_data={
+                            "message_id": message.id,
+                            "patient_id": message.patient_id,
+                            "direction": message.direction.value,
+                            "type": message.type.value,
+                            "status": message.status.value,
+                            "whatsapp_id": whatsapp_id,
+                            "metadata": {"whatsapp_id": whatsapp_id},
+                        },
                     )
 
                 logger.info(f"Updated message {message.id} status to {status}")
 
                 # FIX: Update Redis key to mark as "completed" (key already exists from SET NX)
                 # This is informational - the lock was already acquired above
-                await redis_client.set(
-                    idempotency_key,
-                    "completed",
-                    ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
-                )
+                if redis_client:
+                    await redis_client.set(
+                        idempotency_key,
+                        "completed",
+                        ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
+                    )
 
                 if stored_event_id and webhook_store:
                     await webhook_store.mark_processed(stored_event_id, True)

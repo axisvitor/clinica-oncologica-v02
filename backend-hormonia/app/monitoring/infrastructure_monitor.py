@@ -13,6 +13,7 @@ from enum import Enum
 import logging
 from collections import deque
 import statistics
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +161,7 @@ class ResourceMonitor:
                 network_bytes_recv=net_io.bytes_recv,
                 network_packets_sent=net_io.packets_sent,
                 network_packets_recv=net_io.packets_recv,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now_sao_paulo(),
                 status=status,
             )
 
@@ -274,7 +275,7 @@ class ResourceMonitor:
                                 "pid": proc.info["pid"],
                                 "name": proc.info["name"],
                                 "memory_mb": memory_mb,
-                                "timestamp": datetime.now(timezone.utc),
+                                "timestamp": now_sao_paulo(),
                             }
                         )
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -331,7 +332,7 @@ class ProcessMonitor:
                                 num_fds=num_fds,
                                 status=proc.info["status"],
                                 create_time=proc.info["create_time"],
-                                timestamp=datetime.now(timezone.utc),
+                                timestamp=now_sao_paulo(),
                             )
                         )
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -508,7 +509,7 @@ class InfrastructureMonitor:
             metric_name=metric_name,
             current_value=current_value,
             threshold_value=threshold_value,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
         self.alerts.append(alert)
@@ -522,7 +523,7 @@ class InfrastructureMonitor:
 
         return {
             "status": metrics.status,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "resources": {
                 "cpu": {
                     "current": metrics.cpu_percent,

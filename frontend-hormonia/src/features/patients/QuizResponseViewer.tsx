@@ -9,7 +9,12 @@ import { ChevronLeft, ChevronRight, FileText, Calendar } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { QuizAnalysisCard } from './QuizAnalysisCard'
 import { QuizResponsePDFExport } from './QuizResponsePDFExport'
-import type { QuizSessionListResponse, QuizAnalysisResponse } from '@/types/quiz'
+import type {
+  PatientQuizResponsesResponse,
+  QuizAnalysisResponse,
+  QuizSession,
+  QuizSessionListResponse
+} from '@/types/quiz'
 
 interface QuizResponseViewerProps {
   patientId: string
@@ -45,14 +50,14 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
   })
 
   // Fetch analysis for selected session
-  const { data: analysisData, isLoading: analysisLoading } = useQuery({
+  const { data: analysisData, isLoading: analysisLoading } = useQuery<QuizAnalysisResponse | null>({
     queryKey: ['quiz-session-analysis', selectedSessionId],
     queryFn: async () => {
       if (!selectedSessionId) return null
       const result = await apiClient.quiz.getSessionAnalysis(selectedSessionId)
 
       // Find session details to populate missing fields
-      const session = sessionsData?.items?.find(s => s.id === selectedSessionId)
+      const session = sessionsData?.items?.find((s: QuizSession) => s.id === selectedSessionId)
 
       // Adapt QuizSessionAnalysis to QuizAnalysisResponse
       const analysis: QuizAnalysisResponse = {
@@ -80,12 +85,13 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
   })
 
   // Mock response data for display (replace with actual response fetching if needed)
-  const responsesData = {
+  const totalResponses = sessionsData?.total ?? 0
+  const responsesData: PatientQuizResponsesResponse = {
     items: [],
-    total: sessionsData?.total || 0,
+    total: totalResponses,
     page: currentPage,
     size: pageSize,
-    pages: sessionsData?.items ? Math.ceil(sessionsData.total / pageSize) : 0
+    pages: totalResponses ? Math.ceil(totalResponses / pageSize) : 0
   }
 
   // Format date
@@ -101,9 +107,17 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
   }
 
   // Get sessions from sessions data
-  const sessions = React.useMemo(() => {
+  type SessionSummary = {
+    id: string
+    template_name: string
+    template_version: string
+    status: QuizSession['status']
+    date: string
+  }
+
+  const sessions = React.useMemo<SessionSummary[]>(() => {
     if (!sessionsData?.items) return []
-    return sessionsData.items.map(session => ({
+    return sessionsData.items.map((session: QuizSession) => ({
       id: session.id,
       template_name: 'Quiz',
       template_version: '1.0',
@@ -153,7 +167,7 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
     )
   }
 
-  const totalPages = responsesData.pages || Math.ceil(responsesData.total / pageSize)
+  const totalPages = responsesData.pages
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -202,8 +216,8 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
       )}
 
       {/* AI Analysis Card */}
-      {selectedSessionId && analysisData && 'patient_id' in analysisData && (
-        <QuizAnalysisCard analysis={analysisData as QuizAnalysisResponse} />
+      {selectedSessionId && analysisData && (
+        <QuizAnalysisCard analysis={analysisData} />
       )}
 
       {selectedSessionId && analysisLoading && (
@@ -232,7 +246,7 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
             </div>
             <QuizResponsePDFExport
               responses={responsesData.items}
-              analysis={analysisData && 'patient_id' in analysisData ? analysisData as QuizAnalysisResponse : undefined}
+              analysis={analysisData ?? undefined}
               patientName={patientName}
             />
           </div>

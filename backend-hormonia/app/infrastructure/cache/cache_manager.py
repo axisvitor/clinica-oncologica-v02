@@ -18,6 +18,7 @@ from redis.asyncio import Redis as AsyncRedis
 from app.utils.logging import get_logger
 from app.core.executors import get_cache_executor
 from .redis_backend import RedisBackend, SerializationMethod
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -55,7 +56,7 @@ class CacheStats:
     sets: int = 0
     deletes: int = 0
     invalidations: int = 0
-    last_reset: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_reset: datetime = field(default_factory=lambda: now_sao_paulo())
 
     @property
     def total_requests(self) -> int:
@@ -75,7 +76,7 @@ class CacheStats:
         self.sets = 0
         self.deletes = 0
         self.invalidations = 0
-        self.last_reset = datetime.now(timezone.utc)
+        self.last_reset = now_sao_paulo()
 
 
 # Default cache configurations for different data types
@@ -368,6 +369,40 @@ class UnifiedCacheManager:
             self._update_stats(CacheOperation.GET, False)
             return default
 
+    def _resolve_set_payload(
+        self,
+        cache_type: str,
+        value: Any,
+        key_parts: Optional[List[str]],
+        ttl_override: Optional[Union[int, timedelta]],
+        *args,
+        **kwargs,
+    ) -> Optional[tuple[str, int, Any]]:
+        """Resolve cache key, ttl and serialized payload for set operations."""
+        config = self._cache_configs.get(cache_type)
+        if not config:
+            logger.warning(f"Unknown cache type: {cache_type}")
+            self._update_stats(CacheOperation.SET, False)
+            return None
+
+        cache_key = self._generate_cache_key(config, key_parts, *args, **kwargs)
+        ttl_value = (
+            ttl_override.total_seconds()
+            if isinstance(ttl_override, timedelta)
+            else ttl_override
+        )
+        ttl = int(ttl_value if ttl_value is not None else config.ttl)
+        serialized_data = self._backend.serialize_for_cache(value, config.serialize_method)
+        return cache_key, ttl, serialized_data
+
+    def _complete_set_success(
+        self, cache_key: str, value: Any, ttl: int
+    ) -> bool:
+        """Populate local fallback cache and update stats for successful set."""
+        self._backend.set_in_local_cache(cache_key, value, ttl)
+        self._update_stats(CacheOperation.SET, True)
+        return True
+
     def set(
         self,
         cache_type: str,
@@ -391,38 +426,21 @@ class UnifiedCacheManager:
         Returns:
             True if successful, False otherwise
         """
-        config = self._cache_configs.get(cache_type)
-        if not config:
-            logger.warning(f"Unknown cache type: {cache_type}")
-            self._update_stats(CacheOperation.SET, False)
+        payload = self._resolve_set_payload(
+            cache_type,
+            value,
+            key_parts,
+            ttl_override,
+            *args,
+            **kwargs,
+        )
+        if payload is None:
             return False
-
-        cache_key = self._generate_cache_key(config, key_parts, *args, **kwargs)
-
-        # Calculate TTL
-        if ttl_override is not None:
-            ttl = (
-                ttl_override.total_seconds()
-                if isinstance(ttl_override, timedelta)
-                else ttl_override
-            )
-        else:
-            ttl = config.ttl
+        cache_key, ttl, serialized_data = payload
 
         try:
-            # Serialize the data
-            serialized_data = self._backend.serialize_for_cache(
-                value, config.serialize_method
-            )
-
-            # Try Redis first
-            self._backend.redis_set(cache_key, serialized_data, int(ttl))
-
-            # Also set in local cache as fallback
-            self._backend.set_in_local_cache(cache_key, value, int(ttl))
-
-            self._update_stats(CacheOperation.SET, True)
-            return True
+            self._backend.redis_set(cache_key, serialized_data, ttl)
+            return self._complete_set_success(cache_key, value, ttl)
 
         except Exception as e:
             logger.error(f"Cache SET error for key {cache_key}: {e}")
@@ -452,38 +470,21 @@ class UnifiedCacheManager:
         Returns:
             True if successful, False otherwise
         """
-        config = self._cache_configs.get(cache_type)
-        if not config:
-            logger.warning(f"Unknown cache type: {cache_type}")
-            self._update_stats(CacheOperation.SET, False)
+        payload = self._resolve_set_payload(
+            cache_type,
+            value,
+            key_parts,
+            ttl_override,
+            *args,
+            **kwargs,
+        )
+        if payload is None:
             return False
-
-        cache_key = self._generate_cache_key(config, key_parts, *args, **kwargs)
-
-        # Calculate TTL
-        if ttl_override is not None:
-            ttl = (
-                ttl_override.total_seconds()
-                if isinstance(ttl_override, timedelta)
-                else ttl_override
-            )
-        else:
-            ttl = config.ttl
+        cache_key, ttl, serialized_data = payload
 
         try:
-            # Serialize the data
-            serialized_data = self._backend.serialize_for_cache(
-                value, config.serialize_method
-            )
-
-            # Try Redis first
-            await self._backend.redis_set_async(cache_key, serialized_data, int(ttl))
-
-            # Also set in local cache as fallback
-            self._backend.set_in_local_cache(cache_key, value, int(ttl))
-
-            self._update_stats(CacheOperation.SET, True)
-            return True
+            await self._backend.redis_set_async(cache_key, serialized_data, ttl)
+            return self._complete_set_success(cache_key, value, ttl)
 
         except Exception as e:
             logger.error(f"Async cache SET error for key {cache_key}: {e}")
@@ -661,7 +662,7 @@ class UnifiedCacheManager:
             if cache_key in self._backend._local_cache:
                 cache_entry = self._backend._local_cache[cache_key]
                 remaining = (
-                    cache_entry["expires_at"] - datetime.now(timezone.utc)
+                    cache_entry["expires_at"] - now_sao_paulo()
                 ).total_seconds()
                 return int(remaining) if remaining > 0 else None
 

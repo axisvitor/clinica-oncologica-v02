@@ -15,11 +15,11 @@ from datetime import datetime, timezone
 
 from app.domain.messaging.core import MessageFactory, MessageTemplate
 from app.services.quiz.quiz_service import MonthlyQuizService
-from app.domain.messaging.delivery import MessageSender  # For backward compatibility
-from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
+from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.schemas.monthly_quiz import MonthlyQuizLinkCreate, DeliveryMethod
 from app.models.patient import Patient
 from app.exceptions import NotFoundError
+from app.utils.timezone import now_sao_paulo
 
 
 class MonthlyQuizMessageIntegration:
@@ -28,20 +28,11 @@ class MonthlyQuizMessageIntegration:
     Coordinates MonthlyQuizService with MessageFactory using UnifiedWhatsAppService.
     """
 
-    def __init__(self, db: Any, use_unified_service: bool = True):
+    def __init__(self, db: Any):
         self.db = db
         self.monthly_quiz_service = MonthlyQuizService(db)
         self.message_factory = MessageFactory(db)
-
-        # Use unified service by default for better reliability
-        if use_unified_service:
-            self.message_sender = UnifiedWhatsAppService(
-                db=db,
-                messaging_mode=MessagingMode.HYBRID,  # Hybrid mode for quiz messages
-            )
-        else:
-            # Fallback to legacy MessageSender for backward compatibility
-            self.message_sender = MessageSender(db)
+        self.message_sender = UnifiedWhatsAppService(db=db)
 
     async def send_quiz_link(
         self,
@@ -110,14 +101,10 @@ class MonthlyQuizMessageIntegration:
 
             for attempt in range(max_retries):
                 try:
-                    if hasattr(self.message_sender, "send_flow_message"):
-                        # Use flow message method if available (UnifiedWhatsAppService or MessageSender)
-                        send_result = await self.message_sender.send_flow_message(
-                            message, quiz_context
-                        )
-                    else:
-                        # Fallback to regular send_message
-                        send_result = await self.message_sender.send_message(message)
+                    send_result = await self.message_sender.send_message(
+                        message,
+                        flow_context=quiz_context,
+                    )
 
                     if send_result:
                         break
@@ -239,7 +226,7 @@ class MonthlyQuizMessageIntegration:
 
         # Calculate hours remaining
         hours_remaining = int(
-            (quiz_link.expires_at - datetime.now(timezone.utc)).total_seconds() / 3600
+            (quiz_link.expires_at - now_sao_paulo()).total_seconds() / 3600
         )
 
         if hours_remaining > hours_before_expiry:
@@ -261,7 +248,7 @@ class MonthlyQuizMessageIntegration:
             link_url = link_data.link_url
             # Recalculate hours remaining with new expiry time
             hours_remaining = int(
-                (link_data.expires_at - datetime.now(timezone.utc)).total_seconds() / 3600
+                (link_data.expires_at - now_sao_paulo()).total_seconds() / 3600
             )
         except Exception as e:
             # If regeneration fails, return error

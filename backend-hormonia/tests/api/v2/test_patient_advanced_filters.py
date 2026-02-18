@@ -14,6 +14,7 @@ import pytest
 from datetime import datetime, timedelta
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 @pytest.mark.asyncio
 async def test_filter_by_treatment_phase_initial(client, doctor_token, test_patients_various_phases):
     """Test filtering by treatment_phase='initial'"""
@@ -103,7 +104,7 @@ async def test_filter_has_active_flow_false(client, doctor_token, test_patients_
 @pytest.mark.asyncio
 async def test_filter_created_after_yesterday(client, doctor_token, test_patients_various_dates):
     """Test filtering by created_after (yesterday)"""
-    yesterday = (datetime.utcnow() - timedelta(days=1)).isoformat()
+    yesterday = (now_sao_paulo_naive() - timedelta(days=1)).isoformat()
     response = client.get(
         f"/api/v2/patients?created_after={yesterday}",
         headers={"Authorization": f"Bearer {doctor_token}"}
@@ -112,16 +113,16 @@ async def test_filter_created_after_yesterday(client, doctor_token, test_patient
     assert response.status_code == 200
     data = response.json()
     # All returned patients should be created after yesterday
-    yesterday_dt = datetime.fromisoformat(yesterday.replace("Z", "+00:00"))
+    yesterday_dt = datetime.fromisoformat(yesterday)
     for patient in data["data"]:
-        created_at = datetime.fromisoformat(patient["created_at"].replace("Z", "+00:00"))
+        created_at = datetime.fromisoformat(patient["created_at"])
         assert created_at > yesterday_dt
 
 
 @pytest.mark.asyncio
 async def test_filter_created_before_today(client, doctor_token, test_patients_various_dates):
     """Test filtering by created_before (today)"""
-    today = datetime.utcnow().isoformat()
+    today = now_sao_paulo_naive().isoformat()
     response = client.get(
         f"/api/v2/patients?created_before={today}",
         headers={"Authorization": f"Bearer {doctor_token}"}
@@ -130,17 +131,17 @@ async def test_filter_created_before_today(client, doctor_token, test_patients_v
     assert response.status_code == 200
     data = response.json()
     # All returned patients should be created before today
-    today_dt = datetime.fromisoformat(today.replace("Z", "+00:00"))
+    today_dt = datetime.fromisoformat(today)
     for patient in data["data"]:
-        created_at = datetime.fromisoformat(patient["created_at"].replace("Z", "+00:00"))
+        created_at = datetime.fromisoformat(patient["created_at"])
         assert created_at < today_dt
 
 
 @pytest.mark.asyncio
 async def test_filter_created_date_range(client, doctor_token, test_patients_various_dates):
     """Test filtering by both created_after and created_before (date range)"""
-    week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-    yesterday = (datetime.utcnow() - timedelta(days=1)).isoformat()
+    week_ago = (now_sao_paulo_naive() - timedelta(days=7)).isoformat()
+    yesterday = (now_sao_paulo_naive() - timedelta(days=1)).isoformat()
 
     response = client.get(
         f"/api/v2/patients?created_after={week_ago}&created_before={yesterday}",
@@ -150,11 +151,11 @@ async def test_filter_created_date_range(client, doctor_token, test_patients_var
     assert response.status_code == 200
     data = response.json()
 
-    week_ago_dt = datetime.fromisoformat(week_ago.replace("Z", "+00:00"))
-    yesterday_dt = datetime.fromisoformat(yesterday.replace("Z", "+00:00"))
+    week_ago_dt = datetime.fromisoformat(week_ago)
+    yesterday_dt = datetime.fromisoformat(yesterday)
 
     for patient in data["data"]:
-        created_at = datetime.fromisoformat(patient["created_at"].replace("Z", "+00:00"))
+        created_at = datetime.fromisoformat(patient["created_at"])
         assert week_ago_dt < created_at < yesterday_dt
 
 
@@ -214,7 +215,7 @@ async def test_sort_by_created_at_ascending(client, doctor_token, test_patients_
     data = response.json()["data"]
 
     # Verify dates are in ascending order
-    dates = [datetime.fromisoformat(p["created_at"].replace("Z", "+00:00")) for p in data]
+    dates = [datetime.fromisoformat(p["created_at"]) for p in data]
     assert dates == sorted(dates)
 
 
@@ -230,7 +231,7 @@ async def test_sort_by_created_at_descending(client, doctor_token, test_patients
     data = response.json()["data"]
 
     # Verify dates are in descending order
-    dates = [datetime.fromisoformat(p["created_at"].replace("Z", "+00:00")) for p in data]
+    dates = [datetime.fromisoformat(p["created_at"]) for p in data]
     assert dates == sorted(dates, reverse=True)
 
 
@@ -319,7 +320,7 @@ async def test_combined_filters_treatment_phase_and_active_flow(client, doctor_t
 @pytest.mark.asyncio
 async def test_combined_filters_date_range_and_sort(client, doctor_token, test_patients_complex):
     """Test combining date filters with sorting"""
-    week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+    week_ago = (now_sao_paulo_naive() - timedelta(days=7)).isoformat()
 
     response = client.get(
         f"/api/v2/patients?created_after={week_ago}&sort_by=name&sort_order=asc",
@@ -330,9 +331,9 @@ async def test_combined_filters_date_range_and_sort(client, doctor_token, test_p
     data = response.json()["data"]
 
     # Verify date filter
-    week_ago_dt = datetime.fromisoformat(week_ago.replace("Z", "+00:00"))
+    week_ago_dt = datetime.fromisoformat(week_ago)
     for patient in data:
-        created_at = datetime.fromisoformat(patient["created_at"].replace("Z", "+00:00"))
+        created_at = datetime.fromisoformat(patient["created_at"])
         assert created_at > week_ago_dt
 
     # Verify sorting
@@ -343,7 +344,7 @@ async def test_combined_filters_date_range_and_sort(client, doctor_token, test_p
 @pytest.mark.asyncio
 async def test_combined_all_filters_and_sort(client, doctor_token, test_patients_complex):
     """Test combining ALL filters with sorting"""
-    week_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+    week_ago = (now_sao_paulo_naive() - timedelta(days=7)).isoformat()
 
     response = client.get(
         f"/api/v2/patients?treatment_phase=initial&has_active_flow=true&created_after={week_ago}&sort_by=name&sort_order=desc",
@@ -353,13 +354,13 @@ async def test_combined_all_filters_and_sort(client, doctor_token, test_patients
     assert response.status_code == 200
     data = response.json()
 
-    week_ago_dt = datetime.fromisoformat(week_ago.replace("Z", "+00:00"))
+    week_ago_dt = datetime.fromisoformat(week_ago)
 
     for patient in data["data"]:
         # Verify all filters
         assert patient.get("treatment_phase") == "initial"
         assert patient.get("flow_state") in ["ACTIVE", "RUNNING", "IN_PROGRESS"]
-        created_at = datetime.fromisoformat(patient["created_at"].replace("Z", "+00:00"))
+        created_at = datetime.fromisoformat(patient["created_at"])
         assert created_at > week_ago_dt
 
     # Verify sorting
@@ -402,7 +403,7 @@ async def test_pagination_with_sorting(client, doctor_token, test_patients_compl
 @pytest.mark.asyncio
 async def test_empty_results_with_filters(client, doctor_token):
     """Test filtering that returns no results"""
-    future_date = (datetime.utcnow() + timedelta(days=30)).isoformat()
+    future_date = (now_sao_paulo_naive() + timedelta(days=30)).isoformat()
 
     response = client.get(
         f"/api/v2/patients?created_after={future_date}",
@@ -486,6 +487,6 @@ async def test_default_sorting_order(client, doctor_token, test_patients_various
 
     if len(data) >= 2:
         # Default should be created_at desc (newest first)
-        first_date = datetime.fromisoformat(data[0]["created_at"].replace("Z", "+00:00"))
-        second_date = datetime.fromisoformat(data[1]["created_at"].replace("Z", "+00:00"))
+        first_date = datetime.fromisoformat(data[0]["created_at"])
+        second_date = datetime.fromisoformat(data[1]["created_at"])
         assert first_date >= second_date

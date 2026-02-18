@@ -16,15 +16,29 @@ Related Files:
 - backend-hormonia/app/api/v2/auth.py
 - backend-hormonia/app/api/v2/admin/system_stats.py
 """
-import pytest
-from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from uuid import uuid4
+
+import pytest
+from fastapi import Request
+from sqlalchemy.orm import Session
+
+from app.dependencies import RequestContext, get_request_context
+from app.dependencies.auth_dependencies import (
+    get_current_user,
+    get_current_user_from_session,
+    get_current_user_object_from_session,
+    get_optional_user,
+    get_permissions_for_role,
+)
+from app.main import app
+from app.middleware.csrf import get_csrf_token
 from app.models.user import User, UserRole
-from app.models.audit import AuditLog
+from app.models.audit_log import AuditLog, AuditEventType
 from app.utils.security import get_password_hash
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 @pytest.fixture
 def admin_user(db_session: Session):
     """Create admin user for testing."""
@@ -35,7 +49,7 @@ def admin_user(db_session: Session):
         full_name="Admin User",
         role=UserRole.ADMIN,
         is_active=True,
-        created_at=datetime.utcnow()
+        created_at=now_sao_paulo_naive()
     )
     db_session.add(user)
     db_session.commit()
@@ -55,7 +69,7 @@ def regular_users(db_session: Session):
             full_name=f"User {i}",
             role=UserRole.DOCTOR if i % 2 == 0 else UserRole.ADMIN,
             is_active=i % 3 != 0,  # Mix of active/inactive
-            created_at=datetime.utcnow() - timedelta(days=i)
+            created_at=now_sao_paulo_naive() - timedelta(days=i)
         )
         users.append(user)
         db_session.add(user)
@@ -69,19 +83,20 @@ def user_activity(db_session: Session, regular_users):
     """Create audit logs for user activity testing."""
     logs = []
     user = regular_users[0]
+    event_types = list(AuditEventType)
 
     for i in range(10):
         log = AuditLog(
             id=uuid4(),
             user_id=user.id,
-            event_type=f"action_{i}",
+            event_type=event_types[i % len(event_types)],
             event_category="user_action",
             severity="info",
             ip_address="127.0.0.1",
             user_agent="TestAgent/1.0",
             event_data={"action": f"test_action_{i}"},
             result="success",
-            created_at=datetime.utcnow() - timedelta(hours=i)
+            created_at=now_sao_paulo_naive() - timedelta(hours=i)
         )
         logs.append(log)
         db_session.add(log)
@@ -91,9 +106,63 @@ def user_activity(db_session: Session, regular_users):
 
 
 @pytest.fixture
-def auth_headers(admin_token: str):
+def auth_headers(admin_user, admin_token):
     """Get authentication headers for admin user."""
-    return {"Authorization": f"Bearer {admin_token}"}
+    role = admin_user.role.value if hasattr(admin_user.role, "value") else str(admin_user.role)
+    session_user = {
+        "id": str(admin_user.id),
+        "email": admin_user.email,
+        "full_name": admin_user.full_name,
+        "role": role,
+        "is_active": admin_user.is_active,
+        "firebase_uid": getattr(admin_user, "firebase_uid", None),
+        "permissions": get_permissions_for_role(role),
+    }
+    session_id = f"test-session-{admin_user.id}"
+
+    async def _override_session(request: Request):
+        request.state.user_id = session_user.get("id")
+        request.state.user_role = session_user.get("role")
+        request.state.session_id = session_id
+        return session_user
+
+    async def _override_current_user(request: Request):
+        request.state.user = admin_user
+        request.state.user_id = str(admin_user.id)
+        request.state.user_role = role
+        request.state.session_id = session_id
+        return admin_user
+
+    async def _override_optional_user(credentials=None, services=None):
+        return admin_user
+
+    async def _override_request_context(request: Request):
+        return RequestContext(
+            ip_address="127.0.0.1",
+            user_agent="pytest",
+            user_id=admin_user.id,
+            session_id=session_id,
+        )
+
+    app.dependency_overrides[get_current_user_from_session] = _override_session
+    app.dependency_overrides[get_current_user_object_from_session] = lambda: admin_user
+    app.dependency_overrides[get_current_user] = _override_current_user
+    app.dependency_overrides[get_optional_user] = _override_optional_user
+    app.dependency_overrides[get_request_context] = _override_request_context
+
+    csrf_token = get_csrf_token()
+    headers = {
+        "X-Session-ID": session_id,
+        "Authorization": f"Bearer {admin_token}",
+        "X-CSRF-Token": csrf_token,
+        "Cookie": f"csrf_token={csrf_token}",
+    }
+    yield headers
+    app.dependency_overrides.pop(get_current_user_from_session, None)
+    app.dependency_overrides.pop(get_current_user_object_from_session, None)
+    app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_optional_user, None)
+    app.dependency_overrides.pop(get_request_context, None)
 
 
 class TestUserListAPIContract:
@@ -219,22 +288,26 @@ class TestUserActivityAPIContract:
         data = response.json()
 
         # Validate schema structure
-        assert "user_id" in data
-        assert "activities" in data
+        assert "data" in data
+        assert "next_cursor" in data
+        assert "has_more" in data
         assert "total" in data
 
         # Validate data types
-        assert isinstance(data["activities"], list)
-        assert isinstance(data["total"], int)
-        assert data["total"] == len(user_activity)
+        assert isinstance(data["data"], list)
+        assert isinstance(data["has_more"], bool)
+        assert data["total"] in (None, len(user_activity))
+        assert len(data["data"]) == len(user_activity)
 
         # Validate activity structure
-        if len(data["activities"]) > 0:
-            activity = data["activities"][0]
-            assert "event_type" in activity
-            assert "event_category" in activity
-            assert "severity" in activity
-            assert "created_at" in activity
+        if len(data["data"]) > 0:
+            activity = data["data"][0]
+            assert "id" in activity
+            assert "user_id" in activity
+            assert "action" in activity
+            assert "resource" in activity
+            assert "details" in activity
+            assert "timestamp" in activity
             assert "ip_address" in activity
 
     def test_user_activity_with_date_range(
@@ -242,8 +315,8 @@ class TestUserActivityAPIContract:
     ):
         """Verify activity filtering by date range."""
         user = regular_users[0]
-        start_date = (datetime.utcnow() - timedelta(hours=5)).isoformat()
-        end_date = datetime.utcnow().isoformat()
+        start_date = (now_sao_paulo_naive() - timedelta(hours=5)).isoformat()
+        end_date = now_sao_paulo_naive().isoformat()
 
         response = client.get(
             f"/api/v2/admin/users/{user.id}/activity",
@@ -255,8 +328,8 @@ class TestUserActivityAPIContract:
         data = response.json()
 
         # Should have activities within the range
-        assert data["total"] > 0
-        assert data["total"] <= len(user_activity)
+        assert len(data["data"]) > 0
+        assert len(data["data"]) <= len(user_activity)
 
 
 class TestNotificationsAPIContract:
@@ -270,8 +343,11 @@ class TestNotificationsAPIContract:
 
         Expected Response:
         {
-            "notifications": [...],  # Array of notification objects (NOT "items")
-            "total": int,
+            "data": [...],  # Array of notification objects
+            "items": [...],  # Backwards-compatible alias of data
+            "next_cursor": str | null,
+            "has_more": bool,
+            "total": int | null,
             "unread_count": int
         }
         """
@@ -284,18 +360,25 @@ class TestNotificationsAPIContract:
         data = response.json()
 
         # Validate schema structure
-        assert "notifications" in data, "Response must have 'notifications' field"
+        assert "data" in data, "Response must have 'data' field"
+        assert "items" in data, "Response must have 'items' field"
+        assert "next_cursor" in data, "Response must have 'next_cursor' field"
+        assert "has_more" in data, "Response must have 'has_more' field"
         assert "total" in data, "Response must have 'total' field"
         assert "unread_count" in data, "Response must have 'unread_count' field"
 
         # Validate data types
-        assert isinstance(data["notifications"], list)
-        assert isinstance(data["total"], int)
+        assert isinstance(data["data"], list)
+        assert isinstance(data["items"], list)
+        assert isinstance(data["has_more"], bool)
+        assert data["total"] is None or isinstance(data["total"], int)
         assert isinstance(data["unread_count"], int)
 
+        notifications = data["items"] or data["data"]
+
         # Validate notification structure
-        if len(data["notifications"]) > 0:
-            notification = data["notifications"][0]
+        if len(notifications) > 0:
+            notification = notifications[0]
             assert "id" in notification
             assert "title" in notification
             assert "message" in notification
@@ -316,38 +399,31 @@ class TestNotificationsAPIContract:
         data = response.json()
 
         # Count unread notifications
-        unread_notifications = [n for n in data["notifications"] if not n["read"]]
+        notifications = data["items"] or data["data"]
+        unread_notifications = [n for n in notifications if not n["read"]]
         assert data["unread_count"] == len(unread_notifications)
 
 
 class TestSystemStatsAPIContract:
-    """Test GET /api/v2/admin/stats and system-stats endpoint contracts."""
+    """Test GET /api/v2/admin/system-stats endpoint contract."""
 
-    def test_system_stats_returns_trend_deltas(
+    def test_system_stats_returns_current_schema(
         self, client, auth_headers
     ):
         """
-        CRITICAL: Verify stats endpoint includes trend deltas.
+        CRITICAL: Verify system-stats endpoint returns current schema.
 
         Expected Response:
         {
+            "users": {...},
+            "appointments": {...},
+            "revenue": {...},
             "system": {...},
-            "users": {
-                "total": int,
-                "active_now": int,
-                "by_role": {...},
-                "trend": {  # NEW: Must include trend data
-                    "total_change": int,
-                    "total_change_percent": float,
-                    "active_change": int
-                }
-            },
-            "database": {...},
-            "timestamp": str
+            "generated_at": str
         }
         """
         response = client.get(
-            "/api/v2/admin/stats",
+            "/api/v2/admin/system-stats",
             headers=auth_headers
         )
 
@@ -355,31 +431,25 @@ class TestSystemStatsAPIContract:
         data = response.json()
 
         # Validate top-level structure
-        assert "system" in data
         assert "users" in data
-        assert "database" in data
-        assert "timestamp" in data
+        assert "appointments" in data
+        assert "revenue" in data
+        assert "system" in data
+        assert "generated_at" in data
+
+        # Validate user metrics
+        users = data["users"]
+        assert "total" in users
+        assert "active" in users
+        assert "inactive" in users
+        assert "new_this_month" in users
 
         # Validate system metrics
         system = data["system"]
-        assert "cpu_percent" in system
-        assert "memory_percent" in system
-        assert "disk_percent" in system
-        assert "uptime_seconds" in system
-
-        # Validate user metrics with trends
-        users = data["users"]
-        assert "total" in users
-        assert "active_now" in users
-        assert "by_role" in users
-        assert "trend" in users, "CRITICAL: Must include trend data"
-
-        # Validate trend structure
-        trend = users["trend"]
-        assert "total_change" in trend
-        assert "total_change_percent" in trend
-        assert isinstance(trend["total_change"], int)
-        assert isinstance(trend["total_change_percent"], (int, float))
+        assert "uptime" in system
+        assert "response_time_ms" in system
+        assert "error_rate" in system
+        assert "active_sessions" in system
 
     def test_system_stats_caching(
         self, client, auth_headers

@@ -21,8 +21,8 @@ import redis.asyncio as redis
 
 from app.database import SessionLocal
 
-# Import ServiceProvider from services module (will be added to __init__.py)
-from app.services import ServiceProvider
+# Import ServiceProvider from dedicated module (avoids package/module shadowing)
+from app.service_provider import ServiceProvider
 
 logger = logging.getLogger(__name__)
 

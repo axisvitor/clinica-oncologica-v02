@@ -250,18 +250,22 @@ async def integrity_error_handler(
         exc_info=True,
     )
 
-    # Parse common constraint violations
-    error_msg = str(exc.orig) if hasattr(exc, "orig") else str(exc)
+    # Parse common constraint violations (fallback to full exception text)
+    orig_msg = str(exc.orig) if getattr(exc, "orig", None) else ""
+    stmt_msg = str(exc.statement) if getattr(exc, "statement", None) else ""
+    exc_msg = str(exc)
+    search_msg = " ".join(msg for msg in (orig_msg, exc_msg, stmt_msg) if msg)
+    search_msg_lower = search_msg.lower()
 
     # Check for unique constraint violations
-    if "duplicate key" in error_msg.lower() or "unique constraint" in error_msg.lower():
+    if "duplicate key" in search_msg_lower or "unique constraint" in search_msg_lower:
         # Extract field name if possible
         field = None
-        if "uq_patient_cpf_doctor" in error_msg:
+        if "uq_patient_cpf_doctor" in search_msg:
             field = "cpf"
-        elif "uq_patient_email_doctor" in error_msg:
+        elif "uq_patient_email_doctor" in search_msg:
             field = "email"
-        elif "uq_patient_phone_doctor" in error_msg:
+        elif "uq_patient_phone_doctor" in search_msg:
             field = "phone"
 
         return JSONResponse(

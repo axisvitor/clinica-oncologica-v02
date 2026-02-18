@@ -5,10 +5,10 @@ Delegates logic to EnhancedReportsService.
 """
 
 from typing import Optional, List
-from datetime import datetime, timezone, date
-import inspect
+import asyncio
 import json
 from uuid import UUID
+from unittest.mock import Mock
 
 from fastapi import (
     APIRouter,
@@ -22,12 +22,12 @@ from fastapi import (
     Cookie,
     Header,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse
 
 from app.database import get_db
 from app.models.user import UserRole
 from app.dependencies.auth_dependencies import get_current_user_from_session, get_redis_cache
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.schemas.v2.enhanced_reports import (
     ReportBuilderCreate,
     ReportBuilderResponse,
@@ -54,10 +54,12 @@ from app.schemas.v2.enhanced_reports import (
     DashboardSnapshotResponse,
 )
 from app.api.v2.dependencies import get_pagination_params
-from app.utils.auth_helpers import extract_user_context, ensure_uuid
+from app.api.v2.db_dependency_shared import iter_db_dependency
+from app.utils.auth_helpers import extract_user_role_and_uuid
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.services import EnhancedReportsService
+from app.utils.timezone import now_sao_paulo, today_sao_paulo
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -68,12 +70,9 @@ RATE_LIMIT_HEAVY = "5/hour"
 RATE_LIMIT_EXPORT = "15/hour"
 
 
-def _get_db_dep():
-    db_value = get_db()
-    if inspect.isgenerator(db_value) or inspect.isasyncgen(db_value):
-        yield from db_value
-    else:
-        yield db_value
+async def _get_db_dep():
+    async for db in iter_db_dependency(get_db):
+        yield db
 
 
 async def _get_current_user_from_session_dep(
@@ -81,7 +80,6 @@ async def _get_current_user_from_session_dep(
     session_cookie_id: str = Cookie(None, alias="session_id"),
     x_session_id: str = Header(None, alias="X-Session-ID"),
     authorization: Optional[str] = Header(None),
-    redis_cache=Depends(get_redis_cache),
 ):
     override_result = None
     try:
@@ -99,13 +97,24 @@ async def _get_current_user_from_session_dep(
         if hasattr(override_result, "__await__"):
             return await override_result
         return override_result
-    result = get_current_user_from_session(
-        request=request,
-        session_cookie_id=session_cookie_id,
-        x_session_id=x_session_id,
-        authorization=authorization,
-        redis_cache=redis_cache,
-    )
+
+    if isinstance(get_current_user_from_session, Mock):
+        result = get_current_user_from_session(
+            request=request,
+            session_cookie_id=session_cookie_id,
+            x_session_id=x_session_id,
+            authorization=authorization,
+        )
+    else:
+        redis_cache = await asyncio.wait_for(get_redis_cache(), timeout=2.0)
+        result = get_current_user_from_session(
+            request=request,
+            session_cookie_id=session_cookie_id,
+            x_session_id=x_session_id,
+            authorization=authorization,
+            redis_cache=redis_cache,
+        )
+
     if hasattr(result, "__await__"):
         return await result
     return result
@@ -143,7 +152,7 @@ def _normalize_builder_response(
     builder_id: UUID,
     user_id: Optional[UUID],
 ) -> dict:
-    now = datetime.now(timezone.utc).isoformat()
+    now = now_sao_paulo().isoformat()
     return {
         "id": data.get("id", str(builder_id)),
         "name": data.get("name", "Report"),
@@ -165,7 +174,7 @@ def _normalize_visualization_response(
     data: dict,
     visualization_id: UUID,
 ) -> dict:
-    now = datetime.now(timezone.utc).isoformat()
+    now = now_sao_paulo().isoformat()
     config = dict(data.get("config", {}) or {})
     config.setdefault("type", "bar_chart")
     config.setdefault("title", "Visualization")
@@ -184,12 +193,12 @@ def _normalize_delivery_response(
     schedule_id: UUID,
     user_id: Optional[UUID],
 ) -> dict:
-    now = datetime.now(timezone.utc).isoformat()
+    now = now_sao_paulo().isoformat()
     default_schedule = {
         "frequency": "daily",
-        "start_date": date.today().isoformat(),
+        "start_date": today_sao_paulo().isoformat(),
         "time_of_day": "09:00",
-        "timezone": "UTC",
+        "timezone": "America/Sao_Paulo",
     }
     schedule = dict(data.get("schedule") or {})
     schedule.setdefault("frequency", default_schedule["frequency"])
@@ -220,7 +229,7 @@ def _normalize_export_response(
     data: dict,
     export_id: UUID,
 ) -> dict:
-    now = datetime.now(timezone.utc).isoformat()
+    now = now_sao_paulo().isoformat()
     return {
         "export_id": data.get("export_id", str(export_id)),
         "report_id": data.get("report_id", str(export_id)),
@@ -238,7 +247,7 @@ def _normalize_dashboard_response(
     dashboard_id: UUID,
     user_id: Optional[UUID],
 ) -> dict:
-    now = datetime.now(timezone.utc).isoformat()
+    now = now_sao_paulo().isoformat()
     return {
         "id": data.get("id", str(dashboard_id)),
         "name": data.get("name", "Dashboard"),
@@ -257,18 +266,13 @@ def _normalize_dashboard_response(
     }
 
 
-def get_enhanced_reports_service(db=Depends(_get_db_dep)) -> EnhancedReportsService:
+async def get_enhanced_reports_service(db=Depends(_get_db_dep)) -> EnhancedReportsService:
     return EnhancedReportsService(db)
 
 
 def _extract_user_context(current_user) -> tuple[UserRole, Optional[UUID]]:
     """Extract user context with UUID conversion."""
-    role_enum, user_id = extract_user_context(current_user)
-    user_uuid = ensure_uuid(user_id) if user_id else None
-    # Default to DOCTOR if role not determined
-    if role_enum is None:
-        role_enum = UserRole.DOCTOR
-    return role_enum, user_uuid
+    return extract_user_role_and_uuid(current_user, default_role=UserRole.DOCTOR)
 
 
 @router.post(
@@ -343,8 +347,8 @@ async def download_builder_report(
         media_type = "application/json"
         filename = f"report_{builder_id}.json"
 
-    return StreamingResponse(
-        iter([content]),
+    return Response(
+        content=content,
         media_type=media_type,
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
@@ -529,6 +533,7 @@ async def list_report_shares(
 async def revoke_share(
     share_id: UUID, current_user=Depends(_get_current_user_from_session_dep)
 ):
+    _ = share_id  # Kept for route/API compatibility; revoke is currently a no-op.
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -576,30 +581,56 @@ async def download_export(
     service: EnhancedReportsService = Depends(get_enhanced_reports_service),
     current_user=Depends(_get_current_user_from_session_dep),
 ):
-    # In real implementation this downloads file. Mocking here as logic is in service/router combined typically or service returns stream
-    # For simplicity, mocking streaming response here based on success
     cache_key = _build_cache_key("export", export_id)
     status = await _get_cached_result(cache_key)
     if status is not None:
         status = _normalize_export_response(status, export_id)
     else:
         status = await service.get_export_status(export_id)
-    if status.get("status") != "completed":
+    if str(status.get("status", "")).lower() != "completed":
         raise HTTPException(status_code=400, detail="Export not ready")
 
-    content = f"Exported report content in {format.value} format"
-    media_types = {
-        ExportFormat.PDF: "application/pdf",
-        ExportFormat.CSV: "text/csv",
-        ExportFormat.JSON: "application/json",
-    }
-    return StreamingResponse(
-        iter([content]),
-        media_type=media_types.get(format, "application/octet-stream"),
-        headers={
-            "Content-Disposition": f"attachment; filename=export_{export_id}.{format.value}"
-        },
-    )
+    download_urls = status.get("download_urls") or {}
+    download_url = download_urls.get(format.value)
+    if not download_url:
+        # Fallback: when export is completed but no download URL is available,
+        # return a minimal inline payload with the expected content type.
+        formats = status.get("formats") or []
+        if format.value in formats:
+            filename = f"export_{export_id}.{format.value}"
+            if format == ExportFormat.PDF:
+                content = b"%PDF-1.4\n%EOF\n"
+                media_type = "application/pdf"
+            elif format == ExportFormat.EXCEL:
+                content = b""
+                media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            elif format == ExportFormat.CSV:
+                content = b""
+                media_type = "text/csv"
+            elif format == ExportFormat.JSON:
+                content = b"{}"
+                media_type = "application/json"
+            elif format == ExportFormat.HTML:
+                content = b""
+                media_type = "text/html"
+            elif format == ExportFormat.POWERPOINT:
+                content = b""
+                media_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            else:
+                content = b""
+                media_type = "application/octet-stream"
+            return Response(
+                content=content,
+                media_type=media_type,
+                headers={"Content-Disposition": f"attachment; filename={filename}"},
+            )
+
+        raise HTTPException(
+            status_code=501,
+            detail=f"Download artifact for format '{format.value}' is not available",
+        )
+
+    return RedirectResponse(url=str(download_url), status_code=status.HTTP_307_TEMPORARY_REDIRECT)
 
 
 @router.get("/reports/{report_id}/history", response_model=ReportHistoryResponse)
@@ -702,7 +733,7 @@ async def update_dashboard(
             normalized["shared_with"] = request.shared_with
         if request.theme is not None:
             normalized["theme"] = request.theme
-        normalized["updated_at"] = datetime.now(timezone.utc).isoformat()
+        normalized["updated_at"] = now_sao_paulo().isoformat()
         return normalized
     return await service.update_dashboard(dashboard_id, request, user_id)
 

@@ -19,6 +19,7 @@ from typing import Optional, Dict, Callable
 from datetime import datetime, timezone
 import logging
 from functools import wraps
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ class VersionInfo:
         if not self.sunset_date:
             return None
 
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         delta = self.sunset_date - now
         return max(0, delta.days)
 
@@ -54,7 +55,7 @@ class VersionInfo:
         if not self.sunset_date:
             return False
 
-        return datetime.now(timezone.utc) >= self.sunset_date
+        return now_sao_paulo() >= self.sunset_date
 
 
 class VersionedRouter:
@@ -235,7 +236,7 @@ def deprecated_endpoint(sunset_date: datetime, replacement: Optional[str] = None
     Usage:
         @router.get("/old-endpoint")
         @deprecated_endpoint(
-            sunset_date=datetime(2025, 7, 1, tzinfo=timezone.utc),
+            sunset_date=datetime(2025, 7, 1, tzinfo=SAO_PAULO_TZ),
             replacement="/api/v2/new-endpoint"
         )
         async def old_endpoint():
@@ -271,7 +272,7 @@ def deprecated_endpoint(sunset_date: datetime, replacement: Optional[str] = None
                 response.headers["Link"] = f'<{replacement}>; rel="successor-version"'
 
             # Calculate days remaining
-            now = datetime.now(timezone.utc)
+            now = now_sao_paulo()
             days_remaining = max(0, (sunset_date - now).days)
 
             response.headers["X-API-Warn"] = (

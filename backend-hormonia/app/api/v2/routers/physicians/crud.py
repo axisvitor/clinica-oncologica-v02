@@ -169,7 +169,7 @@ async def list_physicians(
     limit = pagination["limit"]
 
     # Build query
-    query = db.query(User).filter(User.role == UserRole.DOCTOR)
+    query = db.query(User).filter(User.role.in_([UserRole.DOCTOR, UserRole.ADMIN]))
 
     # Apply RBAC
     role_enum, user_id = _extract_user_context(current_user)
@@ -184,7 +184,7 @@ async def list_physicians(
             else cursor_data["id"]
         )
         cursor_created_at = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
+            cursor_data["created_at"]
         )
 
         query = query.filter(
@@ -205,7 +205,7 @@ async def list_physicians(
 
     # Apply status filter
     if status == PhysicianStatus.INACTIVE:
-        query = query.filter(not User.is_active)
+        query = query.filter(User.is_active.is_(False))
     elif status == PhysicianStatus.ACTIVE:
         query = query.filter(User.is_active)
 
@@ -345,7 +345,9 @@ async def update_physician(
     # Fetch physician
     physician = (
         db.query(User)
-        .filter(User.id == physician_uuid, User.role == UserRole.DOCTOR)
+        .filter(
+            User.id == physician_uuid, User.role.in_([UserRole.DOCTOR, UserRole.ADMIN])
+        )
         .first()
     )
 
@@ -365,12 +367,12 @@ async def update_physician(
     if "is_active" in update_dict:
         physician.is_active = update_dict["is_active"]
 
-    # Update Firebase custom claims
-    if not physician.firebase_custom_claims:
-        physician.firebase_custom_claims = {}
+    # Update Firebase custom claims.
+    # Reassign a new dict so SQLAlchemy reliably persists JSON changes.
+    claims = dict(physician.firebase_custom_claims or {})
 
     if "specialties" in update_dict:
-        physician.firebase_custom_claims["specialties"] = [
+        claims["specialties"] = [
             s.value if isinstance(s, Specialty) else s
             for s in update_dict["specialties"]
         ]
@@ -379,19 +381,21 @@ async def update_physician(
         status_value = update_dict["status"]
         if isinstance(status_value, PhysicianStatus):
             status_value = status_value.value
-        physician.firebase_custom_claims["status"] = status_value
+        claims["status"] = status_value
         physician.is_active = status_value == PhysicianStatus.ACTIVE.value
 
     if "license_number" in update_dict:
-        physician.firebase_custom_claims["license_number"] = update_dict[
+        claims["license_number"] = update_dict[
             "license_number"
         ]
 
     if "phone" in update_dict:
-        physician.firebase_custom_claims["phone"] = update_dict["phone"]
+        claims["phone"] = update_dict["phone"]
 
     if "bio" in update_dict:
-        physician.firebase_custom_claims["bio"] = update_dict["bio"]
+        claims["bio"] = update_dict["bio"]
+
+    physician.firebase_custom_claims = claims
 
     # Commit changes
     db.commit()

@@ -30,7 +30,7 @@ export const createMockUser = (role: User['role'] = 'admin', overrides?: Partial
     nome: `Usuário ${userIdCounter}`,
     role,
     permissions: permissions[role],
-    created_at: '2024-01-01T00:00:00Z',
+    created_at: '2024-01-01T00:00:00-03:00',
     last_login: null,
     active: true,
     ...overrides,

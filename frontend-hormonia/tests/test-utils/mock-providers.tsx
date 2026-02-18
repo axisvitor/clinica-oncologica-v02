@@ -128,7 +128,7 @@ export const mockApiResponses = {
         { treatment_type: 'Reposição Hormonal', count: 2, percentage: 10 },
       ],
       total_patients: 20,
-      last_updated: '2024-01-01T00:00:00Z',
+      last_updated: '2024-01-01T00:00:00-03:00',
     }),
     getDashboardStats: vi.fn().mockResolvedValue({
       total_patients: 50,

@@ -9,13 +9,13 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from .base import BaseGenerator
+from .threading import sanitize_thread_component
 from ..enums import FollowUpType
 from ..models import FollowUpAction
 from app.services.response_processor import StructuredResponse
-from app.services.analytics.data_extraction import ConcernLevel
-from app.services.ai.ai_service import PatientContext
+from app.ai.models import PatientContext, ConcernLevel as ModelConcernLevel
 from app.models.patient import Patient
-from app.templates.whatsapp.empathy import get_empathy_template
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +23,14 @@ logger = logging.getLogger(__name__)
 class EmpathyGenerator(BaseGenerator):
     """Generates empathetic follow-up messages."""
 
-    def __init__(self, ai_service):
+    def __init__(self, ai_graph):
         """
         Initialize empathy generator.
 
         Args:
-            ai_service: AI service instance for message generation
+            ai_graph: LangGraph graph instance for message generation
         """
-        self.ai_service = ai_service
+        self.ai_graph = ai_graph
 
     async def create_empathetic_follow_up(
         self,
@@ -38,6 +38,9 @@ class EmpathyGenerator(BaseGenerator):
         patient: Patient,
         structured_response: StructuredResponse,
         patient_context: PatientContext,
+        *,
+        allow_questions: bool = False,
+        day_complete: bool = False,
     ) -> Optional[FollowUpAction]:
         """
         Create empathetic follow-up message based on patient response.
@@ -54,7 +57,10 @@ class EmpathyGenerator(BaseGenerator):
         try:
             # Generate empathetic response using AI
             empathetic_message = await self._generate_empathetic_message(
-                structured_response, patient_context, patient.name
+                structured_response,
+                patient_context,
+                allow_questions=allow_questions,
+                day_complete=day_complete,
             )
 
             if not empathetic_message:
@@ -64,7 +70,7 @@ class EmpathyGenerator(BaseGenerator):
             delay_minutes = self.calculate_response_delay(
                 structured_response.concern_level
             )
-            scheduled_for = datetime.now(timezone.utc) + timedelta(minutes=delay_minutes)
+            scheduled_for = now_sao_paulo() + timedelta(minutes=delay_minutes)
 
             # Create follow-up action
             action = FollowUpAction(
@@ -72,7 +78,7 @@ class EmpathyGenerator(BaseGenerator):
                 patient_id=patient_id,
                 follow_up_type=FollowUpType.EMPATHETIC_RESPONSE,
                 priority="normal"
-                if structured_response.concern_level == ConcernLevel.LOW
+                if structured_response.concern_level == ModelConcernLevel.LOW
                 else "high",
                 scheduled_for=scheduled_for,
                 parameters={
@@ -95,7 +101,9 @@ class EmpathyGenerator(BaseGenerator):
         self,
         structured_response: StructuredResponse,
         patient_context: PatientContext,
-        patient_name: Optional[str] = None,
+        *,
+        allow_questions: bool = False,
+        day_complete: bool = False,
     ) -> Optional[str]:
         """
         Generate empathetic message using AI.
@@ -108,36 +116,50 @@ class EmpathyGenerator(BaseGenerator):
             Generated message or None if failed
         """
         try:
-            template_category = self._select_template_category(structured_response)
-            fallback_message = get_empathy_template(template_category, patient_name)
+            if not self.ai_graph:
+                return None
 
-            if not self.ai_service or not hasattr(self.ai_service, "humanize_message"):
-                return fallback_message or None
+            # Generate empathetic response using LangGraph (empathetic follow-up graph)
+            initial_state = {
+                "input_text": structured_response.original_message,
+                "history": (patient_context.recent_responses or []),
+                "context": patient_context.to_dict(),
+                "metadata": {
+                    "allow_questions": allow_questions,
+                    "day_complete": day_complete,
+                },
+            }
 
-            # Generate empathetic response
-            empathetic_response = await self.ai_service.humanize_message(
-                template_message="Acknowledge and respond empathetically to the patient's message",
-                patient_context=patient_context,
-                message_type="empathetic_response",
+            result = await self.ai_graph.ainvoke(
+                initial_state,
+                config={
+                    "configurable": {
+                        "thread_id": self._build_thread_id(
+                            structured_response,
+                            patient_context,
+                            allow_questions=allow_questions,
+                            day_complete=day_complete,
+                        )
+                    }
+                },
             )
-
-            response_text = empathetic_response.humanized_message
+            response_text = result.get("output", "") if isinstance(result, dict) else ""
+            
             if not self._is_ai_response_safe(response_text):
-                return fallback_message or None
+                return None
 
             return response_text
 
         except Exception as e:
             logger.error(f"Failed to generate empathetic message: {e}")
-            template_category = self._select_template_category(structured_response)
-            return get_empathy_template(template_category, patient_name) or None
+            return None
 
     def _select_template_category(self, structured_response: StructuredResponse) -> str:
         """Select empathy template category based on response signals."""
         sentiment = structured_response.sentiment_analysis.get("sentiment", "neutral")
         if structured_response.concern_level in [
-            ConcernLevel.HIGH,
-            ConcernLevel.CRITICAL,
+            ModelConcernLevel.HIGH,
+            ModelConcernLevel.CRITICAL,
         ] or structured_response.medical_concerns:
             return "concern"
         if sentiment == "positive":
@@ -166,3 +188,23 @@ class EmpathyGenerator(BaseGenerator):
         ]
         text_lower = text.casefold()
         return not any(keyword in text_lower for keyword in unsafe_keywords)
+
+    def _build_thread_id(
+        self,
+        structured_response: StructuredResponse,
+        patient_context: PatientContext,
+        *,
+        allow_questions: bool,
+        day_complete: bool,
+    ) -> str:
+        """Build deterministic thread_id for empathetic follow-up generation."""
+        patient_key = sanitize_thread_component(patient_context.patient_id)
+        concern_key = sanitize_thread_component(structured_response.concern_level.value)
+        treatment_day = sanitize_thread_component(patient_context.treatment_day)
+        question_mode = "q1" if allow_questions else "q0"
+        day_mode = "done1" if day_complete else "done0"
+        return (
+            f"follow_up:empathy:"
+            f"patient:{patient_key}:day:{treatment_day}:"
+            f"concern:{concern_key}:{question_mode}:{day_mode}"
+        )

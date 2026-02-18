@@ -32,7 +32,7 @@ type User = {
 
 type Session = {
   access_token?: string
-  [key: string]: unknown
+  expires_at?: number
 }
 
 // Extended user interface with application-specific fields

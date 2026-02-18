@@ -4,6 +4,7 @@ Admin dependencies module.
 Contains authentication and authorization dependencies for admin operations.
 """
 
+import inspect
 import os
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer
@@ -29,6 +30,24 @@ def _is_test_environment() -> bool:
         or os.getenv("TESTING") == "1"
         or os.getenv("APP_ENVIRONMENT", "development").lower() in ("test", "testing")
     )
+
+
+async def _invoke_dependency(callable_obj, **kwargs):
+    """
+    Invoke dependency/override while tolerating narrower signatures from test overrides.
+    """
+    try:
+        result = callable_obj(**kwargs)
+    except TypeError:
+        signature = inspect.signature(callable_obj)
+        accepted_kwargs = {
+            key: value for key, value in kwargs.items() if key in signature.parameters
+        }
+        result = callable_obj(**accepted_kwargs)
+
+    if inspect.isawaitable(result):
+        return await result
+    return result
 
 
 async def get_admin_user(
@@ -68,14 +87,25 @@ async def get_admin_user(
                 )
             return test_user
 
-    user_data = await get_current_user_from_session(
+    dependency_overrides = getattr(request.app, "dependency_overrides", {}) or {}
+    session_dependency = dependency_overrides.get(
+        get_current_user_from_session, get_current_user_from_session
+    )
+    user_object_dependency = dependency_overrides.get(
+        get_current_user_object_from_session, get_current_user_object_from_session
+    )
+
+    user_data = await _invoke_dependency(
+        session_dependency,
         request=request,
         session_cookie_id=request.cookies.get("session_id"),
         x_session_id=request.headers.get("X-Session-ID"),
         authorization=auth_header or None,
         redis_cache=redis_cache,
     )
-    current_user = await get_current_user_object_from_session(user_data=user_data)
+    current_user = await _invoke_dependency(
+        user_object_dependency, user_data=user_data
+    )
 
     if current_user.role != UserRole.ADMIN:
         raise HTTPException(

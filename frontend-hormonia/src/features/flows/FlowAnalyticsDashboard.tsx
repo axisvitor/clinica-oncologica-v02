@@ -1,19 +1,16 @@
 import React from 'react'
+import { ComposedChart, BarChart, PieChart, LineChart } from '@/components/ui/charts/LazyRechartsComponents'
 import {
-  ComposedChart,
   Area,
-  BarChart,
   Bar,
-  PieChart,
   Pie,
   Cell,
-  LineChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip
-} from '@/components/ui/charts/LazyRechartsComponents'
+} from '@/components/ui/charts/RechartsPrimitives'
 import { SafeChartContainer } from '@/components/ui/charts/SafeChartContainer'
 import { ChartSkeleton } from '@/components/ui/chart-skeleton'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -153,9 +150,9 @@ export function FlowAnalyticsDashboard({ stats, isLoading }: FlowAnalyticsDashbo
               <BarChart data={completionRateData} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#94a3b8" interval={0} angle={-15} textAnchor="end" height={60} />
-                <YAxis tickFormatter={(value) => `${value}%`} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                <YAxis tickFormatter={(value: number) => `${value}%`} tick={{ fontSize: 12 }} stroke="#94a3b8" />
                 <Tooltip
-                  formatter={(value: number, _name, { payload }) => [
+                  formatter={(value: number, _name: string, { payload }: { payload?: { total?: number } }) => [
                     formatPercent(value),
                     `Conclusao (Total: ${payload?.total ?? 0})`
                   ]}
@@ -210,7 +207,7 @@ export function FlowAnalyticsDashboard({ stats, isLoading }: FlowAnalyticsDashbo
               <LineChart data={durationData} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#94a3b8" interval={0} angle={-15} textAnchor="end" height={60} />
-                <YAxis tickFormatter={(value) => formatDuration(value)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                <YAxis tickFormatter={(value: number) => formatDuration(value)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
                 <Tooltip formatter={(value: number) => [formatDuration(value), 'Duracao media']} />
                 <Line type="monotone" dataKey="duration" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
               </LineChart>

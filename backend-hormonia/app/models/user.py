@@ -111,5 +111,18 @@ class User(BaseModel):
         lazy="select",
     )
 
+    @property
+    def password_hash(self):
+        """
+        Backward-compatible alias for legacy payloads/tests.
+
+        Canonical field remains `hashed_password`.
+        """
+        return self.hashed_password
+
+    @password_hash.setter
+    def password_hash(self, value):
+        self.hashed_password = value
+
     def __repr__(self):
         return f"<User(email='{self.email}', role='{self.role.value}')>"

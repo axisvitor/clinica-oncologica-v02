@@ -7,8 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install system dependencies and apply security updates
-RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+# Install system dependencies (skip upgrade to preserve cacheability)
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gfortran \
     libopenblas-dev \
@@ -37,4 +37,3 @@ USER appuser
 
 EXPOSE 8080
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1 --timeout-keep-alive 75"]
-

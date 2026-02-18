@@ -37,6 +37,7 @@ from app.models.user import UserRole
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 from app.core.distributed_lock import acquire_lock_sync, LockAcquisitionError, LockKeys
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 
@@ -49,6 +50,26 @@ def _ensure_patient_owner(current_user, doctor_id):
     user_uuid = _ensure_uuid(user_id)
     if user_uuid is None or doctor_id != user_uuid:
         raise ForbiddenError("Not enough permissions")
+
+
+def _get_quiz_with_access(db, current_user, quiz_id: str) -> QuizSession:
+    """Load quiz by ID and enforce patient ownership/admin access."""
+    try:
+        qid = UUID(quiz_id)
+    except (ValueError, TypeError) as exc:
+        raise ValidationError("Invalid quiz_id UUID", field="quiz_id") from exc
+
+    quiz = db.query(QuizSession).get(qid)
+    if not quiz:
+        raise NotFoundError("Quiz", quiz_id)
+
+    patient = db.query(Patient).get(quiz.patient_id)
+    if patient is None:
+        if not is_admin(current_user):
+            raise ForbiddenError("Not enough permissions")
+    else:
+        _ensure_patient_owner(current_user, patient.doctor_id)
+    return quiz
 
 
 @router.get("/sessions", response_model=QuizV2List, summary="List quizzes")
@@ -88,8 +109,23 @@ async def list_quizzes(
         if cursor_data and "id" in cursor_data:
             from datetime import datetime as dt
 
-            cid = UUID(cursor_data["id"])
-            cdate = dt.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+            try:
+                raw_cursor_id = cursor_data["id"]
+                raw_created_at = cursor_data["created_at"]
+
+                cid = (
+                    raw_cursor_id
+                    if isinstance(raw_cursor_id, UUID)
+                    else UUID(str(raw_cursor_id))
+                )
+                cdate = (
+                    raw_created_at
+                    if isinstance(raw_created_at, dt)
+                    else dt.fromisoformat(str(raw_created_at))
+                )
+            except (KeyError, TypeError, ValueError):
+                raise ValidationError("Invalid cursor format", field="cursor")
+
             filters.append(
                 (QuizSession.created_at < cdate)
                 | ((QuizSession.created_at == cdate) & (QuizSession.id > cid))
@@ -300,7 +336,7 @@ async def create_quiz(
                 patient_id=pid,
                 quiz_template_id=tid,
                 status=quiz_data.status or "started",
-                started_at=datetime.now(timezone.utc),
+                started_at=now_sao_paulo(),
             )
             db.add(new_quiz)
             db.commit()
@@ -331,18 +367,7 @@ async def update_quiz(
     db=Depends(get_db),
     current_user=Depends(get_current_user_from_session),
 ):
-    try:
-        qid = UUID(quiz_id)
-    except (ValueError, TypeError):
-        raise ValidationError("Invalid quiz_id UUID", field="quiz_id")
-
-    quiz = db.query(QuizSession).get(qid)
-    if not quiz:
-        raise NotFoundError("Quiz", quiz_id)
-
-    patient = db.query(Patient).get(quiz.patient_id)
-    if patient:
-        _ensure_patient_owner(current_user, patient.doctor_id)
+    quiz = _get_quiz_with_access(db, current_user, quiz_id)
 
     update_data = quiz_data.dict(exclude_unset=True)
     for k, v in update_data.items():
@@ -371,18 +396,7 @@ async def delete_quiz(
     db=Depends(get_db),
     current_user=Depends(get_current_user_from_session),
 ):
-    try:
-        qid = UUID(quiz_id)
-    except (ValueError, TypeError):
-        raise ValidationError("Invalid quiz_id UUID", field="quiz_id")
-
-    quiz = db.query(QuizSession).get(qid)
-    if not quiz:
-        raise NotFoundError("Quiz", quiz_id)
-
-    patient = db.query(Patient).get(quiz.patient_id)
-    if patient:
-        _ensure_patient_owner(current_user, patient.doctor_id)
+    quiz = _get_quiz_with_access(db, current_user, quiz_id)
 
     db.delete(quiz)
     db.commit()

@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.models.user import UserRole
+from app.middleware.csrf import get_csrf_token
 import uuid
 
 # Mock user for authentication
@@ -15,13 +16,17 @@ class MockUser:
         self.firebase_uid = "mock-firebase-uid"
         self.full_name = "Test Doctor"
 
+TEST_DOCTOR_ID = uuid.uuid4()
+
 @pytest.fixture
 def authenticated_client():
-    doctor_id = uuid.uuid4()
-    mock_user = MockUser(id=doctor_id, role=UserRole.DOCTOR)
+    mock_user = MockUser(id=TEST_DOCTOR_ID, role=UserRole.DOCTOR)
     
     app.dependency_overrides[get_current_user_from_session] = lambda: mock_user
     with TestClient(app) as client:
+        csrf_token = get_csrf_token()
+        client.headers["X-CSRF-Token"] = csrf_token
+        client.cookies.set("csrf_token", csrf_token)
         yield client
     app.dependency_overrides.clear()
 
@@ -37,7 +42,7 @@ def test_patient_registration_validation_error_returns_422(authenticated_client)
         "name": "Test Patient",
         "email": "test.patient@example.com", 
         "phone": "+5511999999999",
-        "doctor_id": str(uuid.uuid4()), # Any UUID will do for validation phase
+        "doctor_id": str(TEST_DOCTOR_ID),
         "birth_date": "1990-01-01",
         "treatment_type": "Reposição Hormonal",
         "treatment_start_date": "2025-12-31",

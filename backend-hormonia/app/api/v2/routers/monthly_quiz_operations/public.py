@@ -10,7 +10,8 @@ Endpoints:
 # NOTE: Do NOT use `from __future__ import annotations` here
 # It breaks FastAPI/Pydantic path parameter validation with UUID type
 
-import base64
+import asyncio
+import inspect
 import json
 import jwt
 from uuid import UUID
@@ -34,76 +35,104 @@ from ._shared import (
     PublicQuizResultsV2,
     get_redis_cache,
     CACHE_TTL_PUBLIC_QUIZ,
-    PUBLIC_PATIENT_ID,
     Dict,
     Any,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
+
+
+async def _maybe_await(value):
+    """Await cache operations when providers expose async methods."""
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+async def _cache_get(redis_cache, key: str):
+    if not redis_cache:
+        return None
+    getter = getattr(redis_cache, "get", None)
+    if not callable(getter):
+        return None
+    try:
+        return await asyncio.wait_for(_maybe_await(getter(key)), timeout=1.0)
+    except Exception:
+        return None
+
+
+async def _cache_set(redis_cache, key: str, value: str, ttl: int) -> None:
+    if not redis_cache:
+        return
+
+    setex = getattr(redis_cache, "setex", None)
+    if callable(setex):
+        try:
+            await asyncio.wait_for(_maybe_await(setex(key, ttl, value)), timeout=1.0)
+        except Exception:
+            pass
+        return
+
+    setter = getattr(redis_cache, "set", None)
+    if not callable(setter):
+        return
+
+    try:
+        await asyncio.wait_for(_maybe_await(setter(key, value, ttl)), timeout=1.0)
+    except TypeError:
+        try:
+            await asyncio.wait_for(_maybe_await(setter(key, value)), timeout=1.0)
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
 def _decode_quiz_token(token: str) -> Dict[str, Any]:
     """
     Decode quiz access token.
 
-    Supports:
-    - JWT tokens (preferred, signed)
-    - Legacy base64 JSON tokens (fallback)
+    Supports signed JWT tokens only.
     """
     token = token.strip()
 
-    # Prefer JWT if it looks like one
-    if token.count(".") == 2:
-        try:
-            payload = TokenManager().verify_token(token)
-            return {
-                "quiz_id": payload.get("quiz_template_id"),
-                "patient_id": payload.get("patient_id"),
-                "session_id": payload.get("session_id"),
-                "exp": payload.get("exp"),
-                "type": payload.get("type", "quiz_access"),
-                "is_jwt": True,
-            }
-        except jwt.ExpiredSignatureError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
-            )
-        except jwt.InvalidTokenError:
-            # Fall back to legacy base64
-            pass
+    if token.count(".") != 2:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
+        )
 
     try:
-        token_data = json.loads(base64.b64decode(token))
+        payload = TokenManager().verify_token(token)
         return {
-            "quiz_id": token_data.get("quiz_id"),
-            "patient_id": None,
-            "session_id": None,
-            "exp": token_data.get("exp"),
-            "type": token_data.get("type"),
-            "is_jwt": False,
+            "quiz_id": payload.get("quiz_template_id"),
+            "patient_id": payload.get("patient_id"),
+            "session_id": payload.get("session_id"),
+            "exp": payload.get("exp"),
+            "type": payload.get("type", "quiz_access"),
         }
-    except (ValueError, KeyError, json.JSONDecodeError):
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
+        )
+    except jwt.InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
         )
 
 
 # ==============================================================================
-# CSRF TOKEN ENDPOINT (Frontend Compatibility)
+# CSRF TOKEN ENDPOINT
 # ==============================================================================
-# Frontend quiz-mensal-interface uses NEXT_PUBLIC_QUIZ_PUBLIC_API_URL as base
-# and expects /auth/csrf-token to be available under that prefix
 
 @router.get(
     "/auth/csrf-token",
     summary="Get CSRF Token (Quiz Public)",
-    description="CSRF token endpoint for quiz interface compatibility",
-    include_in_schema=False  # Hide from docs since it's a compatibility layer
+    description="CSRF token endpoint for quiz interface",
+    include_in_schema=False
 )
 async def get_csrf_token_quiz_public(response: Response):
-    """
-    Compatibility endpoint: Frontend expects CSRF at /monthly-quiz-public/auth/csrf-token
-    """
+    """Return CSRF token for quiz public flows."""
     from app.middleware.csrf import get_csrf_token, set_csrf_cookie
     
     token = get_csrf_token()
@@ -132,9 +161,7 @@ async def get_current_public_quiz(
     **Security:** Token validation, IP logging, expiry checking
 
     Token format:
-    - JWT (preferred, signed) with quiz_template_id/patient_id/session_id/exp
-    - Legacy base64-encoded JSON:
-      {"quiz_id": "uuid", "exp": timestamp, "type": "quiz_access"}
+    - Signed JWT with quiz_template_id/patient_id/session_id/exp
     """
     logger.info(f"Public quiz access from IP: {request.client.host}")
 
@@ -142,15 +169,7 @@ async def get_current_public_quiz(
     try:
         token_data = _decode_quiz_token(token)
         quiz_id = UUID(token_data.get("quiz_id"))
-        exp_timestamp = token_data.get("exp")
         token_type = token_data.get("type")
-
-        # Check expiry for legacy tokens (JWT already verified)
-        if exp_timestamp and not token_data.get("is_jwt"):
-            if datetime.fromtimestamp(exp_timestamp, tz=timezone.utc) < datetime.now(timezone.utc):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
-                )
 
         # Check token type
         if token_type != "quiz_access":
@@ -185,21 +204,18 @@ async def get_current_public_quiz(
     # Check if quiz has expired
     if quiz.tags.get("expires_at"):
         expires_at = datetime.fromisoformat(quiz.tags["expires_at"])
-        if expires_at < datetime.now(timezone.utc):
+        if expires_at < now_sao_paulo():
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Quiz has expired"
             )
 
-    # Resolve patient and session from token (JWT preferred, fallback to public)
+    # Resolve patient and session from token
     patient_id = token_data.get("patient_id")
-    if token_data.get("is_jwt") and not patient_id:
+    if not patient_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
         )
-    if not patient_id:
-        logger.warning("Legacy quiz token used without patient_id")
-        patient_id = str(PUBLIC_PATIENT_ID)
     patient_uuid = UUID(patient_id)
     session_id = token_data.get("session_id")
 
@@ -229,7 +245,7 @@ async def get_current_public_quiz(
             patient_id=patient_uuid,
             quiz_template_id=quiz_id,
             status="in_progress",
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
         )
         db.add(session)
         db.commit()
@@ -289,7 +305,6 @@ async def submit_public_quiz_response(
     try:
         token_data = _decode_quiz_token(submission.token)
         token_quiz_id = UUID(token_data.get("quiz_id"))
-        exp_timestamp = token_data.get("exp")
         token_type = token_data.get("type")
 
         # Check if token matches quiz_id
@@ -298,13 +313,6 @@ async def submit_public_quiz_response(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token does not match quiz ID",
             )
-
-        # Check expiry for legacy tokens (JWT already verified)
-        if exp_timestamp and not token_data.get("is_jwt"):
-            if datetime.fromtimestamp(exp_timestamp, tz=timezone.utc) < datetime.now(timezone.utc):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
-                )
 
         # Check token type
         if token_type not in ["quiz_access", "quiz_submission"]:
@@ -337,16 +345,13 @@ async def submit_public_quiz_response(
             detail="Cannot submit to unpublished quiz",
         )
 
-    # Resolve patient and session from token (JWT preferred, fallback to public)
+    # Resolve patient and session from token
     patient_id = token_data.get("patient_id")
-    if token_data.get("is_jwt") and not patient_id:
+    if not patient_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
         )
-    if not patient_id:
-        logger.warning("Legacy quiz token used without patient_id")
-        patient_id = str(PUBLIC_PATIENT_ID)
     patient_uuid = UUID(patient_id)
     session_id = token_data.get("session_id")
 
@@ -377,7 +382,7 @@ async def submit_public_quiz_response(
             patient_id=patient_uuid,
             quiz_template_id=quiz_id,
             status="in_progress",
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
         )
         db.add(session)
         db.commit()
@@ -407,7 +412,7 @@ async def submit_public_quiz_response(
         response_type=question.get("type", "text"),
         response_value=str(submission.response_value),
         response_metadata=submission.response_metadata or {},
-        responded_at=datetime.now(timezone.utc),
+        responded_at=now_sao_paulo(),
     )
 
     db.add(quiz_response)
@@ -425,7 +430,7 @@ async def submit_public_quiz_response(
     if answered_questions >= total_questions:
         # Complete session
         session.status = "completed"
-        session.completed_at = datetime.now(timezone.utc)
+        session.completed_at = now_sao_paulo()
 
         # Update quiz completion stats
         quiz.tags["total_completed"] = quiz.tags.get("total_completed", 0) + 1
@@ -481,7 +486,7 @@ async def get_public_quiz_results(
     # Check cache
     cache_key = f"public_quiz_results:{quiz_id}"
     if redis_cache:
-        cached = redis_cache.get(cache_key)
+        cached = await _cache_get(redis_cache, cache_key)
         if cached:
             return PublicQuizResultsV2.parse_raw(cached)
 
@@ -591,7 +596,7 @@ async def get_public_quiz_results(
 
     # Cache result
     if redis_cache:
-        redis_cache.setex(cache_key, CACHE_TTL_PUBLIC_QUIZ, result.json())
+        await _cache_set(redis_cache, cache_key, result.json(), CACHE_TTL_PUBLIC_QUIZ)
 
     return result
 
@@ -644,7 +649,7 @@ def transform_single_question(q: dict) -> dict:
     }
 
 
-def get_cached_transformed_questions(
+async def get_cached_transformed_questions(
     quiz_template_id: str,
     questions: list,
     redis_cache=None
@@ -664,7 +669,7 @@ def get_cached_transformed_questions(
     # Try to get from cache first
     if redis_cache:
         try:
-            cached = redis_cache.get(cache_key)
+            cached = await _cache_get(redis_cache, cache_key)
             if cached:
                 logger.debug(f"[Cache HIT] Transformed questions for template {quiz_template_id}")
                 return json.loads(cached)
@@ -678,7 +683,7 @@ def get_cached_transformed_questions(
     # Store in cache
     if redis_cache:
         try:
-            redis_cache.setex(cache_key, 3600, json.dumps(transformed))  # 1 hour TTL
+            await _cache_set(redis_cache, cache_key, json.dumps(transformed), 3600)  # 1 hour TTL
             logger.debug(f"[Cache SET] Stored transformed questions for template {quiz_template_id}")
         except Exception as e:
             logger.warning(f"Redis cache write error: {e}")
@@ -686,25 +691,25 @@ def get_cached_transformed_questions(
     return transformed
 
 
-class QuizAccessRequestCompatibility(BaseModel):
+class QuizAccessRequest(BaseModel):
     token: str
 
 @router.post(
     "/access",
-    summary="Access Quiz (Frontend Compatibility)",
-    description="POST /access endpoint compatible with frontend QuizApiClient",
+    summary="Access Quiz",
+    description="POST /access endpoint for QuizApiClient",
     response_model=Dict[str, Any]
 )
 @limiter.limit("20/minute")
-async def access_quiz_compatibility(
-    access_req: QuizAccessRequestCompatibility,
+async def access_quiz(
+    access_req: QuizAccessRequest,
     response: Response,
     request: Request,
     db=Depends(get_db),
     redis_cache=Depends(get_redis_cache)
 ):
     """
-    Compatibility endpoint for POST /monthly-quiz-public/access
+    Access endpoint for POST /quiz-extensions/access
     
     1. Validates token
     2. Creates/Gets session
@@ -717,16 +722,7 @@ async def access_quiz_compatibility(
     try:
         token_data = _decode_quiz_token(access_req.token)
         quiz_id = UUID(token_data.get("quiz_id"))
-        exp_timestamp = token_data.get("exp")
         token_type = token_data.get("type")
-
-        # Validate expiration (legacy tokens only)
-        if exp_timestamp and not token_data.get("is_jwt"):
-            if datetime.fromtimestamp(exp_timestamp, tz=timezone.utc) < datetime.now(timezone.utc):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token has expired"
-                )
 
         # Validate token type
         if token_type != "quiz_access":
@@ -743,16 +739,13 @@ async def access_quiz_compatibility(
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
 
-    # Resolve patient and session from token (JWT preferred, fallback to public)
+    # Resolve patient and session from token
     patient_id = token_data.get("patient_id")
-    if token_data.get("is_jwt") and not patient_id:
+    if not patient_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
         )
-    if not patient_id:
-        logger.warning("Legacy quiz token used without patient_id")
-        patient_id = str(PUBLIC_PATIENT_ID)
     patient_uuid = UUID(patient_id)
     session_id = token_data.get("session_id")
 
@@ -778,7 +771,7 @@ async def access_quiz_compatibility(
             patient_id=patient_uuid,
             quiz_template_id=quiz_id,
             status="started",
-            started_at=datetime.now(timezone.utc)
+            started_at=now_sao_paulo()
         )
         db.add(session)
         db.commit()
@@ -791,18 +784,20 @@ async def access_quiz_compatibility(
             quiz.tags = {"total_accessed": 1}
         db.commit()
 
-    # Set Session Cookie (secure=True in production for HTTPS only)
+    # Set Session Cookie (SameSite=None for cross-site fetch from quiz domain)
+    cookie_secure = settings.SESSION_ENABLE_COOKIE_SECURE
+    cookie_samesite = "none" if cookie_secure else "lax"
     response.set_cookie(
         key="quiz_session_id",
         value=str(session.id),
         httponly=True,
-        secure=settings.SESSION_ENABLE_COOKIE_SECURE,
-        samesite="lax",
+        secure=cookie_secure,
+        samesite=cookie_samesite,
         max_age=86400  # 24h
     )
 
     # Transform questions using cached function (Performance optimization)
-    sanitized_questions = get_cached_transformed_questions(
+    sanitized_questions = await get_cached_transformed_questions(
         quiz_template_id=str(quiz.id),
         questions=quiz.questions or [],
         redis_cache=redis_cache
@@ -816,18 +811,18 @@ async def access_quiz_compatibility(
         "template_id": str(quiz.id),
         "patient_name": "Paciente", # Public/Anon
         "template_name": quiz.name,
-        "expires_at": (datetime.now(timezone.utc).replace(year=datetime.now().year + 1)).isoformat(), # Mock expiry if not set
+        "expires_at": (now_sao_paulo().replace(year=datetime.now().year + 1)).isoformat(), # Mock expiry if not set
         "questions": sanitized_questions,
         "status": session.status
     }
 
 @router.get(
     "/session/active",
-    summary="Get Active Session (Frontend Compatibility)",
+    summary="Get Active Session",
     description="GET /session/active endpoint for session recovery",
     response_model=Dict[str, Any]
 )
-async def get_active_session_compatibility(
+async def get_active_session(
     request: Request,
     quiz_session_id: Optional[str] = Cookie(None),
     db=Depends(get_db),
@@ -846,7 +841,7 @@ async def get_active_session_compatibility(
     quiz = session.quiz_template
     
     # Transform questions using cached function (Performance optimization)
-    sanitized_questions = get_cached_transformed_questions(
+    sanitized_questions = await get_cached_transformed_questions(
         quiz_template_id=str(quiz.id),
         questions=quiz.questions or [],
         redis_cache=redis_cache
@@ -859,7 +854,7 @@ async def get_active_session_compatibility(
         "template_id": str(quiz.id),
         "patient_name": "Paciente",
         "template_name": quiz.name,
-        "expires_at": (datetime.now(timezone.utc).replace(year=datetime.now().year + 1)).isoformat(),
+        "expires_at": (now_sao_paulo().replace(year=datetime.now().year + 1)).isoformat(),
         "questions": sanitized_questions,
         "status": session.status,
         "current_question_index": 0  # TODO: Track progress if needed
@@ -867,10 +862,10 @@ async def get_active_session_compatibility(
 
 
 # ==============================================================================
-# SUBMIT ENDPOINT (Frontend Compatibility)
+# SUBMIT ENDPOINT
 # ==============================================================================
 
-class QuizSubmitRequestCompatibility(BaseModel):
+class QuizSubmitRequest(BaseModel):
     question_id: str
     response_value: Any  # Can be string or list
     response_metadata: Optional[Dict[str, Any]] = None
@@ -878,13 +873,13 @@ class QuizSubmitRequestCompatibility(BaseModel):
 
 @router.post(
     "/submit",
-    summary="Submit Quiz Answer (Frontend Compatibility)",
+    summary="Submit Quiz Answer",
     description="POST /submit endpoint for submitting quiz answers",
     response_model=Dict[str, Any]
 )
 @limiter.limit("60/minute")
-async def submit_answer_compatibility(
-    submit_req: QuizSubmitRequestCompatibility,
+async def submit_answer(
+    submit_req: QuizSubmitRequest,
     request: Request,
     quiz_session_id: Optional[str] = Cookie(None),
     db=Depends(get_db)
@@ -947,7 +942,7 @@ async def submit_answer_compatibility(
         existing.response_value = response_value
         existing.response_value_text_backup = str(submit_req.response_value)
         existing.response_metadata = submit_req.response_metadata or {}
-        existing.responded_at = datetime.now(timezone.utc)
+        existing.responded_at = now_sao_paulo()
     else:
         new_response = QuizResponse(
             patient_id=session.patient_id,
@@ -959,7 +954,7 @@ async def submit_answer_compatibility(
             response_value=response_value,
             response_value_text_backup=str(submit_req.response_value),
             response_metadata=submit_req.response_metadata or {},
-            responded_at=datetime.now(timezone.utc)
+            responded_at=now_sao_paulo()
         )
         db.add(new_response)
     
@@ -974,7 +969,7 @@ async def submit_answer_compatibility(
     # If last question, mark completed
     if is_last:
         session.status = "completed"
-        session.completed_at = datetime.now(timezone.utc)
+        session.completed_at = now_sao_paulo()
     
     db.commit()
     
@@ -1004,16 +999,16 @@ async def submit_answer_compatibility(
 
 
 # ==============================================================================
-# LOGOUT ENDPOINT (Frontend Compatibility)
+# LOGOUT ENDPOINT
 # ==============================================================================
 
 @router.post(
     "/logout",
-    summary="Logout from Quiz Session (Frontend Compatibility)",
+    summary="Logout from Quiz Session",
     description="POST /logout endpoint to end quiz session",
     response_model=Dict[str, Any]
 )
-async def logout_quiz_compatibility(
+async def logout_quiz(
     response: Response,
     quiz_session_id: Optional[str] = Cookie(None),
     db=Depends(get_db)
@@ -1033,6 +1028,12 @@ async def logout_quiz_compatibility(
             pass  # Invalid UUID, just clear cookie
     
     # Clear session cookie
-    response.delete_cookie(key="quiz_session_id")
+    cookie_secure = settings.SESSION_ENABLE_COOKIE_SECURE
+    cookie_samesite = "none" if cookie_secure else "lax"
+    response.delete_cookie(
+        key="quiz_session_id",
+        secure=cookie_secure,
+        samesite=cookie_samesite,
+    )
     
     return {"success": True, "message": "Session ended"}

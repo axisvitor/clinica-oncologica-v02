@@ -68,7 +68,7 @@
       "websockets": "WebSocket library (add websockets>=12.0,<13.0.0 if using WS)",
       "yaml": "YAML parser (add pyyaml>=6.0.1,<7.0.0 if reading YAML configs)"
     },
-    "false_positives": "{'inspect', 'hmac', 'statistics', 'difflib', 'zoneinfo', 'types', 'zipfile', 'decimal', 'atexit', 'tarfile', 'html', 'urllib', 'subprocess', 'zlib', 'socket', 'shutil', 'platform', 'mimetypes', 'gzip', 'queue', 'signal', 'concurrent', 'base64', 'smtplib', 'contextvars', 'csv', 'weakref', 'ssl', 'threading', 'importlib'}",
+    "false_positives": "{'inspect', 'importlib', 'smtplib', 'zoneinfo', 'signal', 'queue', 'ssl', 'atexit', 'zlib', 'contextvars', 'csv', 'gzip', 'threading', 'shutil', 'base64', 'urllib', 'subprocess', 'types', 'difflib', 'socket', 'statistics', 'zipfile', 'hmac', 'decimal', 'platform', 'tarfile', 'mimetypes', 'html', 'concurrent', 'weakref'}",
     "import_style_issues": [],
     "type_checking_issues": [],
     "already_installed": {

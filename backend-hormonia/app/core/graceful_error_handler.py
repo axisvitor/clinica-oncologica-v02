@@ -29,6 +29,7 @@ from websockets.exceptions import (
 from pydantic import ValidationError
 
 from app.core.error_handler import CriticalErrorHandler
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -79,7 +80,7 @@ class ErrorResponse:
         self.severity = severity
         self.context = context or {}
         self.suggestions = suggestions or []
-        self.timestamp = datetime.now(timezone.utc).isoformat()
+        self.timestamp = now_sao_paulo().isoformat()
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert error response to dictionary."""
@@ -147,7 +148,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
             "operation": operation,
             "table_name": table_name,
             "error_type": type(error).__name__,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         if query_context:
@@ -262,7 +263,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
             "user_id": user_id,
             "operation": operation,
             "error_type": type(error).__name__,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         # Handle specific WebSocket error types
@@ -358,7 +359,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
             "method": method,
             "user_id": user_id,
             "error_type": type(error).__name__,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         if request_data:
@@ -486,7 +487,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
             "operation": operation,
             "primary_error": str(primary_error),
             "fallback_used": True,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         if context:
@@ -506,7 +507,7 @@ class GracefulErrorHandler(CriticalErrorHandler):
                 "message": "Service is running in degraded mode",
                 "details": "Some features may be limited due to a temporary issue",
                 "operation": operation,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             },
         }
 

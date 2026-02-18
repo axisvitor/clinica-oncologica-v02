@@ -16,6 +16,7 @@ from redis import Redis
 from redis.exceptions import RedisError
 
 from app.services.cache.key_builder import CacheKeyBuilder
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -239,7 +240,7 @@ class CacheInvalidationService:
         """
         return {
             **self._metrics,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "backend": CacheBackend.REDIS if self.redis_client else CacheBackend.LOCAL,
         }
 

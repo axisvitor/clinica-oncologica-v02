@@ -530,7 +530,7 @@ def get_from_local_cache(self, cache_key: str) -> Optional[Any]:
         return None
 
     cache_entry = self._local_cache[cache_key]
-    if datetime.utcnow() < cache_entry["expires_at"]:
+    if now_sao_paulo() < cache_entry["expires_at"]:
         return cache_entry["data"]
     else:
         del self._local_cache[cache_key]  # Manual cleanup

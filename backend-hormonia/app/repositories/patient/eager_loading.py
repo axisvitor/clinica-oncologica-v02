@@ -12,7 +12,6 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Query, joinedload, selectinload
 
-from app.models.message import Message
 from app.models.patient import Patient
 
 logger = logging.getLogger(__name__)
@@ -60,12 +59,9 @@ class PatientEagerLoadingMixin:
         if "quiz_sessions" in eager_load or "quizzes" in eager_load:
             query = query.options(selectinload(Patient.quiz_sessions))
 
-        # Nested eager loading for messages with sender
-        # selectinload for messages (1:many), then joinedload for sender (1:1)
+        # Eager loading for messages (Message model has no sender relationship)
         if "messages" in eager_load:
-            query = query.options(
-                selectinload(Patient.messages).joinedload(Message.sender)
-            )
+            query = query.options(selectinload(Patient.messages))
 
         # Load flow states efficiently
         if "flow_states" in eager_load or "flow_executions" in eager_load:

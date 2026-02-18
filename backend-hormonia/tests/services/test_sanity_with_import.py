@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from app.models.patient import Patient
 from tests.conftest import create_test_user
 
+from app.utils.timezone import now_sao_paulo
 # The suspected side-effect import
 from app.tasks.messaging import send_scheduled_message
 
@@ -20,8 +21,8 @@ async def test_sanity_with_import(db_session):
         id=uuid4(),
         name="Sanity Import Patient",
         doctor_id=doctor.id,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        created_at=now_sao_paulo(),
+        updated_at=now_sao_paulo()
     )
     db_session.add(patient)
     db_session.flush()

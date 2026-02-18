@@ -11,7 +11,6 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies.auth_dependencies import get_current_user
 from app.models.user import User
 from app.models.system_health import (
     SystemHealthSnapshot,
@@ -27,6 +26,8 @@ from app.schemas.v2.health import (
     HealthAlert,
     AlertLevel,
 )
+from .compat import get_current_user_compat
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -35,14 +36,15 @@ router = APIRouter()
 
 @router.get("/history", response_model=HealthHistory)
 async def health_history_endpoint(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user_compat),
+    db: Session = Depends(get_db),
 ) -> HealthHistory:
     """
     Health check history for last 24 hours (Authenticated).
 
     Returns historical health data from database.
     """
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    since = now_sao_paulo() - timedelta(hours=24)
 
     snapshots = (
         db.query(SystemHealthSnapshot)
@@ -87,14 +89,15 @@ async def health_history_endpoint(
 
 @router.get("/incidents", response_model=HealthIncidentsResponse)
 async def health_incidents_endpoint(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user_compat),
+    db: Session = Depends(get_db),
 ) -> HealthIncidentsResponse:
     """
     Health incidents log (Authenticated).
 
     Returns recent health incidents from database.
     """
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    since = now_sao_paulo() - timedelta(hours=24)
     incidents_db = (
         db.query(SystemIncident)
         .filter(SystemIncident.updated_at >= since)
@@ -144,7 +147,8 @@ async def health_incidents_endpoint(
 
 @router.get("/alerts", response_model=HealthAlertsResponse)
 async def health_alerts_endpoint(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user_compat),
+    db: Session = Depends(get_db),
 ) -> HealthAlertsResponse:
     """
     Active health alerts (Authenticated).

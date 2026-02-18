@@ -3,8 +3,8 @@ WhatsApp API routes for message management and instance control.
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime
+from typing import Optional, AsyncGenerator
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,22 +20,69 @@ from ..services.evolution_client import EvolutionAPIClient, validate_phone_numbe
 from ..services.message_service import WhatsAppMessageService, MessageQueue
 from app.database import get_async_db
 from app.config import settings
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v2/whatsapp", tags=["WhatsApp"])
+# This router is mounted under /api/v2 in the main v2 router.
+router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
 
 
-async def get_evolution_client() -> EvolutionAPIClient:
-    """Get Evolution API client instance."""
-    if (
-        not hasattr(settings, "EVOLUTION_API_URL")
-        or not settings.WHATSAPP_EVOLUTION_API_URL
-    ):
+def _should_use_mock_evolution() -> bool:
+    """Enable mock Evolution client only when explicitly configured."""
+    return bool(getattr(settings, "WHATSAPP_EVOLUTION_USE_MOCK", False))
+
+
+def _serialize_message_entry(msg, *, include_error_message: bool) -> dict:
+    payload = {
+        "id": msg.id,
+        "external_id": msg.external_id,
+        "message_type": msg.message_type,
+        "content": msg.content,
+        "media_url": msg.media_url,
+        "media_caption": msg.media_caption,
+        "status": msg.status,
+        "sender_id": msg.sender_id,
+        "recipient_id": msg.recipient_id,
+        "created_at": msg.created_at,
+        "sent_at": msg.sent_at,
+        "delivered_at": msg.delivered_at,
+        "read_at": msg.read_at,
+        "retry_count": msg.retry_count,
+        "message_data": msg.message_data,
+    }
+    if include_error_message:
+        payload["error_message"] = msg.error_message
+    return payload
+
+
+def _build_messages_response(
+    *,
+    messages: list,
+    limit: int,
+    offset: int,
+    include_error_message: bool,
+) -> dict:
+    return {
+        "messages": [
+            _serialize_message_entry(msg, include_error_message=include_error_message)
+            for msg in messages
+        ],
+        "total": len(messages),
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+async def get_evolution_client() -> AsyncGenerator[EvolutionAPIClient, None]:
+    """Get Evolution API client instance with guaranteed cleanup."""
+    if not settings.WHATSAPP_EVOLUTION_API_URL or not settings.WHATSAPP_EVOLUTION_API_KEY:
         raise HTTPException(status_code=501, detail="Evolution API not configured")
 
-    # Use mock client for development if no real API configured
-    if settings.WHATSAPP_EVOLUTION_API_URL.startswith("http://localhost:8080"):
+    if "your-evolution-api-key" in settings.WHATSAPP_EVOLUTION_API_KEY.lower():
+        raise HTTPException(status_code=501, detail="Evolution API not configured")
+
+    if _should_use_mock_evolution():
         from ..services.mock_evolution import MockEvolutionAPIClient
 
         client = MockEvolutionAPIClient(
@@ -51,16 +98,29 @@ async def get_evolution_client() -> EvolutionAPIClient:
         )
 
     await client.connect()
-    return client
+    try:
+        yield client
+    finally:
+        try:
+            await client.disconnect()
+        except Exception as e:
+            logger.warning("Failed to disconnect Evolution client: %s", e)
 
 
 async def get_message_service(
     db: AsyncSession = Depends(get_async_db),
     evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
-) -> WhatsAppMessageService:
-    """Get WhatsApp message service instance."""
+) -> AsyncGenerator[WhatsAppMessageService, None]:
+    """Get WhatsApp message service instance with queue resource cleanup."""
     message_queue = MessageQueue(redis_url=settings.REDIS_URL)
-    return WhatsAppMessageService(evolution_client, db, message_queue)
+    service = WhatsAppMessageService(evolution_client, db, message_queue)
+    try:
+        yield service
+    finally:
+        try:
+            await message_queue.disconnect()
+        except Exception as e:
+            logger.warning("Failed to disconnect message queue client: %s", e)
 
 
 # Instance Management Endpoints
@@ -131,7 +191,7 @@ async def get_qr_code(
     try:
         qr_code = await evolution_client.get_qr_code(instance_name)
         if qr_code:
-            return {"qr_code": qr_code, "timestamp": datetime.now(timezone.utc)}
+            return {"qr_code": qr_code, "timestamp": now_sao_paulo()}
         else:
             raise HTTPException(status_code=404, detail="QR code not available")
     except HTTPException:
@@ -150,7 +210,7 @@ async def restart_instance(
     try:
         success = await evolution_client.restart_instance(instance_name)
         if success:
-            return {"status": "restarted", "timestamp": datetime.now(timezone.utc)}
+            return {"status": "restarted", "timestamp": now_sao_paulo()}
         else:
             raise HTTPException(status_code=500, detail="Failed to restart instance")
     except HTTPException:
@@ -183,7 +243,7 @@ async def delete_instance(
                 await db.delete(instance)
                 await db.commit()
 
-            return {"status": "deleted", "timestamp": datetime.now(timezone.utc)}
+            return {"status": "deleted", "timestamp": now_sao_paulo()}
         else:
             raise HTTPException(status_code=500, detail="Failed to delete instance")
     except HTTPException:
@@ -210,49 +270,6 @@ async def send_message(
         raise HTTPException(status_code=500, detail="Failed to send message")
 
 
-@router.get("/messages/{instance_name}/{chat_id}")
-async def get_message_history(
-    instance_name: str,
-    chat_id: str,
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    message_service: WhatsAppMessageService = Depends(get_message_service),
-):
-    """Get message history for a chat."""
-    try:
-        messages = await message_service.get_message_history(
-            instance_name, chat_id, limit, offset
-        )
-        return {
-            "messages": [
-                {
-                    "id": msg.id,
-                    "external_id": msg.external_id,
-                    "message_type": msg.message_type,
-                    "content": msg.content,
-                    "media_url": msg.media_url,
-                    "media_caption": msg.media_caption,
-                    "status": msg.status,
-                    "sender_id": msg.sender_id,
-                    "recipient_id": msg.recipient_id,
-                    "created_at": msg.created_at,
-                    "sent_at": msg.sent_at,
-                    "delivered_at": msg.delivered_at,
-                    "read_at": msg.read_at,
-                    "retry_count": msg.retry_count,
-                    "message_data": msg.message_data,
-                }
-                for msg in messages
-            ],
-            "total": len(messages),
-            "limit": limit,
-            "offset": offset,
-        }
-    except Exception as e:
-        logger.error(f"Error getting message history: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to get message history")
-
-
 @router.get("/messages")
 async def list_messages(
     instance: str,
@@ -265,32 +282,12 @@ async def list_messages(
         messages = await message_service.get_instance_messages(
             instance, limit, offset
         )
-        return {
-            "messages": [
-                {
-                    "id": msg.id,
-                    "external_id": msg.external_id,
-                    "message_type": msg.message_type,
-                    "content": msg.content,
-                    "media_url": msg.media_url,
-                    "media_caption": msg.media_caption,
-                    "status": msg.status,
-                    "sender_id": msg.sender_id,
-                    "recipient_id": msg.recipient_id,
-                    "created_at": msg.created_at,
-                    "sent_at": msg.sent_at,
-                    "delivered_at": msg.delivered_at,
-                    "read_at": msg.read_at,
-                    "retry_count": msg.retry_count,
-                    "message_data": msg.message_data,
-                    "error_message": msg.error_message
-                }
-                for msg in messages
-            ],
-            "total": len(messages),
-            "limit": limit,
-            "offset": offset,
-        }
+        return _build_messages_response(
+            messages=messages,
+            limit=limit,
+            offset=offset,
+            include_error_message=True,
+        )
     except Exception as e:
         logger.error(f"Error listing messages: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to list messages")
@@ -320,11 +317,36 @@ async def get_message_statistics(
             "instance_name": instance_name,
             "period": {"start_date": start_date, "end_date": end_date},
             "statistics": stats,
-            "generated_at": datetime.now(timezone.utc),
+            "generated_at": now_sao_paulo(),
         }
     except Exception as e:
         logger.error(f"Error getting message statistics: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get message statistics")
+
+
+@router.get("/messages/{instance_name}/history/{chat_id}")
+@router.get("/messages/{instance_name}/{chat_id}", include_in_schema=False)
+async def get_message_history(
+    instance_name: str,
+    chat_id: str,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    message_service: WhatsAppMessageService = Depends(get_message_service),
+):
+    """Get message history for a chat."""
+    try:
+        messages = await message_service.get_message_history(
+            instance_name, chat_id, limit, offset
+        )
+        return _build_messages_response(
+            messages=messages,
+            limit=limit,
+            offset=offset,
+            include_error_message=False,
+        )
+    except Exception as e:
+        logger.error(f"Error getting message history: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get message history")
 
 
 # Contact Management Endpoints
@@ -340,7 +362,7 @@ async def sync_contacts(
         return {
             "status": "sync_started",
             "instance_name": instance_name,
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": now_sao_paulo(),
         }
     except Exception as e:
         logger.error(f"Error starting contact sync: {e}", exc_info=True)
@@ -420,7 +442,7 @@ async def check_whatsapp_number(
             "phone_number": phone_number,
             "formatted_number": formatted_number,
             "is_whatsapp_user": is_whatsapp,
-            "checked_at": datetime.now(timezone.utc),
+            "checked_at": now_sao_paulo(),
         }
     except HTTPException:
         raise
@@ -433,27 +455,36 @@ async def check_whatsapp_number(
 @router.get("/queue/stats")
 async def get_queue_stats():
     """Get message queue statistics."""
+    message_queue = MessageQueue(redis_url=settings.REDIS_URL)
     try:
-        message_queue = MessageQueue(redis_url=settings.REDIS_URL)
         stats = await message_queue.get_queue_stats()
-        return {"queue_statistics": stats, "timestamp": datetime.now(timezone.utc)}
+        return {"queue_statistics": stats, "timestamp": now_sao_paulo()}
     except Exception as e:
         logger.error(f"Error getting queue stats: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get queue statistics")
+    finally:
+        try:
+            await message_queue.disconnect()
+        except Exception as disconnect_error:
+            logger.warning("Failed to disconnect queue client: %s", disconnect_error)
 
 
 @router.post("/queue/process")
-async def start_queue_processing(
-    background_tasks: BackgroundTasks,
+async def process_queue_batch(
+    max_messages: int = Query(100, ge=1, le=1000),
     message_service: WhatsAppMessageService = Depends(get_message_service),
 ):
-    """Start message queue processing."""
+    """Process a bounded queue batch to avoid unmanaged background workers."""
     try:
-        background_tasks.add_task(message_service.process_message_queue)
-        return {"status": "queue_processing_started", "timestamp": datetime.now(timezone.utc)}
+        result = await message_service.process_queue_batch(max_messages=max_messages)
+        return {
+            "status": "queue_batch_processed",
+            "timestamp": now_sao_paulo(),
+            **result,
+        }
     except Exception as e:
-        logger.error(f"Error starting queue processing: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to start queue processing")
+        logger.error(f"Error processing queue batch: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to process queue batch")
 
 
 # Health and Status Endpoints
@@ -463,7 +494,7 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "whatsapp-integration",
-        "timestamp": datetime.now(timezone.utc),
+        "timestamp": now_sao_paulo(),
         "version": "1.0.0",
     }
 
@@ -491,7 +522,7 @@ async def list_instances(db: AsyncSession = Depends(get_async_db)):
                 for instance in instances
             ],
             "total": len(instances),
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": now_sao_paulo(),
         }
     except Exception as e:
         logger.error(f"Error listing instances: {e}", exc_info=True)

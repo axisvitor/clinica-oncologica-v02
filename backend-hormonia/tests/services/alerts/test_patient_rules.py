@@ -16,6 +16,7 @@ import pytest
 from uuid import uuid4
 from datetime import datetime, timedelta
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.alerts import (
     AlertRule,
     AlertRuleType,
@@ -50,8 +51,8 @@ def base_rule():
         severity=AlertSeverity.HIGH,
         enabled=True,
         conditions={},
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive(),
     )
 
 
@@ -74,9 +75,9 @@ class TestNoResponseEvaluator:
         # Setup context - no response for 72 hours
         context = {
             "patient_id": sample_patient_id,
-            "last_inbound_message_at": datetime.utcnow() - timedelta(hours=72),
+            "last_inbound_message_at": now_sao_paulo_naive() - timedelta(hours=72),
             "outbound_messages_since_response": 3,
-            "patient_created_at": datetime.utcnow() - timedelta(days=30),
+            "patient_created_at": now_sao_paulo_naive() - timedelta(days=30),
         }
 
         # Execute
@@ -102,9 +103,9 @@ class TestNoResponseEvaluator:
         # Setup context - responded 1 hour ago
         context = {
             "patient_id": sample_patient_id,
-            "last_inbound_message_at": datetime.utcnow() - timedelta(hours=1),
+            "last_inbound_message_at": now_sao_paulo_naive() - timedelta(hours=1),
             "outbound_messages_since_response": 0,
-            "patient_created_at": datetime.utcnow() - timedelta(days=30),
+            "patient_created_at": now_sao_paulo_naive() - timedelta(days=30),
         }
 
         # Execute
@@ -127,9 +128,9 @@ class TestNoResponseEvaluator:
         # Setup context - no outbound messages
         context = {
             "patient_id": sample_patient_id,
-            "last_inbound_message_at": datetime.utcnow() - timedelta(hours=72),
+            "last_inbound_message_at": now_sao_paulo_naive() - timedelta(hours=72),
             "outbound_messages_since_response": 0,  # No messages sent
-            "patient_created_at": datetime.utcnow() - timedelta(days=30),
+            "patient_created_at": now_sao_paulo_naive() - timedelta(days=30),
         }
 
         # Execute
@@ -149,7 +150,7 @@ class TestNoResponseEvaluator:
         rule.conditions = {"threshold_hours": 48}
 
         # Setup context - patient created 72 hours ago, no inbound messages
-        creation_time = datetime.utcnow() - timedelta(hours=72)
+        creation_time = now_sao_paulo_naive() - timedelta(hours=72)
         context = {
             "patient_id": sample_patient_id,
             "last_inbound_message_at": None,
@@ -175,9 +176,9 @@ class TestNoResponseEvaluator:
         # Setup context - no response for 30 hours
         context = {
             "patient_id": sample_patient_id,
-            "last_inbound_message_at": datetime.utcnow() - timedelta(hours=30),
+            "last_inbound_message_at": now_sao_paulo_naive() - timedelta(hours=30),
             "outbound_messages_since_response": 1,
-            "patient_created_at": datetime.utcnow() - timedelta(days=30),
+            "patient_created_at": now_sao_paulo_naive() - timedelta(days=30),
         }
 
         # Execute
@@ -438,7 +439,7 @@ class TestTreatmentAdherenceEvaluator:
             "treatment_adherence_rate": 0.45,
             "doses_taken": 9,
             "doses_expected": 20,
-            "last_dose_at": datetime.utcnow() - timedelta(days=3),
+            "last_dose_at": now_sao_paulo_naive() - timedelta(days=3),
         }
 
         # Execute
@@ -469,7 +470,7 @@ class TestTreatmentAdherenceEvaluator:
             "treatment_adherence_rate": 0.95,
             "doses_taken": 19,
             "doses_expected": 20,
-            "last_dose_at": datetime.utcnow() - timedelta(hours=12),
+            "last_dose_at": now_sao_paulo_naive() - timedelta(hours=12),
         }
 
         # Execute
@@ -496,7 +497,7 @@ class TestTreatmentAdherenceEvaluator:
             "treatment_adherence_rate": 0.8,
             "doses_taken": 16,
             "doses_expected": 20,
-            "last_dose_at": datetime.utcnow() - timedelta(hours=6),
+            "last_dose_at": now_sao_paulo_naive() - timedelta(hours=6),
         }
 
         # Execute
@@ -557,7 +558,7 @@ class TestEmergencyKeywordsEvaluator:
         context = {
             "patient_id": sample_patient_id,
             "last_message_text": "estou com muita dor no peito",
-            "last_message_at": datetime.utcnow(),
+            "last_message_at": now_sao_paulo_naive(),
         }
 
         # Execute
@@ -589,7 +590,7 @@ class TestEmergencyKeywordsEvaluator:
         context = {
             "patient_id": sample_patient_id,
             "last_message_text": "estou vomitando sangue",
-            "last_message_at": datetime.utcnow(),
+            "last_message_at": now_sao_paulo_naive(),
         }
 
         # Execute
@@ -616,7 +617,7 @@ class TestEmergencyKeywordsEvaluator:
         context = {
             "patient_id": sample_patient_id,
             "last_message_text": "bom dia, como vai?",
-            "last_message_at": datetime.utcnow(),
+            "last_message_at": now_sao_paulo_naive(),
         }
 
         # Execute
@@ -642,7 +643,7 @@ class TestEmergencyKeywordsEvaluator:
         context = {
             "patient_id": sample_patient_id,
             "last_message_text": "socorro! muita dor e sangue, emergência!",
-            "last_message_at": datetime.utcnow(),
+            "last_message_at": now_sao_paulo_naive(),
         }
 
         # Execute
@@ -673,7 +674,7 @@ class TestEmergencyKeywordsEvaluator:
         context = {
             "patient_id": sample_patient_id,
             "last_message_text": "estou com dor",
-            "last_message_at": datetime.utcnow(),
+            "last_message_at": now_sao_paulo_naive(),
         }
 
         # Execute
@@ -697,7 +698,7 @@ class TestEmergencyKeywordsEvaluator:
         context = {
             "patient_id": sample_patient_id,
             "last_message_text": "",
-            "last_message_at": datetime.utcnow(),
+            "last_message_at": now_sao_paulo_naive(),
         }
 
         # Execute
@@ -721,7 +722,7 @@ class TestEmergencyKeywordsEvaluator:
         context = {
             "patient_id": sample_patient_id,
             "last_message_text": None,
-            "last_message_at": datetime.utcnow(),
+            "last_message_at": now_sao_paulo_naive(),
         }
 
         # Execute

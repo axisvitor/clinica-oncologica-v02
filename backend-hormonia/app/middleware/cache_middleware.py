@@ -50,6 +50,7 @@ class CacheMiddleware(BaseHTTPMiddleware):
         self.exclude_patterns = exclude_patterns or [
             "/api/v2/auth",  # Never cache auth endpoints
             "/api/v2/admin",  # Never cache admin endpoints
+            "/api/v2/alerts",  # Alert data must reflect latest writes
             "/ws",  # Never cache WebSocket
             "/health",  # Never cache health checks
         ]

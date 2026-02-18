@@ -100,7 +100,7 @@ def example_update_patient_clinical_data():
         },
         "onboarding": {
             "completed": True,
-            "completed_at": "2024-01-15T10:00:00Z"
+            "completed_at": "2024-01-15T10:00:00-03:00"
         }
     }
 

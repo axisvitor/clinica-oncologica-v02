@@ -16,11 +16,12 @@ from sqlalchemy.orm import Session
 
 # Local application imports
 from app.agents.base import MessagePriority
-from app.models.patient import Patient
-from app.models.quiz import QuizSession, QuizTemplate
+from app.agents.registry import ALERT_ANALYZER_ID, PATIENT_MONITOR_ID, FLOW_COORDINATOR_ID
+from app.models.quiz import QuizResponse, QuizSession
 from app.repositories.patient import PatientRepository
 from app.schemas.quiz import QuizSessionCreate
-from app.services.quiz import QuizSessionService, QuizTemplateService
+from app.services.quiz import QuizResponseService, QuizSessionService, QuizTemplateService
+from .types import QuizContext
 
 if TYPE_CHECKING:
     from app.domain.agents.quiz.progress_tracker import ProgressTracker
@@ -36,42 +37,6 @@ def _get_knowledge_graph():
     except ImportError as e:
         logging.warning(f"KnowledgeGraph import failed: {e}")
         return None
-
-
-class QuizContext:
-    """
-    Context for quiz conduction and adaptation.
-
-    Contains all state and metadata for an active quiz session,
-    including patient data, progress tracking, and adaptation history.
-
-    Attributes:
-        patient_id: Patient UUID.
-        session: Active quiz session.
-        template: Quiz template being used.
-        patient_data: Patient information.
-        current_question_index: Current question number.
-        responses_so_far: List of previous responses.
-        mood_indicators: Analyzed mood data.
-        stress_level: Calculated stress level (0-1).
-        engagement_score: Calculated engagement score (0-1).
-        knowledge_context: Knowledge graph context.
-        adaptation_history: List of applied adaptations.
-    """
-
-    def __init__(self):
-        """Initialize quiz context with default values."""
-        self.patient_id: Optional[UUID] = None
-        self.session: Optional[QuizSession] = None
-        self.template: Optional[QuizTemplate] = None
-        self.patient_data: Optional[Patient] = None
-        self.current_question_index: int = 0
-        self.responses_so_far: List[Dict] = []
-        self.mood_indicators: Dict[str, Any] = {}
-        self.stress_level: float = 0.0
-        self.engagement_score: float = 1.0
-        self.knowledge_context: Dict[str, Any] = {}
-        self.adaptation_history: List[Dict] = []
 
 
 class SessionCoordinator:
@@ -95,6 +60,7 @@ class SessionCoordinator:
         db_session: Session,
         quiz_template_service: QuizTemplateService,
         quiz_session_service: QuizSessionService,
+        quiz_response_service: Optional[QuizResponseService],
         patient_repo: PatientRepository,
         agent_id: str,
         logger: Optional[logging.Logger] = None,
@@ -106,6 +72,7 @@ class SessionCoordinator:
             db_session: Database session.
             quiz_template_service: Quiz template service.
             quiz_session_service: Quiz session service.
+            quiz_response_service: Quiz response service.
             patient_repo: Patient repository.
             agent_id: Agent identifier.
             logger: Logger instance.
@@ -113,6 +80,7 @@ class SessionCoordinator:
         self.db_session = db_session
         self.quiz_template_service = quiz_template_service
         self.quiz_session_service = quiz_session_service
+        self.quiz_response_service = quiz_response_service
         self.patient_repo = patient_repo
         self.agent_id = agent_id
         self._logger = logger or logging.getLogger(f"{__name__}.{self.__class__.__name__}")
@@ -139,17 +107,33 @@ class SessionCoordinator:
 
         # Get patient data
         context.patient_data = self.patient_repo.get(patient_id)
+        if context.patient_data is None:
+            self._logger.warning("Patient %s not found while building quiz context", patient_id)
 
         # Get active quiz session
         active_session = self.quiz_session_service.get_active_session(patient_id)
         if active_session:
             context.session = active_session
-            context.current_question_index = active_session.current_question_index
+            try:
+                context.current_question = int(
+                    getattr(active_session, "current_question", 0) or 0
+                )
+            except (TypeError, ValueError):
+                context.current_question = 0
 
             # Get template
-            context.template = self.quiz_template_service.get_template(
-                active_session.quiz_template_id
-            )
+            try:
+                context.template = await self.quiz_template_service.get_template(
+                    active_session.quiz_template_id
+                )
+            except Exception as exc:
+                self._logger.error(
+                    "Failed to load template %s for session %s: %s",
+                    active_session.quiz_template_id,
+                    active_session.id,
+                    exc,
+                )
+                context.template = None
 
         # Get knowledge graph context
         if self.knowledge_graph:
@@ -184,8 +168,12 @@ class SessionCoordinator:
     ) -> Optional[QuizSession]:
         """Create new quiz session."""
         try:
+            if not context.patient_id:
+                self._logger.error("Cannot create quiz session without patient_id")
+                return None
+
             # Get or create appropriate template
-            template = await question_presenter.get_or_create_quiz_template(
+            template = context.template or await question_presenter.get_or_create_quiz_template(
                 quiz_type, context
             )
 
@@ -198,7 +186,7 @@ class SessionCoordinator:
                 patient_id=context.patient_id, quiz_template_id=template.id
             )
 
-            session = await self.quiz_session_service.start_quiz_session(session_data)
+            session = self.quiz_session_service.start_quiz_session(session_data)
 
             # Update session metadata with swarm context
             session_metadata = {
@@ -217,9 +205,14 @@ class SessionCoordinator:
                     for p in context.knowledge_context["patterns"][-3:]
                 ]
 
-            # Store metadata (this would need to be added to the session model)
+            existing_metadata = getattr(session, "session_metadata", None)
+            if not isinstance(existing_metadata, dict):
+                existing_metadata = {}
+            session.session_metadata = {**existing_metadata, **session_metadata}
+            self.db_session.flush()
 
             context.template = template
+            context.session = session
             return session
 
         except Exception as e:
@@ -229,8 +222,15 @@ class SessionCoordinator:
     async def complete_quiz_session(self, context: QuizContext, send_message_callback):
         """Complete quiz session with comprehensive analysis."""
         try:
+            if not context.session:
+                self._logger.warning(
+                    "Quiz completion requested without active session for patient %s",
+                    context.patient_id,
+                )
+                return
+
             # Mark session as completed
-            await self.quiz_session_service.complete_session(context.session.id)
+            self.quiz_session_service.complete_session(context.session.id)
 
             # Trigger comprehensive analysis
             await self.trigger_comprehensive_analysis(context, send_message_callback)
@@ -269,10 +269,9 @@ class SessionCoordinator:
 
         # Request analysis from different agents
         analysis_agents = [
-            "alert_analyzer_agent",
-            "patient_monitor_agent",
-            "flow_coordinator_agent",
-            "insight_generator_agent",
+            ALERT_ANALYZER_ID,
+            PATIENT_MONITOR_ID,
+            FLOW_COORDINATOR_ID,
         ]
 
         for agent_id in analysis_agents:
@@ -286,8 +285,40 @@ class SessionCoordinator:
             except Exception as e:
                 self._logger.error(f"Failed to request analysis from {agent_id}: {e}")
 
-    async def get_session_responses(self, session_id: UUID) -> List[Dict]:
-        """Get responses for current session."""
-        # This would query actual responses from database
-        # For now, return empty list
-        return []
+    async def get_session_responses(
+        self, session_id: UUID, limit: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Get most recent responses for current session (default: last 5)."""
+        if self.quiz_response_service is not None:
+            responses = self.quiz_response_service.get_session_responses(session_id)
+            if limit > 0:
+                responses = responses[-limit:]
+        else:
+            responses = (
+                self.db_session.query(QuizResponse)
+                .filter(QuizResponse.quiz_session_id == session_id)
+                .order_by(QuizResponse.responded_at.desc())
+                .limit(limit)
+                .all()
+            )
+            responses = list(reversed(responses))
+
+        payloads: List[Dict[str, Any]] = []
+        for response in responses:
+            metadata = response.response_metadata or {}
+            confidence = metadata.get("confidence", 1.0)
+            value = response.response_value
+            payloads.append(
+                {
+                    "question_id": response.question_id,
+                    "question_text": response.question_text,
+                    "response_type": response.response_type,
+                    "processed_value": value,
+                    "confidence": confidence,
+                    "responded_at": response.responded_at.isoformat()
+                    if response.responded_at
+                    else None,
+                }
+            )
+
+        return payloads

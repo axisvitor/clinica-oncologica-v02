@@ -931,7 +931,7 @@ Content-Type: application/json
   "questions": [...],
   "current_question_index": 0,
   "total_questions": 10,
-  "expires_at": "2025-10-15T23:59:59Z",
+  "expires_at": "2025-10-15T23:59:59-03:00",
   "new_token": "def456uvw789"
 }
 ```

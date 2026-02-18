@@ -157,7 +157,7 @@ except Exception as e:
     saga.status = SagaStatus.FAILED
     saga.error_message = str(e)
     saga.error_type = type(e).__name__
-    saga.failed_at = datetime.now(timezone.utc)
+    saga.failed_at = now_sao_paulo()
     # Commit the failure state separately
     self.db.commit()  # ✅ Mas saga foi revertida pelo rollback!
 ```
@@ -195,7 +195,7 @@ except Exception as e:
         saga.status = SagaStatus.FAILED
         saga.error_message = str(e)
         saga.error_type = type(e).__name__
-        saga.failed_at = datetime.now(timezone.utc)
+        saga.failed_at = now_sao_paulo()
         self.db.commit()
 ```
 
@@ -503,7 +503,7 @@ if success:
                 json.dumps({
                     "message_id": str(message.id),
                     "patient_id": str(saga.patient_id),
-                    "sent_at": datetime.now(timezone.utc).isoformat()
+                    "sent_at": now_sao_paulo().isoformat()
                 })
             )
 ```
@@ -821,7 +821,7 @@ async def _track_compensation_failure(self, saga_id, step, error):
             "saga_id": str(saga_id),
             "step": step,
             "error": str(error),
-            "timestamp": datetime.now(timezone.utc).isoformat()
+            "timestamp": now_sao_paulo().isoformat()
         }
         self.redis.setex(failure_key, 86400 * 7, json.dumps(failure_data))
 ```
@@ -877,7 +877,7 @@ async def _compensate_saga(self, saga: PatientOnboardingSaga):
 @shared_task
 def check_orphaned_sagas():
     """Detecta sagas órfãs (stuck > 4h)"""
-    orphan_threshold = datetime.now(timezone.utc) - timedelta(hours=4)
+    orphan_threshold = now_sao_paulo() - timedelta(hours=4)
     orphaned_sagas = db.query(PatientOnboardingSaga).filter(
         created_at < orphan_threshold,
         status.notin_([COMPLETED, FAILED, COMPENSATED])
@@ -909,7 +909,7 @@ saga.add_log_entry(
   "step": 1,
   "action": "create_patient",
   "status": "success",
-  "timestamp": "2025-12-24T10:30:00Z"
+  "timestamp": "2025-12-24T10:30:00-03:00"
 }
 ```
 

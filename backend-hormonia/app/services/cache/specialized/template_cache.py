@@ -13,15 +13,13 @@ import asyncio
 import time
 from typing import Any, Dict, Optional
 
-from app.services.ai.cache_layer import CacheLayer, CacheStrategy
-
 _template_cache_singleton: Optional["TemplateCache"] = None
 
 
 class TemplateCache:
     """Simple async template cache with namespace invalidation."""
 
-    def __init__(self, cache_layer: Optional[CacheLayer] = None):
+    def __init__(self, cache_layer: Optional[Any] = None):
         self.cache_layer = cache_layer
         self._lock = asyncio.Lock()
         # category -> name -> entry
@@ -79,11 +77,8 @@ class TemplateCache:
         async with self._lock:
             total = sum(len(bucket) for bucket in self._store.values())
             categories = list(self._store.keys())
-        strategy = (
-            self.cache_layer.strategy.value
-            if self.cache_layer and isinstance(self.cache_layer.strategy, CacheStrategy)
-            else "memory"
-        )
+        strategy_obj = getattr(self.cache_layer, "strategy", None)
+        strategy = getattr(strategy_obj, "value", strategy_obj) or "memory"
         return {
             "strategy": strategy,
             "total_templates": total,

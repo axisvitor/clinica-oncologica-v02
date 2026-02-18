@@ -21,12 +21,19 @@ from app.models.user import User, UserRole, AuthProvider
 from app.models.session import Session as SessionModel
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Helper Functions
 # ============================================================================
 
+
+@pytest.fixture
+def test_user(test_doctor_user: User) -> User:
+    """Align session-oriented auth tests with the default authenticated doctor fixture."""
+    return test_doctor_user
+
 def create_mock_firebase_token_data(
-    uid: str = "firebase_uid_123",
+    uid: str = "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
     email: str = "test@clinica.com",
     email_verified: bool = True,
     name: str = "Test User",
@@ -57,9 +64,9 @@ def create_test_session_model(
         user_id=user.id,
         session_token=f"test_token_{uuid4().hex}",
         is_active=is_active,
-        created_at=kwargs.get('created_at', datetime.utcnow()),
-        expires_at=kwargs.get('expires_at', datetime.utcnow() + timedelta(days=expires_in_days)),
-        last_activity=kwargs.get('last_activity', datetime.utcnow()),
+        created_at=kwargs.get('created_at', now_sao_paulo_naive()),
+        expires_at=kwargs.get('expires_at', now_sao_paulo_naive() + timedelta(days=expires_in_days)),
+        last_activity=kwargs.get('last_activity', now_sao_paulo_naive()),
         ip_address=kwargs.get('ip_address', '192.168.1.1'),
         user_agent=kwargs.get('user_agent', 'Mozilla/5.0 Test Browser'),
         revoked_at=kwargs.get('revoked_at'),
@@ -88,7 +95,7 @@ class TestFirebaseAuthentication:
     ):
         """Test Firebase verification creates new user when not exists."""
         firebase_data = create_mock_firebase_token_data(
-            uid="new_user_uid",
+            uid="B1C2D3E4F5G6H7I8J9K0L1M2N3O4",
             email="newuser@clinica.com"
         )
 
@@ -102,7 +109,7 @@ class TestFirebaseAuthentication:
 
                 response = client.post(
                     "/api/v2/auth/firebase/verify",
-                    json={"id_token": "valid_firebase_token"}
+                    json={"id_token": "valid.firebase.token"}
                 )
 
                 assert response.status_code == 200
@@ -121,7 +128,7 @@ class TestFirebaseAuthentication:
         from app.models.user import User
         existing_user = User(
             id=uuid4(),
-            firebase_uid="existing_uid_123",
+            firebase_uid="C1D2E3F4G5H6I7J8K9L0M1N2O3P4",
             email="existing@clinica.com",
             full_name="Existing User",
             is_active=True,
@@ -132,7 +139,7 @@ class TestFirebaseAuthentication:
         db_session.commit()
 
         firebase_data = create_mock_firebase_token_data(
-            uid="existing_uid_123",
+            uid="C1D2E3F4G5H6I7J8K9L0M1N2O3P4",
             email="existing@clinica.com",
             name="Updated Name"
         )
@@ -147,7 +154,7 @@ class TestFirebaseAuthentication:
 
                 response = client.post(
                     "/api/v2/auth/firebase/verify",
-                    json={"id_token": "valid_firebase_token"}
+                    json={"id_token": "valid.firebase.token"}
                 )
 
                 assert response.status_code == 200
@@ -163,7 +170,7 @@ class TestFirebaseAuthentication:
 
             response = client.post(
                 "/api/v2/auth/firebase/verify",
-                json={"id_token": "invalid_token"}
+                json={"id_token": "invalid.firebase.token"}
             )
 
             assert response.status_code == 401
@@ -180,7 +187,7 @@ class TestFirebaseAuthentication:
 
             response = client.post(
                 "/api/v2/auth/firebase/verify",
-                json={"id_token": "expired_token"}
+                json={"id_token": "expired.firebase.token"}
             )
 
             assert response.status_code == 500
@@ -209,7 +216,7 @@ class TestFirebaseAuthentication:
 
             response = client.post(
                 "/api/v2/auth/firebase/verify",
-                json={"id_token": "token_without_uid"}
+                json={"id_token": "token.without.uid"}
             )
 
             assert response.status_code == 400
@@ -221,11 +228,11 @@ class TestFirebaseAuthentication:
     ):
         """Test Firebase verification with token missing email."""
         with patch('app.api.v2.routers.auth.verify_token', new_callable=AsyncMock) as mock_verify:
-            mock_verify.return_value = {"uid": "test_uid"}  # Missing email
+            mock_verify.return_value = {"uid": "E1F2G3H4I5J6K7L8M9N0O1P2Q3R4"}  # Missing email
 
             response = client.post(
                 "/api/v2/auth/firebase/verify",
-                json={"id_token": "token_without_email"}
+                json={"id_token": "token.without.email"}
             )
 
             assert response.status_code == 400
@@ -240,12 +247,12 @@ class TestFirebaseAuthentication:
 
         locked_user = User(
             id=uuid4(),
-            firebase_uid="locked_uid",
+            firebase_uid="D1E2F3G4H5I6J7K8L9M0N1O2P3Q4",
             email="locked@clinica.com",
             full_name="Locked User",
             is_active=True,
             is_locked=True,
-            locked_until=datetime.utcnow() + timedelta(hours=1),
+            locked_until=now_sao_paulo_naive() + timedelta(hours=1),
             role=UserRole.DOCTOR,
             auth_provider=AuthProvider.FIREBASE
         )
@@ -253,7 +260,7 @@ class TestFirebaseAuthentication:
         db_session.commit()
 
         firebase_data = create_mock_firebase_token_data(
-            uid="locked_uid",
+            uid="D1E2F3G4H5I6J7K8L9M0N1O2P3Q4",
             email="locked@clinica.com"
         )
 
@@ -262,7 +269,7 @@ class TestFirebaseAuthentication:
 
             response = client.post(
                 "/api/v2/auth/firebase/verify",
-                json={"id_token": "valid_token"}
+                json={"id_token": "valid.firebase.token"}
             )
 
             assert response.status_code == 403
@@ -287,7 +294,7 @@ class TestFirebaseAuthentication:
 
                 response = client.post(
                     "/api/v2/auth/firebase/verify",
-                    json={"id_token": "valid_token"}
+                    json={"id_token": "valid.firebase.token"}
                 )
 
                 assert response.status_code == 200
@@ -315,7 +322,7 @@ class TestSessionManagement:
         # Create active session
         session = create_test_session_model(db_session, test_user)
 
-        response = client.post(
+        response = client.get(
             "/api/v2/auth/verify-session",
             headers=auth_headers
         )
@@ -337,10 +344,10 @@ class TestSessionManagement:
         create_test_session_model(
             db_session,
             test_user,
-            expires_at=datetime.utcnow() - timedelta(hours=1)
+            expires_at=now_sao_paulo_naive() - timedelta(hours=1)
         )
 
-        response = client.post(
+        response = client.get(
             "/api/v2/auth/verify-session",
             headers=auth_headers
         )
@@ -360,10 +367,10 @@ class TestSessionManagement:
             db_session,
             test_user,
             is_active=False,
-            revoked_at=datetime.utcnow()
+            revoked_at=now_sao_paulo_naive()
         )
 
-        response = client.post(
+        response = client.get(
             "/api/v2/auth/verify-session",
             headers=auth_headers
         )
@@ -376,7 +383,7 @@ class TestSessionManagement:
         db_session: Session
     ):
         """Test verifying session without authentication."""
-        response = client.post("/api/v2/auth/verify-session")
+        response = client.get("/api/v2/auth/verify-session")
         assert response.status_code == 401
 
     def test_logout_success(
@@ -474,7 +481,13 @@ class TestCSRFToken:
         assert response.status_code == 200
         data = response.json()
         assert "csrf_token" in data
-        assert len(data["csrf_token"]) == 32  # UUID hex format
+        token = data["csrf_token"]
+        assert isinstance(token, str)
+        # Current implementation returns signed CSRF tokens:
+        # {timestamp}.{random_hex}.{signature}
+        parts = token.split(".")
+        assert len(parts) == 3
+        assert len(token) > 32
 
     def test_csrf_token_uniqueness(
         self,
@@ -515,7 +528,7 @@ class TestRateLimiting:
             # Make a single request to verify endpoint works
             response = client.post(
                 "/api/v2/auth/firebase/verify",
-                json={"id_token": "test_token"}
+                json={"id_token": "test.firebase.token"}
             )
 
             # Should not be rate limited on first request
@@ -533,7 +546,7 @@ class TestRateLimiting:
         create_test_session_model(db_session, test_user)
 
         # Make single request
-        response = client.post(
+        response = client.get(
             "/api/v2/auth/verify-session",
             headers=auth_headers
         )
@@ -590,13 +603,13 @@ class TestAuthenticationSecurity:
         for malicious_input in malicious_inputs:
             with patch('app.api.v2.routers.auth.verify_token', new_callable=AsyncMock) as mock_verify:
                 mock_verify.return_value = {
-                    "uid": "test_uid",
+                    "uid": "E1F2G3H4I5J6K7L8M9N0O1P2Q3R4",
                     "email": malicious_input
                 }
 
                 response = client.post(
                     "/api/v2/auth/firebase/verify",
-                    json={"id_token": "test_token"}
+                    json={"id_token": "test.firebase.token"}
                 )
 
                 # Should handle gracefully, not execute SQL
@@ -617,7 +630,7 @@ class TestAuthenticationSecurity:
         for xss_payload in xss_payloads:
             with patch('app.api.v2.routers.auth.verify_token', new_callable=AsyncMock) as mock_verify:
                 mock_verify.return_value = {
-                    "uid": "test_uid",
+                    "uid": "E1F2G3H4I5J6K7L8M9N0O1P2Q3R4",
                     "email": "test@example.com",
                     "name": xss_payload
                 }
@@ -629,7 +642,7 @@ class TestAuthenticationSecurity:
 
                     response = client.post(
                         "/api/v2/auth/firebase/verify",
-                        json={"id_token": "test_token"}
+                        json={"id_token": "test.firebase.token"}
                     )
 
                     # Should store but escape/sanitize dangerous content
@@ -645,7 +658,7 @@ class TestAuthenticationSecurity:
         """Test that session tokens are not exposed in response body."""
         session = create_test_session_model(db_session, test_user)
 
-        response = client.post(
+        response = client.get(
             "/api/v2/auth/verify-session",
             headers=auth_headers
         )
@@ -665,7 +678,7 @@ class TestAuthenticationSecurity:
         """Test that password/hashed_password never appears in responses."""
         session = create_test_session_model(db_session, test_user)
 
-        response = client.post(
+        response = client.get(
             "/api/v2/auth/verify-session",
             headers=auth_headers
         )
@@ -743,8 +756,8 @@ class TestEdgeCases:
                 json={"id_token": unicode_token}
             )
 
-            # Should handle gracefully
-            assert response.status_code in [401, 422]
+            # Strict JWT contract rejects malformed token format before verification
+            assert response.status_code in [400, 401, 422]
 
     def test_concurrent_session_creation(
         self,
@@ -768,7 +781,7 @@ class TestEdgeCases:
                 for _ in range(3):
                     response = client.post(
                         "/api/v2/auth/firebase/verify",
-                        json={"id_token": "valid_token"}
+                        json={"id_token": "valid.firebase.token"}
                     )
                     responses.append(response)
 
@@ -791,7 +804,7 @@ class TestEdgeCases:
         test_user.is_active = False
         db_session.commit()
 
-        response = client.post(
+        response = client.get(
             "/api/v2/auth/verify-session",
             headers=auth_headers
         )

@@ -414,10 +414,11 @@ export function useTemplates() {
   ): Promise<FlowTemplate | null> => {
     setLoading(true);
     try {
+      const queryParams = setAsActive === undefined ? undefined : { set_as_active: setAsActive };
       const response = await apiClient.post<FlowTemplate>(
         `/api/v2/templates/flows/${templateId}/publish`,
         undefined,
-        { set_as_active: setAsActive }
+        queryParams
       );
       toast({
         title: 'Versão publicada',

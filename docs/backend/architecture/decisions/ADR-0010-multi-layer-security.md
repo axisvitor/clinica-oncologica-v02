@@ -412,7 +412,7 @@ def generate_security_report():
     """Aggregate all security scan results"""
 
     report = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": now_sao_paulo().isoformat(),
         "scans": {
             "secrets": load_scan_results("secrets"),
             "dependencies": load_scan_results("dependencies"),

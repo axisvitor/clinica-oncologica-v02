@@ -6,16 +6,21 @@ admin contracts. It focuses on password reset token creation so that the
 API contracts can generate realistic JWT tokens during integration tests.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Optional
+from uuid import uuid4
 
 import jwt  # PyJWT - replaces python-jose to fix CVE-2024-23342
 
 from app.config import settings
 from app.utils.security import verify_password as _verify_password_util
+from app.utils.timezone import now_sao_paulo
 
 # Default expiration for password reset tokens (24 hours)
 PASSWORD_RESET_TOKEN_EXPIRE_HOURS = 24
+PASSWORD_RESET_TOKEN_TYPE = "password_reset"
+PASSWORD_RESET_TOKEN_ISSUER = "backend-hormonia"
+PASSWORD_RESET_TOKEN_AUDIENCE = "password-reset"
 
 
 def create_password_reset_token(
@@ -37,10 +42,20 @@ def create_password_reset_token(
     Returns:
         Encoded JWT string.
     """
-    expire = datetime.now(timezone.utc) + (
+    now = now_sao_paulo()
+    expire = now_sao_paulo() + (
         expires_delta or timedelta(hours=PASSWORD_RESET_TOKEN_EXPIRE_HOURS)
     )
-    payload = {"sub": email, "exp": expire}
+    payload = {
+        "sub": email,
+        "exp": expire,
+        "iat": now,
+        "nbf": now,
+        "type": PASSWORD_RESET_TOKEN_TYPE,
+        "iss": PASSWORD_RESET_TOKEN_ISSUER,
+        "aud": PASSWORD_RESET_TOKEN_AUDIENCE,
+        "jti": str(uuid4()),
+    }
     return jwt.encode(
         payload, secret_key or settings.SECURITY_SECRET_KEY, algorithm=algorithm
     )
@@ -60,7 +75,11 @@ def verify_password_reset_token(
             token,
             secret_key or settings.SECURITY_SECRET_KEY,
             algorithms=algorithms or ["HS256"],
+            audience=PASSWORD_RESET_TOKEN_AUDIENCE,
+            issuer=PASSWORD_RESET_TOKEN_ISSUER,
         )
+        if payload.get("type") != PASSWORD_RESET_TOKEN_TYPE:
+            raise ValueError("Invalid token type")
         email = payload.get("sub")
         if not email:
             raise ValueError("Missing subject")

@@ -10,14 +10,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Dict, Any
 import time
-from datetime import datetime, timezone
 import psutil
 import sys
 
 from app.database import get_db
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.utils.structured_logger import StructuredLogger
-from app.middleware.metrics import get_metrics as get_performance_metrics
+from app.utils.timezone import now_sao_paulo
 
 logger = StructuredLogger(__name__)
 router = APIRouter(prefix="/health", tags=["health"])
@@ -40,7 +39,7 @@ async def health_check() -> Dict[str, Any]:
     """
     return {
         "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": now_sao_paulo().isoformat(),
         "version": "2.0.0",
         "uptime_seconds": round(time.time() - START_TIME, 2),
     }
@@ -72,7 +71,7 @@ async def detailed_health_check() -> Dict[str, Any]:
 
     response = {
         "status": "healthy" if all_healthy else "unhealthy",
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": now_sao_paulo().isoformat(),
         "uptime_seconds": round(time.time() - START_TIME, 2),
         "middlewares": {
             "csrf": {
@@ -116,7 +115,7 @@ async def liveness_check() -> Dict[str, Any]:
     """
     return {
         "status": "alive",
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": now_sao_paulo().isoformat(),
         "uptime_seconds": round(time.time() - START_TIME, 2),
     }
 
@@ -219,7 +218,7 @@ async def readiness_check(
 
     response = {
         "status": "ready" if all_healthy else "not_ready",
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": now_sao_paulo().isoformat(),
         "dependencies": dependencies,
         "total_check_time_ms": round(total_duration, 2),
     }
@@ -268,7 +267,7 @@ async def metrics_endpoint() -> Dict[str, Any]:
         uptime_seconds = time.time() - START_TIME
 
         metrics = {
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "timestamp": now_sao_paulo().isoformat(),
             "application": {
                 "uptime_seconds": round(uptime_seconds, 2),
                 "python_version": sys.version,
@@ -406,7 +405,7 @@ async def startup_validation(
 
     response = {
         "status": "valid" if all_valid else "invalid",
-        "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+        "timestamp": now_sao_paulo().isoformat(),
         "validation_results": validation_results,
     }
 
@@ -420,39 +419,3 @@ async def startup_validation(
     return response
 
 
-@router.get("/performance", status_code=status.HTTP_200_OK)
-async def performance_metrics() -> Dict[str, Any]:
-    """
-    Get application performance metrics.
-
-    Returns comprehensive performance metrics collected by the
-    PerformanceMetricsMiddleware including:
-    - Request statistics (count, avg duration, by status)
-    - Endpoint-specific metrics (per-endpoint performance)
-    - Database query statistics
-    - Cache performance (hit/miss rates)
-    - Memory usage
-
-    This endpoint provides real-time performance data for monitoring
-    and optimization purposes.
-
-    Returns:
-        dict: Performance metrics snapshot
-    """
-    try:
-        metrics = get_performance_metrics()
-
-        logger.info(
-            "Performance metrics retrieved",
-            total_requests=metrics.get("requests", {}).get("total", 0),
-            cache_hit_rate=metrics.get("cache", {}).get("hit_rate_percent", 0),
-        )
-
-        return metrics
-
-    except Exception as e:
-        logger.error("Failed to retrieve performance metrics", exc_info=e, error=str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "Failed to retrieve metrics", "message": str(e)},
-        )

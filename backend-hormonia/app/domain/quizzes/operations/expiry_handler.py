@@ -11,6 +11,7 @@ from app.repositories.quiz import QuizSessionRepository
 from app.exceptions import NotFoundError
 
 import logging
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ class ExpiryHandler:
 
         # Add failure record
         failure_record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "reason": failure_reason,
             "details": failure_details or {},
         }

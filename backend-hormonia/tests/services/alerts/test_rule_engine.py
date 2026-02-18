@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock
 from typing import Dict, Any, Optional
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.alerts import (
     RuleEngine,
     AlertRule,
@@ -45,7 +46,7 @@ def sample_patient_id():
 def sample_context():
     """Sample evaluation context."""
     return {
-        "last_inbound_message_at": datetime.utcnow() - timedelta(days=3),
+        "last_inbound_message_at": now_sao_paulo_naive() - timedelta(days=3),
         "quiz_responses_count": 0,
         "sentiment_scores": [-0.8, -0.7, -0.9],
         "treatment_adherence_rate": 0.45,
@@ -64,8 +65,8 @@ def sample_rule():
         severity=AlertSeverity.HIGH,
         enabled=True,
         conditions={"max_hours_without_response": 48},
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive(),
     )
 
 
@@ -79,7 +80,7 @@ def sample_evaluation():
         title="Patient No Response",
         message="Patient has not responded in 72 hours",
         metadata={"days_without_response": 3},
-        timestamp=datetime.utcnow(),
+        timestamp=now_sao_paulo_naive(),
     )
 
 
@@ -99,7 +100,7 @@ async def mock_evaluator():
             title="Mock Alert",
             message="Mock alert message",
             metadata={},
-            timestamp=datetime.utcnow(),
+            timestamp=now_sao_paulo_naive(),
         )
 
     return evaluator
@@ -275,8 +276,8 @@ class TestRuleManagement:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
         rule2 = AlertRule(
             id=uuid4(),
@@ -286,8 +287,8 @@ class TestRuleManagement:
             severity=AlertSeverity.MEDIUM,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         # Execute
@@ -328,8 +329,8 @@ class TestRuleManagement:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
         rule2 = AlertRule(
             id=uuid4(),
@@ -339,8 +340,8 @@ class TestRuleManagement:
             severity=AlertSeverity.MEDIUM,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         # Register rules
@@ -365,8 +366,8 @@ class TestRuleManagement:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
         disabled_rule = AlertRule(
             id=uuid4(),
@@ -376,8 +377,8 @@ class TestRuleManagement:
             severity=AlertSeverity.MEDIUM,
             enabled=False,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         # Register rules
@@ -441,8 +442,8 @@ class TestRuleEvaluation:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
         rule2 = AlertRule(
             id=uuid4(),
@@ -452,8 +453,8 @@ class TestRuleEvaluation:
             severity=AlertSeverity.MEDIUM,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         rule_engine.register_rule(rule1)
@@ -485,8 +486,8 @@ class TestRuleEvaluation:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         rule_engine.register_rule(rule)
@@ -515,8 +516,8 @@ class TestRuleEvaluation:
             severity=AlertSeverity.HIGH,
             enabled=False,  # Disabled
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         rule_engine.register_rule(disabled_rule)
@@ -546,8 +547,8 @@ class TestRuleEvaluation:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         rule_engine.register_rule(rule)
@@ -581,8 +582,8 @@ class TestRuleEvaluation:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         rule_engine.register_rule(rule)
@@ -616,8 +617,8 @@ class TestRuleEvaluation:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         rule_engine.register_rule(rule)
@@ -659,8 +660,8 @@ class TestCaching:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         rule_engine.register_rule(rule)
@@ -693,8 +694,8 @@ class TestCaching:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         rule_engine.register_rule(rule)
@@ -725,8 +726,8 @@ class TestCaching:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         rule_engine.register_rule(rule)
@@ -773,8 +774,8 @@ class TestStatistics:
             severity=AlertSeverity.HIGH,
             enabled=True,
             conditions={},
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         rule_engine.register_rule(rule)

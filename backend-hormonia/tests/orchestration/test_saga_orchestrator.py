@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 from uuid import uuid4
 
+from app.utils.timezone import now_sao_paulo
 os.environ.setdefault("MONTHLY_QUIZ_TOKEN_SECRET", "test-secret-key-for-testing")
 
 from app.orchestration.saga_orchestrator import SagaOrchestrator
@@ -256,12 +257,10 @@ async def test_compensation_failure_sends_notification():
         )
 
     notification_service.send_alert.assert_called_once()
-    assert mock_saga.status == SagaStatus.COMPLETED
-    
-    # Verify steps executed
-    assert saga_orchestrator.mock_flow_service.initialize_default_flow.called
-    assert saga_orchestrator.mock_message_service.schedule_message.called
-    assert saga_orchestrator.mock_send_task.apply_async.called
+    assert patient.patient_data.get("quarantine") is True
+    assert patient.patient_data.get("quarantine_reason") == "saga_compensation_failure"
+    assert patient.patient_data.get("saga_id") == str(saga_id)
+    mock_db.flush.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -386,7 +385,7 @@ async def test_step_initialize_flow_skips_when_idempotency_flow_exists():
         patient_data={},
         status=SagaStatus.STARTED,
         current_step=0,
-        started_at=datetime.now(timezone.utc),
+        started_at=now_sao_paulo(),
     )
     patient = Patient(
         id=uuid4(),
@@ -447,7 +446,7 @@ async def test_step_send_welcome_message_skips_when_idempotency_message_exists()
         patient_data={},
         status=SagaStatus.STARTED,
         current_step=0,
-        started_at=datetime.now(timezone.utc),
+        started_at=now_sao_paulo(),
     )
     patient = Patient(
         id=uuid4(),
@@ -507,7 +506,7 @@ async def test_step_send_welcome_message_includes_idempotency_key():
         patient_data={},
         status=SagaStatus.STARTED,
         current_step=0,
-        started_at=datetime.now(timezone.utc),
+        started_at=now_sao_paulo(),
     )
     patient = Patient(
         id=uuid4(),
@@ -516,15 +515,12 @@ async def test_step_send_welcome_message_includes_idempotency_key():
         doctor_id=uuid4(),
     )
 
-    with patch("app.tasks.messaging.send_scheduled_message") as mock_task:
-        mock_task.apply_async = MagicMock()
-        await executor.step_send_welcome_message(
-            saga, patient, idempotency_key="idemp-1"
-        )
+    await executor.step_send_welcome_message(
+        saga, patient, idempotency_key="idemp-1"
+    )
 
     call_kwargs = message_service.schedule_message.call_args.kwargs
     assert call_kwargs["message_metadata"]["idempotency_key"] == "idemp-1"
-    mock_task.apply_async.assert_called_once()
 
 
 

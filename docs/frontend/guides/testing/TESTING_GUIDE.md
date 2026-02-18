@@ -293,7 +293,7 @@ export const mockPatients = [
     phone: '+55 11 99999-9999',
     age: 45,
     status: 'active',
-    created_at: '2023-01-01T00:00:00Z'
+    created_at: '2023-01-01T00:00:00-03:00'
   },
   {
     id: '2',
@@ -302,7 +302,7 @@ export const mockPatients = [
     phone: '+55 11 88888-8888',
     age: 38,
     status: 'active',
-    created_at: '2023-01-02T00:00:00Z'
+    created_at: '2023-01-02T00:00:00-03:00'
   }
 ]
 

@@ -25,6 +25,7 @@ from .base import (
     get_cached_result,
     set_cached_result,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -157,6 +158,6 @@ async def get_risk_assessment(
         "risk_level_filter": risk_level.value if risk_level else "all",
         "risk_assessments": serialized,
         "total_patients": len(serialized),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": now_sao_paulo().isoformat(),
         "lookback_days": lookback_days,
     }

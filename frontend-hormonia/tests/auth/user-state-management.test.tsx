@@ -80,7 +80,7 @@ describe('User State Management Comprehensive Tests', () => {
     role: 'user',
     permissions: ['read:basic', 'write:own'],
     is_active: true,
-    created_at: '2023-01-01T00:00:00Z',
+    created_at: '2023-01-01T00:00:00-03:00',
   }
 
   const mockFirebaseUser = {

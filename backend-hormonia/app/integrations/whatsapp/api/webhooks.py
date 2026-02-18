@@ -10,7 +10,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -29,12 +29,14 @@ from app.database import get_db
 from app.utils.rate_limiter import limiter, check_rate_limit_redis
 from app.config import settings
 from app.services.webhook.idempotency import AtomicWebhookIdempotency
+from app.core.redis_manager import get_async_redis_client
 from app.integrations.whatsapp.security.hmac_validator import WebhookHMACValidator
 from app.integrations.whatsapp.metrics import whatsapp_metrics
 from app.monitoring.metrics import (
     webhook_signature_failures_total,
     webhook_processed_total,
 )
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo, now_sao_paulo_naive
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +57,7 @@ async def get_redis() -> redis.Redis:
     """Get or create Redis client for idempotency."""
     global _redis_client
     if _redis_client is None:
-        _redis_client = redis.from_url(settings.REDIS_URL)
+        _redis_client = await get_async_redis_client()
     return _redis_client
 
 
@@ -69,14 +71,22 @@ async def get_idempotency_service() -> AtomicWebhookIdempotency:
 
 
 def _get_client_ip(request: Request) -> str:
-    """Resolve client IP, honoring proxy headers when present."""
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
+    """
+    Resolve client IP.
 
-    real_ip = request.headers.get("x-real-ip")
-    if real_ip:
-        return real_ip.strip()
+    Proxy headers are trusted only when explicitly enabled to avoid spoofing.
+    """
+    trust_proxy_headers = getattr(
+        settings, "WHATSAPP_WEBHOOK_TRUST_PROXY_HEADERS", False
+    )
+    if trust_proxy_headers:
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            return real_ip.strip()
 
     return request.client.host if request.client else "unknown"
 
@@ -200,14 +210,14 @@ async def is_event_processed(
 
         if not acquired and reason == "infrastructure_failure":
             logger.warning(
-                "Idempotency infrastructure unavailable, falling back to legacy check",
+                "Idempotency infrastructure unavailable, falling back to non-atomic check",
                 extra={
                     "event_id": event_id,
                     "event_type": event_type,
                     "instance_name": instance_name,
                 },
             )
-            return await _legacy_is_event_processed(event_id, event_type)
+            return await _fallback_is_event_processed(event_id, event_type)
 
         if not acquired:
             logger.info(
@@ -216,7 +226,7 @@ async def is_event_processed(
                     "event_id": event_id,
                     "event_type": event_type,
                     "worker_id": worker_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": now_sao_paulo().isoformat(),
                     "idempotency": "protected",
                     "reason": reason,
                 },
@@ -230,15 +240,15 @@ async def is_event_processed(
 
     except Exception as e:
         logger.error(f"Idempotency check failed: {e}", exc_info=True)
-        # QW-006: Fallback to legacy method if atomic fails
-        return await _legacy_is_event_processed(event_id, event_type)
+        # QW-006: Fallback method if atomic idempotency fails
+        return await _fallback_is_event_processed(event_id, event_type)
 
 
-async def _legacy_is_event_processed(
+async def _fallback_is_event_processed(
     event_id: str, event_type: str = "webhook"
 ) -> bool:
     """
-    Legacy idempotency check (fallback if atomic fails).
+    Fallback idempotency check (used if atomic idempotency fails).
 
     NOTE: This has a race condition but is better than dropping events.
     """
@@ -256,7 +266,7 @@ async def _legacy_is_event_processed(
         else:
             return True  # Already exists
     except Exception as e:
-        logger.error(f"Legacy idempotency also failed: {e}")
+        logger.error(f"Fallback idempotency also failed: {e}")
         return False  # Fail-open to not drop events
 
 
@@ -266,24 +276,51 @@ def _webhook_rate_limit_key(request: Request) -> str:
     client_ip = _get_client_ip(request)
     return f"{client_ip}:{instance_name}"
 
+EVENT_PATH_ALIASES = {
+    "send-message": "send.message",
+    "messages-update": "messages.update",
+    "messages-upsert": "messages.upsert",
+    "contacts-update": "contacts.upsert",
+    "contacts-upsert": "contacts.upsert",
+    "chats-update": "chats.upsert",
+    "chats-upsert": "chats.upsert",
+    "connection-update": "connection.update",
+    "presence-update": "presence.update",
+}
 
-@router.post("/evolution/{instance_name}")
-# WA-007 FIX: Rate limit per IP + instance_name combination
-@limiter.limit("500/minute", key_func=_webhook_rate_limit_key)
-async def evolution_webhook(
+
+def _normalize_event_from_path(event_name: str) -> str:
+    """Normalize Evolution event from path segment to payload format."""
+    normalized = (event_name or "").strip().lower()
+    if not normalized:
+        return "unknown"
+    return EVENT_PATH_ALIASES.get(normalized, normalized.replace("-", "."))
+
+
+async def _handle_evolution_webhook(
     instance_name: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: Session,
+    event_override: Optional[str] = None,
 ):
-    """
-    Handle Evolution API webhooks for WhatsApp events.
-
-    Rate limited: 500 requests per minute per IP+instance to prevent DDoS/spam attacks.
-    WA-007: Rate limit applied per IP AND instance_name combination
-    """
+    """Shared Evolution webhook handler for base and event-specific routes."""
     try:
-        raw_payload = await request.body()
+        # Handle client disconnect gracefully to prevent cascading failures
+        try:
+            raw_payload = await request.body()
+        except Exception as body_error:
+            # Client disconnected before we could read the body
+            logger.warning(
+                "Webhook request body read failed (client likely disconnected)",
+                extra={
+                    "instance_name": instance_name,
+                    "error_type": type(body_error).__name__,
+                    "error_message": str(body_error),
+                },
+            )
+            # Return 499 (Client Closed Request) - nginx convention
+            raise HTTPException(status_code=499, detail="Client closed connection")
         client_ip = _get_client_ip(request)
         ip_whitelist = getattr(settings, "WHATSAPP_WEBHOOK_IP_WHITELIST", [])
         if ip_whitelist:
@@ -362,6 +399,19 @@ async def evolution_webhook(
 
         # Parse payload after HMAC validation
         payload = json.loads(raw_payload or b"{}")
+        if event_override:
+            normalized_event = _normalize_event_from_path(event_override)
+            if not payload.get("event") or payload.get("event") == "unknown":
+                payload["event"] = normalized_event
+            elif payload.get("event") != normalized_event:
+                logger.debug(
+                    "Webhook event mismatch, keeping payload event",
+                    extra={
+                        "instance_name": instance_name,
+                        "payload_event": payload.get("event"),
+                        "path_event": normalized_event,
+                    },
+                )
 
         # Log incoming webhook with structured data
         logger.info(
@@ -383,7 +433,7 @@ async def evolution_webhook(
         # Process webhook synchronously with the request's db session
         await process_webhook_event(webhook_data, background_tasks, db)
 
-        return {"status": "received", "timestamp": datetime.now(timezone.utc)}
+        return {"status": "received", "timestamp": now_sao_paulo()}
 
     except HTTPException:
         # Re-raise HTTPException to preserve 401/403/429 status codes
@@ -402,6 +452,49 @@ async def evolution_webhook(
         raise HTTPException(
             status_code=400, detail=f"Webhook processing error: {str(e)}"
         )
+
+
+@router.post("/evolution/{instance_name}")
+# WA-007 FIX: Rate limit per IP + instance_name combination
+@limiter.limit("500/minute", key_func=_webhook_rate_limit_key)
+async def evolution_webhook(
+    instance_name: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """
+    Handle Evolution API webhooks for WhatsApp events.
+
+    Rate limited: 500 requests per minute per IP+instance to prevent DDoS/spam attacks.
+    WA-007: Rate limit applied per IP AND instance_name combination
+    """
+    return await _handle_evolution_webhook(
+        instance_name=instance_name,
+        request=request,
+        background_tasks=background_tasks,
+        db=db,
+    )
+
+
+@router.post("/evolution/{instance_name}/{event_name}")
+# WA-007 FIX: Rate limit per IP + instance_name combination
+@limiter.limit("500/minute", key_func=_webhook_rate_limit_key)
+async def evolution_webhook_by_event(
+    instance_name: str,
+    event_name: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """Handle Evolution webhooks when events are sent as path segments."""
+    return await _handle_evolution_webhook(
+        instance_name=instance_name,
+        request=request,
+        background_tasks=background_tasks,
+        db=db,
+        event_override=event_name,
+    )
 
 
 
@@ -449,6 +542,7 @@ async def process_webhook_event(
                 "error_type": type(e).__name__,
             },
         )
+        raise
     finally:
         duration = time.monotonic() - start_time
         whatsapp_metrics.observe_webhook_processing_duration(
@@ -467,11 +561,24 @@ async def handle_message_upsert(
 ):
     """Handle incoming messages with idempotency protection and proper transaction management."""
     try:
-        messages = data if isinstance(data, list) else [data]
+        message_handler = None
+        messages = []
+        if isinstance(data, list):
+            messages = data
+        elif isinstance(data, dict):
+            if "messages" in data:
+                nested = data.get("messages")
+                if isinstance(nested, list):
+                    messages = nested
+                elif isinstance(nested, dict):
+                    messages = [nested]
+            else:
+                messages = [data]
 
         for message_data in messages:
             message_info = message_data.get("message", {})
             key = message_data.get("key", {})
+            from_me = bool(key.get("fromMe"))
 
             # Skip status messages
             if message_info.get("messageStubType"):
@@ -488,6 +595,28 @@ async def handle_message_upsert(
             ):
                 logger.debug(f"Skipping duplicate message: {message_id}")
                 continue
+
+            if not from_me:
+                try:
+                    if message_handler is None:
+                        from app.services.webhook.handlers.message_handler import (
+                            MessageWebhookHandler,
+                        )
+
+                        message_handler = MessageWebhookHandler(db)
+                    handler_payload = dict(message_data)
+                    handler_payload.setdefault("instance", instance_name)
+                    await message_handler.process_message(handler_payload)
+                except Exception as handler_error:
+                    logger.error(
+                        "MessageWebhookHandler failed",
+                        exc_info=True,
+                        extra={
+                            "instance_name": instance_name,
+                            "message_id": message_id,
+                            "error_type": type(handler_error).__name__,
+                        },
+                    )
 
             # Determine message type and content
             message_type = "text"
@@ -540,9 +669,9 @@ async def handle_message_upsert(
                         external_id=message_id,
                         # FIX P1-006: Use timezone-aware datetime
                         created_at=datetime.fromtimestamp(
-                            message_data.get("messageTimestamp", 0), tz=timezone.utc
-                        ),
-                        delivered_at=datetime.now(timezone.utc),
+                            message_data.get("messageTimestamp", 0), tz=SAO_PAULO_TZ
+                        ).replace(tzinfo=None),
+                        delivered_at=now_sao_paulo_naive(),
                         message_data={"incoming": True, "message_data": message_data},
                     )
 
@@ -554,74 +683,8 @@ async def handle_message_upsert(
 
                     logger.info(f"Stored incoming message {message_id} from {sender_id}")
 
-                    # ---------------------------------------------------------
-                    # REACTIVE FLOW TRIGGER (Refactored)
-                    # ---------------------------------------------------------
-                    flow_scheduled = False
-                    try:
-                        # Clean phone number (remove suffix)
-                        phone_number = (
-                            sender_id.split("@")[0] if "@" in sender_id else sender_id
-                        )
-
-                        # Find patient by phone (LGPD: use phone_hash lookup)
-                        # Try multiple phone formats to handle storage differences
-                        from app.models.patient import Patient
-                        from app.services.encryption import get_lgpd_encryption_service
-
-                        lgpd_service = get_lgpd_encryption_service()
-                        patient = None
-                        
-                        # Try different phone formats (with/without + prefix)
-                        phone_digits = "".join(c for c in phone_number if c.isdigit())
-                        phone_variants = {phone_digits, f"+{phone_digits}"}
-                        if phone_number.startswith("+"):
-                            phone_variants.add(phone_number)
-
-                        # Handle BR mobile 9-digit vs legacy 8-digit (missing 9 after DDD)
-                        if phone_digits.startswith("55") and len(phone_digits) >= 12:
-                            ddd = phone_digits[2:4]
-                            local = phone_digits[4:]
-                            if len(local) == 8:
-                                mobile = f"55{ddd}9{local}"
-                                phone_variants.update({mobile, f"+{mobile}"})
-                            elif len(local) == 9 and local.startswith("9"):
-                                landline = f"55{ddd}{local[1:]}"
-                                phone_variants.update({landline, f"+{landline}"})
-
-                        for phone_variant in phone_variants:
-                            phone_hash = lgpd_service.hash_phone(phone_variant)
-                            stmt = select(Patient).where(Patient.phone_hash == phone_hash)
-                            result = db.execute(stmt)
-                            patient = result.scalar_one_or_none()
-                            if patient:
-                                logger.debug(f"Patient found with phone format: {phone_variant[:5]}...")
-                                break
-
-                        if patient:
-                            logger.info(
-                                f"Message from patient {patient.id} detected. Triggering flow engine in background."
-                            )
-
-                            # Add to background tasks to avoid blocking the webhook response
-                            # and to manage the sync/async impedance mismatch separately
-                            background_tasks.add_task(
-                                _trigger_flow_response_async, patient.id, content
-                            )
-                            flow_scheduled = True
-                        else:
-                            logger.debug(f"No patient found for phone {phone_number}")
-
-                    except Exception as flow_error:
-                        logger.error(f"Error triggering flow engine: {flow_error}")
-                    # ---------------------------------------------------------
-
-                    # FIX P1-005: Commit AFTER background task is scheduled to ensure
-                    # atomicity - if scheduling fails, we can rollback the message too
+                    # FIX P1-005: Commit after message persistence to keep storage atomic.
                     db.commit()
-
-                    if flow_scheduled:
-                        logger.debug(f"Transaction committed with flow task scheduled for message {message_id}")
 
                     try:
                         idempotency = await get_idempotency_service()
@@ -642,79 +705,7 @@ async def handle_message_upsert(
 
     except Exception as e:
         logger.error(f"Error handling message upsert: {e}", exc_info=True)
-
-
-async def _trigger_flow_response_async(patient_id: str, content: str):
-    """
-    Async helper to trigger the flow engine.
-    Offloads the sync/async hybrid execution to a separate thread to avoid blocking the main loop.
-    """
-    import asyncio
-    from app.database import get_scoped_session
-    from app.services.enhanced_flow_engine import get_enhanced_flow_engine
-
-    logger.info(f"Starting background flow processing for patient {patient_id}")
-
-    def _run_hybrid_flow():
-        try:
-            # Create a new event loop for this thread to handle async calls within the engine
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-            with get_scoped_session() as sync_db:
-                # Initialize engine with sync session
-                engine = get_enhanced_flow_engine(sync_db)
-
-                # Run the async method in the thread's loop
-                # This allows sync DB calls to block the thread (fine)
-                # while async AI calls are awaited properly
-                loop.run_until_complete(
-                    engine.process_patient_response(patient_id, content)
-                )
-
-                # Continue sequential flow if we were waiting for a response
-                try:
-                    from app.services.flow.sequential_message_handler import (
-                        SequentialMessageHandler,
-                    )
-
-                    handler = SequentialMessageHandler(sync_db)
-                    result = loop.run_until_complete(
-                        handler.handle_response_and_continue(patient_id)
-                    )
-                    status = result.get("status") if isinstance(result, dict) else None
-                    if status in {"waiting", "day_complete", "complete"}:
-                        logger.info(
-                            "Sequential flow progressed after response",
-                            extra={"patient_id": str(patient_id), "status": status},
-                        )
-                except Exception as continuation_error:
-                    logger.error(
-                        f"Failed to continue sequential flow for patient {patient_id}: {continuation_error}",
-                        exc_info=True,
-                    )
-
-            loop.close()
-            logger.info(
-                f"Completed background flow processing for patient {patient_id}"
-            )
-
-        except Exception as e:
-            logger.error(
-                f"Error in background flow thread for patient {patient_id}: {e}",
-                exc_info=True,
-            )
-            try:
-                loop.close()
-            except Exception as close_err:
-                logger.debug(f"Event loop close error (non-critical): {close_err}")
-
-    # Run in executor to avoid blocking the main event loop with sync DB calls
-    try:
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _run_hybrid_flow)
-    except Exception as e:
-        logger.error(f"Failed to schedule background flow task: {e}", exc_info=True)
+        raise
 
 
 async def handle_message_update(
@@ -765,12 +756,12 @@ async def handle_message_update(
                     previous_status = message.status.value if message.status else None
 
                     message.status = new_status
-                    message.updated_at = datetime.now(timezone.utc)
+                    message.updated_at = now_sao_paulo_naive()
 
                     if new_status == MessageStatus.DELIVERED:
-                        message.delivered_at = datetime.now(timezone.utc)
+                        message.delivered_at = now_sao_paulo_naive()
                     elif new_status == MessageStatus.READ:
-                        message.read_at = datetime.now(timezone.utc)
+                        message.read_at = now_sao_paulo_naive()
 
                     # Create audit trail event for message status change
                     status_event = MessageStatusEvent(
@@ -778,7 +769,7 @@ async def handle_message_update(
                         status=new_status.value,
                         previous_status=previous_status,
                         whatsapp_id=key.get("id"),
-                        created_at=datetime.now(timezone.utc),
+                        created_at=now_sao_paulo(),
                         event_metadata={"source": "evolution_webhook", "raw_status": status_update}
                     )
                     db.add(status_event)
@@ -804,36 +795,162 @@ async def handle_message_update(
 
     except Exception as e:
         logger.error(f"Error handling message update: {e}", exc_info=True)
+        raise
 
 
 async def handle_send_message(
     instance_name: str, data: Dict[str, Any], db: Session
 ):
-    """Handle outgoing message confirmation."""
-    try:
-        key = data.get("key", {})
-        message_id = key.get("id", "")
+    """
+    Handle outgoing message confirmation.
 
-        if message_id:
-            # Update message with external ID
+    Correlation is strict to avoid linking Evolution message IDs to the wrong
+    pending message when multiple sends are in flight.
+    """
+    try:
+        events = data if isinstance(data, list) else [data]
+
+        for event_data in events:
+            if not isinstance(event_data, dict):
+                continue
+
+            key = event_data.get("key", {})
+            message_id = key.get("id", "")
+            if not message_id:
+                continue
+
+            # Skip if we already linked this Evolution message id.
+            existing_stmt = select(WhatsAppMessage).where(
+                WhatsAppMessage.instance_name == instance_name,
+                WhatsAppMessage.external_id == message_id,
+            )
+            existing_result = db.execute(existing_stmt)
+            if existing_result.scalar_one_or_none():
+                continue
+
+            remote_jid = key.get("remoteJid", "")
+            recipient_phone = remote_jid.split("@")[0] if "@" in remote_jid else remote_jid
+
+            message_info = event_data.get("message", {})
+            outbound_content = ""
+            outbound_media_url = None
+
+            if "conversation" in message_info:
+                outbound_content = message_info.get("conversation", "")
+            elif "extendedTextMessage" in message_info:
+                outbound_content = (
+                    message_info.get("extendedTextMessage", {}).get("text", "")
+                )
+            elif "imageMessage" in message_info:
+                outbound_content = message_info.get("imageMessage", {}).get("caption", "")
+                outbound_media_url = message_info.get("imageMessage", {}).get("url", "")
+            elif "documentMessage" in message_info:
+                outbound_content = message_info.get("documentMessage", {}).get("caption", "")
+                outbound_media_url = message_info.get("documentMessage", {}).get("url", "")
+            elif "videoMessage" in message_info:
+                outbound_content = message_info.get("videoMessage", {}).get("caption", "")
+                outbound_media_url = message_info.get("videoMessage", {}).get("url", "")
+
             stmt = select(WhatsAppMessage).where(
                 WhatsAppMessage.instance_name == instance_name,
                 WhatsAppMessage.external_id.is_(None),
                 WhatsAppMessage.status == MessageStatus.PENDING,
             )
+
+            if remote_jid:
+                stmt = stmt.where(WhatsAppMessage.chat_id == remote_jid)
+            elif recipient_phone:
+                stmt = stmt.where(WhatsAppMessage.recipient_id == recipient_phone)
+            else:
+                logger.warning(
+                    "Skipping send.message correlation without destination",
+                    extra={
+                        "instance_name": instance_name,
+                        "external_id": message_id,
+                    },
+                )
+                continue
+
+            if outbound_content:
+                stmt = stmt.where(WhatsAppMessage.content == outbound_content)
+            if outbound_media_url:
+                stmt = stmt.where(WhatsAppMessage.media_url == outbound_media_url)
+
+            stmt = stmt.order_by(WhatsAppMessage.created_at.desc()).limit(5)
             result = db.execute(stmt)
-            message = result.first()
+            candidates = result.scalars().all()
 
-            if message:
-                message[0].external_id = message_id
-                message[0].status = MessageStatus.SENT
-                message[0].sent_at = datetime.now(timezone.utc)
-                db.commit()
+            if not candidates:
+                logger.warning(
+                    "No pending message candidate found for send.message confirmation",
+                    extra={
+                        "instance_name": instance_name,
+                        "external_id": message_id,
+                        "chat_id": remote_jid,
+                    },
+                )
+                continue
 
-                logger.info(f"Updated outgoing message with external ID {message_id}")
+            selected_message = None
+            if len(candidates) == 1:
+                selected_message = candidates[0]
+            else:
+                timestamp_hint = event_data.get("messageTimestamp") or event_data.get(
+                    "timestamp"
+                )
+                if timestamp_hint:
+                    try:
+                        webhook_time = datetime.fromtimestamp(
+                            float(timestamp_hint), tz=SAO_PAULO_TZ
+                        ).replace(tzinfo=None)
+                        scored_candidates = []
+                        for candidate in candidates:
+                            created_at = candidate.created_at
+                            if created_at is None:
+                                continue
+                            if created_at.tzinfo is not None:
+                                created_at = created_at.astimezone(SAO_PAULO_TZ).replace(
+                                    tzinfo=None
+                                )
+                            delta_seconds = abs((created_at - webhook_time).total_seconds())
+                            scored_candidates.append((delta_seconds, candidate))
+                        scored_candidates.sort(key=lambda item: item[0])
+                        if scored_candidates and (
+                            len(scored_candidates) == 1
+                            or scored_candidates[0][0] < scored_candidates[1][0]
+                        ):
+                            selected_message = scored_candidates[0][1]
+                    except (TypeError, ValueError):
+                        selected_message = None
+
+            if selected_message is None:
+                logger.warning(
+                    "Ambiguous send.message correlation; skipping to avoid wrong linkage",
+                    extra={
+                        "instance_name": instance_name,
+                        "external_id": message_id,
+                        "chat_id": remote_jid,
+                        "candidate_count": len(candidates),
+                    },
+                )
+                continue
+
+            selected_message.external_id = message_id
+            selected_message.status = MessageStatus.SENT
+            now = now_sao_paulo_naive()
+            selected_message.sent_at = now
+            selected_message.updated_at = now
+            db.commit()
+
+            logger.info(
+                "Updated outgoing message with external ID %s (message=%s)",
+                message_id,
+                selected_message.id,
+            )
 
     except Exception as e:
-        logger.error(f"Error handling send message: {e}")
+        logger.error(f"Error handling send message: {e}", exc_info=True)
+        raise
 
 
 async def handle_contact_upsert(
@@ -863,7 +980,7 @@ async def handle_contact_upsert(
                 existing_contact.profile_picture_url = contact_data.get(
                     "profilePictureUrl"
                 )
-                existing_contact.updated_at = datetime.now(timezone.utc)
+                existing_contact.updated_at = now_sao_paulo_naive()
             else:
                 # Create new contact
                 contact = WhatsAppContact(
@@ -876,10 +993,12 @@ async def handle_contact_upsert(
                 )
                 db.add(contact)
 
-            db.commit()
+        db.commit()
 
     except Exception as e:
-        logger.error(f"Error handling contact upsert: {e}")
+        db.rollback()
+        logger.error(f"Error handling contact upsert: {e}", exc_info=True)
+        raise
 
 
 async def handle_connection_update(
@@ -899,8 +1018,8 @@ async def handle_connection_update(
             if instance:
                 instance.status = state
                 instance.is_connected = state == "open"
-                instance.last_activity = datetime.now(timezone.utc)
-                instance.updated_at = datetime.now(timezone.utc)
+                instance.last_activity = now_sao_paulo_naive()
+                instance.updated_at = now_sao_paulo_naive()
 
                 # Update phone number and profile if available
                 if "number" in data:
@@ -924,6 +1043,7 @@ async def handle_connection_update(
 
     except Exception as e:
         logger.error(f"Error handling connection update: {e}", exc_info=True)
+        raise
 
 
 async def handle_presence_update(
@@ -949,12 +1069,16 @@ async def handle_presence_update(
                 last_seen_timestamp = presence.get("lastSeen")
                 if last_seen_timestamp:
                     # FIX P1-006: Use timezone-aware datetime
-                    contact.last_seen = datetime.fromtimestamp(last_seen_timestamp, tz=timezone.utc)
-                    contact.updated_at = datetime.now(timezone.utc)
+                    contact.last_seen = datetime.fromtimestamp(
+                        last_seen_timestamp, tz=SAO_PAULO_TZ
+                    ).replace(tzinfo=None)
+                    contact.updated_at = now_sao_paulo_naive()
                     db.commit()
 
     except Exception as e:
-        logger.error(f"Error handling presence update: {e}")
+        db.rollback()
+        logger.error(f"Error handling presence update: {e}", exc_info=True)
+        raise
 
 
 async def handle_chat_upsert(
@@ -982,11 +1106,13 @@ async def handle_chat_upsert(
                     # Update contact with chat information
                     if "name" in chat_data:
                         contact.name = chat_data["name"]
-                    contact.updated_at = datetime.now(timezone.utc)
+                    contact.updated_at = now_sao_paulo_naive()
                     db.commit()
 
     except Exception as e:
-        logger.error(f"Error handling chat upsert: {e}")
+        db.rollback()
+        logger.error(f"Error handling chat upsert: {e}", exc_info=True)
+        raise
 
 
 # Health check endpoint for webhooks
@@ -995,7 +1121,7 @@ async def webhook_health():
     """Health check for webhook endpoint."""
     return {
         "status": "healthy",
-        "timestamp": datetime.now(timezone.utc),
+        "timestamp": now_sao_paulo(),
         "service": "whatsapp-webhooks",
     }
 
@@ -1009,7 +1135,7 @@ async def validate_webhook(request: Request):
         return {
             "status": "valid",
             "received_data": payload,
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": now_sao_paulo(),
         }
     except Exception as e:
         # FIX P2-001: Chain exception to preserve original traceback

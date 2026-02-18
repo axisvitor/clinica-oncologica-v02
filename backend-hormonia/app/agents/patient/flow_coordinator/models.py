@@ -8,9 +8,36 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+# Third-party
+from typing_extensions import TypedDict
+
 # Local
 from app.models.flow import PatientFlowState
 from app.models.patient import Patient
+
+
+class TaskPayload(TypedDict, total=False):
+    """Standard task payload for inter-agent communication.
+
+    Defines the canonical format for tasks exchanged between agents
+    in the flow coordinator.  All fields are optional so callers can
+    provide only the keys relevant to the specific task.
+
+    Attributes:
+        task_type: Standardised task identifier (e.g. "send_message").
+        patient_id: Patient UUID as string (no PHI).
+        flow_id: Associated flow UUID as string.
+        data: Arbitrary task-specific payload.
+        priority: Priority level ("low", "normal", "high", "critical").
+        correlation_id: ID used for tracing a request across agents.
+    """
+
+    task_type: str
+    patient_id: Optional[str]
+    flow_id: Optional[str]
+    data: Dict[str, Any]
+    priority: str
+    correlation_id: Optional[str]
 
 
 class FlowDecision(Enum):

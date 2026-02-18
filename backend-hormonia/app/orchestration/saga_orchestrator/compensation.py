@@ -22,6 +22,8 @@ from app.repositories.patient import PatientRepository
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError
 
 from .exceptions import SagaCompensationError
+from .query_helpers import metadata_key_equals
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +87,8 @@ class SagaCompensator:
         self, saga: PatientOnboardingSaga
     ) -> None:
         """Internal compensation logic within lock context."""
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         logger.info(f"Compensating saga {saga.id} from step {saga.current_step}")
         saga.status = SagaStatus.COMPENSATING
 
@@ -121,7 +125,15 @@ class SagaCompensator:
                     compensation_errors=compensation_errors,
                 )
 
-            saga.status = SagaStatus.FAILED
+            if compensation_errors:
+                saga.status = SagaStatus.FAILED
+            else:
+                # Compensation completed successfully: avoid retry pipelines
+                # picking this saga as a regular FAILED item again.
+                saga.status = SagaStatus.COMPENSATED
+                saga.error_message = None
+                saga.error_type = None
+                saga.failed_at = None
 
             try:
                 self.db.commit()
@@ -226,6 +238,8 @@ class SagaCompensator:
 
         FIX P1-008: Made idempotent - checks if already compensated.
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             compensated_steps = (
                 saga.step_data.get("compensated_steps", []) if saga.step_data else []
@@ -240,7 +254,11 @@ class SagaCompensator:
                 self.db.query(Message)
                 .filter(
                     Message.patient_id == saga.patient_id,
-                    Message.message_metadata["saga_id"].astext == str(saga.id),
+                    metadata_key_equals(
+                        Message.message_metadata,
+                        "saga_id",
+                        str(saga.id),
+                    ),
                     Message.status != MessageStatus.CANCELLED,
                 )
                 .all()
@@ -251,7 +269,7 @@ class SagaCompensator:
                 message.message_metadata = {
                     **(message.message_metadata or {}),
                     "cancelled_by": "saga_compensation",
-                    "cancelled_at": datetime.now(timezone.utc).isoformat(),
+                    "cancelled_at": now_sao_paulo().isoformat(),
                 }
 
             saga.step_data = {
@@ -278,6 +296,8 @@ class SagaCompensator:
 
         FIX P1-008: Made idempotent - checks if already compensated.
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             compensated_steps = (
                 saga.step_data.get("compensated_steps", []) if saga.step_data else []
@@ -331,6 +351,8 @@ class SagaCompensator:
 
         FIX P1-008: Made idempotent - checks if already compensated.
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             compensated_steps = (
                 saga.step_data.get("compensated_steps", []) if saga.step_data else []
@@ -387,6 +409,8 @@ class SagaCompensator:
             step: Step number that failed
             error: Exception that occurred
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             # Track in Redis (7 days retention)
             if self.redis:
@@ -396,7 +420,7 @@ class SagaCompensator:
                     "step": step,
                     "error": str(error),
                     "error_type": type(error).__name__,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": now_sao_paulo().isoformat(),
                 }
                 self.redis.setex(
                     failure_key, 86400 * 7, json.dumps(failure_data)  # 7 days
@@ -514,7 +538,7 @@ class SagaCompensator:
                         "saga_compensation_failure"
                     )
                     patient.patient_data["quarantine_at"] = (
-                        datetime.now(timezone.utc).isoformat()
+                        now_sao_paulo().isoformat()
                     )
                     patient.patient_data["saga_id"] = str(saga_id)
                     flag_modified(patient, "patient_data")

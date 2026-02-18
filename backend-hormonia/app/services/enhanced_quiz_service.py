@@ -5,8 +5,6 @@ Business logic for advanced quiz operations, risk scoring, and adaptive flows.
 
 from __future__ import annotations
 
-import json
-import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
@@ -40,8 +38,9 @@ from app.schemas.v2.enhanced_quiz import (
     QuizCategory,
     QuizQuestion,
 )
-from app.core.redis_unified import get_async_redis
+from app.services.cache.json_cache_mixin import RedisJsonCacheMixin
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -51,46 +50,14 @@ QUIZ_RESULTS_CACHE_TTL = 600
 ANALYTICS_CACHE_TTL = 900
 
 
-class EnhancedQuizService:
+class EnhancedQuizService(RedisJsonCacheMixin):
     """Service for enhanced quiz operations."""
+
+    _cache_namespace = "enhanced_quiz"
 
     def __init__(self, db: Any):
         self.db = db
-
-    async def _get_cached_result(self, cache_key: str) -> Optional[Dict[str, Any]]:
-        try:
-            redis_client = await get_async_redis()
-            if redis_client is None:
-                return None
-            cached = await redis_client.get(cache_key)
-            if cached:
-                return json.loads(cached)
-            return None
-        except Exception as e:
-            logger.warning(f"Cache read failed: {e}")
-            return None
-
-    async def _set_cached_result(self, cache_key: str, data: Any, ttl: int) -> None:
-        try:
-            redis_client = await get_async_redis()
-            if redis_client is None:
-                return
-
-            if hasattr(data, "dict"):
-                serialized = json.dumps(data.dict(), default=str)
-            elif hasattr(data, "model_dump"):
-                serialized = json.dumps(data.model_dump(), default=str)
-            else:
-                serialized = json.dumps(data, default=str)
-
-            await redis_client.setex(cache_key, ttl, serialized)
-        except Exception as e:
-            logger.warning(f"Cache write failed: {e}")
-
-    def _get_cache_key(self, endpoint: str, **params) -> str:
-        param_str = json.dumps(params, sort_keys=True, default=str)
-        param_hash = hashlib.md5(param_str.encode()).hexdigest()
-        return f"enhanced_quiz:v2:{endpoint}:{param_hash}"
+        self._logger = logger
 
     def _evaluate_branching_condition(
         self, condition: Dict[str, Any], response_data: Dict[str, Any]
@@ -188,6 +155,8 @@ class EnhancedQuizService:
         role_enum: Optional[UserRole],
         user_uuid: Optional[UUID],
     ) -> QuizAnalyticsResponse:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         cache_key = self._get_cache_key(
             "analytics",
             start_date=start_date.isoformat() if start_date else None,
@@ -311,6 +280,8 @@ class EnhancedQuizService:
     async def create_advanced_template(
         self, template_data: AdvancedQuizTemplate, user_id: Optional[UUID]
     ) -> Dict[str, Any]:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         template_dict = template_data.dict()
         questions_json = [
             q.dict() if hasattr(q, "dict") else q for q in template_dict["questions"]
@@ -351,6 +322,8 @@ class EnhancedQuizService:
         user_uuid: Optional[UUID],
         role_enum: Optional[UserRole],
     ) -> AdaptiveQuizFlowResponse:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         session_uuid = UUID(flow_request.session_id)
         session = (
             self.db.query(QuizSession).filter(QuizSession.id == session_uuid).first()
@@ -382,7 +355,7 @@ class EnhancedQuizService:
             response_type="adaptive",
             response_value=str(flow_request.response_value),
             response_metadata=flow_request.response_metadata or {},
-            responded_at=datetime.now(timezone.utc),
+            responded_at=now_sao_paulo(),
         )
         self.db.add(new_response)
 
@@ -441,7 +414,7 @@ class EnhancedQuizService:
 
         if is_completed:
             session.status = "completed"
-            session.completed_at = datetime.now(timezone.utc)
+            session.completed_at = now_sao_paulo()
 
         self.db.commit()
 
@@ -469,6 +442,8 @@ class EnhancedQuizService:
         user_uuid: Optional[UUID],
         role_enum: Optional[UserRole],
     ) -> RiskScoringResponse:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         cache_key = self._get_cache_key(
             "risk-scoring",
             patient_id=risk_request.patient_id,
@@ -488,7 +463,7 @@ class EnhancedQuizService:
         if role_enum != UserRole.ADMIN and patient.doctor_id != user_uuid:
             raise HTTPException(status_code=403, detail="Not authorized")
 
-        lookback_date = datetime.now(timezone.utc) - timedelta(days=risk_request.lookback_days)
+        lookback_date = now_sao_paulo() - timedelta(days=risk_request.lookback_days)
         query = self.db.query(QuizSession).filter(
             and_(
                 QuizSession.patient_id == patient_uuid,
@@ -549,7 +524,7 @@ class EnhancedQuizService:
 
         result = RiskScoringResponse(
             patient_id=risk_request.patient_id,
-            assessment_date=datetime.now(timezone.utc),
+            assessment_date=now_sao_paulo(),
             current_risk=current_risk,
             trend=trend,
             historical_scores=historical_scores,
@@ -560,6 +535,8 @@ class EnhancedQuizService:
     async def get_quiz_recommendations(
         self, patient_id: str, user_uuid: Optional[UUID], role_enum: Optional[UserRole]
     ) -> QuizRecommendationsResponse:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         cache_key = self._get_cache_key(
             "recommendations",
             patient_id=patient_id,
@@ -582,7 +559,7 @@ class EnhancedQuizService:
             .filter(
                 and_(
                     QuizSession.patient_id == patient_uuid,
-                    QuizSession.created_at >= datetime.now(timezone.utc) - timedelta(days=90),
+                    QuizSession.created_at >= now_sao_paulo() - timedelta(days=90),
                 )
             )
             .options(joinedload(QuizSession.quiz_template))
@@ -615,7 +592,7 @@ class EnhancedQuizService:
                     else QuizCategory.GENERAL_HEALTH,
                     priority=priority,
                     reason=reason,
-                    due_date=datetime.now(timezone.utc) + timedelta(days=7),
+                    due_date=now_sao_paulo() + timedelta(days=7),
                 )
             )
 
@@ -637,8 +614,10 @@ class EnhancedQuizService:
         role_enum: Optional[UserRole],
         user_uuid: Optional[UUID],
     ) -> PerformanceMetricsResponse:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         if not end_date:
-            end_date = datetime.now(timezone.utc)
+            end_date = now_sao_paulo()
         if not start_date:
             start_date = end_date - timedelta(days=30)
 
@@ -763,6 +742,8 @@ class EnhancedQuizService:
         user_uuid: Optional[UUID],
         role_enum: Optional[UserRole],
     ) -> BulkOperationResponse:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         job_id = f"bulk-quiz-{uuid.uuid4().hex[:12]}"
         patient_uuids = [UUID(pid) for pid in operation.patient_ids]
         patients = self.db.query(Patient).filter(Patient.id.in_(patient_uuids)).all()
@@ -808,7 +789,7 @@ class EnhancedQuizService:
                                 patient_id=patient.id,
                                 quiz_template_id=template_uuid,
                                 status="started",
-                                started_at=operation.scheduled_for or datetime.now(timezone.utc),
+                                started_at=operation.scheduled_for or now_sao_paulo(),
                             )
                         )
                         successful += 1
@@ -870,6 +851,8 @@ class EnhancedQuizService:
         user_uuid: Optional[UUID],
         role_enum: Optional[UserRole],
     ) -> QuizExportResponse:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         export_id = f"export-{uuid.uuid4().hex[:12]}"
         query = self.db.query(QuizSession).join(
             Patient, Patient.id == QuizSession.patient_id
@@ -906,6 +889,6 @@ class EnhancedQuizService:
             format=export_request.format,
             status="processing",
             download_url=None,
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+            expires_at=now_sao_paulo() + timedelta(hours=24),
             file_size_bytes=None,
         )

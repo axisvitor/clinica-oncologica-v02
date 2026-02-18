@@ -25,7 +25,7 @@ from app.repositories.patient import PatientRepository
 from app.services.patient.flow_service import PatientFlowService
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.domain.messaging.core import MessageService
-from app.core.redis_client import get_redis_client
+from app.core.redis_manager import get_sync_redis_client as get_redis_client
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError
 from app.integrations.evolution import EvolutionClient
 from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
@@ -33,7 +33,9 @@ from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 from .steps import SagaStepExecutor
 from .compensation import SagaCompensator
 from .persistence import SagaPersistence
+from .query_helpers import metadata_key_equals
 from .types import SagaStatusInfo, FailedSagaSummary, ResumeResult
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -229,7 +231,7 @@ class SagaOrchestrator:
                 step_data=step_data,
                 status=SagaStatus.STARTED,
                 current_step=0,
-                started_at=datetime.now(timezone.utc),
+                started_at=now_sao_paulo(),
             )
             self.db.add(saga)
             self.db.flush()
@@ -294,7 +296,7 @@ class SagaOrchestrator:
                     if has_warnings
                     else SagaStatus.COMPLETED
                 )
-                saga.completed_at = datetime.now(timezone.utc)
+                saga.completed_at = now_sao_paulo()
 
                 tx_duration = time.time() - tx_start
                 logger.info(
@@ -345,18 +347,27 @@ class SagaOrchestrator:
 
                 # Create failure record with full saga context (Comment 2)
                 try:
+                    patient_id = saga.patient_id
+                    if patient_id:
+                        patient_exists = (
+                            self.db.query(Patient.id)
+                            .filter(Patient.id == patient_id)
+                            .first()
+                        )
+                        if not patient_exists:
+                            patient_id = None
                     failure_saga = PatientOnboardingSaga(
                         id=saga_id,
                         doctor_id=doctor_id,
                         patient_data=patient_data.model_dump(mode="json"),
                         # Comment 2: Preserve saga progress context
-                        status=saga.status if saga.status != SagaStatus.STARTED else SagaStatus.FAILED,
+                        status=SagaStatus.FAILED,
                         current_step=saga.current_step,  # Preserve actual step reached
                         step_data=saga.step_data,  # Preserve idempotency_key
                         execution_log=saga.execution_log,  # Preserve detailed log
-                        patient_id=saga.patient_id,  # Preserve patient if created
+                        patient_id=patient_id,  # Preserve patient if still present
                         started_at=saga.started_at,
-                        failed_at=datetime.now(timezone.utc),
+                        failed_at=now_sao_paulo(),
                         error_message=str(e),
                         error_type=type(e).__name__,
                     )
@@ -453,17 +464,17 @@ class SagaOrchestrator:
             if saga.step_data:
                 idempotency_key = saga.step_data.get("idempotency_key")
 
-            # Step 0 -> 1: Create Patient
-            if saga.current_step < 1:
+            # Step 0 -> 1: Create Patient (only if missing)
+            if not patient:
                 patient_create = PatientCreate(**patient_data_dict)
                 patient = await self.step_executor.step_create_patient(
-                    saga, patient_create, saga.doctor_id
+                    saga,
+                    patient_create,
+                    saga.doctor_id,
+                    idempotency_key=idempotency_key,
                 )
                 if not patient:
                     raise Exception("Failed to recover patient creation")
-
-            if not patient and saga.patient_id:
-                patient = self.patient_repo.get_by_id(saga.patient_id)
 
             if not patient:
                 raise Exception("Patient not found for resumption")
@@ -498,7 +509,11 @@ class SagaOrchestrator:
                     self.db.query(Message)
                     .filter(
                         Message.patient_id == patient.id,
-                        Message.message_metadata["saga_id"].astext == str(saga.id),
+                        metadata_key_equals(
+                            Message.message_metadata,
+                            "saga_id",
+                            str(saga.id),
+                        ),
                     )
                     .first()
                 )
@@ -518,7 +533,7 @@ class SagaOrchestrator:
 
             # Complete
             saga.status = SagaStatus.COMPLETED
-            saga.completed_at = datetime.now(timezone.utc)
+            saga.completed_at = now_sao_paulo()
             self.db.commit()
 
             return ResumeResult(

@@ -34,7 +34,7 @@ This package handles monthly quiz operations, scheduling, and public access.
 - Comprehensive audit trail
 
 **Security:**
-- Public endpoints use signed JWT tokens (legacy base64 tokens still accepted)
+- Public endpoints use signed JWT tokens only
 - Token expiration validation
 - IP logging for public access
 - Personal data sanitization in public responses
@@ -59,5 +59,5 @@ router.include_router(scheduling_router, tags=["Monthly Quiz - Scheduling"])
 router.include_router(public_router, tags=["Monthly Quiz - Public Access"])
 router.include_router(health_router, tags=["Monthly Quiz - Health"])
 
-# Export for backward compatibility
+# Export router symbol
 __all__ = ["router"]

@@ -10,23 +10,8 @@ import json
 import uuid
 
 
-def get_pagination_params(
-    cursor: Optional[str] = Query(None, description="Cursor for pagination"),
-    limit: int = Query(20, ge=1, le=1000, description="Items per page (max 1000)"),
-):
-    """
-    Extract and validate cursor-based pagination parameters.
-
-    Args:
-        cursor: Base64-encoded cursor string
-        limit: Number of items per page (1-1000)
-
-    Returns:
-        dict: Decoded cursor data and limit
-
-    Raises:
-        HTTPException: If cursor is invalid
-    """
+def _build_pagination_params(cursor: Optional[str], limit: int) -> dict:
+    """Shared pagination parser for sync and async dependency entry points."""
     cursor_data = None
 
     if cursor:
@@ -48,10 +33,46 @@ def get_pagination_params(
 
     # QW-001: Hard limit enforcement to prevent excessive queries
     # Even if the limit parameter is bypassed, enforce maximum
-    MAX_PAGE_SIZE = 1000
+    if limit < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="limit must be greater than or equal to 1",
+        )
+
+    MAX_PAGE_SIZE = 100
     safe_limit = min(limit, MAX_PAGE_SIZE)
 
     return {"cursor_data": cursor_data, "limit": safe_limit}
+
+
+def get_pagination_params(
+    cursor: Optional[str] = Query(None, description="Cursor for pagination"),
+    limit: int = Query(20, description="Items per page (max 100)"),
+):
+    """
+    Extract and validate cursor-based pagination parameters.
+
+    Args:
+        cursor: Base64-encoded cursor string
+        limit: Number of items per page (1-1000)
+
+    Returns:
+        dict: Decoded cursor data and limit
+
+    Raises:
+        HTTPException: If cursor is invalid
+    """
+    return _build_pagination_params(cursor=cursor, limit=limit)
+
+
+async def get_pagination_params_async(
+    cursor: Optional[str] = Query(None, description="Cursor for pagination"),
+    limit: int = Query(20, description="Items per page (max 100)"),
+):
+    """
+    Async pagination dependency to avoid worker-thread dispatch in async routes.
+    """
+    return _build_pagination_params(cursor=cursor, limit=limit)
 
 
 def get_field_selection(
@@ -71,8 +92,14 @@ def get_field_selection(
     Raises:
         HTTPException: If fields parameter is invalid
     """
-    if not fields:
+    if fields is None:
         return None
+
+    if not fields.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="fields parameter cannot be empty",
+        )
 
     field_list = [f.strip() for f in fields.split(",") if f.strip()]
 
@@ -111,7 +138,14 @@ def get_eager_load_params(
         return None
 
     # Validate allowed relations (can be customized per endpoint)
-    allowed_relations = {"doctor", "quizzes", "templates", "analytics", "patient"}
+    allowed_relations = {
+        "doctor",
+        "quizzes",
+        "templates",
+        "analytics",
+        "patient",
+        "statistics",
+    }
     invalid_relations = set(relation_list) - allowed_relations
 
     if invalid_relations:
@@ -121,6 +155,24 @@ def get_eager_load_params(
         )
 
     return relation_list
+
+
+async def get_field_selection_async(
+    fields: Optional[str] = Query(
+        None, description="Comma-separated fields to include"
+    ),
+):
+    """Async wrapper to avoid worker-thread dispatch in async routes."""
+    return get_field_selection(fields)
+
+
+async def get_eager_load_params_async(
+    include: Optional[str] = Query(
+        None, description="Comma-separated relations to include"
+    ),
+):
+    """Async wrapper to avoid worker-thread dispatch in async routes."""
+    return get_eager_load_params(include)
 
 
 def create_cursor(last_id: int) -> str:

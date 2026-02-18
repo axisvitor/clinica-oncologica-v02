@@ -64,15 +64,6 @@ from .types import (
     ResumeResult,
 )
 
-# Re-export SagaStatus enum for backward compatibility
-# (original saga_orchestrator.py imported this from enums)
-from app.models.enums import SagaStatus
-from app.core.redis_client import get_redis_client
-from app.repositories.patient import PatientRepository
-from app.services.patient.flow_service import PatientFlowService
-from app.services.unified_whatsapp_service import UnifiedWhatsAppService
-from app.domain.messaging.core import MessageService
-
 __all__ = [
     # Main class
     "SagaOrchestrator",
@@ -93,13 +84,6 @@ __all__ = [
     "FailedSagaSummary",
     "CompensationResult",
     "ResumeResult",
-    # Backward compatibility re-exports
-    "SagaStatus",
-    "get_redis_client",
-    "PatientRepository",
-    "PatientFlowService",
-    "UnifiedWhatsAppService",
-    "MessageService",
 ]
 
 __version__ = "2.0.0"

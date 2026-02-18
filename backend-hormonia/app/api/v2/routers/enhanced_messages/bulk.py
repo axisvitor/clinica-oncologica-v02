@@ -25,6 +25,7 @@ from app.schemas.v2.enhanced_messages import (
     BulkJobStatusV2Response,
 )
 from app.utils.rate_limiter import limiter
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ async def send_bulk_messages(
 
         # Create bulk job
         job_id = f"bulk_{uuid4().hex[:12]}"
-        estimated_completion = datetime.now(timezone.utc) + timedelta(
+        estimated_completion = now_sao_paulo() + timedelta(
             seconds=len(valid_patient_ids)
             * bulk_data.delay_between_batches_seconds
             / bulk_data.batch_size
@@ -162,7 +163,7 @@ async def get_bulk_job_status(
                 / max(job_dict.get("total_patients", 1), 1)
             )
             * 100,
-            started_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+            started_at=now_sao_paulo() - timedelta(minutes=5),
             completed_at=None,
             estimated_completion=job_dict.get("estimated_completion"),
             error_message=None,

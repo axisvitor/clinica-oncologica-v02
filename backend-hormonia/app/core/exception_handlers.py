@@ -8,6 +8,7 @@ from app.core.exceptions import (
     HormoniaException,
     APIException,
 )
+from app.utils.timezone import now_sao_paulo
 
 
 async def hormonia_exception_handler(request: Request, exc: HormoniaException):
@@ -36,6 +37,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
     # Format validation errors into a cleaner structure for frontend consumption
     errors = []
+    sanitized_detail = []
     for error in exc.errors():
         # Build field path (e.g., "body.patient.cpf")
         field_path = ".".join(str(loc) for loc in error["loc"])
@@ -50,6 +52,19 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             for key, value in error["ctx"].items():
                 details[key] = str(value) if isinstance(value, Exception) else value
 
+        sanitized_error = {}
+        for key, value in error.items():
+            if key == "ctx" and isinstance(value, dict):
+                sanitized_ctx = {}
+                for ctx_key, ctx_value in value.items():
+                    sanitized_ctx[ctx_key] = (
+                        str(ctx_value) if isinstance(ctx_value, Exception) else ctx_value
+                    )
+                sanitized_error[key] = sanitized_ctx
+            else:
+                sanitized_error[key] = str(value) if isinstance(value, Exception) else value
+        sanitized_detail.append(sanitized_error)
+
         errors.append(
             {
                 "field": field_path,
@@ -62,12 +77,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
-            "detail": exc.errors(),
+            "detail": sanitized_detail,
             "error": "VALIDATION_ERROR",
             "message": "Input validation failed",
             "details": {"errors": errors},
             "request_id": request_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         },
     )
 

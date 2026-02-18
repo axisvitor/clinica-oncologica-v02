@@ -156,15 +156,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return mockAuthService.hasPermission(permission)
     }
 
-    // TEMPORARY: Force all authenticated users to have all permissions (admin mode)
     if (!user) {
       return false
     }
 
-    // All authenticated users are treated as admin
-    return true
-
-    /* Original code - commented for admin mode
     const role = String(user.role ?? '').toLowerCase()
     if (role === 'admin') {
       return true
@@ -197,7 +192,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       return false
     })
-    */
   }, [user])
 
   const hasRole = useCallback((role: string): boolean => {
@@ -205,24 +199,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return mockAuthService.hasRole(role)
     }
 
-    // TEMPORARY: Force all authenticated users to be admin
-    if (!user) {
-      return false
-    }
-
-    // All authenticated users have admin role
-    const checkRole = String(role).toLowerCase()
-    return checkRole === 'admin' || checkRole === 'doctor'
-
-    /* Original code - commented for admin mode
     if (!user || !user.role) {
       return false
     }
-    // Case-insensitive role comparison to handle ADMIN, admin, Admin, etc.
+
     const userRole = String(user.role).toLowerCase()
     const checkRole = String(role).toLowerCase()
     return userRole === checkRole
-    */
   }, [user])
 
   // Helper to transform Firebase user to app User

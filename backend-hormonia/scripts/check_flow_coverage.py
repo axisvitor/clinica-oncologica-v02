@@ -30,13 +30,13 @@ with engine.connect() as conn:
         print(f"  Dias: {days}")
         
         # Check for gaps
-        if kind_key == "initial_15_days":
+        if kind_key == "onboarding":
             expected = set(range(1, 16))  # Days 1-15
             actual = set(days)
             missing = expected - actual
             if missing:
                 print(f"  ⚠️  Dias faltantes: {sorted(missing)}")
-        elif kind_key == "days_16_45":
+        elif kind_key == "daily_follow_up":
             expected = set(range(16, 46))  # Days 16-45
             actual = set(days)
             missing = expected - actual

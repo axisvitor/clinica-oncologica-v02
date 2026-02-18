@@ -53,8 +53,9 @@ export function usePatientFilters(options: UsePatientFiltersOptions = {}) {
       params['search'] = debouncedSearch
     }
 
-    if (filters['status']) {
-      params['status'] = filters['status']
+    const statusFilter = filters['status']
+    if (statusFilter) {
+      params['status'] = statusFilter
     }
 
     if (filters['treatment_type'] && filters['treatment_type'] !== '') {
@@ -180,6 +181,8 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
   const {
     data,
     isLoading,
+    isSuccess,
+    isError,
     error,
     refetch,
     isFetching
@@ -209,7 +212,7 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
     },
     staleTime: 60000, // 60 seconds (optimized from 30s)
     retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
+    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000)
   })
 
   // Handle success effects since we removed onSuccess for typing compatibility
@@ -262,9 +265,18 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
     }
   }, [data, filters.page, queryParams, filterOptions?.pageSize, effectiveParams, cursorsByPage, queryClient])
 
+  const normalizedData = useMemo(() => {
+    if (!data) return undefined
+    return {
+      ...data,
+      items: data.data
+    }
+  }, [data])
+
   return {
     // Data
     patients: data?.data || [],
+    data: normalizedData,
     total: (persistedTotal || data?.total || 0),
     page: filters.page || 1,
     limit: data?.size || (queryParams['size'] as number || 20),
@@ -273,6 +285,8 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
     // Loading states
     isLoading,
     isFetching,
+    isSuccess,
+    isError,
 
     error,
 

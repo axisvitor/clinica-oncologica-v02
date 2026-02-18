@@ -1,19 +1,16 @@
 """
-Task queue abstraction to support Celery (local) and Cloud Tasks (production).
+Task queue abstraction backed by Celery.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 import json
 import logging
 import importlib
-from types import SimpleNamespace
-from typing import Any, Callable, Dict, Mapping, Optional
-from uuid import uuid4
+from typing import Any, Dict, Optional
 
-from app.config import settings
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +29,6 @@ _TASK_MODULES = [
     "app.tasks.audit_cleanup",
     "app.tasks.monitoring",
     "app.tasks.lgpd_tasks",
-    "app.tasks.deprecation_notifications",
 ]
 _registry_loaded = False
 _TASK_STORE_PREFIX = "tasks:registry:"
@@ -81,9 +77,9 @@ def store_task(payload: Dict[str, Any]) -> None:
         try:
             created_at_ts = datetime.fromisoformat(created_at).timestamp()
         except ValueError:
-            created_at_ts = datetime.now(timezone.utc).timestamp()
+            created_at_ts = now_sao_paulo().timestamp()
     else:
-        created_at_ts = datetime.now(timezone.utc).timestamp()
+        created_at_ts = now_sao_paulo().timestamp()
 
     client.setex(key, _TASK_STORE_TTL_SECONDS, _serialize_task_payload(payload))
     client.zadd(_TASK_STORE_INDEX, {task_id: created_at_ts})
@@ -125,12 +121,15 @@ def get_task(task_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def list_tasks() -> list[Dict[str, Any]]:
+def list_tasks(limit: Optional[int] = None) -> list[Dict[str, Any]]:
     client = _get_task_store_client()
     if not client:
         return []
 
-    task_ids = client.zrange(_TASK_STORE_INDEX, 0, -1, desc=True)
+    if limit is not None and limit > 0:
+        task_ids = client.zrange(_TASK_STORE_INDEX, 0, limit - 1, desc=True)
+    else:
+        task_ids = client.zrange(_TASK_STORE_INDEX, 0, -1, desc=True)
     tasks = []
     for raw_id in task_ids:
         task_id = raw_id.decode() if isinstance(raw_id, (bytes, bytearray)) else raw_id
@@ -170,391 +169,27 @@ def delete_task(task_id: str) -> None:
     client.zrem(_TASK_STORE_INDEX, task_id)
 
 
-class TaskAuthError(Exception):
-    """Raised when task execution authentication fails."""
-
-
-class CloudTaskRetry(Exception):
-    """Raised to request a task retry with a countdown."""
-
-    def __init__(
-        self,
-        countdown: Optional[int] = None,
-        exc: Optional[Exception] = None,
-        max_retries: Optional[int] = None,
-    ):
-        super().__init__(str(exc) if exc else "retry")
-        self.countdown = countdown
-        self.exc = exc
-        self.max_retries = max_retries
-
-
-@dataclass(frozen=True)
-class TaskDefinition:
-    func: Callable[..., Any]
-    name: str
-    bind: bool
-    base: Optional[type]
-    max_retries: Optional[int]
-    default_retry_delay: Optional[int]
-    retry_backoff_max: int
-
-
-class TaskExecutionContext:
-    """Lightweight task context for Cloud Tasks execution."""
-
-    def __init__(self, definition: TaskDefinition, task_id: str, retries: int) -> None:
-        self.name = definition.name
-        self.request = SimpleNamespace(retries=retries, id=task_id)
-        self.max_retries = (
-            definition.max_retries
-            if definition.max_retries is not None
-            else 999999
-        )
-        self.default_retry_delay = definition.default_retry_delay
-        self.retry_backoff_max = definition.retry_backoff_max
-        self._logger = logging.getLogger(f"tasks.{self.name}")
-
-    def get_task_logger(self) -> logging.Logger:
-        return self._logger
-
-    def log_task_start(self, **kwargs: Any) -> None:
-        self._logger.info("Starting task %s with params: %s", self.name, kwargs)
-
-    def log_task_success(self, result: Any, **kwargs: Any) -> None:
-        self._logger.info("Task %s completed successfully", self.name)
-
-    def log_task_error(self, exc: Exception, **kwargs: Any) -> None:
-        self._logger.error("Task %s failed: %s", self.name, exc, exc_info=True)
-
-    def create_error_result(self, error: str, **context: Any) -> Dict[str, Any]:
-        return {
-            "success": False,
-            "error": error,
-            "task_name": self.name,
-            "failed_at": datetime.now(timezone.utc).isoformat(),
-            **context,
-        }
-
-    def create_success_result(self, **data: Any) -> Dict[str, Any]:
-        return {
-            "success": True,
-            "task_name": self.name,
-            "completed_at": datetime.now(timezone.utc).isoformat(),
-            **data,
-        }
-
-    def retry(
-        self,
-        exc: Optional[Exception] = None,
-        countdown: Optional[int] = None,
-        max_retries: Optional[int] = None,
-    ):
-        effective_max_retries = (
-            max_retries if max_retries is not None else self.max_retries
-        )
-        if effective_max_retries is not None and self.request.retries >= effective_max_retries:
-            if exc:
-                raise exc
-            raise RuntimeError("Max retries exceeded")
-
-        if countdown is None:
-            countdown = self.default_retry_delay or 0
-
-        raise CloudTaskRetry(
-            countdown=countdown, exc=exc, max_retries=effective_max_retries
-        )
-
-    def handle_retry(self, exc: Exception, **context: Any) -> None:
-        if self.max_retries is not None and self.request.retries >= self.max_retries:
-            self.log_task_error(exc, **context)
-            raise exc
-
-        countdown = min(60 * (2**self.request.retries), self.retry_backoff_max)
-        self._logger.warning(
-            "Retrying task %s in %s seconds (attempt %s/%s): %s",
-            self.name,
-            countdown,
-            self.request.retries + 1,
-            self.max_retries,
-            exc,
-        )
-        raise CloudTaskRetry(countdown=countdown, exc=exc)
-
-
-class TaskHandle:
-    def __init__(self, definition: TaskDefinition, queue: "TaskQueue") -> None:
-        self._definition = definition
-        self._queue = queue
-        self.name = definition.name
-        self.__name__ = definition.func.__name__
-        self.__doc__ = definition.func.__doc__
-
-    def delay(self, *args: Any, **kwargs: Any) -> "TaskEnqueueResult":
-        return self._queue.enqueue(self.name, args=list(args), kwargs=kwargs)
-
-    def apply_async(
-        self,
-        args: Optional[list] = None,
-        kwargs: Optional[dict] = None,
-        eta: Optional[datetime] = None,
-        countdown: Optional[int] = None,
-        **options: Any,
-    ) -> "TaskEnqueueResult":
-        return self._queue.enqueue(
-            self.name,
-            args=args or [],
-            kwargs=kwargs or {},
-            eta=eta,
-            countdown=countdown,
-            **options,
-        )
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        if self._definition.bind:
-            context = TaskExecutionContext(self._definition, task_id="inline", retries=0)
-            return self._definition.func(context, *args, **kwargs)
-        return self._definition.func(*args, **kwargs)
-
-
-@dataclass(frozen=True)
-class TaskEnqueueResult:
-    id: str
-    name: Optional[str] = None
-
-
-class NullInspector:
-    def active(self):
-        return {}
-
-    def scheduled(self):
-        return {}
-
-    def stats(self):
-        return {}
-
-
-class NullControl:
-    def inspect(self, *args: Any, **kwargs: Any) -> NullInspector:
-        return NullInspector()
-
-    def revoke(self, *args: Any, **kwargs: Any) -> bool:
-        return False
-
-
 class TaskQueue:
-    def __init__(self) -> None:
-        self._provider = settings.TASK_QUEUE_PROVIDER.lower()
-        self._registry: Dict[str, TaskDefinition] = {}
-
-    @property
-    def registry(self) -> Dict[str, TaskDefinition]:
-        return self._registry
+    """Task queue backed by Celery."""
 
     @property
     def control(self):
-        if self._provider == "celery":
-            from app.celery_app import celery_app
-            return celery_app.control
-        return NullControl()
+        from app.celery_app import celery_app
+        return celery_app.control
 
-    def task(self, *dargs: Any, **dkwargs: Any) -> Callable[..., Any]:
-        if self._provider == "celery":
-            from app.celery_app import celery_app
-            return celery_app.task(*dargs, **dkwargs)
+    def task(self, *dargs: Any, **dkwargs: Any):
+        from app.celery_app import celery_app
+        return celery_app.task(*dargs, **dkwargs)
 
-        def decorator(func: Callable[..., Any]) -> TaskHandle:
-            task_name = dkwargs.get("name") or f"{func.__module__}.{func.__name__}"
-            bind = bool(dkwargs.get("bind", False))
-            base = dkwargs.get("base")
-            max_retries = dkwargs.get("max_retries")
-            default_retry_delay = dkwargs.get("default_retry_delay")
-            retry_backoff_max = getattr(base, "retry_backoff_max", 600) if base else 600
+    def send_task(self, name: str, args=None, kwargs=None, **options):
+        from app.celery_app import celery_app
+        return celery_app.send_task(name, args=args, kwargs=kwargs, **options)
 
-            if max_retries is None and base is not None:
-                base_retry = getattr(base, "retry_kwargs", {}) or {}
-                max_retries = base_retry.get("max_retries")
-                default_retry_delay = default_retry_delay or base_retry.get("countdown")
-
-            definition = TaskDefinition(
-                func=func,
-                name=task_name,
-                bind=bind,
-                base=base,
-                max_retries=max_retries,
-                default_retry_delay=default_retry_delay,
-                retry_backoff_max=retry_backoff_max,
-            )
-            self._registry[task_name] = definition
-            return TaskHandle(definition, self)
-
-        if dargs and callable(dargs[0]) and not dkwargs:
-            return decorator(dargs[0])
-        return decorator
-
-    def send_task(
-        self,
-        name: str,
-        args: Optional[list] = None,
-        kwargs: Optional[dict] = None,
-        **options: Any,
-    ) -> TaskEnqueueResult:
-        if self._provider == "celery":
-            from app.celery_app import celery_app
-            return celery_app.send_task(name, args=args, kwargs=kwargs, **options)
-        return self.enqueue(name, args=args or [], kwargs=kwargs or {}, **options)
-
-    def enqueue(
-        self,
-        task_name: str,
-        args: Optional[list] = None,
-        kwargs: Optional[dict] = None,
-        eta: Optional[datetime] = None,
-        countdown: Optional[int] = None,
-        task_id: Optional[str] = None,
-        retries: int = 0,
-        **options: Any,
-    ) -> TaskEnqueueResult:
-        if self._provider == "celery":
-            from app.celery_app import celery_app
-            return celery_app.send_task(
-                task_name,
-                args=args,
-                kwargs=kwargs,
-                eta=eta,
-                countdown=countdown,
-                **options,
-            )
-
-        if not settings.CLOUD_TASKS_QUEUE:
-            raise RuntimeError("CLOUD_TASKS_QUEUE is required for Cloud Tasks provider")
-        if not settings.CLOUD_TASKS_PROJECT_ID:
-            raise RuntimeError("CLOUD_TASKS_PROJECT_ID is required for Cloud Tasks provider")
-        if not settings.CLOUD_TASKS_SERVICE_URL:
-            raise RuntimeError("CLOUD_TASKS_SERVICE_URL is required for Cloud Tasks provider")
-
-        from google.cloud import tasks_v2
-        from google.protobuf import timestamp_pb2
-
-        client = tasks_v2.CloudTasksClient()
-        queue_path = client.queue_path(
-            settings.CLOUD_TASKS_PROJECT_ID,
-            settings.CLOUD_TASKS_LOCATION,
-            settings.CLOUD_TASKS_QUEUE,
+    def enqueue(self, task_name: str, args=None, kwargs=None, eta=None, countdown=None, **options):
+        from app.celery_app import celery_app
+        return celery_app.send_task(
+            task_name, args=args, kwargs=kwargs, eta=eta, countdown=countdown, **options
         )
-
-        now = datetime.now(timezone.utc)
-        schedule_time = None
-        if eta:
-            schedule_time = eta if eta.tzinfo else eta.replace(tzinfo=timezone.utc)
-        elif countdown:
-            schedule_time = now + timedelta(seconds=countdown)
-
-        payload = {
-            "task_name": task_name,
-            "args": args or [],
-            "kwargs": kwargs or {},
-            "task_id": task_id or str(uuid4()),
-            "retries": retries,
-        }
-
-        http_request: Dict[str, Any] = {
-            "http_method": tasks_v2.HttpMethod.POST,
-            "url": f"{settings.CLOUD_TASKS_SERVICE_URL.rstrip('/')}{settings.CLOUD_TASKS_HANDLER_PATH}",
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps(payload).encode("utf-8"),
-        }
-
-        if settings.CLOUD_TASKS_OIDC_SERVICE_ACCOUNT:
-            http_request["oidc_token"] = {
-                "service_account_email": settings.CLOUD_TASKS_OIDC_SERVICE_ACCOUNT,
-                "audience": settings.CLOUD_TASKS_AUDIENCE or settings.CLOUD_TASKS_SERVICE_URL,
-            }
-
-        task: Dict[str, Any] = {"http_request": http_request}
-
-        if schedule_time:
-            timestamp = timestamp_pb2.Timestamp()
-            timestamp.FromDatetime(schedule_time)
-            task["schedule_time"] = timestamp
-
-        task_name_path = f"{queue_path}/tasks/{payload['task_id']}"
-        task["name"] = task_name_path
-
-        created_task = client.create_task(parent=queue_path, task=task)
-        task_metadata = {
-            "id": payload["task_id"],
-            "task_name": task_name,
-            "args": payload["args"],
-            "kwargs": payload["kwargs"],
-            "status": "PENDING",
-            "queue_name": "cloud_tasks",
-            "created_at": now.isoformat(),
-            "scheduled_at": schedule_time.isoformat() if schedule_time else None,
-        }
-        task_metadata.update(options.pop("task_metadata", {}) or {})
-        store_task(task_metadata)
-        return TaskEnqueueResult(id=payload["task_id"], name=created_task.name)
-
-    def execute(
-        self,
-        task_name: str,
-        args: list,
-        kwargs: dict,
-        task_id: str,
-        retries: int,
-    ) -> Any:
-        if self._provider == "cloud_tasks":
-            ensure_task_registry_loaded()
-        definition = self._registry.get(task_name)
-        if not definition:
-            raise RuntimeError(f"Unknown task: {task_name}")
-
-        context = TaskExecutionContext(definition, task_id=task_id, retries=retries)
-        update_task(
-            task_id,
-            {
-                "status": "RUNNING",
-                "started_at": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-        if definition.bind:
-            return definition.func(context, *args, **kwargs)
-        return definition.func(*args, **kwargs)
 
 
 task_queue = TaskQueue()
-
-
-def validate_task_request(headers: Mapping[str, str]) -> None:
-    shared_secret = settings.CLOUD_TASKS_SHARED_SECRET
-    if shared_secret:
-        provided = headers.get("x-cloud-tasks-token") or headers.get("x-tasks-token")
-        if provided == shared_secret:
-            return
-
-    auth_header = headers.get("authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        logger.error(f"Task auth failed. Missing Authorization header. Headers: {headers.keys()}")
-        raise TaskAuthError("Missing Authorization header")
-
-    audience = settings.CLOUD_TASKS_AUDIENCE or settings.CLOUD_TASKS_SERVICE_URL
-    if not audience:
-        logger.error("Task auth failed. Missing audience configuration.")
-        raise TaskAuthError("Missing audience configuration")
-
-    token = auth_header.split(" ", 1)[1]
-
-    try:
-        from google.oauth2 import id_token
-        from google.auth.transport import requests
-
-        id_info = id_token.verify_oauth2_token(token, requests.Request(), audience=audience)
-    except Exception as exc:
-        logger.error(f"Task auth failed. Token verification error: {exc}. Audience expected: {audience}")
-        raise TaskAuthError(f"Invalid token: {exc}") from exc
-
-    issuer = id_info.get("iss")
-    if issuer not in ("https://accounts.google.com", "accounts.google.com"):
-        logger.error(f"Task auth failed. Invalid issuer: {issuer}")
-        raise TaskAuthError("Invalid token issuer")

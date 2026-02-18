@@ -270,6 +270,7 @@ export class FlowEngine extends EventEmitter {
     if (currentIndex === -1) return steps[0] || null
 
     const current = steps[currentIndex]
+    if (!current) return null
     const branchTarget = this.evaluateBranch(current, contextData)
     if (branchTarget !== null) {
       return steps.find((step) => this.getStepKey(step) === branchTarget) || null

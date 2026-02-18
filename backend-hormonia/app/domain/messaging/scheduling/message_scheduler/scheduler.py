@@ -4,7 +4,7 @@ Core MessageScheduler service for time-based message delivery.
 
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from uuid import UUID
 from sqlalchemy.orm import Session
 
@@ -17,18 +17,20 @@ from app.models.message import (
 )
 from app.repositories.patient import PatientRepository
 from app.repositories.message import MessageRepository
-from app.domain.messaging.delivery import MessageSender
+from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSender
 from app.exceptions import ValidationError, NotFoundError
-from app.core.redis_unified import get_sync_redis
+from app.core.redis_manager import get_sync_redis_client as get_sync_redis
 from app.integrations.evolution import EvolutionClient
 from app.utils.db_retry import with_db_retry
 
-from .models import SchedulingWindow
+from .models import SchedulingWindow, TaskSchedulingError
 from .config import MessageSchedulerConfig
 from .timezone_handler import TimezoneHandler
 from .task_scheduler import TaskScheduler
 from .retry_handler import RetryHandler
 from .metrics import MetricsCollector
+from .shared import ensure_message_metadata
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +50,18 @@ class MessageScheduler:
             self.message_repo = MessageRepository(db)
             redis_client = get_sync_redis()
             evolution_client = EvolutionClient()
-            self.message_sender = MessageSender(db, redis_client, evolution_client)
+            self.message_sender = IdempotentMessageSender(db, redis_client, evolution_client)
 
         # Initialize component handlers
         self.timezone_handler = TimezoneHandler(self.config)
         self.task_scheduler = TaskScheduler()
         self.retry_handler = RetryHandler(db, self.config)
         self.metrics_collector = MetricsCollector(db)
+
+    @staticmethod
+    def _ensure_message_metadata(message: Message) -> Dict[str, Any]:
+        """Guarantee message.message_metadata is a mutable dict."""
+        return ensure_message_metadata(message, logger)
 
     @with_db_retry(max_retries=3)
     async def schedule_message(
@@ -104,13 +111,14 @@ class MessageScheduler:
                 patient, scheduling_window
             )
 
-            # Create message record
+            # Create message record.
+            # Keep as PENDING so Celery sender can claim and deliver at scheduled_for.
             message = Message(
                 patient_id=patient_id,
                 direction=MessageDirection.OUTBOUND,
                 type=MessageType(message_type),
                 content=message_content,
-                status=MessageStatus.SCHEDULED,
+                status=MessageStatus.PENDING,
                 scheduled_for=delivery_time,
                 message_metadata=metadata or {},
             )
@@ -124,9 +132,33 @@ class MessageScheduler:
             task_result = await self.task_scheduler.schedule_celery_task(
                 message, delivery_time
             )
+            task_id = task_result.get("task_id") if isinstance(task_result, dict) else None
+            message_metadata = self._ensure_message_metadata(message)
+
+            if not task_id:
+                error_message = (
+                    task_result.get("error", "Unknown Celery scheduling error")
+                    if isinstance(task_result, dict)
+                    else "Unknown Celery scheduling error"
+                )
+                message.status = MessageStatus.FAILED
+                message.delivery_status = DeliveryStatus.FAILED
+                message.failure_reason = error_message
+                message_metadata.update(
+                    {
+                        "scheduling_status": "failed",
+                        "scheduling_error": error_message,
+                        "scheduling_failed_at": now_sao_paulo().isoformat(),
+                    }
+                )
+                self.db.commit()
+                raise TaskSchedulingError(
+                    f"Failed to schedule Celery task for message {message.id}: {error_message}"
+                )
 
             # Update message with task ID
-            message.message_metadata["celery_task_id"] = task_result.get("task_id")
+            message_metadata["celery_task_id"] = task_id
+            message_metadata["scheduling_status"] = "success"
             self.db.commit()
 
             return {
@@ -135,7 +167,7 @@ class MessageScheduler:
                 "scheduled_for": delivery_time.isoformat(),
                 "status": DeliveryStatus.SCHEDULED.value,
                 "scheduling_window": scheduling_window.value,
-                "task_id": task_result.get("task_id"),
+                "task_id": task_id,
             }
 
         except Exception as e:
@@ -158,7 +190,7 @@ class MessageScheduler:
         Args:
             patient_id: Patient UUID
             flow_day: Current day in the flow
-            flow_type: Type of flow (initial_15_days, etc.)
+            flow_type: Type of flow (onboarding, etc.)
             template_id: Template identifier
             personalized_content: AI-personalized message content
             scheduling_window: When to send the message
@@ -172,7 +204,7 @@ class MessageScheduler:
                 "flow_type": flow_type,
                 "template_id": template_id,
                 "personalized": True,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": now_sao_paulo().isoformat(),
             }
         }
 
@@ -207,13 +239,14 @@ class MessageScheduler:
                 return False
 
             # Cancel Celery task if exists
-            task_id = message.message_metadata.get("celery_task_id")
+            message_metadata = self._ensure_message_metadata(message)
+            task_id = message_metadata.get("celery_task_id")
             if task_id:
                 self.task_scheduler.cancel_celery_task(task_id)
 
             # Update message status
             message.status = MessageStatus.CANCELLED
-            message.message_metadata["cancelled_at"] = datetime.now(timezone.utc).isoformat()
+            message_metadata["cancelled_at"] = now_sao_paulo().isoformat()
             self.db.commit()
 
             return True
@@ -241,7 +274,7 @@ class MessageScheduler:
             Rescheduling result
         """
         try:
-            if new_delivery_time <= datetime.now(timezone.utc):
+            if new_delivery_time <= now_sao_paulo():
                 raise ValidationError("Cannot reschedule to past time")
 
             message = self.message_repo.get(message_id)
@@ -254,7 +287,8 @@ class MessageScheduler:
                 )
 
             # Cancel old task
-            old_task_id = message.message_metadata.get("celery_task_id")
+            message_metadata = self._ensure_message_metadata(message)
+            old_task_id = message_metadata.get("celery_task_id")
             if old_task_id:
                 self.task_scheduler.cancel_celery_task(old_task_id)
 
@@ -262,16 +296,39 @@ class MessageScheduler:
             task_result = await self.task_scheduler.schedule_celery_task(
                 message, new_delivery_time
             )
+            task_id = task_result.get("task_id") if isinstance(task_result, dict) else None
+            if not task_id:
+                error_message = (
+                    task_result.get("error", "Unknown Celery scheduling error")
+                    if isinstance(task_result, dict)
+                    else "Unknown Celery scheduling error"
+                )
+                message.status = MessageStatus.FAILED
+                message.delivery_status = DeliveryStatus.FAILED
+                message.failure_reason = error_message
+                message_metadata.update(
+                    {
+                        "scheduling_status": "failed",
+                        "scheduling_error": error_message,
+                        "scheduling_failed_at": now_sao_paulo().isoformat(),
+                        "previous_task_id": old_task_id,
+                    }
+                )
+                self.db.commit()
+                raise TaskSchedulingError(
+                    f"Failed to reschedule Celery task for message {message_id}: {error_message}"
+                )
 
             # Update message
             message.scheduled_for = new_delivery_time
-            message.status = MessageStatus.SCHEDULED
-            message.message_metadata.update(
+            message.status = MessageStatus.PENDING
+            message_metadata.update(
                 {
-                    "celery_task_id": task_result.get("task_id"),
-                    "rescheduled_at": datetime.now(timezone.utc).isoformat(),
+                    "celery_task_id": task_id,
+                    "rescheduled_at": now_sao_paulo().isoformat(),
                     "reschedule_reason": reason,
                     "previous_task_id": old_task_id,
+                    "scheduling_status": "success",
                 }
             )
             self.db.commit()
@@ -279,7 +336,7 @@ class MessageScheduler:
             return {
                 "message_id": str(message_id),
                 "new_delivery_time": new_delivery_time.isoformat(),
-                "task_id": task_result.get("task_id"),
+                "task_id": task_id,
                 "reason": reason,
             }
 
@@ -316,13 +373,13 @@ class MessageScheduler:
             # Update message status
             if status == DeliveryStatus.SENT:
                 message.status = MessageStatus.SENT
-                message.sent_at = datetime.now(timezone.utc)
+                message.sent_at = now_sao_paulo()
             elif status == DeliveryStatus.DELIVERED:
                 message.status = MessageStatus.DELIVERED
-                message.delivered_at = datetime.now(timezone.utc)
+                message.delivered_at = now_sao_paulo()
             elif status == DeliveryStatus.READ:
                 message.status = MessageStatus.READ
-                message.read_at = datetime.now(timezone.utc)
+                message.read_at = now_sao_paulo()
             elif status == DeliveryStatus.FAILED:
                 message.status = MessageStatus.FAILED
 
@@ -330,15 +387,16 @@ class MessageScheduler:
                 message.whatsapp_id = whatsapp_id
 
             # Update metadata
-            message.message_metadata.update(
+            message_metadata = self._ensure_message_metadata(message)
+            message_metadata.update(
                 {
-                    "status_updated_at": datetime.now(timezone.utc).isoformat(),
+                    "status_updated_at": now_sao_paulo().isoformat(),
                     "delivery_status": status.value,
                 }
             )
 
             if delivery_info:
-                message.message_metadata["delivery_tracking"] = delivery_info
+                message_metadata["delivery_tracking"] = delivery_info
 
             self.db.commit()
             return True
@@ -389,21 +447,20 @@ class MessageScheduler:
                 )
 
             # Validate send_time is in the future
-            if send_time <= datetime.now(timezone.utc):
+            if send_time <= now_sao_paulo():
                 logger.warning(
                     f"Send time {send_time} is in the past, adjusting to 1 minute from now"
                 )
-                send_time = datetime.now(timezone.utc) + timedelta(minutes=1)
+                send_time = now_sao_paulo() + timedelta(minutes=1)
 
             # Update message with scheduling information
             message.scheduled_for = send_time
-            message.status = MessageStatus.SCHEDULED
+            message.status = MessageStatus.PENDING
 
             # Add priority to metadata
-            if message.message_metadata is None:
-                message.message_metadata = {}
-            message.message_metadata["priority"] = priority
-            message.message_metadata["scheduled_at"] = datetime.now(timezone.utc).isoformat()
+            message_metadata = self._ensure_message_metadata(message)
+            message_metadata["priority"] = priority
+            message_metadata["scheduled_at"] = now_sao_paulo().isoformat()
 
             # Schedule Celery task
             task_result = await self.task_scheduler.schedule_celery_task(
@@ -412,8 +469,8 @@ class MessageScheduler:
 
             if task_result.get("task_id"):
                 # Update message with task ID
-                message.message_metadata["celery_task_id"] = task_result.get("task_id")
-                message.message_metadata["scheduling_status"] = "success"
+                message_metadata["celery_task_id"] = task_result.get("task_id")
+                message_metadata["scheduling_status"] = "success"
                 self.db.commit()
 
                 logger.info(
@@ -423,8 +480,8 @@ class MessageScheduler:
                 return True
             else:
                 # Scheduling failed
-                message.message_metadata["scheduling_status"] = "failed"
-                message.message_metadata["scheduling_error"] = task_result.get(
+                message_metadata["scheduling_status"] = "failed"
+                message_metadata["scheduling_error"] = task_result.get(
                     "error", "Unknown error"
                 )
                 message.status = MessageStatus.FAILED
@@ -482,14 +539,14 @@ class MessageScheduler:
             message.delivery_status = DeliveryStatus.FAILED
             message.status = MessageStatus.FAILED
             message.failure_reason = failure_reason
-            message.last_retry_at = datetime.now(timezone.utc)
+            message.last_retry_at = now_sao_paulo()
+            message_metadata = self._ensure_message_metadata(message)
 
             # Store WhatsApp error details in metadata
             if whatsapp_error:
-                message.message_metadata = message.message_metadata or {}
-                message.message_metadata["whatsapp_error"] = whatsapp_error
-                message.message_metadata["failure_timestamp"] = (
-                    datetime.now(timezone.utc).isoformat()
+                message_metadata["whatsapp_error"] = whatsapp_error
+                message_metadata["failure_timestamp"] = (
+                    now_sao_paulo().isoformat()
                 )
 
             # Check if we should retry
@@ -498,10 +555,14 @@ class MessageScheduler:
                 retry_delay = self.retry_handler.calculate_retry_delay(
                     message.retry_count
                 )
-                next_retry = datetime.now(timezone.utc) + retry_delay
+                next_retry = now_sao_paulo() + retry_delay
 
                 message.retry_count += 1
                 message.next_retry_at = next_retry
+                message.scheduled_for = next_retry
+                # Retry path must return to claimable status for send task.
+                message.status = MessageStatus.PENDING
+                message.delivery_status = DeliveryStatus.QUEUED
 
                 # Schedule retry task
                 await self.retry_handler.schedule_retry(message, next_retry)

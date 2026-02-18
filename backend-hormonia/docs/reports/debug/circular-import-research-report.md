@@ -172,7 +172,7 @@ class MonthlyQuizService:
             patient_id=patient_id,
             template_id=template_id,
             session_type="monthly",
-            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+            expires_at=now_sao_paulo() + timedelta(days=7),
         )
         return self.quiz_service.session_service.create_session(session_data)
 ```

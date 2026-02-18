@@ -8,6 +8,7 @@ import logging
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 from app.config import settings
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +42,29 @@ class WhatsAppSecurity:
             - Timestamp validation (prevents replay attacks - 5 min window)
             - Constant-time comparison (prevents timing attacks)
         """
-        # If no secret configured, skip validation (development mode)
+        # If no secret configured, fail-closed in production/staging
         webhook_secret = (
             getattr(settings, "WHATSAPP_EVOLUTION_WEBHOOK_SECRET", None)
             or getattr(settings, "EVOLUTION_WEBHOOK_SECRET", None)
         )
         if not webhook_secret:
-            logger.warning(
-                "SECURITY WARNING: WHATSAPP_EVOLUTION_WEBHOOK_SECRET not configured. "
-                "Webhook signature validation is DISABLED. This is insecure for production!"
+            is_dev = getattr(settings, "APP_ENABLE_DEBUG", False) or (
+                getattr(settings, "APP_ENVIRONMENT", "production").lower()
+                == "development"
             )
-            return True
+            if is_dev:
+                logger.warning(
+                    "SECURITY WARNING: WHATSAPP_EVOLUTION_WEBHOOK_SECRET not configured. "
+                    "Webhook signature validation SKIPPED (development mode)."
+                )
+                return True
+            else:
+                logger.critical(
+                    "SECURITY CRITICAL: WHATSAPP_EVOLUTION_WEBHOOK_SECRET not configured "
+                    "in %s environment. Rejecting webhook (fail-closed).",
+                    getattr(settings, "APP_ENVIRONMENT", "unknown"),
+                )
+                return False
 
         # Require signature header in production
         if not signature_header:
@@ -73,7 +86,7 @@ class WhatsAppSecurity:
             if timestamp_header:
                 try:
                     webhook_time = int(timestamp_header)
-                    current_time = int(datetime.now(timezone.utc).timestamp())
+                    current_time = int(now_sao_paulo().timestamp())
                     time_diff = abs(current_time - webhook_time)
 
                     # Reject webhooks older than 5 minutes
@@ -121,8 +134,7 @@ class WhatsAppSecurity:
                 logger.error(
                     "SECURITY: Webhook signature validation FAILED",
                     extra={
-                        "expected_prefix": expected_signature[:16],
-                        "received_prefix": signature[:16],
+                        "received_prefix": signature[:8] + "...",
                         "timestamp": timestamp_header,
                         "payload_size": len(payload_bytes),
                     },

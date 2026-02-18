@@ -8,10 +8,11 @@ import unicodedata
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.integrations.gemini_client import GeminiClient
+from app.ai.client import GeminiClient
 from app.utils.timezone import SAO_PAULO_TZ_NAME
 
 from .models import DurationInfo, ReminderIntent
+from .recurrence import infer_recurrence_from_duration
 from .patterns import (
     RE_DATE_DAY,
     RE_DATE_DMY,
@@ -345,17 +346,6 @@ def get_missing_fields(
     missing_interval = recurrence == "interval" and not interval_days
     missing_duration = recurrence != "none" and not duration_info.has_value()
     return missing_text, missing_time, missing_interval, missing_duration
-
-
-def infer_recurrence_from_duration(duration_info: DurationInfo) -> str:
-    """Infer recurrence type from duration info."""
-    if duration_info.months:
-        return "monthly"
-    if duration_info.weeks:
-        return "weekly"
-    if duration_info.days or duration_info.occurrences:
-        return "daily"
-    return "none"
 
 
 # ---- Main Extractors ----

@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 
 from app.models.base import BaseModel
 from app.models.message import MessageDirection, MessageType, MessageStatus, DeliveryStatus, MessagePriority
+from app.utils.timezone import now_sao_paulo
 
 class MessageArchive(BaseModel):
     """
@@ -42,11 +43,23 @@ class MessageArchive(BaseModel):
 
     # Message details
     direction = Column(
-        SAEnum(MessageDirection, name="message_direction", create_type=False),
+        SAEnum(
+            MessageDirection,
+            name="message_direction",
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
         nullable=False,
     )
     type = Column(
-        SAEnum(MessageType, name="messagetype", create_type=False),
+        SAEnum(
+            MessageType,
+            name="messagetype",
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
         nullable=False,
     )
     content = Column(Text, nullable=True)
@@ -54,7 +67,13 @@ class MessageArchive(BaseModel):
     # Metadata
     message_metadata = Column(JSONB, nullable=True)
     priority = Column(
-        SAEnum(MessagePriority, name="message_priority", create_type=False),
+        SAEnum(
+            MessagePriority,
+            name="message_priority",
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
         nullable=False,
         default=MessagePriority.NORMAL,
     )
@@ -66,7 +85,13 @@ class MessageArchive(BaseModel):
     # WhatsApp integration
     whatsapp_id = Column(String(255), nullable=True, index=True)
     status = Column(
-        SAEnum(MessageStatus, name="message_status", create_type=False),
+        SAEnum(
+            MessageStatus,
+            name="message_status",
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
         nullable=False,
     )
 
@@ -78,7 +103,13 @@ class MessageArchive(BaseModel):
 
     # Delivery tracking
     delivery_status = Column(
-        SAEnum(DeliveryStatus, name="message_delivery_status", create_type=False),
+        SAEnum(
+            DeliveryStatus,
+            name="message_delivery_status",
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
         nullable=True,
     )
     retry_count = Column(Integer, nullable=False, default=0)
@@ -86,7 +117,7 @@ class MessageArchive(BaseModel):
     failure_reason = Column(Text, nullable=True)
     
     # Archival Metadata
-    archived_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    archived_at = Column(DateTime(timezone=True), default=lambda: now_sao_paulo(), nullable=False)
     
     # We do not define relationships back to Patient to avoid bloating the Patient model
     # with an archive relationship unless needed.

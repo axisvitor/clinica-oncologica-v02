@@ -22,7 +22,6 @@ Total: 60+ comprehensive tests
 import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch, AsyncMock
-from fastapi.testclient import TestClient
 from fastapi import status, HTTPException
 
 from app.main import app
@@ -30,15 +29,10 @@ from app.models.user import User, UserRole
 from app.monitoring.manager import MonitoringManager
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # FIXTURES
 # ============================================================================
-
-
-@pytest.fixture
-def client():
-    """FastAPI test client."""
-    return TestClient(app)
 
 
 @pytest.fixture
@@ -74,7 +68,7 @@ def regular_user(db_session):
 @pytest.fixture
 def mock_monitoring_manager():
     """Mock monitoring manager."""
-    with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+    with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
         manager = Mock(spec=MonitoringManager)
         manager._started = True
 
@@ -138,7 +132,7 @@ def mock_monitoring_manager():
             {
                 "query": "SELECT * FROM patients WHERE...",
                 "duration_ms": 850.5,
-                "timestamp": datetime.utcnow(),
+                "timestamp": now_sao_paulo_naive(),
                 "table": "patients",
                 "rows_examined": 15000,
             }
@@ -163,7 +157,7 @@ def mock_monitoring_manager():
         manager.resource_monitor.get_historical_stats.return_value = {
             "data_points": [
                 {
-                    "timestamp": datetime.utcnow(),
+                    "timestamp": now_sao_paulo_naive(),
                     "cpu": {"percent": 45.2},
                     "memory": {"percent": 62.8},
                     "disk": {"percent": 55.5},
@@ -206,7 +200,7 @@ def mock_monitoring_manager():
         manager.anomaly_detector = Mock()
         manager.anomaly_detector.get_recent_anomalies.return_value = [
             {
-                "timestamp": datetime.utcnow(),
+                "timestamp": now_sao_paulo_naive(),
                 "metric": "cpu_usage",
                 "value": 95.5,
                 "expected_value": 45.0,
@@ -248,7 +242,7 @@ def mock_monitoring_manager():
                         "datapoints": [[45.2, 1699363200000]],
                     }
                 ],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": now_sao_paulo_naive().isoformat(),
             }
         )
 
@@ -308,7 +302,7 @@ class TestHealthAndSystem:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful metrics overview."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/metrics/overview")
 
         assert response.status_code == status.HTTP_200_OK
@@ -323,7 +317,7 @@ class TestHealthAndSystem:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test metrics overview with field selection."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/metrics/overview?fields=apm,database"
             )
@@ -335,7 +329,7 @@ class TestHealthAndSystem:
 
     def test_get_metrics_overview_unauthorized(self, client, regular_user):
         """Test metrics overview with non-admin user."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user") as mock_auth:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user") as mock_auth:
             mock_auth.side_effect = HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Admin access required",
@@ -349,7 +343,7 @@ class TestHealthAndSystem:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful system info retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/system/info")
 
         assert response.status_code == status.HTTP_200_OK
@@ -362,12 +356,12 @@ class TestHealthAndSystem:
         self, client, admin_user
     ):
         """Test system info when resource monitor is unavailable."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager.resource_monitor = None
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get("/api/v2/monitoring/system/info")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -385,7 +379,7 @@ class TestAPMEndpoints:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful APM global stats retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/apm/global")
 
         assert response.status_code == status.HTTP_200_OK
@@ -397,12 +391,12 @@ class TestAPMEndpoints:
 
     def test_get_apm_global_stats_no_collector(self, client, admin_user):
         """Test APM stats when collector is unavailable."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager.apm_collector = None
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get("/api/v2/monitoring/apm/global")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -411,7 +405,7 @@ class TestAPMEndpoints:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful APM endpoints stats retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/apm/endpoints")
 
         assert response.status_code == status.HTTP_200_OK
@@ -424,7 +418,7 @@ class TestAPMEndpoints:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test APM endpoints stats with pagination."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/apm/endpoints?limit=1")
 
         assert response.status_code == status.HTTP_200_OK
@@ -436,7 +430,7 @@ class TestAPMEndpoints:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test APM endpoints stats sorted by error rate."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/apm/endpoints?sort_by=error_rate"
             )
@@ -449,7 +443,7 @@ class TestAPMEndpoints:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful specific endpoint stats retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/apm/endpoint/api/v2/patients")
 
         assert response.status_code == status.HTTP_200_OK
@@ -462,13 +456,13 @@ class TestAPMEndpoints:
         self, client, admin_user
     ):
         """Test endpoint stats for non-existent endpoint."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager.apm_collector = Mock()
             manager.apm_collector.get_endpoint_stats.return_value = None
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get(
                     "/api/v2/monitoring/apm/endpoint/nonexistent"
                 )
@@ -477,7 +471,7 @@ class TestAPMEndpoints:
 
     def test_apm_cache_behavior(self, client, mock_monitoring_manager, admin_user):
         """Test APM cache behavior."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             # First request
             response1 = client.get("/api/v2/monitoring/apm/global")
             assert response1.status_code == status.HTTP_200_OK
@@ -500,7 +494,7 @@ class TestDatabaseMonitoring:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful database overview retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/database/overview")
 
         assert response.status_code == status.HTTP_200_OK
@@ -510,12 +504,12 @@ class TestDatabaseMonitoring:
 
     def test_get_database_overview_no_monitor(self, client, admin_user):
         """Test database overview when monitor is unavailable."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager.db_monitor = None
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get("/api/v2/monitoring/database/overview")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -524,7 +518,7 @@ class TestDatabaseMonitoring:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful slow queries retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/database/slow-queries")
 
         assert response.status_code == status.HTTP_200_OK
@@ -536,7 +530,7 @@ class TestDatabaseMonitoring:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test slow queries with minimum duration filter."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/database/slow-queries?min_duration_ms=500"
             )
@@ -547,7 +541,7 @@ class TestDatabaseMonitoring:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test slow queries with pagination."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/database/slow-queries?limit=5"
             )
@@ -560,7 +554,7 @@ class TestDatabaseMonitoring:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful table statistics retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/database/tables")
 
         assert response.status_code == status.HTTP_200_OK
@@ -581,7 +575,7 @@ class TestResourceMonitoring:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful current resources retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/resources/current")
 
         assert response.status_code == status.HTTP_200_OK
@@ -593,12 +587,12 @@ class TestResourceMonitoring:
 
     def test_get_current_resources_no_monitor(self, client, admin_user):
         """Test current resources when monitor is unavailable."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager.resource_monitor = None
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get("/api/v2/monitoring/resources/current")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -607,7 +601,7 @@ class TestResourceMonitoring:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful historical resources retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/resources/historical")
 
         assert response.status_code == status.HTTP_200_OK
@@ -619,7 +613,7 @@ class TestResourceMonitoring:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test historical resources with custom time range."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/resources/historical?minutes=120"
             )
@@ -632,7 +626,7 @@ class TestResourceMonitoring:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test historical resources with invalid time range."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/resources/historical?minutes=0"
             )
@@ -641,7 +635,7 @@ class TestResourceMonitoring:
 
     def test_resource_cache_ttl(self, client, mock_monitoring_manager, admin_user):
         """Test resource monitoring cache TTL."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             # Real-time data should have short cache
             response = client.get("/api/v2/monitoring/resources/current")
             assert response.status_code == status.HTTP_200_OK
@@ -663,7 +657,7 @@ class TestBusinessMetrics:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful business metrics summary."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/business/summary")
 
         assert response.status_code == status.HTTP_200_OK
@@ -675,7 +669,7 @@ class TestBusinessMetrics:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test business summary with custom time range."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/business/summary?hours=48"
             )
@@ -688,7 +682,7 @@ class TestBusinessMetrics:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful patient metrics retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/business/patient/patient-123"
             )
@@ -702,7 +696,7 @@ class TestBusinessMetrics:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful metric type stats retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/business/metric/quiz_completion"
             )
@@ -715,7 +709,7 @@ class TestBusinessMetrics:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test metric type stats with invalid type."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/business/metric/invalid_type"
             )
@@ -728,12 +722,12 @@ class TestBusinessMetrics:
 
     def test_business_metrics_no_collector(self, client, admin_user):
         """Test business metrics when collector is unavailable."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager.business_metrics = None
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get("/api/v2/monitoring/business/summary")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -751,7 +745,7 @@ class TestAnomalyDetection:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful recent anomalies retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/anomalies/recent")
 
         assert response.status_code == status.HTTP_200_OK
@@ -763,7 +757,7 @@ class TestAnomalyDetection:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test recent anomalies with severity filter."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/anomalies/recent?severity=high"
             )
@@ -774,7 +768,7 @@ class TestAnomalyDetection:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful anomalies summary retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/anomalies/summary")
 
         assert response.status_code == status.HTTP_200_OK
@@ -785,12 +779,12 @@ class TestAnomalyDetection:
 
     def test_anomalies_no_detector(self, client, admin_user):
         """Test anomalies when detector is unavailable."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager.anomaly_detector = None
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get("/api/v2/monitoring/anomalies/recent")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
@@ -808,7 +802,7 @@ class TestDashboard:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful dashboard status retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/dashboard/status")
 
         assert response.status_code == status.HTTP_200_OK
@@ -818,29 +812,21 @@ class TestDashboard:
 
     def test_get_dashboard_status_no_dashboard(self, client, admin_user):
         """Test dashboard status when dashboard is unavailable."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager.dashboard = None
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get("/api/v2/monitoring/dashboard/status")
 
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-
-    def test_dashboard_websocket_connection(
-        self, client, mock_monitoring_manager
-    ):
-        """Test WebSocket connection for dashboard stream."""
-        # WebSocket testing requires different approach
-        # This is a placeholder for WebSocket test
-        pass
 
     def test_dashboard_cache_realtime(
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test dashboard cache for real-time data."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/dashboard/status")
             assert response.status_code == status.HTTP_200_OK
 
@@ -857,7 +843,7 @@ class TestAlerts:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful active alerts retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/alerts/active")
 
         assert response.status_code == status.HTTP_200_OK
@@ -869,7 +855,7 @@ class TestAlerts:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test active alerts with severity filter."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get(
                 "/api/v2/monitoring/alerts/active?severity=high"
             )
@@ -880,7 +866,7 @@ class TestAlerts:
         self, client, admin_user
     ):
         """Test alert generation from high metrics."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager.apm_collector = Mock()
             manager.apm_collector.get_global_stats.return_value = {
@@ -893,7 +879,7 @@ class TestAlerts:
             }
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get("/api/v2/monitoring/alerts/active")
 
         assert response.status_code == status.HTTP_200_OK
@@ -905,7 +891,7 @@ class TestAlerts:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test alerts cache with short TTL."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/alerts/active")
             assert response.status_code == status.HTTP_200_OK
 
@@ -922,7 +908,7 @@ class TestPerformance:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful performance overview retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.get("/api/v2/monitoring/performance/overview")
 
         assert response.status_code == status.HTTP_200_OK
@@ -936,7 +922,7 @@ class TestPerformance:
         self, client, admin_user
     ):
         """Test performance score calculation with various metrics."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager.apm_collector = Mock()
             manager.apm_collector.get_global_stats.return_value = {
@@ -955,7 +941,7 @@ class TestPerformance:
             manager.get_health_status.return_value = {"status": "healthy"}
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get("/api/v2/monitoring/performance/overview")
 
         assert response.status_code == status.HTTP_200_OK
@@ -983,7 +969,7 @@ class TestExport:
 
     def test_get_prometheus_metrics_no_exporter(self, client):
         """Test Prometheus export when exporter is unavailable."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager.metrics_exporter = None
             mock.return_value = manager
@@ -999,13 +985,13 @@ class TestExport:
         query_data = {
             "targets": ["cpu_usage"],
             "range": {
-                "from": "2025-11-07T11:00:00Z",
-                "to": "2025-11-07T12:00:00Z",
+                "from": "2025-11-07T11:00:00-03:00",
+                "to": "2025-11-07T12:00:00-03:00",
             },
             "max_data_points": 1000,
         }
 
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.post(
                 "/api/v2/monitoring/export/grafana/query",
                 json=query_data,
@@ -1019,7 +1005,7 @@ class TestExport:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test Grafana query with invalid request."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.post(
                 "/api/v2/monitoring/export/grafana/query",
                 json={"invalid": "data"},
@@ -1040,7 +1026,7 @@ class TestConfiguration:
         self, client, admin_user
     ):
         """Test successful configuration retrieval."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_config") as mock_config:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_config") as mock_config:
             config = Mock()
             config.dict.return_value = {
                 "apm_enabled": True,
@@ -1049,7 +1035,7 @@ class TestConfiguration:
             }
             mock_config.return_value = config
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get("/api/v2/monitoring/config")
 
         assert response.status_code == status.HTTP_200_OK
@@ -1063,7 +1049,7 @@ class TestConfiguration:
             "db_monitoring_enabled": True,
         }
 
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_config") as mock_config:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_config") as mock_config:
             config = Mock()
             config.apm_enabled = True
             config.db_monitoring_enabled = True
@@ -1075,7 +1061,7 @@ class TestConfiguration:
             }
             mock_config.return_value = config
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.put(
                     "/api/v2/monitoring/config",
                     json=update_data,
@@ -1089,12 +1075,12 @@ class TestConfiguration:
         """Test partial configuration update."""
         update_data = {"apm_enabled": False}
 
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_config") as mock_config:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_config") as mock_config:
             config = Mock()
             config.dict.return_value = {"apm_enabled": False}
             mock_config.return_value = config
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.put(
                     "/api/v2/monitoring/config",
                     json=update_data,
@@ -1104,12 +1090,12 @@ class TestConfiguration:
 
     def test_config_cache_ttl(self, client, admin_user):
         """Test configuration cache with long TTL."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_config") as mock_config:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_config") as mock_config:
             config = Mock()
             config.dict.return_value = {"apm_enabled": True}
             mock_config.return_value = config
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.get("/api/v2/monitoring/config")
                 assert response.status_code == status.HTTP_200_OK
 
@@ -1126,7 +1112,7 @@ class TestManagementActions:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful stats reset."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.post("/api/v2/monitoring/actions/reset-stats")
 
         assert response.status_code == status.HTTP_200_OK
@@ -1138,13 +1124,13 @@ class TestManagementActions:
         self, client, admin_user
     ):
         """Test successful monitoring services start."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager._started = False
             manager.start = AsyncMock()
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.post("/api/v2/monitoring/actions/start")
 
         assert response.status_code == status.HTTP_200_OK
@@ -1155,7 +1141,7 @@ class TestManagementActions:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test starting monitoring when already running."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.post("/api/v2/monitoring/actions/start")
 
         assert response.status_code == status.HTTP_200_OK
@@ -1166,7 +1152,7 @@ class TestManagementActions:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test successful monitoring services stop."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             response = client.post("/api/v2/monitoring/actions/stop")
 
         assert response.status_code == status.HTTP_200_OK
@@ -1177,24 +1163,18 @@ class TestManagementActions:
         self, client, admin_user
     ):
         """Test stopping monitoring when not running."""
-        with patch("app.api.v2.enhanced_monitoring.get_monitoring_manager") as mock:
+        with patch("app.api.v2.routers.enhanced_monitoring.get_monitoring_manager") as mock:
             manager = Mock()
             manager._started = False
             manager.stop = AsyncMock()
             mock.return_value = manager
 
-            with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+            with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
                 response = client.post("/api/v2/monitoring/actions/stop")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "not running" in data["message"].lower()
-
-    def test_management_actions_admin_only(self, client, regular_user):
-        """Test management actions require admin access."""
-        # This would be tested with proper auth integration
-        pass
-
 
 # ============================================================================
 # INTEGRATION TESTS
@@ -1208,7 +1188,7 @@ class TestIntegration:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test complete monitoring workflow."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             # 1. Check health
             health_response = client.get("/api/v2/monitoring/health")
             assert health_response.status_code == status.HTTP_200_OK
@@ -1229,7 +1209,7 @@ class TestIntegration:
         self, client, mock_monitoring_manager, admin_user
     ):
         """Test cache consistency across related endpoints."""
-        with patch("app.api.v2.enhanced_monitoring.get_admin_user", return_value=admin_user):
+        with patch("app.api.v2.routers.enhanced_monitoring.get_admin_user", return_value=admin_user):
             # Get data from different endpoints
             response1 = client.get("/api/v2/monitoring/apm/global")
             response2 = client.get("/api/v2/monitoring/performance/overview")

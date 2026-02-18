@@ -8,6 +8,7 @@ from app.models.message import Message, MessageStatus, MessageType
 from app.models.patient import Patient
 from app.integrations.whatsapp.services.message_service import MessageResponse, MessageStatus as WhatsAppMessageStatus
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 @pytest.fixture
 def mock_db():
     mock = AsyncMock()
@@ -22,7 +23,7 @@ def mock_queue_service():
         id="msg-123",
         status=WhatsAppMessageStatus.PENDING,
         message="Queued",
-        timestamp=datetime.utcnow()
+        timestamp=now_sao_paulo_naive()
     )
     return service
 

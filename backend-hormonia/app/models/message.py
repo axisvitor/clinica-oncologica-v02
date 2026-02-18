@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 import enum
+from uuid import uuid4
 
 from app.models.base import BaseModel
 
@@ -79,6 +80,7 @@ class MessagePriority(str, enum.Enum):
 
     CRITICAL = "critical"
     HIGH = "high"
+    URGENT = "high"  # Legacy alias kept for backward compatibility
     NORMAL = "normal"
     LOW = "low"
 
@@ -143,6 +145,7 @@ class Message(BaseModel):
     idempotency_key = Column(
         String(255),
         nullable=False,
+        default=lambda: uuid4().hex,
         index=True,
         comment="Idempotency key to prevent duplicate message sends",
     )
@@ -194,5 +197,29 @@ class Message(BaseModel):
         order_by="MessageStatusEvent.created_at",
     )
 
+    @property
+    def sender_id(self):
+        """
+        Legacy compatibility alias.
+
+        Canonical model stores sender context in relationships/metadata and does
+        not persist `sender_id` directly in this table.
+        """
+        metadata = self.message_metadata or {}
+        return metadata.get("sender_id")
+
+    @sender_id.setter
+    def sender_id(self, value):
+        metadata = dict(self.message_metadata or {})
+        metadata["sender_id"] = str(value) if value is not None else None
+        self.message_metadata = metadata
+
+    @property
+    def sender(self):
+        """Legacy sender accessor used by repository optimization tests."""
+        patient = getattr(self, "patient", None)
+        return getattr(patient, "doctor", None) if patient is not None else None
+
     def __repr__(self):
-        return f"<Message(patient_id='{self.patient_id}', direction='{self.direction.value}')>"
+        direction = self.direction.value if hasattr(self.direction, "value") else self.direction
+        return f"<Message(patient_id='{self.patient_id}', direction='{direction}')>"

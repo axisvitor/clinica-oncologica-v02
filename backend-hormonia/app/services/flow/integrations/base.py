@@ -38,9 +38,9 @@ class FlowIntegration(ABC):
         return None
 
 
-class LegacyIntegrationAdapter(FlowIntegration):
+class IntegrationAdapter(FlowIntegration):
     """
-    Wraps legacy synchronous services so they can participate in the plugin pipeline.
+    Adapter for delegates exposing optional flow lifecycle hooks.
     """
 
     def __init__(self, name: str, delegate: Any):
@@ -78,4 +78,4 @@ class LegacyIntegrationAdapter(FlowIntegration):
                 await result
 
 
-__all__ = ["FlowIntegration", "LegacyIntegrationAdapter"]
+__all__ = ["FlowIntegration", "IntegrationAdapter"]

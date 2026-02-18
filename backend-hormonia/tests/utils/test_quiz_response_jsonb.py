@@ -50,11 +50,11 @@ class TestResponseValueSerializer:
         """Test selections object with metadata."""
         result = ResponseValueSerializer.to_selections_object(
             ["Option 1", "Option 2"],
-            timestamp="2025-01-14T12:00:00Z"
+            timestamp="2025-01-14T12:00:00-03:00"
         )
         assert result == {
             "selections": ["Option 1", "Option 2"],
-            "timestamp": "2025-01-14T12:00:00Z"
+            "timestamp": "2025-01-14T12:00:00-03:00"
         }
 
     def test_scale_serialization(self):

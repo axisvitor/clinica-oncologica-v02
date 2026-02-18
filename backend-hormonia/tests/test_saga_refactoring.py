@@ -9,6 +9,8 @@ This test verifies that:
 
 import pytest
 
+from app.models.enums import SagaStatus
+
 
 def test_public_imports():
     """Test that current public imports are available."""
@@ -17,7 +19,6 @@ def test_public_imports():
         SagaStepExecutor,
         SagaCompensator,
         SagaPersistence,
-        SagaStatus,
         SagaLogEntry,
         SagaStatusInfo,
         FailedSagaSummary,
@@ -76,8 +77,6 @@ def test_orchestrator_has_all_methods():
 
 def test_enums_are_accessible():
     """Test that saga enums are accessible."""
-    from app.orchestration.saga_orchestrator import SagaStatus
-
     assert hasattr(SagaStatus, "STARTED")
     assert hasattr(SagaStatus, "IN_PROGRESS")
     assert hasattr(SagaStatus, "COMPLETED")

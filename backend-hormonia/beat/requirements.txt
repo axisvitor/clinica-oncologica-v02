@@ -1,2 +1,0 @@
-# Shared backend dependencies for Railway beat service.
--r ../requirements.txt

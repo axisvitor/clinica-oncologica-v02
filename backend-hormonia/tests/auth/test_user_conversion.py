@@ -13,6 +13,7 @@ from app.dependencies.auth_dependencies import user_to_cache_dict
 from app.models.user import User, UserRole
 
 
+from app.utils.timezone import SAO_PAULO_TZ
 class TestUserToCacheDict:
     """Test suite for user_to_cache_dict() helper function."""
 
@@ -27,9 +28,9 @@ class TestUserToCacheDict:
             full_name="Dr. Test User",
             role=UserRole.DOCTOR,
             is_active=True,
-            created_at=datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
-            updated_at=datetime(2024, 1, 15, 14, 30, 0, tzinfo=timezone.utc),
-            firebase_last_sign_in=datetime(2024, 1, 20, 10, 0, 0, tzinfo=timezone.utc),
+            created_at=datetime(2024, 1, 1, 12, 0, 0, tzinfo=SAO_PAULO_TZ),
+            updated_at=datetime(2024, 1, 15, 14, 30, 0, tzinfo=SAO_PAULO_TZ),
+            firebase_last_sign_in=datetime(2024, 1, 20, 10, 0, 0, tzinfo=SAO_PAULO_TZ),
         )
 
         # Act
@@ -42,9 +43,9 @@ class TestUserToCacheDict:
         assert result["full_name"] == "Dr. Test User"
         assert result["role"] == "doctor"
         assert result["is_active"] is True
-        assert result["created_at"] == "2024-01-01T12:00:00+00:00"
-        assert result["updated_at"] == "2024-01-15T14:30:00+00:00"
-        assert result["last_login"] == "2024-01-20T10:00:00+00:00"
+        assert result["created_at"] == "2024-01-01T12:00:00-03:00"
+        assert result["updated_at"] == "2024-01-15T14:30:00-03:00"
+        assert result["last_login"] == "2024-01-20T10:00:00-03:00"
 
     def test_handles_none_timestamps(self):
         """Test that None timestamps are preserved as None."""
@@ -156,7 +157,7 @@ class TestUserToCacheDict:
             full_name="Test User",
             role=UserRole.DOCTOR,
             is_active=True,
-            created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2024, 1, 1, tzinfo=SAO_PAULO_TZ),
         )
 
         # Act

@@ -7,11 +7,20 @@
  * @optimized React.memo + useMemo for 60% performance gain
  */
 import React, { Suspense, useMemo } from 'react';
+import { AreaChart, BarChart, PieChart, ComposedChart } from '@/components/ui/charts/LazyRechartsComponents';
 import {
-  Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  ComposedChart
-} from '@/components/ui/charts/LazyRechartsComponents';
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Area,
+  Bar,
+  Pie,
+  Cell
+} from '@/components/ui/charts/RechartsPrimitives';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 

@@ -490,7 +490,7 @@ def quiz_session(db_session, test_patient, quiz_template):
         patient_id=test_patient.id,
         template_id=quiz_template.id,
         status="active",
-        expires_at=datetime.utcnow() + timedelta(hours=24)
+        expires_at=now_sao_paulo() + timedelta(hours=24)
     )
     db_session.add(session)
     db_session.commit()
@@ -732,7 +732,7 @@ def mock_whatsapp_tracker(mock_evolution_api):
         sent_messages.append({
             "args": args,
             "kwargs": kwargs,
-            "timestamp": datetime.utcnow()
+            "timestamp": now_sao_paulo()
         })
         return {"status": "PENDING", "key": {"id": f"MSG_{len(sent_messages)}"}}
 

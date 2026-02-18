@@ -7,6 +7,7 @@ from typing import Any, Optional, Union
 from datetime import datetime, timezone
 from uuid import UUID
 from enum import Enum
+from app.utils.timezone import now_sao_paulo
 
 
 class WebSocketEventType(str, Enum):
@@ -67,7 +68,7 @@ class WebSocketMessage(BaseModel):
     """Base WebSocket message structure."""
 
     type: WebSocketEventType
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: now_sao_paulo())
     data: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(
@@ -186,7 +187,7 @@ class FlowEventData(BaseModel):
     """Flow-related event data."""
 
     patient_id: UUID
-    flow_type: str  # initial_15_days, days_16_45, monthly_recurring
+    flow_type: str  # onboarding, daily_follow_up, quiz_mensal
     current_day: int
     previous_day: Optional[int] = None
     is_paused: bool = False
@@ -281,5 +282,5 @@ def create_websocket_message(
         data = data.dict()
 
     return WebSocketMessage(
-        type=event_type, data=data, timestamp=timestamp or datetime.now(timezone.utc)
+        type=event_type, data=data, timestamp=timestamp or now_sao_paulo()
     )

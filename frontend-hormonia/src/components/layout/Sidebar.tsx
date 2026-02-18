@@ -153,10 +153,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     <>
       {/* Mobile overlay */}
       {isOpen && (
-        <div
+        <button
+          type="button"
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={onClose}
-          aria-hidden="true"
+          aria-label="Fechar menu"
         />
       )}
 

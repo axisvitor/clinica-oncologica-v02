@@ -15,6 +15,7 @@ from app.schemas.patient import PatientCreate
 from app.exceptions import ValidationError
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 class TestValidationServiceInitialization:
     """Tests for ValidationService initialization."""
 
@@ -158,7 +159,7 @@ class TestFindExistingPatient:
             cpf="12345678909",
             phone="+5511999999999",
             doctor_id=doctor_id,
-            deleted_at=datetime.utcnow(),
+            deleted_at=now_sao_paulo_naive(),
         )
         db_session.add(patient)
         db_session.commit()

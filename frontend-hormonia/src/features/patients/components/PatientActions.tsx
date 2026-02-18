@@ -26,6 +26,7 @@ interface PatientActionsProps {
   onActivate: (id: string) => void
   onDeactivate: (id: string) => void
   compact?: boolean
+  canDelete?: boolean
 }
 
 export const PatientActions: React.FC<PatientActionsProps> = ({
@@ -35,7 +36,8 @@ export const PatientActions: React.FC<PatientActionsProps> = ({
   onDelete,
   onActivate,
   onDeactivate,
-  compact = false
+  compact = false,
+  canDelete = true
 }) => {
   return (
     <DropdownMenu>
@@ -97,15 +99,18 @@ export const PatientActions: React.FC<PatientActionsProps> = ({
           </DropdownMenuItem>
         )}
 
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem
-          className="text-red-600"
-          onClick={(e) => onDelete(e, patient.id, patient.name)}
-        >
-          <Trash2 className="mr-2 h-4 w-4" />
-          Excluir
-        </DropdownMenuItem>
+        {canDelete && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-red-600"
+              onClick={(e) => onDelete(e, patient.id, patient.name)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Excluir
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

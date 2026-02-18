@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from app.models.patient import Patient
 from tests.conftest import create_test_user
 
+from app.utils.timezone import now_sao_paulo
 @pytest.mark.asyncio
 async def test_sanity_create_patient(db_session):
     """
@@ -18,8 +19,8 @@ async def test_sanity_create_patient(db_session):
         id=uuid4(),
         name="Sanity Patient",
         doctor_id=doctor.id,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        created_at=now_sao_paulo(),
+        updated_at=now_sao_paulo()
     )
     print(f"Adding patient with doctor_id: {patient.doctor_id}")
     db_session.add(patient)

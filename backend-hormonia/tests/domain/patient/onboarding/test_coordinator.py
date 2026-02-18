@@ -16,6 +16,15 @@ from app.domain.patient.onboarding.coordinator import OnboardingCoordinator
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
 from app.exceptions import ValidationError
+from app.utils.db_retry import reset_circuit_breaker
+
+
+@pytest.fixture(autouse=True)
+def _reset_db_circuit_breaker_state():
+    """Ensure global DB circuit breaker state does not leak across tests."""
+    reset_circuit_breaker()
+    yield
+    reset_circuit_breaker()
 
 
 @pytest.fixture

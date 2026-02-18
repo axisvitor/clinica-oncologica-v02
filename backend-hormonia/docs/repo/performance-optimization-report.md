@@ -469,7 +469,7 @@ class DatabaseOptimizer:
             'total_queries': 0,
             'total_duration': 0.0,
             'slow_queries': 0,
-            'last_update': datetime.utcnow()
+            'last_update': now_sao_paulo()
         }
 
     def log_query(self, query: str, duration_ms: float, row_count: Optional[int] = None):

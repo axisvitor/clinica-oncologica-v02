@@ -7,12 +7,15 @@ from sqlalchemy import text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import QueuePool
 from typing import Generator
 import logging
 from contextlib import contextmanager
+from fastapi import HTTPException
 
 from app.config import settings
+from app.core.exceptions import APIException
 from app.utils.database_optimization import (
     create_optimized_engine,
     ConnectionPoolMonitor,
@@ -78,8 +81,20 @@ def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
+    except HTTPException:
+        db.rollback()
+        raise
+    except APIException as e:
+        if e.status_code >= 500:
+            logger.error(f"Database session error: {e}", exc_info=True)
+        db.rollback()
+        raise
+    except SQLAlchemyError as e:
+        logger.error(f"Database session error: {e}", exc_info=True)
+        db.rollback()
+        raise
     except Exception as e:
-        logger.error(f"Database session error: {e}")
+        logger.error(f"Database session error: {e}", exc_info=True)
         db.rollback()
         raise
     finally:

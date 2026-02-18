@@ -18,7 +18,7 @@ from pydantic import ValidationError
 
 
 class TestMonthlyQuizBaseURLValidation:
-    """Test suite for QUIZ_BASE_URL validation."""
+    """Test suite for MONTHLY_QUIZ_BASE_URL validation."""
 
     def test_valid_https_url_accepted(self):
         """Valid HTTPS URL should be accepted."""
@@ -31,8 +31,8 @@ class TestMonthlyQuizBaseURLValidation:
                 "QUIZ_TOKEN_SECRET": "test-secret-key-for-testing",
             },
         ):
-            config = MonthlyQuizConfig()
-            assert config.QUIZ_BASE_URL == "https://quiz.example.com"
+            config = MonthlyQuizConfig(_env_file=None)
+            assert config.MONTHLY_QUIZ_BASE_URL == "https://quiz.example.com"
 
     def test_valid_http_url_accepted(self):
         """Valid HTTP URL should be accepted (for local development)."""
@@ -45,8 +45,8 @@ class TestMonthlyQuizBaseURLValidation:
                 "QUIZ_TOKEN_SECRET": "test-secret-key-for-testing",
             },
         ):
-            config = MonthlyQuizConfig()
-            assert config.QUIZ_BASE_URL == "http://localhost:3000"
+            config = MonthlyQuizConfig(_env_file=None)
+            assert config.MONTHLY_QUIZ_BASE_URL == "http://localhost:3000"
 
     def test_trailing_slash_removed(self):
         """URLs with trailing slash should have it removed."""
@@ -59,9 +59,9 @@ class TestMonthlyQuizBaseURLValidation:
                 "QUIZ_TOKEN_SECRET": "test-secret-key-for-testing",
             },
         ):
-            config = MonthlyQuizConfig()
-            assert config.QUIZ_BASE_URL == "https://quiz.example.com"
-            assert not config.QUIZ_BASE_URL.endswith("/")
+            config = MonthlyQuizConfig(_env_file=None)
+            assert config.MONTHLY_QUIZ_BASE_URL == "https://quiz.example.com"
+            assert not config.MONTHLY_QUIZ_BASE_URL.endswith("/")
 
     def test_multiple_trailing_slashes_handled(self):
         """URL with path should preserve path but remove trailing slash."""
@@ -74,8 +74,8 @@ class TestMonthlyQuizBaseURLValidation:
                 "QUIZ_TOKEN_SECRET": "test-secret-key-for-testing",
             },
         ):
-            config = MonthlyQuizConfig()
-            assert config.QUIZ_BASE_URL == "https://quiz.example.com/api/v1"
+            config = MonthlyQuizConfig(_env_file=None)
+            assert config.MONTHLY_QUIZ_BASE_URL == "https://quiz.example.com/api/v1"
 
     def test_invalid_url_rejected(self):
         """Invalid URLs should raise ValidationError."""
@@ -89,7 +89,7 @@ class TestMonthlyQuizBaseURLValidation:
             },
         ):
             with pytest.raises(ValidationError) as exc_info:
-                MonthlyQuizConfig()
+                MonthlyQuizConfig(_env_file=None)
 
             # Check that the error mentions URL validation
             error_str = str(exc_info.value)
@@ -107,7 +107,7 @@ class TestMonthlyQuizBaseURLValidation:
             },
         ):
             with pytest.raises(ValidationError) as exc_info:
-                MonthlyQuizConfig()
+                MonthlyQuizConfig(_env_file=None)
 
             error_str = str(exc_info.value)
             assert "QUIZ_BASE_URL" in error_str or "empty" in error_str.lower()
@@ -124,7 +124,7 @@ class TestMonthlyQuizBaseURLValidation:
             },
         ):
             with pytest.raises(ValidationError) as exc_info:
-                MonthlyQuizConfig()
+                MonthlyQuizConfig(_env_file=None)
 
             error_str = str(exc_info.value)
             assert "QUIZ_BASE_URL" in error_str
@@ -141,7 +141,7 @@ class TestMonthlyQuizBaseURLValidation:
             },
         ):
             with pytest.raises(ValidationError) as exc_info:
-                MonthlyQuizConfig()
+                MonthlyQuizConfig(_env_file=None)
 
             error_str = str(exc_info.value)
             assert "QUIZ_BASE_URL" in error_str or "scheme" in error_str.lower()
@@ -157,8 +157,8 @@ class TestMonthlyQuizBaseURLValidation:
                 "QUIZ_TOKEN_SECRET": "test-secret-key-for-testing",
             },
         ):
-            config = MonthlyQuizConfig()
-            assert config.QUIZ_BASE_URL == "https://quiz.example.com:8443"
+            config = MonthlyQuizConfig(_env_file=None)
+            assert config.MONTHLY_QUIZ_BASE_URL == "https://quiz.example.com:8443"
 
     def test_url_whitespace_trimmed(self):
         """URL with leading/trailing whitespace should be trimmed."""
@@ -171,8 +171,8 @@ class TestMonthlyQuizBaseURLValidation:
                 "QUIZ_TOKEN_SECRET": "test-secret-key-for-testing",
             },
         ):
-            config = MonthlyQuizConfig()
-            assert config.QUIZ_BASE_URL == "https://quiz.example.com"
+            config = MonthlyQuizConfig(_env_file=None)
+            assert config.MONTHLY_QUIZ_BASE_URL == "https://quiz.example.com"
 
     def test_default_url_valid(self):
         """Default URL should be valid when not overridden."""
@@ -187,13 +187,16 @@ class TestMonthlyQuizBaseURLValidation:
         ):
             # Remove the env var if it exists
             import os
-            env_backup = os.environ.pop("QUIZ_BASE_URL", None)
+            canonical_backup = os.environ.pop("MONTHLY_QUIZ_BASE_URL", None)
+            legacy_backup = os.environ.pop("QUIZ_BASE_URL", None)
             try:
-                config = MonthlyQuizConfig()
-                assert config.QUIZ_BASE_URL == "https://quiz-interface-production.up.railway.app"
+                config = MonthlyQuizConfig(_env_file=None)
+                assert config.MONTHLY_QUIZ_BASE_URL == "http://localhost:3001"
             finally:
-                if env_backup:
-                    os.environ["QUIZ_BASE_URL"] = env_backup
+                if canonical_backup:
+                    os.environ["MONTHLY_QUIZ_BASE_URL"] = canonical_backup
+                if legacy_backup:
+                    os.environ["QUIZ_BASE_URL"] = legacy_backup
 
 
 class TestMonthlyQuizLinkGeneration:
@@ -210,9 +213,9 @@ class TestMonthlyQuizLinkGeneration:
                 "QUIZ_TOKEN_SECRET": "test-secret-key-for-testing",
             },
         ):
-            config = MonthlyQuizConfig()
+            config = MonthlyQuizConfig(_env_file=None)
             token = "abc123"
-            link = f"{config.QUIZ_BASE_URL}?token={token}"
+            link = f"{config.MONTHLY_QUIZ_BASE_URL}?token={token}"
 
             assert "//?token" not in link
             assert link == "https://quiz.example.com?token=abc123"
@@ -228,9 +231,9 @@ class TestMonthlyQuizLinkGeneration:
                 "QUIZ_TOKEN_SECRET": "test-secret-key-for-testing",
             },
         ):
-            config = MonthlyQuizConfig()
+            config = MonthlyQuizConfig(_env_file=None)
             token = "xyz789"
-            link = f"{config.QUIZ_BASE_URL}?token={token}"
+            link = f"{config.MONTHLY_QUIZ_BASE_URL}?token={token}"
 
             assert link == "https://quiz.example.com/quiz/monthly?token=xyz789"
 
@@ -249,11 +252,11 @@ class TestMonthlyQuizConfigIntegration:
                 "QUIZ_TOKEN_SECRET": "test-secret-key-for-testing",
             },
         ):
-            config = MonthlyQuizConfig()
+            config = MonthlyQuizConfig(_env_file=None)
 
             # Verify essential fields are present
-            assert hasattr(config, "QUIZ_BASE_URL")
-            assert hasattr(config, "QUIZ_TOKEN_SECRET")
+            assert hasattr(config, "MONTHLY_QUIZ_BASE_URL")
+            assert hasattr(config, "MONTHLY_QUIZ_TOKEN_SECRET")
             assert hasattr(config, "MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS")
             assert hasattr(config, "ENABLE_LINK_BASED_MONTHLY_QUIZ")
 
@@ -264,8 +267,8 @@ class TestMonthlyQuizConfigIntegration:
         config = get_monthly_quiz_config()
 
         assert config is not None
-        assert isinstance(config.QUIZ_BASE_URL, str)
-        assert config.QUIZ_BASE_URL.startswith(("http://", "https://"))
+        assert isinstance(config.MONTHLY_QUIZ_BASE_URL, str)
+        assert config.MONTHLY_QUIZ_BASE_URL.startswith(("http://", "https://"))
 
     def test_should_use_link_based_quiz_function(self):
         """should_use_link_based_quiz() should work with valid config."""

@@ -503,7 +503,7 @@ describe('CSRF Protection Implementation', () => {
       // Sensitive endpoints should reject GET requests and require POST with CSRF token
       const imgAttempt = {
         method: 'GET',
-        url: '/api/v2/monthly-quiz-public/submit?token=' + validToken + '&question_id=q1&response_value=5'
+        url: '/api/v2/quiz-extensions/submit?token=' + validToken + '&question_id=q1&response_value=5'
       }
 
       // GET requests to submit endpoint should be rejected by server

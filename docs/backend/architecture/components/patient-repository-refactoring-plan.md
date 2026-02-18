@@ -393,7 +393,7 @@ __all__ = [
 **Migration Priority:**
 
 **High Priority Services (Week 3):**
-1. `app/services/base.py` - Base service class
+1. `app/services/base.py` - Base service class (removed in cleanup wave on 2026-02-10)
 2. `app/services/container.py` - Dependency injection container
 3. `app/services/flow/core/manager.py` - Flow management
 4. `app/services/analytics/data_aggregator.py` - Analytics

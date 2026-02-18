@@ -383,7 +383,7 @@ Environment Startup
       "fromMe": false
     }
   },
-  "timestamp": "2025-12-22T16:00:00.000Z"
+  "timestamp": "2025-12-22T16:00:00.000-03:00"
 }
 ```
 
@@ -398,7 +398,7 @@ Environment Startup
     "status": "delivered",
     "timestamp": 1703254800000
   },
-  "timestamp": "2025-12-22T16:00:00.000Z"
+  "timestamp": "2025-12-22T16:00:00.000-03:00"
 }
 ```
 

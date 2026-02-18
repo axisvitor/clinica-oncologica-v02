@@ -84,10 +84,10 @@ celery_app.conf.beat_schedule = {
         "kwargs": {"limit": 100},
     },
 
-    # DAILY REMINDERS - 9 AM UTC
+    # DAILY REMINDERS - 9 AM Sao Paulo
     "send-daily-reminders": {
         "task": "flow_automation.send_daily_reminders",
-        "schedule": crontab(hour=9, minute=0),  # Daily at 9:00 AM UTC
+        "schedule": crontab(hour=9, minute=0),  # Daily at 9:00 AM Sao Paulo
         "options": {"queue": "flows"},
     },
 
@@ -110,7 +110,7 @@ celery_app.conf.beat_schedule = {
 ### Key Configuration
 - **Broker**: Redis
 - **Result Backend**: Redis
-- **Timezone**: UTC
+- **Timezone**: Sao Paulo
 - **Task Tracking**: Enabled
 - **Soft Timeout**: 25 minutes
 - **Hard Timeout**: 30 minutes
@@ -273,7 +273,7 @@ schedule_message(patient_id, content, scheduling_window)
     └─► Return scheduling result
         {
             "message_id": "uuid",
-            "scheduled_for": "2025-12-22T10:30:00Z",
+            "scheduled_for": "2025-12-22T10:30:00-03:00",
             "task_id": "celery-task-id",
             "status": "scheduled"
         }
@@ -429,7 +429,7 @@ async def _process_patient_daily_flow(flow_state: PatientFlowState):
 
 ### Task: send_daily_reminders
 
-**Schedule**: Daily at 9 AM UTC (via crontab)
+**Schedule**: Daily at 9 AM Sao Paulo (via crontab)
 **Location**: `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/tasks/flow_automation.py`
 
 ### Logic
@@ -439,7 +439,7 @@ async def _process_patient_daily_flow(flow_state: PatientFlowState):
 def send_daily_reminders() -> dict:
     """
     Send daily reminders to patients with pending quizzes.
-    Runs daily at 9 AM UTC.
+    Runs daily at 9 AM Sao Paulo.
     """
 
     # 1. Query patients with in-progress quiz sessions
@@ -462,7 +462,7 @@ def send_daily_reminders() -> dict:
     return {
         "reminders_sent": count,
         "errors": error_list,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 ```
 
@@ -572,7 +572,7 @@ def check_and_start_pending_flows() -> dict:
     return {
         "flows_started": count,
         "errors": error_list,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 ```
 
@@ -598,7 +598,7 @@ def resume_paused_flows() -> dict:
     return {
         "flows_resumed": count,
         "errors": error_list,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 ```
 
@@ -621,7 +621,7 @@ def cleanup_expired_quiz_links() -> dict:
     return {
         "links_cleaned": count,
         "errors": error_list,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 ```
 
@@ -693,7 +693,7 @@ class FlowTemplateVersion(BaseModel):
 
 ```python
 # Current (Line 59):
-return datetime.now(timezone.utc) + timedelta(hours=1)
+return now_sao_paulo() + timedelta(hours=1)
 
 # Should respect patient timezone context
 ```
@@ -800,17 +800,17 @@ return datetime.now(timezone.utc) + timedelta(hours=1)
 ### Typical Daily Flow Execution
 
 ```
-00:00 UTC  - Cleanup expired quiz links (cleanup_expired_quiz_links)
-00:15 UTC  - Check pending flows (check_and_start_pending_flows)
-00:30 UTC  - Resume paused flows (resume_paused_flows)
-01:00 UTC  - Process daily flows (process_daily_flows) #1
-02:00 UTC  - Process daily flows (process_daily_flows) #2
+00:00 Sao Paulo  - Cleanup expired quiz links (cleanup_expired_quiz_links)
+00:15 Sao Paulo  - Check pending flows (check_and_start_pending_flows)
+00:30 Sao Paulo  - Resume paused flows (resume_paused_flows)
+01:00 Sao Paulo  - Process daily flows (process_daily_flows) #1
+02:00 Sao Paulo  - Process daily flows (process_daily_flows) #2
 ...
-09:00 UTC  - Send daily reminders (send_daily_reminders)
+09:00 Sao Paulo  - Send daily reminders (send_daily_reminders)
 ...
-21:00 UTC  - Process daily flows (process_daily_flows) #21
-22:00 UTC  - Process daily flows (process_daily_flows) #22
-23:00 UTC  - Process daily flows (process_daily_flows) #23
+21:00 Sao Paulo  - Process daily flows (process_daily_flows) #21
+22:00 Sao Paulo  - Process daily flows (process_daily_flows) #22
+23:00 Sao Paulo  - Process daily flows (process_daily_flows) #23
 ```
 
 ### Per-Patient Flow Timeline

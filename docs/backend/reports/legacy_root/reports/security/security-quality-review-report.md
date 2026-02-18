@@ -519,6 +519,6 @@ except Exception as e:
 
 ---
 
-**Report Generated**: 2025-12-24 05:48 UTC
+**Report Generated**: 2025-12-24 05:48 Sao Paulo
 **Next Review**: 2025-03-24 (Quarterly)
 **Agent**: Security & Quality Review Agent (Claude Flow)

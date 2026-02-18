@@ -26,10 +26,17 @@ celery_app = Celery(
         "app.tasks.alerts",
         "app.tasks.quiz_link_tasks",
         "app.tasks.quiz_flow",
+        "app.tasks.quiz_flow.cleanup_tasks",
+        "app.tasks.quiz_flow.question_tasks",
+        "app.tasks.quiz_flow.response_tasks",
+        "app.tasks.quiz_flow.trigger_tasks",
         "app.tasks.saga_retry",
         "app.tasks.saga_monitoring",
         "app.tasks.follow_up",
         "app.tasks.webhook_dlq",
+        "app.tasks.monitoring",
+        "app.tasks.audit_cleanup",
+        "app.tasks.lgpd_tasks",
     ],
 )
 
@@ -38,8 +45,8 @@ celery_app.conf.update(
     task_serializer="json",
     accept_content=["json"],
     result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
+    timezone=settings.CELERY_TIMEZONE,
+    enable_utc=settings.CELERY_ENABLE_TZ_NORMALIZATION,
     task_track_started=True,
     task_time_limit=30 * 60,  # 30 minutes
     task_soft_time_limit=25 * 60,  # 25 minutes
@@ -72,35 +79,30 @@ celery_app.conf.update(
 # Beat schedule for periodic tasks
 celery_app.conf.beat_schedule = {
     "process-scheduled-messages": {
-        "task": "process_scheduled_messages",
-        "schedule": 30.0,  # Every 30 seconds
-        "kwargs": {"limit": 100},
+        "task": "app.tasks.messaging.process_scheduled_messages",
+        "schedule": 60.0,  # Every 60 seconds (reduced burst pressure)
+        "kwargs": {"limit": 60},
     },
     "retry-failed-messages": {
-        "task": "retry_failed_messages",
+        "task": "app.tasks.messaging.retry_failed_messages",
         "schedule": 300.0,  # Every 5 minutes
         "kwargs": {"limit": 50, "max_retries": 3},
     },
     # FIX: Welcome messages can get stuck in PENDING if WhatsApp fails during registration
     "retry-pending-welcome-messages": {
-        "task": "retry_pending_welcome_messages",
+        "task": "app.tasks.messaging.retry_pending_welcome_messages",
         "schedule": 600.0,  # Every 10 minutes
         "kwargs": {"limit": 50, "min_age_minutes": 5, "max_age_hours": 24},
     },
     "cleanup-old-messages": {
-        "task": "cleanup_old_messages",
+        "task": "app.tasks.messaging.cleanup_old_messages",
         "schedule": 86400.0,  # Daily
         "kwargs": {"days_old": 90},
     },
     "generate-message-analytics": {
-        "task": "generate_message_analytics",
+        "task": "app.tasks.messaging.generate_message_analytics",
         "schedule": 3600.0,  # Every hour
         "kwargs": {"days_back": 7},
-    },
-    "process-daily-flows": {
-        "task": "app.tasks.flows.flow_tasks.process_daily_flows",
-        "schedule": 3600.0,  # Every hour for production (was 60s for dev)
-        "kwargs": {"limit": 100},
     },
     "cleanup-old-flow-data": {
         "task": "app.tasks.flows.cleanup_tasks.cleanup_old_flow_data",
@@ -144,18 +146,26 @@ celery_app.conf.beat_schedule = {
         "schedule": 3600.0,  # Every hour
         "kwargs": {"limit": 100},
     },
-    # Saga retry tasks (use short names as defined in decorators)
+    # Saga retry tasks
     "scan-and-retry-failed-sagas": {
-        "task": "scan_and_retry_failed_sagas",
+        "task": "app.tasks.saga_retry.scan_and_retry_failed_sagas",
         "schedule": 300.0,  # Every 5 minutes
     },
     "cleanup-old-completed-sagas": {
-        "task": "cleanup_old_completed_sagas",
+        "task": "app.tasks.saga_retry.cleanup_old_completed_sagas",
         "schedule": 86400.0,  # Daily
     },
     # Saga monitoring tasks
     "check-orphaned-sagas": {
         "task": "app.tasks.saga_monitoring.check_orphaned_sagas",
+        "schedule": 3600.0,  # Every hour
+    },
+    "check-long-running-sagas": {
+        "task": "app.tasks.saga_monitoring.check_long_running_sagas",
+        "schedule": 900.0,  # Every 15 minutes
+    },
+    "generate-saga-metrics": {
+        "task": "app.tasks.saga_monitoring.generate_saga_metrics",
         "schedule": 3600.0,  # Every hour
     },
     # DLQ processing tasks
@@ -172,19 +182,23 @@ celery_app.conf.beat_schedule = {
     },
     # Flow automation tasks (automatic patient engagement)
     "check-pending-flows": {
-        "task": "flow_automation.check_and_start_pending_flows",
+        "task": "app.tasks.flow_automation.check_and_start_pending_flows",
         "schedule": 900.0,  # Every 15 minutes
     },
+    "send-daily-flow-questions": {
+        "task": "app.tasks.flows.flow_tasks.process_daily_flows",
+        "schedule": crontab(hour=8, minute=0),  # Daily at 08:00 America/Sao_Paulo
+    },
     "send-daily-reminders": {
-        "task": "flow_automation.send_daily_reminders",
-        "schedule": crontab(hour=11, minute=30),  # Daily at 11:30 AM UTC = 08:30 AM Brazil
+        "task": "app.tasks.flow_automation.send_daily_reminders",
+        "schedule": crontab(hour=9, minute=0),  # Daily at 09:00 AM America/Sao_Paulo
     },
     "resume-paused-flows": {
-        "task": "flow_automation.resume_paused_flows",
+        "task": "app.tasks.flow_automation.resume_paused_flows",
         "schedule": 21600.0,  # Every 6 hours
     },
     "cleanup-expired-quiz-links": {
-        "task": "flow_automation.cleanup_expired_quiz_links",
+        "task": "app.tasks.flow_automation.cleanup_expired_quiz_links",
         "schedule": 86400.0,  # Daily
     },
     # Follow-up system tasks - Patient daily engagement
@@ -198,12 +212,76 @@ celery_app.conf.beat_schedule = {
     },
     "cleanup-old-contexts": {
         "task": "app.tasks.follow_up.cleanup_old_contexts",
-        "schedule": crontab(hour=3, minute=0),  # Daily at 3 AM
+        "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 AM America/Sao_Paulo
     },
     # Webhook DLQ processing (MEDIUM-005)
     "process-webhook-dlq": {
-        "task": "webhooks.process_dlq",
+        "task": "app.tasks.webhook_dlq.process_webhook_dlq",
         "schedule": 60.0,  # Every minute
+    },
+    "cleanup-old-webhook-dlq-events": {
+        "task": "app.tasks.webhook_dlq.cleanup_old_dlq_events",
+        "schedule": crontab(hour=3, minute=0),  # Daily at 03:00 AM America/Sao_Paulo
+        "kwargs": {"days_old": 7},
+    },
+    "monitor-webhook-dlq-health": {
+        "task": "app.tasks.webhook_dlq.monitor_dlq_health",
+        "schedule": 300.0,  # Every 5 minutes
+    },
+    # Monitoring tasks (migrated from Cloud Scheduler)
+    "system-health-check": {
+        "task": "monitoring.system_health_check",
+        "schedule": 300.0,  # Every 5 minutes
+    },
+    "performance-metrics-collection": {
+        "task": "monitoring.performance_metrics_collection",
+        "schedule": 600.0,  # Every 10 minutes
+    },
+    "bottleneck-detection": {
+        "task": "monitoring.bottleneck_detection",
+        "schedule": 900.0,  # Every 15 minutes
+    },
+    "alert-monitoring": {
+        "task": "monitoring.alert_monitoring",
+        "schedule": 300.0,  # Every 5 minutes
+    },
+    "escalation-check": {
+        "task": "monitoring.escalation_check",
+        "schedule": 1800.0,  # Every 30 minutes
+    },
+    "automated-recovery": {
+        "task": "monitoring.automated_recovery",
+        "schedule": 3600.0,  # Every hour
+    },
+    "data-integrity-guardrails": {
+        "task": "monitoring.data_integrity_guardrails",
+        "schedule": 900.0,  # Every 15 minutes
+    },
+    "cleanup-monitoring-data": {
+        "task": "monitoring.cleanup_old_data",
+        "schedule": 86400.0,  # Daily
+    },
+    # Audit cleanup (migrated from APScheduler)
+    "audit-cleanup": {
+        "task": "audit.cleanup_expired_logs",
+        "schedule": crontab(hour=2, minute=0),  # Daily at 2 AM
+    },
+    "audit-refresh-performance-metrics": {
+        "task": "audit.refresh_performance_metrics",
+        "schedule": 3600.0,  # Every hour
+    },
+    "audit-generate-daily-report": {
+        "task": "audit.generate_daily_report",
+        "schedule": crontab(hour=2, minute=15),  # Daily at 02:15 AM America/Sao_Paulo
+    },
+    "audit-check-hipaa-compliance": {
+        "task": "audit.check_hipaa_compliance",
+        "schedule": crontab(hour=2, minute=45),  # Daily at 02:45 AM America/Sao_Paulo
+    },
+    "lgpd-audit-cleanup": {
+        "task": "lgpd.cleanup_expired_audit_logs",
+        "schedule": crontab(hour=2, minute=30),  # Daily at 02:30 AM America/Sao_Paulo
+        "kwargs": {"batch_size": 1000},
     },
 }
 
@@ -247,24 +325,14 @@ def init_worker_process(signal, sender, **kwargs):
                 f"Session manager initialization failed for worker {sender}: {e}"
             )
 
-        # Initialize Redis connections with fallback
+        # Initialize Redis connections through the canonical RedisManager.
         try:
-            # Try new redis manager first
-            try:
-                from app.core.redis_manager import get_redis_manager
+            from app.core.redis_manager import get_redis_manager
 
-                manager = get_redis_manager()
-                # Test connection
-                sync_client = manager.get_sync_client()
-                sync_client.ping()
-                logger.info(f"Redis manager initialized for worker {sender}")
-            except ImportError:
-                # Fallback to unified client
-                from app.core.redis_unified import get_sync_redis
-
-                # Pre-warm the connection
-                get_sync_redis()
-                logger.info(f"Redis unified client initialized for worker {sender}")
+            manager = get_redis_manager()
+            sync_client = manager.get_sync_client()
+            sync_client.ping()
+            logger.info(f"Redis manager initialized for worker {sender}")
         except Exception as e:
             logger.warning(f"Redis initialization failed for worker {sender}: {e}")
 
@@ -305,22 +373,16 @@ def shutdown_worker_process(signal, sender, **kwargs):
         except Exception as e:
             logger.warning(f"Session manager cleanup failed for worker {sender}: {e}")
 
-        # Cleanup Redis connections (both old and new patterns)
+        # Cleanup Redis connections.
         try:
-            # Try new redis manager cleanup first
-            try:
-                from app.core.redis_manager import cleanup_redis_connections
-                import asyncio
+            from app.core.redis_manager import cleanup_redis_connections
 
-                loop = asyncio.get_event_loop()
-                if not loop.is_closed():
-                    loop.run_until_complete(cleanup_redis_connections())
-                logger.info(f"Redis manager cleaned up for worker {sender}")
-            except ImportError:
-                # Unified client manages cleanup automatically
-                logger.info(
-                    f"Redis unified client cleanup (auto-managed) for worker {sender}"
-                )
+            cleanup_loop = asyncio.new_event_loop()
+            try:
+                cleanup_loop.run_until_complete(cleanup_redis_connections())
+            finally:
+                cleanup_loop.close()
+            logger.info(f"Redis manager cleaned up for worker {sender}")
         except Exception as e:
             logger.warning(f"Redis cleanup failed for worker {sender}: {e}")
 
@@ -339,23 +401,14 @@ def shutdown_worker_process(signal, sender, **kwargs):
         except Exception as e:
             logger.warning(f"Async context cleanup failed for worker {sender}: {e}")
 
-        # Close event loop
+        # Close cached async helper loops
         try:
-            loop = asyncio.get_event_loop()
-            if not loop.is_closed():
-                # Cancel all tasks
-                pending = asyncio.all_tasks(loop)
-                if pending:
-                    for task in pending:
-                        task.cancel()
-                    loop.run_until_complete(
-                        asyncio.gather(*pending, return_exceptions=True)
-                    )
+            from app.utils.async_helpers import cleanup_all_event_loops
 
-                # Close the loop
-                loop.close()
-        except RuntimeError:
-            pass  # No event loop to close
+            closed_loops = cleanup_all_event_loops()
+            logger.info("Closed %s cached event loop(s) for worker %s", closed_loops, sender)
+        except Exception as e:
+            logger.warning(f"Event loop cleanup failed for worker {sender}: {e}")
 
         logger.info(f"Celery worker {sender} shutdown completed")
 
@@ -381,14 +434,14 @@ def run_async_in_celery(coro, timeout: Optional[float] = 300):
             return run_async_in_celery(async_work())
     """
     try:
-        # Check if we're already in an async context
+        # Disallow nested loop usage from async contexts.
         try:
-            asyncio.get_running_loop()
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            running_loop = None
+        if running_loop is not None:
             logger.error("run_async_in_celery called from async context")
             raise RuntimeError("Cannot call run_async_in_celery from async context")
-        except RuntimeError:
-            # No running loop, safe to proceed
-            pass
 
         # Import here to avoid circular imports
         from app.core.async_context_manager import safe_run_coroutine
@@ -396,16 +449,12 @@ def run_async_in_celery(coro, timeout: Optional[float] = 300):
         return safe_run_coroutine(coro, timeout=timeout, fallback_sync=True)
     except ImportError as e:
         logger.error(f"Failed to import async_context_manager: {e}")
-        # Fallback to basic asyncio.run
+        # Fallback to canonical async helper in sync contexts.
         try:
-            if timeout:
+            from app.utils.async_helpers import run_async
 
-                async def timed_coro():
-                    return await asyncio.wait_for(coro, timeout=timeout)
-
-                return asyncio.run(timed_coro())
-            else:
-                return asyncio.run(coro)
+            effective_timeout = int(timeout) if timeout else 300
+            return run_async(coro, timeout=effective_timeout)
         except Exception as fallback_error:
             logger.error(f"Fallback async execution failed: {fallback_error}")
             raise

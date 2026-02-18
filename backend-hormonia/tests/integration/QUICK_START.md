@@ -46,8 +46,8 @@ pytest -m "not integration"
 
 ## 🛡️ Safety Checklist
 
-- [ ] DATABASE_URL contains "test" ✅
-- [ ] Using separate test database ✅
+- [ ] DATABASE_URL contains "test" (or CONFIRM_REAL_DB=1) ✅
+- [ ] Using separate test database (recommended) ✅
 - [ ] Migrations applied ✅
 - [ ] Cleanup fixtures used ✅
 - [ ] Unique identifiers used ✅
@@ -117,8 +117,11 @@ export DATABASE_URL="postgresql://user:password@localhost/hormonia_test"
 
 ### Problem: "refusing to run on production"
 ```bash
-# URL must contain "test"
+# URL must contain "test" unless explicitly overridden
 export DATABASE_URL="postgresql://user:password@localhost/hormonia_test"
+
+# Explicitly allow running on a real database (use with caution)
+# export CONFIRM_REAL_DB=1
 ```
 
 ### Problem: Orphaned test data

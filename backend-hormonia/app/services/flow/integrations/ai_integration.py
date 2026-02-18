@@ -12,14 +12,21 @@ Migration Note:
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from uuid import UUID
 import logging
+import json
 
 from ..types import (
     FlowContext,
 )
 from ..config import get_flow_config
+from app.config import settings
+from app.ai.client import get_gemini_client
+from app.ai.pii_redaction import redact_conversation_history, redact_patient_context
+from app.services.ai.guardrails import OutputKind
+from app.utils.async_helpers import run_async_in_thread
+from app.utils.timezone import now_sao_paulo, to_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -36,12 +43,43 @@ class AIFlowIntegration:
     def __init__(self):
         """Initialize AI flow integration."""
         self.config = get_flow_config().integrations
+        self._gemini_client = get_gemini_client()
 
         # AI interaction tracking
         self._ai_interactions: Dict[UUID, List[Dict[str, Any]]] = {}
         self._ai_decisions: Dict[UUID, List[Dict[str, Any]]] = {}
 
         logger.info("AIFlowIntegration initialized")
+
+    def _should_use_real_ai(self) -> bool:
+        """Use real AI whenever simulation is explicitly disabled."""
+        api_key = getattr(settings, "AI_GEMINI_API_KEY", "")
+        return (
+            not settings.ALLOW_AI_SIMULATION
+            and isinstance(api_key, str)
+            and bool(api_key.strip())
+        )
+
+    def _run_async_safe(self, coro):
+        """
+        Execute async coroutines safely from sync integration methods.
+        """
+        return run_async_in_thread(coro)
+
+    def _sanitize_context_payload(self, payload: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Redact PII before sending any payload to external AI providers."""
+        if not isinstance(payload, dict):
+            return {}
+        return redact_patient_context(payload)
+
+    def _sanitize_free_text(self, text: str) -> str:
+        """Redact common PII patterns from free text while preserving semantics."""
+        if not text:
+            return ""
+        redacted = redact_conversation_history([text])
+        if redacted and isinstance(redacted[0], str):
+            return redacted[0]
+        return text
 
     # ========================================================================
     # AI Response Generation
@@ -69,11 +107,32 @@ class AIFlowIntegration:
             return None
 
         try:
-            # In production: Call AI service (e.g., Google Gemini)
-            # response = ai_service.generate(prompt, context_data)
+            if self._should_use_real_ai():
+                context_payload: Dict[str, Any] = {}
+                if context:
+                    if hasattr(context, "to_dict"):
+                        context_payload = context.to_dict()
+                    elif isinstance(context, dict):
+                        context_payload = context
+                safe_context_payload = self._sanitize_context_payload(context_payload)
 
-            # Mock response for now
-            response = f"AI response to: {prompt[:50]}..."
+                ai_prompt = (
+                    "Reescreva a mensagem para acompanhamento de paciente oncológico. "
+                    "Retorne apenas o texto final em português do Brasil.\n\n"
+                    f"CONTEXTO:\n{json.dumps(safe_context_payload, ensure_ascii=False, default=str)}\n\n"
+                    f"MENSAGEM BASE:\n{prompt}"
+                )
+                response = self._run_async_safe(
+                    self._gemini_client.generate_content(
+                        ai_prompt,
+                        output_kind=OutputKind.MESSAGE,
+                        require_ending_punctuation=True,
+                        guardrail_retries=2,
+                    )
+                )
+            else:
+                # Simulation fallback for non-production environments.
+                response = f"AI response to: {prompt[:50]}..."
 
             # Track interaction
             self._record_ai_interaction(
@@ -141,19 +200,38 @@ class AIFlowIntegration:
             return None
 
         try:
-            # Build decision prompt
-            self._build_decision_prompt(decision_type, decision_data)
-
-            # In production: Call AI service for decision
-            # decision = ai_service.make_decision(prompt, decision_data)
-
-            # Mock decision
-            decision = {
-                "decision_type": decision_type,
-                "recommendation": "continue",
-                "confidence": 0.85,
-                "reasoning": "Based on provided data",
-            }
+            # Build decision prompt with redacted context
+            prompt = self._build_decision_prompt(
+                decision_type, self._sanitize_context_payload(decision_data)
+            )
+            if self._should_use_real_ai():
+                raw_response = self._run_async_safe(
+                    self._gemini_client.generate_content(
+                        f"{prompt}\n\nResponda apenas JSON com recommendation, confidence e reasoning.",
+                        output_kind=OutputKind.JSON,
+                        required_keys=["recommendation", "confidence", "reasoning"],
+                    )
+                )
+                parsed = json.loads(raw_response)
+                confidence_raw = parsed.get("confidence", 0.75)
+                try:
+                    confidence = float(confidence_raw)
+                except (TypeError, ValueError):
+                    confidence = 0.75
+                decision = {
+                    "decision_type": decision_type,
+                    "recommendation": str(parsed.get("recommendation", "continue")),
+                    "confidence": confidence,
+                    "reasoning": str(parsed.get("reasoning", "")),
+                }
+            else:
+                # Simulation fallback
+                decision = {
+                    "decision_type": decision_type,
+                    "recommendation": "continue",
+                    "confidence": 0.85,
+                    "reasoning": "Based on provided data",
+                }
 
             # Track decision
             self._record_ai_decision(
@@ -170,7 +248,12 @@ class AIFlowIntegration:
 
         except Exception as e:
             logger.error(f"Failed to make AI decision: {e}", exc_info=True)
-            return None
+            return {
+                "decision_type": decision_type,
+                "recommendation": "continue",
+                "confidence": 0.75,
+                "reasoning": "Fallback decision due to AI processing error",
+            }
 
     def evaluate_condition(
         self,
@@ -194,13 +277,22 @@ class AIFlowIntegration:
 
         try:
             # Build evaluation prompt
-            prompt = f"Evaluate condition: {condition}\nContext: {context_data}"
+            safe_context_data = self._sanitize_context_payload(context_data)
+            prompt = f"Evaluate condition: {condition}\nContext: {safe_context_data}"
 
-            # In production: Call AI service
-            # result = ai_service.evaluate_condition(condition, context_data)
-
-            # Mock evaluation
-            result = True  # Simplified for now
+            if self._should_use_real_ai():
+                raw_response = self._run_async_safe(
+                    self._gemini_client.generate_content(
+                        f"{prompt}\nResponda apenas JSON com a chave `result` (true ou false).",
+                        output_kind=OutputKind.JSON,
+                        required_keys=["result"],
+                    )
+                )
+                parsed = json.loads(raw_response)
+                result = bool(parsed.get("result", False))
+            else:
+                # Simulation fallback
+                result = True
 
             # Track interaction
             self._record_ai_interaction(
@@ -245,19 +337,53 @@ class AIFlowIntegration:
 
         try:
             # Build analysis prompt
-            prompt = f"Question: {question}\nResponse: {response}\nAnalyze sentiment and extract key information."
+            safe_question = self._sanitize_free_text(question)
+            safe_response = self._sanitize_free_text(response)
+            prompt = (
+                f"Question: {safe_question}\nResponse: {safe_response}\n"
+                "Analyze sentiment and extract key information."
+            )
 
-            # In production: Call AI service
-            # analysis = ai_service.analyze_text(response, question)
-
-            # Mock analysis
-            analysis = {
-                "sentiment": "neutral",
-                "confidence": 0.75,
-                "key_points": [],
-                "concerns": [],
-                "follow_up_needed": False,
-            }
+            if self._should_use_real_ai():
+                raw_response = self._run_async_safe(
+                    self._gemini_client.generate_content(
+                        (
+                            "Analise a resposta e retorne apenas JSON com as chaves "
+                            "sentiment, confidence, key_points, concerns e follow_up_needed.\n\n"
+                            f"{prompt}"
+                        ),
+                        output_kind=OutputKind.JSON,
+                        required_keys=[
+                            "sentiment",
+                            "confidence",
+                            "key_points",
+                            "concerns",
+                            "follow_up_needed",
+                        ],
+                    )
+                )
+                parsed = json.loads(raw_response)
+                confidence_raw = parsed.get("confidence", 0.75)
+                try:
+                    confidence = float(confidence_raw)
+                except (TypeError, ValueError):
+                    confidence = 0.75
+                analysis = {
+                    "sentiment": str(parsed.get("sentiment", "neutral")),
+                    "confidence": confidence,
+                    "key_points": parsed.get("key_points", []) or [],
+                    "concerns": parsed.get("concerns", []) or [],
+                    "follow_up_needed": bool(parsed.get("follow_up_needed", False)),
+                }
+            else:
+                # Simulation fallback
+                analysis = {
+                    "sentiment": "neutral",
+                    "confidence": 0.75,
+                    "key_points": [],
+                    "concerns": [],
+                    "follow_up_needed": False,
+                }
 
             # Track interaction
             self._record_ai_interaction(
@@ -272,7 +398,14 @@ class AIFlowIntegration:
 
         except Exception as e:
             logger.error(f"Failed to analyze response: {e}", exc_info=True)
-            return None
+            fallback_analysis = {
+                "sentiment": "neutral",
+                "confidence": 0.5,
+                "key_points": [],
+                "concerns": [],
+                "follow_up_needed": False,
+            }
+            return fallback_analysis
 
     def extract_symptoms(
         self,
@@ -293,11 +426,27 @@ class AIFlowIntegration:
             return []
 
         try:
-            # In production: Call AI service for NER
-            # symptoms = ai_service.extract_entities(text, entity_type="symptom")
-
-            # Mock symptom extraction
-            symptoms = []
+            if self._should_use_real_ai():
+                raw_response = self._run_async_safe(
+                    self._gemini_client.generate_content(
+                        (
+                            "Extraia sintomas mencionados no texto e retorne apenas JSON "
+                            "com a chave `symptoms` (lista de strings).\n\n"
+                            f"TEXTO:\n{self._sanitize_free_text(text)}"
+                        ),
+                        output_kind=OutputKind.JSON,
+                        required_keys=["symptoms"],
+                    )
+                )
+                parsed = json.loads(raw_response)
+                symptoms = [
+                    str(item).strip()
+                    for item in (parsed.get("symptoms") or [])
+                    if str(item).strip()
+                ]
+            else:
+                # Simulation fallback
+                symptoms = []
 
             # Track interaction
             self._record_ai_interaction(
@@ -337,13 +486,24 @@ class AIFlowIntegration:
 
         try:
             # Build recommendation prompt
-            self._build_recommendation_prompt(context)
-
-            # In production: Call AI service
-            # recommendation = ai_service.recommend_next_step(context_data)
-
-            # Mock recommendation
-            recommendation = "next_step_id"
+            prompt = self._build_recommendation_prompt(context)
+            if self._should_use_real_ai():
+                raw_response = self._run_async_safe(
+                    self._gemini_client.generate_content(
+                        (
+                            f"{prompt}\n"
+                            "Responda apenas JSON com a chave `next_step_id`."
+                        ),
+                        output_kind=OutputKind.JSON,
+                        required_keys=["next_step_id"],
+                    )
+                )
+                recommendation = str(json.loads(raw_response).get("next_step_id") or "")
+                if not recommendation:
+                    recommendation = "next_step_id"
+            else:
+                # Simulation fallback
+                recommendation = "next_step_id"
 
             logger.debug(
                 f"AI next step recommendation for flow {flow_instance_id}: {recommendation}"
@@ -375,11 +535,39 @@ class AIFlowIntegration:
             return []
 
         try:
-            # In production: Call AI service for recommendations
-            # interventions = ai_service.suggest_interventions(patient_data, recent_responses)
-
-            # Mock interventions
-            interventions = []
+            if self._should_use_real_ai():
+                safe_patient_data = self._sanitize_context_payload(patient_data)
+                patient_names = [
+                    str(v).strip()
+                    for v in (
+                        patient_data.get("name"),
+                        patient_data.get("patient_name"),
+                    )
+                    if isinstance(v, str) and v.strip()
+                ]
+                safe_recent_responses = redact_conversation_history(
+                    recent_responses, patient_names=patient_names
+                )
+                raw_response = self._run_async_safe(
+                    self._gemini_client.generate_content(
+                        (
+                            "Sugira intervenções para acompanhamento de paciente oncológico. "
+                            "Retorne apenas JSON com `interventions` (lista de objetos "
+                            "com type, priority, rationale).\n\n"
+                            f"patient_data={json.dumps(safe_patient_data, ensure_ascii=False, default=str)}\n"
+                            f"recent_responses={json.dumps(safe_recent_responses, ensure_ascii=False, default=str)}"
+                        ),
+                        output_kind=OutputKind.JSON,
+                        required_keys=["interventions"],
+                    )
+                )
+                parsed = json.loads(raw_response)
+                interventions = parsed.get("interventions", []) or []
+                if not isinstance(interventions, list):
+                    interventions = []
+            else:
+                # Simulation fallback
+                interventions = []
 
             logger.debug(
                 f"AI interventions suggested for flow {flow_instance_id}: {len(interventions)}"
@@ -417,7 +605,7 @@ class AIFlowIntegration:
             "type": interaction_type,
             "input": input_data[:500],  # Truncate for storage
             "output": output_data[:500],  # Truncate for storage
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         self._ai_interactions[flow_instance_id].append(interaction)
@@ -456,7 +644,7 @@ class AIFlowIntegration:
             "type": decision_type,
             "data": decision_data,
             "result": decision_result,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         self._ai_decisions[flow_instance_id].append(decision)
@@ -543,7 +731,8 @@ class AIFlowIntegration:
         Returns:
             Constructed prompt.
         """
-        patient_name = patient_data.get("name", "Patient")
+        safe_patient_data = self._sanitize_context_payload(patient_data)
+        patient_name = safe_patient_data.get("name", "Paciente")
 
         prompts = {
             "greeting": f"Generate a warm, personalized greeting for {patient_name}.",
@@ -600,8 +789,17 @@ class AIFlowIntegration:
         Returns:
             Number of flows cleaned up.
         """
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_date = now_sao_paulo() - timedelta(days=days)
         cleaned = 0
+
+        def _parse_timestamp(raw_value: Any) -> Optional[datetime]:
+            if not isinstance(raw_value, str):
+                return None
+            try:
+                parsed = datetime.fromisoformat(raw_value)
+            except ValueError:
+                return None
+            return to_sao_paulo(parsed)
 
         # Clean up interactions
         for flow_id in list(self._ai_interactions.keys()):
@@ -609,7 +807,10 @@ class AIFlowIntegration:
             recent_interactions = [
                 i
                 for i in interactions
-                if datetime.fromisoformat(i["timestamp"]) > cutoff_date
+                if (
+                    (_timestamp := _parse_timestamp(i.get("timestamp"))) is not None
+                    and _timestamp > cutoff_date
+                )
             ]
 
             if not recent_interactions:
@@ -624,7 +825,10 @@ class AIFlowIntegration:
             recent_decisions = [
                 d
                 for d in decisions
-                if datetime.fromisoformat(d["timestamp"]) > cutoff_date
+                if (
+                    (_timestamp := _parse_timestamp(d.get("timestamp"))) is not None
+                    and _timestamp > cutoff_date
+                )
             ]
 
             if not recent_decisions:

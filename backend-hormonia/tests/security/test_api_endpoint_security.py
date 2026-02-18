@@ -147,7 +147,11 @@ class TestAPIEndpointSecurity:
         """
         response = client.options(
             "/api/v2/patients",
-            headers={"Origin": "http://localhost:3000"}
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "Authorization,Content-Type",
+            },
         )
 
         # Check for CORS headers
@@ -177,7 +181,10 @@ class TestAPIEndpointSecurity:
         # May need adjustment based on allowed origins
         response = client.options(
             "/api/v2/patients",
-            headers={"Origin": "http://malicious-site.com"}
+            headers={
+                "Origin": "http://malicious-site.com",
+                "Access-Control-Request-Method": "GET",
+            },
         )
 
         # Should either reject or not include CORS headers

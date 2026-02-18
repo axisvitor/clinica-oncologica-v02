@@ -350,7 +350,7 @@ async def _compensate_message(self, saga: PatientOnboardingSaga):
         message.message_metadata = {
             **(message.message_metadata or {}),
             "cancelled_by": "saga_compensation",
-            "cancelled_at": datetime.now(timezone.utc).isoformat(),
+            "cancelled_at": now_sao_paulo().isoformat(),
         }
 ```
 
@@ -836,7 +836,7 @@ ON messages USING GIN ((message_metadata -> 'saga_id'));
     await event_bus.publish("saga.step.completed", {
         "saga_id": saga.id,
         "step": current_step,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     })
     ```
 

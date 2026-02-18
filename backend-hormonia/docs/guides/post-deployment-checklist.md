@@ -508,7 +508,7 @@ FROM hipaa_audit_trail;
 - [ ] PHI access events logged
 - [ ] User actions tracked
 - [ ] IP addresses captured
-- [ ] Timestamps accurate (UTC)
+- [ ] Timestamps accurate (Sao Paulo)
 - [ ] Retention policy: 7 years (2555 days)
 - [ ] No audit logging failures
 

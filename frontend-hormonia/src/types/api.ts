@@ -143,7 +143,7 @@ export enum PatientStatus {
 export interface TimelineEvent {
   id: string
   patient_id: string
-  event_type: 'message' | 'appointment' | 'quiz' | 'note' | 'system'
+  event_type: 'message' | 'appointment' | 'quiz' | 'note' | 'system' | 'alert' | 'flow_change' | 'report'
   title: string
   description?: string
   metadata?: Record<string, unknown>
@@ -363,7 +363,7 @@ export interface MonthlyQuizStatusData {
  *   session_id: 'session-123',
  *   question_id: 'q1',
  *   answer: 'Feeling better',
- *   answered_at: '2024-01-15T10:30:00Z'
+ *   answered_at: '2024-01-15T10:30:00-03:00'
  * }
  * ```
  */
@@ -389,7 +389,7 @@ export interface QuizResponse {
  * const history: QuizHistory = {
  *   session_id: 'session-123',
  *   quiz_template_id: 'monthly-wellness',
- *   completed_at: '2024-01-15T11:00:00Z',
+ *   completed_at: '2024-01-15T11:00:00-03:00',
  *   score: 85,
  *   responses: {
  *     'q1': 'Feeling better',
@@ -799,9 +799,13 @@ export interface UseAIInsightsOptions {
   min_confidence?: number
 }
 
+export interface UseAISummaryOptions {
+  enabled?: boolean
+}
+
 export interface AnalysisRequest {
   data: unknown
-  analysis_type: 'sentiment' | 'pattern' | 'anomaly' | 'trend' | 'classification'
+  analysis_type: 'sentiment' | 'risk' | 'response'
   parameters?: Record<string, unknown>
 }
 

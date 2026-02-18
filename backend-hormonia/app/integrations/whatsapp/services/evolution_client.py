@@ -6,7 +6,7 @@ Implements ULTRATHINK approach with delivery guarantees, rate limiting, and retr
 import asyncio
 import logging
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
 from urllib.parse import urljoin
 import aiohttp
@@ -21,6 +21,7 @@ from ..models.message import (
     MessageType,
 )
 from app.integrations.whatsapp.metrics import whatsapp_metrics
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class RateLimiter:
     async def acquire(self) -> bool:
         """Acquire rate limit permission."""
         async with self._lock:
-            now = datetime.now(timezone.utc)
+            now = now_sao_paulo()
             # Remove old requests outside the window
             cutoff = now - timedelta(seconds=self.window_seconds)
             self.requests = [
@@ -234,6 +235,7 @@ class EvolutionAPIClient:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
+        _ = exc_type, exc_val, exc_tb
         await self.disconnect()
 
     async def connect(self):
@@ -382,7 +384,7 @@ class EvolutionAPIClient:
         Returns:
             Dict with is_connected, state, phone_number, last_activity
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
 
         async with self._health_cache_lock:
             cached = self._health_cache.get(instance_name)
@@ -453,24 +455,16 @@ class EvolutionAPIClient:
         message_data: Optional[Dict[str, Any]] = None,
     ) -> MessageResponse:
         """Send text message with delivery guarantee."""
-        start_time = time.monotonic()
         data = {"number": to, "text": text}
 
         if message_data:
             data["metadata"] = message_data
 
-        try:
-            status_code, response = await self._make_request(
-                "POST", f"/message/sendText/{instance_name}", data=data
-            )
-        except Exception as exc:
-            whatsapp_metrics.record_message_failed(
-                instance_name, _classify_failure(error=exc)
-            )
-            raise
-        finally:
-            duration = time.monotonic() - start_time
-            whatsapp_metrics.observe_message_send_duration(instance_name, duration)
+        status_code, response = await self._request_with_send_metrics(
+            instance_name=instance_name,
+            endpoint=f"/message/sendText/{instance_name}",
+            data=data,
+        )
 
         if status_code == 201:
             message_data = response.get("message", {})
@@ -482,7 +476,7 @@ class EvolutionAPIClient:
                 external_id=message_data.get("key", {}).get("id"),
                 status=MessageStatus.SENT,
                 message="Message sent successfully",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now_sao_paulo(),
                 message_data=message_data,
             )
 
@@ -502,7 +496,6 @@ class EvolutionAPIClient:
         message_data: Optional[Dict[str, Any]] = None,
     ) -> MessageResponse:
         """Send media message with optimization."""
-        start_time = time.monotonic()
         # Map message types to Evolution API endpoints
         endpoint_map = {
             MessageType.IMAGE: "sendMedia",
@@ -527,18 +520,11 @@ class EvolutionAPIClient:
         if message_data:
             data["metadata"] = message_data
 
-        try:
-            status_code, response = await self._make_request(
-                "POST", f"/message/{endpoint}/{instance_name}", data=data
-            )
-        except Exception as exc:
-            whatsapp_metrics.record_message_failed(
-                instance_name, _classify_failure(error=exc)
-            )
-            raise
-        finally:
-            duration = time.monotonic() - start_time
-            whatsapp_metrics.observe_message_send_duration(instance_name, duration)
+        status_code, response = await self._request_with_send_metrics(
+            instance_name=instance_name,
+            endpoint=f"/message/{endpoint}/{instance_name}",
+            data=data,
+        )
 
         if status_code == 201:
             message_data = response.get("message", {})
@@ -550,7 +536,7 @@ class EvolutionAPIClient:
                 external_id=message_data.get("key", {}).get("id"),
                 status=MessageStatus.SENT,
                 message="Media message sent successfully",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now_sao_paulo(),
                 message_data=message_data,
             )
 
@@ -558,6 +544,27 @@ class EvolutionAPIClient:
             instance_name, _classify_failure(status_code=status_code)
         )
         raise Exception(f"Failed to send media message: {response}")
+
+    async def _request_with_send_metrics(
+        self,
+        *,
+        instance_name: str,
+        endpoint: str,
+        data: Dict[str, Any],
+    ) -> tuple[int, Dict[str, Any]]:
+        """Execute send request while recording duration/failure metrics consistently."""
+        start_time = time.monotonic()
+        try:
+            return await self._make_request("POST", endpoint, data=data)
+        except Exception as exc:
+            whatsapp_metrics.record_message_failed(
+                instance_name,
+                _classify_failure(error=exc),
+            )
+            raise
+        finally:
+            duration = time.monotonic() - start_time
+            whatsapp_metrics.observe_message_send_duration(instance_name, duration)
 
     async def get_contacts(self, instance_name: str) -> List[ContactResponse]:
         """Get all contacts from instance."""
@@ -680,6 +687,8 @@ async def optimize_image_for_whatsapp(
     max_dimension: int = 4096,
 ) -> str:
     """Optimize image for WhatsApp delivery."""
+    _ = max_size, max_dimension  # Placeholder signature keeps these for future resize logic.
+
     # Implementation would resize/compress image if needed
     # This is a placeholder - actual implementation would use PIL or similar
     return image_url
@@ -687,6 +696,8 @@ async def optimize_image_for_whatsapp(
 
 async def validate_phone_number(phone_number: str) -> Tuple[bool, str]:
     """Validate and format phone number for WhatsApp."""
+    from app.schemas.validators.phone import normalize_br_phone
+
     # Remove all non-digit characters
     clean_number = "".join(filter(str.isdigit, phone_number))
 
@@ -694,10 +705,13 @@ async def validate_phone_number(phone_number: str) -> Tuple[bool, str]:
     if len(clean_number) < 10 or len(clean_number) > 15:
         return False, "Invalid phone number length"
 
-    # Add country code if missing (assuming Brazil +55 for this clinic)
-    if len(clean_number) == 11 and clean_number.startswith("0"):
-        clean_number = "55" + clean_number[1:]  # Remove leading 0, add +55
-    elif len(clean_number) == 10 or len(clean_number) == 11:
-        clean_number = "55" + clean_number
+    # If already has country code with expected length, keep as-is
+    if clean_number.startswith("55") and len(clean_number) in (12, 13):
+        return True, clean_number
+
+    # Normalize to Brazilian format (55 + DDD + number) when missing CC
+    normalized = normalize_br_phone(clean_number)
+    if normalized:
+        clean_number = normalized
 
     return True, clean_number

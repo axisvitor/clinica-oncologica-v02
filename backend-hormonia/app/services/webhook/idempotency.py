@@ -7,6 +7,7 @@ to prevent race conditions where multiple workers process the same event.
 
 import logging
 import hashlib
+import inspect
 from typing import Optional, Tuple, Dict, Any
 from datetime import datetime, timezone
 
@@ -14,6 +15,7 @@ from redis.asyncio import Redis
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +122,13 @@ class AtomicWebhookIdempotency:
         """
         return f"webhook:idem:{event_type}:{event_id}"
 
+    @staticmethod
+    async def _maybe_await(value: Any) -> Any:
+        """Await mixed sync/async client results when needed."""
+        if inspect.isawaitable(value):
+            return await value
+        return value
+
     def _get_ttl(self, event_type: str) -> int:
         """
         Get appropriate TTL for event type.
@@ -163,7 +172,7 @@ class AtomicWebhookIdempotency:
         effective_ttl = ttl or self._get_ttl(event_type)
 
         # Value stores processing info for debugging
-        value = f"processing:{worker_id or 'unknown'}:{datetime.now(timezone.utc).isoformat()}"
+        value = f"processing:{worker_id or 'unknown'}:{now_sao_paulo().isoformat()}"
 
         try:
             # Atomic SET NX EX
@@ -223,7 +232,7 @@ class AtomicWebhookIdempotency:
 
         key = self._get_key(event_type, event_id)
         effective_ttl = ttl or self._get_ttl(event_type)
-        value = f"processing:{worker_id or 'unknown'}:{datetime.now(timezone.utc).isoformat()}"
+        value = f"processing:{worker_id or 'unknown'}:{now_sao_paulo().isoformat()}"
 
         try:
             result = await self.redis.evalsha(
@@ -265,7 +274,7 @@ class AtomicWebhookIdempotency:
             ttl = await self.redis.ttl(key)
             if ttl > 0:
                 await self.redis.set(
-                    key, f"completed:{datetime.now(timezone.utc).isoformat()}", ex=ttl
+                    key, f"completed:{now_sao_paulo().isoformat()}", ex=ttl
                 )
         except Exception as e:
             logger.debug(f"Could not mark event as completed in Redis: {e}")
@@ -287,7 +296,7 @@ class AtomicWebhookIdempotency:
             # Set to 'failed' state with short TTL for retry window
             await self.redis.set(
                 key,
-                f"failed:{error or 'unknown'}:{datetime.now(timezone.utc).isoformat()}",
+                f"failed:{error or 'unknown'}:{now_sao_paulo().isoformat()}",
                 ex=300,  # 5 minute retry window
             )
         except Exception as e:
@@ -387,12 +396,16 @@ class AtomicWebhookIdempotency:
     async def _record_metrics(self, duplicate: bool) -> None:
         """Record idempotency metrics in Redis."""
         try:
-            pipe = self.redis.pipeline()
-            pipe.hincrby(self._metrics_key, "total_events", 1)
+            pipe = await self._maybe_await(self.redis.pipeline())
+            await self._maybe_await(pipe.hincrby(self._metrics_key, "total_events", 1))
             if duplicate:
-                pipe.hincrby(self._metrics_key, "duplicates_detected", 1)
-            pipe.expire(self._metrics_key, self._metrics_ttl_seconds)
-            await pipe.execute()
+                await self._maybe_await(
+                    pipe.hincrby(self._metrics_key, "duplicates_detected", 1)
+                )
+            await self._maybe_await(
+                pipe.expire(self._metrics_key, self._metrics_ttl_seconds)
+            )
+            await self._maybe_await(pipe.execute())
         except Exception as e:
             logger.debug(f"Failed to record idempotency metrics: {e}")
 

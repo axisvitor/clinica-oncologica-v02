@@ -54,6 +54,7 @@ async def test_parallel_initialization_performance(mock_app, mock_logger):
     with patch("app.core.lifespan.setup_logging"), \
          patch("app.core.lifespan.get_logger", return_value=mock_logger), \
          patch("app.core.lifespan.configure_structured_logging"), \
+         patch("app.core.lifespan._is_test_environment", return_value=False), \
          patch("app.core.lifespan._initialize_monitoring", new_callable=AsyncMock) as mock_monitoring, \
          patch("app.core.lifespan._initialize_redis_websocket_events", new_callable=AsyncMock) as mock_redis, \
          patch("app.core.lifespan._initialize_websocket_manager", new_callable=AsyncMock) as mock_ws, \
@@ -139,6 +140,7 @@ async def test_parallel_error_handling(mock_app, mock_logger):
     with patch("app.core.lifespan.setup_logging"), \
          patch("app.core.lifespan.get_logger", return_value=mock_logger), \
          patch("app.core.lifespan.configure_structured_logging"), \
+         patch("app.core.lifespan._is_test_environment", return_value=False), \
          patch("app.core.lifespan._initialize_monitoring", new_callable=AsyncMock) as mock_monitoring, \
          patch("app.core.lifespan._initialize_redis_websocket_events", new_callable=AsyncMock) as mock_redis, \
          patch("app.core.lifespan._initialize_websocket_manager", new_callable=AsyncMock) as mock_ws, \
@@ -203,6 +205,7 @@ async def test_dependency_order(mock_app, mock_logger):
     with patch("app.core.lifespan.setup_logging"), \
          patch("app.core.lifespan.get_logger", return_value=mock_logger), \
          patch("app.core.lifespan.configure_structured_logging"), \
+         patch("app.core.lifespan._is_test_environment", return_value=False), \
          patch("app.core.lifespan._initialize_monitoring", side_effect=track_monitoring), \
          patch("app.core.lifespan._initialize_redis_websocket_events", side_effect=track_redis), \
          patch("app.core.lifespan._initialize_websocket_manager", side_effect=track_ws), \

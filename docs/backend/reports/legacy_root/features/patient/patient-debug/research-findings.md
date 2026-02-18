@@ -203,7 +203,7 @@ try:
 
     # Mark saga as completed
     saga.status = SagaStatus.COMPLETED
-    saga.completed_at = datetime.now(timezone.utc)
+    saga.completed_at = now_sao_paulo()
 
     # ATOMIC COMMIT - All or nothing
     self.db.commit()
@@ -218,7 +218,7 @@ except Exception as e:
     # Mark saga as failed
     saga.status = SagaStatus.FAILED
     saga.error_message = str(e)
-    saga.failed_at = datetime.now(timezone.utc)
+    saga.failed_at = now_sao_paulo()
 
     # Commit failure state separately
     self.db.commit()
@@ -351,19 +351,19 @@ CREATE INDEX idx_patient_onboarding_saga_retry
       "step": 1,
       "action": "create_patient",
       "status": "success",
-      "timestamp": "2025-12-24T17:00:00Z"
+      "timestamp": "2025-12-24T17:00:00-03:00"
     },
     {
       "step": 3,
       "action": "initialize_flow",
       "status": "success",
-      "timestamp": "2025-12-24T17:00:01Z"
+      "timestamp": "2025-12-24T17:00:01-03:00"
     },
     {
       "step": 4,
       "action": "send_message",
       "status": "failed_nonfatal",
-      "timestamp": "2025-12-24T17:00:02Z",
+      "timestamp": "2025-12-24T17:00:02-03:00",
       "message": "WhatsApp API timeout"
     }
   ]
@@ -922,7 +922,7 @@ async def should_trigger_quiz(
     # Get patient enrollment info
     patient = patient_repo.get(flow_state.patient_id)
     enrollment_date = patient.enrollment_date or patient.created_at
-    days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
+    days_since_enrollment = (now_sao_paulo() - enrollment_date).days
 
     # Check using centralized policy
     is_quiz_day = QuizTriggerPolicy.is_quiz_day(
@@ -943,7 +943,7 @@ async def execute_quiz_step(
 ) -> Dict[str, Any]:
     # Calculate monthly cycle
     enrollment_date = patient.enrollment_date or patient.created_at
-    days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
+    days_since_enrollment = (now_sao_paulo() - enrollment_date).days
 
     # Initial phase (0-45 days)
     if days_since_enrollment <= 45:
@@ -1045,7 +1045,7 @@ async def send_message(
     # 4. Update message status
     message.status = MessageStatus.SENT
     message.whatsapp_id = result.get("key", {}).get("id")
-    message.sent_at = datetime.now(timezone.utc)
+    message.sent_at = now_sao_paulo()
     self.db.commit()
 
     # 5. Broadcast WebSocket event
@@ -1064,7 +1064,7 @@ async def _schedule_retry(self, message: Message, retry_count: int) -> None:
     policy = self.retry_policies.get("default")
     delay = policy["base_delay"] * (policy["backoff_factor"] ** (retry_count - 1))
 
-    scheduled_for = datetime.now(timezone.utc) + timedelta(seconds=delay)
+    scheduled_for = now_sao_paulo() + timedelta(seconds=delay)
 
     message.status = MessageStatus.PENDING
     message.scheduled_for = scheduled_for
@@ -1387,7 +1387,7 @@ Based on this research, the following areas should be investigated for the daily
 
 **Research Complete** ✅
 
-Generated: 2025-12-24T17:30:00Z
+Generated: 2025-12-24T17:30:00-03:00
 Lines of Code Analyzed: ~15,000
 Files Reviewed: 25
 Time: 25 minutes

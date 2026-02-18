@@ -6,13 +6,15 @@ Handles detection of medical concerns from patient messages.
 import logging
 import re
 import json
-from typing import List
+from typing import Any, List
 
 from app.services.ai import PatientContext, ConcernLevel
 
 from .models import MedicalConcern, MedicalConcernType
 from .patterns import MedicalPatterns
-from app.integrations.openai_client import LangChainOrchestrator
+from .severity import concern_level_from_score, concern_level_rank
+from app.ai.client import GeminiClient
+from app.services.ai.guardrails import OutputKind
 
 logger = logging.getLogger(__name__)
 
@@ -20,38 +22,26 @@ logger = logging.getLogger(__name__)
 class ConcernDetector:
     """Handles medical concern detection from patient messages."""
 
-    def __init__(self, langchain_orchestrator: LangChainOrchestrator):
+    def __init__(self, gemini_client: GeminiClient):
         """
         Initialize concern detector.
 
         Args:
-            langchain_orchestrator: LangChain orchestrator for AI detection
+            gemini_client: Gemini client for AI detection
         """
-        self.langchain_orchestrator = langchain_orchestrator
+        self.gemini_client = gemini_client
         self.patterns = MedicalPatterns()
 
     def _severity_rank(self, severity: ConcernLevel) -> int:
         """Rank concern levels for comparison."""
-        ranks = {
-            ConcernLevel.LOW: 1,
-            ConcernLevel.MEDIUM: 2,
-            ConcernLevel.HIGH: 3,
-            ConcernLevel.CRITICAL: 4,
-        }
-        return ranks.get(severity, 1)
+        return concern_level_rank(severity)
 
     def _level_from_score(self, severity_score: int) -> ConcernLevel:
         """Map numeric severity score to concern level."""
-        if severity_score >= 9:
-            return ConcernLevel.CRITICAL
-        if severity_score >= 7:
-            return ConcernLevel.HIGH
-        if severity_score >= 4:
-            return ConcernLevel.MEDIUM
-        return ConcernLevel.LOW
+        return concern_level_from_score(severity_score)
 
     async def detect_medical_concerns(
-        self, message_text: str, patient_context: PatientContext
+        self, message_text: str, patient_context: PatientContext | dict[str, Any]
     ) -> List[MedicalConcern]:
         """
         Detect medical concerns from patient message.
@@ -204,7 +194,7 @@ class ConcernDetector:
             return concerns
 
     async def detect_concerns_by_ai(
-        self, message_text: str, patient_context: PatientContext
+        self, message_text: str, patient_context: PatientContext | dict[str, Any]
     ) -> List[MedicalConcern]:
         """
         Detect medical concerns using AI.
@@ -219,10 +209,18 @@ class ConcernDetector:
         concerns = []
 
         try:
+            treatment_type = getattr(patient_context, "treatment_type", None)
+            treatment_day = getattr(patient_context, "treatment_day", None)
+            if isinstance(patient_context, dict):
+                treatment_type = patient_context.get("treatment_type") or treatment_type
+                treatment_day = patient_context.get("treatment_day") or patient_context.get("current_day") or treatment_day
+            treatment_type = treatment_type or "general"
+            treatment_day = treatment_day or 1
+
             concern_detection_prompt = f"""
             Analyze this patient message for medical concerns that require healthcare provider attention.
 
-            Patient context: {patient_context.treatment_type} treatment, day {patient_context.treatment_day}
+            Patient context: {treatment_type} treatment, day {treatment_day}
             Message: "{message_text}"
 
             Identify concerns and format as JSON:
@@ -250,8 +248,12 @@ class ConcernDetector:
             - general_health: other health concerns
             """
 
-            ai_response = await self.langchain_orchestrator.generate_text(
-                concern_detection_prompt
+            ai_response = await self.gemini_client.generate_content(
+                concern_detection_prompt,
+                output_kind=OutputKind.JSON,
+                required_keys=["concerns"],
+                min_length=2,
+                max_length=1600,
             )
 
             # Parse AI response
@@ -283,6 +285,10 @@ class ConcernDetector:
                     }
                     severity_score = severity_score_map.get(severity, 2)
 
+                    keywords = concern_data.get("keywords", [])
+                    if not isinstance(keywords, list):
+                        keywords = [str(keywords)]
+
                     concerns.append(
                         MedicalConcern(
                             concern_type=concern_type,
@@ -290,7 +296,7 @@ class ConcernDetector:
                                 "description", "AI detected concern"
                             ),
                             severity=severity,
-                            keywords=concern_data.get("keywords", []),
+                            keywords=keywords,
                             confidence=float(concern_data.get("confidence", 0.5)),
                             requires_immediate_attention=concern_data.get(
                                 "immediate_attention", False

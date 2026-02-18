@@ -175,7 +175,6 @@ __all__ = [
 Files using `Union[]` without `from __future__ import annotations`:
 - `core/date_utils.py`
 - `core/permissions.py`
-- `middleware/enhanced_error_handler.py`
 - `monitoring/business_metrics.py`
 - `schemas/flow.py`
 - `schemas/websocket.py`

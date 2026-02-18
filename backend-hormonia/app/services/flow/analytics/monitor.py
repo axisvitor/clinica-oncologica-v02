@@ -16,7 +16,8 @@ from __future__ import annotations
 # Standard library imports
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
+from copy import deepcopy
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set
 from uuid import UUID
@@ -24,6 +25,7 @@ from uuid import UUID
 # Local application imports
 from ..config import get_flow_config
 from ..types import FlowContext, FlowPriority, FlowStatus
+from app.utils.timezone import normalize_datetime_naive_sao_paulo, now_sao_paulo_naive
 
 
 logger = logging.getLogger(__name__)
@@ -115,7 +117,7 @@ class FlowMonitor:
 
     def __init__(self) -> None:
         """Initialize flow monitor."""
-        self.config = get_flow_config()
+        self.config = deepcopy(get_flow_config())
 
         # Health tracking
         self._flow_health: Dict[UUID, FlowHealthMetrics] = {}
@@ -183,15 +185,20 @@ class FlowMonitor:
             FlowHealthMetrics(flow_instance_id),
         )
 
-        metrics.last_check = datetime.now(timezone.utc)
+        metrics.last_check = now_sao_paulo_naive()
 
         # Update metrics from context
         if context.started_at:
-            execution_time = (datetime.now(timezone.utc) - context.started_at).total_seconds()
+            started_at = normalize_datetime_naive_sao_paulo(context.started_at)
+            execution_time = (
+                (now_sao_paulo_naive() - started_at).total_seconds()
+                if started_at
+                else None
+            )
             metrics.execution_time_seconds = execution_time
 
             # Check execution time
-            if execution_time > self.max_execution_time_seconds:
+            if execution_time is not None and execution_time > self.max_execution_time_seconds:
                 metrics.timeout_exceeded = True
                 metrics.issues.append(
                     f"Execution time ({execution_time:.0f}s) exceeds timeout "
@@ -207,15 +214,17 @@ class FlowMonitor:
         # Check failure rate
         if metrics.steps_executed > 0:
             failure_rate = (metrics.steps_failed / metrics.steps_executed) * 100
-            if failure_rate > self.max_step_failures_percentage:
+            if failure_rate >= self.max_step_failures_percentage:
                 metrics.error_rate_high = True
                 metrics.issues.append(
                     f"Step failure rate ({failure_rate:.1f}%) is too high"
                 )
 
         # Check for expired flows
-        if context.expires_at and datetime.now(timezone.utc) > context.expires_at:
-            metrics.issues.append("Flow has expired")
+        if context.expires_at:
+            expires_at = normalize_datetime_naive_sao_paulo(context.expires_at)
+            if expires_at and now_sao_paulo_naive() > expires_at:
+                metrics.issues.append("Flow has expired")
 
         # Check priority handling
         if context.priority in [FlowPriority.URGENT, FlowPriority.CRITICAL]:
@@ -330,7 +339,7 @@ class FlowMonitor:
             "degraded_flows": health_counts[HealthStatus.DEGRADED.value],
             "unhealthy_flows": health_counts[HealthStatus.UNHEALTHY.value],
             "critical_flows": health_counts[HealthStatus.CRITICAL.value],
-            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "checked_at": now_sao_paulo_naive().isoformat(),
         }
 
     def get_unhealthy_flows(self) -> List[FlowHealthMetrics]:
@@ -459,7 +468,7 @@ class FlowMonitor:
             "execution_time_seconds": metrics.execution_time_seconds,
             "steps_executed": metrics.steps_executed,
             "steps_failed": metrics.steps_failed,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo_naive().isoformat(),
         }
 
     # ========================================================================
@@ -514,13 +523,14 @@ class FlowMonitor:
         Returns:
             Number of metrics cleaned up.
         """
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = now_sao_paulo_naive() - timedelta(hours=hours)
         cleaned = 0
 
         flow_ids_to_remove = []
         for flow_id, metrics in self._flow_health.items():
             if flow_id not in self._active_flows:
-                if metrics.last_check and metrics.last_check < cutoff_time:
+                last_check = normalize_datetime_naive_sao_paulo(metrics.last_check)
+                if last_check and last_check < cutoff_time:
                     flow_ids_to_remove.append(flow_id)
                     cleaned += 1
 
@@ -566,7 +576,7 @@ class FlowMonitor:
                 }
                 for m in self.get_unhealthy_flows()
             ],
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo_naive().isoformat(),
         }
 
 

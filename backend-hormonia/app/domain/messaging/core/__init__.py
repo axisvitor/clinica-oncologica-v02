@@ -16,12 +16,8 @@ from .message_service import (
     get_message_scheduler,
 )
 
-# Legacy import for backward compatibility
-from .message_base import MessageService as MessageBaseService
-
 __all__ = [
     "MessageService",
-    "MessageBaseService",
     "MessageFactory",
     "MessageScheduler",
     "MessageTemplate",

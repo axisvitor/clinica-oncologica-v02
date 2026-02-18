@@ -30,6 +30,11 @@ interface DoctorUser {
   email?: string
 }
 
+interface DoctorOption {
+  id: string
+  label: string
+}
+
 export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogProps) {
   const { toast } = useToast()
   const { user } = useAuth()
@@ -41,7 +46,7 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(userId)
 
   // Fetch doctor list for admins (filter locally to avoid backend role filter issues)
-  const { data: doctorList = [], isLoading: isLoadingDoctors } = useQuery<DoctorUser[]>({
+  const { data: doctorList = [] as DoctorUser[], isLoading: isLoadingDoctors } = useQuery<DoctorUser[]>({
     queryKey: ['admin-doctors', isAdminUser],
     queryFn: async () => {
       const response = await apiClient.adminUsers.list({ size: 100 })
@@ -65,14 +70,14 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
   })
 
   const doctorOptions = useMemo(() => {
-    const options = doctorList.map((doctor) => ({
+    const options: DoctorOption[] = doctorList.map((doctor: DoctorUser) => ({
       id: doctor.id,
       label: doctor.full_name || doctor.name || doctor.email || 'Médico'
     }))
 
     if (isAdminUser && userId) {
       const adminLabel = user?.full_name || user?.email || 'Administrador atual'
-      if (!options.some((doctor) => doctor.id === userId)) {
+      if (!options.some((doctor: DoctorOption) => doctor.id === userId)) {
         options.unshift({ id: userId, label: `${adminLabel} (você)` })
       }
     }

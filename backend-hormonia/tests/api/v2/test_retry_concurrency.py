@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.models.message import Message, MessageStatus
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 class TestRetryAtomicIncrement:
     """Test atomic retry_count increment to prevent race conditions."""
 
@@ -32,7 +33,7 @@ class TestRetryAtomicIncrement:
         msg.status = MessageStatus.FAILED
         msg.retry_count = 0
         msg.content = "Test message"
-        msg.created_at = datetime.utcnow()
+        msg.created_at = now_sao_paulo_naive()
         return msg
 
     @pytest.fixture

@@ -16,7 +16,7 @@ from __future__ import annotations
 # Standard library imports
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -34,6 +34,7 @@ from app.schemas.quiz import (
     QuizTemplateResponse,
     QuizValidationResult,
 )
+from app.utils.timezone import now_sao_paulo
 
 
 class TemplateLoader:
@@ -253,7 +254,7 @@ class TemplateCache:
         cached_time = self._cache_times.get(template_id)
         if (
             cached_time
-            and (datetime.now(timezone.utc) - cached_time).total_seconds() > self._ttl_seconds
+            and (now_sao_paulo() - cached_time).total_seconds() > self._ttl_seconds
         ):
             self.invalidate(template_id)
             return None
@@ -263,7 +264,7 @@ class TemplateCache:
     def set(self, template_id: UUID, template: QuizTemplate) -> None:
         """Set template in cache."""
         self._cache[template_id] = template
-        self._cache_times[template_id] = datetime.now(timezone.utc)
+        self._cache_times[template_id] = now_sao_paulo()
 
     def invalidate(self, template_id: UUID) -> None:
         """Invalidate cache entry."""

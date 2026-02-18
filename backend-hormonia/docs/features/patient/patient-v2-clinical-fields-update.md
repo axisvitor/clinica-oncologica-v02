@@ -92,7 +92,7 @@ Updated schema examples in all classes to demonstrate the new clinical fields:
   "name": "João Silva",
   "email": "joao@example.com",
   "phone": "(11) 98765-4321",
-  "birth_date": "1980-05-15T00:00:00Z",
+  "birth_date": "1980-05-15T00:00:00-03:00",
   "cpf": "123.456.789-00",
   "treatment_type": "Reposição Hormonal",
   "treatment_start_date": "2025-01-10",

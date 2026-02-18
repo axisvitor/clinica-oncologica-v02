@@ -270,6 +270,6 @@ Once these issues are resolved, the test suite is ready to provide comprehensive
 
 ---
 
-**Report Generated**: 2025-12-23 11:20:00 UTC
+**Report Generated**: 2025-12-23 11:20:00 Sao Paulo
 **Agent**: Patient Routes Test Specialist
 **Coordination Task ID**: task-1766487904723-lh2qv4kcb

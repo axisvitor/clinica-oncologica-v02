@@ -23,7 +23,7 @@ from app.services.flow.integrations.manager import (
 )
 from app.services.flow.integrations.quiz_integration import QuizFlowIntegration
 from app.services.flow.integrations.ai_integration import AIFlowIntegration
-from app.services.flow.types import FlowContext, FlowType, FlowStepData
+from app.services.flow.types import FlowContext, FlowType, FlowStepData, FlowStepType
 
 
 # ============================================================================
@@ -63,7 +63,14 @@ def integration_manager(mock_quiz_integration, mock_ai_integration):
 @pytest.fixture
 def real_integration_manager():
     """Create integration manager with real integrations."""
-    return FlowIntegrationManager()
+    manager = FlowIntegrationManager()
+    # Normalize feature flags for deterministic integration tests.
+    manager.config.enable_quiz_integration = True
+    manager.config.enable_ai_integration = True
+    manager.quiz.config.enable_quiz_integration = True
+    manager.ai.config.enable_ai_integration = True
+    manager.ai._should_use_real_ai = Mock(return_value=False)
+    return manager
 
 
 @pytest.fixture
@@ -95,6 +102,8 @@ def flow_step_data() -> FlowStepData:
     """Create flow step data."""
     return FlowStepData(
         step_id="step_1",
+        step_type=FlowStepType.MESSAGE,
+        step_name="Test Step",
         input_data={"question": "How are you feeling?"},
         metadata={},
     )
@@ -471,7 +480,13 @@ class TestStepProcessing:
         real_integration_manager.config.enable_ai_integration = False
 
         flow_instance_id = uuid4()
-        flow_step_data = FlowStepData(step_id="step1", input_data={}, metadata={})
+        flow_step_data = FlowStepData(
+            step_id="step1",
+            step_type=FlowStepType.MESSAGE,
+            step_name="Step 1",
+            input_data={},
+            metadata={},
+        )
         flow_context = FlowContext(
             flow_instance_id=flow_instance_id,
             flow_type=FlowType.MONITORING,
@@ -521,8 +536,10 @@ class TestIntegrationStatusAndHealth:
     ):
         """Test integration status with active flows."""
         # Create some quiz flows
-        real_integration_manager.create_quiz_flow(patient_id, "quiz1")
-        real_integration_manager.create_quiz_flow(patient_id, "quiz2")
+        quiz_flow_1 = real_integration_manager.create_quiz_flow(patient_id, "quiz1")
+        quiz_flow_2 = real_integration_manager.create_quiz_flow(patient_id, "quiz2")
+        real_integration_manager.quiz.start_quiz_flow(quiz_flow_1["flow_instance_id"])
+        real_integration_manager.quiz.start_quiz_flow(quiz_flow_2["flow_instance_id"])
 
         status = real_integration_manager.get_integration_status()
 
@@ -554,6 +571,9 @@ class TestIntegrationStatusAndHealth:
         real_integration_manager.create_quiz_flow(patient_id, "quiz1")
 
         # Generate AI activity
+        real_integration_manager.config.enable_ai_integration = True
+        real_integration_manager.ai.config.enable_ai_integration = True
+        real_integration_manager.ai._should_use_real_ai = Mock(return_value=False)
         real_integration_manager.generate_ai_response(flow_instance_id, "prompt")
 
         metrics = real_integration_manager.get_integration_metrics()
@@ -641,6 +661,8 @@ class TestHelperMethods:
         real_integration_manager.config.enable_ai_integration = True
         step_data = FlowStepData(
             step_id="step1",
+            step_type=FlowStepType.MESSAGE,
+            step_name="Step 1",
             input_data={},
             metadata={"use_ai": True},
         )
@@ -654,6 +676,8 @@ class TestHelperMethods:
         real_integration_manager.config.enable_ai_integration = False
         step_data = FlowStepData(
             step_id="step1",
+            step_type=FlowStepType.MESSAGE,
+            step_name="Step 1",
             input_data={},
             metadata={"use_ai": True},
         )
@@ -667,6 +691,8 @@ class TestHelperMethods:
         real_integration_manager.config.enable_ai_integration = True
         step_data = FlowStepData(
             step_id="step1",
+            step_type=FlowStepType.MESSAGE,
+            step_name="Step 1",
             input_data={},
             metadata={},
         )
@@ -680,6 +706,8 @@ class TestHelperMethods:
         real_integration_manager.config.enable_quiz_integration = True
         step_data = FlowStepData(
             step_id="step1",
+            step_type=FlowStepType.MESSAGE,
+            step_name="Step 1",
             input_data={},
             metadata={"is_quiz_step": True},
         )
@@ -693,6 +721,8 @@ class TestHelperMethods:
         real_integration_manager.config.enable_quiz_integration = False
         step_data = FlowStepData(
             step_id="step1",
+            step_type=FlowStepType.MESSAGE,
+            step_name="Step 1",
             input_data={},
             metadata={"is_quiz_step": True},
         )
@@ -704,7 +734,7 @@ class TestHelperMethods:
     def test_is_quiz_flow(self, real_integration_manager):
         """Test quiz flow detection."""
         quiz_flow_types = [
-            FlowType.MONTHLY_QUIZ,
+            FlowType.QUIZ_MENSAL,
             FlowType.ONBOARDING,
         ]
 
@@ -788,6 +818,8 @@ class TestErrorHandling:
         flow_instance_id = uuid4()
         step_data = FlowStepData(
             step_id="step1",
+            step_type=FlowStepType.MESSAGE,
+            step_name="Step 1",
             input_data={"ai_prompt": "test"},
             metadata={"use_ai": True},
         )
@@ -817,6 +849,8 @@ class TestErrorHandling:
         flow_instance_id = uuid4()
         step_data = FlowStepData(
             step_id="step1",
+            step_type=FlowStepType.MESSAGE,
+            step_name="Step 1",
             input_data={},  # No prompt
             metadata={"use_ai": True},
         )
@@ -839,12 +873,14 @@ class TestErrorHandling:
         flow_instance_id = uuid4()
         step_data = FlowStepData(
             step_id="step1",
+            step_type=FlowStepType.MESSAGE,
+            step_name="Step 1",
             input_data={},
             metadata={"is_quiz_step": True},
         )
         context = FlowContext(
             flow_instance_id=flow_instance_id,
-            flow_type=FlowType.MONTHLY_QUIZ,
+            flow_type=FlowType.QUIZ_MENSAL,
             patient_id=uuid4(),
             steps_completed=[],
             current_data={},
@@ -880,17 +916,19 @@ class TestIntegrationScenarios:
         quiz_result = real_integration_manager.create_quiz_flow(
             patient_id, "monthly_assessment"
         )
-        flow_instance_id = UUID(quiz_result["flow_instance_id"])
+        flow_instance_id = quiz_result["flow_instance_id"]
 
         # Simulate step with AI analysis
         step_data = FlowStepData(
             step_id="step1",
+            step_type=FlowStepType.MESSAGE,
+            step_name="Step 1",
             input_data={"question": "How are you feeling?"},
             metadata={"use_ai": True},
         )
         context = FlowContext(
             flow_instance_id=flow_instance_id,
-            flow_type=FlowType.MONTHLY_QUIZ,
+            flow_type=FlowType.QUIZ_MENSAL,
             patient_id=patient_id,
             steps_completed=[],
             current_data={},
@@ -907,7 +945,8 @@ class TestIntegrationScenarios:
         # Complete quiz
         complete_result = real_integration_manager.complete_quiz_flow(flow_instance_id)
 
-        assert isinstance(complete_result, bool)
+        assert isinstance(complete_result, dict)
+        assert complete_result["status"] == "completed"
 
     def test_monitoring_flow_with_ai_decisions(
         self, real_integration_manager, flow_instance_id: UUID
@@ -976,6 +1015,8 @@ class TestIntegrationScenarios:
         # Simulate concurrent operations
         quiz1 = real_integration_manager.create_quiz_flow(patient1, "quiz1")
         quiz2 = real_integration_manager.create_quiz_flow(patient2, "quiz2")
+        real_integration_manager.quiz.start_quiz_flow(quiz1["flow_instance_id"])
+        real_integration_manager.quiz.start_quiz_flow(quiz2["flow_instance_id"])
         ai_resp1 = real_integration_manager.generate_ai_response(flow1, "prompt1")
         ai_resp2 = real_integration_manager.generate_ai_response(flow2, "prompt2")
 

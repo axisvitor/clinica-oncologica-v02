@@ -6,12 +6,14 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { FlowState, FlowAnalytics } from '@/lib/api-client/types';
+import type { FlowState, FlowAnalytics, PaginatedResponse } from '@/lib/api-client/types';
 import { apiClient } from '@/lib/api-client';
 import { createLogger } from '@/utils/logger';
 import { smartMapFlowResponse } from '@/lib/flow-engine/mappers/flowResponseMapper';
 
 const logger = createLogger('useFlows');
+
+type FlowListResponse = FlowState[] | PaginatedResponse<FlowState>;
 
 /**
  * Flow data interface with UI-specific fields
@@ -59,9 +61,9 @@ export interface UseFlowStatsReturn {
  * Hook for managing flows - connects to /api/v2/flows
  */
 export function useFlows(options?: UseFlowsOptions): UseFlowsReturn {
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery<FlowListResponse, Error>({
     queryKey: ['flows', options?.flowType, options?.isActive, options?.search, options?.limit],
-    queryFn: async () => {
+    queryFn: async (): Promise<FlowListResponse> => {
       logger.debug('Fetching flows', { options });
       const response = await apiClient.flows.list({
         flow_type: options?.flowType,
@@ -69,7 +71,7 @@ export function useFlows(options?: UseFlowsOptions): UseFlowsReturn {
         search: options?.search,
         limit: options?.limit ?? 50,
       });
-      return response;
+      return response as FlowListResponse;
     },
     enabled: options?.enabled !== false,
     staleTime: 30000, // 30 seconds
@@ -79,7 +81,7 @@ export function useFlows(options?: UseFlowsOptions): UseFlowsReturn {
   const rawItems = Array.isArray(data)
     ? data
     : (data?.data ?? data?.items ?? []);
-  const flows = rawItems.map((flow) => smartMapFlowResponse(flow)) as FlowData[];
+  const flows = rawItems.map((flow: FlowState) => smartMapFlowResponse(flow)) as FlowData[];
 
   return {
     data: flows,
@@ -127,7 +129,7 @@ export function usePauseFlow() {
       logger.debug(`Pausing flow for patient: ${patientId}`);
       return await apiClient.flows.pause(patientId);
     },
-    onSuccess: (data, patientId) => {
+    onSuccess: (data: FlowState, patientId: string) => {
       logger.info(`Flow paused successfully for patient: ${patientId}`);
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['flows'] });
@@ -136,7 +138,7 @@ export function usePauseFlow() {
       // Update cache with new state
       queryClient.setQueryData(['flow-state', patientId], data);
     },
-    onError: (error, patientId) => {
+    onError: (error: Error, patientId: string) => {
       logger.error(`Failed to pause flow for patient: ${patientId}`, { error });
     },
   });
@@ -163,7 +165,7 @@ export function useResumeFlow() {
       logger.debug(`Resuming flow for patient: ${patientId}`);
       return await apiClient.flows.resume(patientId);
     },
-    onSuccess: (data, patientId) => {
+    onSuccess: (data: FlowState, patientId: string) => {
       logger.info(`Flow resumed successfully for patient: ${patientId}`);
       // Invalidate relevant queries
       queryClient.invalidateQueries({ queryKey: ['flows'] });
@@ -172,7 +174,7 @@ export function useResumeFlow() {
       // Update cache with new state
       queryClient.setQueryData(['flow-state', patientId], data);
     },
-    onError: (error, patientId) => {
+    onError: (error: Error, patientId: string) => {
       logger.error(`Failed to resume flow for patient: ${patientId}`, { error });
     },
   });

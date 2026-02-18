@@ -42,10 +42,12 @@ export function FlowTemplateVersionsDialog({ open, onOpenChange, template }: Flo
       setIsLoading(true)
       const data = await listFlowTemplateVersions(template.id)
       setVersions(data)
-      if (data?.data?.length) {
-        setLeftVersionId(data.data[0].id)
-        if (data.data.length > 1) {
-          setRightVersionId(data.data[1].id)
+      const versionList = data?.data ?? []
+      const [firstVersion, secondVersion] = versionList
+      if (firstVersion) {
+        setLeftVersionId(firstVersion.id)
+        if (secondVersion) {
+          setRightVersionId(secondVersion.id)
         }
       }
       setIsLoading(false)

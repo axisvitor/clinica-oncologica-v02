@@ -16,6 +16,7 @@ from fastapi import APIRouter, Response
 from typing import Dict, Any
 import logging
 import time
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -459,7 +460,7 @@ class MetricsExporter:
             if month is None:
                 from datetime import datetime, timezone
 
-                month = datetime.now(timezone.utc).strftime("%Y-%m")
+                month = now_sao_paulo().strftime("%Y-%m")
             quiz_completion_rate.labels(quiz_type=quiz_type, month=month).set(rate)
         except Exception as e:
             logger.error(f"Error updating quiz completion rate: {e}")
@@ -473,7 +474,7 @@ class MetricsExporter:
             if month is None:
                 from datetime import datetime, timezone
 
-                month = datetime.now(timezone.utc).strftime("%Y-%m")
+                month = now_sao_paulo().strftime("%Y-%m")
             token_expiry_rate.labels(quiz_type=quiz_type, month=month).set(rate)
         except Exception as e:
             logger.error(f"Error updating token expiry rate: {e}")
@@ -487,7 +488,7 @@ class MetricsExporter:
             if month is None:
                 from datetime import datetime, timezone
 
-                month = datetime.now(timezone.utc).strftime("%Y-%m")
+                month = now_sao_paulo().strftime("%Y-%m")
             fallback_activation_frequency.labels(reason=reason, month=month).set(
                 frequency
             )

@@ -40,18 +40,17 @@ MIN_KEY_LENGTH = 32  # Minimum characters
 
 # Common placeholder patterns
 PLACEHOLDER_PATTERNS = [
-    r"change[\s_-]?this",
-    r"your[\s_-]?secret",
-    r"your[\s_-]?key",
-    r"replace[\s_-]?me",
-    r"todo",
-    r"xxx+",
-    r"example",
-    r"test[\s_-]?key",
-    r"default",
-    r"password",
-    r"secret[\s_-]?key",
-    r"(abc|123)+",
+    r"(?<![a-z0-9])change[\s_-]?this(?![a-z0-9])",
+    r"(?<![a-z0-9])your[\s_-]?secret(?![a-z0-9])",
+    r"(?<![a-z0-9])your[\s_-]?key(?![a-z0-9])",
+    r"(?<![a-z0-9])replace[\s_-]?me(?![a-z0-9])",
+    r"(?<![a-z0-9])todo(?![a-z0-9])",
+    r"(?<![a-z0-9])x{8,}(?![a-z0-9])",
+    r"(?<![a-z0-9])example(?![a-z0-9])",
+    r"(?<![a-z0-9])test[\s_-]?key(?![a-z0-9])",
+    r"(?<![a-z0-9])default(?![a-z0-9])",
+    r"(?<![a-z0-9])password(?![a-z0-9])",
+    r"(?<![a-z0-9])secret[\s_-]?key(?![a-z0-9])",
 ]
 
 

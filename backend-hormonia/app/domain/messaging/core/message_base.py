@@ -9,6 +9,8 @@ from app.models.message import Message, MessageDirection, MessageType, MessageSt
 from app.repositories.message import MessageRepository
 from app.schemas.message import MessageCreate, MessageUpdate
 from app.utils.db_retry import with_db_retry
+from app.utils.timezone import now_sao_paulo
+from app.domain.messaging.core.update_helpers import update_message_by_id
 
 
 class MessageService:
@@ -39,12 +41,11 @@ class MessageService:
         self, message_id: UUID, message_data: MessageUpdate
     ) -> Optional[Message]:
         """Update message information"""
-        message = self.repository.get_by_id(message_id)
-        if not message:
-            return None
-
-        update_data = message_data.dict(exclude_unset=True)
-        return self.repository.update(message, update_data)
+        return update_message_by_id(
+            self.repository,
+            message_id=message_id,
+            message_data=message_data,
+        )
 
     @with_db_retry(max_retries=3)
     def get_patient_messages(
@@ -90,7 +91,7 @@ class MessageService:
             ts = (
                 scheduled_for.replace(second=0, microsecond=0).isoformat()
                 if scheduled_for
-                else datetime.now(timezone.utc).replace(second=0, microsecond=0).isoformat()
+                else now_sao_paulo().replace(second=0, microsecond=0).isoformat()
             )
             base = f"{patient_id}:{message_type.value}:{content}:{ts}"
             idempotency_key = hashlib.sha256(base.encode("utf-8")).hexdigest()[:32]
@@ -168,7 +169,7 @@ class MessageService:
         update_data = {
             "status": MessageStatus.SENT,
             "whatsapp_id": whatsapp_id,
-            "sent_at": datetime.now(timezone.utc),
+            "sent_at": now_sao_paulo(),
         }
         return self.repository.update(message, update_data)
 
@@ -181,7 +182,7 @@ class MessageService:
 
         update_data = {
             "status": MessageStatus.DELIVERED,
-            "delivered_at": datetime.now(timezone.utc),
+            "delivered_at": now_sao_paulo(),
         }
         return self.repository.update(message, update_data)
 
@@ -192,7 +193,7 @@ class MessageService:
         if not message:
             return None
 
-        update_data = {"status": MessageStatus.READ, "read_at": datetime.now(timezone.utc)}
+        update_data = {"status": MessageStatus.READ, "read_at": now_sao_paulo()}
         return self.repository.update(message, update_data)
 
     @with_db_retry(max_retries=3)
@@ -207,7 +208,7 @@ class MessageService:
         message_metadata = message.message_metadata or {}
         if error_info:
             message_metadata["error"] = error_info
-            message_metadata["failed_at"] = datetime.now(timezone.utc).isoformat()
+            message_metadata["failed_at"] = now_sao_paulo().isoformat()
 
         update_data = {
             "status": MessageStatus.FAILED,
@@ -238,7 +239,7 @@ class MessageService:
             return None
 
         if timestamp is None:
-            timestamp = datetime.now(timezone.utc)
+            timestamp = now_sao_paulo()
 
         update_data = {"status": status}
 

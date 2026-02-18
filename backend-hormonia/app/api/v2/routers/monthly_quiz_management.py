@@ -25,8 +25,10 @@ Total: 7 CRUD endpoints for monthly quiz management
 
 # NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
 
+import asyncio
+import inspect
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 import logging
 
@@ -43,13 +45,169 @@ from app.schemas.v2.quiz_extensions import (
     MonthlyQuizV2List,
     QuizPublishRequestV2,
 )
-from app.api.v2.dependencies import get_pagination_params
+from app.api.v2.dependencies import get_pagination_params_async
+from app.schemas.v2.common import CursorEncoder
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
 from app.api.v2._quiz_shared import CACHE_TTL_QUIZ_LIST, _get_current_user_simple
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+_VALID_MONTHLY_QUIZ_STATUSES = {"draft", "published", "archived"}
+
+
+async def _maybe_await(value):
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+async def _cache_get(redis_cache, key: str):
+    if not redis_cache or not hasattr(redis_cache, "get"):
+        return None
+    try:
+        return await asyncio.wait_for(_maybe_await(redis_cache.get(key)), timeout=1.0)
+    except Exception:
+        return None
+
+
+async def _cache_set(redis_cache, key: str, value: str, ttl: int):
+    if not redis_cache:
+        return
+    if hasattr(redis_cache, "setex"):
+        try:
+            await asyncio.wait_for(
+                _maybe_await(redis_cache.setex(key, ttl, value)),
+                timeout=1.0,
+            )
+            return
+        except Exception:
+            return
+    if hasattr(redis_cache, "set"):
+        try:
+            await asyncio.wait_for(
+                _maybe_await(redis_cache.set(key, value, ttl)),
+                timeout=1.0,
+            )
+        except TypeError:
+            await asyncio.wait_for(_maybe_await(redis_cache.set(key, value)), timeout=1.0)
+        except Exception:
+            return
+
+
+async def _cache_delete(redis_cache, key: str):
+    if not redis_cache or not hasattr(redis_cache, "delete"):
+        return
+    try:
+        await asyncio.wait_for(_maybe_await(redis_cache.delete(key)), timeout=1.0)
+    except Exception:
+        return
+
+
+def _monthly_quiz_cache_key(quiz_id: UUID) -> str:
+    return f"monthly_quiz:{quiz_id}"
+
+
+async def _invalidate_monthly_quiz_cache(redis_cache, quiz_id: UUID):
+    if redis_cache:
+        await _cache_delete(redis_cache, _monthly_quiz_cache_key(quiz_id))
+
+
+def _parse_iso_datetime_strict(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    return datetime.fromisoformat(value)
+
+
+def _parse_iso_datetime_safe(value) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+def _get_monthly_quiz_or_404(db, quiz_id: UUID) -> QuizTemplate:
+    quiz = (
+        db.query(QuizTemplate)
+        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
+        .first()
+    )
+    if not quiz:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Monthly quiz not found"
+        )
+    return quiz
+
+
+def _build_monthly_quiz_detail(
+    quiz: QuizTemplate, *, fallback_base_template_id: bool = False
+) -> MonthlyQuizV2Detail:
+    tags = quiz.tags or {}
+    base_template_id_raw = (
+        tags.get("base_template_id", str(quiz.id))
+        if fallback_base_template_id
+        else tags["base_template_id"]
+    )
+
+    return MonthlyQuizV2Detail(
+        id=quiz.id,
+        name=quiz.name,
+        description=quiz.description,
+        quiz_template_id=UUID(base_template_id_raw),
+        scheduled_for=_parse_iso_datetime_strict(tags.get("scheduled_for")),
+        expires_at=_parse_iso_datetime_strict(tags.get("expires_at")),
+        status=tags.get("status", "draft"),
+        created_by=UUID(tags["created_by"]),
+        created_at=quiz.created_at,
+        published_at=_parse_iso_datetime_strict(tags.get("published_at")),
+        total_sent=tags.get("total_sent", 0),
+        total_accessed=tags.get("total_accessed", 0),
+        total_completed=tags.get("total_completed", 0),
+        completion_rate=tags.get("completion_rate", 0.0),
+    )
+
+
+def _build_monthly_quiz_detail_safe(
+    quiz: QuizTemplate, *, fallback_created_by: UUID
+) -> MonthlyQuizV2Detail:
+    tags = quiz.tags or {}
+    base_template_id_raw = tags.get("base_template_id", str(quiz.id))
+    created_by_raw = tags.get("created_by")
+
+    try:
+        base_template_id = UUID(str(base_template_id_raw))
+    except (ValueError, TypeError):
+        base_template_id = quiz.id
+
+    try:
+        created_by = UUID(str(created_by_raw)) if created_by_raw else fallback_created_by
+    except (ValueError, TypeError):
+        created_by = fallback_created_by
+
+    status_raw = str(tags.get("status", "draft")).lower()
+    if status_raw not in _VALID_MONTHLY_QUIZ_STATUSES:
+        status_raw = "draft"
+
+    return MonthlyQuizV2Detail(
+        id=quiz.id,
+        name=quiz.name,
+        description=quiz.description,
+        quiz_template_id=base_template_id,
+        scheduled_for=_parse_iso_datetime_safe(tags.get("scheduled_for")),
+        expires_at=_parse_iso_datetime_safe(tags.get("expires_at")),
+        status=status_raw,
+        created_by=created_by,
+        created_at=quiz.created_at,
+        published_at=_parse_iso_datetime_safe(tags.get("published_at")),
+        total_sent=int(tags.get("total_sent", 0) or 0),
+        total_accessed=int(tags.get("total_accessed", 0) or 0),
+        total_completed=int(tags.get("total_completed", 0) or 0),
+        completion_rate=float(tags.get("completion_rate", 0.0) or 0.0),
+    )
 
 
 # ============================================================================
@@ -69,7 +227,7 @@ async def list_monthly_quizzes(
     status_filter: Optional[str] = Query(
         None, alias="status", description="Filter by status"
     ),
-    pagination: dict = Depends(get_pagination_params),
+    pagination: dict = Depends(get_pagination_params_async),
     db=Depends(get_db),
     current_user: User = Depends(_get_current_user_simple),
 ):
@@ -86,11 +244,62 @@ async def list_monthly_quizzes(
             detail="Only medical staff can view monthly quizzes",
         )
 
-    # This is a placeholder implementation
-    # In production, you'd query a MonthlyQuiz model
-    # For now, returning empty list as the model doesn't exist yet
+    status_value = None
+    if status_filter:
+        normalized_status = status_filter.strip().lower()
+        if normalized_status not in _VALID_MONTHLY_QUIZ_STATUSES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid status filter. Use: draft, published, archived.",
+            )
+        status_value = normalized_status
 
-    return MonthlyQuizV2List(data=[], next_cursor=None, has_more=False, total=0)
+    query = (
+        db.query(QuizTemplate)
+        .filter(QuizTemplate.category == "monthly_quiz")
+        .order_by(QuizTemplate.created_at.desc(), QuizTemplate.id.desc())
+    )
+    quizzes = query.all()
+
+    if status_value:
+        quizzes = [
+            quiz
+            for quiz in quizzes
+            if str((quiz.tags or {}).get("status", "draft")).lower() == status_value
+        ]
+
+    total = len(quizzes)
+
+    cursor_data = pagination.get("cursor_data") if isinstance(pagination, dict) else None
+    limit = pagination.get("limit", 20) if isinstance(pagination, dict) else 20
+
+    if cursor_data and cursor_data.get("id"):
+        cursor_id = str(cursor_data["id"])
+        for index, quiz in enumerate(quizzes):
+            if str(quiz.id) == cursor_id:
+                quizzes = quizzes[index + 1 :]
+                break
+        else:
+            quizzes = []
+
+    has_more = len(quizzes) > limit
+    page_items = quizzes[:limit]
+    data = [
+        _build_monthly_quiz_detail_safe(quiz, fallback_created_by=current_user.id)
+        for quiz in page_items
+    ]
+
+    next_cursor = None
+    if has_more and page_items:
+        last_item = page_items[-1]
+        next_cursor = CursorEncoder.encode(last_item.id, last_item.created_at)
+
+    return MonthlyQuizV2List(
+        data=data,
+        next_cursor=next_cursor,
+        has_more=has_more,
+        total=total,
+    )
 
 
 @router.post(
@@ -127,7 +336,8 @@ async def create_monthly_quiz(
     )
     if not base_template:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Quiz template not found"
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Monthly quiz creation requires a seeded base template",
         )
 
     # Create monthly quiz using QuizTemplate model
@@ -166,32 +376,11 @@ async def create_monthly_quiz(
 
     logger.info(f"Monthly quiz '{quiz.name}' created by user {current_user.id}")
 
-    return MonthlyQuizV2Detail(
-        id=monthly_quiz.id,
-        name=monthly_quiz.name,
-        description=monthly_quiz.description,
-        quiz_template_id=UUID(monthly_quiz.tags["base_template_id"]),
-        scheduled_for=datetime.fromisoformat(monthly_quiz.tags["scheduled_for"])
-        if monthly_quiz.tags.get("scheduled_for")
-        else None,
-        expires_at=datetime.fromisoformat(monthly_quiz.tags["expires_at"])
-        if monthly_quiz.tags.get("expires_at")
-        else None,
-        status=monthly_quiz.tags.get("status", "draft"),
-        created_by=UUID(monthly_quiz.tags["created_by"]),
-        created_at=monthly_quiz.created_at,
-        published_at=datetime.fromisoformat(monthly_quiz.tags["published_at"])
-        if monthly_quiz.tags.get("published_at")
-        else None,
-        total_sent=monthly_quiz.tags.get("total_sent", 0),
-        total_accessed=monthly_quiz.tags.get("total_accessed", 0),
-        total_completed=monthly_quiz.tags.get("total_completed", 0),
-        completion_rate=monthly_quiz.tags.get("completion_rate", 0.0),
-    )
+    return _build_monthly_quiz_detail(monthly_quiz)
 
 
 @router.get(
-    "/monthly/{quiz_id}",
+    "/monthly/{quiz_id:uuid}",
     response_model=MonthlyQuizV2Detail,
     summary="Get monthly quiz details",
     description="Get detailed information about a monthly quiz",
@@ -217,55 +406,24 @@ async def get_monthly_quiz_detail(
         )
 
     # Check cache first
-    cache_key = f"monthly_quiz:{quiz_id}"
+    cache_key = _monthly_quiz_cache_key(quiz_id)
     if redis_cache:
-        cached = redis_cache.get(cache_key)
+        cached = await _cache_get(redis_cache, cache_key)
         if cached:
             return MonthlyQuizV2Detail.parse_raw(cached)
 
-    quiz = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
-        .first()
-    )
-
-    if not quiz:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Monthly quiz not found"
-        )
-
-    result = MonthlyQuizV2Detail(
-        id=quiz.id,
-        name=quiz.name,
-        description=quiz.description,
-        quiz_template_id=UUID(quiz.tags.get("base_template_id", str(quiz.id))),
-        scheduled_for=datetime.fromisoformat(quiz.tags["scheduled_for"])
-        if quiz.tags.get("scheduled_for")
-        else None,
-        expires_at=datetime.fromisoformat(quiz.tags["expires_at"])
-        if quiz.tags.get("expires_at")
-        else None,
-        status=quiz.tags.get("status", "draft"),
-        created_by=UUID(quiz.tags["created_by"]),
-        created_at=quiz.created_at,
-        published_at=datetime.fromisoformat(quiz.tags["published_at"])
-        if quiz.tags.get("published_at")
-        else None,
-        total_sent=quiz.tags.get("total_sent", 0),
-        total_accessed=quiz.tags.get("total_accessed", 0),
-        total_completed=quiz.tags.get("total_completed", 0),
-        completion_rate=quiz.tags.get("completion_rate", 0.0),
-    )
+    quiz = _get_monthly_quiz_or_404(db, quiz_id)
+    result = _build_monthly_quiz_detail(quiz, fallback_base_template_id=True)
 
     # Cache result
     if redis_cache:
-        redis_cache.setex(cache_key, CACHE_TTL_QUIZ_LIST, result.json())
+        await _cache_set(redis_cache, cache_key, result.json(), CACHE_TTL_QUIZ_LIST)
 
     return result
 
 
 @router.put(
-    "/monthly/{quiz_id}",
+    "/monthly/{quiz_id:uuid}",
     response_model=MonthlyQuizV2Detail,
     summary="Update monthly quiz",
     description="Update a monthly quiz (draft only)",
@@ -291,16 +449,7 @@ async def update_monthly_quiz(
             detail="Only administrators can update monthly quizzes",
         )
 
-    quiz = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
-        .first()
-    )
-
-    if not quiz:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Monthly quiz not found"
-        )
+    quiz = _get_monthly_quiz_or_404(db, quiz_id)
 
     # Only allow updates to draft quizzes
     if quiz.tags.get("status") != "draft":
@@ -319,43 +468,21 @@ async def update_monthly_quiz(
     if update_data.expires_at is not None:
         quiz.tags["expires_at"] = update_data.expires_at.isoformat()
 
-    quiz.updated_at = datetime.now(timezone.utc)
+    quiz.updated_at = now_sao_paulo()
 
     db.commit()
     db.refresh(quiz)
 
     # Invalidate cache
-    if redis_cache:
-        redis_cache.delete(f"monthly_quiz:{quiz_id}")
+    await _invalidate_monthly_quiz_cache(redis_cache, quiz_id)
 
     logger.info(f"Monthly quiz {quiz_id} updated by user {current_user.id}")
 
-    return MonthlyQuizV2Detail(
-        id=quiz.id,
-        name=quiz.name,
-        description=quiz.description,
-        quiz_template_id=UUID(quiz.tags["base_template_id"]),
-        scheduled_for=datetime.fromisoformat(quiz.tags["scheduled_for"])
-        if quiz.tags.get("scheduled_for")
-        else None,
-        expires_at=datetime.fromisoformat(quiz.tags["expires_at"])
-        if quiz.tags.get("expires_at")
-        else None,
-        status=quiz.tags.get("status", "draft"),
-        created_by=UUID(quiz.tags["created_by"]),
-        created_at=quiz.created_at,
-        published_at=datetime.fromisoformat(quiz.tags["published_at"])
-        if quiz.tags.get("published_at")
-        else None,
-        total_sent=quiz.tags.get("total_sent", 0),
-        total_accessed=quiz.tags.get("total_accessed", 0),
-        total_completed=quiz.tags.get("total_completed", 0),
-        completion_rate=quiz.tags.get("completion_rate", 0.0),
-    )
+    return _build_monthly_quiz_detail(quiz)
 
 
 @router.delete(
-    "/monthly/{quiz_id}",
+    "/monthly/{quiz_id:uuid}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete monthly quiz",
     description="Delete a monthly quiz (soft delete)",
@@ -379,27 +506,17 @@ async def delete_monthly_quiz(
             detail="Only administrators can delete monthly quizzes",
         )
 
-    quiz = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
-        .first()
-    )
-
-    if not quiz:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Monthly quiz not found"
-        )
+    quiz = _get_monthly_quiz_or_404(db, quiz_id)
 
     # Soft delete by changing status
     quiz.tags["status"] = "archived"
     quiz.is_active = False
-    quiz.updated_at = datetime.now(timezone.utc)
+    quiz.updated_at = now_sao_paulo()
 
     db.commit()
 
     # Invalidate cache
-    if redis_cache:
-        redis_cache.delete(f"monthly_quiz:{quiz_id}")
+    await _invalidate_monthly_quiz_cache(redis_cache, quiz_id)
 
     logger.info(f"Monthly quiz {quiz_id} archived by user {current_user.id}")
 
@@ -407,7 +524,7 @@ async def delete_monthly_quiz(
 
 
 @router.post(
-    "/monthly/{quiz_id}/publish",
+    "/monthly/{quiz_id:uuid}/publish",
     response_model=MonthlyQuizV2Detail,
     summary="Publish monthly quiz",
     description="Publish a monthly quiz and optionally send to patients",
@@ -433,16 +550,7 @@ async def publish_monthly_quiz(
             detail="Only administrators can publish monthly quizzes",
         )
 
-    quiz = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
-        .first()
-    )
-
-    if not quiz:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Monthly quiz not found"
-        )
+    quiz = _get_monthly_quiz_or_404(db, quiz_id)
 
     if quiz.tags.get("status") == "published":
         raise HTTPException(
@@ -451,7 +559,7 @@ async def publish_monthly_quiz(
 
     # Update status
     quiz.tags["status"] = "published"
-    quiz.tags["published_at"] = datetime.now(timezone.utc).isoformat()
+    quiz.tags["published_at"] = now_sao_paulo().isoformat()
 
     # Send to patients if requested
     if publish_request.send_immediately:
@@ -474,42 +582,20 @@ async def publish_monthly_quiz(
 
         logger.info(f"Monthly quiz {quiz_id} sent to {len(target_patients)} patients")
 
-    quiz.updated_at = datetime.now(timezone.utc)
+    quiz.updated_at = now_sao_paulo()
     db.commit()
     db.refresh(quiz)
 
     # Invalidate cache
-    if redis_cache:
-        redis_cache.delete(f"monthly_quiz:{quiz_id}")
+    await _invalidate_monthly_quiz_cache(redis_cache, quiz_id)
 
     logger.info(f"Monthly quiz {quiz_id} published by user {current_user.id}")
 
-    return MonthlyQuizV2Detail(
-        id=quiz.id,
-        name=quiz.name,
-        description=quiz.description,
-        quiz_template_id=UUID(quiz.tags["base_template_id"]),
-        scheduled_for=datetime.fromisoformat(quiz.tags["scheduled_for"])
-        if quiz.tags.get("scheduled_for")
-        else None,
-        expires_at=datetime.fromisoformat(quiz.tags["expires_at"])
-        if quiz.tags.get("expires_at")
-        else None,
-        status=quiz.tags.get("status", "draft"),
-        created_by=UUID(quiz.tags["created_by"]),
-        created_at=quiz.created_at,
-        published_at=datetime.fromisoformat(quiz.tags["published_at"])
-        if quiz.tags.get("published_at")
-        else None,
-        total_sent=quiz.tags.get("total_sent", 0),
-        total_accessed=quiz.tags.get("total_accessed", 0),
-        total_completed=quiz.tags.get("total_completed", 0),
-        completion_rate=quiz.tags.get("completion_rate", 0.0),
-    )
+    return _build_monthly_quiz_detail(quiz)
 
 
 @router.post(
-    "/monthly/{quiz_id}/unpublish",
+    "/monthly/{quiz_id:uuid}/unpublish",
     response_model=MonthlyQuizV2Detail,
     summary="Unpublish monthly quiz",
     description="Unpublish a monthly quiz (revert to draft)",
@@ -533,16 +619,7 @@ async def unpublish_monthly_quiz(
             detail="Only administrators can unpublish monthly quizzes",
         )
 
-    quiz = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
-        .first()
-    )
-
-    if not quiz:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Monthly quiz not found"
-        )
+    quiz = _get_monthly_quiz_or_404(db, quiz_id)
 
     if quiz.tags.get("status") != "published":
         raise HTTPException(
@@ -551,36 +628,14 @@ async def unpublish_monthly_quiz(
 
     # Revert to draft
     quiz.tags["status"] = "draft"
-    quiz.updated_at = datetime.now(timezone.utc)
+    quiz.updated_at = now_sao_paulo()
 
     db.commit()
     db.refresh(quiz)
 
     # Invalidate cache
-    if redis_cache:
-        redis_cache.delete(f"monthly_quiz:{quiz_id}")
+    await _invalidate_monthly_quiz_cache(redis_cache, quiz_id)
 
     logger.info(f"Monthly quiz {quiz_id} unpublished by user {current_user.id}")
 
-    return MonthlyQuizV2Detail(
-        id=quiz.id,
-        name=quiz.name,
-        description=quiz.description,
-        quiz_template_id=UUID(quiz.tags["base_template_id"]),
-        scheduled_for=datetime.fromisoformat(quiz.tags["scheduled_for"])
-        if quiz.tags.get("scheduled_for")
-        else None,
-        expires_at=datetime.fromisoformat(quiz.tags["expires_at"])
-        if quiz.tags.get("expires_at")
-        else None,
-        status=quiz.tags.get("status", "draft"),
-        created_by=UUID(quiz.tags["created_by"]),
-        created_at=quiz.created_at,
-        published_at=datetime.fromisoformat(quiz.tags["published_at"])
-        if quiz.tags.get("published_at")
-        else None,
-        total_sent=quiz.tags.get("total_sent", 0),
-        total_accessed=quiz.tags.get("total_accessed", 0),
-        total_completed=quiz.tags.get("total_completed", 0),
-        completion_rate=quiz.tags.get("completion_rate", 0.0),
-    )
+    return _build_monthly_quiz_detail(quiz)

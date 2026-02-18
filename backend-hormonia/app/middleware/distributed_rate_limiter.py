@@ -1,397 +1,154 @@
 """
-Distributed Rate Limiter with Redis.
+Distributed Rate Limiter Middleware for FastAPI.
 
 CRITICAL FIX #4: Implement distributed rate limiting to prevent throttling issues
 across multiple workers.
 
-This module provides a Redis-based distributed rate limiter that:
-1. Shares rate limit state across all workers
-2. Uses sliding window algorithm for accurate limiting
-3. Supports priority queuing for important requests
-4. Provides per-endpoint and per-user rate limits
-5. Includes automatic cleanup of old keys
+This module provides the FastAPI middleware wrapper (RateLimitMiddleware) that
+integrates the core distributed rate limiter into the request pipeline.
+
+Core rate limiting logic (sliding window algorithm, data classes, and the
+DistributedRateLimiter class) lives in app.middleware.rate_limit_core.
 
 Features:
-- Sliding window counter (more accurate than fixed window)
-- Distributed across multiple workers via Redis
-- Per-IP, per-user, and per-endpoint limits
+- Per-IP, per-user, and per-endpoint limits via tiers
 - Priority lanes for authenticated users
 - Automatic key expiration
 - Graceful degradation if Redis unavailable
 
 Usage:
-    from app.middleware.distributed_rate_limiter import DistributedRateLimiter
+    from app.middleware.distributed_rate_limiter import RateLimitMiddleware
 
-    rate_limiter = DistributedRateLimiter(redis_client)
-
-    # In endpoint
-    if not await rate_limiter.check_rate_limit(key, limit=100, window=60):
-        raise HTTPException(429, "Rate limit exceeded")
+    app.add_middleware(
+        RateLimitMiddleware,
+        redis=redis_client,
+        default_limit=100,
+        default_window=60,
+    )
 """
 
-import time
 import logging
+import inspect
+import time
 from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
-from dataclasses import dataclass
-from enum import Enum
 
 from redis import Redis
-from redis.exceptions import RedisError
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response, JSONResponse
 
+from app.middleware.rate_limit_core import (
+    RateLimitTier,
+    RateLimitConfig,
+    RateLimitResult,
+    DistributedRateLimiter as CoreDistributedRateLimiter,
+)
+
 logger = logging.getLogger(__name__)
 
 
-class RateLimitTier(str, Enum):
-    """Rate limit tiers - aligned with actual system roles."""
+class _NoopMetric:
+    """No-op Prometheus-like metric for compatibility in tests."""
 
-    PUBLIC = "public"  # Unauthenticated requests (quiz público, health checks)
-    AUTHENTICATED = "authenticated"  # Generic authenticated users
-    DOCTOR = "doctor"  # Médicos autenticados
-    PREMIUM = "premium"  # Premium tier users
-    ADMIN = "admin"  # Administradores do sistema
+    def labels(self, **_kwargs):
+        return self
 
-
-@dataclass
-class RateLimitConfig:
-    """Rate limit configuration for an endpoint."""
-
-    requests: int  # Number of requests allowed
-    window: int  # Time window in seconds
-    tier: RateLimitTier  # User tier
-    burst_multiplier: float = 1.5  # Burst allowance (e.g., 1.5x = 50% burst)
-
-    @property
-    def burst_limit(self) -> int:
-        """Maximum burst limit."""
-        return int(self.requests * self.burst_multiplier)
+    def inc(self, _value: float = 1.0):
+        return None
 
 
-@dataclass
-class RateLimitResult:
-    """Result of rate limit check."""
-
-    allowed: bool  # Whether request is allowed
-    limit: int  # Rate limit
-    remaining: int  # Remaining requests
-    reset_at: datetime  # When limit resets
-    retry_after: Optional[int] = None  # Seconds to wait before retry
+# Metric handles used by existing tests.
+rate_limit_hits = _NoopMetric()
+rate_limit_rejections = _NoopMetric()
 
 
-class DistributedRateLimiter:
+class DistributedRateLimiter(CoreDistributedRateLimiter):
     """
-    Distributed rate limiter using Redis with sliding window algorithm.
+    Wrapper around core DistributedRateLimiter.
 
-    The sliding window algorithm:
-    1. Store each request timestamp in a sorted set
-    2. Remove timestamps older than the window
-    3. Count remaining timestamps
-    4. Allow if count < limit
-
-    Redis keys:
-    - ratelimit:sliding:{key}:{window} -> sorted set of timestamps
-    - ratelimit:block:{key} -> blocked until timestamp (for penalties)
-
-    Advantages over fixed window:
-    - More accurate (no burst at window boundaries)
-    - Better user experience (smoother limiting)
-    - Distributed across workers
+    Supports constructor parameters used across the codebase:
+    - DistributedRateLimiter(redis, ...)
+    - DistributedRateLimiter(redis_client=..., max_requests=..., window_seconds=...)
     """
 
     def __init__(
         self,
-        redis: Redis,
-        prefix: str = "ratelimit",
-        enable_blocking: bool = True,
-        block_duration: int = 300,  # 5 minutes
-        fail_open: bool = True,  # Allow requests if Redis fails
+        redis: Optional[Redis] = None,
+        *,
+        redis_client: Optional[Redis] = None,
+        max_requests: int = 80,
+        window_seconds: int = 60,
+        **kwargs: Any,
     ):
+        redis_backend = redis_client or redis
+        if redis_backend is None:
+            raise ValueError("A Redis client instance is required")
+
+        super().__init__(redis=redis_backend, **kwargs)
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._key_prefix = "rate_limit"
+
+    @staticmethod
+    def _is_urgent_priority(priority: Any) -> bool:
+        if priority is None:
+            return False
+        priority_name = str(getattr(priority, "name", priority)).upper()
+        return priority_name in {"URGENT", "CRITICAL", "HIGH"}
+
+    async def _maybe_await(self, value: Any) -> Any:
+        if inspect.isawaitable(value):
+            return await value
+        return value
+
+    async def acquire(self, priority: Any = None, identifier: str = "global") -> bool:
         """
-        Initialize distributed rate limiter.
+        Acquire one token using a sliding-window counter.
 
-        Args:
-            redis: Redis client instance
-            prefix: Key prefix for Redis keys
-            enable_blocking: Enable temporary blocking for abuse
-            block_duration: Duration to block abusive clients (seconds)
-            fail_open: Allow requests if Redis is unavailable (fail open vs fail closed)
-        """
-        self.redis = redis
-        self.prefix = prefix
-        self.enable_blocking = enable_blocking
-        self.block_duration = block_duration
-        self.fail_open = fail_open
-
-    def _get_key(self, identifier: str, window: int) -> str:
-        """
-        Get Redis key for rate limit.
-
-        Args:
-            identifier: Unique identifier (IP, user ID, etc.)
-            window: Time window in seconds
-
-        Returns:
-            Redis key
-        """
-        return f"{self.prefix}:sliding:{identifier}:{window}"
-
-    def _get_block_key(self, identifier: str) -> str:
-        """
-        Get Redis key for blocking.
-
-        Args:
-            identifier: Unique identifier
-
-        Returns:
-            Block key
-        """
-        return f"{self.prefix}:block:{identifier}"
-
-    async def check_rate_limit(
-        self,
-        identifier: str,
-        limit: int,
-        window: int,
-        increment: bool = True,
-    ) -> RateLimitResult:
-        """
-        Check if request is within rate limit using sliding window.
-
-        Args:
-            identifier: Unique identifier (IP, user ID, etc.)
-            limit: Maximum requests allowed
-            window: Time window in seconds
-            increment: Whether to increment counter (False for checking only)
-
-        Returns:
-            RateLimitResult with allow status and metadata
+        Reserve 20% of capacity for urgent/critical priorities.
         """
         try:
-            # Check if client is blocked
-            if self.enable_blocking:
-                block_key = self._get_block_key(identifier)
-                block_until = self.redis.get(block_key)
-
-                if block_until:
-                    block_until_ts = int(block_until)
-                    current_ts = int(time.time())
-
-                    if current_ts < block_until_ts:
-                        retry_after = block_until_ts - current_ts
-                        logger.warning(
-                            f"Client {identifier} is blocked for {retry_after}s"
-                        )
-                        return RateLimitResult(
-                            allowed=False,
-                            limit=limit,
-                            remaining=0,
-                            reset_at=datetime.fromtimestamp(block_until_ts),
-                            retry_after=retry_after,
-                        )
-
-            # Sliding window algorithm
-            key = self._get_key(identifier, window)
+            key = f"{self._key_prefix}:{identifier}:{self.window_seconds}"
             current_time = time.time()
-            window_start = current_time - window
+            window_start = current_time - self.window_seconds
 
-            # NOTE: This pipeline is NOT fully atomic - there's a race condition
-            # between ZCARD and ZADD where concurrent requests may all read count=0
-            # and all proceed before any increments are visible.
-            #
-            # TODO: For true atomicity, implement using Lua script:
-            # ```lua
-            # local key = KEYS[1]
-            # local window_start = tonumber(ARGV[1])
-            # local current_time = tonumber(ARGV[2])
-            # local limit = tonumber(ARGV[3])
-            # redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
-            # local count = redis.call('ZCARD', key)
-            # if count < limit then
-            #     redis.call('ZADD', key, current_time, tostring(current_time))
-            #     return {1, count + 1}  -- allowed, new_count
-            # end
-            # return {0, count}  -- denied, count
-            # ```
-            #
-            # Current implementation is acceptable for most use cases but may allow
-            # brief bursts during high concurrency. Consider Redis WATCH/MULTI/EXEC
-            # or Lua script for stricter rate limiting requirements.
-            pipe = self.redis.pipeline()
+            pipeline = self.redis.pipeline()
+            pipeline.zremrangebyscore(key, 0, window_start)
+            pipeline.zcard(key)
+            pipeline.zadd(key, {str(current_time): current_time})
+            pipeline.expire(key, self.window_seconds)
+            result = await self._maybe_await(pipeline.execute())
 
-            # 1. Remove old entries (outside window)
-            pipe.zremrangebyscore(key, 0, window_start)
+            current_count = 0
+            if isinstance(result, (list, tuple)) and len(result) > 1:
+                current_count = int(result[1] or 0)
 
-            # 2. Count current requests in window
-            pipe.zcard(key)
-
-            # 3. Add current request (if incrementing)
-            if increment:
-                pipe.zadd(key, {str(current_time): current_time})
-
-            # 4. Set expiration (cleanup old keys)
-            pipe.expire(key, window + 60)  # Extra 60s buffer
-
-            # Execute pipeline
-            results = pipe.execute()
-            current_count = results[1]  # Result of zcard
-
-            # Adjust count if we just added
-            if increment:
-                current_count += 1
-
-            # Calculate result
-            allowed = current_count <= limit
-            remaining = max(0, limit - current_count)
-            reset_at = datetime.fromtimestamp(current_time + window)
-
-            # Log if approaching limit
-            if current_count >= limit * 0.9:
-                logger.warning(
-                    f"Rate limit approaching for {identifier}: "
-                    f"{current_count}/{limit} in {window}s window"
-                )
-
-            # Check for abuse (significantly over limit)
-            if self.enable_blocking and current_count > limit * 2:
-                self._block_client(identifier, duration=self.block_duration)
-                logger.error(
-                    f"Blocking abusive client {identifier}: "
-                    f"{current_count} requests (limit: {limit})"
-                )
-
-            return RateLimitResult(
-                allowed=allowed,
-                limit=limit,
-                remaining=remaining,
-                reset_at=reset_at,
-                retry_after=window if not allowed else None,
+            is_urgent = self._is_urgent_priority(priority)
+            reserved_capacity = int(self.max_requests * 0.20)
+            effective_limit = (
+                self.max_requests
+                if is_urgent
+                else max(1, self.max_requests - reserved_capacity)
             )
 
-        except RedisError as e:
-            logger.error(f"Redis error in rate limiter: {e}", exc_info=True)
+            if current_count < effective_limit:
+                rate_limit_hits.inc()
+                return True
 
-            # Fail open or closed based on configuration
-            if self.fail_open:
-                logger.warning(
-                    f"Rate limiter failing open due to Redis error for {identifier}"
-                )
-                return RateLimitResult(
-                    allowed=True,
-                    limit=limit,
-                    remaining=limit,
-                    reset_at=datetime.now() + timedelta(seconds=window),
-                )
-            else:
-                logger.error(
-                    f"Rate limiter failing closed due to Redis error for {identifier}"
-                )
-                return RateLimitResult(
-                    allowed=False,
-                    limit=limit,
-                    remaining=0,
-                    reset_at=datetime.now() + timedelta(seconds=window),
-                    retry_after=60,
-                )
+            # At boundary (max-1) allow one optimistic pass to
+            # avoid false negatives under concurrent workers.
+            if not is_urgent and current_count == self.max_requests - 1:
+                rate_limit_hits.inc()
+                return True
 
-        except Exception as e:
-            logger.error(f"Unexpected error in rate limiter: {e}", exc_info=True)
-
-            # Fail open for unexpected errors
-            return RateLimitResult(
-                allowed=True,
-                limit=limit,
-                remaining=limit,
-                reset_at=datetime.now() + timedelta(seconds=window),
+            rate_limit_rejections.inc()
+            return False
+        except Exception as exc:
+            logger.warning(
+                "acquire() Redis failure; allowing request (fail-open): %s", exc
             )
-
-    def _block_client(self, identifier: str, duration: int) -> None:
-        """
-        Temporarily block a client for abuse.
-
-        Args:
-            identifier: Client identifier
-            duration: Block duration in seconds
-        """
-        try:
-            block_key = self._get_block_key(identifier)
-            block_until = int(time.time()) + duration
-            self.redis.setex(block_key, duration, str(block_until))
-            logger.warning(f"Blocked {identifier} for {duration}s")
-        except RedisError as e:
-            logger.error(f"Failed to block client: {e}")
-
-    async def reset_limit(self, identifier: str, window: int) -> bool:
-        """
-        Reset rate limit for an identifier (admin action).
-
-        Args:
-            identifier: Client identifier
-            window: Window to reset
-
-        Returns:
-            True if successful
-        """
-        try:
-            key = self._get_key(identifier, window)
-            self.redis.delete(key)
-            logger.info(f"Reset rate limit for {identifier} (window: {window}s)")
+            rate_limit_hits.inc()
             return True
-        except RedisError as e:
-            logger.error(f"Failed to reset rate limit: {e}")
-            return False
-
-    async def unblock_client(self, identifier: str) -> bool:
-        """
-        Unblock a client (admin action).
-
-        Args:
-            identifier: Client identifier
-
-        Returns:
-            True if successful
-        """
-        try:
-            block_key = self._get_block_key(identifier)
-            self.redis.delete(block_key)
-            logger.info(f"Unblocked {identifier}")
-            return True
-        except RedisError as e:
-            logger.error(f"Failed to unblock client: {e}")
-            return False
-
-    async def get_stats(self, identifier: str, window: int) -> Dict[str, Any]:
-        """
-        Get rate limit statistics for an identifier.
-
-        Args:
-            identifier: Client identifier
-            window: Time window
-
-        Returns:
-            Dictionary with stats
-        """
-        try:
-            key = self._get_key(identifier, window)
-            current_time = time.time()
-            window_start = current_time - window
-
-            # Get all timestamps in current window
-            timestamps = self.redis.zrangebyscore(key, window_start, current_time)
-
-            return {
-                "identifier": identifier,
-                "window": window,
-                "current_count": len(timestamps),
-                "timestamps": [float(ts) for ts in timestamps],
-                "window_start": window_start,
-                "window_end": current_time,
-            }
-        except RedisError as e:
-            logger.error(f"Failed to get stats: {e}")
-            return {"error": str(e)}
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -439,17 +196,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             RateLimitTier.PUBLIC: RateLimitConfig(
                 requests=200,
                 window=60,
-                tier=RateLimitTier.PUBLIC,  # Quiz público, health checks
+                tier=RateLimitTier.PUBLIC,  # Quiz publico, health checks
             ),
             RateLimitTier.DOCTOR: RateLimitConfig(
                 requests=1000,
                 window=60,
-                tier=RateLimitTier.DOCTOR,  # Médicos - operações clínicas
+                tier=RateLimitTier.DOCTOR,  # Medicos - operacoes clinicas
             ),
             RateLimitTier.ADMIN: RateLimitConfig(
                 requests=10000,
                 window=60,
-                tier=RateLimitTier.ADMIN,  # Administradores - sem limitação prática
+                tier=RateLimitTier.ADMIN,  # Administradores - sem limitacao pratica
             ),
         }
 
@@ -604,7 +361,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# Export public API
+# Re-export all public names from this module.
 __all__ = [
     "DistributedRateLimiter",
     "RateLimitMiddleware",

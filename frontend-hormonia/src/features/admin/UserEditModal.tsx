@@ -23,6 +23,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import {
+  validateEmailField,
+  validateFullNameField,
+  validatePasswordConfirmation,
+  validatePasswordPolicy
+} from './utils/userFormValidation'
 
 interface UserEditModalProps {
   open: boolean
@@ -132,7 +138,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
       // Return generated password for display
       return { temporary_password: tempPassword }
     },
-    onSuccess: (response) => {
+    onSuccess: (response: { temporary_password: string }) => {
       toast({
         title: 'Senha redefinida com sucesso',
         description: `Nova senha temporária: ${response.temporary_password}`,
@@ -151,40 +157,14 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {}
 
-    // Email validation
-    const email = form['email']
-    if (!email) {
-      errors['email'] = 'Email é obrigatório'
-    } else if (typeof email === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors['email'] = 'Email inválido'
-    }
-
-    // Name validation
-    const fullName = form['full_name']
-    if (typeof fullName === 'string') {
-      if (!fullName.trim()) {
-        errors['full_name'] = 'Nome completo é obrigatório'
-      } else if (fullName.trim().length < 2) {
-        errors['full_name'] = 'Nome deve ter pelo menos 2 caracteres'
-      }
-    }
+    validateEmailField(form['email'], errors)
+    validateFullNameField(form['full_name'], errors)
 
     // Password validation (only if provided)
     const newPassword = form['new_password']
     if (newPassword) {
-      if (typeof newPassword === 'string') {
-        if (newPassword.length < 8) {
-          errors['new_password'] = 'Senha deve ter pelo menos 8 caracteres'
-        } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newPassword)) {
-          errors['new_password'] = 'Senha deve conter pelo menos uma letra minúscula, uma maiúscula e um número'
-        }
-
-        // Confirm password validation
-        const confirmPassword = form['confirm_password']
-        if (newPassword !== confirmPassword) {
-          errors['confirm_password'] = 'Senhas não coincidem'
-        }
-      }
+      validatePasswordPolicy(newPassword, errors, 'new_password')
+      validatePasswordConfirmation(newPassword, form['confirm_password'], errors)
     }
 
     setValidationErrors(errors)

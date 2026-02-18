@@ -718,7 +718,7 @@ async def _move_to_dlq(self, message: OrderedMessage) -> None:
     "message": "Request timeout after 30s",
     "retry_scheduled": True,
     "retry_count": 2,
-    "next_retry_at": "2024-01-15T10:30:00Z"
+    "next_retry_at": "2024-01-15T10:30:00-03:00"
 }
 ```
 
@@ -967,7 +967,7 @@ async def health_check(self) -> Dict[str, Any]:
     {
         "service": "evolution_api",
         "healthy": true/false,
-        "timestamp": "2024-01-15T10:00:00Z",
+        "timestamp": "2024-01-15T10:00:00-03:00",
         "details": {
             "instance_name": "clinica_oncologica",
             "base_url": "http://localhost:8080",

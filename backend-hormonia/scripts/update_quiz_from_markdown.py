@@ -8,6 +8,19 @@ import re
 from app.database import get_db
 from app.models.quiz import QuizTemplate
 
+HELP_TEXT_BY_QNUM = {
+    "2.4": (
+        "Se sim, onde sente essa dor?\n"
+        "Com que frequência acontece?\n"
+        "Qual a intensidade de 0 a 10?\n"
+        "Alguma coisa alivia ou piora?"
+    ),
+    "5.4": (
+        "Exemplo: chá de hibisco, maca peruana, cúrcuma, colágeno, isoflavonas, etc.\n"
+        "O que você consome? Tem dúvidas sobre algo?"
+    ),
+}
+
 def parse_markdown_quiz(filepath):
     """Parse the markdown quiz file and extract questions"""
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -67,6 +80,7 @@ def parse_markdown_quiz(filepath):
                 if opt_text and not opt_text.startswith('[') and not opt_text.lower().startswith('outro'):
                     options.append({
                         "label": opt_text,
+                        "text": opt_text,
                         "value": opt_text[:50].lower().replace(' ', '_').replace(',', '').replace('.', '')
                     })
             
@@ -93,6 +107,10 @@ def parse_markdown_quiz(filepath):
                 "required": True,
                 "allow_other": allow_other
             }
+
+            help_text = HELP_TEXT_BY_QNUM.get(q_num)
+            if help_text:
+                question["description"] = help_text
             
             questions.append(question)
             print(f"Q{len(questions)}: [{q_type}] {q_text[:50]}...")

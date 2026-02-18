@@ -73,7 +73,14 @@ class TestDatabaseInitializer:
     async def test_validate_connection(self):
         """Test database connection validation"""
         with patch('app.database.AsyncSessionLocal') as mock_session:
-            mock_session.return_value.__aenter__.return_value.execute = AsyncMock()
+            mock_result = Mock()
+            mock_result.scalar.side_effect = [
+                "PostgreSQL 15.4",
+                True,
+            ]
+            mock_session.return_value.__aenter__.return_value.execute = AsyncMock(
+                return_value=mock_result
+            )
 
             from scripts.init_database import DatabaseInitializer
 
@@ -81,7 +88,7 @@ class TestDatabaseInitializer:
             await initializer._validate_connection()
 
             # Should succeed with mocked connection
-            assert True
+            assert mock_session.return_value.__aenter__.return_value.execute.await_count >= 2
 
     @pytest.mark.asyncio
     async def test_validate_schema(self):
@@ -197,16 +204,16 @@ class TestHealthChecker:
     @pytest.mark.asyncio
     async def test_redis_health_check(self):
         """Test Redis health check"""
-        with patch('app.core.redis_manager.RedisManager') as mock_redis:
-            mock_manager = AsyncMock()
-            mock_manager.ping.return_value = 'PONG'
-            mock_manager.get_redis_info.return_value = {
+        with patch('app.core.redis_manager.get_async_redis_client', new_callable=AsyncMock) as mock_get_client:
+            mock_client = AsyncMock()
+            mock_client.ping.return_value = 'PONG'
+            mock_client.info.return_value = {
                 'connected_clients': '5',
                 'used_memory': '1048576',
                 'uptime_in_seconds': '3600'
             }
-            mock_manager.get.return_value = 'ok'
-            mock_redis.return_value = mock_manager
+            mock_client.get.return_value = 'ok'
+            mock_get_client.return_value = mock_client
 
             from scripts.health_check import HealthChecker
 

@@ -8,7 +8,7 @@ Endpoints:
 """
 
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from uuid import UUID
 from collections import defaultdict
 import logging
@@ -25,20 +25,21 @@ from app.schemas.v2.tasks import (
 from app.dependencies.auth_dependencies import get_generic_cache
 from app.utils.rate_limiter import limiter
 from app.utils.task_monitoring import get_task_monitoring_data
-from app.api.v2 import tasks as tasks_module
-from app.task_queue import get_task as get_stored_task
-from app.task_queue import list_tasks as list_stored_tasks
-from app.config import settings
+from app.api.v2.routers import tasks as tasks_module
 
 from ..dependencies import (
     _get_current_user_simple,
     _extract_user_role,
     _check_admin_role,
+    _get_task_or_404,
+    _get_task_with_celery_data,
 )
+from ..registry import hydrate_registry_from_store
 from ..utils import (
     CACHE_TTL_STATISTICS,
     CACHE_TTL_QUEUE_STATUS,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -67,23 +68,7 @@ async def get_task_logs(
     Rate limit: 60 requests/minute
     """
     try:
-        # Find task
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            task_data = get_stored_task(task_id)
-            celery_task_id = task_id
-        else:
-            celery_task_id = None
-            task_data = None
-            for cid, data in tasks_module.task_registry.items():
-                if data.get("id") == task_id:
-                    celery_task_id = cid
-                    task_data = data
-                    break
-
-        if not task_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
-            )
+        celery_task_id, task_data = _get_task_or_404(task_id)
 
         # Check RBAC
         role = _extract_user_role(current_user)
@@ -107,8 +92,8 @@ async def get_task_logs(
         logs = logs[:limit]
 
         # Get task data
-        celery_data = tasks_module._get_task_from_celery(celery_task_id)
-        merged_data = {**task_data, **celery_data, "logs": logs}
+        merged_data = _get_task_with_celery_data(celery_task_id, task_data)
+        merged_data["logs"] = logs
 
         return merged_data
 
@@ -157,45 +142,32 @@ async def get_task_statistics(
             return TaskStatisticsV2(**cached_data)
 
         # Calculate date range
-        end_date = datetime.now(timezone.utc)
+        end_date = now_sao_paulo()
         start_date = end_date - timedelta(hours=hours)
 
         # Filter tasks
         role = _extract_user_role(current_user)
         current_user_id = UUID(current_user.get("id"))
+        hydrate_registry_from_store()
 
         filtered_tasks = []
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            source_tasks = list_stored_tasks()
-            for task_data in source_tasks:
-                if role != UserRole.ADMIN:
-                    task_user_id = task_data.get("user_id")
-                    if not task_user_id or UUID(task_user_id) != current_user_id:
-                        continue
+        for celery_task_id, task_data in tasks_module.task_registry.items():
+            if role != UserRole.ADMIN:
+                task_user_id = task_data.get("user_id")
+                if not task_user_id or UUID(task_user_id) != current_user_id:
+                    continue
 
-                created_at = task_data.get("created_at")
-                if isinstance(created_at, str):
-                    try:
-                        created_at = datetime.fromisoformat(created_at)
-                    except ValueError:
-                        created_at = None
+            created_at = task_data.get("created_at")
+            if isinstance(created_at, str):
+                try:
+                    created_at = datetime.fromisoformat(created_at)
+                except ValueError:
+                    created_at = None
 
-                if isinstance(created_at, datetime) and start_date <= created_at <= end_date:
-                    filtered_tasks.append(task_data)
-        else:
-            for celery_task_id, task_data in tasks_module.task_registry.items():
-                if role != UserRole.ADMIN:
-                    task_user_id = task_data.get("user_id")
-                    if not task_user_id or UUID(task_user_id) != current_user_id:
-                        continue
-
-                created_at = task_data.get("created_at")
-                if (
-                    isinstance(created_at, datetime)
-                    and start_date <= created_at <= end_date
-                ):
-                    celery_data = tasks_module._get_task_from_celery(celery_task_id)
-                    filtered_tasks.append({**task_data, **celery_data})
+            if isinstance(created_at, datetime) and start_date <= created_at <= end_date:
+                filtered_tasks.append(
+                    _get_task_with_celery_data(celery_task_id, task_data)
+                )
 
         # Calculate statistics
         total_tasks = len(filtered_tasks)
@@ -307,60 +279,36 @@ async def get_queue_status(
             logger.debug("Cache hit for queue status")
             return [QueueStatusV2(**q) for q in cached_data]
 
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            from google.cloud import tasks_v2
+        monitoring_data = get_task_monitoring_data()
+        queues = {}
 
-            client = tasks_v2.CloudTasksClient()
-            queue_path = client.queue_path(
-                settings.CLOUD_TASKS_PROJECT_ID,
-                settings.CLOUD_TASKS_LOCATION,
-                settings.CLOUD_TASKS_QUEUE,
+        for task in monitoring_data.get("active_tasks", []):
+            queue_name = task.get("delivery_info", {}).get("routing_key", "celery")
+            if queue_name not in queues:
+                queues[queue_name] = {
+                    "queue_name": queue_name,
+                    "pending_count": 0,
+                    "active_count": 0,
+                    "workers": set(),
+                    "processing_times": [],
+                }
+
+            queues[queue_name]["active_count"] += 1
+            queues[queue_name]["workers"].add(task.get("worker"))
+
+        queue_list = [
+            QueueStatusV2(
+                queue_name=q["queue_name"],
+                pending_count=q["pending_count"],
+                active_count=q["active_count"],
+                workers=list(q["workers"]),
+                avg_processing_time=sum(q["processing_times"])
+                / len(q["processing_times"])
+                if q["processing_times"]
+                else None,
             )
-            queue = client.get_queue(name=queue_path)
-            pending_count = 0
-            if queue.stats:
-                pending_count = int(queue.stats.tasks_count or 0)
-
-            queue_list = [
-                QueueStatusV2(
-                    queue_name=settings.CLOUD_TASKS_QUEUE,
-                    pending_count=pending_count,
-                    active_count=0,
-                    workers=[],
-                    avg_processing_time=None,
-                )
-            ]
-        else:
-            monitoring_data = get_task_monitoring_data()
-            queues = {}
-
-            for task in monitoring_data.get("active_tasks", []):
-                queue_name = task.get("delivery_info", {}).get("routing_key", "celery")
-                if queue_name not in queues:
-                    queues[queue_name] = {
-                        "queue_name": queue_name,
-                        "pending_count": 0,
-                        "active_count": 0,
-                        "workers": set(),
-                        "processing_times": [],
-                    }
-
-                queues[queue_name]["active_count"] += 1
-                queues[queue_name]["workers"].add(task.get("worker"))
-
-            queue_list = [
-                QueueStatusV2(
-                    queue_name=q["queue_name"],
-                    pending_count=q["pending_count"],
-                    active_count=q["active_count"],
-                    workers=list(q["workers"]),
-                    avg_processing_time=sum(q["processing_times"])
-                    / len(q["processing_times"])
-                    if q["processing_times"]
-                    else None,
-                )
-                for q in queues.values()
-            ]
+            for q in queues.values()
+        ]
 
         # Cache result
         await redis_cache.set(

@@ -19,8 +19,8 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy import or_
 from pydantic import BaseModel, Field
 
@@ -284,7 +284,7 @@ async def list_users(
 
 
 @router.get(
-    "/users/{user_id}",
+    "/users/{user_id:uuid}",
     response_model=UserResponse,
     summary="Get User Details",
     description="Retrieve detailed information about a specific user. Cached for 10 minutes.",
@@ -432,7 +432,7 @@ async def create_user(
 
 
 @router.put(
-    "/users/{user_id}",
+    "/users/{user_id:uuid}",
     response_model=UserResponse,
     summary="Update User",
     description="Update user information with cache invalidation.",
@@ -535,7 +535,7 @@ async def update_user(
 
 
 @router.delete(
-    "/users/{user_id}",
+    "/users/{user_id:uuid}",
     response_model=UserActionResponse,
     summary="Delete User (Soft Delete)",
     description="Soft delete (deactivate) a user account.",
@@ -795,8 +795,7 @@ async def export_users(
         writer = csv.DictWriter(output, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
-        output.seek(0)
-        return StreamingResponse(output, media_type="text/csv")
+        return Response(content=output.getvalue(), media_type="text/csv")
 
     if export_format == "json":
         return JSONResponse(content=rows, media_type="application/json")

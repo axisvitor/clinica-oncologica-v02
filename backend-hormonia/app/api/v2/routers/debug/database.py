@@ -28,10 +28,12 @@ from app.schemas.v2.debug import (
 
 from .common import (
     check_debug_enabled,
+    require_debug_enabled,
     get_admin_user,
     log_debug_operation,
     sanitize_sql_query,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -44,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 @router.get(
     "/database",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Get database diagnostics",
     description="""
@@ -104,7 +107,7 @@ async def get_database_diagnostics(
             pool_info=pool_info,
             response_time_ms=response_time_ms,
             error=error_msg,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
         # Audit log
@@ -124,7 +127,7 @@ async def get_database_diagnostics(
             success=True,
             data=diagnostics.dict(),
             audit_logged=True,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
     except Exception as e:
@@ -137,6 +140,7 @@ async def get_database_diagnostics(
 
 @router.post(
     "/test-query",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Test SQL query execution",
     description="""
@@ -178,9 +182,11 @@ async def test_sql_query(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Timeout must be between 0.1 and 3600 seconds"
                 )
-            # Use parameterized query with bindparam for SET statement
-            # PostgreSQL SET LOCAL with parameter binding via format_map
-            db.execute(text("SET LOCAL statement_timeout = :timeout_ms"), {"timeout_ms": timeout_ms})
+            # Use set_config with parameter binding to avoid SQL interpolation.
+            db.execute(
+                text("SELECT set_config('statement_timeout', :statement_timeout, true)"),
+                {"statement_timeout": f"{timeout_ms}ms"},
+            )
 
             # Execute query
             result = db.execute(text(query_request.query))
@@ -239,7 +245,7 @@ async def test_sql_query(
             success=test_result.success,
             data=test_result.dict(),
             audit_logged=True,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
     except Exception as e:

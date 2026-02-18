@@ -4,7 +4,7 @@
 
 | Name | Type | Nullable | Default | PK | FK |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **status** | `VARCHAR(9)` | ❌ | - |  |  |
+| **status** | `ENUM(healthstatus)` | ❌ | - |  |  |
 | **health_score** | `DOUBLE PRECISION` | ❌ | - |  |  |
 | **services_status** | `JSONB` | ❌ | - |  |  |
 | **metrics** | `JSONB` | ❌ | - |  |  |

@@ -12,6 +12,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ApiClientCore } from '@/lib/api-client/core'
 
+const seedCsrfToken = (client: ApiClientCore) => {
+  ;(client as unknown as { csrfToken: string | null }).csrfToken = 'csrf-test-token'
+}
+
 describe('ApiClientCore - Empty Response Handling', () => {
   let originalFetch: typeof global.fetch
   
@@ -38,6 +42,7 @@ describe('ApiClientCore - Empty Response Handling', () => {
     global.fetch = mockFetch
     
     const client = new ApiClientCore('http://test.com')
+    seedCsrfToken(client)
     const result = await client.delete('/api/v2/patients/123')
     
     // Should return undefined, not throw error
@@ -59,6 +64,7 @@ describe('ApiClientCore - Empty Response Handling', () => {
     global.fetch = mockFetch
     
     const client = new ApiClientCore('http://test.com')
+    seedCsrfToken(client)
     const result = await client.post('/api/v2/reset')
     
     expect(result).toBeUndefined()
@@ -131,6 +137,7 @@ describe('ApiClientCore - Empty Response Handling', () => {
     global.fetch = mockFetch
     
     const client = new ApiClientCore('http://test.com')
+    seedCsrfToken(client)
     
     // Should NOT throw "Unexpected end of JSON input"
     await expect(client.delete('/api/v2/patients/123')).resolves.toBeUndefined()
@@ -147,6 +154,7 @@ describe('ApiClientCore - Empty Response Handling', () => {
     global.fetch = mockFetch
     
     const client = new ApiClientCore('http://test.com')
+    seedCsrfToken(client)
     const result = await client.delete('/api/v2/quiz/456')
     
     expect(result).toBeUndefined()
@@ -164,6 +172,7 @@ describe('ApiClientCore - Empty Response Handling', () => {
     global.fetch = mockFetch
     
     const client = new ApiClientCore('http://test.com')
+    seedCsrfToken(client)
     const result = await client.delete('/api/v2/resource')
     
     expect(result).toBeUndefined()
@@ -192,6 +201,7 @@ describe('ApiClientCore - Integration with API Methods', () => {
     global.fetch = mockFetch
     
     const client = new ApiClientCore('http://test.com')
+    seedCsrfToken(client)
     
     // Simulate DELETE /api/v2/patients/123
     const result = await client.request('/api/v2/patients/123', {
@@ -214,6 +224,7 @@ describe('ApiClientCore - Integration with API Methods', () => {
     global.fetch = mockFetch
     
     const client = new ApiClientCore('http://test.com')
+    seedCsrfToken(client)
     const result = await client.post('/api/v2/patients', { name: 'New Resource' })
     
     expect(result).toEqual(createdResource)

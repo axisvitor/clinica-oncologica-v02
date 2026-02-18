@@ -49,7 +49,7 @@ describe('useSystemStats', () => {
             id: '1',
             patient_name: 'João Silva',
             content: 'Consulta agendada',
-            timestamp: '2025-10-10T10:30:00Z',
+            timestamp: '2025-10-10T10:30:00-03:00',
           },
         ],
         recent_alerts: [
@@ -58,7 +58,7 @@ describe('useSystemStats', () => {
             patient_name: 'Maria Santos',
             severity: 'high',
             message: 'Alerta de medicação',
-            timestamp: '2025-10-10T11:00:00Z',
+            timestamp: '2025-10-10T11:00:00-03:00',
           },
         ],
         recent_quiz_completions: [
@@ -67,7 +67,7 @@ describe('useSystemStats', () => {
             patient_name: 'Pedro Costa',
             quiz_name: 'Avaliação Mensal',
             score: 85,
-            completed_at: '2025-10-10T09:00:00Z',
+            completed_at: '2025-10-10T09:00:00-03:00',
           },
         ],
         engagement_chart: [

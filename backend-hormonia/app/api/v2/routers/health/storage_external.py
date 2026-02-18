@@ -9,9 +9,9 @@ import psutil
 
 from fastapi import APIRouter, Depends
 
-from app.dependencies.auth_dependencies import get_current_user
 from app.models.user import User
 from app.schemas.v2.health import StorageHealth, HealthStatus
+from .compat import call_health_attr, get_current_user_compat
 
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ async def check_storage_health() -> StorageHealth:
 
 @router.get("/storage", response_model=StorageHealth)
 async def storage_health_check(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_compat),
 ) -> StorageHealth:
     """
     Storage health check (Authenticated).
@@ -62,4 +62,4 @@ async def storage_health_check(
     Returns disk space and utilization metrics.
     Cached for 2 minutes.
     """
-    return await check_storage_health()
+    return await call_health_attr("check_storage_health", check_storage_health)

@@ -18,11 +18,7 @@ from uuid import uuid4
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from fastapi import status
-from fastapi.testclient import TestClient
-
-from app.main import app
-
-
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Fixtures
 # ============================================================================
@@ -30,7 +26,7 @@ from app.main import app
 @pytest.fixture
 def mock_redis():
     """Mock Redis client."""
-    with patch("app.core.redis_unified.get_async_redis") as mock:
+    with patch("app.core.redis_manager.get_async_redis_client") as mock:
         redis_mock = AsyncMock()
         redis_mock.get = AsyncMock(return_value=None)
         redis_mock.setex = AsyncMock()
@@ -71,12 +67,6 @@ def mock_current_user_doctor():
     }
 
 
-@pytest.fixture
-def client():
-    """Test client."""
-    return TestClient(app)
-
-
 # ============================================================================
 # Report Builder Tests
 # ============================================================================
@@ -86,8 +76,8 @@ class TestReportBuilder:
 
     def test_build_custom_report_success(self, client, mock_redis, mock_db, mock_current_user_doctor):
         """Test successful custom report building."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db):
 
             request_data = {
                 "name": "Custom Patient Report",
@@ -121,7 +111,7 @@ class TestReportBuilder:
 
     def test_build_report_invalid_data_source(self, client, mock_current_user_doctor):
         """Test report builder with invalid data source."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor):
 
             request_data = {
                 "name": "Invalid Report",
@@ -141,8 +131,8 @@ class TestReportBuilder:
 
     def test_build_report_with_grouping_and_sorting(self, client, mock_redis, mock_db, mock_current_user_admin):
         """Test report builder with grouping and sorting."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db):
 
             request_data = {
                 "name": "Grouped Report",
@@ -174,8 +164,8 @@ class TestReportBuilder:
             "generation_time_seconds": 2.0
         }
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports._get_cached_result", return_value=cached_report):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports._get_cached_result", return_value=cached_report):
 
             response = client.get(f"/api/v2/enhanced-reports/builder/{builder_id}")
 
@@ -196,8 +186,8 @@ class TestReportBuilder:
             ]
         }
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports._get_cached_result", return_value=cached_report):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports._get_cached_result", return_value=cached_report):
 
             response = client.get(f"/api/v2/enhanced-reports/builder/{builder_id}/download?format=csv")
 
@@ -214,9 +204,9 @@ class TestVisualizations:
 
     def test_create_line_chart_visualization(self, client, mock_redis, mock_db, mock_current_user_doctor):
         """Test creating line chart visualization."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=True):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=True):
 
             request_data = {
                 "report_id": str(uuid4()),
@@ -240,9 +230,9 @@ class TestVisualizations:
 
     def test_create_pie_chart_visualization(self, client, mock_redis, mock_db, mock_current_user_admin):
         """Test creating pie chart visualization."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=True):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=True):
 
             request_data = {
                 "report_id": str(uuid4()),
@@ -263,9 +253,9 @@ class TestVisualizations:
 
     def test_create_visualization_access_denied(self, client, mock_redis, mock_db, mock_current_user_doctor):
         """Test visualization creation with access denied."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=False):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=False):
 
             request_data = {
                 "report_id": str(uuid4()),
@@ -288,8 +278,8 @@ class TestVisualizations:
             "data": {"labels": [], "data": []}
         }
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports._get_cached_result", return_value=cached_viz):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports._get_cached_result", return_value=cached_viz):
 
             response = client.get(f"/api/v2/enhanced-reports/visualizations/{viz_id}")
 
@@ -301,8 +291,8 @@ class TestVisualizations:
         """Test deleting visualization."""
         viz_id = uuid4()
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db):
 
             response = client.delete(f"/api/v2/enhanced-reports/visualizations/{viz_id}")
 
@@ -318,9 +308,9 @@ class TestScheduledDelivery:
 
     def test_create_email_delivery_schedule(self, client, mock_redis, mock_db, mock_current_user_doctor):
         """Test creating email delivery schedule."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=True):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=True):
 
             request_data = {
                 "report_id": str(uuid4()),
@@ -331,7 +321,7 @@ class TestScheduledDelivery:
                     "frequency": "weekly",
                     "start_date": "2024-01-01",
                     "time_of_day": "09:00",
-                    "timezone": "UTC",
+                    "timezone": "America/Sao_Paulo",
                     "day_of_week": 1  # Monday
                 },
                 "email_config": {
@@ -352,9 +342,9 @@ class TestScheduledDelivery:
 
     def test_create_webhook_delivery_schedule(self, client, mock_redis, mock_db, mock_current_user_admin):
         """Test creating webhook delivery schedule."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=True):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=True):
 
             request_data = {
                 "report_id": str(uuid4()),
@@ -382,7 +372,7 @@ class TestScheduledDelivery:
 
     def test_create_delivery_missing_email_config(self, client, mock_current_user_doctor):
         """Test creating email delivery without email config."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor):
 
             request_data = {
                 "report_id": str(uuid4()),
@@ -410,8 +400,8 @@ class TestScheduledDelivery:
             "is_active": True
         }
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports._get_cached_result", return_value=cached_schedule):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports._get_cached_result", return_value=cached_schedule):
 
             response = client.get(f"/api/v2/enhanced-reports/delivery/schedules/{schedule_id}")
 
@@ -423,8 +413,8 @@ class TestScheduledDelivery:
         """Test deleting delivery schedule."""
         schedule_id = uuid4()
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db):
 
             response = client.delete(f"/api/v2/enhanced-reports/delivery/schedules/{schedule_id}")
 
@@ -440,9 +430,9 @@ class TestReportSharing:
 
     def test_share_report_with_users(self, client, mock_redis, mock_db, mock_current_user_doctor):
         """Test sharing report with multiple users."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=True):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=True):
 
             user_ids = [str(uuid4()), str(uuid4()), str(uuid4())]
             request_data = {
@@ -461,11 +451,11 @@ class TestReportSharing:
 
     def test_share_report_with_expiration(self, client, mock_redis, mock_db, mock_current_user_admin):
         """Test sharing report with expiration date."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=True):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=True):
 
-            expires_at = (datetime.utcnow() + timedelta(days=7)).isoformat()
+            expires_at = (now_sao_paulo_naive() + timedelta(days=7)).isoformat()
             request_data = {
                 "report_id": str(uuid4()),
                 "user_ids": [str(uuid4())],
@@ -481,9 +471,9 @@ class TestReportSharing:
 
     def test_create_public_link(self, client, mock_redis, mock_db, mock_current_user_doctor):
         """Test creating public shareable link."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=True):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=True):
 
             request_data = {
                 "report_id": str(uuid4()),
@@ -503,7 +493,7 @@ class TestReportSharing:
 
     def test_create_public_link_without_password(self, client, mock_current_user_doctor):
         """Test creating password-protected link without password."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor):
 
             request_data = {
                 "report_id": str(uuid4()),
@@ -525,9 +515,9 @@ class TestMultiFormatExport:
 
     def test_export_multiple_formats(self, client, mock_redis, mock_db, mock_current_user_doctor):
         """Test exporting report in multiple formats."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=True):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=True):
 
             request_data = {
                 "report_id": str(uuid4()),
@@ -550,9 +540,9 @@ class TestMultiFormatExport:
 
     def test_export_single_format(self, client, mock_redis, mock_db, mock_current_user_admin):
         """Test exporting report in single format."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=True):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=True):
 
             request_data = {
                 "report_id": str(uuid4()),
@@ -577,8 +567,8 @@ class TestMultiFormatExport:
             }
         }
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports._get_cached_result", return_value=cached_export):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports._get_cached_result", return_value=cached_export):
 
             response = client.get(f"/api/v2/enhanced-reports/export/{export_id}")
 
@@ -596,8 +586,8 @@ class TestMultiFormatExport:
             "formats": ["pdf"]
         }
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports._get_cached_result", return_value=cached_export):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports._get_cached_result", return_value=cached_export):
 
             response = client.get(f"/api/v2/enhanced-reports/export/{export_id}/download?format=pdf")
 
@@ -616,9 +606,9 @@ class TestReportVersioning:
         """Test getting report version history."""
         report_id = uuid4()
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=True):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=True):
 
             response = client.get(f"/api/v2/enhanced-reports/reports/{report_id}/history")
 
@@ -632,9 +622,9 @@ class TestReportVersioning:
         """Test restoring previous report version."""
         report_id = uuid4()
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=True):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=True):
 
             request_data = {
                 "report_id": str(report_id),
@@ -659,8 +649,8 @@ class TestDashboards:
 
     def test_create_dashboard(self, client, mock_redis, mock_db, mock_current_user_doctor):
         """Test creating interactive dashboard."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db):
 
             request_data = {
                 "name": "Patient Overview Dashboard",
@@ -699,8 +689,8 @@ class TestDashboards:
 
     def test_create_public_dashboard(self, client, mock_redis, mock_db, mock_current_user_admin):
         """Test creating public dashboard."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db):
 
             request_data = {
                 "name": "Public Metrics Dashboard",
@@ -736,8 +726,8 @@ class TestDashboards:
             "view_count": 10
         }
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports._get_cached_result", return_value=cached_dashboard):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports._get_cached_result", return_value=cached_dashboard):
 
             response = client.get(f"/api/v2/enhanced-reports/dashboards/{dashboard_id}")
 
@@ -755,9 +745,9 @@ class TestDashboards:
             "widgets": []
         }
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._get_cached_result", return_value=existing_dashboard):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._get_cached_result", return_value=existing_dashboard):
 
             update_data = {
                 "name": "Updated Dashboard Name",
@@ -775,8 +765,8 @@ class TestDashboards:
         """Test deleting dashboard."""
         dashboard_id = uuid4()
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db):
 
             response = client.delete(f"/api/v2/enhanced-reports/dashboards/{dashboard_id}")
 
@@ -786,8 +776,8 @@ class TestDashboards:
         """Test creating dashboard snapshot."""
         dashboard_id = uuid4()
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db):
 
             request_data = {
                 "dashboard_id": str(dashboard_id),
@@ -820,8 +810,8 @@ class TestCaching:
             "row_count": 50
         }
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports._get_cached_result", return_value=cached_report):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports._get_cached_result", return_value=cached_report):
 
             response = client.get(f"/api/v2/enhanced-reports/builder/{builder_id}")
 
@@ -837,8 +827,8 @@ class TestCaching:
             "data": {}
         }
 
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports._get_cached_result", return_value=cached_viz):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports._get_cached_result", return_value=cached_viz):
 
             response = client.get(f"/api/v2/enhanced-reports/visualizations/{viz_id}")
 
@@ -854,9 +844,9 @@ class TestPermissions:
 
     def test_doctor_cannot_access_other_reports(self, client, mock_redis, mock_db, mock_current_user_doctor):
         """Test that doctors cannot access other doctors' reports."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db), \
-             patch("app.api.v2.enhanced_reports._check_report_access", return_value=False):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_doctor), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db), \
+             patch("app.api.v2.routers.enhanced_reports._check_report_access", return_value=False):
 
             request_data = {
                 "report_id": str(uuid4()),
@@ -872,8 +862,8 @@ class TestPermissions:
 
     def test_admin_has_full_access(self, client, mock_redis, mock_db, mock_current_user_admin):
         """Test that admin has access to all reports."""
-        with patch("app.api.v2.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
-             patch("app.api.v2.enhanced_reports.get_db", return_value=mock_db):
+        with patch("app.api.v2.routers.enhanced_reports.get_current_user_from_session", return_value=mock_current_user_admin), \
+             patch("app.api.v2.routers.enhanced_reports.get_db", return_value=mock_db):
 
             # Admin should have access automatically
             response = client.get(f"/api/v2/enhanced-reports/reports/{uuid4()}/history")

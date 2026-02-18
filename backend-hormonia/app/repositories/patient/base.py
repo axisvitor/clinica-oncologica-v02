@@ -51,9 +51,9 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         """Lazy load Redis client for caching"""
         if self._redis_client is None:
             try:
-                from app.core.redis_unified import get_redis_client
+                from app.core.redis_client import get_redis_client as get_sync_redis_client
 
-                self._redis_client = get_redis_client("sync")
+                self._redis_client = get_sync_redis_client()
             except Exception as e:
                 # Redis optional - gracefully degrade if unavailable
                 logger.debug(f"Redis client not available, caching disabled: {e}")
@@ -84,6 +84,13 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         cpf = data.pop("cpf", None)
         is_active = data.pop("is_active", None)
         timezone = data.pop("timezone", None)
+
+        allergies_present = "allergies" in data
+        current_medications_present = "current_medications" in data
+        comorbidities_present = "comorbidities" in data
+        blood_type_present = "blood_type" in data
+        emergency_contact_name_present = "emergency_contact_name" in data
+        emergency_contact_phone_present = "emergency_contact_phone" in data
 
         allergies = data.pop("allergies", None)
         current_medications = data.pop("current_medications", None)
@@ -207,6 +214,12 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         cpf_present = "cpf" in data
         is_active_present = "is_active" in data
         timezone_present = "timezone" in data
+        allergies_present = "allergies" in data
+        current_medications_present = "current_medications" in data
+        comorbidities_present = "comorbidities" in data
+        blood_type_present = "blood_type" in data
+        emergency_contact_name_present = "emergency_contact_name" in data
+        emergency_contact_phone_present = "emergency_contact_phone" in data
 
         phone = data.pop("phone", None)
         email = data.pop("email", None)
@@ -226,12 +239,12 @@ class PatientRepositoryBase(BaseRepository[Patient]):
 
         clinical_fields_present = any(
             [
-                allergies,
-                current_medications,
-                comorbidities,
-                blood_type,
-                emergency_contact_name,
-                emergency_contact_phone,
+                allergies_present,
+                current_medications_present,
+                comorbidities_present,
+                blood_type_present,
+                emergency_contact_name_present,
+                emergency_contact_phone_present,
             ]
         )
 
@@ -256,49 +269,81 @@ class PatientRepositoryBase(BaseRepository[Patient]):
                 merged_patient_data.update(metadata_payload)
 
             if (
-                allergies is not None
-                or current_medications is not None
-                or comorbidities is not None
+                allergies_present
+                or current_medications_present
+                or comorbidities_present
             ):
                 medical_history = merged_patient_data.get("medical_history")
                 if not isinstance(medical_history, dict):
                     medical_history = {}
-                if allergies is not None:
-                    medical_history["allergies"] = allergies
-                if current_medications is not None:
-                    medical_history["medications"] = current_medications
-                if comorbidities is not None:
-                    medical_history["conditions"] = comorbidities
-                merged_patient_data["medical_history"] = medical_history
+                if allergies_present:
+                    if allergies is None:
+                        medical_history.pop("allergies", None)
+                    else:
+                        medical_history["allergies"] = allergies
+                if current_medications_present:
+                    if current_medications is None:
+                        medical_history.pop("medications", None)
+                    else:
+                        medical_history["medications"] = current_medications
+                if comorbidities_present:
+                    if comorbidities is None:
+                        medical_history.pop("conditions", None)
+                    else:
+                        medical_history["conditions"] = comorbidities
 
-            if blood_type is not None:
-                merged_patient_data["blood_type"] = blood_type
+                if medical_history:
+                    merged_patient_data["medical_history"] = medical_history
+                else:
+                    merged_patient_data.pop("medical_history", None)
+
+            if blood_type_present:
+                if blood_type is None:
+                    merged_patient_data.pop("blood_type", None)
+                else:
+                    merged_patient_data["blood_type"] = blood_type
 
             if (
-                emergency_contact_name is not None
-                or emergency_contact_phone is not None
+                emergency_contact_name_present
+                or emergency_contact_phone_present
             ):
                 emergency_contact = merged_patient_data.get("emergency_contact")
                 if not isinstance(emergency_contact, dict):
                     emergency_contact = {}
-                if emergency_contact_name is not None:
-                    emergency_contact["name"] = emergency_contact_name
-                if emergency_contact_phone is not None:
-                    emergency_contact["phone"] = emergency_contact_phone
+                if emergency_contact_name_present:
+                    if emergency_contact_name is None:
+                        emergency_contact.pop("name", None)
+                    else:
+                        emergency_contact["name"] = emergency_contact_name
+                if emergency_contact_phone_present:
+                    if emergency_contact_phone is None:
+                        emergency_contact.pop("phone", None)
+                    else:
+                        emergency_contact["phone"] = emergency_contact_phone
 
                 if emergency_contact.get("name") and emergency_contact.get("phone"):
                     merged_patient_data["emergency_contact"] = emergency_contact
                 else:
+                    merged_patient_data.pop("emergency_contact", None)
                     custom_fields = merged_patient_data.get("custom_fields")
                     if not isinstance(custom_fields, dict):
                         custom_fields = {}
-                    if emergency_contact_name is not None:
-                        custom_fields["emergency_contact_name"] = emergency_contact_name
-                    if emergency_contact_phone is not None:
-                        custom_fields["emergency_contact_phone"] = (
-                            emergency_contact_phone
-                        )
-                    merged_patient_data["custom_fields"] = custom_fields
+                    if emergency_contact_name_present:
+                        if emergency_contact_name is None:
+                            custom_fields.pop("emergency_contact_name", None)
+                        else:
+                            custom_fields["emergency_contact_name"] = emergency_contact_name
+                    if emergency_contact_phone_present:
+                        if emergency_contact_phone is None:
+                            custom_fields.pop("emergency_contact_phone", None)
+                        else:
+                            custom_fields["emergency_contact_phone"] = (
+                                emergency_contact_phone
+                            )
+                    if custom_fields:
+                        merged_patient_data["custom_fields"] = custom_fields
+                    else:
+                        merged_patient_data.pop("custom_fields", None)
 
             integrity_hash = merged_patient_data.pop("integrity_hash", None)
             if integrity_hash is not None:
@@ -391,6 +436,8 @@ class PatientRepositoryBase(BaseRepository[Patient]):
         return (
             self.db.query(Patient)
             .filter(Patient.phone_hash == phone_hash, Patient.deleted_at.is_(None))
+            # Prefer most recently updated/created patient when duplicates exist.
+            .order_by(Patient.updated_at.desc(), Patient.created_at.desc(), Patient.id.desc())
             .first()
         )
 

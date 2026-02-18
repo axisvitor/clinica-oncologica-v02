@@ -20,6 +20,7 @@ from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 import smtplib
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.alerts import (
     EmailChannelHandler,
     WebSocketChannelHandler,
@@ -59,8 +60,8 @@ def sample_alert():
         title="Patient No Response",
         message="Patient has not responded in 48 hours",
         metadata={"days_without_response": 2},
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive(),
     )
 
 

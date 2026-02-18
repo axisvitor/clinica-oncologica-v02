@@ -12,6 +12,7 @@ from app.utils.distributed_lock import (
     LockAcquisitionError,
     LockTimeoutError,
 )
+from .shared import get_celery_task_status
 
 logger = logging.getLogger(__name__)
 
@@ -45,19 +46,11 @@ class TaskScheduler:
                 )
 
                 # Import here to avoid circular imports
-                from app.tasks.flows import send_flow_message
+                from app.tasks.messaging import send_scheduled_message
 
-                # Prepare message data for Celery task
-                message_data = {
-                    "content": message.content,
-                    "type": message.type.value,
-                    "metadata": message.message_metadata,
-                    "flow_context": message.message_metadata.get("flow_context", {}),
-                }
-
-                # Schedule task with ETA, passing message_id to UPDATE existing message
-                task_result = send_flow_message.apply_async(
-                    args=[str(message.patient_id), message_data, str(message.id)],
+                # Schedule task with ETA, using the message id
+                task_result = send_scheduled_message.apply_async(
+                    args=[str(message.id)],
                     eta=delivery_time,
                 )
 
@@ -108,22 +101,7 @@ class TaskScheduler:
         Returns:
             Task status information
         """
-        try:
-            from celery.result import AsyncResult
-
-            result = AsyncResult(task_id)
-
-            return {
-                "task_id": task_id,
-                "status": result.status,
-                "result": result.result if result.ready() else None,
-                "traceback": result.traceback if result.failed() else None,
-                "date_done": result.date_done,
-            }
-
-        except Exception as e:
-            logger.error(f"Failed to get task status for {task_id}: {e}")
-            return {"task_id": task_id, "status": "UNKNOWN", "error": str(e)}
+        return await get_celery_task_status(task_id, logger)
 
     def cancel_celery_task(self, task_id: str) -> bool:
         """

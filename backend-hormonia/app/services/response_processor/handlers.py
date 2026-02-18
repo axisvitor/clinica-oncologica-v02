@@ -3,7 +3,6 @@ Response handlers for invalid and quiz responses.
 """
 
 import logging
-from datetime import datetime, timezone
 from uuid import UUID
 
 from app.services.ai import ConcernLevel
@@ -19,6 +18,7 @@ from .models import (
     ResponseFactory,
     FlowAction,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +197,7 @@ class QuizResponseHandler:
 
                 state_updates = {
                     "quiz_state": "completed",
-                    "quiz_completed_at": datetime.now(timezone.utc).isoformat(),
+                    "quiz_completed_at": now_sao_paulo().isoformat(),
                 }
 
             elif quiz_result["action"] == "next_question":
@@ -211,7 +211,7 @@ class QuizResponseHandler:
                 # Invalid response - clarification already sent
                 state_updates = {
                     "quiz_state": "awaiting_response",
-                    "last_clarification_at": datetime.now(timezone.utc).isoformat(),
+                    "last_clarification_at": now_sao_paulo().isoformat(),
                 }
 
             elif quiz_result["action"] == "error":
@@ -238,19 +238,4 @@ class QuizResponseHandler:
 
         except Exception as e:
             logger.error(f"Error handling quiz response: {e}")
-
-            # Fallback response
-            structured_response = ResponseFactory.create_fallback_response(
-                patient_id=patient_id,
-                original_message=inbound_message.content,
-                response_type=ResponseType.TEXT,
-            )
-
-            return ResponseProcessingResult(
-                patient_id=patient_id,
-                structured_response=structured_response,
-                flow_actions=[],
-                follow_up_message="Desculpe, houve um problema ao processar sua resposta do quiz. Nossa equipe foi notificada.",
-                state_updates=None,
-                escalation_required=True,
-            )
+            raise

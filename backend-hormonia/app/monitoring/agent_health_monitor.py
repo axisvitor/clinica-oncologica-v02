@@ -6,14 +6,18 @@ Provides real-time metrics, alerts, and automatic recovery mechanisms.
 """
 
 import asyncio
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from enum import Enum
 from dataclasses import dataclass, asdict
 
-from app.agents.base import BaseAgent
+from app.monitoring.infrastructure_monitor import AlertSeverity
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
+
+if TYPE_CHECKING:
+    from app.agents.base import BaseAgent
 
 
 class HealthStatus(Enum):
@@ -24,15 +28,6 @@ class HealthStatus(Enum):
     CRITICAL = "critical"
     OFFLINE = "offline"
     RECOVERING = "recovering"
-
-
-class AlertSeverity(Enum):
-    """Alert severity levels."""
-
-    INFO = "info"
-    WARNING = "warning"
-    CRITICAL = "critical"
-    EMERGENCY = "emergency"
 
 
 @dataclass
@@ -109,7 +104,7 @@ class AgentHealthMonitor:
         }
 
         # State
-        self.start_time = datetime.now(timezone.utc)
+        self.start_time = now_sao_paulo()
         self.last_task_count = 0
         self.last_error_count = 0
 
@@ -125,7 +120,7 @@ class AgentHealthMonitor:
     ):
         """Update agent health metrics."""
         try:
-            now = datetime.now(timezone.utc)
+            now = now_sao_paulo()
             uptime = int((now - self.start_time).total_seconds())
 
             # Calculate error rate
@@ -192,7 +187,7 @@ class AgentHealthMonitor:
         # Check if offline
         if self.current_metrics:
             time_since_heartbeat = (
-                datetime.now(timezone.utc) - self.current_metrics.last_heartbeat
+                now_sao_paulo() - self.current_metrics.last_heartbeat
             ).total_seconds()
             if time_since_heartbeat > self.config["offline_threshold"]:
                 return HealthStatus.OFFLINE
@@ -276,7 +271,7 @@ class AgentHealthMonitor:
             severity=severity,
             title=title,
             description=description,
-            created_at=datetime.now(timezone.utc),
+            created_at=now_sao_paulo(),
             metadata=metadata or {},
         )
 
@@ -287,7 +282,7 @@ class AgentHealthMonitor:
         """Resolve an active alert."""
         for alert in self.active_alerts:
             if alert.id == alert_id and alert.resolved_at is None:
-                alert.resolved_at = datetime.now(timezone.utc)
+                alert.resolved_at = now_sao_paulo()
                 self.logger.info(f"Health alert resolved: {alert.title}")
                 return True
 
@@ -327,7 +322,7 @@ class SystemHealthMonitor:
         self.agent_monitors: Dict[str, AgentHealthMonitor] = {}
 
         # System-level metrics
-        self.system_start_time = datetime.now(timezone.utc)
+        self.system_start_time = now_sao_paulo()
         self.system_alerts: List[HealthAlert] = []
 
         # Monitoring task
@@ -366,7 +361,7 @@ class SystemHealthMonitor:
                 self.logger.warning("Monitoring task did not stop gracefully")
                 self._monitoring_task.cancel()
 
-    async def register_agent(self, agent: BaseAgent) -> bool:
+    async def register_agent(self, agent: "BaseAgent") -> bool:
         """Register agent for health monitoring."""
         try:
             agent_id = agent.agent_id
@@ -529,7 +524,7 @@ class SystemHealthMonitor:
             severity=severity,
             title=title,
             description=description,
-            created_at=datetime.now(timezone.utc),
+            created_at=now_sao_paulo(),
             metadata=metadata or {},
         )
 
@@ -539,7 +534,7 @@ class SystemHealthMonitor:
     async def _cleanup_old_alerts(self):
         """Clean up old resolved alerts."""
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(
+            cutoff_time = now_sao_paulo() - timedelta(
                 hours=self.config["alert_retention_hours"]
             )
 
@@ -598,7 +593,7 @@ class SystemHealthMonitor:
         """Get system health overview."""
         overview = {
             "system_uptime_seconds": int(
-                (datetime.now(timezone.utc) - self.system_start_time).total_seconds()
+                (now_sao_paulo() - self.system_start_time).total_seconds()
             ),
             "total_agents": len(self.agent_monitors),
             "agents_by_status": {

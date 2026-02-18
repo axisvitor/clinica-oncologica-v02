@@ -1,8 +1,8 @@
 """
-Message Factory - Template-based Message Creation (QW-022).
+Message Factory adapter for the legacy message_service package.
 
-This module provides factory methods for creating standardized messages.
-Consolidated from: app/services/message_factory.py
+This keeps the message_service MessageFactory public API stable while
+delegating to the canonical core MessageFactory implementation.
 """
 
 from typing import List, Optional, Any, Dict
@@ -14,31 +14,58 @@ from sqlalchemy.orm import Session
 
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
 from app.schemas.quiz import QuizQuestion
+from app.domain.messaging.core.message_factory import (
+    MessageFactory as CoreMessageFactory,
+    MessageTemplate as CoreMessageTemplate,
+)
+from app.domain.messaging.core.monthly_quiz_payload import (
+    build_monthly_quiz_reminder_payload,
+)
 
 from .config import MessageTemplate
-from .templates import MessageTemplates
 
 
 logger = logging.getLogger(__name__)
 
 
 class MessageFactory:
-    """
-    Factory class for creating standardized messages.
-    Eliminates code duplication across services.
-
-    Consolidated from: app/services/message_factory.py
-    """
+    """Compatibility adapter around app.domain.messaging.core.message_factory."""
 
     def __init__(self, db: Session):
-        """
-        Initialize MessageFactory.
-
-        Args:
-            db: Database session
-        """
         self.db = db
-        self.monthly_quiz_templates = MessageTemplates.MONTHLY_QUIZ_TEMPLATES
+        self._core_factory = CoreMessageFactory(db)
+        self.monthly_quiz_templates = self._core_factory.monthly_quiz_templates
+
+    def _sanitize_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        sanitizer = getattr(self._core_factory, "sanitizer", None)
+        if sanitizer is None:
+            return context
+
+        sanitize_method = getattr(sanitizer, "sanitize_template_context", None)
+        if not callable(sanitize_method):
+            return context
+
+        try:
+            return sanitize_method(context)
+        except Exception:
+            logger.debug("Template context sanitization failed; using raw context", exc_info=True)
+            return context
+
+    @staticmethod
+    def _template_value(template_type: Optional[Any]) -> Optional[str]:
+        if template_type is None:
+            return None
+        value = getattr(template_type, "value", template_type)
+        return value if isinstance(value, str) else str(value)
+
+    def _to_core_template(self, template_type: Optional[Any]) -> Optional[Any]:
+        value = self._template_value(template_type)
+        if not value:
+            return None
+        try:
+            return CoreMessageTemplate(value)
+        except Exception:
+            return None
 
     def create_outbound_message(
         self,
@@ -52,36 +79,41 @@ class MessageFactory:
         """
         Create an outbound message.
 
-        Args:
-            patient_id: Patient UUID
-            content: Message content
-            message_type: Type of message
-            metadata: Optional metadata
-            template_type: Optional template type
-            scheduled_for: Optional scheduled time
-
-        Returns:
-            Created Message object
+        Uses canonical factory first, then falls back to legacy model fields for
+        compatibility (type/message_metadata and scheduled status handling).
         """
+        if scheduled_for is None:
+            try:
+                return self._core_factory.create_outbound_message(
+                    patient_id=patient_id,
+                    content=content,
+                    message_type=message_type,
+                    metadata=metadata,
+                    template_type=self._to_core_template(template_type),
+                )
+            except (AttributeError, TypeError, ValueError):
+                logger.debug(
+                    "Falling back to legacy outbound message creation path",
+                    exc_info=True,
+                )
+
+        message_metadata = dict(metadata or {})
+        template_value = self._template_value(template_type)
+        if template_value:
+            message_metadata["template_type"] = template_value
+
         message_data = {
             "patient_id": patient_id,
             "direction": MessageDirection.OUTBOUND,
             "type": message_type,
             "content": content,
-            "message_metadata": metadata or {},
-            "status": MessageStatus.PENDING
-            if not scheduled_for
-            else MessageStatus.SCHEDULED,
+            "message_metadata": message_metadata,
+            "status": MessageStatus.PENDING,
         }
-
-        if template_type:
-            message_data["message_metadata"]["template_type"] = template_type.value
-
         if scheduled_for:
             message_data["scheduled_for"] = scheduled_for
 
-        message = Message(**message_data)
-        return self._save_message(message)
+        return self._core_factory._save_message(Message(**message_data))
 
     def create_quiz_question_message(
         self,
@@ -91,26 +123,33 @@ class MessageFactory:
         question_number: int,
         total_questions: int,
     ) -> Message:
-        """
-        Create quiz question message.
+        """Create quiz question message with legacy signature."""
+        core_method = getattr(self._core_factory, "create_quiz_question_message", None)
+        if callable(core_method):
+            try:
+                return core_method(
+                    patient_id=patient_id,
+                    question=question,
+                    quiz_session_id=quiz_session_id,
+                    question_number=question_number,
+                    total_questions=total_questions,
+                )
+            except (AttributeError, TypeError, ValueError):
+                logger.debug(
+                    "Core quiz-question method unavailable, using compatibility path",
+                    exc_info=True,
+                )
 
-        Args:
-            patient_id: Patient UUID
-            question: Quiz question object
-            quiz_session_id: Quiz session ID
-            question_number: Current question number
-            total_questions: Total number of questions
-
-        Returns:
-            Created Message object
-        """
         content = (
-            f"Questão {question_number}/{total_questions}:\n\n{question.question_text}"
+            f"Questão {question_number}/{total_questions}:\n\n"
+            f"{self._sanitize_context({'question_text': question.question_text}).get('question_text', '')}"
         )
-
         if question.options:
             content += "\n\nOpções:"
-            for idx, option in enumerate(question.options, 1):
+            safe_options = self._sanitize_context({"options": question.options}).get(
+                "options", question.options
+            )
+            for idx, option in enumerate(safe_options, 1):
                 content += f"\n{idx}. {option}"
 
         metadata = {
@@ -129,6 +168,95 @@ class MessageFactory:
             template_type=MessageTemplate.QUIZ_QUESTION,
         )
 
+    def create_quiz_introduction(
+        self,
+        patient_id: UUID,
+        patient_name: str,
+        session_id: str,
+        first_question: Any,
+        total_questions: int,
+    ) -> Message:
+        """
+        Create a quiz introduction message with first-question preview.
+
+        Legacy integrations call this method directly. Keep it as a stable adapter
+        API while routing through the canonical message factory when possible.
+        """
+        core_method = getattr(self._core_factory, "create_quiz_introduction", None)
+        if callable(core_method):
+            try:
+                return core_method(
+                    patient_id=patient_id,
+                    patient_name=patient_name,
+                    session_id=session_id,
+                    first_question=first_question,
+                    total_questions=total_questions,
+                )
+            except (AttributeError, TypeError, ValueError):
+                logger.debug(
+                    "Core quiz-introduction method unavailable, using compatibility path",
+                    exc_info=True,
+                )
+
+        if isinstance(first_question, dict):
+            question_text = (
+                first_question.get("question_text")
+                or first_question.get("text")
+                or "Como você está se sentindo hoje?"
+            )
+            question_options = first_question.get("options") or []
+        else:
+            question_text = (
+                getattr(first_question, "question_text", None)
+                or getattr(first_question, "text", None)
+                or "Como você está se sentindo hoje?"
+            )
+            question_options = getattr(first_question, "options", []) or []
+
+        safe_context = self._sanitize_context(
+            {
+                "patient_name": patient_name,
+                "question_text": question_text,
+            }
+        )
+
+        content = (
+            f"Olá {safe_context['patient_name']}! 😊\n\n"
+            f"Vamos começar seu check-in mensal.\n"
+            f"São {max(int(total_questions or 0), 1)} perguntas rápidas.\n\n"
+            f"*Pergunta 1:* {safe_context['question_text']}"
+        )
+
+        if question_options:
+            content += "\n\n*Opções:*"
+            for option in question_options:
+                if isinstance(option, dict):
+                    option_text = (
+                        option.get("text")
+                        or option.get("label")
+                        or option.get("value")
+                        or str(option)
+                    )
+                else:
+                    option_text = str(option)
+                content += f"\n• {option_text}"
+
+        metadata = {
+            "quiz_session_id": session_id,
+            "message_type": "quiz_introduction",
+            "first_question": safe_context["question_text"],
+            "total_questions": max(int(total_questions or 0), 1),
+            "template_type": MessageTemplate.QUIZ_INTRODUCTION.value,
+        }
+
+        return self.create_outbound_message(
+            patient_id=patient_id,
+            content=content,
+            message_type=MessageType.QUIZ_INTRO,
+            metadata=metadata,
+            template_type=MessageTemplate.QUIZ_INTRODUCTION,
+        )
+
     def create_monthly_quiz_invitation_message(
         self,
         patient_id: UUID,
@@ -139,23 +267,55 @@ class MessageFactory:
         delivery_method: str = "whatsapp",
     ) -> Message:
         """
-        Create monthly quiz link invitation message.
+        Create monthly quiz invitation with backward-compatible method name.
 
-        Args:
-            patient_id: Patient UUID
-            patient_name: Patient name
-            link: Quiz link
-            expiry_hours: Link expiry in hours
-            quiz_session_id: Quiz session ID
-            delivery_method: Delivery channel
-
-        Returns:
-            Created Message object
+        Delegates to canonical invitation/link methods when available.
         """
-        content = self.monthly_quiz_templates["invitation"].format(
-            patient_name=patient_name, link=link, expiry_hours=expiry_hours
-        )
+        for method_name in (
+            "create_monthly_quiz_invitation_message",
+            "create_monthly_quiz_link_message",
+        ):
+            core_method = getattr(self._core_factory, method_name, None)
+            if not callable(core_method):
+                continue
 
+            for kwargs in (
+                {
+                    "patient_id": patient_id,
+                    "patient_name": patient_name,
+                    "link": link,
+                    "expiry_hours": expiry_hours,
+                    "quiz_session_id": quiz_session_id,
+                    "delivery_method": delivery_method,
+                },
+                {
+                    "patient_id": patient_id,
+                    "patient_name": patient_name,
+                    "link_url": link,
+                    "expiry_hours": expiry_hours,
+                    "quiz_session_id": quiz_session_id,
+                    "delivery_method": delivery_method,
+                },
+            ):
+                try:
+                    return core_method(**kwargs)
+                except TypeError:
+                    continue
+                except (AttributeError, ValueError):
+                    logger.debug(
+                        "Core monthly invitation method failed, using compatibility path",
+                        exc_info=True,
+                    )
+                    break
+
+        safe_context = self._sanitize_context(
+            {
+                "patient_name": patient_name,
+                "link": link,
+                "expiry_hours": expiry_hours,
+            }
+        )
+        content = self.monthly_quiz_templates["invitation"].format(**safe_context)
         metadata = {
             "quiz_session_id": quiz_session_id,
             "quiz_link": link,
@@ -182,32 +342,48 @@ class MessageFactory:
         quiz_session_id: str,
         delivery_method: str = "whatsapp",
     ) -> Message:
-        """
-        Create monthly quiz reminder message.
+        """Create monthly quiz reminder message with legacy signature."""
+        core_method = getattr(self._core_factory, "create_monthly_quiz_reminder_message", None)
+        if callable(core_method):
+            for kwargs in (
+                {
+                    "patient_id": patient_id,
+                    "patient_name": patient_name,
+                    "link": link,
+                    "hours_remaining": hours_remaining,
+                    "quiz_session_id": quiz_session_id,
+                    "delivery_method": delivery_method,
+                },
+                {
+                    "patient_id": patient_id,
+                    "patient_name": patient_name,
+                    "link_url": link,
+                    "hours_remaining": hours_remaining,
+                    "quiz_session_id": quiz_session_id,
+                    "delivery_method": delivery_method,
+                },
+            ):
+                try:
+                    return core_method(**kwargs)
+                except TypeError:
+                    continue
+                except (AttributeError, ValueError):
+                    logger.debug(
+                        "Core monthly reminder method failed, using compatibility path",
+                        exc_info=True,
+                    )
+                    break
 
-        Args:
-            patient_id: Patient UUID
-            patient_name: Patient name
-            link: Quiz link
-            hours_remaining: Hours until expiry
-            quiz_session_id: Quiz session ID
-            delivery_method: Delivery channel
-
-        Returns:
-            Created Message object
-        """
-        content = self.monthly_quiz_templates["reminder"].format(
-            patient_name=patient_name, link=link, hours_remaining=hours_remaining
+        content, metadata = build_monthly_quiz_reminder_payload(
+            sanitize_context=self._sanitize_context,
+            templates=self.monthly_quiz_templates,
+            patient_name=patient_name,
+            link=link,
+            quiz_session_id=quiz_session_id,
+            hours_remaining=hours_remaining,
+            delivery_method=delivery_method,
+            link_metadata_key="quiz_link",
         )
-
-        metadata = {
-            "quiz_session_id": quiz_session_id,
-            "quiz_link": link,
-            "hours_remaining": hours_remaining,
-            "message_type": "monthly_quiz_reminder",
-            "template_type": MessageTemplate.MONTHLY_QUIZ_LINK_REMINDER.value,
-            "delivery_method": delivery_method,
-        }
 
         return self.create_outbound_message(
             patient_id=patient_id,
@@ -224,34 +400,30 @@ class MessageFactory:
         quiz_session_id: str,
         delivery_method: str = "whatsapp",
     ) -> Message:
-        """
-        Create monthly quiz link expired message.
+        """Create monthly quiz link expired message."""
+        core_method = getattr(self._core_factory, "create_monthly_quiz_expired_message", None)
+        if callable(core_method):
+            try:
+                return core_method(
+                    patient_id=patient_id,
+                    patient_name=patient_name,
+                    quiz_session_id=quiz_session_id,
+                    delivery_method=delivery_method,
+                )
+            except (AttributeError, TypeError, ValueError):
+                logger.debug(
+                    "Core monthly expired method failed, using compatibility path",
+                    exc_info=True,
+                )
 
-        Args:
-            patient_id: Patient UUID
-            patient_name: Patient name
-            quiz_session_id: Quiz session ID
-            delivery_method: Delivery channel
-
-        Returns:
-            Created Message object
-        """
-        content = self.monthly_quiz_templates["expired"].format(
-            patient_name=patient_name
-        )
-
-        metadata = {
-            "quiz_session_id": quiz_session_id,
-            "message_type": "monthly_quiz_expired",
-            "template_type": MessageTemplate.MONTHLY_QUIZ_LINK_EXPIRED.value,
-            "delivery_method": delivery_method,
-        }
-
-        return self.create_outbound_message(
+        return self._create_monthly_quiz_status_message(
             patient_id=patient_id,
-            content=content,
+            patient_name=patient_name,
+            quiz_session_id=quiz_session_id,
+            delivery_method=delivery_method,
+            template_key="expired",
+            message_kind="monthly_quiz_expired",
             message_type=MessageType.MONTHLY_QUIZ_EXPIRED,
-            metadata=metadata,
             template_type=MessageTemplate.MONTHLY_QUIZ_LINK_EXPIRED,
         )
 
@@ -262,35 +434,60 @@ class MessageFactory:
         quiz_session_id: str,
         delivery_method: str = "whatsapp",
     ) -> Message:
-        """
-        Create monthly quiz completion confirmation message.
+        """Create monthly quiz completion confirmation message."""
+        core_method = getattr(self._core_factory, "create_monthly_quiz_completed_message", None)
+        if callable(core_method):
+            try:
+                return core_method(
+                    patient_id=patient_id,
+                    patient_name=patient_name,
+                    quiz_session_id=quiz_session_id,
+                    delivery_method=delivery_method,
+                )
+            except (AttributeError, TypeError, ValueError):
+                logger.debug(
+                    "Core monthly completed method failed, using compatibility path",
+                    exc_info=True,
+                )
 
-        Args:
-            patient_id: Patient UUID
-            patient_name: Patient name
-            quiz_session_id: Quiz session ID
-            delivery_method: Delivery channel
-
-        Returns:
-            Created Message object
-        """
-        content = self.monthly_quiz_templates["completed"].format(
-            patient_name=patient_name
+        return self._create_monthly_quiz_status_message(
+            patient_id=patient_id,
+            patient_name=patient_name,
+            quiz_session_id=quiz_session_id,
+            delivery_method=delivery_method,
+            template_key="completed",
+            message_kind="monthly_quiz_completed",
+            message_type=MessageType.MONTHLY_QUIZ_COMPLETED,
+            template_type=MessageTemplate.MONTHLY_QUIZ_LINK_COMPLETED,
         )
 
+    def _create_monthly_quiz_status_message(
+        self,
+        *,
+        patient_id: UUID,
+        patient_name: str,
+        quiz_session_id: str,
+        delivery_method: str,
+        template_key: str,
+        message_kind: str,
+        message_type: MessageType,
+        template_type: MessageTemplate,
+    ) -> Message:
+        """Build monthly-quiz status message payload for compatibility fallback paths."""
+        safe_context = self._sanitize_context({"patient_name": patient_name})
+        content = self.monthly_quiz_templates[template_key].format(**safe_context)
         metadata = {
             "quiz_session_id": quiz_session_id,
-            "message_type": "monthly_quiz_completed",
-            "template_type": MessageTemplate.MONTHLY_QUIZ_LINK_COMPLETED.value,
+            "message_type": message_kind,
+            "template_type": template_type.value,
             "delivery_method": delivery_method,
         }
-
         return self.create_outbound_message(
             patient_id=patient_id,
             content=content,
-            message_type=MessageType.MONTHLY_QUIZ_COMPLETED,
+            message_type=message_type,
             metadata=metadata,
-            template_type=MessageTemplate.MONTHLY_QUIZ_LINK_COMPLETED,
+            template_type=template_type,
         )
 
     def create_multi_channel_message(
@@ -301,34 +498,32 @@ class MessageFactory:
         message_type: MessageType = MessageType.TEXT,
         metadata: Optional[Dict[str, Any]] = None,
     ) -> List[Message]:
-        """
-        Create message for multiple delivery channels.
+        """Create messages for multiple delivery channels."""
+        core_method = getattr(self._core_factory, "create_multi_channel_message", None)
+        if callable(core_method):
+            try:
+                return core_method(
+                    patient_id=patient_id,
+                    content=content,
+                    channels=channels,
+                    message_type=message_type,
+                    metadata=metadata,
+                )
+            except (AttributeError, TypeError, ValueError):
+                logger.debug(
+                    "Core multi-channel method failed, using compatibility path",
+                    exc_info=True,
+                )
 
-        Args:
-            patient_id: Patient UUID
-            content: Message content
-            channels: List of delivery channels (whatsapp, email, sms)
-            message_type: Type of message
-            metadata: Optional metadata
-
-        Returns:
-            List of created Message objects (one per channel)
-        """
         messages = []
-
         for channel in channels:
             channel_metadata = metadata.copy() if metadata else {}
             channel_metadata["delivery_method"] = channel
 
-            # Adapt content for channel if needed
             adapted_content = content
             if channel == "sms":
-                # Truncate for SMS (160 chars)
-                adapted_content = (
-                    content[:157] + "..." if len(content) > 160 else content
-                )
+                adapted_content = content[:157] + "..." if len(content) > 160 else content
             elif channel == "email":
-                # Could wrap in HTML template for email
                 channel_metadata["email_format"] = "html"
 
             message = self.create_outbound_message(
@@ -342,16 +537,5 @@ class MessageFactory:
         return messages
 
     def _save_message(self, message: Message) -> Message:
-        """
-        Save message to database.
-
-        Args:
-            message: Message to save
-
-        Returns:
-            Saved Message object
-        """
-        self.db.add(message)
-        self.db.commit()
-        self.db.refresh(message)
-        return message
+        """Save message to database via canonical factory."""
+        return self._core_factory._save_message(message)

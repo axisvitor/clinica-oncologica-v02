@@ -24,6 +24,7 @@ from app.utils.logging import get_logger
 from app.models.patient import Patient
 from app.models.quiz import QuizSession, QuizResponse
 from app.models.message import Message
+from app.utils.timezone import now_sao_paulo
 
 
 class NodeType(Enum):
@@ -184,8 +185,8 @@ class KnowledgeGraph:
             node_type=node_type,
             entity_id=entity_id,
             properties=properties,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo(),
+            updated_at=now_sao_paulo(),
             confidence=confidence
         )
         
@@ -228,7 +229,7 @@ class KnowledgeGraph:
             raise ValueError(f"Node {node_id} not found")
         
         node.properties.update(properties)
-        node.updated_at = datetime.utcnow()
+        node.updated_at = now_sao_paulo()
         
         if confidence is not None:
             node.confidence = confidence
@@ -283,7 +284,7 @@ class KnowledgeGraph:
             source_node=source_node_id,
             target_node=target_node_id,
             properties=properties,
-            created_at=datetime.utcnow(),
+            created_at=now_sao_paulo(),
             strength=strength,
             confidence=confidence
         )
@@ -500,7 +501,7 @@ class KnowledgeGraph:
                         affected_entities=[patient_node.entity_id],
                         confidence=min(0.9, abs(recent_avg - earlier_avg) / 2.0),
                         supporting_evidence=[r.node_id for r in quiz_responses[-3:]],
-                        discovered_at=datetime.utcnow(),
+                        discovered_at=now_sao_paulo(),
                         agent_source="knowledge_graph"
                     ))
                 elif earlier_avg - recent_avg > 1.0:
@@ -511,7 +512,7 @@ class KnowledgeGraph:
                         affected_entities=[patient_node.entity_id],
                         confidence=min(0.9, abs(earlier_avg - recent_avg) / 2.0),
                         supporting_evidence=[r.node_id for r in quiz_responses[-3:]],
-                        discovered_at=datetime.utcnow(),
+                        discovered_at=now_sao_paulo(),
                         agent_source="knowledge_graph"
                     ))
         
@@ -559,7 +560,7 @@ class KnowledgeGraph:
                         affected_entities=[patient_node.entity_id],
                         confidence=confidence,
                         supporting_evidence=[r.node_id for r in symptom_responses],
-                        discovered_at=datetime.utcnow(),
+                        discovered_at=now_sao_paulo(),
                         agent_source="knowledge_graph"
                     ))
         

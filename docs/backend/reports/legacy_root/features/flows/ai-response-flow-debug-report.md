@@ -392,7 +392,7 @@ except Exception as e:
         tone_analysis={},
         token_usage=None,
         cache_info=None,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=now_sao_paulo(),
     )
 ```
 

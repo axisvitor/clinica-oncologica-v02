@@ -11,7 +11,7 @@ import json
 
 from redis import Redis
 
-from app.exceptions.flow_exceptions import (
+from app.core.exceptions import (
     FlowException,
     MessageDeliveryError,
     FlowStateCorruptionError,
@@ -23,7 +23,8 @@ from app.exceptions.flow_exceptions import (
 )
 from app.models.patient import Patient
 from app.repositories.flow import FlowStateRepository
-from app.domain.messaging.delivery import MessageSender
+from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSender
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ class ErrorRecoveryService:
         db: Any,
         redis: Redis,
         flow_repository: FlowStateRepository,
-        message_sender: MessageSender,
+        message_sender: IdempotentMessageSender,
     ):
         self.db = db
         self.redis = redis
@@ -143,9 +144,7 @@ class ErrorRecoveryService:
 
             if recovered_state:
                 # Update the corrupted state
-                await self.flow_repository.update_flow_state(
-                    patient_id, recovered_state
-                )
+                self.flow_repository.update_flow_state(patient_id, recovered_state)
                 logger.info(
                     f"Successfully recovered flow state for patient {patient_id}"
                 )
@@ -291,9 +290,7 @@ class ErrorRecoveryService:
             last_good_state = await self._get_last_good_flow_state(patient_id)
 
             if last_good_state:
-                await self.flow_repository.update_flow_state(
-                    patient_id, last_good_state
-                )
+                self.flow_repository.update_flow_state(patient_id, last_good_state)
                 logger.info(
                     f"Recovered flow state to last good state for patient {patient_id}"
                 )
@@ -316,7 +313,7 @@ class ErrorRecoveryService:
             "error_type": type(error).__name__,
             "error_message": str(error),
             "context": context,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         if isinstance(error, FlowException):
@@ -330,9 +327,9 @@ class ErrorRecoveryService:
 
         # Store in Redis for monitoring
         try:
-            error_key = f"flow_errors:{datetime.now(timezone.utc).strftime('%Y-%m-%d')}"
-            await self.redis.lpush(error_key, json.dumps(error_data))
-            await self.redis.expire(error_key, 86400 * 7)  # Keep for 7 days
+            error_key = f"flow_errors:{now_sao_paulo().strftime('%Y-%m-%d')}"
+            self.redis.lpush(error_key, json.dumps(error_data))
+            self.redis.expire(error_key, 86400 * 7)  # Keep for 7 days
         except Exception:
             pass  # Don't fail if Redis is unavailable
 
@@ -348,12 +345,12 @@ class ErrorRecoveryService:
             "message_id": str(error.message_id) if error.message_id else None,
             "retry_count": error.retry_count + 1,
             "original_context": context,
-            "scheduled_for": (datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat(),
+            "scheduled_for": (now_sao_paulo() + timedelta(seconds=delay)).isoformat(),
         }
 
         # Store retry information
         retry_key = f"message_retries:{error.patient_id}:{error.message_id}"
-        await self.redis.setex(retry_key, delay + 3600, json.dumps(retry_data))
+        self.redis.setex(retry_key, delay + 3600, json.dumps(retry_data))
 
     async def _recover_flow_state(
         self, patient_id: UUID, corruption_type: str
@@ -362,15 +359,13 @@ class ErrorRecoveryService:
         try:
             # Try to get backup from Redis
             backup_key = f"flow_state_backup:{patient_id}"
-            backup_data = await self.redis.get(backup_key)
+            backup_data = self.redis.get(backup_key)
 
             if backup_data:
                 return json.loads(backup_data)
 
             # Try to reconstruct from flow history
-            flow_messages = await self.flow_repository.get_patient_flow_messages(
-                patient_id
-            )
+            flow_messages = self.flow_repository.get_patient_flow_messages(patient_id)
             if flow_messages:
                 return await self._reconstruct_flow_state_from_history(
                     patient_id, flow_messages
@@ -392,12 +387,12 @@ class ErrorRecoveryService:
             "corruption_type": error.corruption_type,
             "corrupted_data": error.flow_state_data,
             "context": context,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_sao_paulo().isoformat(),
             "status": "pending",
         }
 
         task_key = f"manual_tasks:flow_correction:{error.patient_id}"
-        await self.redis.setex(task_key, 86400 * 7, json.dumps(task_data))
+        self.redis.setex(task_key, 86400 * 7, json.dumps(task_data))
 
         # Also log for immediate attention
         logger.critical(
@@ -407,7 +402,7 @@ class ErrorRecoveryService:
     async def _get_failure_count(self, circuit_key: str) -> int:
         """Get current failure count for circuit breaker."""
         try:
-            count = await self.redis.get(circuit_key)
+            count = self.redis.get(circuit_key)
             return int(count) if count else 0
         except Exception:
             return 0
@@ -415,8 +410,8 @@ class ErrorRecoveryService:
     async def _increment_failure_count(self, circuit_key: str) -> None:
         """Increment failure count for circuit breaker."""
         try:
-            await self.redis.incr(circuit_key)
-            await self.redis.expire(circuit_key, 3600)  # Reset after 1 hour
+            self.redis.incr(circuit_key)
+            self.redis.expire(circuit_key, 3600)  # Reset after 1 hour
         except Exception as e:
             logger.warning(
                 f"Failed to increment circuit breaker for '{circuit_key}': {e}",
@@ -429,10 +424,10 @@ class ErrorRecoveryService:
         """Activate fallback mode for failed service."""
         fallback_key = f"fallback_mode:{service_name}"
         fallback_data = {
-            "activated_at": datetime.now(timezone.utc).isoformat(),
+            "activated_at": now_sao_paulo().isoformat(),
             "context": context,
         }
-        await self.redis.setex(fallback_key, 3600, json.dumps(fallback_data))
+        self.redis.setex(fallback_key, 3600, json.dumps(fallback_data))
         logger.warning(f"Activated fallback mode for service: {service_name}")
 
     async def _generate_fallback_message(
@@ -462,13 +457,13 @@ class ErrorRecoveryService:
         try:
             # Check Redis backup
             backup_key = f"flow_state_backup:{patient_id}"
-            backup_data = await self.redis.get(backup_key)
+            backup_data = self.redis.get(backup_key)
 
             if backup_data:
                 return json.loads(backup_data)
 
             # Fallback to database
-            flow_state = await self.flow_repository.get_flow_state(patient_id)
+            flow_state = self.flow_repository.get_flow_state(patient_id)
             if flow_state and flow_state.state_data:
                 return flow_state.state_data
 
@@ -483,18 +478,18 @@ class ErrorRecoveryService:
     ) -> None:
         """Pause patient flow for manual investigation."""
         try:
-            await self.flow_repository.pause_patient_flow(patient_id, reason)
+            self.flow_repository.pause_patient_flow(patient_id, reason)
 
             # Create investigation task
             investigation_data = {
                 "patient_id": str(patient_id),
                 "reason": reason,
-                "paused_at": datetime.now(timezone.utc).isoformat(),
+                "paused_at": now_sao_paulo().isoformat(),
                 "status": "requires_investigation",
             }
 
             investigation_key = f"investigations:flow:{patient_id}"
-            await self.redis.setex(
+            self.redis.setex(
                 investigation_key, 86400 * 7, json.dumps(investigation_data)
             )
 
@@ -512,11 +507,11 @@ class ErrorRecoveryService:
             "retry_count": error.retry_count,
             "last_error": error.last_error,
             "context": context,
-            "escalated_at": datetime.now(timezone.utc).isoformat(),
+            "escalated_at": now_sao_paulo().isoformat(),
         }
 
         escalation_key = f"escalations:message_delivery:{error.patient_id}"
-        await self.redis.setex(escalation_key, 86400 * 3, json.dumps(escalation_data))
+        self.redis.setex(escalation_key, 86400 * 3, json.dumps(escalation_data))
 
         logger.critical(
             f"Escalated message delivery failure for patient {error.patient_id}"
@@ -532,10 +527,10 @@ class ErrorRecoveryService:
             "error_code": error.error_code,
             "is_recoverable": error.is_recoverable,
             "context": context,
-            "escalated_at": datetime.now(timezone.utc).isoformat(),
+            "escalated_at": now_sao_paulo().isoformat(),
         }
 
         escalation_key = f"escalations:service_failure:{error.service_name}"
-        await self.redis.setex(escalation_key, 86400 * 3, json.dumps(escalation_data))
+        self.redis.setex(escalation_key, 86400 * 3, json.dumps(escalation_data))
 
         logger.critical(f"Escalated service failure: {error.service_name}")

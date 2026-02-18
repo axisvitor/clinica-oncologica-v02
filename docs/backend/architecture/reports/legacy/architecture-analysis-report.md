@@ -574,7 +574,7 @@ CsrfProtectError Handler
 **Structured Logging Format:**
 ```python
 {
-    "timestamp": "2025-12-20T15:00:00.000Z",
+    "timestamp": "2025-12-20T15:00:00.000-03:00",
     "level": "INFO",
     "logger": "app.routers.auth",
     "message": "Session validated for user",
@@ -955,7 +955,7 @@ MONITORING_ENABLE_DEBUG=true
 
 ---
 
-**Report Generated:** 2025-12-20T15:12:00Z
+**Report Generated:** 2025-12-20T15:12:00-03:00
 **Analysis Tool:** Claude Code (Hive Mind Collective)
 **Agent:** Analyst Agent
 **Coordination:** Claude Flow Alpha

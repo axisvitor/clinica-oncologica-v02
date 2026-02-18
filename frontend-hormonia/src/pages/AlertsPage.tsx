@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Clock, ListFilter as Filter, Search, X, Download, RefreshCw, CheckCheck } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
-import type { AlertSeverity } from '@/lib/api-client/types'
+import type { Alert, AlertSeverity } from '@/lib/api-client/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -157,8 +157,8 @@ export function AlertsPage() {
     }
   })
 
-  const filteredAlerts = useMemo(() => {
-    let alerts = alertsData?.items || []
+  const filteredAlerts = useMemo<Alert[]>(() => {
+    let alerts = (alertsData?.items || []) as Alert[]
 
     // Apply type filter (handled by backend now)
     // if (filters.type !== 'all') {
@@ -179,7 +179,7 @@ export function AlertsPage() {
   }, [alertsData?.items, debouncedSearchQuery])
 
   const stats = useMemo(() => {
-    const alerts = alertsData?.items || []
+    const alerts = (alertsData?.items || []) as Alert[]
     return {
       total: alertsData?.total || 0,
       unacknowledged: alerts.filter((a) => !a.is_acknowledged).length,
@@ -411,7 +411,7 @@ export function AlertsPage() {
                   <Select
                     name="severityFilter"
                     value={filters.severity}
-                    onValueChange={(value: string) => setFilters({ ...filters, severity: value })}
+                    onValueChange={(value: string) => setFilters({ ...filters, severity: value as AlertFilters['severity'] })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todas" />
@@ -431,7 +431,7 @@ export function AlertsPage() {
                   <Select
                     name="acknowledgedFilter"
                     value={filters.acknowledged}
-                    onValueChange={(value: string) => setFilters({ ...filters, acknowledged: value })}
+                    onValueChange={(value: string) => setFilters({ ...filters, acknowledged: value as AlertFilters['acknowledged'] })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todos" />

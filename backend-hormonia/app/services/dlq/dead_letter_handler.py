@@ -16,6 +16,7 @@ from app.models.failed_message import FailedMessage, FailureReason, DLQStatus
 from app.schemas.dlq import DLQMessageResponse, DLQMessageList, DLQStats
 from .base import ErrorCategory
 from .retry_handler import DLQRetryHandler
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -77,10 +78,10 @@ class DeadLetterHandler:
             payload=payload,
             failure_reason=failure_reason,
             retry_count=0,
-            status=DLQStatus.PENDING,
+            status=DLQStatus.PENDING_REVIEW,
             metadata={
                 "error_category": category.value,
-                "added_at": datetime.now(timezone.utc).isoformat(),
+                "added_at": now_sao_paulo().isoformat(),
             },
         )
 
@@ -115,9 +116,9 @@ class DeadLetterHandler:
             return False
 
         failed_message.status = DLQStatus.DISCARDED
-        failed_message.resolved_at = datetime.now(timezone.utc)
-        failed_message.metadata["discard_reason"] = reason
-        failed_message.metadata["discarded_at"] = datetime.now(timezone.utc).isoformat()
+        failed_message.resolved_at = now_sao_paulo()
+        failed_message.dlq_data["discard_reason"] = reason
+        failed_message.dlq_data["discarded_at"] = now_sao_paulo().isoformat()
 
         self.db.commit()
 
@@ -198,7 +199,7 @@ class DeadLetterHandler:
         # By status
         pending = (
             self.db.query(FailedMessage)
-            .filter(FailedMessage.status == DLQStatus.PENDING)
+            .filter(FailedMessage.status == DLQStatus.PENDING_REVIEW)
             .count()
         )
 
@@ -233,7 +234,7 @@ class DeadLetterHandler:
         )
 
         # By category (last 24h)
-        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+        yesterday = now_sao_paulo() - timedelta(days=1)
         recent_messages = (
             self.db.query(FailedMessage)
             .filter(FailedMessage.created_at >= yesterday)

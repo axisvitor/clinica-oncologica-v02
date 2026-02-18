@@ -26,10 +26,10 @@ export function useGenerateSummary() {
   const queryClient = useQueryClient();
 
   return useMutation<PatientSummaryResponse, Error, GenerateSummaryRequest>({
-    mutationFn: async (request) => {
+    mutationFn: async (request: GenerateSummaryRequest) => {
       return apiClient.ai.generateSummary(request);
     },
-    onSuccess: (data) => {
+    onSuccess: (data: PatientSummaryResponse) => {
       // Invalidate list cache for this patient
       queryClient.invalidateQueries({
         queryKey: patientSummaryKeys.list(data.patient_id),
@@ -70,7 +70,7 @@ export function usePatientSummary(summaryId: string, enabled = true) {
  */
 export function useExportSummaryPdf() {
   return useMutation<Blob, Error, string>({
-    mutationFn: async (summaryId) => {
+    mutationFn: async (summaryId: string) => {
       return apiClient.ai.exportSummaryPdf(summaryId);
     },
   });
@@ -79,9 +79,14 @@ export function useExportSummaryPdf() {
 /**
  * Combined hook for patient summary management
  */
-export function usePatientSummaryManager(patientId: string) {
+export function usePatientSummaryManager(
+  patientId: string,
+  options?: { enabled?: boolean }
+) {
   const queryClient = useQueryClient();
-  const summariesQuery = usePatientSummaries(patientId);
+  const summariesQuery = usePatientSummaries(patientId, {
+    enabled: options?.enabled ?? false,
+  });
   const generateMutation = useGenerateSummary();
   const exportMutation = useExportSummaryPdf();
 

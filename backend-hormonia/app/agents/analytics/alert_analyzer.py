@@ -10,7 +10,9 @@ from typing import Dict, List, Any
 from sqlalchemy.orm import Session
 
 from app.agents.base import BaseAgent, AgentCapabilities
+from app.agents.registry import ALERT_ANALYZER_ID
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 
 class AlertAnalyzerAgent(BaseAgent):
@@ -27,7 +29,7 @@ class AlertAnalyzerAgent(BaseAgent):
     def __init__(self, db_session: Session):
         """Initialize Alert Analyzer Agent."""
         super().__init__(
-            agent_id="alert_analyzer",
+            agent_id=ALERT_ANALYZER_ID,
             agent_type="analytics",
             specialization="alert_analyzer",
             db_session=db_session,
@@ -45,6 +47,10 @@ class AlertAnalyzerAgent(BaseAgent):
             "escalation_threshold": 3,  # Escalate after 3 similar alerts
             "learning_rate": 0.1,
         }
+
+        self.register_message_handler("consensus_request", self._handle_consensus_request)
+        self.register_message_handler("analyze_escalation", self._handle_analyze_escalation)
+        self.register_message_handler("escalation_alert", self._handle_escalation_alert)
 
         self.logger.info("Alert Analyzer Agent initialized")
 
@@ -99,6 +105,97 @@ class AlertAnalyzerAgent(BaseAgent):
         return {
             "success": True,
             "message": "Queue prioritization not fully implemented yet",
+        }
+
+    async def _handle_consensus_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle consensus vote requests from peer agents."""
+        decision_topic = str(payload.get("decision_topic") or "").strip().lower()
+        decision_data = payload.get("decision_data") or {}
+        risk_factors = decision_data.get("risk_factors")
+        if not isinstance(risk_factors, list):
+            risk_factors = []
+
+        is_escalation_path = "escalat" in decision_topic or "intervention" in decision_topic
+        high_risk_signal = bool(risk_factors) or str(decision_data.get("priority", "")).lower() == "high"
+
+        vote = "approve" if is_escalation_path and high_risk_signal else "abstain"
+        confidence = 0.9 if vote == "approve" else 0.5
+        rationale = (
+            "clinical_escalation_signals_detected"
+            if vote == "approve"
+            else "insufficient_escalation_signal_for_strong_vote"
+        )
+
+        return {
+            "agent_id": self.agent_id,
+            "decision_topic": decision_topic or "unknown",
+            "vote": vote,
+            "confidence": confidence,
+            "rationale": rationale,
+            "reviewed_at": now_sao_paulo().isoformat(),
+        }
+
+    async def _handle_analyze_escalation(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle escalation analysis requests from message processing."""
+        reason = str(payload.get("reason") or "").strip()
+        structured_response = payload.get("structured_response")
+
+        synthesized_text_parts = [reason]
+        if isinstance(structured_response, dict):
+            synthesized_text_parts.extend(str(value) for value in structured_response.values())
+        elif structured_response is not None:
+            synthesized_text_parts.append(str(structured_response))
+        synthesized_text = " ".join(part for part in synthesized_text_parts if part).strip()
+
+        analysis_result = await self._analyze_alert(
+            {
+                "text": synthesized_text,
+                "source": "response_processor",
+            }
+        )
+        analysis_payload = analysis_result.get("analysis", {}) if analysis_result.get("success") else {}
+        severity = str(analysis_payload.get("severity", "low")).lower()
+
+        return {
+            "success": True,
+            "patient_id": payload.get("patient_id"),
+            "analysis": analysis_payload,
+            "needs_medical_review": severity == "high",
+            "reason": reason or "unspecified",
+        }
+
+    async def _handle_escalation_alert(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle escalation alerts emitted by the flow coordinator path."""
+        risk_factors = payload.get("risk_factors")
+        if not isinstance(risk_factors, list):
+            risk_factors = []
+
+        synthesized_text = " ".join(
+            [
+                str(payload.get("priority") or ""),
+                " ".join(str(item) for item in risk_factors),
+            ]
+        ).strip()
+
+        analysis_result = await self._analyze_alert(
+            {
+                "text": synthesized_text,
+                "source": "flow_coordinator",
+            }
+        )
+        analysis_payload = analysis_result.get("analysis", {}) if analysis_result.get("success") else {}
+
+        recommended_actions = payload.get("recommended_actions")
+        if not isinstance(recommended_actions, list):
+            recommended_actions = []
+
+        return {
+            "success": True,
+            "patient_id": payload.get("patient_id"),
+            "analysis": analysis_payload,
+            "recommended_actions": recommended_actions,
+            "escalated_by": payload.get("escalated_by"),
+            "escalated_at": payload.get("escalated_at"),
         }
 
     async def get_capabilities(self) -> List[str]:

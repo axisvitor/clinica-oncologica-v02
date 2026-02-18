@@ -26,6 +26,7 @@ from app.models.user import User, UserRole, AuthProvider
 from app.services.firebase_auth_service import FirebaseAuthService
 from app.config import get_firebase_security_config, get_settings
 from app.monitoring.prometheus_exporters import metrics_exporter
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ def _serialize_user_for_cache(user: User) -> str:
         "firebase_custom_claims": user.firebase_custom_claims,
         "is_active": user.is_active,
         "is_locked": getattr(user, "is_locked", False),
-        "cached_at": datetime.now(timezone.utc).isoformat(),
+        "cached_at": now_sao_paulo().isoformat(),
     })
 
 
@@ -147,6 +148,8 @@ class FirebaseUserSyncService:
             ValueError: If validation fails or user not found
             SecurityError: If domain/claims validation fails
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         email = firebase_data.get("email")
         if not email:
             self._log_security_event(
@@ -456,26 +459,8 @@ class FirebaseUserSyncService:
                 metrics_exporter.record_firebase_admin_sdk_call(duration)
                 metrics_exporter.record_firebase_admin_sdk_timeout()
 
-                # Fallback: merge custom_claims with top-level role/roles from ID token/data
                 source_data = id_token_claims or firebase_data or {}
-                raw_custom = source_data.get("custom_claims")
-                fallback_claims = raw_custom.copy() if isinstance(raw_custom, dict) else {}
-
-                # Reuse Priority 2 logic: fill role/roles if missing in custom_claims
-                if "role" in source_data:
-                    # Prefer existing custom_claims['role'] if present
-                    if "role" not in fallback_claims:
-                        fallback_claims["role"] = source_data["role"]
-
-                if "roles" in source_data:
-                    roles_value = source_data["roles"]
-                    if isinstance(roles_value, list) and roles_value:
-                        if "role" not in fallback_claims:
-                            fallback_claims["role"] = roles_value[0]
-                        fallback_claims["roles"] = roles_value
-                    elif isinstance(roles_value, str):
-                        if "role" not in fallback_claims:
-                            fallback_claims["role"] = roles_value
+                fallback_claims = self._build_fallback_claims(source_data)
 
                 logger.warning(
                     "Firebase Admin SDK timeout after "
@@ -487,26 +472,8 @@ class FirebaseUserSyncService:
                 metrics_exporter.record_firebase_admin_sdk_call(duration)
                 metrics_exporter.record_firebase_admin_sdk_error("general")
 
-                # Fallback: merge custom_claims with top-level role/roles from ID token/data
                 source_data = id_token_claims or firebase_data or {}
-                raw_custom = source_data.get("custom_claims")
-                fallback_claims = raw_custom.copy() if isinstance(raw_custom, dict) else {}
-
-                # Reuse Priority 2 logic: fill role/roles if missing in custom_claims
-                if "role" in source_data:
-                    # Prefer existing custom_claims['role'] if present
-                    if "role" not in fallback_claims:
-                        fallback_claims["role"] = source_data["role"]
-
-                if "roles" in source_data:
-                    roles_value = source_data["roles"]
-                    if isinstance(roles_value, list) and roles_value:
-                        if "role" not in fallback_claims:
-                            fallback_claims["role"] = roles_value[0]
-                        fallback_claims["roles"] = roles_value
-                    elif isinstance(roles_value, str):
-                        if "role" not in fallback_claims:
-                            fallback_claims["role"] = roles_value
+                fallback_claims = self._build_fallback_claims(source_data)
 
                 logger.error(
                     "Firebase Admin SDK error after "
@@ -522,6 +489,26 @@ class FirebaseUserSyncService:
         if not claims:
             logger.warning(f"No claims found for user {firebase_uid} in any source")
         return claims
+
+    @staticmethod
+    def _build_fallback_claims(source_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge custom_claims with top-level role/roles fallback fields."""
+        raw_custom = source_data.get("custom_claims")
+        fallback_claims = raw_custom.copy() if isinstance(raw_custom, dict) else {}
+
+        if "role" in source_data and "role" not in fallback_claims:
+            fallback_claims["role"] = source_data["role"]
+
+        if "roles" in source_data:
+            roles_value = source_data["roles"]
+            if isinstance(roles_value, list) and roles_value:
+                if "role" not in fallback_claims:
+                    fallback_claims["role"] = roles_value[0]
+                fallback_claims["roles"] = roles_value
+            elif isinstance(roles_value, str) and "role" not in fallback_claims:
+                fallback_claims["role"] = roles_value
+
+        return fallback_claims
 
     def _extract_role_from_claims(self, claims: Dict[str, Any]) -> str:
         """
@@ -582,6 +569,8 @@ class FirebaseUserSyncService:
         Raises:
             ValueError: If validation fails (should not happen if called correctly)
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         email = firebase_data["email"].strip().lower()
 
         # Extract display name
@@ -649,6 +638,8 @@ class FirebaseUserSyncService:
         Returns:
             True if user was modified
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         changed = False
 
         # Update email if changed
@@ -741,6 +732,8 @@ class FirebaseUserSyncService:
         Raises:
             ValueError: If user already linked to different Firebase account
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         if user.firebase_uid and user.firebase_uid != firebase_uid:
             raise ValueError("User already linked to different Firebase account")
 
@@ -811,7 +804,7 @@ class FirebaseUserSyncService:
             "reason": reason,
             "firebase_uid": firebase_uid,
             "email": email,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         if error:
@@ -859,7 +852,7 @@ class FirebaseUserSyncService:
                 {
                     "event_type": "firebase_user_provisioning",
                     "event_data": event_data,
-                    "created_at": datetime.now(timezone.utc),
+                    "created_at": now_sao_paulo(),
                 },
             )
             self.db.commit()
@@ -947,6 +940,8 @@ class FirebaseUserSyncService:
         Returns:
             User object if valid, None otherwise
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         user = self.db.query(User).filter(User.firebase_uid == firebase_uid).first()
 
         if not user:

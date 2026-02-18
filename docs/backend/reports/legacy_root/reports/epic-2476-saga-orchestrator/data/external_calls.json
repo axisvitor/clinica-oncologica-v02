@@ -1,0 +1,16 @@
+{
+  "status": "reviewed",
+  "external_calls_in_transaction": [
+    {
+      "step": "send_welcome_message",
+      "call": "send_scheduled_message.apply_async",
+      "type": "celery_broker",
+      "inside_transaction": true,
+      "notes": "Async task scheduling only; no direct WhatsApp API call in the transaction."
+    }
+  ],
+  "not_found": [
+    "UnifiedWhatsAppService.send_message",
+    "EvolutionClient"
+  ]
+}

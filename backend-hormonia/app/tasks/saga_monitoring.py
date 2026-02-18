@@ -8,17 +8,18 @@ This module implements monitoring tasks to detect and alert on saga anomalies:
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import List, Dict, Any
 
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.database import get_db, get_scoped_session
+from app.database import get_scoped_session
 from app.task_queue import task_queue as celery_app
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
 from app.core.monitoring_config import capture_message, capture_exception
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ def check_orphaned_sagas() -> dict:
 
             # Define threshold for orphan detection (4 hours - reduced from 24h for faster detection)
             # Healthcare context requires faster intervention for stuck sagas
-            orphan_threshold = datetime.now(timezone.utc) - timedelta(hours=4)
+            orphan_threshold = now_sao_paulo() - timedelta(hours=4)
 
             # Query for orphaned sagas
             orphaned_sagas = (
@@ -116,7 +117,7 @@ def check_long_running_sagas() -> dict:
     Check for sagas that are taking unusually long to complete.
 
     A long-running saga is one that:
-    - Is still in STARTED or IN_PROGRESS state
+    - Is still in STARTED/IN_PROGRESS or step states
     - Has been running for more than 30 minutes
 
     Returns:
@@ -127,7 +128,7 @@ def check_long_running_sagas() -> dict:
             logger.info("Starting long-running saga detection...")
 
             # Define threshold for long-running detection (30 minutes)
-            long_running_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
+            long_running_threshold = now_sao_paulo() - timedelta(minutes=30)
 
             # Query for long-running sagas
             long_running_sagas = (
@@ -136,7 +137,13 @@ def check_long_running_sagas() -> dict:
                     and_(
                         PatientOnboardingSaga.started_at < long_running_threshold,
                         PatientOnboardingSaga.status.in_(
-                            [SagaStatus.STARTED, SagaStatus.IN_PROGRESS]
+                            [
+                                SagaStatus.STARTED,
+                                SagaStatus.IN_PROGRESS,
+                                SagaStatus.STEP_1_PATIENT_CREATED,
+                                SagaStatus.STEP_3_FLOW_INITIALIZED,
+                                SagaStatus.STEP_4_MESSAGE_SENT,
+                            ]
                         ),
                         PatientOnboardingSaga.completed_at.is_(None),
                     )
@@ -156,7 +163,7 @@ def check_long_running_sagas() -> dict:
 
             # Send alerts
             for saga in long_running_sagas:
-                duration = (datetime.now(timezone.utc) - saga.started_at).total_seconds() / 60
+                duration = (now_sao_paulo() - saga.started_at).total_seconds() / 60
                 logger.warning(
                     f"Long-running saga detected: {saga.id} (running for {duration:.1f} minutes)"
                 )
@@ -196,7 +203,7 @@ def generate_saga_metrics() -> dict:
             logger.info("Generating saga metrics...")
 
             # Define time window (last 24 hours)
-            time_window = datetime.now(timezone.utc) - timedelta(hours=24)
+            time_window = now_sao_paulo() - timedelta(hours=24)
 
             # Query sagas in time window
             recent_sagas = (
@@ -290,7 +297,7 @@ def _alert_orphaned_saga(saga: PatientOnboardingSaga, db: Session) -> None:
         db: Database session
     """
     try:
-        duration = (datetime.now(timezone.utc) - saga.created_at).total_seconds() / 3600
+        duration = (now_sao_paulo() - saga.created_at).total_seconds() / 3600
 
         logger.error(
             f"ORPHANED SAGA DETECTED: {saga.id} "
@@ -371,7 +378,7 @@ def _generate_orphan_summary(sagas: List[PatientOnboardingSaga]) -> Dict[str, An
         "oldest_saga_age_hours": round(
             max(
                 [
-                    (datetime.now(timezone.utc) - s.created_at).total_seconds() / 3600
+                    (now_sao_paulo() - s.created_at).total_seconds() / 3600
                     for s in sagas
                 ]
             ),

@@ -111,8 +111,8 @@ describe("CSRF Race Condition Prevention", () => {
 
     const fetchPromise = apiClient.fetchCsrfToken();
 
-    // Fast-forward 5 seconds
-    vi.advanceTimersByTime(5000);
+    // Fast-forward 5.001 seconds to ensure it triggers the 5s timeout in core.ts
+    await vi.advanceTimersByTimeAsync(5001);
 
     await fetchPromise;
 
@@ -139,7 +139,7 @@ describe("CSRF Auto-Healing on 403 Errors", () => {
       callCount++;
 
       // CSRF token endpoint
-      if (url.includes("/csrf-token")) {
+      if (typeof url === 'string' && url.includes("/csrf-token")) {
         currentToken = "new-token";
         return Promise.resolve({
           ok: true,
@@ -215,7 +215,7 @@ describe("Session Recovery on F5 Refresh", () => {
     document.cookie.split(";").forEach((c) => {
       document.cookie = c
         .replace(/^ +/, "")
-        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+        .replace(/=.*/, "=;expires=" + new Date().toGMTString() + ";path=/");
     });
   });
 
@@ -239,7 +239,7 @@ describe("Session Recovery on F5 Refresh", () => {
 
   it("should handle expired cookies gracefully", async () => {
     // Set expired cookie
-    document.cookie = "fastapi-csrf-token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/";
+    document.cookie = "fastapi-csrf-token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
 
     global.fetch = vi.fn(() =>
       Promise.resolve({
@@ -504,11 +504,11 @@ describe("CSRF Non-Blocking Behavior", () => {
 
     const apiClient = new ApiClientCore("http://localhost:8000");
 
-    global.fetch = vi.fn(() => new Promise(() => {})); // Never resolves
+    global.fetch = vi.fn(() => new Promise(() => { })); // Never resolves
 
     const promise = apiClient.fetchCsrfToken();
 
-    vi.advanceTimersByTime(5000);
+    vi.advanceTimersByTime(5001);
 
     await expect(promise).resolves.toBeUndefined();
 

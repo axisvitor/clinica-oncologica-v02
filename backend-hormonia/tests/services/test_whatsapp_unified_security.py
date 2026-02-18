@@ -17,6 +17,7 @@ from app.services.whatsapp.security import WhatsAppSecurity
 from app.config import settings
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 @pytest.fixture
 def whatsapp_service():
     """Create WhatsApp unified service instance for testing."""
@@ -45,7 +46,7 @@ def sample_webhook_payload():
                 "conversation": "Test message"
             }
         },
-        "date_time": datetime.utcnow().isoformat()
+        "date_time": now_sao_paulo_naive().isoformat()
     }
 
 
@@ -134,7 +135,7 @@ class TestWebhookSignatureValidation:
     def test_validate_signature_with_timestamp_valid(self, whatsapp_service, sample_webhook_payload, webhook_secret):
         """Test validation with valid timestamp (replay attack prevention)."""
         with patch.object(settings, 'WHATSAPP_EVOLUTION_WEBHOOK_SECRET', webhook_secret):
-            timestamp = str(int(datetime.now(timezone.utc).timestamp()))
+            timestamp = str(int(now_sao_paulo().timestamp()))
             signature = compute_signature(sample_webhook_payload, webhook_secret, timestamp)
 
             result = WhatsAppSecurity.validate_webhook_signature(
@@ -148,7 +149,7 @@ class TestWebhookSignatureValidation:
         """Test validation fails with expired timestamp (> 5 minutes old)."""
         with patch.object(settings, 'WHATSAPP_EVOLUTION_WEBHOOK_SECRET', webhook_secret):
             # Create timestamp from 10 minutes ago
-            old_timestamp = str(int(datetime.now(timezone.utc).timestamp()) - 600)
+            old_timestamp = str(int(now_sao_paulo().timestamp()) - 600)
             signature = compute_signature(sample_webhook_payload, webhook_secret, old_timestamp)
 
             result = WhatsAppSecurity.validate_webhook_signature(
@@ -257,7 +258,7 @@ class TestHandleWebhookSecurity:
     def test_handle_webhook_with_timestamp(self, whatsapp_service, sample_webhook_payload, webhook_secret):
         """Test webhook handling with timestamp validation."""
         with patch.object(settings, 'WHATSAPP_EVOLUTION_WEBHOOK_SECRET', webhook_secret):
-            timestamp = str(int(datetime.now(timezone.utc).timestamp()))
+            timestamp = str(int(now_sao_paulo().timestamp()))
             signature = compute_signature(sample_webhook_payload, webhook_secret, timestamp)
 
             result = WhatsAppSecurity.validate_webhook_signature(
@@ -271,7 +272,7 @@ class TestHandleWebhookSecurity:
     def test_handle_webhook_expired_timestamp(self, whatsapp_service, sample_webhook_payload, webhook_secret):
         """Test webhook handling rejects expired timestamp."""
         with patch.object(settings, 'WHATSAPP_EVOLUTION_WEBHOOK_SECRET', webhook_secret):
-            old_timestamp = str(int(datetime.now(timezone.utc).timestamp()) - 600)
+            old_timestamp = str(int(now_sao_paulo().timestamp()) - 600)
             signature = compute_signature(sample_webhook_payload, webhook_secret, old_timestamp)
 
             result = WhatsAppSecurity.validate_webhook_signature(
@@ -311,7 +312,7 @@ class TestSecurityLogging:
     def test_logs_expired_timestamp(self, whatsapp_service, sample_webhook_payload, webhook_secret, caplog):
         """Test that expired timestamp is logged."""
         with patch.object(settings, 'WHATSAPP_EVOLUTION_WEBHOOK_SECRET', webhook_secret):
-            old_timestamp = str(int(datetime.now(timezone.utc).timestamp()) - 600)
+            old_timestamp = str(int(now_sao_paulo().timestamp()) - 600)
             signature = compute_signature(sample_webhook_payload, webhook_secret, old_timestamp)
 
             WhatsAppSecurity.validate_webhook_signature(
@@ -399,7 +400,7 @@ class TestHIPAACompliance:
         """Test that timestamp validation prevents replay attacks."""
         with patch.object(settings, 'WHATSAPP_EVOLUTION_WEBHOOK_SECRET', webhook_secret):
             # Create old webhook (10 minutes ago)
-            old_timestamp = str(int(datetime.now(timezone.utc).timestamp()) - 600)
+            old_timestamp = str(int(now_sao_paulo().timestamp()) - 600)
             signature = compute_signature(sample_webhook_payload, webhook_secret, old_timestamp)
 
             # Should reject old webhooks

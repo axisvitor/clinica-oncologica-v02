@@ -176,23 +176,23 @@ flow_state.state_data = {
     "phase_transition": {
         "from": "days_16_45",
         "to": "monthly_recurring",
-        "transitioned_at": "2025-12-24T10:00:00Z",
+        "transitioned_at": "2025-12-24T10:00:00-03:00",
         "transitioned_by": "flow_coordinator_20251224_100000",
         "reason": "Day 46 reached with satisfactory progress"
     },
 
     # Pause/resume tracking
     "flow_paused": false,
-    "paused_at": "2025-12-20T15:30:00Z",
+    "paused_at": "2025-12-20T15:30:00-03:00",
     "paused_by": "admin_user_123",
     "pause_reason": "Patient requested temporary pause",
-    "resumed_at": "2025-12-22T09:00:00Z",
+    "resumed_at": "2025-12-22T09:00:00-03:00",
     "resumed_by": "system_auto_resume",
 
     # Current state tracking
     "status": "active",  # active | paused | completed
     "current_day": 47,
-    "last_message_sent": "2025-12-24T08:05:23Z",
+    "last_message_sent": "2025-12-24T08:05:23-03:00",
     "decision_agent": "flow_coordinator_20251224_080000",
 
     # Optimization tracking
@@ -202,7 +202,7 @@ flow_state.state_data = {
         "evening": 19
     },
     "timing_optimized_by": "flow_coordinator_20251224_080000",
-    "timing_optimized_at": "2025-12-24T08:00:00Z",
+    "timing_optimized_at": "2025-12-24T08:00:00-03:00",
 
     # Personalization tracking
     "personalization": {
@@ -210,7 +210,7 @@ flow_state.state_data = {
         "frequency": "normal",
         "content_focus": ["emotional_support", "treatment_adherence"],
         "personalized_by": "flow_coordinator_20251224_080000",
-        "personalized_at": "2025-12-24T08:00:00Z"
+        "personalized_at": "2025-12-24T08:00:00-03:00"
     },
 
     # Retry tracking
@@ -289,7 +289,7 @@ async def transition_flow_phase(context: FlowContext):
             "phase_transition": {
                 "from": context.flow_state.flow_type,  # Current phase
                 "to": "monthly_recurring",
-                "transitioned_at": datetime.now(timezone.utc).isoformat(),
+                "transitioned_at": now_sao_paulo().isoformat(),
                 "transitioned_by": agent_id,
                 "trigger": "decision_engine",
                 "progress_score": context.progress_score,
@@ -323,7 +323,7 @@ async def pause_flow(context: FlowContext):
         context.flow_state.state_data = context.flow_state.state_data or {}
         context.flow_state.state_data.update({
             "flow_paused": True,
-            "paused_at": datetime.now(timezone.utc).isoformat(),
+            "paused_at": now_sao_paulo().isoformat(),
             "paused_by": agent_id,
             "pause_reason": determine_pause_reason(context),
             "previous_flow_type": context.flow_state.flow_type  # For resume
@@ -346,7 +346,7 @@ async def resume_flow(context: FlowContext):
 
         context.flow_state.state_data.update({
             "flow_paused": False,
-            "resumed_at": datetime.now(timezone.utc).isoformat(),
+            "resumed_at": now_sao_paulo().isoformat(),
             "resumed_by": agent_id,
             "pause_duration_hours": calculate_pause_duration(
                 context.flow_state.state_data.get("paused_at")
@@ -400,7 +400,7 @@ CREATE INDEX idx_patient_flow_scheduled
 {
     "status": "active",
     "current_day": 10,
-    "last_message_sent": "2025-12-24T08:05:00Z",
+    "last_message_sent": "2025-12-24T08:05:00-03:00",
     "messages_sent_count": 10,
     "response_count": 8,
     "adherence_rate": 0.8
@@ -415,11 +415,11 @@ CREATE INDEX idx_patient_flow_scheduled
     "phase_transition": {
         "from": "initial_15_days",
         "to": "days_16_45",
-        "transitioned_at": "2025-12-09T08:00:00Z",
+        "transitioned_at": "2025-12-09T08:00:00-03:00",
         "transitioned_by": "system",
         "trigger": "automatic_day_16"
     },
-    "last_message_sent": "2025-12-24T08:05:00Z",
+    "last_message_sent": "2025-12-24T08:05:00-03:00",
     "messages_sent_count": 15,
     "response_count": 12,
     "adherence_rate": 0.85
@@ -434,13 +434,13 @@ CREATE INDEX idx_patient_flow_scheduled
     "phase_transition": {
         "from": "days_16_45",
         "to": "monthly_recurring",
-        "transitioned_at": "2025-12-09T10:00:00Z",
+        "transitioned_at": "2025-12-09T10:00:00-03:00",
         "transitioned_by": "flow_coordinator_20251209_100000",
         "trigger": "decision_engine",
         "progress_score": 0.75,
         "risk_level": "low"
     },
-    "last_message_sent": "2025-12-24T08:05:00Z",
+    "last_message_sent": "2025-12-24T08:05:00-03:00",
     "messages_sent_count": 20,
     "monthly_cycles_completed": 1,
     "quiz_completion_rate": 0.9
@@ -453,11 +453,11 @@ CREATE INDEX idx_patient_flow_scheduled
     "status": "paused",
     "current_day": 35,
     "flow_paused": true,
-    "paused_at": "2025-12-20T15:30:00Z",
+    "paused_at": "2025-12-20T15:30:00-03:00",
     "paused_by": "admin_user_123",
     "pause_reason": "Patient hospitalized",
     "previous_flow_type": "days_16_45",
-    "auto_resume_scheduled": "2025-12-27T09:00:00Z"
+    "auto_resume_scheduled": "2025-12-27T09:00:00-03:00"
 }
 ```
 
@@ -479,7 +479,7 @@ async def log_transition_event(
     audit_entry = {
         "event_type": "flow_state_transition",
         "patient_id": str(patient_id),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now_sao_paulo().isoformat(),
         "transition": {
             "from": from_state,
             "to": to_state

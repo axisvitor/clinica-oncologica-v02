@@ -1,0 +1,13 @@
+{
+  "status": "not_run",
+  "reason": "Integration tests require DATABASE_URL with 'test'; app.main overrides env via .env; no test DB configured.",
+  "instrumentation": {
+    "transaction_log": "backend-hormonia/app/orchestration/saga_orchestrator/orchestrator.py logs Transaction duration",
+    "step_logs": "backend-hormonia/app/orchestration/saga_orchestrator/steps.py logs per-step durations"
+  },
+  "expected_metrics": [
+    "total_duration_seconds",
+    "step_durations_seconds"
+  ],
+  "notes": "Re-run integration tests after pointing DATABASE_URL to a test database."
+}

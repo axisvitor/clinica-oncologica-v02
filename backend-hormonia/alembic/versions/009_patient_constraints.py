@@ -102,8 +102,7 @@ def upgrade() -> None:
         'idx_patient_phone_doctor',
         'patients',
         ['phone', 'doctor_id'],
-        unique=False,
-        postgresql_concurrently=True
+        unique=False
     )
 
     # STEP 4: Add composite index for email lookups (when not NULL)
@@ -112,7 +111,6 @@ def upgrade() -> None:
         'patients',
         ['email', 'doctor_id'],
         unique=False,
-        postgresql_concurrently=True,
         postgresql_where=sa.text('email IS NOT NULL')
     )
 
@@ -122,7 +120,6 @@ def upgrade() -> None:
         'patients',
         ['cpf', 'doctor_id'],
         unique=False,
-        postgresql_concurrently=True,
         postgresql_where=sa.text('cpf IS NOT NULL')
     )
 

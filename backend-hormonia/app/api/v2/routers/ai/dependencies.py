@@ -16,18 +16,16 @@ import redis.asyncio as redis
 from fastapi import Depends, HTTPException, status
 
 # Local application imports
-from app.config import settings
+from app.core.redis_manager import get_cache_redis_manager
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.models.user import User, UserRole
 from app.schemas.v2.ai import AIModelType, TokenUsage
+from app.services.ai.execution_policy import decide_ai_failure, is_real_ai_ready
 
 from .constants import COST_PER_1K_TOKENS
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
-
-
-# Shared Redis connection pool to prevent connection leaks
-_redis_pool: Optional[redis.ConnectionPool] = None
 
 
 async def verify_physician_or_admin(
@@ -37,7 +35,7 @@ async def verify_physician_or_admin(
     # Handle both dictionary (from session) and User object (from DB)
     if isinstance(current_user, dict):
         role_value = current_user.get("role", "")
-        user_id = current_user.get("id", "unknown")
+        user_id = str(current_user.get("id", "unknown"))
     else:
         role_value = (
             current_user.role.value
@@ -60,34 +58,11 @@ async def verify_physician_or_admin(
     return current_user
 
 
-async def _get_redis_pool() -> Optional[redis.ConnectionPool]:
-    """Get or create shared Redis connection pool."""
-    global _redis_pool
-    if _redis_pool is None:
-        try:
-            _redis_pool = redis.ConnectionPool.from_url(
-                settings.REDIS_URL,
-                decode_responses=True,
-                max_connections=20,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to create Redis pool: {e}")
-            return None
-    return _redis_pool
-
-
 async def get_redis_cache() -> Optional[redis.Redis]:
-    """Get Redis client with error handling using shared pool."""
+    """Get shared Redis cache client via centralized RedisManager."""
     try:
-        pool = await _get_redis_pool()
-        if pool is None:
-            return None
-
-        client = redis.Redis(
-            connection_pool=pool,
-            socket_connect_timeout=5,
-            socket_timeout=5,
-        )
+        manager = get_cache_redis_manager()
+        client = await manager.get_async_client()
         await client.ping()
         return client
     except Exception as e:
@@ -107,16 +82,9 @@ async def redis_connection():
             if client:
                 await client.get("key")
     """
-    client = None
-    try:
-        client = await get_redis_cache()
-        yield client
-    finally:
-        if client:
-            try:
-                await client.close()
-            except Exception as e:
-                logger.debug(f"Redis close warning: {e}")
+    client = await get_redis_cache()
+    # Shared pooled clients are managed by RedisManager lifecycle.
+    yield client
 
 
 def generate_cache_key(prefix: str, user_id: Optional[str] = None, **kwargs) -> str:
@@ -199,8 +167,62 @@ def create_fallback_response(
         "fallback_used": True,
         "error_type": error_type,
         "message": message,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now_sao_paulo().isoformat(),
     }
+
+
+def ensure_real_ai_ready(api_key: Optional[str] = None) -> None:
+    """Raise RuntimeError when real AI execution is not ready."""
+    if not is_real_ai_ready(api_key):
+        raise RuntimeError("AI_GEMINI_API_KEY is not configured")
+
+
+def handle_ai_failure(
+    *,
+    logger: logging.Logger,
+    operation: str,
+    error: Exception,
+    allow_simulation: bool,
+    context: Optional[Dict[str, Any]] = None,
+    disabled_detail: Optional[str] = None,
+) -> bool:
+    """
+    Centralized fallback resolution for AI endpoints.
+
+    Returns True when caller should execute simulation fallback.
+    Raises HTTPException(502) when simulation is disabled.
+    """
+    decision = decide_ai_failure(
+        operation,
+        allow_simulation=allow_simulation,
+        detail=disabled_detail,
+    )
+
+    extra = {
+        "endpoint": operation,
+        "error": str(error),
+    }
+    if context:
+        extra.update(context)
+
+    if decision.use_simulation:
+        logger.warning(
+            "%s failed; using simulation fallback",
+            operation,
+            extra=extra,
+        )
+        return True
+
+    logger.error(
+        "%s failed with simulation disabled",
+        operation,
+        extra=extra,
+        exc_info=True,
+    )
+    raise HTTPException(
+        status_code=decision.status_code,
+        detail=decision.detail,
+    ) from error
 
 
 async def track_token_usage(
@@ -215,7 +237,7 @@ async def track_token_usage(
 
     try:
         # Daily usage key
-        today = datetime.now(timezone.utc).date().isoformat()
+        today = now_sao_paulo().date().isoformat()
         usage_key = f"ai:usage:{today}:{endpoint}:{user_id}"
 
         # Increment counters

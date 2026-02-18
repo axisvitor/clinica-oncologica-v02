@@ -58,12 +58,15 @@ class SystemInitializer:
     def _setup_logging(self) -> logging.Logger:
         """Setup structured logging"""
         level = logging.DEBUG if self.verbose else logging.INFO
+        log_dir = project_root / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "init_system.log"
         logging.basicConfig(
             level=level,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
                 logging.StreamHandler(sys.stdout),
-                logging.FileHandler('logs/init_system.log', mode='a')
+                logging.FileHandler(log_file, mode='a')
             ]
         )
         return logging.getLogger('SystemInitializer')
@@ -193,8 +196,20 @@ class SystemInitializer:
                     message="Redis configuration valid"
                 ))
 
-            # Validate security settings
-            if len(settings.SECRET_KEY) < 32:
+            # Validate security settings (compat with modular settings refactors)
+            secret_key = (
+                getattr(settings, "SECRET_KEY", None)
+                or getattr(settings, "JWT_SECRET_KEY", None)
+                or os.getenv("SECRET_KEY", "")
+            )
+
+            if not secret_key:
+                self.results.append(InitResult(
+                    component="Security Configuration",
+                    status=InitStatus.WARNING,
+                    message="SECRET_KEY not configured in settings object"
+                ))
+            elif len(secret_key) < 32:
                 self.results.append(InitResult(
                     component="Security Configuration",
                     status=InitStatus.WARNING,

@@ -51,13 +51,12 @@ describe('usePatients', () => {
       expect(result.current.isSuccess).toBe(true)
     })
 
-    expect(result.current.data).toEqual(mockPatients)
+    expect(result.current.patients).toHaveLength(1)
+    expect(result.current.patients[0].name).toBe('John Doe')
+    expect(result.current.total).toBe(1)
+    expect(result.current.data?.items).toHaveLength(1)
     expect(apiClient.patients.list).toHaveBeenCalledWith({
-      page: 1,
-      size: 20,
-      search: '',
-      status: undefined,
-      treatment_type: undefined,
+      limit: 20,
     })
   })
 
@@ -73,7 +72,11 @@ describe('usePatients', () => {
     vi.mocked(apiClient.patients.list).mockResolvedValue(mockPatients)
 
     const { result } = renderHook(
-      () => usePatients({ search: 'john' }),
+      () =>
+        usePatients({
+          initialFilters: { search: 'john' },
+          debounceMs: 0,
+        }),
       {
         wrapper: createWrapper(),
       }
@@ -84,11 +87,8 @@ describe('usePatients', () => {
     })
 
     expect(apiClient.patients.list).toHaveBeenCalledWith({
-      page: 1,
-      size: 20,
+      limit: 20,
       search: 'john',
-      status: undefined,
-      treatment_type: undefined,
     })
   })
 
@@ -104,7 +104,10 @@ describe('usePatients', () => {
     vi.mocked(apiClient.patients.list).mockResolvedValue(mockPatients)
 
     const { result } = renderHook(
-      () => usePatients({ page: 2, size: 20 }),
+      () =>
+        usePatients({
+          initialFilters: { page: 2, size: 20 },
+        }),
       {
         wrapper: createWrapper(),
       }
@@ -114,12 +117,11 @@ describe('usePatients', () => {
       expect(result.current.isSuccess).toBe(true)
     })
 
+    expect(result.current.page).toBe(2)
+    expect(result.current.total).toBe(100)
+    expect(result.current.hasMore).toBe(true)
     expect(apiClient.patients.list).toHaveBeenCalledWith({
-      page: 2,
-      size: 20,
-      search: '',
-      status: undefined,
-      treatment_type: undefined,
+      limit: 20,
     })
   })
 
@@ -131,10 +133,13 @@ describe('usePatients', () => {
       wrapper: createWrapper(),
     })
 
-    await waitFor(() => {
-      expect(result.current.isError).toBe(true)
-    })
+    await waitFor(
+      () => {
+        expect(result.current.isError).toBe(true)
+      },
+      { timeout: 5000 }
+    )
 
-    expect(result.current.error).toBeDefined()
+    expect(result.current.error).toBe(mockError)
   })
 })

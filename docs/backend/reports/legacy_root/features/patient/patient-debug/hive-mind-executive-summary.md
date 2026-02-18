@@ -253,7 +253,7 @@ ERROR Path:
 
 ### Daily Message Scheduling Flow
 ```
-[Celery Beat (8:00 AM UTC)]
+[Celery Beat (8:00 AM Sao Paulo)]
      ↓
 [Query Active Patients (max 200)] ⚠️ Scaling Limit
      ↓

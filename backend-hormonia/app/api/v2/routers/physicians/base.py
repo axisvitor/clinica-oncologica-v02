@@ -12,7 +12,7 @@ from app.models.patient import Patient
 from app.schemas.v2.physicians import WorkloadLevel
 
 
-def _extract_user_context(current_user) -> tuple[Optional[UserRole], Optional[str]]:
+def _extract_user_context(current_user) -> tuple[Optional[UserRole | str], Optional[str]]:
     """
     Extract role and user_id from current_user (dict or model).
 
@@ -33,19 +33,19 @@ def _extract_user_context(current_user) -> tuple[Optional[UserRole], Optional[st
         role = getattr(current_user, "role", None)
 
     if isinstance(role, UserRole):
-        role_enum = role
+        role_token: Optional[UserRole | str] = role
     elif isinstance(role, str):
         try:
-            role_enum = UserRole(role.lower())
+            role_token = UserRole(role.lower())
         except ValueError:
-            role_enum = None
+            role_token = role.lower()
     else:
-        role_enum = None
+        role_token = None
 
     if user_id is not None:
         user_id = str(user_id)
 
-    return role_enum, user_id
+    return role_token, user_id
 
 
 def _is_admin(current_user) -> bool:
@@ -116,7 +116,9 @@ def validate_physician_access(
     # Fetch physician
     physician = (
         db.query(User)
-        .filter(User.id == physician_id, User.role == UserRole.DOCTOR)
+        .filter(
+            User.id == physician_id, User.role.in_([UserRole.DOCTOR, UserRole.ADMIN])
+        )
         .first()
     )
 
@@ -136,8 +138,12 @@ def validate_physician_access(
     if str(physician.id) == user_id:
         return physician
 
-    # Patients can view their assigned physician
-    if role_enum == UserRole.PATIENT and allow_patient_view:
+    # Patients can view their assigned physician.
+    # In this codebase UserRole currently defines only ADMIN/DOCTOR,
+    # but some auth contexts may still provide "patient" as a raw string.
+    role_value = role_enum.value if isinstance(role_enum, UserRole) else role_enum
+    is_patient_role = role_value == "patient"
+    if is_patient_role and allow_patient_view:
         patient_assigned = (
             db.query(Patient)
             .filter(

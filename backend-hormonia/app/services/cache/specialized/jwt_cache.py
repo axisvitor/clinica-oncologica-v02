@@ -13,15 +13,13 @@ import time
 from typing import Any, Dict, Optional, Set
 from uuid import UUID
 
-from app.services.ai.cache_layer import CacheLayer, CacheStrategy
-
 _jwt_cache_singleton: Optional["JWTCache"] = None
 
 
 class JWTCache:
     """Simple async JWT cache with optional TTL support."""
 
-    def __init__(self, cache_layer: Optional[CacheLayer] = None):
+    def __init__(self, cache_layer: Optional[Any] = None):
         self.cache_layer = cache_layer
         self._lock = asyncio.Lock()
         self._tokens: Dict[str, Dict[str, Any]] = {}
@@ -120,11 +118,8 @@ class JWTCache:
                 "users": len(self._user_index),
                 "blacklisted": len(self._blacklist),
             }
-        strategy = (
-            self.cache_layer.strategy.value
-            if self.cache_layer and isinstance(self.cache_layer.strategy, CacheStrategy)
-            else "memory"
-        )
+        strategy_obj = getattr(self.cache_layer, "strategy", None)
+        strategy = getattr(strategy_obj, "value", strategy_obj) or "memory"
         stats["strategy"] = strategy
         return stats
 

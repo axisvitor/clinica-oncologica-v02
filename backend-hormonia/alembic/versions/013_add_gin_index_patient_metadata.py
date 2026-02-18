@@ -50,21 +50,21 @@ def upgrade() -> None:
     # Create GIN index on entire metadata column
     # This supports queries like: WHERE metadata @> '{"consent": {"lgpd": true}}'
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patient_metadata_gin
+        CREATE INDEX IF NOT EXISTS idx_patient_metadata_gin
         ON patients USING GIN (metadata);
     """)
 
     # Create GIN index on consent subfield
     # This optimizes queries on the consent object specifically
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patient_metadata_consent_gin
+        CREATE INDEX IF NOT EXISTS idx_patient_metadata_consent_gin
         ON patients USING GIN ((metadata->'consent'));
     """)
 
     # Create GIN index on preferences subfield
     # This optimizes queries on the preferences object specifically
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patient_metadata_preferences_gin
+        CREATE INDEX IF NOT EXISTS idx_patient_metadata_preferences_gin
         ON patients USING GIN ((metadata->'preferences'));
     """)
 
@@ -88,9 +88,9 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Remove GIN indexes."""
 
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_patient_metadata_gin;")
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_patient_metadata_consent_gin;")
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_patient_metadata_preferences_gin;")
+    op.execute("DROP INDEX IF EXISTS idx_patient_metadata_gin;")
+    op.execute("DROP INDEX IF EXISTS idx_patient_metadata_consent_gin;")
+    op.execute("DROP INDEX IF EXISTS idx_patient_metadata_preferences_gin;")
 
     # Update table statistics
     op.execute("ANALYZE patients;")

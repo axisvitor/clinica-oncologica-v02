@@ -30,7 +30,7 @@ Cookie: session_id={session_id}
   "active_patients": 247,
   "daily_messages": 1523,
   "system_health_score": 98.5,
-  "timestamp": "2025-12-22T14:30:00Z"
+  "timestamp": "2025-12-22T14:30:00-03:00"
 }
 ```
 
@@ -61,7 +61,7 @@ summary = {
     'active_patients': db.query(Patient).filter(Patient.last_activity >= now - 7days).count(),
     'daily_messages': db.query(Message).filter(Message.created_at >= today).count(),
     'system_health_score': calculate_system_health(),
-    'timestamp': datetime.utcnow().isoformat()
+    'timestamp': now_sao_paulo().isoformat()
 }
 ```
 
@@ -170,7 +170,7 @@ Cookie: session_id={session_id}
     "throughput_rps": 125.5
   },
   "alerts_count": 3,
-  "last_updated": "2025-12-22T14:30:15Z"
+  "last_updated": "2025-12-22T14:30:15-03:00"
 }
 ```
 
@@ -184,9 +184,9 @@ Cookie: session_id={session_id}
 **Data Collection Query Pattern:**
 ```python
 def get_realtime_metrics():
-    last_7_days = datetime.utcnow() - timedelta(days=7)
-    last_30_days = datetime.utcnow() - timedelta(days=30)
-    today = datetime.utcnow().date()
+    last_7_days = now_sao_paulo() - timedelta(days=7)
+    last_30_days = now_sao_paulo() - timedelta(days=30)
+    today = now_sao_paulo().date()
 
     return {
         'engagement': {
@@ -238,7 +238,7 @@ Cookie: session_id={session_id}
       "severity": "high",
       "category": "system",
       "status": "active",
-      "created_at": "2025-12-22T14:20:00Z",
+      "created_at": "2025-12-22T14:20:00-03:00",
       "acknowledged_at": null,
       "acknowledged_by": null,
       "resolved_at": null,
@@ -261,7 +261,7 @@ Cookie: session_id={session_id}
       "severity": "medium",
       "category": "performance",
       "status": "active",
-      "created_at": "2025-12-22T13:45:00Z",
+      "created_at": "2025-12-22T13:45:00-03:00",
       "acknowledged_at": null,
       "acknowledged_by": null,
       "resolved_at": null,
@@ -284,7 +284,7 @@ Cookie: session_id={session_id}
       "severity": "critical",
       "category": "healthcare",
       "status": "active",
-      "created_at": "2025-12-22T14:15:00Z",
+      "created_at": "2025-12-22T14:15:00-03:00",
       "acknowledged_at": null,
       "acknowledged_by": null,
       "resolved_at": null,
@@ -342,7 +342,7 @@ Content-Type: application/json
   "id": "a1b2c3d4-e5f6-4g7h-8i9j-0k1l2m3n4o5p",
   "title": "High CPU Usage Detected",
   "status": "acknowledged",
-  "acknowledged_at": "2025-12-22T14:30:00Z",
+  "acknowledged_at": "2025-12-22T14:30:00-03:00",
   "acknowledged_by": "doctor_user_id"
 }
 ```
@@ -377,8 +377,8 @@ Cookie: session_id={session_id}
 Content-Type: application/json
 
 {
-  "start_date": "2025-11-22T00:00:00Z",
-  "end_date": "2025-12-22T23:59:59Z",
+  "start_date": "2025-11-22T00:00:00-03:00",
+  "end_date": "2025-12-22T23:59:59-03:00",
   "format": "json"
 }
 ```
@@ -400,10 +400,10 @@ Content-Type: application/json
 ```json
 {
   "metadata": {
-    "start_date": "2025-11-22T00:00:00Z",
-    "end_date": "2025-12-22T23:59:59Z",
+    "start_date": "2025-11-22T00:00:00-03:00",
+    "end_date": "2025-12-22T23:59:59-03:00",
     "format": "json",
-    "generated_at": "2025-12-22T14:30:00Z",
+    "generated_at": "2025-12-22T14:30:00-03:00",
     "generated_by": "user_id"
   },
   "engagement": {
@@ -463,7 +463,7 @@ const ws = new WebSocket(
   "data": {
     // Metrics or alert data
   },
-  "timestamp": "2025-12-22T14:30:15Z"
+  "timestamp": "2025-12-22T14:30:15-03:00"
 }
 ```
 
@@ -489,7 +489,7 @@ const ws = new WebSocket(
       "memory_usage": 68.3
     }
   },
-  "timestamp": "2025-12-22T14:30:15Z"
+  "timestamp": "2025-12-22T14:30:15-03:00"
 }
 ```
 
@@ -502,9 +502,9 @@ const ws = new WebSocket(
     "title": "High CPU Usage",
     "severity": "high",
     "status": "active",
-    "created_at": "2025-12-22T14:30:00Z"
+    "created_at": "2025-12-22T14:30:00-03:00"
   },
-  "timestamp": "2025-12-22T14:30:15Z"
+  "timestamp": "2025-12-22T14:30:15-03:00"
 }
 ```
 
@@ -512,7 +512,7 @@ const ws = new WebSocket(
 ```json
 {
   "type": "ping",
-  "timestamp": "2025-12-22T14:30:15Z"
+  "timestamp": "2025-12-22T14:30:15-03:00"
 }
 ```
 
@@ -543,7 +543,7 @@ const ws = new WebSocket(
     "code": "UNAUTHORIZED|INVALID_SESSION|SERVER_ERROR",
     "message": "Human-readable error message"
   },
-  "timestamp": "2025-12-22T14:30:15Z"
+  "timestamp": "2025-12-22T14:30:15-03:00"
 }
 ```
 
@@ -700,7 +700,7 @@ class MetricsExportRequest(BaseModel):
 {
   "error": "error_code",
   "detail": "Human-readable error message",
-  "timestamp": "2025-12-22T14:30:00Z",
+  "timestamp": "2025-12-22T14:30:00-03:00",
   "request_id": "req_123456"
 }
 ```

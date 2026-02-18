@@ -81,6 +81,8 @@ import type {
   AIHealthResponse,
   AIAnalysisRequest as _AIAnalysisRequest,
   AIAnalysisResponse,
+  HumanizeRequest,
+  HumanizeResponse,
   AIGenerateResponseRequest as _AIGenerateResponseRequest,
   AIGenerateResponseResponse,
   SentimentAnalysisRequest as _SentimentAnalysisRequest,
@@ -225,7 +227,7 @@ export class ApiClient extends ApiClientCore {
       sendBulk: (data: { patient_ids: string[]; content: string }) =>
         this.post("/api/v2/messages/bulk", data),
 
-      // retry endpoint stays on V1 (no V2 equivalent)
+      // retry endpoint is available in V2
       retry: (messageId: string) => this.post(`/api/v2/messages/${messageId}/retry`),
     };
   }
@@ -354,7 +356,7 @@ export class ApiClient extends ApiClientCore {
         return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
       },
 
-      generate: (patientId: string, reportType: string, config?: Record<string, unknown>) => {
+      generate: (patientId: string, reportType: string, config?: ReportGenerationConfig) => {
         const rawTitle = typeof config?.title === "string" ? config.title.trim() : "";
         const params: Record<string, string | number | boolean> = {
           title: rawTitle || `Relatorio ${reportType}`,
@@ -362,35 +364,35 @@ export class ApiClient extends ApiClientCore {
         };
 
         if (patientId) {
-          params.patient_ids = patientId;
+          params['patient_ids'] = patientId;
         }
 
         if (typeof config?.format === "string" && config.format.trim()) {
-          params.format = config.format.trim();
+          params['format'] = config.format.trim();
         }
 
         if (typeof config?.start_date === "string" && config.start_date) {
-          params.date_from = config.start_date;
+          params['date_from'] = config.start_date;
         }
 
         if (typeof config?.end_date === "string" && config.end_date) {
-          params.date_to = config.end_date;
+          params['date_to'] = config.end_date;
         }
 
         if (typeof config?.include_messages === "boolean") {
-          params.include_messages = config.include_messages;
+          params['include_messages'] = config.include_messages;
         }
 
         if (typeof config?.include_quizzes === "boolean") {
-          params.include_quizzes = config.include_quizzes;
+          params['include_quizzes'] = config.include_quizzes;
         }
 
         if (typeof config?.include_alerts === "boolean") {
-          params.include_alerts = config.include_alerts;
+          params['include_alerts'] = config.include_alerts;
         }
 
         if (typeof config?.include_timeline === "boolean") {
-          params.include_timeline = config.include_timeline;
+          params['include_timeline'] = config.include_timeline;
         }
 
         return this.post("/api/v2/reports/generate", undefined, params);
@@ -459,7 +461,7 @@ export class ApiClient extends ApiClientCore {
         toggleStatus: (userId: string) => this.post(`/api/v2/admin/users/${userId}/deactivate`),
       },
 
-      // roles/audit/settings remain on V1 (not in V2 user management)
+      // roles/audit/settings are served by V2 admin endpoints
       roles: {
         list: () => this.get<Role[]>("/api/v2/admin/roles"),
 
@@ -565,26 +567,184 @@ export class ApiClient extends ApiClientCore {
   }
 
   private createAiApi(): AiApi {
+    const timeframeToDays = (timeframe?: string) => {
+      switch (timeframe) {
+        case "day":
+          return 1;
+        case "week":
+          return 7;
+        case "month":
+          return 30;
+        case "quarter":
+          return 90;
+        default:
+          return undefined;
+      }
+    };
+
+    const buildHumanizeRequest = (
+      message: string,
+      context?: HumanizeContext,
+      overrides?: Partial<HumanizeRequest>,
+    ): HumanizeRequest => {
+      const patientId =
+        typeof context?.patient_id === "string"
+          ? context.patient_id
+          : typeof context?.patientId === "string"
+            ? context.patientId
+            : undefined;
+      const messageType =
+        typeof context?.message_type === "string"
+          ? context.message_type
+          : typeof context?.messageType === "string"
+            ? context.messageType
+            : undefined;
+      const tone =
+        typeof context?.tone === "string"
+          ? context.tone
+          : typeof context?.tone_type === "string"
+            ? context.tone_type
+            : undefined;
+      const maxLength =
+        typeof context?.max_length === "number"
+          ? context.max_length
+          : typeof context?.maxLength === "number"
+            ? context.maxLength
+            : undefined;
+      const useCache =
+        typeof context?.use_cache === "boolean"
+          ? context.use_cache
+          : typeof context?.useCache === "boolean"
+            ? context.useCache
+            : undefined;
+
+      return {
+        message,
+        ...(patientId && patientId !== "all" ? { patient_id: patientId } : {}),
+        message_type: messageType as HumanizeRequest["message_type"] | undefined,
+        tone: tone as HumanizeRequest["tone"] | undefined,
+        max_length: maxLength,
+        use_cache: useCache ?? true,
+        ...overrides,
+      };
+    };
+
     return {
       health: () => this.get<AIHealthResponse>("/api/v2/ai/health"),
 
-      chat: (message: string, context?: Record<string, unknown>) =>
-        this.post<AIChatResponse>("/api/v2/ai/chat", { message, context }),
+      chat: async (message: string, context?: HumanizeContext) => {
+        const response = await this.post<HumanizeResponse>(
+          "/api/v2/ai/humanize",
+          buildHumanizeRequest(message, context),
+        );
+        const confidence = Math.max(
+          0,
+          Math.min(1, (response.readability_score ?? 0) / 100),
+        );
+        return {
+          response: response.humanized_message,
+          message: response.humanized_message,
+          confidence,
+          metadata: {
+            personalization_notes: response.personalization_notes,
+            tone_analysis: response.tone_analysis,
+            cache_info: response.cache_info,
+            token_usage: response.token_usage,
+          },
+        } as AIChatResponse;
+      },
 
-      analyze: (data: unknown, analysisType: string) =>
-        this.post<AIAnalysisResponse>("/api/v2/ai/analyze", { data, analysis_type: analysisType }),
+      analyze: async (data: unknown, analysisType: 'sentiment' | 'risk' | 'response') => {
+        if (analysisType === "sentiment") {
+          const payload = data as SentimentAnalysisPayload;
+          const message =
+            (typeof payload?.message === "string" && payload.message) ||
+            (typeof payload?.text === "string" && payload.text) ||
+            "";
+          const response = await this.post<Record<string, unknown>>(
+            "/api/v2/ai/analyze/sentiment",
+            {
+              message,
+              patient_id: payload?.patient_id,
+              include_medical_concerns: payload?.include_medical_concerns ?? true,
+              include_urgency: payload?.include_urgency ?? true,
+            },
+          );
+          return { type: "sentiment", result: response } as AIAnalysisResponse;
+        }
+        if (analysisType === "risk") {
+          const response = await this.post<Record<string, unknown>>(
+            "/api/v2/ai/analyze/risk",
+            data,
+          );
+          return { type: "risk", result: response } as AIAnalysisResponse;
+        }
+        if (analysisType === "response") {
+          const response = await this.post<Record<string, unknown>>(
+            "/api/v2/ai/analyze/response",
+            data,
+          );
+          return { type: "response", result: response } as AIAnalysisResponse;
+        }
+        throw new Error(`Unsupported analysis type: ${analysisType}`);
+      },
 
-      generateResponse: (patientId: string, messageHistory: Array<{ role: string; content: string }>, intent?: string) =>
-        this.post<AIGenerateResponseResponse>("/api/v2/ai/generate-response", {
-          patient_id: patientId,
-          message_history: messageHistory,
-          intent,
-        }),
+      generateResponse: async (
+        patientId: string,
+        messageHistory: Array<{ role: string; content: string }>,
+        intent?: string,
+      ) => {
+        const lastMessage = [...messageHistory]
+          .reverse()
+          .find((entry) => entry.content?.trim())?.content;
+        const template =
+          lastMessage ||
+          (intent
+            ? `Gerar uma resposta empatica para o contexto: ${intent}`
+            : "Responder de forma empatica e profissional.");
+        const response = await this.post<HumanizeResponse>(
+          "/api/v2/ai/humanize",
+          buildHumanizeRequest(template, { patient_id: patientId }, { use_cache: false }),
+        );
+        return {
+          generated_response: response.humanized_message,
+          confidence: Math.max(
+            0,
+            Math.min(1, (response.readability_score ?? 0) / 100),
+          ),
+          alternative_responses: [],
+        } as AIGenerateResponseResponse;
+      },
 
-      sentiment: (text: string) => this.post<SentimentAnalysisResponse>("/api/v2/ai/sentiment", { text }),
+      sentiment: async (text: string) => {
+        const response = await this.post<{
+          sentiment?: string;
+          confidence?: number;
+        }>("/api/v2/ai/analyze/sentiment", { message: text });
+        const sentiment = response.sentiment === "positive" || response.sentiment === "negative"
+          ? response.sentiment
+          : "neutral";
+        const score =
+          sentiment === "positive" ? 0.8 : sentiment === "negative" ? 0.2 : 0.5;
+        return {
+          sentiment,
+          score,
+          confidence: response.confidence ?? 0,
+        } as SentimentAnalysisResponse;
+      },
 
-      insights: (patientId: string, timeframe?: string) =>
-        this.get<AIInsights>(`/api/v2/ai/insights/${patientId}`, timeframe ? { timeframe } : undefined),
+      insights: (patientId: string, timeframe?: string) => {
+        if (!patientId || patientId === "all") {
+          return Promise.reject(
+            new Error("patientId is required for AI insights"),
+          );
+        }
+        const days = timeframeToDays(timeframe);
+        return this.get<AIInsights>(
+          `/api/v2/ai/insights/${patientId}`,
+          days ? { days } : undefined,
+        );
+      },
 
       recommendations: (patientId: string) =>
         this.get<AIRecommendations>(`/api/v2/ai/recommendations/${patientId}`),
@@ -621,9 +781,8 @@ export class ApiClient extends ApiClientCore {
   }
 
   /**
-   * Quiz API (Partially migrated to V2)
-   * V2: quiz sessions, templates
-   * V1: submitResponse, sessionResponses, analysis (no V2 equivalents)
+   * Quiz API using V2 endpoints
+   * Session/template operations and response/analysis methods map to /api/v2 routes.
    */
   private createQuizApi(): QuizApi {
     return {
@@ -808,9 +967,20 @@ interface ReportsListOptions extends ReportListFilters {
   limit?: number;
 }
 
+type ReportGenerationConfig = {
+  title?: string;
+  format?: string;
+  start_date?: string;
+  end_date?: string;
+  include_messages?: boolean;
+  include_quizzes?: boolean;
+  include_alerts?: boolean;
+  include_timeline?: boolean;
+};
+
 interface ReportsApi {
   list: (options?: ReportsListOptions) => Promise<PaginatedResponse<Report>>;
-  generate: (patientId: string, reportType: string, config?: Record<string, unknown>) => Promise<Report>;
+  generate: (patientId: string, reportType: string, config?: ReportGenerationConfig) => Promise<Report>;
   download: (reportId: string, format?: "pdf" | "excel" | "csv") => Promise<Blob>;
   delete: (reportId: string) => Promise<MessageResponse>;
   schedule: (data: ScheduleReportRequest) => Promise<ScheduledReport>;
@@ -879,10 +1049,31 @@ interface AdminUsersApi {
   disable2FA: (userId: string) => Promise<MessageResponse>;
 }
 
+type HumanizeContext = {
+  patient_id?: string;
+  patientId?: string;
+  message_type?: string;
+  messageType?: string;
+  tone?: string;
+  tone_type?: string;
+  max_length?: number;
+  maxLength?: number;
+  use_cache?: boolean;
+  useCache?: boolean;
+};
+
+type SentimentAnalysisPayload = {
+  message?: string;
+  text?: string;
+  patient_id?: string;
+  include_medical_concerns?: boolean;
+  include_urgency?: boolean;
+};
+
 interface AiApi {
   health: () => Promise<AIHealthResponse>;
-  chat: (message: string, context?: Record<string, unknown>) => Promise<AIChatResponse>;
-  analyze: (data: unknown, analysisType: string) => Promise<AIAnalysisResponse>;
+  chat: (message: string, context?: HumanizeContext) => Promise<AIChatResponse>;
+  analyze: (data: unknown, analysisType: 'sentiment' | 'risk' | 'response') => Promise<AIAnalysisResponse>;
   generateResponse: (patientId: string, messageHistory: Array<{ role: string; content: string }>, intent?: string) => Promise<AIGenerateResponseResponse>;
   sentiment: (text: string) => Promise<SentimentAnalysisResponse>;
   insights: (patientId: string, timeframe?: string) => Promise<AIInsights>;

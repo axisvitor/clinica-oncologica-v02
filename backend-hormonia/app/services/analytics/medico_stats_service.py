@@ -17,6 +17,7 @@ import logging
 from app.models.patient import Patient
 from app.models.message import Message, MessageDirection, MessageStatus
 from app.models.alert import Alert, AlertSeverity, AlertStatus
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,7 @@ class MedicoStatsService:
             Number of pending tasks
         """
         try:
-            two_days_ago = datetime.now(timezone.utc) - timedelta(days=2)
+            two_days_ago = now_sao_paulo() - timedelta(days=2)
 
             # Count unread inbound messages from last 48h
             # Join with patients to ensure they belong to this medico
@@ -154,7 +155,7 @@ class MedicoStatsService:
         try:
             today_start = datetime.combine(date.today(), time.min)
             today_end = datetime.combine(date.today(), time.max)
-            week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+            week_ago = now_sao_paulo() - timedelta(days=7)
 
             # Messages sent today by medico
             messages_today = (
@@ -243,7 +244,7 @@ class MedicoStatsService:
             Average response time in minutes, or None if not calculable
         """
         try:
-            datetime.now(timezone.utc) - timedelta(days=7)
+            now_sao_paulo() - timedelta(days=7)
 
             # Get pairs of inbound and next outbound messages
             # This is a simplified approach - production would need proper threading
@@ -336,7 +337,7 @@ class MedicoStatsService:
                 "exames_aguardando": self.get_exames_aguardando(),
                 "engagement": self.get_engagement_metrics(),
                 "alerts": self.get_alert_metrics(),
-                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
             logger.info(
@@ -361,5 +362,5 @@ class MedicoStatsService:
                     "avg_response_time_minutes": None,
                 },
                 "alerts": {"total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0},
-                "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+                "timestamp": now_sao_paulo().isoformat(),
             }

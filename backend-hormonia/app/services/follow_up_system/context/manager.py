@@ -10,11 +10,11 @@ import logging
 from typing import Optional
 from datetime import datetime, timezone
 from uuid import UUID
-from weakref import WeakValueDictionary
 
 from ..models import ConversationContext
-from app.services.analytics.data_extraction import ConcernLevel
+from app.services.ai import ConcernLevel
 from app.services.response_processor import StructuredResponse
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +23,8 @@ class ContextManager:
     """Manages conversation context for patient continuity."""
 
     # Class-level lock registry to prevent concurrent updates per patient
-    # Using WeakValueDictionary to auto-cleanup unused locks
-    _patient_locks: WeakValueDictionary = WeakValueDictionary()
+    # Use a strong-reference dict to avoid WeakValueDictionary evicting active locks.
+    _patient_locks: dict[str, asyncio.Lock] = {}
     _locks_lock: asyncio.Lock = asyncio.Lock()
 
     def __init__(self, redis_store, in_memory_contexts: dict):
@@ -154,7 +154,7 @@ class ContextManager:
                             "updated_at": pref.extracted_at.isoformat(),
                         }
 
-                context.last_updated = datetime.now(timezone.utc)
+                context.last_updated = now_sao_paulo()
 
                 # Store in Redis (with fallback to in-memory)
                 await self._store_context(context)
@@ -254,7 +254,7 @@ class ContextManager:
 
                 # Add to conversation history
                 history_entry = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": now_sao_paulo().isoformat(),
                     "message_id": str(message_id),
                     "content": content[:500],  # Limit to 500 chars
                     "direction": direction,
@@ -274,7 +274,7 @@ class ContextManager:
                 if intent:
                     context.current_topic = intent
 
-                context.last_updated = datetime.now(timezone.utc)
+                context.last_updated = now_sao_paulo()
 
                 # Store in Redis (with fallback to in-memory)
                 await self._store_context(context)

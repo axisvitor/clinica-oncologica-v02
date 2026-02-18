@@ -26,7 +26,7 @@ class ResourceStatsResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "cpu": {"percent": 45.2, "count": 8},
                 "memory": {"percent": 62.8, "used_gb": 10.0, "total_gb": 16.0},
                 "disk": {"percent": 55.5, "used_gb": 250.0, "total_gb": 450.0},
@@ -51,7 +51,7 @@ class ResourceTimeSeriesPoint(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "cpu_percent": 45.2,
                 "memory_percent": 62.8,
                 "disk_percent": 55.5,
@@ -77,7 +77,7 @@ class ResourceHistoricalResponse(BaseModel):
                 "time_range_minutes": 60,
                 "data_points": [
                     {
-                        "timestamp": "2025-11-07T12:00:00Z",
+                        "timestamp": "2025-11-07T12:00:00-03:00",
                         "cpu_percent": 45.2,
                         "memory_percent": 62.8,
                         "disk_percent": 55.5,
@@ -112,7 +112,7 @@ class BusinessMetricsSummaryResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "time_range_hours": 24,
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "metrics": {
                     "quiz_completions": 45,
                     "messages_sent": 250,
@@ -137,12 +137,12 @@ class PatientMetricsResponse(BaseModel):
             "example": {
                 "patient_id": "patient-123",
                 "time_range_hours": 24,
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "metrics": {
                     "quiz_completions": 2,
                     "messages_received": 5,
                     "flow_interactions": 3,
-                    "last_activity": "2025-11-07T11:30:00Z",
+                    "last_activity": "2025-11-07T11:30:00-03:00",
                 },
             }
         }
@@ -162,11 +162,11 @@ class MetricTypeStatsResponse(BaseModel):
             "example": {
                 "metric_type": "quiz_completion",
                 "time_range_hours": 24,
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "statistics": {
                     "total": 45,
                     "avg_per_hour": 1.875,
-                    "peak_hour": "2025-11-07T10:00:00Z",
+                    "peak_hour": "2025-11-07T10:00:00-03:00",
                     "peak_count": 8,
                 },
             }

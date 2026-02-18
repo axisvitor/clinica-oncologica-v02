@@ -153,6 +153,16 @@ QUIZ_DLQ_BATCH_SIZE = int(os.getenv("TASK_QUIZ_DLQ_BATCH_SIZE", "50"))
 
 
 # ============================================================================
+# WEBHOOK DLQ SETTINGS - NEW NAMING: TASK_WEBHOOK_DLQ_*
+# ============================================================================
+
+# Timeout for webhook DLQ processing (seconds)
+WEBHOOK_DLQ_PROCESSING_TIMEOUT = int(
+    os.getenv("TASK_WEBHOOK_DLQ_PROCESSING_TIMEOUT_SECONDS", "180")
+)
+
+
+# ============================================================================
 # HEALTH MONITORING SETTINGS - NEW NAMING: TASK_HEALTH_*
 # ============================================================================
 

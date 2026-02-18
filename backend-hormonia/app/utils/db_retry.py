@@ -18,6 +18,7 @@ Usage:
 import asyncio
 import functools
 import logging
+import threading
 import time
 from typing import Callable, Optional, Any
 import random
@@ -336,7 +337,7 @@ def with_db_retry(
                             f"(attempt {attempt + 1}/{max_retries + 1}). "
                             f"Retrying in {delay:.2f}s. Error: {str(e)}"
                         )
-                        time.sleep(delay)
+                        threading.Event().wait(delay)
                     else:
                         logger.error(
                             f"Database operation '{func.__name__}' failed after "

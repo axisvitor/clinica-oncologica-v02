@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.main import app
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # FIXTURES
 # ============================================================================
@@ -88,8 +89,8 @@ def sample_sync_config_data():
 class TestSyncJobManagement:
     """Test sync job CRUD operations"""
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_list_sync_jobs_success(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test listing sync jobs with pagination"""
         mock_get_db.return_value = mock_db
@@ -103,8 +104,8 @@ class TestSyncJobManagement:
         assert "next_cursor" in data
         assert "has_more" in data
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_list_sync_jobs_with_status_filter(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test filtering sync jobs by status"""
         mock_get_db.return_value = mock_db
@@ -114,8 +115,8 @@ class TestSyncJobManagement:
 
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_list_sync_jobs_with_platform_filter(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test filtering sync jobs by platform"""
         mock_get_db.return_value = mock_db
@@ -125,8 +126,8 @@ class TestSyncJobManagement:
 
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_list_sync_jobs_cached(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test cached sync jobs list"""
         mock_get_db.return_value = mock_db
@@ -144,8 +145,8 @@ class TestSyncJobManagement:
 
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_get_sync_job_not_found(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test retrieving non-existent sync job"""
         mock_get_db.return_value = mock_db
@@ -163,8 +164,8 @@ class TestSyncJobManagement:
 class TestSyncTriggerExecution:
     """Test sync trigger and execution operations"""
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_trigger_sync_full_success(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis, sample_sync_job_data):
         """Test triggering full sync"""
         mock_get_db.return_value = mock_db
@@ -182,8 +183,8 @@ class TestSyncTriggerExecution:
         assert data["status"] == "pending"
         assert "estimated_items" in data
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_trigger_sync_incremental_success(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis, sample_sync_job_data):
         """Test triggering incremental sync"""
         mock_get_db.return_value = mock_db
@@ -198,8 +199,8 @@ class TestSyncTriggerExecution:
         data = response.json()
         assert data["status"] == "pending"
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_trigger_sync_selective_success(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test triggering selective sync with specific entity IDs"""
         mock_get_db.return_value = mock_db
@@ -222,8 +223,8 @@ class TestSyncTriggerExecution:
         data = response.json()
         assert data["estimated_items"] == 3
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_trigger_sync_dry_run(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis, sample_sync_job_data):
         """Test dry run sync (no actual changes)"""
         mock_get_db.return_value = mock_db
@@ -236,8 +237,8 @@ class TestSyncTriggerExecution:
 
         assert response.status_code == status.HTTP_202_ACCEPTED
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_trigger_sync_idempotency(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis, sample_sync_job_data):
         """Test idempotency prevents duplicate syncs"""
         mock_get_db.return_value = mock_db
@@ -252,9 +253,18 @@ class TestSyncTriggerExecution:
         data = response.json()
         # Should still return 202 but with idempotency message
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
-    def test_get_sync_status_success(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
+    @patch("app.api.v2.routers.platform_sync.get_cached_sync_status", new_callable=AsyncMock)
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
+    def test_get_sync_status_success(
+        self,
+        mock_get_db,
+        mock_get_redis,
+        mock_get_cached_sync_status,
+        client,
+        mock_db,
+        mock_redis,
+    ):
         """Test getting real-time sync status"""
         mock_get_db.return_value = mock_db
         mock_get_redis.return_value = mock_redis
@@ -271,12 +281,12 @@ class TestSyncTriggerExecution:
             "current_batch": 4,
             "total_batches": 5,
             "items_per_second": 8.5,
-            "estimated_completion": datetime.utcnow().isoformat(),
+            "estimated_completion": now_sao_paulo_naive().isoformat(),
             "current_entity_type": "patients",
             "errors": [],
             "warnings": []
         }
-        mock_redis.get.return_value = json.dumps(cached_status)
+        mock_get_cached_sync_status.return_value = cached_status
 
         response = client.get(f"/api/v2/platform-sync/status/{job_id}")
 
@@ -285,8 +295,8 @@ class TestSyncTriggerExecution:
         assert data["status"] == "running"
         assert data["progress_percentage"] == 65.5
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_get_sync_status_not_found(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test sync status for non-existent job"""
         mock_get_db.return_value = mock_db
@@ -304,8 +314,8 @@ class TestSyncTriggerExecution:
 class TestSyncConfiguration:
     """Test sync configuration CRUD operations"""
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_list_sync_configs_success(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test listing sync configurations"""
         mock_get_db.return_value = mock_db
@@ -318,8 +328,8 @@ class TestSyncConfiguration:
         assert "data" in data
         assert "next_cursor" in data
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_create_sync_config_success(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis, sample_sync_config_data):
         """Test creating sync configuration"""
         mock_get_db.return_value = mock_db
@@ -333,8 +343,8 @@ class TestSyncConfiguration:
         assert data["name"] == "Main EHR System"
         assert "id" in data
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_create_sync_config_validation_error(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test config creation with invalid data"""
         mock_get_db.return_value = mock_db
@@ -351,8 +361,8 @@ class TestSyncConfiguration:
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_get_sync_config_not_found(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test retrieving non-existent config"""
         mock_get_db.return_value = mock_db
@@ -363,8 +373,8 @@ class TestSyncConfiguration:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_update_sync_config_not_found(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test updating non-existent config"""
         mock_get_db.return_value = mock_db
@@ -377,8 +387,8 @@ class TestSyncConfiguration:
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_delete_sync_config_not_found(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test deleting non-existent config"""
         mock_get_db.return_value = mock_db
@@ -396,7 +406,7 @@ class TestSyncConfiguration:
 class TestPlatformTesting:
     """Test platform connection testing"""
 
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_test_platform_connection_success(self, mock_get_db, client, mock_db):
         """Test successful platform connection"""
         mock_get_db.return_value = mock_db
@@ -422,7 +432,7 @@ class TestPlatformTesting:
             assert data["success"] is True
             assert "response_time_ms" in data
 
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_test_platform_connection_timeout(self, mock_get_db, client, mock_db):
         """Test platform connection timeout"""
         mock_get_db.return_value = mock_db
@@ -447,7 +457,7 @@ class TestPlatformTesting:
             assert data["success"] is False
             assert "timeout" in data["message"].lower()
 
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_test_platform_connection_failed(self, mock_get_db, client, mock_db):
         """Test failed platform connection"""
         mock_get_db.return_value = mock_db
@@ -480,8 +490,8 @@ class TestPlatformTesting:
 class TestConflictResolution:
     """Test conflict resolution operations"""
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_resolve_conflict_use_local(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test resolving conflict with use_local strategy"""
         mock_get_db.return_value = mock_db
@@ -501,8 +511,8 @@ class TestConflictResolution:
         assert data["status"] == "resolved"
         assert data["resolution_strategy"] == "use_local"
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_resolve_conflict_use_remote(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test resolving conflict with use_remote strategy"""
         mock_get_db.return_value = mock_db
@@ -520,8 +530,8 @@ class TestConflictResolution:
         data = response.json()
         assert data["resolution_strategy"] == "use_remote"
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_resolve_conflict_merge(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test resolving conflict with merge strategy"""
         mock_get_db.return_value = mock_db
@@ -545,8 +555,8 @@ class TestConflictResolution:
         assert data["resolution_strategy"] == "merge"
         assert data["resolved_value"] == resolution_request["merged_data"]
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_resolve_conflict_merge_validation_error(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test merge strategy requires merged_data"""
         mock_get_db.return_value = mock_db
@@ -570,8 +580,8 @@ class TestConflictResolution:
 class TestSyncHistory:
     """Test sync history operations"""
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_get_sync_history_success(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test retrieving sync history"""
         mock_get_db.return_value = mock_db
@@ -584,8 +594,8 @@ class TestSyncHistory:
         assert "data" in data
         assert "next_cursor" in data
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_get_sync_history_with_platform_filter(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test history with platform filter"""
         mock_get_db.return_value = mock_db
@@ -595,8 +605,8 @@ class TestSyncHistory:
 
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_get_sync_history_with_status_filter(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test history with status filter"""
         mock_get_db.return_value = mock_db
@@ -606,8 +616,8 @@ class TestSyncHistory:
 
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_get_sync_history_with_days_filter(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test history with days filter"""
         mock_get_db.return_value = mock_db
@@ -617,8 +627,8 @@ class TestSyncHistory:
 
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_get_sync_history_cached(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test cached sync history"""
         mock_get_db.return_value = mock_db
@@ -643,8 +653,8 @@ class TestSyncHistory:
 class TestSyncRollback:
     """Test sync rollback operations"""
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_rollback_sync_success(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test successful sync rollback"""
         mock_get_db.return_value = mock_db
@@ -664,8 +674,8 @@ class TestSyncRollback:
         assert data["original_transaction_id"] == "sync_txn_abc123"
         assert data["status"] == "pending"
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_rollback_sync_dry_run(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test dry run rollback (simulation)"""
         mock_get_db.return_value = mock_db
@@ -681,8 +691,8 @@ class TestSyncRollback:
 
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_rollback_sync_validation_error(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test rollback with missing required fields"""
         mock_get_db.return_value = mock_db
@@ -775,8 +785,8 @@ class TestValidation:
 class TestRateLimiting:
     """Test rate limiting on sync endpoints"""
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_trigger_sync_rate_limit(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis, sample_sync_job_data):
         """Test rate limiting on sync trigger (10/minute)"""
         mock_get_db.return_value = mock_db
@@ -787,8 +797,8 @@ class TestRateLimiting:
 
         assert response.status_code in [status.HTTP_202_ACCEPTED, status.HTTP_429_TOO_MANY_REQUESTS]
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_rollback_rate_limit(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test rate limiting on rollback (5/minute)"""
         mock_get_db.return_value = mock_db
@@ -810,9 +820,18 @@ class TestRateLimiting:
 class TestCaching:
     """Test Redis caching behavior"""
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
-    def test_sync_status_caching(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
+    @patch("app.api.v2.routers.platform_sync.get_cached_sync_status", new_callable=AsyncMock)
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
+    def test_sync_status_caching(
+        self,
+        mock_get_db,
+        mock_get_redis,
+        mock_get_cached_sync_status,
+        client,
+        mock_db,
+        mock_redis,
+    ):
         """Test sync status is cached properly"""
         mock_get_db.return_value = mock_db
         mock_get_redis.return_value = mock_redis
@@ -832,15 +851,15 @@ class TestCaching:
             "errors": [],
             "warnings": []
         }
-        mock_redis.get.return_value = json.dumps(cached_status)
+        mock_get_cached_sync_status.return_value = cached_status
 
         response = client.get(f"/api/v2/platform-sync/status/{job_id}")
 
         assert response.status_code == status.HTTP_200_OK
         # Should use cache, not query database
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_config_list_caching(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test config list is cached"""
         mock_get_db.return_value = mock_db
@@ -858,8 +877,8 @@ class TestCaching:
 
         assert response.status_code == status.HTTP_200_OK
 
-    @patch("app.api.v2.platform_sync.get_redis_cache")
-    @patch("app.api.v2.platform_sync.get_db")
+    @patch("app.api.v2.routers.platform_sync.get_redis_cache")
+    @patch("app.api.v2.routers.platform_sync.get_db")
     def test_history_caching(self, mock_get_db, mock_get_redis, client, mock_db, mock_redis):
         """Test history is cached"""
         mock_get_db.return_value = mock_db

@@ -8,25 +8,20 @@ from __future__ import annotations
 
 # Standard library imports
 import logging
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 # Third-party imports
 from sqlalchemy.orm import Session
 
 # Local application imports
-from app.domain.messaging.delivery import MessageSender
-from app.models.message import (
-    Message,
-    MessageDirection,
-    MessageStatus,
-    MessageType,
-)
+from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSender
 from app.models.quiz import QuizTemplate
 from app.services.quiz import QuizTemplateService
+from app.services.ai.guardrails import OutputKind
+from .message_service import QuizMessageService
 
 if TYPE_CHECKING:
-    from app.domain.agents.quiz.session_coordinator import QuizContext
+    from app.domain.agents.quiz.types import QuizContext
 
 
 class QuestionPresenter:
@@ -49,7 +44,7 @@ class QuestionPresenter:
         self,
         db_session: Session,
         quiz_template_service: QuizTemplateService,
-        message_sender: MessageSender,
+        message_sender: IdempotentMessageSender,
         agent_id: str,
         gemini_client=None,
         logger: Optional[logging.Logger] = None,
@@ -71,6 +66,11 @@ class QuestionPresenter:
         self.agent_id = agent_id
         self.gemini_client = gemini_client
         self._logger = logger or logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.message_service = QuizMessageService(
+            db_session=db_session,
+            message_sender=message_sender,
+            logger=self._logger,
+        )
 
         # Template cache
         self.quiz_templates: Dict[str, Dict[str, Any]] = {}
@@ -80,43 +80,41 @@ class QuestionPresenter:
     ) -> Dict[str, Any]:
         """Send current quiz question with personalization."""
         try:
-            if context.current_question_index >= len(context.template.questions):
+            template = getattr(context, "template", None)
+            questions = getattr(template, "questions", None) if template else None
+            if not isinstance(questions, list) or not questions:
+                return {"success": False, "error": "Quiz template unavailable"}
+
+            if context.current_question >= len(questions):
                 return {"success": False, "error": "No more questions"}
 
-            question = context.template.questions[context.current_question_index]
+            question = questions[context.current_question]
+            session_id = getattr(getattr(context, "session", None), "id", None)
+            if session_id is None:
+                return {"success": False, "error": "Quiz session unavailable"}
 
             # Personalize question presentation
             question_content = await self.personalize_question(
                 context, question, max_questions, stress_threshold
             )
 
-            message = Message(
+            _, success = await self.message_service.create_and_send_text(
                 patient_id=context.patient_id,
-                direction=MessageDirection.OUTBOUND,
-                type=MessageType.TEXT,
                 content=question_content["content"],
                 message_metadata={
-                    "quiz_session_id": str(context.session.id),
-                    "quiz_question_index": context.current_question_index,
-                    "quiz_question_id": question["id"],
+                    "quiz_session_id": str(session_id),
+                    "quiz_question_index": context.current_question,
+                    "quiz_question_id": question.get("id"),
                     "message_type": "quiz_question",
                     "personalization_level": question_content["personalization_level"],
                     "generated_by": self.agent_id,
                 },
-                status=MessageStatus.PENDING,
-                scheduled_for=datetime.now(timezone.utc),
             )
-
-            self.db_session.add(message)
-            self.db_session.commit()
-            self.db_session.refresh(message)
-
-            success = await self.message_sender.send_message(message)
 
             return {
                 "success": success,
-                "question_index": context.current_question_index,
-                "question_id": question["id"],
+                "question_index": context.current_question,
+                "question_id": question.get("id"),
             }
 
         except Exception as e:
@@ -131,20 +129,26 @@ class QuestionPresenter:
         stress_threshold: float,
     ) -> Dict[str, Any]:
         """Personalize question based on context."""
-        base_text = question["text"]
+        base_text = question.get("text", "Como você está se sentindo hoje?")
         personalization_level = "standard"
 
         try:
+            patient_name = getattr(getattr(context, "patient_data", None), "name", "")
+            question_text = question.get("text", base_text)
             # Add patient name for warmth
             if not any(
                 name_word in base_text.lower() for name_word in ["você", "seu", "sua"]
-            ):
-                base_text = f"{context.patient_data.name}, {base_text.lower()}"
+            ) and patient_name:
+                base_text = f"{patient_name}, {base_text.lower()}"
                 personalization_level = "high"
 
             # Question number for progress tracking
-            total_questions = min(len(context.template.questions), max_questions)
-            progress_text = f"*Pergunta {context.current_question_index + 1} de {total_questions}:*\n\n"
+            template = getattr(context, "template", None)
+            questions = getattr(template, "questions", None) if template else None
+            total_questions = min(len(questions), max_questions) if questions else 1
+            progress_text = (
+                f"*Pergunta {context.current_question + 1} de {total_questions}:*\n\n"
+            )
 
             content = progress_text + base_text
 
@@ -152,12 +156,21 @@ class QuestionPresenter:
             if question.get("options"):
                 content += "\n\n*Opções:*"
                 for option in question["options"]:
-                    content += f"\n• {option['text']}"
+                    if isinstance(option, dict):
+                        option_text = (
+                            option.get("text")
+                            or option.get("label")
+                            or option.get("value")
+                            or str(option)
+                        )
+                    else:
+                        option_text = str(option)
+                    content += f"\n• {option_text}"
 
             # Add supportive context for mood-related questions
             if (
-                "humor" in question["text"].lower()
-                or "sentindo" in question["text"].lower()
+                "humor" in question_text.lower()
+                or "sentindo" in question_text.lower()
             ):
                 if context.stress_level > stress_threshold:
                     content += "\n\n_Não se preocupe, não há resposta certa ou errada. Queremos apenas te conhecer melhor._"
@@ -208,28 +221,83 @@ class QuestionPresenter:
             return template["questions"]
         return []
 
+    @staticmethod
+    def _extract_template_name(template_obj: Any) -> Optional[str]:
+        """Extract template name from ORM, schema, or dict payload."""
+        if template_obj is None:
+            return None
+        if isinstance(template_obj, dict):
+            name = template_obj.get("name")
+            return str(name) if name else None
+        name = getattr(template_obj, "name", None)
+        return str(name) if name else None
+
+    def _build_template_candidates(self, quiz_type: str) -> List[str]:
+        """Build ordered template-name candidates for a quiz type."""
+        candidates: List[str] = []
+        normalized = str(quiz_type or "").strip()
+
+        # Prefer configured monthly default when available.
+        try:
+            from app.core.monthly_quiz_config import get_monthly_quiz_config
+
+            default_template = (
+                get_monthly_quiz_config().MONTHLY_QUIZ_DEFAULT_TEMPLATE or ""
+            ).strip()
+            if default_template:
+                candidates.append(default_template)
+        except Exception:
+            # Keep behavior resilient if config is unavailable in non-prod contexts.
+            pass
+
+        if normalized:
+            candidates.extend([f"{normalized}_template", normalized])
+
+        # De-duplicate while preserving order.
+        seen = set()
+        return [
+            candidate
+            for candidate in candidates
+            if candidate and not (candidate in seen or seen.add(candidate))
+        ]
+
     async def get_or_create_quiz_template(
         self, quiz_type: str, context: "QuizContext"
     ) -> Optional[QuizTemplate]:
-        """Get or create quiz template based on type."""
+        """Get an active quiz template, using safe fallbacks when needed."""
         try:
-            # Try to get existing template
-            template_name = f"{quiz_type}_template"
+            existing_template = getattr(context, "template", None)
+            if existing_template is not None:
+                return existing_template
 
-            try:
-                template_response = self.quiz_template_service.get_template_by_name(
-                    template_name
-                )
-                return self.quiz_template_service.template_repository.get(
-                    template_response.id
-                )
-            except Exception as e:
-                self._logger.warning(
-                    f"Failed to get quiz template '{template_name}': {e}", exc_info=True
-                )
+            # 1) Try expected names for the requested quiz type.
+            for template_name in self._build_template_candidates(quiz_type):
+                template = self.quiz_template_service.get_template_by_name(template_name)
+                if template:
+                    return template
 
-            # Create new template if needed - use existing logic from quiz_flow_integration.py
-            # For now, return None to use default template creation
+            # 2) Fall back to cached template names loaded at startup.
+            for cached_name in list(self.quiz_templates.keys()):
+                template = self.quiz_template_service.get_template_by_name(cached_name)
+                if template:
+                    return template
+
+            # 3) Last-resort: first active template from database.
+            templates, _ = self.quiz_template_service.get_templates(
+                skip=0, limit=1, active_only=True
+            )
+            if templates:
+                fallback_name = self._extract_template_name(templates[0])
+                if fallback_name:
+                    template = self.quiz_template_service.get_template_by_name(
+                        fallback_name
+                    )
+                    if template:
+                        return template
+
+            self._logger.error(
+                "No active quiz template found for quiz_type='%s'", quiz_type
+            )
             return None
 
         except Exception as e:
@@ -346,7 +414,7 @@ class QuestionPresenter:
 
         except Exception as e:
             self._logger.error(f"Failed to personalize question: {e}")
-            return question  # Return original if personalization fails
+            raise
 
     async def apply_ai_personalization(
         self, question: Dict[str, Any], context: Dict[str, Any]
@@ -369,19 +437,32 @@ class QuestionPresenter:
 
             Mantenha o tom acolhedor, empático e profissional.
             Mantenha a estrutura original da pergunta.
-            Retorne apenas o texto personalizado da pergunta.
+            Regras de saída (obrigatório):
+            - Retorne apenas o texto final da pergunta
+            - Não inclua explicações, raciocínios ou meta-comentários
+            - Não mencione prompt, instruções, políticas ou sistema
+            - Não use markdown, listas, cabeçalhos ou blocos de código
+            - Não envolva a resposta em aspas
+            - Escreva apenas em português do Brasil
             """
 
-            response = await self.gemini_client.generate_content(ai_prompt)
+            response = await self.gemini_client.generate_content(
+                ai_prompt,
+                output_kind=OutputKind.MESSAGE,
+            )
+            if not response:
+                raise ValueError("AI returned empty quiz question")
 
-            if response and hasattr(response, "text"):
+            if hasattr(response, "text"):
                 personalized_text = response.text.strip()
-                if personalized_text:
-                    personalized_question = question.copy()
-                    personalized_question["text"] = personalized_text
-                    return personalized_question
+            else:
+                personalized_text = str(response).strip()
+
+            if personalized_text:
+                personalized_question = question.copy()
+                personalized_question["text"] = personalized_text
+                return personalized_question
 
         except Exception as e:
             self._logger.error(f"AI personalization failed: {e}")
-
-        return None
+            raise

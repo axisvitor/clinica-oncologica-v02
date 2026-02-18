@@ -320,7 +320,7 @@ def test_old_session_invalidated():
 from datetime import datetime
 
 created_at = Column(DateTime, default=datetime.utcnow)
-timestamp = datetime.utcnow()
+timestamp = now_sao_paulo()
 ```
 
 ### **Correct Pattern**
@@ -328,8 +328,8 @@ timestamp = datetime.utcnow()
 # ✅ CORRECT (Python 3.14+ compatible)
 from datetime import datetime, timezone
 
-created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-timestamp = datetime.now(timezone.utc)
+created_at = Column(DateTime, default=lambda: now_sao_paulo())
+timestamp = now_sao_paulo()
 ```
 
 ### **Find & Replace Strategy**
@@ -337,25 +337,25 @@ timestamp = datetime.now(timezone.utc)
 **Step 1**: Find all occurrences
 ```bash
 cd /backend-hormonia
-grep -rn "datetime.utcnow" app/ --include="*.py"
+grep -rn "datetime.now" app/ --include="*.py"
 ```
 
 **Step 2**: Automated replacement
 ```bash
 # Replace in models
-find app/models -name "*.py" -exec sed -i 's/datetime\.utcnow/lambda: datetime.now(timezone.utc)/g' {} \;
+find app/models -name "*.py" -exec sed -i 's/datetime\.now/lambda: now_sao_paulo()/g' {} \;
 
 # Replace in schemas
-find app/schemas -name "*.py" -exec sed -i 's/datetime\.utcnow()/datetime.now(timezone.utc)/g' {} \;
+find app/schemas -name "*.py" -exec sed -i 's/datetime\.now()/now_sao_paulo()/g' {} \;
 
 # Replace in services
-find app/services -name "*.py" -exec sed -i 's/datetime\.utcnow()/datetime.now(timezone.utc)/g' {} \;
+find app/services -name "*.py" -exec sed -i 's/datetime\.now()/now_sao_paulo()/g' {} \;
 ```
 
 **Step 3**: Add timezone import
 ```python
 # Add to all affected files
-from datetime import datetime, timezone
+from app.utils.timezone import now_sao_paulo
 ```
 
 ### **Example Fixes**
@@ -366,18 +366,18 @@ from datetime import datetime, timezone
 from datetime import datetime
 
 class User(Base):
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 # After (✅)
 from datetime import datetime, timezone
 
 class User(Base):
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: now_sao_paulo())
     updated_at = Column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc)
+        default=lambda: now_sao_paulo(),
+        onupdate=lambda: now_sao_paulo()
     )
 ```
 
@@ -386,14 +386,14 @@ class User(Base):
 # Before (❌)
 def create_webhook_event():
     return {
-        "timestamp": datetime.utcnow(),
+        "timestamp": now_sao_paulo(),
         "event": "user.created"
     }
 
 # After (✅)
 def create_webhook_event():
     return {
-        "timestamp": datetime.now(timezone.utc),
+        "timestamp": now_sao_paulo(),
         "event": "user.created"
     }
 ```
@@ -408,7 +408,7 @@ repos:
     hooks:
       - id: check-datetime-utcnow
         name: Check for deprecated datetime.utcnow
-        entry: bash -c 'if grep -r "datetime\.utcnow" --include="*.py" .; then echo "ERROR: datetime.utcnow() is deprecated. Use datetime.now(timezone.utc)"; exit 1; fi'
+        entry: bash -c 'if grep -r "datetime\.utcnow" --include="*.py" .; then echo "ERROR: now_sao_paulo() is deprecated. Use now_sao_paulo()"; exit 1; fi'
         language: system
         pass_filenames: false
 ```
@@ -428,10 +428,10 @@ def test_datetime_is_timezone_aware():
 
     # Should have timezone info
     assert user.created_at.tzinfo is not None
-    assert user.created_at.tzinfo == timezone.utc
+    assert user.created_at.tzinfo == SAO_PAULO_TZ
 
 def test_no_utcnow_usage():
-    """Ensure no code uses deprecated datetime.utcnow()."""
+    """Ensure no code uses deprecated now_sao_paulo()."""
     import subprocess
 
     result = subprocess.run(
@@ -441,7 +441,7 @@ def test_no_utcnow_usage():
     )
 
     # Should find no occurrences
-    assert result.returncode != 0, "Found deprecated datetime.utcnow() usage"
+    assert result.returncode != 0, "Found deprecated now_sao_paulo() usage"
 ```
 
 ### **Deployment Steps**

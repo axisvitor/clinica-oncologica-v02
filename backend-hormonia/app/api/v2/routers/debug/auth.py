@@ -31,9 +31,11 @@ from app.schemas.v2.debug import (
 
 from .common import (
     check_debug_enabled,
+    require_debug_enabled,
     get_admin_user,
     log_debug_operation,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -46,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 @router.post(
     "/token",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Decode and validate JWT token",
     description="""
@@ -170,13 +173,14 @@ async def debug_token_decode(
         success=token_info.valid or not token_info.error,
         data=token_info.dict(),
         audit_logged=True,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=now_sao_paulo(),
         warning="JWT decoding not yet implemented",
     )
 
 
 @router.post(
     "/test-login",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Test login flow",
     description="""
@@ -268,7 +272,7 @@ async def test_login_flow(
             success=True,
             data=result.dict(),
             audit_logged=True,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
     except Exception as e:
@@ -281,6 +285,7 @@ async def test_login_flow(
 
 @router.post(
     "/permissions",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Test permission checks",
     description="""
@@ -365,7 +370,7 @@ async def test_permissions(
             success=True,
             data=result.dict(),
             audit_logged=True,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
     except HTTPException:
@@ -380,6 +385,7 @@ async def test_permissions(
 
 @router.post(
     "/simulate",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Simulate user authentication",
     description="""
@@ -420,7 +426,7 @@ async def simulate_authentication(
         # Create temporary debug session
         if sim_request.simulate_session:
             session_id = f"debug_sess_{uuid4().hex[:12]}"
-            expires_at = datetime.now(timezone.utc) + timedelta(
+            expires_at = now_sao_paulo() + timedelta(
                 minutes=sim_request.duration_minutes
             )
 
@@ -471,7 +477,7 @@ async def simulate_authentication(
             success=True,
             data=result.dict(),
             audit_logged=True,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             warning="Debug session created - temporary use only",
         )
 

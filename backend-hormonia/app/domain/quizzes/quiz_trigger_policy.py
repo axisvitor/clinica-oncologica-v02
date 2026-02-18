@@ -32,7 +32,7 @@ class QuizTriggerPolicy:
     """
 
     # Quiz trigger day constants
-    MONTHLY_QUIZ_DAY = 15  # Centralized: day 15 of each monthly cycle
+    MONTHLY_QUIZ_DAY = 30  # Centralized: day 30 of each monthly cycle
     INITIAL_ASSESSMENT_DAY = 15  # Day 15 of initial flow
     MID_TREATMENT_DAY = 45  # Day 45 for mid-treatment assessment
 
@@ -48,39 +48,41 @@ class QuizTriggerPolicy:
 
         Args:
             current_day: Current day in the flow
-            flow_type: Type of flow (monthly_recurring, day_1_15, day_16_45, etc.)
+            flow_type: Canonical flow kind (quiz_mensal, onboarding, daily_follow_up)
             days_since_enrollment: Optional total days since patient enrollment
 
         Returns:
             True if quiz should be triggered on this day
 
         Example:
-            >>> QuizTriggerPolicy.is_quiz_day(15, "monthly_recurring")
+            >>> QuizTriggerPolicy.is_quiz_day(30, "quiz_mensal")
             True
-            >>> QuizTriggerPolicy.is_quiz_day(15, "day_1_15")
+            >>> QuizTriggerPolicy.is_quiz_day(15, "onboarding")
             True
-            >>> QuizTriggerPolicy.is_quiz_day(20, "monthly_recurring")
+            >>> QuizTriggerPolicy.is_quiz_day(20, "quiz_mensal")
             False
         """
         try:
-            # Monthly recurring flow - triggers on day 15 of each cycle
-            if flow_type == "monthly_recurring" or flow_type == "monthly":
-                # For monthly cycles, check if we're on day 15 of the current 30-day cycle
+            flow_kind = str(flow_type or "").strip()
+
+            # Monthly recurring flow - triggers on day 30 of each cycle
+            if flow_kind == "quiz_mensal":
+                # For monthly cycles, check if we're on day 30 of the current 30-day cycle
                 if days_since_enrollment is not None and days_since_enrollment >= 45:
                     # Patient is in monthly phase (after day 45)
                     days_in_monthly_phase = days_since_enrollment - 45
-                    day_in_current_cycle = days_in_monthly_phase % 30
+                    day_in_current_cycle = (days_in_monthly_phase % 30) + 1
                     return day_in_current_cycle == cls.MONTHLY_QUIZ_DAY
                 else:
                     # Direct day check for flow day counter
                     return current_day == cls.MONTHLY_QUIZ_DAY
 
             # Initial assessment flow (days 1-15)
-            if flow_type == "day_1_15":
+            if flow_kind == "onboarding":
                 return current_day == cls.INITIAL_ASSESSMENT_DAY
 
             # Mid-treatment assessment flow (days 16-45)
-            if flow_type == "day_16_45":
+            if flow_kind == "daily_follow_up":
                 return current_day == cls.MID_TREATMENT_DAY
 
             logger.debug(
@@ -112,9 +114,9 @@ class QuizTriggerPolicy:
 
         Example:
             >>> QuizTriggerPolicy.calculate_monthly_cycle(50)
-            (1, 5)  # Cycle 1, day 5
+            (1, 6)  # Cycle 1, day 6
             >>> QuizTriggerPolicy.calculate_monthly_cycle(75)
-            (2, 0)  # Cycle 2, day 0
+            (2, 1)  # Cycle 2, day 1
         """
         try:
             if days_since_enrollment < 45:
@@ -124,7 +126,7 @@ class QuizTriggerPolicy:
             # Patient is in monthly recurring phase
             days_in_monthly_phase = days_since_enrollment - 45
             monthly_cycle = (days_in_monthly_phase // 30) + 1
-            day_in_cycle = days_in_monthly_phase % 30
+            day_in_cycle = (days_in_monthly_phase % 30) + 1
 
             return monthly_cycle, day_in_cycle
 
@@ -160,13 +162,13 @@ class QuizTriggerPolicy:
             }
 
         Example:
-            >>> QuizTriggerPolicy.should_trigger_quiz("monthly_recurring", 15, 50)
+            >>> QuizTriggerPolicy.should_trigger_quiz("quiz_mensal", 30, 74)
             {
                 "should_trigger": True,
-                "reason": "Monthly quiz day (day 15 of cycle 1)",
+                "reason": "Monthly quiz day (day 30 of cycle 1)",
                 "quiz_type": "monthly_assessment",
                 "monthly_cycle": 1,
-                "metadata": {"day_in_cycle": 5}
+                "metadata": {"day_in_cycle": 30}
             }
         """
         result = {
@@ -193,7 +195,8 @@ class QuizTriggerPolicy:
                 return result
 
             # Determine quiz type and cycle
-            if flow_type in ["monthly_recurring", "monthly"]:
+            flow_kind = str(flow_type or "").strip()
+            if flow_kind == "quiz_mensal":
                 if days_since_enrollment is not None:
                     monthly_cycle, day_in_cycle = cls.calculate_monthly_cycle(
                         days_since_enrollment
@@ -220,7 +223,7 @@ class QuizTriggerPolicy:
                         }
                     )
 
-            elif flow_type == "day_1_15":
+            elif flow_kind == "onboarding":
                 result.update(
                     {
                         "should_trigger": True,
@@ -230,7 +233,7 @@ class QuizTriggerPolicy:
                     }
                 )
 
-            elif flow_type == "day_16_45":
+            elif flow_kind == "daily_follow_up":
                 result.update(
                     {
                         "should_trigger": True,
@@ -269,11 +272,13 @@ class QuizTriggerPolicy:
             Tuple of (next_quiz_day, reason)
 
         Example:
-            >>> QuizTriggerPolicy.get_next_quiz_day(10, "monthly_recurring")
-            (15, "Next monthly quiz")
+            >>> QuizTriggerPolicy.get_next_quiz_day(10, "quiz_mensal")
+            (30, "Next monthly quiz")
         """
         try:
-            if flow_type in ["monthly_recurring", "monthly"]:
+            flow_kind = str(flow_type or "").strip()
+
+            if flow_kind == "quiz_mensal":
                 if current_day < cls.MONTHLY_QUIZ_DAY:
                     return cls.MONTHLY_QUIZ_DAY, "Next monthly quiz"
                 else:
@@ -283,13 +288,13 @@ class QuizTriggerPolicy:
                         "Next monthly quiz (next cycle)",
                     )
 
-            elif flow_type == "day_1_15":
+            elif flow_kind == "onboarding":
                 if current_day < cls.INITIAL_ASSESSMENT_DAY:
                     return cls.INITIAL_ASSESSMENT_DAY, "Initial assessment"
                 else:
                     return None, "Initial assessment already passed"
 
-            elif flow_type == "day_16_45":
+            elif flow_kind == "daily_follow_up":
                 if current_day < cls.MID_TREATMENT_DAY:
                     return cls.MID_TREATMENT_DAY, "Mid-treatment assessment"
                 else:

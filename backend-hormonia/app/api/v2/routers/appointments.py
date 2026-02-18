@@ -36,6 +36,7 @@ from app.dependencies.auth_dependencies import (
     get_redis_cache,
 )
 from app.utils.rate_limiter import limiter
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -140,7 +141,7 @@ async def list_appointments(
 
     if cursor_data and "id" in cursor_data:
         cid = UUID(cursor_data["id"])
-        cdate = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cdate = datetime.fromisoformat(cursor_data["created_at"])
         filters.append(
             or_(
                 Appointment.created_at < cdate,
@@ -487,7 +488,7 @@ async def cancel_appointment(
     _ensure_appointment_access(current_user, appt)
 
     appt.status = AppointmentStatus.CANCELLED.value
-    appt.cancelled_at = datetime.now(timezone.utc)
+    appt.cancelled_at = now_sao_paulo()
     db.commit()
     return _serialize_appointment(appt)
 
@@ -511,7 +512,7 @@ async def complete_appointment(
     _ensure_appointment_access(current_user, appt)
 
     appt.status = AppointmentStatus.COMPLETED.value
-    appt.completed_at = datetime.now(timezone.utc)
+    appt.completed_at = now_sao_paulo()
     if post_appointment_notes:
         appt.post_appointment_notes = post_appointment_notes
     db.commit()

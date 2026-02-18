@@ -225,7 +225,7 @@ stats = breaker.get_all_stats()
         "success_rate": "98.67%",
         "consecutive_failures": 0,
         "consecutive_successes": 5,
-        "last_failure": "2025-01-22T10:30:00Z"
+        "last_failure": "2025-01-22T10:30:00-03:00"
     },
     "sentiment": { ... },
     "quiz": { ... }

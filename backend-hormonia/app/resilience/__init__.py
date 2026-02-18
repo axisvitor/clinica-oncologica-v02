@@ -8,7 +8,7 @@ Implements production-ready resilience patterns:
 - Rate Limiting (FIX #12)
 """
 
-from .circuit_breaker import CircuitBreaker, CircuitBreakerStates
+from .circuit_breaker import CircuitBreaker, CircuitBreakerStates, CircuitState
 from .retry import RetryManager, ExponentialBackoff
 from .health import HealthChecker, HealthStatus
 from .rate_limit import TokenBucket, RateLimiter
@@ -31,6 +31,7 @@ except Exception:  # pragma: no cover - Flask may be absent
 __all__ = [
     "CircuitBreaker",
     "CircuitBreakerStates",
+    "CircuitState",
     "RetryManager",
     "ExponentialBackoff",
     "HealthChecker",

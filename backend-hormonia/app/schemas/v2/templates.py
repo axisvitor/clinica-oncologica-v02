@@ -142,9 +142,9 @@ class FlowTemplateV2Response(BaseModel):
                 "metadata": {"duration_days": 90},
                 "is_active": True,
                 "is_draft": False,
-                "published_at": "2025-01-01T10:00:00Z",
-                "created_at": "2025-01-01T09:00:00Z",
-                "updated_at": "2025-01-15T14:30:00Z",
+                "published_at": "2025-01-01T10:00:00-03:00",
+                "created_at": "2025-01-01T09:00:00-03:00",
+                "updated_at": "2025-01-15T14:30:00-03:00",
                 "created_by": "323e4567-e89b-12d3-a456-426614174002",
             }
         }
@@ -329,8 +329,8 @@ class QuizTemplateV2Response(BaseModel):
                 "time_limit_minutes": 15,
                 "randomize_questions": False,
                 "is_active": True,
-                "created_at": "2025-01-01T10:00:00Z",
-                "updated_at": "2025-01-15T14:30:00Z",
+                "created_at": "2025-01-01T10:00:00-03:00",
+                "updated_at": "2025-01-15T14:30:00-03:00",
             }
         }
     )
@@ -414,8 +414,8 @@ class FlowKindV2Response(BaseModel):
                 "display_name": "Hormonal Treatment Flow",
                 "description": "Flow for hormonal treatment patients",
                 "is_active": True,
-                "created_at": "2025-01-01T10:00:00Z",
-                "updated_at": "2025-01-15T14:30:00Z",
+                "created_at": "2025-01-01T10:00:00-03:00",
+                "updated_at": "2025-01-15T14:30:00-03:00",
                 "total_versions": 5,
                 "published_versions": 3,
                 "draft_versions": 2,
@@ -730,7 +730,7 @@ class TemplateExportResponse(BaseModel):
                 "template_type": "flow",
                 "export_data": {},
                 "export_format": "json",
-                "exported_at": "2025-01-17T15:00:00Z",
+                "exported_at": "2025-01-17T15:00:00-03:00",
             }
         }
     )

@@ -17,9 +17,8 @@ from celery import states
 from fastapi import HTTPException, status
 
 from app.schemas.v2.tasks import TaskStatus, TaskType, TaskPriority
-from app.task_queue import get_task as get_stored_task
 from app.task_queue import store_task
-from app.config import settings
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -62,31 +61,6 @@ def _get_task_from_celery(
         HTTPException: If task retrieval fails
     """
     try:
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            stored = get_stored_task(task_id)
-            if not stored:
-                return {
-                    "celery_task_id": task_id,
-                    "status": TaskStatus.PENDING,
-                    "result": None,
-                    "error": None,
-                    "traceback": None,
-                }
-
-            status_value = stored.get("status", TaskStatus.PENDING)
-            try:
-                status = TaskStatus(str(status_value))
-            except ValueError:
-                status = TaskStatus.PENDING
-
-            return {
-                "celery_task_id": task_id,
-                "status": status,
-                "result": stored.get("result"),
-                "error": stored.get("error"),
-                "traceback": stored.get("traceback"),
-            }
-
         from app.celery_app import celery_app
 
         result = AsyncResult(task_id, app=celery_app)
@@ -147,19 +121,21 @@ def _register_task(
     """
     task_id = str(uuid4())
 
-    task_registry[celery_task_id] = {
+    task_payload = {
         "id": task_id,
+        "celery_task_id": celery_task_id,
         "task_name": task_name,
         "task_type": task_type.value,
         "priority": priority.value,
         "user_id": str(user_id) if user_id else None,
         "metadata": metadata or {},
-        "created_at": datetime.now(timezone.utc),
+        "created_at": now_sao_paulo(),
         "retry_count": 0,
         "logs": [],
     }
-
-    if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-        store_task(task_registry[celery_task_id])
+    task_registry[celery_task_id] = task_payload
+    # Persist canonical task metadata so API lookup keeps working across
+    # processes/workers (Dragonfly/Redis-backed store).
+    store_task(task_payload)
 
     return task_id

@@ -15,6 +15,7 @@ from sqlalchemy import and_, or_
 
 from app.models.consent import Consent, ConsentType, ConsentStatus
 from app.models.lgpd_audit import LGPDAuditLog, LGPDActionType, LGPDDataCategory
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +78,9 @@ class ConsentService:
         """
         expires_at = None
         if expires_in_days:
-            expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+            expires_at = now_sao_paulo() + timedelta(days=expires_in_days)
         elif self.DEFAULT_EXPIRATION_DAYS:
-            expires_at = datetime.now(timezone.utc) + timedelta(
+            expires_at = now_sao_paulo() + timedelta(
                 days=self.DEFAULT_EXPIRATION_DAYS
             )
 
@@ -145,7 +146,7 @@ class ConsentService:
             raise ValueError(f"Consent {consent_id} is already {consent.status.value}")
 
         consent.status = ConsentStatus.GRANTED
-        consent.granted_at = datetime.now(timezone.utc)
+        consent.granted_at = now_sao_paulo()
         consent.consented_by_id = user_id
         if signature_data:
             consent.signature_data = signature_data
@@ -198,7 +199,7 @@ class ConsentService:
             )
 
         consent.status = ConsentStatus.REVOKED
-        consent.revoked_at = datetime.now(timezone.utc)
+        consent.revoked_at = now_sao_paulo()
         consent.revocation_reason = reason
 
         self.db.commit()
@@ -232,7 +233,7 @@ class ConsentService:
         Returns:
             True if consent is granted and valid
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
 
         consent = (
             self.db.query(Consent)
@@ -272,7 +273,7 @@ class ConsentService:
         )
 
         if not include_expired:
-            now = datetime.now(timezone.utc)
+            now = now_sao_paulo()
             query = query.filter(
                 or_(Consent.expires_at.is_(None), Consent.expires_at > now)
             )
@@ -289,7 +290,7 @@ class ConsentService:
         Returns:
             Number of consents marked as expired
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
 
         expired = (
             self.db.query(Consent)
@@ -532,11 +533,16 @@ class LGPDAuditService:
         Returns:
             List of failed access logs
         """
-        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        since = now_sao_paulo() - timedelta(hours=hours)
 
         return (
             self.db.query(LGPDAuditLog)
-            .filter(and_(not LGPDAuditLog.success, LGPDAuditLog.created_at >= since))
+            .filter(
+                and_(
+                    LGPDAuditLog.success.is_(False),
+                    LGPDAuditLog.created_at >= since,
+                )
+            )
             .order_by(LGPDAuditLog.created_at.desc())
             .limit(limit)
             .all()

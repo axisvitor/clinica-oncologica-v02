@@ -2,7 +2,6 @@
 Prometheus metrics for WhatsApp integration.
 """
 
-from typing import Optional
 from prometheus_client import Counter, Histogram, Gauge, CollectorRegistry, generate_latest, CONTENT_TYPE_LATEST
 
 

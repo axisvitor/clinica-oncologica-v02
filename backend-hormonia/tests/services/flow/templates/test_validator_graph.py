@@ -13,10 +13,10 @@ import pytest
 
 from app.services.flow.templates.validator import FlowTemplateValidator
 from app.services.flow.types import (
-    FlowTemplate,
     FlowTransitionType,
     FlowStepType,
 )
+from tests.services.flow.templates._template_test_utils import build_template
 
 
 class TestStartStepDetection:
@@ -59,7 +59,7 @@ class TestStartStepDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -99,7 +99,7 @@ class TestStartStepDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Multiple start steps should generate warning
@@ -131,7 +131,7 @@ class TestStartStepDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # No start step should be an error
@@ -173,7 +173,7 @@ class TestStartStepDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -213,7 +213,7 @@ class TestEndStepDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -246,7 +246,7 @@ class TestEndStepDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -293,7 +293,7 @@ class TestEndStepDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -325,7 +325,7 @@ class TestEndStepDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Circular flow with no end should generate warning
@@ -379,7 +379,7 @@ class TestCycleDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -418,7 +418,7 @@ class TestCycleDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Should warn about cycles
@@ -450,7 +450,7 @@ class TestCycleDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Self-loop should trigger cycle warning
@@ -473,6 +473,7 @@ class TestCycleDetection:
                     "step_id": "loop_step",
                     "type": FlowStepType.LOOP.value,
                     "action": "send_message",
+                    "target_step_id": "loop_step",
                     "config": {},
                 },
                 {
@@ -494,7 +495,7 @@ class TestCycleDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Intentional loops (with LOOP type) should not warn
@@ -548,7 +549,7 @@ class TestCycleDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Complex cycle should be detected
@@ -604,7 +605,7 @@ class TestCycleDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Should detect cycles
@@ -667,7 +668,7 @@ class TestCycleDetection:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -721,7 +722,7 @@ class TestReachabilityAnalysis:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -766,7 +767,7 @@ class TestReachabilityAnalysis:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Should warn about unreachable step
@@ -817,7 +818,7 @@ class TestReachabilityAnalysis:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Should warn about unreachable steps
@@ -870,7 +871,7 @@ class TestReachabilityAnalysis:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Should warn about unreachable steps
@@ -935,7 +936,7 @@ class TestReachabilityAnalysis:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -961,11 +962,12 @@ class TestGraphStructureValidation:
             "transitions": [],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
-        # Empty flow should be valid (handled gracefully)
-        assert result.is_valid
+        # Empty flow should fail with explicit validation error.
+        assert not result.is_valid
+        assert any("at least one step" in error.lower() for error in result.errors)
 
     def test_single_step_no_transitions(self, validator: FlowTemplateValidator):
         """Test flow with single step and no transitions."""
@@ -984,7 +986,7 @@ class TestGraphStructureValidation:
             "transitions": [],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -1029,7 +1031,7 @@ class TestGraphStructureValidation:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Should warn about multiple start steps and possibly unreachable
@@ -1124,7 +1126,7 @@ class TestGraphStructureValidation:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         assert result.is_valid
@@ -1145,13 +1147,14 @@ class TestGraphStructureValidation:
                 },
                 {
                     "step_id": "collect",
-                    "type": FlowStepType.INPUT.value,
+                    "type": FlowStepType.QUESTION.value,
                     "action": "collect_response",
+                    "question": "Please respond",
                     "config": {"prompt": "Please respond"},
                 },
                 {
                     "step_id": "validate",
-                    "type": FlowStepType.VALIDATION.value,
+                    "type": FlowStepType.ACTION.value,
                     "action": "validate_response",
                     "config": {"rules": []},
                 },
@@ -1225,7 +1228,7 @@ class TestGraphStructureValidation:
             ],
         }
 
-        template = FlowTemplate(**template_dict)
+        template = build_template(template_dict, include_step_type_defaults=True)
         result = validator.validate_template(template)
 
         # Should be valid but may have warnings about cycles (retry loop)

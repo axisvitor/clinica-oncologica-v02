@@ -12,13 +12,14 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from app.core.redis_client import get_async_redis_client
+from app.core.redis_manager import get_async_redis_client
 from app.monitoring.metrics import (
     follow_up_dedup_misses_total,
     follow_up_dedup_cache_hits,
     follow_up_dedup_redis_errors,
     follow_up_messages_deduplicated_total,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +158,7 @@ class MessageDeduplicationService:
                 return False
 
             payload = {
-                "sent_at": datetime.now(timezone.utc).isoformat(),
+                "sent_at": now_sao_paulo().isoformat(),
                 "patient_id": str(patient_id),
             }
             await redis.setex(dedup_key, self.window_seconds, json.dumps(payload))

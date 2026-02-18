@@ -10,6 +10,7 @@ from app.models.patient import Patient
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 
 
+from app.utils.timezone import now_sao_paulo
 def _create_failed_saga(
     db_session: Session,
     patient: Patient,
@@ -28,12 +29,12 @@ def _create_failed_saga(
                 "action": "compensate_patient",
                 "status": "compensation_failed",
                 "message": error_message,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
         ],
         error_message=error_message,
         error_type="Exception",
-        failed_at=datetime.now(timezone.utc),
+        failed_at=now_sao_paulo(),
     )
     db_session.add(saga)
     db_session.commit()

@@ -1,18 +1,15 @@
 """
-Flow Monitoring - Monitoring facade for Flow Services.
-
-This module provides a simplified monitoring interface that re-exports
-analytics components from the consolidated flow analytics module.
+Flow monitoring surface for consolidated analytics services.
 
 Exports:
-    - FlowMetricsCollector: Metrics collection (from analytics.metrics)
-    - FlowMonitor: Health monitoring (from analytics.health)
-    - FlowAnalytics: Main analytics service (from analytics.analytics)
-    - FlowEventBroadcaster: Event broadcasting (from analytics)
-    - FlowHealthMetrics: Health metrics dataclass (from analytics.monitor)
-    - HealthStatus: Health status enum (from analytics.monitor)
-    - get_flow_analytics: Singleton getter for FlowAnalytics
-    - build_dashboard_snapshot: Dashboard helper (from dashboard)
+    - FlowMetricsCollector
+    - FlowMonitor
+    - FlowAnalytics
+    - FlowEventBroadcaster
+    - FlowHealthMetrics
+    - HealthStatus
+    - get_flow_analytics
+    - build_dashboard_snapshot
 """
 
 from __future__ import annotations

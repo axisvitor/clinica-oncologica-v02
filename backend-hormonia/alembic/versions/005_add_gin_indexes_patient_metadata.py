@@ -60,13 +60,13 @@ def upgrade() -> None:
     
     # Create GIN index on metadata column (active column)
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_metadata_gin 
+        CREATE INDEX IF NOT EXISTS idx_patients_metadata_gin 
         ON patients USING GIN (metadata)
     """)
     
     # Create GIN index on patient_metadata column (legacy compatibility)
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_patient_metadata_gin 
+        CREATE INDEX IF NOT EXISTS idx_patients_patient_metadata_gin 
         ON patients USING GIN (patient_metadata)
     """)
     
@@ -94,5 +94,5 @@ def downgrade() -> None:
     of JSONB queries on the patients table.
     """
     # Drop indexes using CONCURRENTLY to avoid locking
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_patients_metadata_gin")
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_patients_patient_metadata_gin")
+    op.execute("DROP INDEX IF EXISTS idx_patients_metadata_gin")
+    op.execute("DROP INDEX IF EXISTS idx_patients_patient_metadata_gin")

@@ -101,7 +101,7 @@ class AuditAction(str, Enum):
 ### Standard Log Entry
 ```json
 {
-  "timestamp": "2025-12-22T19:30:00.000Z",
+  "timestamp": "2025-12-22T19:30:00.000-03:00",
   "action": "create",
   "resource_type": "flow_template",
   "resource_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -122,7 +122,7 @@ class AuditAction(str, Enum):
 ### Batch Operation Log Entry
 ```json
 {
-  "timestamp": "2025-12-22T19:30:00.000Z",
+  "timestamp": "2025-12-22T19:30:00.000-03:00",
   "action": "archive",
   "resource_type": "flow_template",
   "resource_ids": ["id-1", "id-2", "id-3"],
@@ -140,7 +140,7 @@ class AuditAction(str, Enum):
 ### Security Event Log Entry
 ```json
 {
-  "timestamp": "2025-12-22T19:30:00.000Z",
+  "timestamp": "2025-12-22T19:30:00.000-03:00",
   "event_type": "permission_denied",
   "user_id": "user-uuid-123",
   "details": {

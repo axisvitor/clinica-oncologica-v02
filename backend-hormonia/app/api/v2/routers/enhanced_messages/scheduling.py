@@ -40,6 +40,7 @@ from app.api.v2.dependencies import (
 )
 from app.utils.rate_limiter import limiter
 from .dependencies import _render_template
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -117,8 +118,8 @@ async def schedule_message(
             "status": "pending",
             "occurrences_sent": 0,
             "next_occurrence": schedule_data.scheduled_for,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "created_at": now_sao_paulo(),
+            "updated_at": now_sao_paulo(),
         }
 
         # Store in cache (5 min TTL for scheduled messages)

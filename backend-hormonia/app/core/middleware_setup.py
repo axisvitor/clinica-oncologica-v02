@@ -5,17 +5,20 @@ Configures essential middlewares for the FastAPI application.
 
 MIDDLEWARE EXECUTION ORDER (what request sees):
 1. CORS (handles preflight OPTIONS) - MUST BE FIRST
-2. Security Headers (HSTS, CSP, X-Frame-Options)
-3. Rate Limiting (Redis-backed, prevents abuse)
-4. CSRF Protection (Double Submit Cookie pattern)
-5. Request Logging (debug only)
-6. HTTP Response Caching (ETag + user-specific caching)
-7. Compression (response optimization)
+2. CORS Preflight Headers (OPTIONS without Access-Control-Request-Method)
+3. Security Headers (HSTS, CSP, X-Frame-Options)
+4. Rate Limiting (Redis-backed, prevents abuse)
+5. CSRF Protection (Double Submit Cookie pattern)
+6. Request Logging (debug only)
+7. HTTP Response Caching (ETag + user-specific caching)
+8. Compression (response optimization)
 
 NOTE: FastAPI executes middlewares in REVERSE order of addition.
       Middleware added LAST executes FIRST.
 """
 import time
+import os
+import sys
 from typing import Dict
 
 from fastapi import FastAPI
@@ -38,6 +41,19 @@ CRITICAL_MIDDLEWARES: Dict[str, bool] = {
 }
 
 
+def _is_test_environment() -> bool:
+    app_env = str(getattr(settings, "APP_ENVIRONMENT", "")).lower()
+    if app_env == "production":
+        return False
+
+    return bool(
+        "pytest" in sys.modules
+        or os.getenv("PYTEST_CURRENT_TEST")
+        or os.getenv("TESTING") == "1"
+        or app_env in ("test", "testing")
+    )
+
+
 def get_middleware_status() -> Dict[str, bool]:
     """Return copy of critical middleware status for health checks."""
     return CRITICAL_MIDDLEWARES.copy()
@@ -51,6 +67,47 @@ def setup_middleware(app: FastAPI) -> None:
     - First added = Last to execute
     - Last added = First to execute (CORS)
     """
+
+    # Test mode: keep middleware stack minimal and deterministic.
+    # Several BaseHTTP middlewares can deadlock under ASGI in-process transports.
+    if _is_test_environment():
+        csrf_secret = None
+        if hasattr(settings, "SECURITY_CSRF_SECRET_KEY"):
+            csrf_secret = settings.SECURITY_CSRF_SECRET_KEY
+            if hasattr(csrf_secret, "get_secret_value"):
+                csrf_secret = csrf_secret.get_secret_value()
+
+        if csrf_secret:
+            try:
+                from app.middleware.csrf import CSRFMiddleware
+
+                app.add_middleware(CSRFMiddleware)
+                CRITICAL_MIDDLEWARES["csrf"] = True
+                logger.info("[TEST] CSRF middleware added")
+            except ImportError as e:
+                logger.warning(f"[TEST] CSRF middleware unavailable: {e}")
+
+        try:
+            from app.middleware.security_headers import SecurityHeadersMiddleware
+
+            app.add_middleware(
+                SecurityHeadersMiddleware,
+                enable_hsts=False,
+                frame_options="DENY",
+                content_type_options="nosniff",
+                xss_protection="1; mode=block",
+                referrer_policy="strict-origin-when-cross-origin",
+            )
+            CRITICAL_MIDDLEWARES["security_headers"] = True
+            logger.info("[TEST] Security headers middleware added")
+        except ImportError as e:
+            logger.warning(f"[TEST] Security headers middleware unavailable: {e}")
+
+        from app.core.cors import configure_cors
+
+        configure_cors(app)
+        logger.info("[TEST] Minimal middleware stack enabled (CSRF + SecurityHeaders + CORS)")
+        return
 
     # ========================================================================
     # 1. COMPRESSION (added first, executes last)
@@ -228,23 +285,34 @@ def setup_middleware(app: FastAPI) -> None:
         logger.warning("Security headers middleware not available in development mode")
 
     # ========================================================================
-    # 7. LGPD COMPLIANCE (added seventh, executes second)
+    # 7. LGPD COMPLIANCE (added seventh, executes third)
     # ========================================================================
     try:
         from app.middleware.lgpd_middleware import LGPDMiddleware
 
         app.add_middleware(LGPDMiddleware, enable_ip_logging=True)
-        logger.info("[7/8] LGPD compliance middleware added")
+        logger.info("[7/9] LGPD compliance middleware added")
     except ImportError as e:
         logger.warning(f"LGPD middleware not available: {e}")
 
     # ========================================================================
-    # 8. CORS (added last, executes FIRST)
+    # 8. CORS PRE-FLIGHT HEADER FIXES (added eighth, executes second)
+    # ========================================================================
+    try:
+        from app.middleware.cors_preflight import CORSPreflightHeadersMiddleware
+
+        app.add_middleware(CORSPreflightHeadersMiddleware)
+        logger.info("[8/9] CORS preflight headers middleware added")
+    except ImportError as e:
+        logger.warning(f"CORS preflight middleware not available: {e}")
+
+    # ========================================================================
+    # 9. CORS (added last, executes FIRST)
     # ========================================================================
     from app.core.cors import configure_cors
 
     configure_cors(app)
-    logger.info("[8/8] CORS middleware added (executes FIRST)")
+    logger.info("[9/9] CORS middleware added (executes FIRST)")
 
     # ========================================================================
     # FINAL VALIDATION (production only)
@@ -266,4 +334,3 @@ def setup_middleware(app: FastAPI) -> None:
     # Summary
     env = "PRODUCTION" if is_production else "DEVELOPMENT"
     logger.info(f"Middleware setup complete - {env} mode with HTTP caching enabled")
-

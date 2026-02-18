@@ -8,6 +8,7 @@ import logging
 from functools import wraps
 from typing import Callable, TypeVar, Optional, Any, Tuple, Type
 import random
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -259,37 +260,94 @@ class RetryStrategy:
         }
 
 
+@dataclass(frozen=True)
+class _RetryStrategyPreset:
+    """Immutable preset that creates a fresh strategy per access."""
+
+    max_retries: int
+    base_delay: float
+    max_delay: float
+    exponential_base: float
+    jitter: bool
+
+    def build(self) -> RetryStrategy:
+        return RetryStrategy(
+            max_retries=self.max_retries,
+            base_delay=self.base_delay,
+            max_delay=self.max_delay,
+            exponential_base=self.exponential_base,
+            jitter=self.jitter,
+        )
+
+
+class _RetryStrategyPresetDescriptor:
+    """Descriptor returning a new strategy instance on each attribute access."""
+
+    def __init__(self, preset: _RetryStrategyPreset):
+        self._preset = preset
+
+    def __get__(self, instance, owner) -> RetryStrategy:
+        _ = instance, owner
+        return self._preset.build()
+
+
 # Predefined retry strategies for common use cases
 class RetryStrategies:
     """Predefined retry strategies"""
 
     # Fast retry for quick operations
-    FAST = RetryStrategy(
-        max_retries=3, base_delay=0.5, max_delay=5.0, exponential_base=2.0, jitter=True
+    FAST = _RetryStrategyPresetDescriptor(
+        _RetryStrategyPreset(
+            max_retries=3,
+            base_delay=0.5,
+            max_delay=5.0,
+            exponential_base=2.0,
+            jitter=True,
+        )
     )
 
     # Standard retry for most operations
-    STANDARD = RetryStrategy(
-        max_retries=3, base_delay=1.0, max_delay=30.0, exponential_base=2.0, jitter=True
+    STANDARD = _RetryStrategyPresetDescriptor(
+        _RetryStrategyPreset(
+            max_retries=3,
+            base_delay=1.0,
+            max_delay=30.0,
+            exponential_base=2.0,
+            jitter=True,
+        )
     )
 
     # Slow retry for rate-limited APIs
-    SLOW = RetryStrategy(
-        max_retries=5, base_delay=2.0, max_delay=60.0, exponential_base=2.0, jitter=True
+    SLOW = _RetryStrategyPresetDescriptor(
+        _RetryStrategyPreset(
+            max_retries=5,
+            base_delay=2.0,
+            max_delay=60.0,
+            exponential_base=2.0,
+            jitter=True,
+        )
     )
 
     # Aggressive retry for critical operations
-    AGGRESSIVE = RetryStrategy(
-        max_retries=7, base_delay=0.5, max_delay=30.0, exponential_base=1.5, jitter=True
+    AGGRESSIVE = _RetryStrategyPresetDescriptor(
+        _RetryStrategyPreset(
+            max_retries=7,
+            base_delay=0.5,
+            max_delay=30.0,
+            exponential_base=1.5,
+            jitter=True,
+        )
     )
 
     # Conservative retry for expensive operations
-    CONSERVATIVE = RetryStrategy(
-        max_retries=2,
-        base_delay=5.0,
-        max_delay=60.0,
-        exponential_base=2.0,
-        jitter=False,
+    CONSERVATIVE = _RetryStrategyPresetDescriptor(
+        _RetryStrategyPreset(
+            max_retries=2,
+            base_delay=5.0,
+            max_delay=60.0,
+            exponential_base=2.0,
+            jitter=False,
+        )
     )
 
 
@@ -335,7 +393,7 @@ class CircuitBreakerRetry:
     def __init__(
         self,
         circuit_breaker: Any,  # CircuitBreaker instance
-        retry_strategy: RetryStrategy = RetryStrategies.STANDARD,
+        retry_strategy: Optional[RetryStrategy] = None,
     ):
         """
         Initialize circuit breaker with retry.
@@ -345,7 +403,7 @@ class CircuitBreakerRetry:
             retry_strategy: Retry strategy to use
         """
         self.circuit_breaker = circuit_breaker
-        self.retry_strategy = retry_strategy
+        self.retry_strategy = retry_strategy or RetryStrategies.STANDARD
 
     async def execute(
         self,
@@ -377,7 +435,7 @@ class CircuitBreakerRetry:
 
 # Convenience function to combine circuit breaker and retry
 def with_retry_and_circuit_breaker(
-    circuit_breaker: Any, retry_strategy: RetryStrategy = RetryStrategies.STANDARD
+    circuit_breaker: Any, retry_strategy: Optional[RetryStrategy] = None
 ):
     """
     Decorator that combines circuit breaker with retry logic.
@@ -393,7 +451,9 @@ def with_retry_and_circuit_breaker(
     """
 
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
-        combined = CircuitBreakerRetry(circuit_breaker, retry_strategy)
+        combined = CircuitBreakerRetry(
+            circuit_breaker, retry_strategy or RetryStrategies.STANDARD
+        )
 
         @wraps(func)
         async def wrapper(*args, **kwargs):

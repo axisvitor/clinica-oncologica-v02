@@ -11,11 +11,12 @@ Features:
 - Interactive report dashboards
 """
 
-from datetime import datetime, date, timezone
+from datetime import datetime, date
 from typing import Optional, List, Dict, Any, Literal
 from uuid import UUID
 from enum import Enum
 from pydantic import BaseModel, Field, model_validator, field_validator, ConfigDict
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 
 
 # ============================================================================
@@ -239,7 +240,7 @@ class DeliverySchedule(BaseModel):
     start_date: date
     end_date: Optional[date] = None
     time_of_day: str = Field(..., pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")
-    timezone: str = "UTC"
+    timezone: str = "America/Sao_Paulo"
 
     # For weekly: day of week (0=Monday, 6=Sunday)
     day_of_week: Optional[int] = Field(None, ge=0, le=6)
@@ -371,8 +372,8 @@ class ReportShareCreate(BaseModel):
     def validate_expiration(cls, v):
         """Ensure expiration is in the future."""
         if v and v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
-        if v and v <= datetime.now(timezone.utc):
+            v = v.replace(tzinfo=SAO_PAULO_TZ)
+        if v and v <= now_sao_paulo():
             raise ValueError("expires_at must be in the future")
         return v
 

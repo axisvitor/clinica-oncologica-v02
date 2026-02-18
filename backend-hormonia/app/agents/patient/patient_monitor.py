@@ -8,7 +8,7 @@ and detection of potential issues requiring intervention.
 from __future__ import annotations
 
 # Standard library
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Any, Dict, List
 from uuid import UUID
 
@@ -17,9 +17,12 @@ from sqlalchemy.orm import Session
 
 # Local
 from app.agents.base import AgentCapabilities, BaseAgent
+from app.agents.patient.flow_coordinator.constants import ONBOARDING_END_DAY, DAILY_FOLLOWUP_END_DAY
+from app.agents.registry import PATIENT_MONITOR_ID
 from app.models.quiz import QuizSession
 from app.repositories.patient import PatientRepository
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo, to_sao_paulo, SAO_PAULO_TZ
 
 
 class PatientMonitorAgent(BaseAgent):
@@ -44,7 +47,7 @@ class PatientMonitorAgent(BaseAgent):
     def __init__(self, db_session: Session):
         """Initialize Patient Monitor Agent."""
         super().__init__(
-            agent_id="patient_monitor",
+            agent_id=PATIENT_MONITOR_ID,
             agent_type="patient",
             specialization="patient_monitor",
             db_session=db_session,
@@ -64,6 +67,8 @@ class PatientMonitorAgent(BaseAgent):
             "engagement_threshold_days": 7,
             "adherence_alert_threshold": 0.7,  # 70% adherence
         }
+
+        self.register_message_handler("consensus_request", self._handle_consensus_request)
 
         self.logger.info("Patient Monitor Agent initialized")
 
@@ -86,6 +91,35 @@ class PatientMonitorAgent(BaseAgent):
             self.logger.error(f"Task processing failed: {e}")
             return {"success": False, "error": str(e)}
 
+    async def _handle_consensus_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Return a conservative vote for inter-agent consensus requests."""
+        decision_topic = str(payload.get("decision_topic") or "").strip().lower()
+        decision_data = payload.get("decision_data") or {}
+        risk_factors = decision_data.get("risk_factors")
+        if not isinstance(risk_factors, list):
+            risk_factors = []
+
+        is_escalation_path = "escalat" in decision_topic or "intervention" in decision_topic
+        high_risk_signal = bool(risk_factors) or str(decision_data.get("priority", "")).lower() == "high"
+
+        vote = "approve" if is_escalation_path and high_risk_signal else "abstain"
+        confidence = 0.85 if vote == "approve" else 0.5
+        rationale = (
+            "monitoring_risk_signals_support_intervention"
+            if vote == "approve"
+            else "insufficient_monitoring_signal_for_strong_vote"
+        )
+
+        return {
+            "agent_id": self.agent_id,
+            "decision_topic": decision_topic or "unknown",
+            "vote": vote,
+            "confidence": confidence,
+            "rationale": rationale,
+            "risk_factor_count": len(risk_factors),
+            "reviewed_at": now_sao_paulo().isoformat(),
+        }
+
     async def _check_patient_status(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Check status of a specific patient."""
         try:
@@ -101,7 +135,11 @@ class PatientMonitorAgent(BaseAgent):
 
             # Perform status checks
             last_interaction = patient.updated_at or patient.created_at
-            days_since_interaction = (datetime.now(timezone.utc) - last_interaction).days
+            if last_interaction.tzinfo is None:
+                last_interaction = last_interaction.replace(tzinfo=SAO_PAULO_TZ)
+            days_since_interaction = (
+                now_sao_paulo().date() - to_sao_paulo(last_interaction).date()
+            ).days
 
             status_report = {
                 "patient_id": str(patient.id),
@@ -148,8 +186,10 @@ class PatientMonitorAgent(BaseAgent):
                 return {"success": False, "error": "Patient not found"}
 
             # Calculate date range for analysis
-            end_date = datetime.now(timezone.utc)
-            start_date = end_date - timedelta(days=days_back)
+            end_local = now_sao_paulo()
+            start_local = end_local - timedelta(days=days_back)
+            end_date = end_local.astimezone(SAO_PAULO_TZ)
+            start_date = start_local.astimezone(SAO_PAULO_TZ)
 
             # Query completed quiz sessions in the period
             completed_sessions = (
@@ -178,9 +218,9 @@ class PatientMonitorAgent(BaseAgent):
             # Monthly recurring expects ~1 quiz per month
             # Initial phase expects more frequent quizzes
             current_day = getattr(patient, "current_day", 0) or 0
-            if current_day <= 15:
+            if current_day <= ONBOARDING_END_DAY:
                 expected_quizzes = max(1, days_back // 5)  # Every 5 days initially
-            elif current_day <= 45:
+            elif current_day <= DAILY_FOLLOWUP_END_DAY:
                 expected_quizzes = max(1, days_back // 10)  # Every 10 days
             else:
                 expected_quizzes = max(1, days_back // 30)  # Monthly
@@ -251,7 +291,7 @@ class PatientMonitorAgent(BaseAgent):
             if not patient:
                 return {"success": False, "error": "Patient not found"}
 
-            now = datetime.now(timezone.utc)
+            now = now_sao_paulo()
 
             # Check last quiz activity
             last_quiz = (
@@ -266,12 +306,12 @@ class PatientMonitorAgent(BaseAgent):
             if last_quiz and last_quiz.started_at:
                 quiz_activity = last_quiz.started_at
                 if quiz_activity.tzinfo is None:
-                    quiz_activity = quiz_activity.replace(tzinfo=timezone.utc)
+                    quiz_activity = quiz_activity.replace(tzinfo=SAO_PAULO_TZ)
                 if quiz_activity > last_activity:
                     last_activity = quiz_activity
 
             if last_activity.tzinfo is None:
-                last_activity = last_activity.replace(tzinfo=timezone.utc)
+                last_activity = last_activity.replace(tzinfo=SAO_PAULO_TZ)
 
             days_since_activity = (now - last_activity).days
 

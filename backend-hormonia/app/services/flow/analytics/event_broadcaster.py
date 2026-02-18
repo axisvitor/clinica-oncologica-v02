@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import defaultdict
+from copy import deepcopy
 from typing import Callable, Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -53,7 +54,7 @@ class FlowEventBroadcaster:
         Args:
             max_workers: Maximum worker threads for async event processing.
         """
-        self.config = get_flow_config().analytics
+        self.config = deepcopy(get_flow_config()).analytics
 
         # Event subscribers
         self._subscribers: Dict[FlowEventType, List[Callable]] = defaultdict(list)
@@ -90,18 +91,8 @@ class FlowEventBroadcaster:
         """
         subscription_id = str(uuid4())
 
-        # Wrap handler with subscription ID
-        def wrapped_handler(event: FlowEvent):
-            try:
-                handler(event)
-            except Exception as e:
-                logger.error(
-                    f"Error in event handler for {event_type}: {e}",
-                    exc_info=True,
-                )
-
-        wrapped_handler._subscription_id = subscription_id  # type: ignore
-        self._subscribers[event_type].append(wrapped_handler)
+        handler._subscription_id = subscription_id  # type: ignore[attr-defined]
+        self._subscribers[event_type].append(handler)
 
         logger.debug(f"Subscribed to {event_type}: {subscription_id}")
         return subscription_id
@@ -118,18 +109,8 @@ class FlowEventBroadcaster:
         """
         subscription_id = str(uuid4())
 
-        # Wrap handler with subscription ID
-        def wrapped_handler(event: FlowEvent):
-            try:
-                handler(event)
-            except Exception as e:
-                logger.error(
-                    f"Error in wildcard event handler: {e}",
-                    exc_info=True,
-                )
-
-        wrapped_handler._subscription_id = subscription_id  # type: ignore
-        self._wildcard_subscribers.append(wrapped_handler)
+        handler._subscription_id = subscription_id  # type: ignore[attr-defined]
+        self._wildcard_subscribers.append(handler)
 
         logger.debug(f"Subscribed to all events: {subscription_id}")
         return subscription_id
@@ -381,10 +362,7 @@ class FlowEventBroadcaster:
         Args:
             event: Event to add.
         """
-        from ..constants import FlowEngine
-
-        # Use constant for max queue size comparison
-        if len(self._event_queue) >= FlowEngine.MAX_EVENT_QUEUE_SIZE:
+        if len(self._event_queue) >= self._max_queue_size:
             # Remove oldest event
             self._event_queue.pop(0)
             logger.warning("Event queue full, removed oldest event")
@@ -446,9 +424,13 @@ class FlowEventBroadcaster:
             if asyncio.iscoroutinefunction(handler):
                 # Submit to executor for async execution
                 self._executor.submit(self._run_async_handler, handler, event)
-            else:
-                # Execute synchronously
-                handler(event)
+                return
+
+            # Execute synchronously
+            result = handler(event)
+            if asyncio.iscoroutine(result):
+                # Handler returned coroutine (e.g., AsyncMock); execute safely
+                self._executor.submit(self._run_async_coroutine, result)
         except Exception as e:
             logger.error(
                 f"Error executing event handler: {e}",
@@ -476,6 +458,19 @@ class FlowEventBroadcaster:
         except Exception as e:
             logger.error(
                 f"Error in async event handler: {e}",
+                exc_info=True,
+            )
+
+    def _run_async_coroutine(self, coroutine) -> None:
+        """Run a coroutine returned by a sync handler in a new event loop."""
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(coroutine)
+            loop.close()
+        except Exception as e:
+            logger.error(
+                f"Error in async coroutine handler: {e}",
                 exc_info=True,
             )
 

@@ -1,3 +1,0 @@
-prometheus-client==0.24.1
-psycopg[binary]>=3.2.13,<3.3.0  # Match main requirements (v3)
-redis==6.4.0

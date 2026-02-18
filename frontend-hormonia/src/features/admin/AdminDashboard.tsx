@@ -1,17 +1,16 @@
 import React, { useState, useEffect, Suspense, memo, useCallback, useMemo } from 'react'
 import { Outlet, Navigate, useLocation } from 'react-router-dom'
+import { PieChart, LineChart } from '@/components/ui/charts/LazyRechartsComponents'
 import {
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
   Pie,
   Cell,
-  LineChart,
   Line
-} from '@/components/ui/charts/LazyRechartsComponents'
+} from '@/components/ui/charts/RechartsPrimitives'
 import type { ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import { ChartSkeleton } from '@/components/ui/chart-skeleton'
 import {
@@ -55,7 +54,7 @@ const mockSecurityMetrics: SecurityMetrics = {
   active_sessions: 156,
   failed_logins_24h: 47,
   blocked_ips: 8,
-  last_backup: '2024-01-15T10:30:00Z',
+  last_backup: '2024-01-15T10:30:00-03:00',
   system_uptime: 99.7
 }
 
@@ -67,7 +66,7 @@ const mockRecentActivity: AdminUserActivity[] = [
     action: 'login',
     resource: 'admin_panel',
     details: { ip: '192.168.1.100' },
-    timestamp: '2024-01-15T14:30:00Z',
+    timestamp: '2024-01-15T14:30:00-03:00',
     ip_address: '192.168.1.100',
     user_agent: 'Mozilla/5.0...',
     session_id: 'sess1'
@@ -79,7 +78,7 @@ const mockRecentActivity: AdminUserActivity[] = [
     action: 'password_reset',
     resource: 'user_account',
     details: { target_user: 'patient123' },
-    timestamp: '2024-01-15T14:25:00Z',
+    timestamp: '2024-01-15T14:25:00-03:00',
     ip_address: '192.168.1.101',
     user_agent: 'Mozilla/5.0...',
     session_id: 'sess2'
@@ -326,7 +325,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = memo(({ children: _childre
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis
                             dataKey="date"
-                            tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            tickFormatter={(date: string) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           />
                           <YAxis />
                           <Tooltip

@@ -7,8 +7,8 @@ This module contains the fundamental execution logic for flows, including:
 - FlowContextRepository: Context persistence
 - FlowLifecycleManager: Lifecycle management
 - FlowManager: Main orchestration interface
-- FlowValidator: Flow and step validation (backward compatibility)
-- FlowErrorHandler: Error handling and recovery (backward compatibility)
+- FlowValidator: Flow and step validation
+- FlowErrorHandler: Error handling and recovery
 
 These components work together to provide the core flow execution functionality.
 """
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from .context import ContextPersistenceResult, FlowContextRepository
 from .engine import FlowEngine
-from .error_handler import (
+from ..errors.handler import (
     ErrorCategory,
     ErrorSeverity,
     FlowError,
@@ -27,7 +27,7 @@ from .error_handler import (
 from .lifecycle import FlowLifecycleManager
 from .manager import FlowManager
 from .state_machine import FlowStateMachine
-from .validator import FlowValidator
+from ..validation.validator import FlowValidator
 
 __all__ = [
     # Core Components
@@ -37,7 +37,7 @@ __all__ = [
     "ContextPersistenceResult",
     "FlowLifecycleManager",
     "FlowManager",
-    # Backward Compatibility
+    # Re-exported canonical components
     "FlowValidator",
     "FlowErrorHandler",
     "FlowError",

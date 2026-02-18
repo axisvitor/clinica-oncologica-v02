@@ -7,8 +7,9 @@ date objects with proper error handling.
 """
 
 import re
-from datetime import datetime, date, timezone
+from datetime import datetime, date
 from typing import Optional, Union
+from app.utils.timezone import now_sao_paulo
 
 
 def coerce_to_date(value: Union[str, date, datetime, None]) -> Optional[date]:
@@ -19,7 +20,7 @@ def coerce_to_date(value: Union[str, date, datetime, None]) -> Optional[date]:
     - None values (returns None)
     - date objects (returns as-is)
     - datetime objects (extracts date portion)
-    - ISO datetime strings with timezone (e.g., "2025-10-05T15:01:57.695Z")
+    - ISO datetime strings with timezone (e.g., "2025-10-05T15:01:57.695-03:00")
     - Simple date strings (e.g., "2025-10-05")
 
     Args:
@@ -32,7 +33,7 @@ def coerce_to_date(value: Union[str, date, datetime, None]) -> Optional[date]:
         ValueError: If the input format is not supported or invalid
 
     Examples:
-        >>> coerce_to_date("2025-10-05T15:01:57.695Z")
+        >>> coerce_to_date("2025-10-05T15:01:57.695-03:00")
         date(2025, 10, 5)
 
         >>> coerce_to_date("2025-10-05")
@@ -60,7 +61,7 @@ def coerce_to_date(value: Union[str, date, datetime, None]) -> Optional[date]:
         if not value:
             return None
 
-        # Handle ISO format datetime with timezone (e.g., "2025-10-05T15:01:57.695Z")
+        # Handle ISO format datetime with timezone (e.g., "2025-10-05T15:01:57.695-03:00")
         iso_datetime_pattern = r"^(\d{4}-\d{2}-\d{2})T.*"
         match = re.match(iso_datetime_pattern, value)
         if match:
@@ -71,15 +72,11 @@ def coerce_to_date(value: Union[str, date, datetime, None]) -> Optional[date]:
                 raise ValueError(f"Invalid ISO date format in datetime string: {value}")
 
         # Handle ISO datetime without 'T' separator but with timezone
-        # e.g., "2025-10-05 15:01:57.695Z" or "2025-10-05 15:01:57+00:00"
-        if " " in value and (
-            value.endswith("Z") or "+" in value or value.count(":") >= 2
-        ):
+        # e.g., "2025-10-05 15:01:57.695-03:00" or "2025-10-05 15:01:57-03:00"
+        if " " in value and value.count(":") >= 2:
             try:
                 # Try to parse as full datetime and extract date
-                # Replace Z with +00:00 for proper parsing
-                normalized_value = value.replace("Z", "+00:00")
-                dt = datetime.fromisoformat(normalized_value)
+                dt = datetime.fromisoformat(value)
                 return dt.date()
             except ValueError:
                 pass  # Fall through to other parsing attempts
@@ -114,7 +111,7 @@ def coerce_to_date(value: Union[str, date, datetime, None]) -> Optional[date]:
         except ValueError:
             raise ValueError(
                 f"Unable to parse date from string: '{value}'. "
-                f"Supported formats: ISO datetime (2025-10-05T15:01:57.695Z), "
+                f"Supported formats: ISO datetime (2025-10-05T15:01:57.695-03:00), "
                 f"simple date (2025-10-05), or common date formats (YYYY/MM/DD, MM/DD/YYYY, etc.)"
             )
 
@@ -164,7 +161,7 @@ def set_default_date_range(
     Returns:
         Tuple of (start_date, end_date) with defaults applied
     """
-    today = datetime.now(timezone.utc).date()
+    today = now_sao_paulo().date()
 
     if end_date is None:
         end_date = today

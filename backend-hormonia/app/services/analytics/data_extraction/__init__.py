@@ -10,7 +10,7 @@ This package decomposes the original data_extraction.py module into:
 - preference_extractor.py: Patient preference extraction
 - service.py: Main service orchestration
 
-Re-exports all public APIs for backward compatibility.
+Re-exports canonical data extraction APIs.
 """
 
 from .models import (
@@ -24,15 +24,11 @@ from .models import (
 )
 from .service import DataExtractionService, get_data_extraction_service
 
-# Re-export ConcernLevel for backward compatibility
-from app.services.ai import ConcernLevel
-
 __all__ = [
     # Enums
     "ResponseCategory",
     "ExtractionConfidence",
     "MedicalConcernType",
-    "ConcernLevel",
     # Data classes
     "ExtractedEntity",
     "MedicalConcern",

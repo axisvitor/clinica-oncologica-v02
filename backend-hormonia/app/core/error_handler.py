@@ -9,7 +9,6 @@ import logging
 import traceback
 import time
 from typing import Dict, Any, Optional
-from datetime import datetime, timezone
 from collections import defaultdict
 
 from fastapi import HTTPException
@@ -17,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.error_tracking import ErrorLog
 from app.database import get_scoped_session
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -205,7 +205,7 @@ class CriticalErrorHandler:
         context = {
             "user_role": user_role,
             "endpoint": endpoint,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         # Log with rate limiting
@@ -259,7 +259,7 @@ class CriticalErrorHandler:
         error_context = {
             "table_name": table_name,
             "operation": operation,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
         if context:
             error_context.update(context)
@@ -318,7 +318,7 @@ class CriticalErrorHandler:
             "input_type": type(input_value).__name__
             if input_value is not None
             else None,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
         if context:
             error_context.update(context)
@@ -372,7 +372,7 @@ class CriticalErrorHandler:
         error_message = str(error)
         error_key = self._create_error_key(error_type, error_message)
 
-        error_context = {"timestamp": datetime.now(timezone.utc).isoformat()}
+        error_context = {"timestamp": now_sao_paulo().isoformat()}
         if context:
             error_context.update(context)
 
@@ -424,6 +424,7 @@ class CriticalErrorHandler:
                 return self
 
             def __exit__(self, exc_type, exc_val, exc_tb):
+                _ = exc_tb
                 if exc_type is None:
                     return False
 

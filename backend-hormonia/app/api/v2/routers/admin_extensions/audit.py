@@ -13,7 +13,6 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
-from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, desc
 
@@ -39,6 +38,7 @@ from app.api.v2.dependencies import (
 from .constants import CACHE_TTL_AUDIT_LOGS, CACHE_TTL_AUDIT_SINGLE
 from .dependencies import get_admin_user, log_admin_extension_action
 from .utils import serialize_audit_log
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -414,12 +414,11 @@ async def export_audit_logs(
                     row[field] = value
                 writer.writerow(row)
 
-            output.seek(0)
-            return StreamingResponse(
-                iter([output.getvalue()]),
+            return Response(
+                content=output.getvalue(),
                 media_type="text/csv",
                 headers={
-                    "Content-Disposition": f"attachment; filename=audit_logs_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+                    "Content-Disposition": f"attachment; filename=audit_logs_export_{now_sao_paulo().strftime('%Y%m%d_%H%M%S')}.csv"
                 },
             )
 
@@ -445,7 +444,7 @@ async def export_audit_logs(
                 content=json.dumps(data, indent=2),
                 media_type="application/json",
                 headers={
-                    "Content-Disposition": f"attachment; filename=audit_logs_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+                    "Content-Disposition": f"attachment; filename=audit_logs_export_{now_sao_paulo().strftime('%Y%m%d_%H%M%S')}.json"
                 },
             )
 

@@ -22,6 +22,7 @@ from app.models.patient import Patient
 from app.models.message import Message, MessageStatus, MessageType, MessageDirection
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Test Message CRUD (13 endpoints)
 # ============================================================================
@@ -73,6 +74,11 @@ class TestMessageCRUD:
 
     def test_send_message_rate_limited(self, client: TestClient, auth_headers: dict, test_patient: Patient):
         """Test rate limiting on message sending."""
+        from app.utils import rate_limiter
+
+        if not getattr(rate_limiter, "_rate_limit_enabled", True):
+            pytest.skip("Rate limiting disabled in test environment")
+
         payload = {
             "patient_id": str(test_patient.id),
             "content": "Test",
@@ -104,7 +110,7 @@ class TestMessageCRUD:
         )
         assert response.status_code in [200, 404]
 
-    @patch('app.utils.redis_cache.get_async_redis_client')
+    @patch('app.core.redis_manager.get_async_redis_client')
     def test_patient_message_stats_cached(self, mock_redis, client: TestClient, auth_headers: dict, test_patient: Patient):
         """Test patient message statistics with caching."""
         mock_redis_client = AsyncMock()
@@ -159,7 +165,7 @@ class TestMessageCRUD:
         )
         assert response.status_code == 200
 
-    @patch('app.utils.redis_cache.get_async_redis_client')
+    @patch('app.core.redis_manager.get_async_redis_client')
     def test_overall_statistics_cached(self, mock_redis, client: TestClient, auth_headers: dict):
         """Test overall message statistics with caching."""
         mock_redis_client = AsyncMock()
@@ -437,7 +443,7 @@ class TestSearchAndFiltering:
 class TestMessageAnalytics:
     """Test message analytics endpoints."""
 
-    @patch('app.utils.redis_cache.get_async_redis_client')
+    @patch('app.core.redis_manager.get_async_redis_client')
     def test_delivery_rate_analytics(self, mock_redis, client: TestClient, auth_headers: dict):
         """Test delivery rate analytics with caching."""
         mock_redis_client = AsyncMock()
@@ -450,7 +456,7 @@ class TestMessageAnalytics:
         )
         assert response.status_code == 200
 
-    @patch('app.utils.redis_cache.get_async_redis_client')
+    @patch('app.core.redis_manager.get_async_redis_client')
     def test_response_time_analytics(self, mock_redis, client: TestClient, auth_headers: dict):
         """Test response time analytics with caching."""
         mock_redis_client = AsyncMock()
@@ -515,7 +521,7 @@ def test_patient(db_session, test_user: User) -> Patient:
         name="Test Patient",
         phone="5511999999999",
         doctor_id=test_user.id,
-        created_at=datetime.utcnow()
+        created_at=now_sao_paulo_naive()
     )
     db_session.add(patient)
     db_session.commit()
@@ -532,7 +538,7 @@ def test_message(db_session, test_patient: Patient) -> Message:
         type=MessageType.TEXT,
         content="Test message",
         status=MessageStatus.SENT,
-        created_at=datetime.utcnow()
+        created_at=now_sao_paulo_naive()
     )
     db_session.add(message)
     db_session.commit()

@@ -17,9 +17,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.flow import FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate
-from app.models.user import User, UserRole
+from app.models.user import UserRole
 from app.dependencies.auth_dependencies import get_redis_cache
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
+from app.api.v2.auth_session_shared import resolve_session_id, get_user_data_from_session
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -80,62 +81,22 @@ async def _get_current_user_simple(
         >>> print(user["email"])
         "user@example.com"
     """
-    final_session_id = None
-    
-    # Priority 1: Authorization Header (Bearer <session_id>)
-    if authorization and authorization.startswith("Bearer "):
-        final_session_id = authorization.split(" ")[1]
-    
-    # Priority 2: X-Session-ID Header
-    if not final_session_id and x_session_id:
-        final_session_id = x_session_id
-        
-    # Priority 3: Cookie
-    if not final_session_id and session_cookie_id:
-        final_session_id = session_cookie_id
+    final_session_id = resolve_session_id(
+        authorization=authorization,
+        x_session_id=x_session_id,
+        session_cookie_id=session_cookie_id,
+    )
 
     if not final_session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
         )
 
-    session_data = await redis_cache.get_session(final_session_id)
-    if not session_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
-        )
-
-    firebase_uid = session_data.get("firebase_uid")
-    if not firebase_uid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
-        )
-
-    # Get user from cache or DB
-    user_data = await redis_cache.get_user_by_uid(firebase_uid)
-    if not user_data:
-        user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-            )
-        user_data = {
-            "id": str(user.id),
-            "firebase_uid": user.firebase_uid,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
-            "is_active": user.is_active,
-        }
-        await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
-
-    if not user_data.get("is_active", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
-        )
-
-    return user_data
+    return await get_user_data_from_session(
+        session_id=final_session_id,
+        db=db,
+        redis_cache=redis_cache,
+    )
 
 
 def _extract_user_context(
@@ -329,10 +290,32 @@ async def _invalidate_template_cache(
 
         # Invalidate list caches
         pattern = f"templates:v2:{template_type}:*"
-        keys = await redis_client.keys(pattern)
-        if keys:
-            await redis_client.delete(*keys)
-            logger.debug(f"Invalidated {len(keys)} cache entries for {template_type}")
+        cursor = 0
+        total_keys = 0
+        scan_count = 200
+        delete_batch_size = 200
+
+        while True:
+            cursor, keys = await redis_client.scan(
+                cursor=cursor,
+                match=pattern,
+                count=scan_count,
+            )
+
+            if keys:
+                total_keys += len(keys)
+                for start in range(0, len(keys), delete_batch_size):
+                    key_batch = keys[start : start + delete_batch_size]
+                    await redis_client.delete(*key_batch)
+
+            if cursor in (0, "0", b"0"):
+                break
+
+            if isinstance(cursor, (str, bytes)):
+                cursor = int(cursor)
+
+        if total_keys:
+            logger.debug(f"Invalidated {total_keys} cache entries for {template_type}")
 
         # Invalidate specific template cache if ID provided
         if template_id:

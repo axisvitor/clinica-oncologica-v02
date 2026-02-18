@@ -25,16 +25,6 @@ class FlowStatusV2(str, Enum):
     CANCELLED = "cancelled"
 
 
-class ABTestStatusV2(str, Enum):
-    """A/B test status enumeration"""
-
-    DRAFT = "draft"
-    ACTIVE = "active"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
-
-
 # ============================================================================
 # Brief Models (for nested relationships)
 # ============================================================================
@@ -281,8 +271,8 @@ class FlowCustomizationV2Response(BaseModel):
                 "customization_data": {"preferred_time": "09:00"},
                 "priority": 5,
                 "is_active": True,
-                "created_at": "2025-11-01T10:00:00Z",
-                "updated_at": "2025-11-07T10:00:00Z",
+                "created_at": "2025-11-01T10:00:00-03:00",
+                "updated_at": "2025-11-07T10:00:00-03:00",
             }
         },
     )
@@ -370,8 +360,8 @@ class FlowRuleV2Response(FlowRuleV2Base):
                 "action": {"type": "skip_message"},
                 "priority": 8,
                 "is_active": True,
-                "created_at": "2025-01-01T10:00:00Z",
-                "updated_at": "2025-11-07T10:00:00Z",
+                "created_at": "2025-01-01T10:00:00-03:00",
+                "updated_at": "2025-11-07T10:00:00-03:00",
             }
         },
     )
@@ -387,169 +377,6 @@ class FlowRuleV2List(CursorPaginatedResponse[FlowRuleV2Response]):
                 "next_cursor": None,
                 "has_more": False,
                 "total": 8,
-            }
-        }
-    )
-
-
-# ============================================================================
-# A/B Testing Models
-# ============================================================================
-
-
-class ABTestVariantV2(BaseModel):
-    """A/B test variant definition"""
-
-    name: str = Field(..., max_length=50, description="Variant name")
-    template_id: str = Field(..., description="Template ID for this variant")
-    allocation_percentage: float = Field(
-        ..., ge=0, le=100, description="Allocation percentage"
-    )
-    description: Optional[str] = Field(None, max_length=200)
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "name": "Control",
-                "template_id": "template_123",
-                "allocation_percentage": 50.0,
-                "description": "Original message timing",
-            }
-        }
-    )
-
-
-class ABTestV2Base(BaseModel):
-    """Base A/B test schema"""
-
-    name: str = Field(..., min_length=1, max_length=100, description="Test name")
-    flow_type: str = Field(..., max_length=50, description="Flow type for testing")
-    variants: List[ABTestVariantV2] = Field(..., min_items=2, max_items=5)
-    success_metrics: List[str] = Field(..., description="Metrics to measure")
-    target_sample_size: int = Field(..., ge=10, description="Target participants")
-    duration_days: int = Field(..., ge=1, le=90, description="Test duration")
-    description: Optional[str] = Field(None, max_length=500)
-
-    @field_validator("variants")
-    @classmethod
-    def validate_variants(cls, v):
-        """Validate variant allocations sum to 100"""
-        total = sum(variant.allocation_percentage for variant in v)
-        if abs(total - 100.0) > 0.01:
-            raise ValueError("Variant allocations must sum to 100%")
-        return v
-
-
-class ABTestV2Create(ABTestV2Base):
-    """Schema for creating an A/B test"""
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "name": "Message Timing Test",
-                "flow_type": "hormonal_treatment",
-                "variants": [
-                    {
-                        "name": "Morning",
-                        "template_id": "tpl_1",
-                        "allocation_percentage": 50.0,
-                    },
-                    {
-                        "name": "Evening",
-                        "template_id": "tpl_2",
-                        "allocation_percentage": 50.0,
-                    },
-                ],
-                "success_metrics": ["engagement_rate", "completion_rate"],
-                "target_sample_size": 100,
-                "duration_days": 30,
-                "description": "Test optimal message timing",
-            }
-        }
-    )
-
-
-class ABTestV2Update(BaseModel):
-    """Schema for updating an A/B test"""
-
-    name: Optional[str] = Field(None, max_length=100)
-    status: Optional[ABTestStatusV2] = None
-    description: Optional[str] = Field(None, max_length=500)
-
-
-class ABTestResultsV2(BaseModel):
-    """A/B test results for a variant"""
-
-    variant_name: str
-    participants: int
-    conversion_rate: float = Field(..., ge=0, le=100)
-    engagement_score: float = Field(..., ge=0, le=100)
-    statistical_significance: float = Field(..., ge=0, le=1, description="p-value")
-    confidence_interval: List[float] = Field(..., min_items=2, max_items=2)
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "variant_name": "Morning",
-                "participants": 52,
-                "conversion_rate": 78.5,
-                "engagement_score": 82.3,
-                "statistical_significance": 0.03,
-                "confidence_interval": [75.2, 81.8],
-            }
-        }
-    )
-
-
-class ABTestV2Response(ABTestV2Base):
-    """Full A/B test response"""
-
-    id: str
-    status: ABTestStatusV2
-    current_participants: int
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    results: Optional[List[ABTestResultsV2]] = None
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(
-        from_attributes=True,
-        json_schema_extra={
-            "example": {
-                "id": "test_123abc",
-                "name": "Message Timing Test",
-                "flow_type": "hormonal_treatment",
-                "variants": [],
-                "success_metrics": ["engagement_rate"],
-                "target_sample_size": 100,
-                "duration_days": 30,
-                "status": "active",
-                "current_participants": 52,
-                "start_date": "2025-11-01T00:00:00Z",
-                "created_at": "2025-11-01T10:00:00Z",
-                "updated_at": "2025-11-07T10:00:00Z",
-            }
-        },
-    )
-
-
-class ABTestV2List(CursorPaginatedResponse[ABTestV2Response]):
-    """Paginated list of A/B tests"""
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "data": [
-                    {
-                        "id": "test_123",
-                        "name": "Message Timing Test",
-                        "status": "active",
-                    }
-                ],
-                "next_cursor": None,
-                "has_more": False,
-                "total": 3,
             }
         }
     )
@@ -601,7 +428,7 @@ class PatientEngagementV2Response(BaseModel):
                 "patient_id": "pat_456def",
                 "response_rate": 92.3,
                 "average_response_time_minutes": 45.5,
-                "last_interaction": "2025-11-07T08:30:00Z",
+                "last_interaction": "2025-11-07T08:30:00-03:00",
                 "engagement_score": 88.7,
             }
         }
@@ -633,7 +460,7 @@ class RiskAssessmentV2Response(BaseModel):
                 "risk_level": "medium",
                 "risk_factors": ["low_engagement", "missed_messages"],
                 "recommended_actions": ["send_reminder", "doctor_review"],
-                "assessed_at": "2025-11-07T10:00:00Z",
+                "assessed_at": "2025-11-07T10:00:00-03:00",
             }
         }
     )
@@ -653,8 +480,8 @@ class FlowPerformanceV2Response(BaseModel):
         json_schema_extra={
             "example": {
                 "flow_type": "hormonal_treatment",
-                "period_start": "2025-10-01T00:00:00Z",
-                "period_end": "2025-11-07T23:59:59Z",
+                "period_start": "2025-10-01T00:00:00-03:00",
+                "period_end": "2025-11-07T23:59:59-03:00",
                 "metrics": {"completion_rate": 78.5, "engagement_rate": 85.2},
                 "trends": {
                     "completion_rate_change": "+5.3%",
@@ -687,7 +514,7 @@ class PatientJourneyV2Response(BaseModel):
                     {
                         "stage": "onboarding",
                         "completed": True,
-                        "completed_at": "2025-01-01T10:00:00Z",
+                        "completed_at": "2025-01-01T10:00:00-03:00",
                     },
                     {"stage": "active_treatment", "completed": False, "current": True},
                 ],
@@ -726,7 +553,7 @@ class FlowInsightsV2Response(BaseModel):
                         "expected_impact": "+15% engagement",
                     }
                 ],
-                "generated_at": "2025-11-07T10:00:00Z",
+                "generated_at": "2025-11-07T10:00:00-03:00",
             }
         }
     )
@@ -758,7 +585,7 @@ class FlowDashboardV2Response(BaseModel):
                     "insights": [],
                     "recommendations": [],
                 },
-                "generated_at": "2025-11-07T10:00:00Z",
+                "generated_at": "2025-11-07T10:00:00-03:00",
             }
         }
     )

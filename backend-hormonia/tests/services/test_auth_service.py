@@ -21,6 +21,7 @@ from app.repositories.user import UserRepository
 from app.schemas.auth import TokenData
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Fixtures
 # ============================================================================
@@ -583,7 +584,7 @@ class TestMemoryFallback:
 
         # Manually set up failed attempts
         auth_service._failed_attempts[email]['count'] = 5
-        auth_service._failed_attempts[email]['last_attempt'] = datetime.utcnow()
+        auth_service._failed_attempts[email]['last_attempt'] = now_sao_paulo_naive()
 
         result = auth_service._is_rate_limited_memory(email)
 
@@ -599,7 +600,7 @@ class TestMemoryFallback:
         # Set up failed attempts that are old
         auth_service._failed_attempts[email]['count'] = 5
         auth_service._failed_attempts[email]['last_attempt'] = (
-            datetime.utcnow() - timedelta(minutes=10)  # Older than 5-minute window
+            now_sao_paulo_naive() - timedelta(minutes=10)  # Older than 5-minute window
         )
 
         result = auth_service._is_rate_limited_memory(email)

@@ -38,6 +38,7 @@ from cryptography.hazmat.backends import default_backend
 
 from app.config import get_settings
 from app.core.searchable_hash import SearchableHash
+from app.schemas.validators.cpf import calculate_cpf_check_digit
 
 from .types import EncryptionAlgorithm, FieldType
 from .algorithms import AESGCMAlgorithm, AESCBCAlgorithm, FernetAlgorithm
@@ -363,12 +364,7 @@ class UnifiedEncryptionService(BaseEncryptionService):
         return self._cpf_encryptor.decrypt(encrypted_cpf)
 
     def _calculate_cpf_check_digit(self, cpf_partial: str) -> str:
-        total = sum(
-            int(digit) * (len(cpf_partial) + 1 - i)
-            for i, digit in enumerate(cpf_partial)
-        )
-        remainder = total % 11
-        return "0" if remainder < 2 else str(11 - remainder)
+        return calculate_cpf_check_digit(cpf_partial)
 
     def _normalize_cpf(self, cpf: Optional[str]) -> Optional[str]:
         if cpf is None:
@@ -438,6 +434,32 @@ class UnifiedEncryptionService(BaseEncryptionService):
         """Generate searchable hash for CPF."""
         return SearchableHash.hash_cpf(cpf)
 
+    def hash_cpf_for_search(self, cpf: Optional[str]) -> Optional[str]:
+        """
+        Backward-compatible CPF hash helper with format normalization.
+
+        Accepts formatted CPF input and guarantees deterministic hash output
+        for semantically equivalent values.
+        """
+        if cpf is None:
+            return None
+
+        cpf_str = str(cpf)
+        if cpf_str == "":
+            return None
+
+        # Preserve digit-only input as provided to avoid collapsing distinct
+        # values (e.g., ...09 vs ...02). Apply canonical normalization only
+        # when CPF contains formatting characters.
+        if any(not ch.isdigit() for ch in cpf_str):
+            normalized = self._normalize_cpf(cpf_str)
+        else:
+            normalized = cpf_str
+
+        if not normalized:
+            return None
+        return self.hash_cpf(normalized)
+
     def hash_email(self, email: Optional[str]) -> Optional[str]:
         """Generate searchable hash for email."""
         return SearchableHash.hash_email(email)
@@ -445,6 +467,15 @@ class UnifiedEncryptionService(BaseEncryptionService):
     def hash_phone(self, phone: Optional[str]) -> Optional[str]:
         """Generate searchable hash for phone."""
         return SearchableHash.hash_phone(phone)
+
+    def migrate_plaintext_cpf(self, plaintext_cpf: Optional[str]):
+        """
+        Backward-compatible migration helper for legacy plaintext CPF values.
+
+        Returns encrypted CPF + searchable hash using the same canonical path
+        as `encrypt_cpf`.
+        """
+        return self.encrypt_cpf(plaintext_cpf)
 
     # =========================================================================
     # PATIENT DATA ENCRYPTION

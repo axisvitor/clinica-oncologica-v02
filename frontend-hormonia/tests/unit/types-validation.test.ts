@@ -37,8 +37,8 @@ describe('Type Definitions Validation', () => {
       name: 'Test User',
       role: 'doctor',
       token: 'jwt-token-123', // Should exist
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z'
+      created_at: '2024-01-01T00:00:00-03:00',
+      updated_at: '2024-01-01T00:00:00-03:00'
     }
 
     expect(user.token).toBeDefined()
@@ -52,11 +52,11 @@ describe('Type Definitions Validation', () => {
       phone: '+5511999999999',
       whatsapp_number: '+5511999999999',
       treatment_type: 'oncology',
-      enrollment_date: '2024-01-01T00:00:00Z',
+      enrollment_date: '2024-01-01T00:00:00-03:00',
       status: 'active',
       current_day: 15, // Should exist
-      created_at: '2024-01-01T00:00:00Z',
-      updated_at: '2024-01-01T00:00:00Z'
+      created_at: '2024-01-01T00:00:00-03:00',
+      updated_at: '2024-01-01T00:00:00-03:00'
     }
 
     expect(patient.current_day).toBeDefined()
@@ -103,7 +103,7 @@ describe('Type Definitions Validation', () => {
       success: true,
       message: 'Success',
       data: { id: '1' },
-      timestamp: '2024-01-01T00:00:00Z'
+      timestamp: '2024-01-01T00:00:00-03:00'
     }
 
     expect(response.timestamp).toBeDefined()
@@ -114,7 +114,7 @@ describe('Type Definitions Validation', () => {
       success: false,
       error: 'API_ERROR',
       message: 'API error occurred',
-      timestamp: '2024-01-01T00:00:00Z'
+      timestamp: '2024-01-01T00:00:00-03:00'
     }
 
     expect(response.success).toBe(false)
@@ -129,7 +129,7 @@ describe('Type Definitions Validation', () => {
         patient_name: 'Test Patient',
         changes: { status: 'active' }
       },
-      timestamp: '2024-01-01T00:00:00Z',
+      timestamp: '2024-01-01T00:00:00-03:00',
       id: 'msg-1'
     }
 
@@ -186,7 +186,7 @@ describe('Type Definitions Validation', () => {
       flow_type: 'onboarding',
       current_day: 5,
       is_paused: false,
-      enrollment_date: '2024-01-01T00:00:00Z'
+      enrollment_date: '2024-01-01T00:00:00-03:00'
     }
 
     expect(eventData.patient_id).toBeDefined()
@@ -200,8 +200,8 @@ describe('Type Definitions Validation', () => {
       name: 'Test User',
       role: 'doctor',
       token: 'jwt-token-123', // Should exist
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
+      createdAt: '2024-01-01T00:00:00-03:00',
+      updatedAt: '2024-01-01T00:00:00-03:00'
     }
 
     expect(appUser.token).toBeDefined()
@@ -216,8 +216,8 @@ describe('Type Definitions Validation', () => {
       dateOfBirth: '1990-01-01',
       status: 'active',
       current_day: 15, // Should exist
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
+      createdAt: '2024-01-01T00:00:00-03:00',
+      updatedAt: '2024-01-01T00:00:00-03:00'
     }
 
     expect(appPatient.current_day).toBeDefined()

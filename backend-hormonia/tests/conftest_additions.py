@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import asyncio
 from typing import Any
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ==========================================
 # Database Fixtures
 # ==========================================
@@ -158,7 +159,7 @@ def mock_user():
         'role': 'user',
         'is_active': True,
         'permissions': ['read', 'write'],
-        'created_at': datetime.utcnow()
+        'created_at': now_sao_paulo_naive()
     }
 
 
@@ -172,7 +173,7 @@ def mock_admin_user():
         'role': 'admin',
         'is_active': True,
         'permissions': ['read', 'write', 'delete', 'admin'],
-        'created_at': datetime.utcnow()
+        'created_at': now_sao_paulo_naive()
     }
 
 
@@ -242,7 +243,7 @@ def patient_factory():
             'cpf': f'{counter:011d}',
             'phone': f'+551198765{counter:04d}',
             'date_of_birth': '1990-01-01',
-            'created_at': datetime.utcnow()
+            'created_at': now_sao_paulo_naive()
         }
 
         default.update(kwargs)
@@ -266,7 +267,7 @@ def message_factory():
             'sender': 'system',
             'recipient': 'patient-1',
             'status': 'pending',
-            'created_at': datetime.utcnow()
+            'created_at': now_sao_paulo_naive()
         }
 
         default.update(kwargs)
@@ -290,7 +291,7 @@ def alert_factory():
             'message': f'Alert message {counter}',
             'priority': 'medium',
             'status': 'new',
-            'created_at': datetime.utcnow()
+            'created_at': now_sao_paulo_naive()
         }
 
         default.update(kwargs)

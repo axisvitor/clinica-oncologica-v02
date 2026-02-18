@@ -12,6 +12,7 @@ from collections import defaultdict
 
 from .types import Alert, AlertRuleType, AlertSeverity
 from .config import get_config, AlertSystemConfig
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ class ThresholdManager:
             True if alert should be debounced (suppressed)
         """
         debounce_window = timedelta(minutes=self.config.debounce_minutes)
-        cutoff_time = datetime.now(timezone.utc) - debounce_window
+        cutoff_time = now_sao_paulo() - debounce_window
 
         # Create unique key for this alert type
         debounce_key = self._get_debounce_key(alert)
@@ -77,7 +78,7 @@ class ThresholdManager:
                 return True
 
         # Update last seen time
-        self._recent_alerts[debounce_key] = datetime.now(timezone.utc)
+        self._recent_alerts[debounce_key] = now_sao_paulo()
 
         # Clean up old entries
         self._cleanup_recent_alerts(cutoff_time)

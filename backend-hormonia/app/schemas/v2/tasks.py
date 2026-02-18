@@ -31,6 +31,7 @@ from pydantic import (
 )
 
 from .common import CursorPaginatedResponse
+from app.utils.timezone import now_sao_paulo_naive
 
 
 # ============================================================================
@@ -157,7 +158,7 @@ class TaskProgressV2(BaseModel):
         None, description="Estimated time to completion in seconds"
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="When progress was last updated"
+        default_factory=now_sao_paulo_naive, description="When progress was last updated"
     )
 
     model_config = ConfigDict(
@@ -167,7 +168,7 @@ class TaskProgressV2(BaseModel):
                 "total": 100,
                 "message": "Processing batch 3 of 7",
                 "eta_seconds": 120.5,
-                "updated_at": "2025-01-17T15:30:00Z",
+                "updated_at": "2025-01-17T15:30:00-03:00",
             }
         }
     )
@@ -191,7 +192,7 @@ class TaskV2Create(TaskV2Base):
         default_factory=dict, description="Keyword arguments for task"
     )
     schedule_at: Optional[datetime] = Field(
-        None, description="Schedule task to run at specific time (UTC)"
+        None, description="Schedule task to run at specific time (America/Sao_Paulo)"
     )
     retry_config: Optional[RetryConfigV2] = Field(
         None, description="Custom retry configuration"
@@ -210,7 +211,7 @@ class TaskV2Create(TaskV2Base):
                 "args": [],
                 "kwargs": {"month": "2025-01", "include_charts": True},
                 "priority": "high",
-                "schedule_at": "2025-02-01T00:00:00Z",
+                "schedule_at": "2025-02-01T00:00:00-03:00",
                 "retry_config": {"max_retries": 3, "retry_strategy": "exponential"},
                 "timeout_seconds": 3600,
             }
@@ -277,7 +278,7 @@ class TaskLogEntryV2(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-01-17T15:30:00Z",
+                "timestamp": "2025-01-17T15:30:00-03:00",
                 "level": "INFO",
                 "message": "Processing batch 3 of 7",
                 "context": {"batch_size": 100, "processed": 300},
@@ -338,8 +339,8 @@ class TaskV2Response(TaskV2Base):
                 },
                 "retry_count": 0,
                 "worker_name": "celery@worker1",
-                "created_at": "2025-01-17T15:00:00Z",
-                "started_at": "2025-01-17T15:00:05Z",
+                "created_at": "2025-01-17T15:00:00-03:00",
+                "started_at": "2025-01-17T15:00:05-03:00",
             }
         },
     )
@@ -366,12 +367,12 @@ class TaskV2WithLogs(TaskV2Response):
                 "status": "SUCCESS",
                 "logs": [
                     {
-                        "timestamp": "2025-01-17T15:00:00Z",
+                        "timestamp": "2025-01-17T15:00:00-03:00",
                         "level": "INFO",
                         "message": "Task started",
                     },
                     {
-                        "timestamp": "2025-01-17T15:01:00Z",
+                        "timestamp": "2025-01-17T15:01:00-03:00",
                         "level": "INFO",
                         "message": "Processing complete",
                     },
@@ -612,7 +613,7 @@ class TaskCleanupResultV2(BaseModel):
                 "tasks_analyzed": 1500,
                 "space_freed_mb": 45.3,
                 "dry_run": False,
-                "completion_time": "2025-01-17T15:30:00Z",
+                "completion_time": "2025-01-17T15:30:00-03:00",
             }
         }
     )

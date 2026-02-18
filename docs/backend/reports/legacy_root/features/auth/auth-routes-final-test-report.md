@@ -254,7 +254,7 @@ The system properly rejects requests with trailing slashes through:
 ## Test Execution
 
 ```
-Date: December 22, 2025, 18:30 UTC
+Date: December 22, 2025, 18:30 Sao Paulo
 Environment: WSL2 Linux
 Backend: FastAPI on localhost:8000
 Test Tool: curl with proper headers

@@ -104,7 +104,7 @@ class TestListAPIEndpoints:
         mock_openapi_spec
     ):
         """Test listing all API endpoints successfully."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/endpoints")
 
@@ -127,7 +127,7 @@ class TestListAPIEndpoints:
         mock_openapi_spec
     ):
         """Test filtering endpoints by category."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/endpoints?category=Patients")
 
@@ -145,7 +145,7 @@ class TestListAPIEndpoints:
         mock_openapi_spec
     ):
         """Test filtering endpoints by HTTP method."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/endpoints?method=GET")
 
@@ -163,7 +163,7 @@ class TestListAPIEndpoints:
         mock_openapi_spec
     ):
         """Test searching endpoints."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/endpoints?search=patient")
 
@@ -187,7 +187,7 @@ class TestListAPIEndpoints:
         mock_openapi_spec
     ):
         """Test filtering endpoints by authentication requirement."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/endpoints?requires_auth=true")
 
@@ -205,7 +205,7 @@ class TestListAPIEndpoints:
         mock_openapi_spec
     ):
         """Test limiting number of returned endpoints."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/endpoints?limit=1")
 
@@ -229,7 +229,7 @@ class TestListAPIEndpoints:
         }
         mock_redis_cache.get = AsyncMock(return_value=json.dumps(cached_data))
 
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/endpoints")
 
@@ -251,7 +251,7 @@ class TestGetEndpointDocumentation:
         mock_openapi_spec
     ):
         """Test getting endpoint documentation successfully."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/endpoints/GET/api/v2/patients")
 
@@ -273,7 +273,7 @@ class TestGetEndpointDocumentation:
         mock_openapi_spec
     ):
         """Test getting non-existent endpoint documentation."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/endpoints/GET/api/v2/nonexistent")
 
@@ -288,7 +288,7 @@ class TestGetEndpointDocumentation:
         mock_openapi_spec
     ):
         """Test that related endpoints are included."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/endpoints/GET/api/v2/patients")
 
@@ -315,7 +315,7 @@ class TestListGuides:
         mock_redis_cache
     ):
         """Test listing all guides successfully."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/guides")
 
         assert response.status_code == status.HTTP_200_OK
@@ -343,7 +343,7 @@ class TestListGuides:
         mock_redis_cache
     ):
         """Test filtering guides by category."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/guides?category=basics")
 
         assert response.status_code == status.HTTP_200_OK
@@ -359,7 +359,7 @@ class TestListGuides:
         mock_redis_cache
     ):
         """Test filtering guides by tags."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/guides?tags=authentication")
 
         assert response.status_code == status.HTTP_200_OK
@@ -375,7 +375,7 @@ class TestListGuides:
         mock_redis_cache
     ):
         """Test that guides are ordered correctly."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/guides")
 
         assert response.status_code == status.HTTP_200_OK
@@ -395,7 +395,7 @@ class TestGetGuideBySlug:
         mock_redis_cache
     ):
         """Test getting guide successfully."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/guides/getting-started")
 
         assert response.status_code == status.HTTP_200_OK
@@ -415,7 +415,7 @@ class TestGetGuideBySlug:
         mock_redis_cache
     ):
         """Test getting non-existent guide."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/guides/nonexistent-guide")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -428,7 +428,7 @@ class TestGetGuideBySlug:
         mock_redis_cache
     ):
         """Test that related guides are included."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/guides/getting-started")
 
         assert response.status_code == status.HTTP_200_OK
@@ -454,7 +454,7 @@ class TestListCodeExamples:
         mock_redis_cache
     ):
         """Test listing all examples successfully."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/examples")
 
         assert response.status_code == status.HTTP_200_OK
@@ -481,7 +481,7 @@ class TestListCodeExamples:
         mock_redis_cache
     ):
         """Test filtering examples by category."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/examples?category=patients")
 
         assert response.status_code == status.HTTP_200_OK
@@ -497,7 +497,7 @@ class TestListCodeExamples:
         mock_redis_cache
     ):
         """Test filtering examples by language."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/examples?language=python")
 
         assert response.status_code == status.HTTP_200_OK
@@ -513,7 +513,7 @@ class TestListCodeExamples:
         mock_redis_cache
     ):
         """Test filtering examples by endpoint."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/examples?endpoint=/api/v2/patients")
 
         assert response.status_code == status.HTTP_200_OK
@@ -534,7 +534,7 @@ class TestGetCodeExample:
         mock_redis_cache
     ):
         """Test getting example successfully."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/examples/example-001")
 
         assert response.status_code == status.HTTP_200_OK
@@ -551,7 +551,7 @@ class TestGetCodeExample:
         mock_redis_cache
     ):
         """Test getting non-existent example."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/examples/nonexistent-example")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -571,7 +571,7 @@ class TestSearchDocumentation:
         mock_openapi_spec
     ):
         """Test searching documentation successfully."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/search?q=authentication")
 
@@ -602,7 +602,7 @@ class TestSearchDocumentation:
         mock_openapi_spec
     ):
         """Test searching with type filter."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/search?q=patient&type=endpoint")
 
@@ -620,7 +620,7 @@ class TestSearchDocumentation:
         mock_openapi_spec
     ):
         """Test that search results are scored by relevance."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/search?q=authentication")
 
@@ -638,7 +638,7 @@ class TestSearchDocumentation:
         mock_openapi_spec
     ):
         """Test limiting search results."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 response = client.get("/api/v2/docs/search?q=patient&limit=2")
 
@@ -653,7 +653,7 @@ class TestSearchDocumentation:
         mock_redis_cache
     ):
         """Test that search requires minimum query length."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/search?q=a")
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -670,7 +670,7 @@ class TestGetAPIChangelog:
         mock_redis_cache
     ):
         """Test getting changelog successfully."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/changelog")
 
         assert response.status_code == status.HTTP_200_OK
@@ -704,7 +704,7 @@ class TestGetAPIChangelog:
         mock_redis_cache
     ):
         """Test getting changelog for specific version."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/changelog?version=2.0.0")
 
         assert response.status_code == status.HTTP_200_OK
@@ -720,7 +720,7 @@ class TestGetAPIChangelog:
         mock_redis_cache
     ):
         """Test getting changelog for non-existent version."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/changelog?version=99.99.99")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -746,7 +746,7 @@ class TestDocumentationCaching:
         }
         mock_redis_cache.get = AsyncMock(return_value=json.dumps(cached_guides))
 
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/guides")
 
         assert response.status_code == status.HTTP_200_OK
@@ -764,7 +764,7 @@ class TestDocumentationCaching:
         """Test that cache miss sets new cache entry."""
         mock_redis_cache.get = AsyncMock(return_value=None)
 
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             response = client.get("/api/v2/docs/guides")
 
         assert response.status_code == status.HTTP_200_OK
@@ -785,7 +785,7 @@ class TestPublicAccess:
         mock_openapi_spec
     ):
         """Test that endpoints can be accessed without authentication."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 # No session headers
                 response = client.get("/api/v2/docs/endpoints")
@@ -799,7 +799,7 @@ class TestPublicAccess:
         mock_redis_cache
     ):
         """Test that guides can be accessed without authentication."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             # No session headers
             response = client.get("/api/v2/docs/guides")
 
@@ -813,7 +813,7 @@ class TestPublicAccess:
         mock_openapi_spec
     ):
         """Test that search can be accessed without authentication."""
-        with patch("app.api.v2.docs.get_async_redis", return_value=mock_redis_cache):
+        with patch("app.api.v2.routers.docs.cache_utils.get_async_redis", return_value=mock_redis_cache):
             with patch.object(client.app, "openapi", return_value=mock_openapi_spec):
                 # No session headers
                 response = client.get("/api/v2/docs/search?q=test")

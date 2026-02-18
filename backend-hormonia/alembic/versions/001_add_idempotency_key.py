@@ -48,7 +48,7 @@ import uuid
 
 # revision identifiers, used by Alembic.
 revision = "001_add_idempotency_key"
-down_revision = None
+down_revision = "000_legacy_core_bootstrap"
 branch_labels = None
 depends_on = None
 

@@ -10,6 +10,11 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 
 from .common import CursorPaginatedResponse
+from app.schemas.admin_validation import (
+    validate_admin_role,
+    validate_password_strength,
+)
+from app.utils.timezone import now_sao_paulo_naive
 
 
 # ============================================================================
@@ -33,23 +38,15 @@ class UserCreateRequest(BaseModel):
     @field_validator("role")
     @classmethod
     def validate_role(cls, v):
-        allowed_roles = ["admin", "doctor"]
-        if v.lower() not in allowed_roles:
-            raise ValueError(f"Role must be one of {allowed_roles}")
-        return v.lower()
+        validated = validate_admin_role(v, normalize=True)
+        if validated is None:
+            raise ValueError("Role is required")
+        return validated
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        return v
+        return validate_password_strength(v)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -77,12 +74,7 @@ class UserUpdateRequest(BaseModel):
     @field_validator("role")
     @classmethod
     def validate_role(cls, v):
-        if v is None:
-            return v
-        allowed_roles = ["admin", "doctor"]
-        if v.lower() not in allowed_roles:
-            raise ValueError(f"Role must be one of {allowed_roles}")
-        return v.lower()
+        return validate_admin_role(v, allow_none=True, normalize=True)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -130,7 +122,7 @@ class UserActionResponse(BaseModel):
     message: str = Field(..., description="Action result message")
     user_id: UUID = Field(..., description="Affected user ID")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Action timestamp"
+        default_factory=now_sao_paulo_naive, description="Action timestamp"
     )
 
 
@@ -147,15 +139,7 @@ class UserResetPasswordRequest(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        return v
+        return validate_password_strength(v)
 
 
 # ============================================================================
@@ -501,7 +485,7 @@ class UserSearchRequest(BaseModel):
                 "query": "john",
                 "role": "doctor",
                 "is_active": True,
-                "created_after": "2024-01-01T00:00:00Z",
+                "created_after": "2024-01-01T00:00:00-03:00",
             }
         }
     )

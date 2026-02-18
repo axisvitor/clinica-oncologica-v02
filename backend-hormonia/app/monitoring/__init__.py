@@ -27,8 +27,8 @@ from .service_health_monitor import (
     CacheHealthChecker,
 )
 from .capacity_planner import capacity_planner, CapacityPlanner, TimeSeriesForecaster
-from .alert_manager import (
-    alert_manager,
+from app.services.alerts import (
+    get_alert_manager as _get_alert_manager,
     AlertManager,
     Alert,
     AlertRule,
@@ -36,22 +36,22 @@ from .alert_manager import (
     AlertStatus,
     NotificationChannel,
 )
+
+class _AlertManagerProxy:
+    """Thin compatibility proxy to canonical AlertManager singleton."""
+
+    def __call__(self):
+        return _get_alert_manager()
+
+    def __getattr__(self, name):
+        return getattr(_get_alert_manager(), name)
+
+alert_manager = _AlertManagerProxy()
+
 from .prometheus_exporters import (
     metrics_exporter,
     MetricsExporter as PrometheusExporter,
     PrometheusMiddleware,
-)
-
-# Quiz metrics tracking
-from .quiz_metrics import (
-    QuizMetrics,
-    track_quiz_link_created,
-    track_quiz_link_completed,
-    track_quiz_link_expired,
-    track_quiz_reminder_sent,
-    track_quiz_fallback_activated,
-    track_quiz_link_access,
-    update_completion_rate,
 )
 
 __all__ = [
@@ -89,13 +89,4 @@ __all__ = [
     "metrics_exporter",
     "PrometheusExporter",
     "PrometheusMiddleware",
-    # Quiz metrics
-    "QuizMetrics",
-    "track_quiz_link_created",
-    "track_quiz_link_completed",
-    "track_quiz_link_expired",
-    "track_quiz_reminder_sent",
-    "track_quiz_fallback_activated",
-    "track_quiz_link_access",
-    "update_completion_rate",
 ]

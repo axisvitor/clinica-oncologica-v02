@@ -3,7 +3,6 @@ Enhanced Reports Service
 Business logic for advanced reporting, custom builders, and scheduled delivery.
 """
 
-import json
 import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
@@ -25,8 +24,10 @@ from app.schemas.v2.enhanced_reports import (
     DashboardUpdate,
     DashboardSnapshotCreate,
 )
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
+from app.services.cache.json_cache_mixin import RedisJsonCacheMixin
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -37,41 +38,14 @@ SCHEDULED_CACHE_TTL = 600
 DASHBOARD_CACHE_TTL = 300
 
 
-class EnhancedReportsService:
+class EnhancedReportsService(RedisJsonCacheMixin):
     """Service for enhanced reporting operations."""
+
+    _cache_namespace = "enhanced_reports"
 
     def __init__(self, db: Any):
         self.db = db
-
-    async def _get_cached_result(self, cache_key: str) -> Optional[Dict[str, Any]]:
-        try:
-            redis_client = await get_async_redis()
-            if redis_client is None:
-                return None
-            cached = await redis_client.get(cache_key)
-            if cached:
-                return json.loads(cached)
-            return None
-        except Exception as e:
-            logger.warning(f"Cache read failed: {e}")
-            return None
-
-    async def _set_cached_result(self, cache_key: str, data: Any, ttl: int) -> None:
-        try:
-            redis_client = await get_async_redis()
-            if redis_client is None:
-                return
-
-            if hasattr(data, "dict"):
-                serialized = json.dumps(data.dict(), default=str)
-            elif hasattr(data, "model_dump"):
-                serialized = json.dumps(data.model_dump(), default=str)
-            else:
-                serialized = json.dumps(data, default=str)
-
-            await redis_client.setex(cache_key, ttl, serialized)
-        except Exception as e:
-            logger.warning(f"Cache write failed: {e}")
+        self._logger = logger
 
     async def _invalidate_cache_pattern(self, pattern: str) -> None:
         try:
@@ -82,11 +56,6 @@ class EnhancedReportsService:
                 await redis_client.delete(key)
         except Exception as e:
             logger.warning(f"Cache invalidation failed: {e}")
-
-    def _get_cache_key(self, endpoint: str, **params) -> str:
-        param_str = json.dumps(params, sort_keys=True, default=str)
-        param_hash = hashlib.md5(param_str.encode()).hexdigest()
-        return f"enhanced_reports:v2:{endpoint}:{param_hash}"
 
     def _check_report_access(
         self, role: UserRole, user_id: UUID, report_id: UUID
@@ -102,7 +71,7 @@ class EnhancedReportsService:
         export_id: Optional[UUID] = None,
         report_id: Optional[UUID] = None,
     ) -> Dict[str, Any]:
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         normalized = dict(data)
         if export_id and "export_id" not in normalized:
             normalized["export_id"] = str(export_id)
@@ -121,7 +90,7 @@ class EnhancedReportsService:
         data: Dict[str, Any],
         user_id: Optional[UUID] = None,
     ) -> Dict[str, Any]:
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         normalized = dict(data)
         normalized.setdefault("layout", "grid")
         normalized.setdefault("widgets", [])
@@ -168,7 +137,7 @@ class EnhancedReportsService:
             "description": data.description,
             "fields": [f.dict() for f in data.fields],
             "filters": data.filters,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_sao_paulo().isoformat(),
             "created_by": str(user_id),
             "row_count": 0,
             "generation_time_seconds": 0.0,
@@ -204,8 +173,8 @@ class EnhancedReportsService:
             "report_id": str(data.report_id),
             "config": data.visualization.dict(),
             "data": viz_data,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_sao_paulo().isoformat(),
+            "updated_at": now_sao_paulo().isoformat(),
         }
 
         await self._set_cached_result(
@@ -271,7 +240,7 @@ class EnhancedReportsService:
             "last_run": None,
             "last_status": None,
             "run_count": 0,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_sao_paulo().isoformat(),
             "created_by": str(user_id),
         }
 
@@ -311,7 +280,7 @@ class EnhancedReportsService:
                 "shared_with": str(shared_user_id),
                 "permission_level": data.permission_level.value,
                 "shared_by": str(user_id),
-                "shared_at": datetime.now(timezone.utc).isoformat(),
+                "shared_at": now_sao_paulo().isoformat(),
                 "expires_at": expires_at,
                 "is_active": True,
             }
@@ -335,7 +304,7 @@ class EnhancedReportsService:
             "password_protected": data.password_protected,
             "max_views": data.max_views,
             "view_count": 0,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_sao_paulo().isoformat(),
             "created_by": str(user_id),
             "is_active": True,
         }
@@ -356,7 +325,7 @@ class EnhancedReportsService:
             "report_id": str(data.report_id),
             "formats": [f.value for f in data.formats],
             "status": "pending",
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_sao_paulo().isoformat(),
         }
         return self._normalize_export_response(
             response, export_id=export_id, report_id=data.report_id
@@ -379,7 +348,7 @@ class EnhancedReportsService:
         versions = [
             {
                 "version": 1,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": now_sao_paulo().isoformat(),
                 "created_by": str(user_id),
                 "change_summary": "Initial",
                 "configuration_snapshot": {},
@@ -407,7 +376,7 @@ class EnhancedReportsService:
             "description": "Restored",
             "fields": [],
             "filters": {},
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_sao_paulo().isoformat(),
             "created_by": str(user_id),
             "row_count": 0,
             "generation_time_seconds": 0.0,
@@ -429,9 +398,9 @@ class EnhancedReportsService:
             "is_public": data.is_public,
             "shared_with": data.shared_with,
             "theme": data.theme.value if hasattr(data.theme, "value") else data.theme,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_sao_paulo().isoformat(),
             "created_by": str(user_id),
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": now_sao_paulo().isoformat(),
         }
         response = self._normalize_dashboard_response(response, user_id=user_id)
         await self._set_cached_result(
@@ -463,7 +432,7 @@ class EnhancedReportsService:
             cached["description"] = request.description
         if request.widgets is not None:
             cached["widgets"] = [w.dict() for w in request.widgets]
-        cached["updated_at"] = datetime.now(timezone.utc).isoformat()
+        cached["updated_at"] = now_sao_paulo().isoformat()
 
         cached = self._normalize_dashboard_response(cached, user_id=user_id)
         await self._set_cached_result(cache_key, cached, DASHBOARD_CACHE_TTL)
@@ -484,9 +453,9 @@ class EnhancedReportsService:
             "description": data.description,
             "snapshot_data": {
                 "widgets": [],
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             },
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": now_sao_paulo().isoformat(),
             "created_by": str(user_id),
         }
         return response

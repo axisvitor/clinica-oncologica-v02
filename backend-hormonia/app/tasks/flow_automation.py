@@ -3,21 +3,47 @@ Flow Automation Tasks
 Background tasks for automatic flow management and patient engagement
 """
 
-from datetime import datetime, timedelta, timezone
 from typing import Optional
 import logging
+from datetime import datetime
 from asgiref.sync import async_to_sync
 from sqlalchemy import text, select
+from sqlalchemy.exc import SQLAlchemyError
 from app.models.template import MessageTemplate
 
 from app.tasks.base import get_db_session
 from app.task_queue import task_queue as celery_app
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine
+from app.services.flow.sequential_message_handler import SequentialMessageHandler
+from app.models.patient import Patient
+from app.models.flow import PatientFlowState
+from app.config.settings.tasks import (
+    FLOW_MAX_RETRIES,
+    FLOW_RETRY_DELAY,
+    TASK_TIME_LIMIT,
+    TASK_SOFT_TIME_LIMIT,
+)
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(name="flow_automation.check_and_start_pending_flows")
+_FLOW_AUTOMATION_TASK_OPTIONS = {
+    "max_retries": FLOW_MAX_RETRIES,
+    "default_retry_delay": FLOW_RETRY_DELAY,
+    "autoretry_for": (SQLAlchemyError, ConnectionError, TimeoutError, OSError),
+    "retry_backoff": FLOW_RETRY_DELAY,
+    "retry_backoff_max": max(FLOW_RETRY_DELAY * 8, FLOW_RETRY_DELAY),
+    "retry_jitter": True,
+    "time_limit": TASK_TIME_LIMIT,
+    "soft_time_limit": TASK_SOFT_TIME_LIMIT,
+}
+
+
+@celery_app.task(
+    name="app.tasks.flow_automation.check_and_start_pending_flows",
+    **_FLOW_AUTOMATION_TASK_OPTIONS,
+)
 def check_and_start_pending_flows() -> dict:
     """
     Check for patients without active flows and start them automatically.
@@ -35,16 +61,19 @@ def check_and_start_pending_flows() -> dict:
             try:
                 # Query for patients without active flows
                 query = text("""
-                    SELECT DISTINCT p.*
+                    SELECT p.*
                     FROM patients p
-                    LEFT JOIN patient_flow_states pfs
-                        ON p.id = pfs.patient_id
-                        AND pfs.status IN ('active', 'scheduled', 'in_progress')
-                    WHERE pfs.id IS NULL
+                    WHERE NOT EXISTS (
+                        SELECT 1
+                        FROM patient_flow_states pfs
+                        WHERE pfs.patient_id = p.id
+                          AND pfs.status IN ('active', 'scheduled', 'in_progress')
+                    )
                         AND p.created_at > NOW() - INTERVAL '7 days'
-                        AND p.status = 'active'
+                        AND p.flow_state = 'active'
                         AND p.deleted_at IS NULL
                     LIMIT 50
+                    FOR UPDATE SKIP LOCKED
                 """)
 
                 result = db.execute(query)
@@ -71,34 +100,38 @@ def check_and_start_pending_flows() -> dict:
                             flows_started += 1
                             logger.info(
                                 f"Started automatic flow '{template_name}' "
-                                f"for patient {patient_row.id} ({patient_row.name})"
+                                f"for patient_id={patient_row.id}"
                             )
                         else:
                             logger.warning(
-                                f"Could not determine template for patient "
-                                f"{patient_row.id} ({patient_row.name})"
+                                f"Could not determine template for "
+                                f"patient_id={patient_row.id}"
                             )
 
                     except Exception as e:
                         error_msg = f"Failed to start flow for patient {patient_row.id}: {str(e)}"
                         logger.error(error_msg)
                         errors.append(error_msg)
+                        db.rollback()
 
-            except Exception as e:
-                logger.error(f"Error querying patients without flows: {e}")
-                errors.append(str(e))
+            except Exception:
+                logger.exception("Error querying patients without flows")
+                raise
 
         return {
             "flows_started": flows_started,
             "errors": errors,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
     # Run async function (async_to_sync for Celery compatibility)
     return async_to_sync(_process)()
 
 
-@celery_app.task(name="flow_automation.send_daily_reminders")
+@celery_app.task(
+    name="app.tasks.flow_automation.send_daily_reminders",
+    **_FLOW_AUTOMATION_TASK_OPTIONS,
+)
 def send_daily_reminders() -> dict:
     """
     Send daily reminders to patients with pending quizzes or messages.
@@ -124,14 +157,14 @@ def send_daily_reminders() -> dict:
 
                 # Query for patients with pending quiz sessions
                 query = text("""
-                    SELECT DISTINCT p.*, qs.id as session_id
+                    SELECT DISTINCT p.*, qs.id as session_id, qs.session_metadata
                     FROM patients p
                     INNER JOIN quiz_sessions qs
                         ON p.id = qs.patient_id
                     WHERE qs.status = 'in_progress'
                         AND qs.created_at < NOW() - INTERVAL '24 hours'
                         AND qs.created_at > NOW() - INTERVAL '7 days'
-                        AND p.status = 'active'
+                        AND p.flow_state = 'active'
                         AND p.deleted_at IS NULL
                     LIMIT 100
                 """)
@@ -170,6 +203,26 @@ def send_daily_reminders() -> dict:
                         else:
                             reminder_content = _get_reminder_message(patient_row.name)
 
+                        session_metadata = dict(patient_row.session_metadata or {})
+                        last_daily_reminder_raw = session_metadata.get(
+                            "last_daily_reminder_sent_at"
+                        )
+                        if isinstance(last_daily_reminder_raw, str):
+                            try:
+                                last_daily_reminder = datetime.fromisoformat(
+                                    last_daily_reminder_raw
+                                )
+                                if last_daily_reminder.tzinfo is None:
+                                    last_daily_reminder = last_daily_reminder.replace(
+                                        tzinfo=now_sao_paulo().tzinfo
+                                    )
+                                if (
+                                    now_sao_paulo() - last_daily_reminder
+                                ).total_seconds() < 20 * 3600:
+                                    continue
+                            except ValueError:
+                                pass
+
                         # Create message object required by Unified Service
                         message = Message(
                             patient_id=patient_row.id,
@@ -177,253 +230,66 @@ def send_daily_reminders() -> dict:
                             type=MessageType.TEXT,
                             content=reminder_content,
                             status=MessageStatus.PENDING,
-                            message_metadata={"source": "automation_reminder"},
+                            message_metadata={
+                                "source": "automation_reminder",
+                                "quiz_session_id": str(patient_row.session_id),
+                            },
                         )
                         db.add(message)
                         db.commit()
                         db.refresh(message)
 
+                        db.execute(
+                            text(
+                                """
+                                UPDATE quiz_sessions
+                                SET session_metadata = jsonb_set(
+                                    COALESCE(session_metadata, '{}'::jsonb),
+                                    '{last_daily_reminder_sent_at}',
+                                    to_jsonb(:sent_at::text),
+                                    true
+                                )
+                                WHERE id = :session_id
+                                """
+                            ),
+                            {
+                                "session_id": patient_row.session_id,
+                                "sent_at": now_sao_paulo().isoformat(),
+                            },
+                        )
+                        db.commit()
+
                         send_scheduled_message.delay(str(message.id))
 
                         reminders_sent += 1
                         logger.info(
-                            f"Sent reminder to patient {patient_row.id} ({patient_row.name})"
+                            f"Sent reminder to patient_id={patient_row.id}"
                         )
 
                     except Exception as e:
                         error_msg = f"Failed to send reminder to patient {patient_row.id}: {str(e)}"
                         logger.error(error_msg)
                         errors.append(error_msg)
+                        db.rollback()
 
-            except Exception as e:
-                logger.error(f"Error querying patients with pending quizzes: {e}")
-                errors.append(str(e))
+            except Exception:
+                logger.exception("Error querying patients with pending quizzes")
+                raise
 
         return {
             "reminders_sent": reminders_sent,
             "errors": errors,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
     # Run async function (async_to_sync for Celery compatibility)
     return async_to_sync(_process)()
 
 
-@celery_app.task(name="flow_automation.send_daily_flow_questions")
-def send_daily_flow_questions() -> dict:
-    """
-    Send daily flow questions to patients based on their treatment phase.
-
-    This is the CRITICAL task that sends daily check-in messages.
-    Uses the patients table directly (flow_state and current_day columns).
-
-    Flow phases based on current_day:
-    - Days 1-15: Daily check-ins (initial phase)
-    - Days 16-45: Every 3 days (intermediate phase)
-    - Days 46+: Weekly check-ins (maintenance phase)
-
-    Should run daily at 8 AM local time via Celery Beat.
-
-    Returns:
-        dict: Summary of questions sent
-    """
-
-    def _process_sync():
-        questions_sent = 0
-        errors = []
-        skipped = 0
-
-        with get_db_session() as db:
-            try:
-                from datetime import date
-                from app.models.patient import Patient
-                from app.models.enums import FlowState
-
-                # Define fallback messages for each flow phase (Portuguese)
-                FLOW_MESSAGES = {
-                    "initial_15_days": {
-                        "content": "Olá {patient_name}! 👋 Como você está se sentindo hoje? "
-                        "Estamos aqui para acompanhar sua jornada de tratamento. "
-                        "Compartilhe conosco como está passando. 💙",
-                        "intent": "daily_checkin_initial",
-                    },
-                    "days_16_45": {
-                        "content": "Olá {patient_name}! 🌟 Esperamos que você esteja bem. "
-                        "Como está seu tratamento esta semana? "
-                        "Conte-nos se houve alguma mudança. 💪",
-                        "intent": "periodic_checkin",
-                    },
-                    "monthly_recurring": {
-                        "content": "Olá {patient_name}! 📋 Esta é sua verificação semanal. "
-                        "Como você está se sentindo? Alguma novidade para compartilhar? "
-                        "Estamos sempre prontos para ajudar! 💙",
-                        "intent": "weekly_checkin",
-                    },
-                }
-
-                # Query patients with active flow_state directly from patients table
-                # FIX: Uses patients.flow_state and patients.current_day (not patient_flow_states)
-                # FIX: Uses ORM to get decrypted phone via patient.phone property
-                # FIX: Removed hardcoded 200-patient limit - now uses batch processing
-                BATCH_SIZE = 100  # Process in batches to avoid memory issues
-
-                # Build base query (no limit - we'll paginate)
-                base_query = (
-                    db.query(Patient)
-                    .filter(
-                        Patient.flow_state == FlowState.ACTIVE,  # Use enum for type safety
-                        Patient.deleted_at.is_(None),
-                        Patient.phone_encrypted.isnot(None),  # Has phone
-                    )
-                    .order_by(Patient.id)  # Consistent ordering for pagination
-                )
-
-                # Get total count for logging
-                total_patients = base_query.count()
-                logger.info(f"Found {total_patients} patients with active flow_state for daily questions")
-
-                # Process in batches
-                offset = 0
-                active_patients = []
-                while True:
-                    batch = base_query.offset(offset).limit(BATCH_SIZE).all()
-                    if not batch:
-                        break
-                    active_patients.extend(batch)
-                    offset += BATCH_SIZE
-                    # Commit after each batch to avoid long transactions
-                    db.commit()
-
-                logger.info(
-                    f"Loaded {len(active_patients)} patients in batches of {BATCH_SIZE}"
-                )
-
-                today = date.today()
-
-                for patient in active_patients:
-                    try:
-                        # Get current_day from patient record (updated by flow engine)
-                        current_day = patient.current_day or 0
-
-                        # If current_day is 0, calculate from treatment_start_date or fallback to created_at
-                        if current_day == 0:
-                            start_date = patient.treatment_start_date
-                            if start_date is None:
-                                start_date = (
-                                    patient.created_at.date()
-                                    if patient.created_at
-                                    else today
-                                )
-                            current_day = (today - start_date).days + 1
-
-                        # Determine flow phase and if we should send today
-                        should_send = False
-                        flow_phase = "initial_15_days"
-
-                        if current_day <= 15:
-                            # INITIAL_15_DAYS: Daily messages
-                            flow_phase = "initial_15_days"
-                            should_send = True
-                        elif current_day <= 45:
-                            # DAYS_16_45: Every 3 days
-                            flow_phase = "days_16_45"
-                            day_in_phase = current_day - 15
-                            should_send = day_in_phase % 3 == 0
-                        else:
-                            # MONTHLY_RECURRING: Weekly check-ins (days 7, 14, 21 of each 30-day cycle)
-                            flow_phase = "monthly_recurring"
-                            day_in_cycle = (current_day - 45) % 30
-                            should_send = day_in_cycle in [0, 7, 14, 21]
-
-                        if not should_send:
-                            skipped += 1
-                            continue
-
-                        # Get decrypted phone via ORM property
-                        patient_phone = patient.phone  # Auto-decrypts via property
-                        if not patient_phone:
-                            logger.warning(
-                                f"Patient {patient.id} has encrypted phone but decryption failed"
-                            )
-                            skipped += 1
-                            continue
-
-                        # Use SequentialMessageHandler for proper multi-message flow
-                        try:
-                            from app.services.flow.sequential_message_handler import (
-                                SequentialMessageHandler,
-                            )
-                            
-                            handler = SequentialMessageHandler(db)
-                            
-                            # Determine the correct day number for this flow phase
-                            if flow_phase == "initial_15_days":
-                                day_in_flow = current_day
-                            elif flow_phase == "days_16_45":
-                                day_in_flow = current_day  # Days 16-45 use actual day number
-                            else:  # monthly_recurring
-                                day_in_flow = day_in_cycle + 1
-                            
-                            # Use async_to_sync for Celery compatibility
-                            result = async_to_sync(handler.send_day_messages)(
-                                patient_id=patient.id,
-                                day_number=day_in_flow,
-                                flow_kind=flow_phase
-                            )
-                            
-                            if result.get("status") == "error":
-                                logger.error(
-                                    f"SequentialMessageHandler returned error for patient {patient.id}: "
-                                    f"{result.get('message')}"
-                                )
-                                # Continue to next patient instead of falling back
-                                continue
-                            
-                            # FIX: Handle skip status separately - don't count as sent
-                            if result.get("status") == "skip":
-                                logger.debug(
-                                    f"Skipped patient {patient.id} - {result.get('message')}"
-                                )
-                                skipped += 1
-                                continue
-                            
-                        except Exception as send_error:
-                            logger.error(
-                                f"Failed to send via SequentialMessageHandler for patient {patient.id}: {send_error}"
-                            )
-                            continue
-
-                        db.commit()
-
-                        questions_sent += 1
-                        logger.info(
-                            f"Sent daily question to patient {patient.id} ({patient.name}) "
-                            f"[{flow_phase} day {current_day}]"
-                        )
-
-                    except Exception as e:
-                        db.rollback()
-                        error_msg = f"Failed to send question to patient {patient.id}: {str(e)}"
-                        logger.error(error_msg)
-                        errors.append(error_msg)
-
-            except Exception as e:
-                logger.error(f"Error processing daily flow questions: {e}")
-                errors.append(str(e))
-
-        return {
-            "questions_sent": questions_sent,
-            "skipped": skipped,
-            "errors_count": len(errors),
-            "errors": errors[:10],  # Limit error details
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-
-    # Run synchronously (no async needed for ORM queries)
-    return _process_sync()
-
-
-@celery_app.task(name="flow_automation.resume_paused_flows")
+@celery_app.task(
+    name="app.tasks.flow_automation.resume_paused_flows",
+    **_FLOW_AUTOMATION_TASK_OPTIONS,
+)
 def resume_paused_flows() -> dict:
     """
     Check for flows that were paused and should be resumed.
@@ -446,9 +312,10 @@ def resume_paused_flows() -> dict:
                     INNER JOIN patients p ON pfs.patient_id = p.id
                     WHERE pfs.status = 'paused'
                         AND pfs.updated_at < NOW() - INTERVAL '48 hours'
-                        AND p.status = 'active'
+                        AND p.flow_state = 'active'
                         AND p.deleted_at IS NULL
                     LIMIT 50
+                    FOR UPDATE OF pfs SKIP LOCKED
                 """)
 
                 result = db.execute(query)
@@ -474,22 +341,26 @@ def resume_paused_flows() -> dict:
                         error_msg = f"Failed to resume flow {flow_row.id}: {str(e)}"
                         logger.error(error_msg)
                         errors.append(error_msg)
+                        db.rollback()
 
-            except Exception as e:
-                logger.error(f"Error querying paused flows: {e}")
-                errors.append(str(e))
+            except Exception:
+                logger.exception("Error querying paused flows")
+                raise
 
         return {
             "flows_resumed": flows_resumed,
             "errors": errors,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
     # Run async function (async_to_sync for Celery compatibility)
     return async_to_sync(_process)()
 
 
-@celery_app.task(name="flow_automation.cleanup_expired_quiz_links")
+@celery_app.task(
+    name="app.tasks.flow_automation.cleanup_expired_quiz_links",
+    **_FLOW_AUTOMATION_TASK_OPTIONS,
+)
 def cleanup_expired_quiz_links() -> dict:
     """
     Clean up expired quiz links and update their status.
@@ -516,6 +387,7 @@ def cleanup_expired_quiz_links() -> dict:
                         )
                     WHERE status = 'in_progress'
                         AND session_metadata->>'expires_at' IS NOT NULL
+                        AND session_metadata->>'expires_at' ~ '^\\d{4}-\\d{2}-\\d{2}T'
                         AND (session_metadata->>'expires_at')::timestamp < NOW()
                     RETURNING id
                 """)
@@ -528,18 +400,128 @@ def cleanup_expired_quiz_links() -> dict:
 
                 logger.info(f"Cleaned up {links_cleaned} expired quiz links")
 
-            except Exception as e:
+            except Exception:
                 db.rollback()
-                logger.error(f"Error cleaning up expired quiz links: {e}")
-                errors.append(str(e))
+                logger.exception("Error cleaning up expired quiz links")
+                raise
 
         return {
             "links_cleaned": links_cleaned,
             "errors": errors,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
     # Run async function (async_to_sync for Celery compatibility)
+    return async_to_sync(_process)()
+
+
+@celery_app.task(
+    name="app.tasks.flow_automation.send_flow_day_for_patient",
+    **_FLOW_AUTOMATION_TASK_OPTIONS,
+)
+def send_flow_day_for_patient(
+    patient_id: str,
+    day_number: Optional[int] = None,
+    flow_kind: Optional[str] = None,
+) -> dict:
+    """
+    Send a specific flow day for a single patient.
+
+    Args:
+        patient_id: Patient UUID string
+        day_number: Optional day number to send. If None, selects first day with multiple messages.
+        flow_kind: Optional flow kind override (onboarding, daily_follow_up, quiz_mensal)
+
+    Returns:
+        dict: Result payload with status and send result
+    """
+
+    async def _process():
+        with get_db_session() as db:
+            patient = db.query(Patient).filter(Patient.id == patient_id).first()
+            if not patient:
+                return {
+                    "status": "error",
+                    "message": "patient_not_found",
+                    "patient_id": patient_id,
+                }
+
+            flow_state = (
+                db.query(PatientFlowState)
+                .filter(PatientFlowState.patient_id == patient.id)
+                .filter(PatientFlowState.status == "active")
+                .order_by(PatientFlowState.updated_at.desc())
+                .first()
+            )
+
+            resolved_flow_kind = flow_kind
+            if not resolved_flow_kind and flow_state and flow_state.step_data:
+                resolved_flow_kind = flow_state.step_data.get("flow_kind")
+            if not resolved_flow_kind:
+                current_day = getattr(patient, "current_day", None) or 1
+                if current_day <= 15:
+                    resolved_flow_kind = "onboarding"
+                elif current_day <= 45:
+                    resolved_flow_kind = "daily_follow_up"
+                else:
+                    resolved_flow_kind = "quiz_mensal"
+
+            # Load template steps for the flow kind
+            row = db.execute(
+                text(
+                    """
+                    SELECT ftv.steps
+                    FROM flow_template_versions ftv
+                    JOIN flow_kinds fk ON ftv.flow_kind_id = fk.id
+                    WHERE fk.kind_key = :kind AND ftv.is_active = true
+                    ORDER BY ftv.updated_at DESC
+                    LIMIT 1
+                    """
+                ),
+                {"kind": resolved_flow_kind},
+            ).fetchone()
+
+            steps = row[0] if row and row[0] else []
+
+            resolved_day = day_number
+            if resolved_day is None:
+                for step in steps:
+                    messages = step.get("messages") or []
+                    if len(messages) > 1:
+                        resolved_day = step.get("day")
+                        break
+
+            if resolved_day is None:
+                return {
+                    "status": "error",
+                    "message": "no_multi_message_day_found",
+                    "patient_id": str(patient.id),
+                    "flow_kind": resolved_flow_kind,
+                }
+
+            if not any((step or {}).get("day") == resolved_day for step in steps):
+                return {
+                    "status": "error",
+                    "message": "invalid_day_for_flow_template",
+                    "patient_id": str(patient.id),
+                    "flow_kind": resolved_flow_kind,
+                    "day_number": resolved_day,
+                }
+
+            handler = SequentialMessageHandler(db)
+            result = await handler.send_day_messages(
+                patient_id=patient.id,
+                day_number=resolved_day,
+                flow_kind=resolved_flow_kind,
+            )
+            return {
+                "status": "ok",
+                "patient_id": str(patient.id),
+                "flow_kind": resolved_flow_kind,
+                "day_number": resolved_day,
+                "result": result,
+            }
+
     return async_to_sync(_process)()
 
 
@@ -603,70 +585,8 @@ def _determine_template_for_patient(patient) -> Optional[str]:
         elif "radio" in treatment_lower or "radiation" in treatment_lower:
             return "hormonia_fluxo_radio"
 
-    # Check for specific cancer types (now mapped to treatment_type or diagnosis)
-    # Fallback for legacy data that might still be in metadata
-    if hasattr(patient, "metadata") and patient.metadata:
-        cancer_type = patient.metadata.get("cancer_type", "").lower()
-
-        if "mama" in cancer_type or "breast" in cancer_type:
-            return "hormonia_fluxo_mama"
-        elif "prostata" in cancer_type or "prostate" in cancer_type:
-            return "hormonia_fluxo_prostata"
-        elif "pulmao" in cancer_type or "lung" in cancer_type:
-            return "hormonia_fluxo_pulmao"
-
     # Default template
     return "hormonia_fluxo_padrao"
 
 
-# NOTE: Schedule configuration moved to config/cloud-run/cloud-scheduler-jobs.yaml
-# for Cloud Scheduler (GCP Cloud Run deployment).
-
-@celery_app.task(name="flow_automation.increment_active_patient_days")
-def increment_active_patient_days() -> dict:
-    """
-    Increment current_day for all active patients.
-    
-    This ensures that patients who were manually fast-forwarded or whose
-    flow relies on current_day counter continue to progress.
-    
-    Logic:
-    - Increments current_day by 1 for all ACTIVE patients
-    - Where current_day > 0 (meaning flow has started)
-    - Ignores patients with current_day = 0 (calculated dynamically from start_date)
-    """
-    async def _process():
-        updated_count = 0
-        errors = []
-        
-        with get_db_session() as db:
-            try:
-                # Raw SQL for efficiency on bulk update
-                query = text("""
-                    UPDATE patients 
-                    SET current_day = current_day + 1,
-                        updated_at = NOW()
-                    WHERE status = 'active' 
-                      AND deleted_at IS NULL
-                      AND current_day > 0
-                """)
-                
-                result = db.execute(query)
-                updated_count = result.rowcount
-                db.commit()
-                
-                logger.info(f"Incremented current_day for {updated_count} active patients")
-                
-            except Exception as e:
-                db.rollback()
-                error_msg = f"Failed to increment patient days: {e}"
-                logger.error(error_msg, exc_info=True)
-                errors.append(str(e))
-                
-        return {
-            "updated_count": updated_count,
-            "errors": errors,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        }
-        
-    return async_to_sync(_process)()
+# NOTE: Schedule configuration is in app/celery_app.py beat_schedule.

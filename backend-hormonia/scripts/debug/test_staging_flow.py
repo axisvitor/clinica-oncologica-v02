@@ -1,3 +1,4 @@
+from app.utils.timezone import now_sao_paulo
 #!/usr/bin/env python3
 """
 Staging Test Script - Patient Registration Flow
@@ -46,19 +47,163 @@ class StagingTester:
         self.auth_token = auth_token
         self.results: list[Dict[str, Any]] = []
         self.test_patient_id: Optional[str] = None
+        self.test_phone: Optional[str] = None
+        self.csrf_token: Optional[str] = None
+        self.csrf_cookies: dict[str, str] = {}
 
     def _get_headers(self) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
         if self.auth_token:
             headers["Authorization"] = f"Bearer {self.auth_token}"
+        if self.csrf_token:
+            headers["X-CSRF-Token"] = self.csrf_token
         return headers
+
+    async def _ensure_csrf_token(self) -> bool:
+        """Fetch and cache CSRF token + cookie for state-changing requests."""
+        if self.csrf_token:
+            return True
+
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.get(f"{self.base_url}/api/v2/auth/csrf-token", timeout=10)
+                if resp.status_code != 200:
+                    self._log(
+                        "csrf_token",
+                        "FAIL",
+                        f"Status {resp.status_code}",
+                        {"response": resp.text[:500]},
+                    )
+                    return False
+
+                data = resp.json()
+                token = data.get("csrf_token")
+                if not token:
+                    self._log("csrf_token", "FAIL", "Missing csrf_token in response")
+                    return False
+
+                self.csrf_token = token
+                self.csrf_cookies = dict(resp.cookies)
+                self._log("csrf_token", "PASS", "CSRF token fetched")
+                return True
+            except Exception as e:
+                self._log("csrf_token", "FAIL", f"Error: {e}")
+                return False
+
+    async def _get_doctor_id(self) -> Optional[str]:
+        """Resolve a valid doctor_id for patient creation."""
+        env_doctor_id = os.getenv("STAGING_DOCTOR_ID")
+        if env_doctor_id:
+            return env_doctor_id
+
+        session = await self._get_session_user()
+        if not session:
+            return None
+
+        user_id = session.get("user_id")
+        role = (session.get("role") or "").lower()
+        if role == "doctor":
+            return user_id
+
+        if role == "admin":
+            doctor_id = await self._find_any_doctor_id()
+            if doctor_id:
+                return doctor_id
+            self._log("doctor_id", "FAIL", "No doctor found for admin user")
+            return None
+
+        self._log(
+            "doctor_id",
+            "FAIL",
+            f"User role '{role}' is not allowed to create patients",
+        )
+        return None
+
+    async def _get_session_user(self) -> Optional[Dict[str, Any]]:
+        """Fetch current user session details."""
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.get(
+                    f"{self.base_url}/api/v2/auth/verify-session",
+                    headers=self._get_headers(),
+                    timeout=10,
+                )
+                if resp.status_code != 200:
+                    self._log(
+                        "session_user",
+                        "FAIL",
+                        f"Status {resp.status_code}",
+                        {"response": resp.text[:500]},
+                    )
+                    return None
+                payload = resp.json()
+                user = payload.get("user") or {}
+                return {
+                    "user_id": payload.get("user_id"),
+                    "role": user.get("role"),
+                }
+            except Exception as e:
+                self._log("session_user", "FAIL", f"Error: {e}")
+                return None
+
+    async def _find_any_doctor_id(self) -> Optional[str]:
+        """Fetch a doctor id via admin users endpoint."""
+        async with httpx.AsyncClient() as client:
+            try:
+                resp = await client.get(
+                    f"{self.base_url}/api/v2/admin/users",
+                    params={"role": "doctor", "is_active": "true", "limit": 1},
+                    headers=self._get_headers(),
+                    timeout=10,
+                )
+                if resp.status_code != 200:
+                    self._log(
+                        "doctor_id",
+                        "FAIL",
+                        f"Admin users status {resp.status_code}",
+                        {"response": resp.text[:500]},
+                    )
+                    return None
+
+                payload = resp.json()
+                candidates = (
+                    payload.get("data")
+                    or payload.get("users")
+                    or payload.get("items")
+                    or []
+                )
+                if not candidates:
+                    return None
+
+                doctor_id = candidates[0].get("id")
+                if not doctor_id:
+                    return None
+
+                self._log("doctor_id", "PASS", f"Resolved doctor_id {doctor_id}")
+                return doctor_id
+            except Exception as e:
+                self._log("doctor_id", "FAIL", f"Error: {e}")
+                return None
+
+    def _generate_cpf(self) -> str:
+        """Generate a valid CPF number (11 digits)."""
+        import random
+
+        digits = [random.randint(0, 9) for _ in range(9)]
+        for i in range(9, 11):
+            weight = list(range(i + 1, 1, -1))
+            total = sum(d * w for d, w in zip(digits, weight))
+            remainder = total % 11
+            check = 0 if remainder < 2 else 11 - remainder
+            digits.append(check)
+        return "".join(str(d) for d in digits)
 
     def _log(self, test_name: str, status: str, message: str, details: Any = None):
         result = {
             "test": test_name,
             "status": status,
             "message": message,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
         if details:
             result["details"] = details
@@ -86,13 +231,23 @@ class StagingTester:
 
     async def test_patient_registration(self) -> bool:
         """Test patient registration endpoint."""
-        test_phone = f"+5511999{uuid4().hex[:6]}"
+        if not await self._ensure_csrf_token():
+            return False
+
+        doctor_id = await self._get_doctor_id()
+        if not doctor_id:
+            return False
+
+        phone_suffix = str(uuid4().int % 10**6).zfill(6)
+        test_phone = f"+5511999{phone_suffix}"
+        self.test_phone = test_phone
         patient_data = {
             "name": f"Test Patient {datetime.now().strftime('%H%M%S')}",
             "phone": test_phone,
-            "cpf": f"{uuid4().int % 10**11:011d}",
-            "email": f"test_{uuid4().hex[:8]}@staging.test",
+            "cpf": self._generate_cpf(),
+            "email": f"test_{uuid4().hex[:8]}@gmail.com",
             "birth_date": "1990-01-15",
+            "doctor_id": doctor_id,
         }
 
         async with httpx.AsyncClient() as client:
@@ -101,6 +256,7 @@ class StagingTester:
                     f"{self.base_url}/api/v2/patients/",
                     json=patient_data,
                     headers=self._get_headers(),
+                    cookies=self.csrf_cookies,
                     timeout=30,
                 )
 
@@ -111,8 +267,9 @@ class StagingTester:
                         "patient_registration",
                         "PASS",
                         f"Patient created: {self.test_patient_id}",
-                        {"patient_id": self.test_patient_id}
+                        {"patient_id": self.test_patient_id, "phone": test_phone}
                     )
+                    print(f"   Phone: {test_phone}")
                     return True
                 else:
                     self._log(
@@ -168,13 +325,19 @@ class StagingTester:
         try:
             redis = aioredis.from_url(redis_url)
 
+            async def _scan(pattern: str) -> list[Any]:
+                scanned: list[Any] = []
+                async for key in redis.scan_iter(match=pattern, count=200):
+                    scanned.append(key)
+                return scanned
+
             # Check for webhook idempotency keys
-            keys = await redis.keys("webhook:*")
+            keys = await _scan("webhook:*")
             message_keys = [k for k in keys if b"message:" in k or b"status:" in k]
 
             # Check for flow lock keys
-            flow_keys = await redis.keys("flow:*")
-            quiz_keys = await redis.keys("quiz:*")
+            flow_keys = await _scan("flow:*")
+            quiz_keys = await _scan("quiz:*")
 
             self._log(
                 "redis_idempotency",

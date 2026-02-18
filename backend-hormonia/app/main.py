@@ -8,7 +8,7 @@ Clean, minimal main.py that delegates all concerns to specialized modules:
 - Lifespan manager handles startup/shutdown lifecycle
 - Monitoring setup handles observability
 
-Last deployment: 2025-12-20T16:50:00Z
+Last deployment: 2025-12-20T16:50:00-03:00
 """
 
 import logging
@@ -16,9 +16,11 @@ import os
 import sys
 from dotenv import load_dotenv
 
-# Load environment variables from .env file immediately (skip for pytest)
+# Load environment variables from .env for local/dev only (skip for pytest and prod)
 if "pytest" not in sys.modules and "PYTEST_CURRENT_TEST" not in os.environ:
-    load_dotenv(override=True)
+    app_env = os.environ.get("APP_ENVIRONMENT", "").lower()
+    if app_env not in ("production", "prod"):
+        load_dotenv(override=False)
 
 # Early diagnostic logging - helps identify startup issues
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -27,6 +29,7 @@ _startup_logger.info("=== MAIN.PY LOADING - FastAPI Entry Point ===")
 
 from app.core.application_factory import create_application
 from app.config import settings
+from app.utils.timezone import now_sao_paulo
 
 # Create application instance using factory pattern with appropriate mode
 deployment_mode = "development" if settings.APP_ENABLE_DEBUG else "production"
@@ -44,7 +47,7 @@ async def root_health_check():
 
     return {
         "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now_sao_paulo().isoformat(),
         "version": "2.0.0",
         "environment": settings.APP_ENVIRONMENT,
     }

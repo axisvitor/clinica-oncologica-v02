@@ -4,24 +4,25 @@ Message Composer Agent
 Main agent class responsible for orchestrating message composition.
 """
 
-from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.agents.base import BaseAgent, AgentCapabilities
-from app.integrations.gemini_client import get_gemini_client
+from app.agents.registry import MESSAGE_COMPOSER_ID
+from app.ai.client import get_gemini_client
 from app.models.patient import Patient
 from app.repositories.patient import PatientRepository
 from app.services.conversation_memory import get_conversation_memory
-from app.services.template_loader import EnhancedTemplateLoader
+from app.services.template_loader_pkg import EnhancedTemplateLoader
 from app.utils.logging import get_logger
 
 from .templates import MessageTemplateManager
 from .context_builder import MessageContextBuilder
 from .tone_adapter import MessageToneAdapter
 from .composer import MessageComposer
+from app.utils.timezone import now_sao_paulo
 
 
 class MessageComposerAgent(BaseAgent):
@@ -37,6 +38,14 @@ class MessageComposerAgent(BaseAgent):
     - Conversation continuity
     """
 
+    SUPPORTED_TASK_TYPES = {
+        "compose_message",
+        "personalize_template",
+        "adapt_tone",
+        "compose_follow_up",
+        "generate_quiz_message",
+    }
+
     def __init__(
         self,
         db_session: Session,
@@ -44,7 +53,7 @@ class MessageComposerAgent(BaseAgent):
     ):
         """Initialize Message Composer Agent."""
         super().__init__(
-            agent_id="message_composer",
+            agent_id=MESSAGE_COMPOSER_ID,
             agent_type="communication",
             specialization="message_composer",
             db_session=db_session,
@@ -95,7 +104,54 @@ class MessageComposerAgent(BaseAgent):
             self.logger.info("Message Composer Agent fully initialized with templates")
         except Exception as e:
             self.logger.error(f"Failed to initialize message templates: {e}")
-            # Continue without templates - fallback to hardcoded ones
+            raise
+
+    async def _initialize(self):
+        """BaseAgent hook to ensure templates are loaded."""
+        await self.initialize()
+
+    async def get_capabilities(self) -> List[str]:
+        """Return agent capabilities."""
+        return self.capabilities
+
+    async def validate_task(self, task_data: Dict[str, Any]) -> bool:
+        """Validate task payload before execution."""
+        if not isinstance(task_data, dict):
+            return False
+
+        task_type = task_data.get("task_type")
+        payload = task_data.get("payload")
+
+        if task_type not in self.SUPPORTED_TASK_TYPES:
+            return False
+        if not isinstance(payload, dict):
+            return False
+
+        if task_type == "compose_message":
+            if not payload.get("patient_id"):
+                return False
+            if (
+                not payload.get("content")
+                and not payload.get("template_id")
+                and not payload.get("message_type")
+            ):
+                return False
+        elif task_type == "personalize_template":
+            if not payload.get("patient_id") or not payload.get("template"):
+                return False
+        elif task_type == "adapt_tone":
+            if not payload.get("content"):
+                return False
+        elif task_type == "compose_follow_up":
+            if not payload.get("patient_id"):
+                return False
+        elif task_type == "generate_quiz_message":
+            if not payload.get("patient_id") or not isinstance(
+                payload.get("question_data"), dict
+            ):
+                return False
+
+        return True
 
     async def process_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
         """Process message composition task."""
@@ -159,12 +215,8 @@ class MessageComposerAgent(BaseAgent):
                     message_type, patient, composition_context
                 )
 
-            # Fallback if no content generated
             if not message_content:
-                message_content = self.template_manager.get_fallback_message(
-                    message_type,
-                    patient.name,  # type: ignore[arg-type]
-                )
+                raise ValueError("Message content is empty")
 
             # Apply tone adaptation
             if self.composition_config.get("tone_adaptation", True):
@@ -183,11 +235,6 @@ class MessageComposerAgent(BaseAgent):
                 patient_id, message_content
             )
 
-            # Update knowledge graph
-            await self._update_message_knowledge(
-                patient_id, message_content, message_type
-            )
-
             return {
                 "success": True,
                 "message_content": message_content,
@@ -199,7 +246,7 @@ class MessageComposerAgent(BaseAgent):
                         "personalization_level"
                     ],
                     "context_tokens": len(str(composition_context)),
-                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "generated_at": now_sao_paulo().isoformat(),
                 },
             }
 
@@ -329,25 +376,6 @@ class MessageComposerAgent(BaseAgent):
             self.logger.error(f"Quiz message generation failed: {e}")
             return {"success": False, "error": str(e)}
 
-    async def _update_message_knowledge(
-        self, patient_id: UUID, message_content: str, message_type: str
-    ):
-        """Update knowledge graph with message patterns."""
-        try:
-            # Store message pattern and effectiveness
-            await self.coordination_hooks.store_in_memory(  # type: ignore[attr-defined]
-                key=f"message_patterns/{patient_id}/{message_type}",
-                data={
-                    "content": message_content,
-                    "type": message_type,
-                    "composed_at": datetime.now(timezone.utc).isoformat(),
-                    "method": "ai_generated",
-                },
-            )
-
-        except Exception as e:
-            self.logger.error(f"Failed to update message knowledge: {e}")
-
     def _compose_from_template(
         self, template_id: str, patient: Patient, context: Dict[str, Any]
     ) -> str:
@@ -372,7 +400,7 @@ class MessageComposerAgent(BaseAgent):
                 flow_type, day
             )
             if not template_message:
-                return None
+                raise ValueError(f"Template not found for flow_type={flow_type}, day={day}")
 
             # Compose using template
             composed_message = await self.composer.compose_from_flow_template(
@@ -383,7 +411,7 @@ class MessageComposerAgent(BaseAgent):
 
         except Exception as e:
             self.logger.error(f"Failed to compose from flow template: {e}")
-            return None
+            raise
 
     def get_available_templates(self) -> Dict[str, List[int]]:
         """Get information about available templates."""

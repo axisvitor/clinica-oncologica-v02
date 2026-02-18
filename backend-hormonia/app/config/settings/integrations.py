@@ -18,6 +18,13 @@ class IntegrationsSettings(BaseAppSettings):
     WHATSAPP_ENABLE_SERVICE: bool = Field(
         default=True, description="Enable Evolution API WhatsApp integration"
     )
+    WHATSAPP_EVOLUTION_USE_MOCK: bool = Field(
+        default=False,
+        description=(
+            "Use mock Evolution client instead of real HTTP calls. "
+            "Set true only for local development/testing without Evolution API."
+        ),
+    )
     WHATSAPP_EVOLUTION_API_URL: str = Field(
         default="http://localhost:8080", description="Evolution API base URL"
     )
@@ -61,6 +68,13 @@ class IntegrationsSettings(BaseAppSettings):
             "Leave empty to disable IP filtering."
         ),
     )
+    WHATSAPP_WEBHOOK_TRUST_PROXY_HEADERS: bool = Field(
+        default=False,
+        description=(
+            "Trust X-Forwarded-For/X-Real-IP headers for webhook client IP resolution. "
+            "Keep disabled unless requests always come from a trusted reverse proxy."
+        ),
+    )
     WHATSAPP_EVOLUTION_WEBHOOK_URL: Optional[str] = Field(
         default=None, description="Webhook URL for receiving Evolution API events"
     )
@@ -81,6 +95,22 @@ class IntegrationsSettings(BaseAppSettings):
     WHATSAPP_RETRY_DELAY_SECONDS: int = Field(
         default=60,
         description="Initial delay in seconds before retrying failed messages (uses exponential backoff)",
+    )
+    WHATSAPP_EVOLUTION_TIMEOUT_SECONDS: int = Field(
+        default=30,
+        description="Evolution API request timeout in seconds",
+    )
+    WHATSAPP_FLOW_RESPONSE_TIMEOUT_SECONDS: int = Field(
+        default=180,
+        description="Timeout for processing patient responses via webhook background flow",
+    )
+    WHATSAPP_FLOW_SCHEDULE_TIMEOUT_SECONDS: int = Field(
+        default=60,
+        description="Timeout for scheduling follow-up messages after webhook processing",
+    )
+    WHATSAPP_FLOW_CONTINUE_TIMEOUT_SECONDS: int = Field(
+        default=120,
+        description="Timeout for continuing sequential flow after webhook response",
     )
     WHATSAPP_CLINIC_NAME: str = Field(
         default="Neoplasias Litoral",
@@ -108,7 +138,7 @@ class IntegrationsSettings(BaseAppSettings):
         default=None, description="Google Gemini API key"
     )
     AI_GEMINI_MODEL: str = Field(
-        default="gemini-2.0-flash-exp", description="Gemini model to use"
+        default="gemini-3-flash-preview", description="Gemini model to use"
     )
     AI_GEMINI_TEMPERATURE: float = Field(
         default=0.7, description="Gemini generation temperature"
@@ -172,8 +202,11 @@ class IntegrationsSettings(BaseAppSettings):
     CELERY_RESULT_SERIALIZER: str = Field(
         default="json", description="Celery result serializer"
     )
-    CELERY_TIMEZONE: str = Field(default="UTC", description="Celery timezone")
-    CELERY_ENABLE_UTC: bool = Field(default=True, description="Enable UTC in Celery")
+    CELERY_TIMEZONE: str = Field(default="America/Sao_Paulo", description="Celery timezone")
+    CELERY_ENABLE_TZ_NORMALIZATION: bool = Field(
+        default=True,
+        description="Enable UTC normalization while honoring CELERY_TIMEZONE for crontab scheduling",
+    )
     CELERY_ENABLE_TRACK_STARTED: bool = Field(
         default=True, description="Track task start events"
     )
@@ -195,39 +228,6 @@ class IntegrationsSettings(BaseAppSettings):
     CELERY_QUEUES: str = Field(
         default="celery,flows,quiz,maintenance,monitoring",
         description="Comma-separated list of Celery queues",
-    )
-
-    # ========================================================================
-    # Cloud Tasks (Cloud Run native background tasks)
-    # ========================================================================
-    TASK_QUEUE_PROVIDER: str = Field(
-        default="celery",
-        description="Task queue provider: celery (local) or cloud_tasks (production)",
-    )
-    CLOUD_TASKS_PROJECT_ID: Optional[str] = Field(
-        default=None, description="GCP project ID for Cloud Tasks"
-    )
-    CLOUD_TASKS_LOCATION: str = Field(
-        default="us-central1", description="Cloud Tasks queue region"
-    )
-    CLOUD_TASKS_QUEUE: Optional[str] = Field(
-        default=None, description="Cloud Tasks queue name"
-    )
-    CLOUD_TASKS_SERVICE_URL: Optional[str] = Field(
-        default=None, description="Cloud Run service URL for task execution"
-    )
-    CLOUD_TASKS_HANDLER_PATH: str = Field(
-        default="/api/v2/internal/tasks/execute",
-        description="Task execution endpoint path",
-    )
-    CLOUD_TASKS_OIDC_SERVICE_ACCOUNT: Optional[str] = Field(
-        default=None, description="Service account email for OIDC auth"
-    )
-    CLOUD_TASKS_AUDIENCE: Optional[str] = Field(
-        default=None, description="Audience override for task OIDC tokens"
-    )
-    CLOUD_TASKS_SHARED_SECRET: Optional[str] = Field(
-        default=None, description="Optional shared secret for task execution"
     )
 
     # ============================================================================

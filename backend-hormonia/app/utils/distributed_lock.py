@@ -15,10 +15,11 @@ Key Features:
 import logging
 import time
 import asyncio
+import threading
 from typing import Optional, Any, Dict
 from uuid import UUID, uuid4
 
-from app.core.redis_unified import get_sync_redis, get_async_redis
+from app.core.redis_manager import get_sync_redis_client as get_sync_redis, get_async_redis_client as get_async_redis
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ class DistributedLock:
 
                 # Wait before retry (exponential backoff with jitter)
                 wait_time = min(0.001 * (2**self._contention_count), 0.1)
-                time.sleep(wait_time)
+                threading.Event().wait(wait_time)
 
         except Exception as e:
             logger.error(f"Error acquiring lock '{self.lock_name}': {e}")

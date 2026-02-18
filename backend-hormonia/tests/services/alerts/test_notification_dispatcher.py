@@ -18,6 +18,7 @@ from uuid import uuid4
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.alerts import (
     NotificationDispatcher,
     ChannelHandler,
@@ -55,8 +56,8 @@ def sample_alert():
         title="Patient No Response",
         message="Patient has not responded in 48 hours",
         metadata={"days_without_response": 2},
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive(),
     )
 
 
@@ -89,7 +90,7 @@ def successful_result(sample_alert):
         target_id=uuid4(),
         success=True,
         message="Notification sent successfully",
-        sent_at=datetime.utcnow(),
+        sent_at=now_sao_paulo_naive(),
         alert_id=sample_alert.id,
     )
 
@@ -103,7 +104,7 @@ def failed_result(sample_alert):
         success=False,
         message="SMS delivery failed",
         error="Network timeout",
-        sent_at=datetime.utcnow(),
+        sent_at=now_sao_paulo_naive(),
         alert_id=sample_alert.id,
     )
 
@@ -378,7 +379,7 @@ class TestMultiChannelDispatch:
                 target_id=sample_target.user_id,
                 success=True,
                 message="Email sent",
-                sent_at=datetime.utcnow(),
+                sent_at=now_sao_paulo_naive(),
                 alert_id=sample_alert.id,
             )
         )
@@ -391,7 +392,7 @@ class TestMultiChannelDispatch:
                 target_id=sample_target.user_id,
                 success=True,
                 message="SMS sent",
-                sent_at=datetime.utcnow(),
+                sent_at=now_sao_paulo_naive(),
                 alert_id=sample_alert.id,
             )
         )
@@ -424,7 +425,7 @@ class TestMultiChannelDispatch:
                 target_id=sample_target.user_id,
                 success=True,
                 message="Email sent",
-                sent_at=datetime.utcnow(),
+                sent_at=now_sao_paulo_naive(),
                 alert_id=sample_alert.id,
             )
         )
@@ -438,7 +439,7 @@ class TestMultiChannelDispatch:
                 success=False,
                 message="SMS failed",
                 error="Network error",
-                sent_at=datetime.utcnow(),
+                sent_at=now_sao_paulo_naive(),
                 alert_id=sample_alert.id,
             )
         )
@@ -515,7 +516,7 @@ class TestMultipleTargets:
                 target_id=uuid4(),
                 success=True,
                 message="Email sent",
-                sent_at=datetime.utcnow(),
+                sent_at=now_sao_paulo_naive(),
                 alert_id=sample_alert.id,
             )
         )
@@ -556,8 +557,8 @@ class TestBatchDispatch:
             status=AlertStatus.PENDING,
             title="Alert 1",
             message="Message 1",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
         alert2 = Alert(
             id=uuid4(),
@@ -567,8 +568,8 @@ class TestBatchDispatch:
             status=AlertStatus.PENDING,
             title="Alert 2",
             message="Message 2",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive(),
         )
 
         mock_channel_handler.send.return_value = successful_result
@@ -779,7 +780,7 @@ class TestNotificationHistory:
                 target_id=uuid4(),
                 success=True,
                 message="Test",
-                sent_at=datetime.utcnow(),
+                sent_at=now_sao_paulo_naive(),
                 alert_id=uuid4(),
             )
         )

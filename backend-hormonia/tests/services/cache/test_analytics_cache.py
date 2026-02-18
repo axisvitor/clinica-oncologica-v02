@@ -15,17 +15,13 @@ from app.services.cache.specialized.analytics_cache import (
     AnalyticsCache,
     get_analytics_cache,
 )
-from app.services.ai.cache_layer import CacheLayer, CacheStrategy
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 
 
 @pytest.fixture
 async def analytics_cache():
     """Create analytics cache instance for testing."""
-    cache_layer = CacheLayer(strategy=CacheStrategy.MEMORY)
-    await cache_layer.initialize()
-    cache = AnalyticsCache(cache_layer=cache_layer)
-    yield cache
-    await cache_layer.close()
+    yield AnalyticsCache()
 
 
 @pytest.fixture
@@ -33,7 +29,7 @@ def sample_metric():
     """Sample metric data."""
     return {
         "value": 42,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": now_sao_paulo_naive().isoformat(),
         "unit": "count",
     }
 
@@ -48,7 +44,7 @@ def sample_report():
             "active_treatments": 45,
             "completed_treatments": 30,
         },
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": now_sao_paulo_naive().isoformat(),
     }
 
 

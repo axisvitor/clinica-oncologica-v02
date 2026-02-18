@@ -1,14 +1,12 @@
 """Base task classes and utilities for Celery tasks."""
 
 import logging
-from contextlib import contextmanager
-from typing import Any, Dict, Generator
-from datetime import datetime, timezone
+from typing import Any, Dict
 from celery import Task
-from sqlalchemy.orm import Session
 
-from app.database import get_db, get_scoped_session
+from app.database import get_scoped_session
 from app.exceptions import ExternalServiceError
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -50,13 +48,19 @@ class BaseTask(Task):
         """
         return logging.getLogger(f"tasks.{self.name}")
 
-    def log_task_start(self, **kwargs) -> None:
+    def log_task_start(self, *args: Any, **kwargs: Any) -> None:
         """
         Log task start with parameters.
 
         Args:
+            *args: Optional positional message for backward compatibility
             **kwargs: Task parameters to log
         """
+        if args:
+            if len(args) == 1 and isinstance(args[0], str) and "message" not in kwargs:
+                kwargs["message"] = args[0]
+            else:
+                kwargs["args"] = list(args)
         task_logger = self.get_task_logger()
         task_logger.info(f"Starting task {self.name} with params: {kwargs}")
 
@@ -105,16 +109,17 @@ class BaseTask(Task):
             "success": False,
             "error": error,
             "task_name": self.name,
-            "failed_at": datetime.now(timezone.utc).isoformat(),
+            "failed_at": now_sao_paulo().isoformat(),
             **context,
         }
 
-    def create_success_result(self, **data) -> Dict[str, Any]:
+    def create_success_result(self, data: Any = None, **extra_data: Any) -> Dict[str, Any]:
         """
         Create standardized success result.
 
         Args:
-            **data: Result data
+            data: Optional dict payload for backward compatibility
+            **extra_data: Result data
 
         Returns:
             Dict[str, Any]: Standardized success result dictionary containing:
@@ -122,11 +127,17 @@ class BaseTask(Task):
                 - task_name: Name of the task
                 - completed_at: ISO timestamp of completion
         """
+        payload: Dict[str, Any] = {}
+        if isinstance(data, dict):
+            payload.update(data)
+        elif data is not None:
+            payload["result"] = data
+        payload.update(extra_data)
         return {
             "success": True,
             "task_name": self.name,
-            "completed_at": datetime.now(timezone.utc).isoformat(),
-            **data,
+            "completed_at": now_sao_paulo().isoformat(),
+            **payload,
         }
 
     def handle_retry(self, exc: Exception, **context) -> None:

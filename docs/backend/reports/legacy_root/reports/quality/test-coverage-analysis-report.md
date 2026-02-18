@@ -693,7 +693,7 @@ class TestAnalyticsPerformance:
 **Analysis Results Stored:**
 ```bash
 npx claude-flow@alpha memory store --key "analysis/test-coverage" --value '{
-  "timestamp": "2025-12-23T09:56:00Z",
+  "timestamp": "2025-12-23T09:56:00-03:00",
   "total_source_files": 1155,
   "total_test_files": 252,
   "test_functions": 5423,

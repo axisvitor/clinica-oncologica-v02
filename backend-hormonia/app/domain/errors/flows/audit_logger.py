@@ -5,14 +5,17 @@ Handles error persistence, statistics collection, and cleanup operations.
 
 import logging
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional, Any
+from uuid import uuid4
 
 from app.services.websocket_events import websocket_events
 from app.schemas.websocket import WebSocketEventType
 
 from .classifier import ErrorSeverity, ErrorHandlerConstants
 from .retry_manager import ErrorRecord, RecoveryResult
+from .redis_scan import scan_keys
+from app.utils.timezone import now_sao_paulo, to_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,25 @@ class ErrorAuditLogger:
         """
         self.redis = redis_client
         self.stats_cache = ErrorStatisticsCache(redis_client)
+
+    async def _scan_keys(self, pattern: str, count: int = 200) -> list[Any]:
+        """List keys using SCAN to avoid blocking Redis with KEYS."""
+        return await scan_keys(self.redis, pattern=pattern, count=count)
+
+    @staticmethod
+    def _normalize_datetime(value: Any) -> datetime:
+        """
+        Parse and normalize datetime values to timezone-aware Sao Paulo time.
+        Accepts datetime objects or ISO strings (aware or naive).
+        """
+        if isinstance(value, datetime):
+            return to_sao_paulo(value)
+
+        if isinstance(value, str):
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return to_sao_paulo(parsed)
+
+        raise TypeError(f"Unsupported datetime value type: {type(value)!r}")
 
     async def store_error(self, error_record: ErrorRecord) -> bool:
         """
@@ -92,11 +114,15 @@ class ErrorAuditLogger:
                 "error_resolved": recovery_result.error_resolved,
             }
 
-            await websocket_events.publish_flow_event(
+            await websocket_events.broadcast_flow_event(
                 event_type=WebSocketEventType.FLOW_ERROR,
                 patient_id=error_record.context.patient_id,
-                flow_id=error_record.context.flow_state_id,
-                event_data=event_data,
+                flow_data={
+                    "metadata": {
+                        "flow_id": str(error_record.context.flow_state_id),
+                        "event_data": event_data,
+                    }
+                },
             )
 
             logger.debug(f"Published error event: {error_record.id}")
@@ -125,17 +151,22 @@ class ErrorAuditLogger:
                 or not recovery_result.success
             ):
                 escalation_message = f"Critical flow error for patient {error_record.context.patient_id}: {error_record.error_type}"
-
-                await websocket_events.publish_alert_event(
-                    event_type=WebSocketEventType.ALERT_CREATED,
-                    patient_id=error_record.context.patient_id,
-                    alert_type="critical_flow_error",
-                    priority="critical",
-                    message=escalation_message,
-                    metadata={
+                alert_data = {
+                    "alert_id": str(uuid4()),
+                    "patient_id": str(error_record.context.patient_id),
+                    "alert_type": "critical_flow_error",
+                    "severity": "critical",
+                    "title": escalation_message,
+                    "description": escalation_message,
+                    "metadata": {
                         "error_id": error_record.id,
                         "recovery_failed": not recovery_result.success,
                     },
+                }
+
+                await websocket_events.broadcast_alert_event(
+                    event_type=WebSocketEventType.ALERT_CREATED,
+                    alert_data=alert_data,
                 )
 
                 logger.critical(f"Escalated critical error: {error_record.id}")
@@ -167,10 +198,10 @@ class ErrorAuditLogger:
                 if cached_stats:
                     return cached_stats
 
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=timeframe_hours)
+            cutoff_time = now_sao_paulo() - timedelta(hours=timeframe_hours)
 
             # Get all error keys
-            error_keys = await self.redis.keys("flow_error:*")
+            error_keys = await self._scan_keys("flow_error:*")
 
             # Batch get all error data using pipeline
             pipeline = self.redis.pipeline()
@@ -189,7 +220,7 @@ class ErrorAuditLogger:
                 "pending_errors": 0,
                 "recovery_success_rate": 0.0,
                 "timeframe_hours": timeframe_hours,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": now_sao_paulo().isoformat(),
             }
 
             resolved_count = 0
@@ -202,7 +233,7 @@ class ErrorAuditLogger:
 
                 try:
                     error_info = json.loads(error_data)
-                    error_time = datetime.fromisoformat(error_info["created_at"])
+                    error_time = self._normalize_datetime(error_info["created_at"])
 
                     if error_time >= cutoff_time:
                         total_count += 1
@@ -223,7 +254,7 @@ class ErrorAuditLogger:
                         if error_info["resolved"]:
                             resolved_count += 1
 
-                except (json.JSONDecodeError, KeyError, ValueError) as e:
+                except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
                     logger.warning(f"Failed to parse error data: {e}")
                     continue
 
@@ -242,7 +273,7 @@ class ErrorAuditLogger:
 
         except Exception as e:
             logger.error(f"Failed to get error statistics: {e}")
-            return {"error": str(e), "generated_at": datetime.now(timezone.utc).isoformat()}
+            return {"error": str(e), "generated_at": now_sao_paulo().isoformat()}
 
     async def cleanup_old_errors(self, error_records: dict, days_old: int = 7) -> int:
         """
@@ -256,13 +287,14 @@ class ErrorAuditLogger:
             Number of cleaned records
         """
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(days=days_old)
+            cutoff_time = now_sao_paulo() - timedelta(days=days_old)
             cleaned_count = 0
 
             # Clean from memory
             to_remove = []
             for error_id, error_record in error_records.items():
-                if error_record.created_at < cutoff_time:
+                created_at = self._normalize_datetime(error_record.created_at)
+                if created_at < cutoff_time:
                     to_remove.append(error_id)
 
             for error_id in to_remove:

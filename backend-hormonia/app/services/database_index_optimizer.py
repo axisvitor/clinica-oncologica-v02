@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from sqlalchemy import text, inspect
 
 from app.core.monitoring_logging import monitoring_logger
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -298,7 +299,7 @@ class DatabaseIndexOptimizer:
 
             return {
                 "usage_stats": usage_stats,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
@@ -434,7 +435,7 @@ class DatabaseIndexOptimizer:
 
             return {
                 "table_sizes": table_sizes,
-                "analysis_timestamp": datetime.now(timezone.utc).isoformat(),
+                "analysis_timestamp": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:

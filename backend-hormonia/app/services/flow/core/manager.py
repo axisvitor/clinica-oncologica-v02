@@ -36,7 +36,8 @@ from ..analytics import FlowEventBroadcaster
 from ..config import get_flow_config
 from ..errors import FlowErrorHandler
 from ..integrations import FlowIntegrationManager
-from ..integrations.base import FlowIntegration, LegacyIntegrationAdapter
+from ..integrations.base import FlowIntegration, IntegrationAdapter
+from ..template_lookup import find_step_in_template
 from ..templates import FlowTemplateManager, get_template_manager
 from ..types import (
     FlowContext,
@@ -53,6 +54,7 @@ from ..validation import FlowValidator
 from .context import FlowContextRepository
 from .engine import FlowEngine
 from .lifecycle import FlowLifecycleManager
+from app.utils.timezone import now_sao_paulo
 
 PLACEHOLDER_PATTERN = re.compile(r"{{\s*([\w\.]+)\s*}}")
 SQUARE_PLACEHOLDER_PATTERN = re.compile(r"\[([\w\.]+)\]")
@@ -88,7 +90,7 @@ class FlowManager:
         >>> manager = FlowManager(db)
         >>> flow_id = await manager.start_flow(
         ...     patient_id=patient_id,
-        ...     flow_type=FlowType.DAILY_CHECKIN
+        ...     flow_type=FlowType.DAILY_FOLLOW_UP
         ... )
         >>> await manager.advance_flow(flow_id)
         >>> await manager.pause_flow(flow_id)
@@ -166,7 +168,7 @@ class FlowManager:
         Example:
             >>> flow_id = await manager.start_flow(
             ...     patient_id=uuid4(),
-            ...     flow_type=FlowType.DAILY_CHECKIN,
+            ...     flow_type=FlowType.DAILY_FOLLOW_UP,
             ...     initial_data={"checkin_count": 0}
             ... )
         """
@@ -187,7 +189,7 @@ class FlowManager:
         if not validation.is_valid:
             raise ValueError(f"Flow validation failed: {validation.errors}")
 
-        expires_at = datetime.now(timezone.utc) + timedelta(
+        expires_at = now_sao_paulo() + timedelta(
             minutes=template.default_timeout_minutes
         )
         context = FlowContext(
@@ -199,7 +201,7 @@ class FlowManager:
             variables={},
             steps_completed=[],
             steps_history=[],
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
             expires_at=expires_at,
             metadata=metadata or {},
             priority=priority,
@@ -613,11 +615,7 @@ class FlowManager:
         Returns:
             Step definition or None if not found.
         """
-        steps = template.get("steps", [])
-        for step in steps:
-            if step.get("step_id") == step_id:
-                return step
-        return None
+        return find_step_in_template(template, step_id)
 
     async def _broadcast_event(self, event: FlowEvent) -> None:
         """
@@ -635,18 +633,18 @@ class FlowManager:
         self, name_or_plugin: Any, integration: Any = None
     ) -> None:
         """
-        Register a new integration plugin or wrap a legacy integration.
+        Register an integration plugin or wrap a delegate object.
 
         Args:
             name_or_plugin: Plugin instance or name string.
-            integration: Optional integration instance for legacy support.
+            integration: Optional integration instance/delegate.
         """
         if isinstance(name_or_plugin, FlowIntegration) and integration is None:
             plugin = name_or_plugin
         elif isinstance(integration, FlowIntegration):
             plugin = integration
         else:
-            plugin = LegacyIntegrationAdapter(str(name_or_plugin), integration)
+            plugin = IntegrationAdapter(str(name_or_plugin), integration)
 
         self.integration_manager.register_plugin(plugin)
 
@@ -655,15 +653,15 @@ class FlowManager:
         return "<FlowManager(modular=True)>"
 
     # ========================================================================
-    # Backward Compatibility Methods (for Legacy API)
+    # Compatibility Methods
     # ========================================================================
 
     async def get_flow_status(self, flow_id: UUID) -> Optional[FlowStatus]:
         """
-        Get flow status (backward compatibility method).
+        Get flow status.
 
-        This method provides compatibility with legacy code that expects
-        get_flow_status() instead of get_flow().status.
+        Provides a status-only accessor for callers that use get_flow_status()
+        instead of get_flow().status.
 
         Args:
             flow_id: Flow instance ID.
@@ -681,10 +679,10 @@ class FlowManager:
 
     async def complete_flow(self, flow_id: UUID, **kwargs) -> bool:
         """
-        Complete a flow (backward compatibility method).
+        Complete a flow.
 
-        This method provides compatibility with legacy code that expects
-        complete_flow() instead of update_flow_status().
+        Provides a completion helper for callers that use complete_flow()
+        instead of update_flow_status().
 
         Args:
             flow_id: Flow instance ID.
@@ -709,7 +707,7 @@ class FlowManager:
                 FlowEvent(
                     event_type=FlowEventType.FLOW_COMPLETED,
                     flow_instance_id=flow_id,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=now_sao_paulo(),
                     data=kwargs,
                 )
             )
@@ -735,10 +733,10 @@ class FlowManager:
 
     async def cancel_flow(self, flow_id: UUID, reason: Optional[str] = None) -> bool:
         """
-        Cancel a flow (backward compatibility method).
+        Cancel a flow.
 
-        This method provides compatibility with legacy code that expects
-        cancel_flow() instead of update_flow_status().
+        Provides a cancellation helper for callers that use cancel_flow()
+        instead of update_flow_status().
 
         Args:
             flow_id: Flow instance ID.
@@ -763,7 +761,7 @@ class FlowManager:
                 FlowEvent(
                     event_type=FlowEventType.FLOW_CANCELLED,
                     flow_instance_id=flow_id,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=now_sao_paulo(),
                     data={"reason": reason} if reason else {},
                 )
             )
@@ -777,10 +775,10 @@ class FlowManager:
 
     async def get_flow_data(self, flow_id: UUID) -> Dict[str, Any]:
         """
-        Get flow data (backward compatibility method).
+        Get flow data.
 
-        This method provides compatibility with legacy code that expects
-        get_flow_data() instead of get_flow().data.
+        Provides a data accessor for callers that use get_flow_data()
+        instead of get_flow().data.
 
         Args:
             flow_id: Flow instance ID.

@@ -321,7 +321,7 @@ try:
 
     # Update saga status
     saga.status = SagaStatus.COMPLETED
-    saga.completed_at = datetime.now(timezone.utc)
+    saga.completed_at = now_sao_paulo()
 
     # 🎯 SINGLE ATOMIC COMMIT
     self.db.commit()  # All or nothing
@@ -334,7 +334,7 @@ except Exception as e:
     # Update saga failure state (separate transaction)
     saga.status = SagaStatus.FAILED
     saga.error_message = str(e)
-    saga.failed_at = datetime.now(timezone.utc)
+    saga.failed_at = now_sao_paulo()
     self.db.commit()  # Commit failure state
 
     # Execute compensation

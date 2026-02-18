@@ -8,6 +8,8 @@ from pydantic import model_validator
 import json
 import os
 
+from .parsing import parse_boolean_env_values, parse_list_field, strip_wrapping_quotes
+
 # =============================================================================
 # CRITICAL: Preprocess env vars BEFORE any pydantic-settings class is imported
 # =============================================================================
@@ -21,6 +23,7 @@ _LIST_FIELDS_WITH_EMPTY_DEFAULT = [
     "FIREBASE_ALLOWED_DOMAINS",
     "SECURITY_ALLOWED_HOSTS",
     "AI_HUMANIZATION_CRITICAL_KEYWORDS",
+    "SUPPORTED_LOCALES",
 ]
 
 
@@ -94,16 +97,17 @@ class Settings(
 
         NOTE: Field names here are the DIRECT env variable names (no more aliases).
         """
-        def _strip_wrapping_quotes(value: str) -> str:
-            s = value.strip()
-            while len(s) >= 2 and s[0] == s[-1] and s[0] in ("\"", "'"):
-                s = s[1:-1].strip()
-            return s
-
         if isinstance(data, dict):
             for k, v in list(data.items()):
                 if isinstance(v, str):
-                    data[k] = _strip_wrapping_quotes(v)
+                    data[k] = strip_wrapping_quotes(v)
+
+        if "ALLOW_AI_SIMULATION" not in data:
+            app_env = data.get("APP_ENVIRONMENT") or os.environ.get(
+                "APP_ENVIRONMENT", "development"
+            )
+            if isinstance(app_env, str) and app_env.lower() == "production":
+                data["ALLOW_AI_SIMULATION"] = False
 
         # Parse boolean fields from string - Using NEW direct field names
         boolean_fields = [
@@ -113,12 +117,12 @@ class Settings(
             # Security
             "SESSION_ENABLE_COOKIE_SECURE",
             "SESSION_ENABLE_COOKIE_HTTPONLY",
-            "ENABLE_STRICT_UID_VALIDATION",
             "ENABLE_COOKIE_PRIORITY",
             "SECURITY_ENABLE_SSL_REDIRECT",
             "SECURITY_ENABLE_CONTENT_TYPE_NOSNIFF",
             "SECURITY_ENABLE_BROWSER_XSS_FILTER",
             "SECURITY_ENABLE_FIELD_ENCRYPTION",
+            "SECURITY_ALLOW_WEAK_KEYS",
             # Firebase
             "FIREBASE_ENABLE_REQUIRE_CUSTOM_CLAIMS",
             "FIREBASE_ENABLE_AUDIT_LOGGING",
@@ -127,17 +131,19 @@ class Settings(
             "RATE_LIMIT_ENABLE_SERVICE",
             # WhatsApp/Evolution
             "WHATSAPP_ENABLE_SERVICE",
+            "WHATSAPP_EVOLUTION_USE_MOCK",
             "WHATSAPP_ENABLE_ON_REGISTRATION",
             "WHATSAPP_ENABLE_WELCOME_MESSAGE",
             "WHATSAPP_WEBHOOK_HMAC_ENABLED",
             "WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED",
+            "WHATSAPP_WEBHOOK_TRUST_PROXY_HEADERS",
             # AI
             "AI_LANGCHAIN_ENABLE_TRACING_V2",
             "AI_ENABLE_HUMANIZATION",
             "AI_HUMANIZATION_ENABLE_SAFETY_MODE",
             "AI_HUMANIZATION_ENABLE_FALLBACK",
             # Celery
-            "CELERY_ENABLE_UTC",
+            "CELERY_ENABLE_TZ_NORMALIZATION",
             "CELERY_ENABLE_TRACK_STARTED",
             "CELERY_ENABLE_DISABLE_RATE_LIMITS",
             # Quiz
@@ -159,60 +165,13 @@ class Settings(
             "REDIS_ENABLE_RETRY_ON_TIMEOUT",
             "REDIS_ENABLE_DECODE_RESPONSES",
             "REDIS_ENABLE_DB_ISOLATION",
+            "REDIS_ENABLE_CLUSTER_MODE",
         ]
 
-        for field in boolean_fields:
-            if field in data:
-                v = data[field]
-                if isinstance(v, bool):
-                    data[field] = v
-                elif isinstance(v, str):
-                    data[field] = v.lower() not in ("false", "0", "no", "off", "")
-                else:
-                    data[field] = bool(v)
-
-        # Parse FIREBASE_ALLOWED_DOMAINS from JSON string
-        if "FIREBASE_ALLOWED_DOMAINS" in data:
-            v = data["FIREBASE_ALLOWED_DOMAINS"]
-            if v is None or v == "":
-                data["FIREBASE_ALLOWED_DOMAINS"] = []
-            elif isinstance(v, str):
-                try:
-                    data["FIREBASE_ALLOWED_DOMAINS"] = json.loads(v)
-                except json.JSONDecodeError:
-                    data["FIREBASE_ALLOWED_DOMAINS"] = []
-
-        # Parse CORS_ALLOWED_ORIGINS
-        if "CORS_ALLOWED_ORIGINS" in data:
-            v = data["CORS_ALLOWED_ORIGINS"]
-            if isinstance(v, list) and len(v) > 0:
-                pass  # Already a list
-            elif isinstance(v, str) and v.strip():
-                s = v.strip()
-
-                # Handle case where entire JSON array is wrapped in quotes
-                if (s.startswith('"') and s.endswith('"')) or (
-                    s.startswith("'") and s.endswith("'")
-                ):
-                    s = s[1:-1].strip()
-
-                if s.startswith("["):
-                    try:
-                        data["CORS_ALLOWED_ORIGINS"] = json.loads(s)
-                    except (json.JSONDecodeError, ValueError):
-                        # Fallback: remove brackets and split
-                        s_clean = s.replace("[", "").replace("]", "")
-                        data["CORS_ALLOWED_ORIGINS"] = [
-                            item.strip() for item in s_clean.split(",") if item.strip()
-                        ]
-                else:
-                    # Remove brackets if present in comma-separated string (just in case)
-                    s_clean = s.replace("[", "").replace("]", "")
-                    data["CORS_ALLOWED_ORIGINS"] = [
-                        item.strip() for item in s_clean.split(",") if item.strip()
-                    ]
-            else:
-                data["CORS_ALLOWED_ORIGINS"] = []
+        parse_boolean_env_values(data, boolean_fields)
+        parse_list_field(data, "FIREBASE_ALLOWED_DOMAINS")
+        parse_list_field(data, "CORS_ALLOWED_ORIGINS", allow_quoted_json=True)
+        parse_list_field(data, "SUPPORTED_LOCALES", allow_quoted_json=True)
 
         # Parse AI_HUMANIZATION_CRITICAL_KEYWORDS
         if "AI_HUMANIZATION_CRITICAL_KEYWORDS" in data:
@@ -241,8 +200,6 @@ class Settings(
 
         # Validate security keys are not placeholders (only in production)
         # In development, default insecure keys are allowed for local testing
-        import os
-
         is_production = (
             os.environ.get("APP_ENVIRONMENT", "development").lower() == "production"
         )
@@ -280,6 +237,7 @@ class Settings(
         """Initialize settings with validation."""
         super().__init__(**kwargs)
         self.validate_production_config()
+        self.validate_ai_config()
         self.validate_csrf_config()
 
     def validate_production_config(self):
@@ -296,14 +254,10 @@ class Settings(
                     "APP_ENABLE_DEBUG must be False in production environment"
                 )
 
-            # AI simulation should be disabled in production (warning, not error)
+            # AI simulation is not allowed in production.
             if self.ALLOW_AI_SIMULATION:
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(
-                    "AI simulation mode is enabled in production environment. "
-                    "This will use mock data instead of real AI services. "
-                    "Set ALLOW_AI_SIMULATION=False in production to require real AI integration."
+                errors.append(
+                    "ALLOW_AI_SIMULATION must be False in production environment"
                 )
 
             # Redis SSL validation (optional - some Redis Cloud instances don't use SSL)
@@ -344,6 +298,14 @@ class Settings(
                 raise ValueError(
                     "Production environment security validation failed:\n"
                     + "\n".join(f"  - {error}" for error in errors)
+                )
+
+    def validate_ai_config(self):
+        """Validate AI configuration when simulation is disabled."""
+        if not self.ALLOW_AI_SIMULATION:
+            if not self.AI_GEMINI_API_KEY or not self.AI_GEMINI_API_KEY.strip():
+                raise ValueError(
+                    "AI_GEMINI_API_KEY must be set when ALLOW_AI_SIMULATION is False."
                 )
 
 

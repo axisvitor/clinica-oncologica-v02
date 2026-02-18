@@ -8,7 +8,6 @@ from __future__ import annotations
 
 # Standard library imports
 import logging
-from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
@@ -16,16 +15,11 @@ from typing import TYPE_CHECKING, Optional
 from sqlalchemy.orm import Session
 
 # Local application imports
-from app.domain.messaging.delivery import MessageSender
-from app.models.message import (
-    Message,
-    MessageDirection,
-    MessageStatus,
-    MessageType,
-)
+from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSender
+from .message_service import QuizMessageService
 
 if TYPE_CHECKING:
-    from app.domain.agents.quiz.session_coordinator import QuizContext
+    from app.domain.agents.quiz.types import QuizContext
 
 
 class QuizAdaptationType(Enum):
@@ -56,7 +50,7 @@ class NotificationManager:
     def __init__(
         self,
         db_session: Session,
-        message_sender: MessageSender,
+        message_sender: IdempotentMessageSender,
         agent_id: str,
         logger: Optional[logging.Logger] = None,
     ):
@@ -73,13 +67,20 @@ class NotificationManager:
         self.message_sender = message_sender
         self.agent_id = agent_id
         self._logger = logger or logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        self.message_service = QuizMessageService(
+            db_session=db_session,
+            message_sender=message_sender,
+            logger=self._logger,
+        )
 
     async def send_quiz_introduction(
         self, context: "QuizContext", max_questions: int, stress_threshold: float
     ):
         """Send personalized quiz introduction."""
         try:
-            patient_name = context.patient_data.name
+            patient_name = getattr(getattr(context, "patient_data", None), "name", "Paciente")
+            template = getattr(context, "template", None)
+            questions = getattr(template, "questions", None) if template else None
 
             # Personalize introduction based on context
             if context.mood_indicators.get("trend", 0) < -0.5:
@@ -101,31 +102,25 @@ class NotificationManager:
                         break
 
             # Add question count
-            question_count = min(len(context.template.questions), max_questions)
+            question_count = (
+                min(len(questions), max_questions)
+                if isinstance(questions, list) and questions
+                else 0
+            )
             intro_text += f"\n\n*São {question_count} perguntas rápidas.*"
+            session_id = getattr(getattr(context, "session", None), "id", None)
 
-            # Send message
-            message = Message(
+            await self.message_service.create_and_send_text(
                 patient_id=context.patient_id,
-                direction=MessageDirection.OUTBOUND,
-                type=MessageType.TEXT,
                 content=intro_text,
                 message_metadata={
-                    "quiz_session_id": str(context.session.id),
+                    "quiz_session_id": str(session_id) if session_id else None,
                     "message_type": "quiz_introduction",
                     "intro_tone": intro_tone,
                     "generated_by": self.agent_id,
                     "swarm_context": True,
                 },
-                status=MessageStatus.PENDING,
-                scheduled_for=datetime.now(timezone.utc),
             )
-
-            self.db_session.add(message)
-            self.db_session.commit()
-            self.db_session.refresh(message)
-
-            await self.message_sender.send_message(message)
 
         except Exception as e:
             self._logger.error(f"Failed to send quiz introduction: {e}")
@@ -133,7 +128,8 @@ class NotificationManager:
     async def send_completion_message(self, context: "QuizContext"):
         """Send personalized completion message."""
         try:
-            patient_name = context.patient_data.name
+            patient_name = getattr(getattr(context, "patient_data", None), "name", "Paciente")
+            session_id = getattr(getattr(context, "session", None), "id", None)
 
             # Personalize based on session performance
             if context.engagement_score > 0.8:
@@ -145,13 +141,11 @@ class NotificationManager:
 
             completion_message += "\n\nSe precisar de algo, estarei sempre aqui! 🌸"
 
-            message = Message(
+            await self.message_service.create_and_send_text(
                 patient_id=context.patient_id,
-                direction=MessageDirection.OUTBOUND,
-                type=MessageType.TEXT,
                 content=completion_message,
                 message_metadata={
-                    "quiz_session_id": str(context.session.id),
+                    "quiz_session_id": str(session_id) if session_id else None,
                     "message_type": "quiz_completion",
                     "generated_by": self.agent_id,
                     "session_summary": {
@@ -160,14 +154,7 @@ class NotificationManager:
                         "engagement_score": context.engagement_score,
                     },
                 },
-                status=MessageStatus.PENDING,
-                scheduled_for=datetime.now(timezone.utc),
             )
-
-            self.db_session.add(message)
-            self.db_session.commit()
-
-            await self.message_sender.send_message(message)
 
         except Exception as e:
             self._logger.error(f"Failed to send completion message: {e}")
@@ -177,26 +164,19 @@ class NotificationManager:
     ):
         """Send clarification message for unclear response."""
         try:
-            clarification = f"Desculpe {context.patient_data.name}, {error_message}\n\nVamos tentar novamente? 😊"
+            patient_name = getattr(getattr(context, "patient_data", None), "name", "Paciente")
+            session_id = getattr(getattr(context, "session", None), "id", None)
+            clarification = f"Desculpe {patient_name}, {error_message}\n\nVamos tentar novamente? 😊"
 
-            message = Message(
+            await self.message_service.create_and_send_text(
                 patient_id=context.patient_id,
-                direction=MessageDirection.OUTBOUND,
-                type=MessageType.TEXT,
                 content=clarification,
                 message_metadata={
-                    "quiz_session_id": str(context.session.id),
+                    "quiz_session_id": str(session_id) if session_id else None,
                     "message_type": "quiz_clarification",
                     "generated_by": self.agent_id,
                 },
-                status=MessageStatus.PENDING,
-                scheduled_for=datetime.now(timezone.utc),
             )
-
-            self.db_session.add(message)
-            self.db_session.commit()
-
-            await self.message_sender.send_message(message)
 
         except Exception as e:
             self._logger.error(f"Failed to send clarification message: {e}")
@@ -211,7 +191,8 @@ class NotificationManager:
             adaptation_message = "Vamos simplificar um pouco. Responda apenas com o que vier à mente primeiro. 💜"
 
         elif adaptation == QuizAdaptationType.INCREASE_SUPPORT:
-            adaptation_message = f"{context.patient_data.name}, você está indo muito bem! Vamos continuar juntas. 🌸"
+            patient_name = getattr(getattr(context, "patient_data", None), "name", "Paciente")
+            adaptation_message = f"{patient_name}, você está indo muito bem! Vamos continuar juntas. 🌸"
 
         elif adaptation == QuizAdaptationType.FOCUS_ON_MOOD:
             adaptation_message = "Percebi que pode estar sendo um momento difícil. Não se preocupe, não há resposta errada. 🤗"
@@ -221,25 +202,17 @@ class NotificationManager:
 
         # Send adaptation message if needed
         if adaptation_message:
-            message = Message(
+            session_id = getattr(getattr(context, "session", None), "id", None)
+            await self.message_service.create_and_send_text(
                 patient_id=context.patient_id,
-                direction=MessageDirection.OUTBOUND,
-                type=MessageType.TEXT,
                 content=adaptation_message,
                 message_metadata={
-                    "quiz_session_id": str(context.session.id),
+                    "quiz_session_id": str(session_id) if session_id else None,
                     "message_type": "quiz_adaptation",
                     "adaptation_type": adaptation.value,
                     "generated_by": self.agent_id,
                 },
-                status=MessageStatus.PENDING,
-                scheduled_for=datetime.now(timezone.utc),
             )
-
-            self.db_session.add(message)
-            self.db_session.commit()
-
-            await self.message_sender.send_message(message)
 
     def get_adaptation_reason(
         self, context: "QuizContext", adaptation: QuizAdaptationType

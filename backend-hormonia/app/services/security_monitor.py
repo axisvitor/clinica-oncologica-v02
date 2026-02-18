@@ -14,9 +14,10 @@ import redis.asyncio as redis
 import json
 import hashlib
 
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.core.security_config import get_security_config
 from app.utils.db_retry import with_db_retry
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ class SecurityMonitor:
                 "phone": phone,
                 "message_content": message_content[:500],  # Limit content length
                 "source_metadata": source_metadata or {},
-                "timestamp": datetime.now(timezone.utc),
+                "timestamp": now_sao_paulo(),
                 "risk_score": self._calculate_risk_score(
                     phone, message_content, source_metadata
                 ),
@@ -131,7 +132,7 @@ class SecurityMonitor:
             # Check if alert threshold is reached
             await self._check_alert_threshold(phone, audit_data["risk_score"])
 
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.info(
                 f"Logged unauthorized access attempt: {audit_id} "
                 f"(phone={mask_phone(phone)}, risk_score={audit_data['risk_score']})"
@@ -140,7 +141,7 @@ class SecurityMonitor:
             return audit_id
 
         except Exception as e:
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.error(
                 f"Failed to log unauthorized access for {mask_phone(phone)}: {e}", exc_info=True
             )
@@ -190,7 +191,7 @@ class SecurityMonitor:
                     "patient_id": str(patient_id),
                     "source_metadata": json.dumps(source_metadata or {}),
                     "risk_score": 0,  # Authorized access has 0 risk
-                    "created_at": datetime.now(timezone.utc),
+                    "created_at": now_sao_paulo(),
                     "additional_data": json.dumps({"access_granted": True}),
                 },
             )
@@ -200,7 +201,7 @@ class SecurityMonitor:
             # Reset Redis counters for successful access
             await self._reset_redis_counters(phone)
 
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.debug(
                 f"Logged authorized access: {audit_id} (phone={mask_phone(phone)}, patient_id={patient_id})"
             )
@@ -208,7 +209,7 @@ class SecurityMonitor:
             return audit_id
 
         except Exception as e:
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.error(
                 f"Failed to log authorized access for {mask_phone(phone)}: {e}", exc_info=True
             )
@@ -237,7 +238,7 @@ class SecurityMonitor:
                 return int(cached_count)
 
             # Fallback to database
-            since_time = datetime.now(timezone.utc) - timedelta(hours=time_window_hours)
+            since_time = now_sao_paulo() - timedelta(hours=time_window_hours)
 
             count_stmt = text("""
                 SELECT COUNT(*)
@@ -259,7 +260,7 @@ class SecurityMonitor:
             return count
 
         except Exception as e:
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.error(f"Error getting attempt count for {mask_phone(phone)}: {e}")
             return 0
 
@@ -284,7 +285,7 @@ class SecurityMonitor:
             )
 
             if should_block:
-                from app.utils.pii_masking import mask_phone
+                from app.utils.pii_redaction import mask_phone
                 logger.warning(
                     f"Phone {mask_phone(phone)} should be blocked: "
                     f"hourly_attempts={hourly_attempts}, daily_attempts={daily_attempts}"
@@ -293,7 +294,7 @@ class SecurityMonitor:
             return should_block
 
         except Exception as e:
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.error(f"Error checking block status for {mask_phone(phone)}: {e}")
             # Fail safe - don't block on errors
             return False
@@ -318,14 +319,14 @@ class SecurityMonitor:
             if is_blocked:
                 # Get block details for logging
                 block_info = await redis_client.hgetall(block_key)
-                from app.utils.pii_masking import mask_phone
+                from app.utils.pii_redaction import mask_phone
                 logger.debug(f"Phone {mask_phone(phone)} is blocked: {block_info}")
                 return True
 
             return False
 
         except Exception as e:
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.error(f"Error checking if phone {mask_phone(phone)} is blocked: {e}")
             # Fail safe - don't block on errors
             return False
@@ -357,9 +358,9 @@ class SecurityMonitor:
             block_data = {
                 "phone": phone,
                 "reason": reason,
-                "blocked_at": datetime.now(timezone.utc).isoformat(),
+                "blocked_at": now_sao_paulo().isoformat(),
                 "expires_at": (
-                    datetime.now(timezone.utc) + timedelta(hours=duration_hours)
+                    now_sao_paulo() + timedelta(hours=duration_hours)
                 ).isoformat(),
                 "duration_hours": str(duration_hours),
                 "metadata": json.dumps(additional_metadata or {}),
@@ -391,7 +392,7 @@ class SecurityMonitor:
             return True
 
         except Exception as e:
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.error(f"Failed to block phone {mask_phone(phone)}: {e}", exc_info=True)
             return False
 
@@ -413,7 +414,7 @@ class SecurityMonitor:
             block_key = f"blocked_phone:{phone}"
             block_existed = await redis_client.delete(block_key)
 
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             if block_existed:
                 # Log unblock event
                 await self._log_block_event(
@@ -427,7 +428,7 @@ class SecurityMonitor:
                 return True
 
         except Exception as e:
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.error(f"Failed to unblock phone {mask_phone(phone)}: {e}", exc_info=True)
             return False
 
@@ -442,7 +443,7 @@ class SecurityMonitor:
             Dictionary with security statistics
         """
         try:
-            since_time = datetime.now(timezone.utc) - timedelta(hours=time_window_hours)
+            since_time = now_sao_paulo() - timedelta(hours=time_window_hours)
 
             # Query database for stats
             stats_stmt = text("""
@@ -551,7 +552,7 @@ class SecurityMonitor:
                 risk_score += 1
 
         # Time-based risk factors
-        current_hour = datetime.now(timezone.utc).hour
+        current_hour = now_sao_paulo().hour
         if current_hour < 6 or current_hour > 22:  # Outside business hours
             risk_score += 1
 
@@ -567,7 +568,7 @@ class SecurityMonitor:
                 msg_time = datetime.fromtimestamp(
                     timestamp / 1000
                 )  # WhatsApp uses milliseconds
-                time_diff = datetime.now(timezone.utc) - msg_time
+                time_diff = now_sao_paulo() - msg_time
                 if time_diff.total_seconds() < 5:  # Very recent
                     risk_score += 1
 
@@ -596,7 +597,7 @@ class SecurityMonitor:
     def _generate_session_id(self, phone: str) -> str:
         """Generate session ID for grouping related events."""
         # Create deterministic session ID based on phone and hour
-        current_hour = datetime.now(timezone.utc).strftime("%Y%m%d%H")
+        current_hour = now_sao_paulo().strftime("%Y%m%d%H")
         session_data = f"{phone}:{current_hour}"
         return hashlib.md5(session_data.encode()).hexdigest()[:16]
 
@@ -616,7 +617,7 @@ class SecurityMonitor:
             await redis_client.expire(daily_key, 86400)  # 24 hours
 
         except Exception as e:
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.error(f"Failed to update Redis counters for {mask_phone(phone)}: {e}")
 
     async def _reset_redis_counters(self, phone: str) -> None:
@@ -628,10 +629,11 @@ class SecurityMonitor:
             hourly_key = f"unauthorized_attempts:{phone}:1h"
             daily_key = f"unauthorized_attempts:{phone}:24h"
 
-            await redis_client.delete(hourly_key, daily_key)
+            await redis_client.delete(hourly_key)
+            await redis_client.delete(daily_key)
 
         except Exception as e:
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.error(f"Failed to reset Redis counters for {mask_phone(phone)}: {e}")
 
     async def _check_alert_threshold(self, phone: str, risk_score: int) -> None:
@@ -651,7 +653,7 @@ class SecurityMonitor:
                 )
 
         except Exception as e:
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.error(f"Error checking alert threshold for {mask_phone(phone)}: {e}")
 
     async def _log_block_event(
@@ -682,7 +684,7 @@ class SecurityMonitor:
                     if duration_hours > 0
                     else "phone_unblocked",
                     "phone_number": phone,
-                    "created_at": datetime.now(timezone.utc),
+                    "created_at": now_sao_paulo(),
                     "additional_data": json.dumps(
                         {
                             "reason": reason,
@@ -696,7 +698,7 @@ class SecurityMonitor:
             self.db.commit()
 
         except Exception as e:
-            from app.utils.pii_masking import mask_phone
+            from app.utils.pii_redaction import mask_phone
             logger.error(f"Failed to log block event for {mask_phone(phone)}: {e}")
             self.db.rollback()
 
@@ -707,7 +709,7 @@ class SecurityMonitor:
         try:
             alert_data = {
                 "type": alert_type,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "details": details,
                 "severity": self._determine_alert_severity(alert_type, details),
             }

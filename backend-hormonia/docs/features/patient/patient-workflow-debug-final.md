@@ -580,7 +580,7 @@ def _track_compensation_failure(self, saga_id, step, error):
         "saga_id": str(saga_id),
         "step": step,
         "error": str(error),
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
     redis.setex(key, 604800, json.dumps(data))  # 7 days retention
 ```
@@ -603,7 +603,7 @@ def _track_compensation_failure(self, saga_id, step, error):
 @celery_app.task
 def detect_orphaned_sagas():
     """Find and handle stuck sagas."""
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=1)
+    cutoff = now_sao_paulo() - timedelta(hours=1)
 
     orphaned = db.query(PatientOnboardingSaga).filter(
         PatientOnboardingSaga.status == SagaStatus.IN_PROGRESS,

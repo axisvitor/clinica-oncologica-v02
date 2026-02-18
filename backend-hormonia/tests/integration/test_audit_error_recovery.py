@@ -25,9 +25,9 @@ class TestErrorRecoveryAudit:
     @pytest.mark.asyncio
     async def test_patient_onboarding_saga_compensation(self, db_session: Session):
         """
-        Verify that saga correctly compensates (rolls back) when a step fails.
-        Scenario: Patient created, Flow initialized, but Message sending fails.
-        Result: Patient record and Flow should be deleted by compensation.
+        Verify non-critical messaging failure behavior in onboarding saga.
+        Scenario: Patient created, Flow initialized, but welcome message scheduling fails.
+        Result: Saga completes with warnings and patient remains persisted.
         """
         # 1. Setup doctor
         from app.models.user import User
@@ -44,9 +44,8 @@ class TestErrorRecoveryAudit:
         # 2. Initialize orchestrator
         orchestrator = SagaOrchestrator(db_session)
         
-        # 3. Mock WhatsApp service to fail
-        # Step 3 is _step_send_welcome_message
-        with patch.object(orchestrator.whatsapp_service, "send_message", side_effect=Exception("WhatsApp service down")):
+        # 3. Mock message scheduling to fail in step_send_welcome_message
+        with patch.object(orchestrator.message_service, "schedule_message", side_effect=Exception("WhatsApp service down")):
             
             patient_data = PatientCreate(
                 name="Saga Fail Patient",
@@ -55,27 +54,25 @@ class TestErrorRecoveryAudit:
                 doctor_id=doctor_id
             )
             
-            # 4. Execute saga - it should return None due to failure
+            # 4. Execute saga - non-critical failure should keep patient creation
             patient = await orchestrator.execute_patient_onboarding_saga(
                 patient_data=patient_data,
                 doctor_id=doctor_id
             )
             
-            assert patient is None
+            assert patient is not None
             
-            # 5. Verify compensation
-            # The patient should have been deleted
+            # 5. Verify patient remains created
             db_session.expire_all()
-            deleted_patient = db_session.query(Patient).filter(Patient.name == "Saga Fail Patient").first()
-            assert deleted_patient is None
+            persisted_patient = db_session.query(Patient).filter(Patient.name == "Saga Fail Patient").first()
+            assert persisted_patient is not None
             
-            # Verify saga record exists with FAILED status
+            # Verify saga record exists with warning status and non-fatal log
             saga = db_session.query(PatientOnboardingSaga).filter(
                 PatientOnboardingSaga.doctor_id == doctor_id
             ).first()
             assert saga is not None
-            assert saga.status == SagaStatus.FAILED
-            assert "WhatsApp service down" in saga.error_message
+            assert saga.status == SagaStatus.COMPLETED_WITH_WARNINGS
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_opening(self):
@@ -113,7 +110,8 @@ class TestErrorRecoveryAudit:
         breaker = CircuitBreaker(
             name="RecoveryBreaker",
             failure_threshold=1,
-            recovery_timeout=0.1 # Short timeout for test
+            recovery_timeout=0.1,  # Short timeout for test
+            success_threshold=1,
         )
         
         async def failing_func():

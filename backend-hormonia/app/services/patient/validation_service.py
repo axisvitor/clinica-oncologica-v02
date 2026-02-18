@@ -25,10 +25,11 @@ from email_validator import EmailNotValidError, validate_email
 
 from app.config import settings
 from app.exceptions import ValidationError
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.patient import PatientCreate, PatientUpdate
+from app.schemas.validators.cpf import calculate_cpf_check_digit
 from app.utils.db_retry import with_db_retry
-from app.utils.phone_validator import PhoneValidationError, validate_and_format_phone
+from app.schemas.validators.phone import PhoneValidationError, validate_and_format_phone
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +117,9 @@ class PatientValidationService:
         # Validate doctor
         if not is_update and doctor_id:
             if not self._validate_doctor_exists(doctor_id):
-                validation_errors.append(f"Doctor with id {doctor_id} not found")
+                validation_errors.append(
+                    f"Doctor with id {doctor_id} not found or not a doctor"
+                )
             else:
                 validated_data["doctor_id"] = doctor_id
 
@@ -183,7 +186,7 @@ class PatientValidationService:
     ) -> Dict[str, Any]:
         """Validate email field and check for duplicates."""
         try:
-            validated_email = validate_email(email)
+            validated_email = validate_email(email, check_deliverability=False)
             normalized_email = validated_email.normalized
 
             errors = []
@@ -199,7 +202,7 @@ class PatientValidationService:
         """Check if doctor exists."""
         try:
             doctor = self.db.query(User).filter(User.id == doctor_id).first()
-            return doctor is not None
+            return doctor is not None and doctor.role in (UserRole.DOCTOR, UserRole.ADMIN)
         except Exception as e:
             self._logger.error(f"Doctor validation failed: {e}")
             return False
@@ -293,15 +296,10 @@ class PatientValidationService:
             raise ValidationError("Invalid CPF: cannot be all same digits")
 
         # Validate check digits
-        def calc_digit(cpf_partial):
-            total = sum(int(digit) * (len(cpf_partial) + 1 - i) for i, digit in enumerate(cpf_partial))
-            remainder = total % 11
-            return "0" if remainder < 2 else str(11 - remainder)
-
-        if cpf[9] != calc_digit(cpf[:9]):
+        if cpf[9] != calculate_cpf_check_digit(cpf[:9]):
             raise ValidationError("Invalid CPF: first check digit is incorrect")
 
-        if cpf[10] != calc_digit(cpf[:10]):
+        if cpf[10] != calculate_cpf_check_digit(cpf[:10]):
             raise ValidationError("Invalid CPF: second check digit is incorrect")
 
         return True

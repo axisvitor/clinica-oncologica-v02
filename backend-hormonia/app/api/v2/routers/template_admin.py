@@ -31,7 +31,7 @@ from app.api.v2.templates_shared import (
     RATE_LIMIT_READ,
     RATE_LIMIT_SEARCH,
 )
-from app.utils.audit_logger import AuditLogger, AuditAction
+from app.monitoring.audit_logger import TemplateAuditLogger as AuditLogger, TemplateAuditAction as AuditAction
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

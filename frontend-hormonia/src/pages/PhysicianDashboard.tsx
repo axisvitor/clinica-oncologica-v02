@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react'
+import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { TriangleAlert as AlertTriangle, Users, Brain, MessageSquare, Search, Download, RefreshCw, X } from 'lucide-react'
@@ -11,22 +11,34 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PhysicianDashboardSkeleton } from '@/features/dashboard/PhysicianDashboardSkeleton'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
-import { AIAnalyticsDashboard } from '@/features/ai/AIAnalyticsDashboard'
 import { apiClient } from '@/lib/api-client'
 import { useAuth } from '@/app/providers/AuthContext'
 import { useDebounce } from '@/hooks/useDebounce'
 import { usePhysicianRiskAssessments } from '@/hooks/api/usePhysicianRiskAssessments'
-import { FEATURES } from '@/config'
 import { ChatRole } from '@/types/api'
 import { createLogger } from '@/lib/logger'
 import { PhysicianMetricsCards } from '@/features/dashboard/components/physician/PhysicianMetricsCards'
 import { PhysicianRiskTable } from '@/features/dashboard/components/physician/PhysicianRiskTable'
-import { PhysicianInsightsPanel } from '@/features/dashboard/components/physician/PhysicianInsightsPanel'
 import { PhysicianChatDialog } from '@/features/dashboard/components/physician/PhysicianChatDialog'
 import { PhysicianExportDialog } from '@/features/dashboard/components/physician/PhysicianExportDialog'
-import type { AIChatMessage as ChatMessage, AIInsight, AIRecommendation } from '@/types/api'
+import type { AIChatMessage as ChatMessage, AIInsight } from '@/types/api'
+import type {
+  Alert as ApiAlert,
+  PaginatedResponse,
+  AIInsights,
+  AIRecommendations
+} from '@/lib/api-client/types'
 
 const logger = createLogger('PhysicianDashboard')
+
+const AIAnalyticsDashboard = lazy(() =>
+  import('@/features/ai/AIAnalyticsDashboard').then((module) => ({ default: module.AIAnalyticsDashboard }))
+)
+const PhysicianInsightsPanel = lazy(() =>
+  import('@/features/dashboard/components/physician/PhysicianInsightsPanel').then((module) => ({
+    default: module.PhysicianInsightsPanel
+  }))
+)
 
 // PERFORMANCE VERIFICATION (development only)
 // Before: 51 API calls (1 patient list + 50 ai/insights)
@@ -41,9 +53,13 @@ interface DashboardMetrics {
   pending_reviews: number
 }
 
-interface SummaryInsights {
-  insights: AIInsight[]
-  recommendations?: AIRecommendation[]
+interface InsightPanelRecommendation {
+  id: string
+  title: string
+  description: string
+  priority?: string
+  type?: string
+  rationale?: string
 }
 
 export default function PhysicianDashboard() {
@@ -53,7 +69,8 @@ export default function PhysicianDashboard() {
 
   // Permission check
   // Case-insensitive role check - supports doctor, physician, DOCTOR, PHYSICIAN, admin, ADMIN, etc.
-  const canAccessDashboard = hasRole('doctor') || hasRole('physician') || hasRole('medico') || hasRole('admin') || hasRole('superadmin')
+  const canAccessDashboard =
+    hasRole('doctor') || hasRole('physician') || hasRole('medico') || hasRole('admin') || hasRole('superadmin')
 
   // State management
   const [filters, setFilters] = useState({
@@ -66,7 +83,8 @@ export default function PhysicianDashboard() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
-
+  const [activeTab, setActiveTab] = useState<'patients' | 'insights' | 'analytics'>('patients')
+  const [selectedPatientId, setSelectedPatientId] = useState<string>('')
 
   const debouncedSearch = useDebounce(filters.search, 300)
 
@@ -107,7 +125,15 @@ export default function PhysicianDashboard() {
     filterParams.search = debouncedSearch
   }
 
-  const { data: riskData, isLoading: patientsLoading, error: patientsError, refetch: refetchPatients } = usePhysicianRiskAssessments(filterParams)
+  const {
+    data: riskData,
+    isLoading: patientsLoading,
+    error: patientsError,
+    refetch: refetchPatients
+  } = usePhysicianRiskAssessments(filterParams)
+
+  // Patients are filtered server-side
+  const patients = useMemo(() => riskData?.assessments ?? [], [riskData?.assessments])
 
   // Performance logging (development only)
   useEffect(() => {
@@ -123,7 +149,7 @@ export default function PhysicianDashboard() {
   }, [riskData])
 
   // Fetch high-risk alerts
-  const { data: alerts } = useQuery({
+  const { data: alerts, refetch: refetchAlerts } = useQuery<PaginatedResponse<ApiAlert>>({
     queryKey: ['physician-alerts'],
     queryFn: async () => {
       return apiClient.alerts.list({
@@ -136,49 +162,71 @@ export default function PhysicianDashboard() {
     staleTime: 60000
   })
 
-  // Fetch AI summary insights for all patients
-  const { data: summaryInsights, isLoading: insightsLoading } = useQuery<SummaryInsights>({
-    queryKey: ['physician-insights-summary'],
-    queryFn: async () => {
-      try {
-        logger.info('Fetching summary AI insights');
-        const response = await apiClient.ai.insights('all', 'week')
-        logger.debug('Summary insights loaded', { insightsCount: response.insights?.length });
-        return response
-      } catch (error) {
-        logger.error('Failed to fetch summary insights', { error });
-        return { insights: [], recommendations: [] }
-      }
-    },
-    enabled: canAccessDashboard && FEATURES.AI_INSIGHTS,
-    staleTime: 300000, // 5 minutes
-    refetchInterval: 600000 // 10 minutes
+  const shouldLoadAiData =
+    canAccessDashboard &&
+    (activeTab === 'insights' || activeTab === 'analytics') &&
+    selectedPatientId.length > 0
+
+  const {
+    data: selectedPatientInsights,
+    isLoading: insightsLoading,
+    error: insightsError
+  } = useQuery<AIInsights>({
+    queryKey: ['physician-patient-insights', selectedPatientId, 'week'],
+    queryFn: () => apiClient.ai.insights(selectedPatientId, 'week'),
+    enabled: shouldLoadAiData,
+    staleTime: 300000,
+    retry: 1
   })
+
+  const { data: selectedPatientRecommendations, isLoading: recommendationsLoading } = useQuery<
+    AIRecommendations
+  >({
+    queryKey: ['physician-patient-recommendations', selectedPatientId],
+    queryFn: () => apiClient.ai.recommendations(selectedPatientId),
+    enabled: shouldLoadAiData,
+    staleTime: 300000,
+    retry: 1
+  })
+
+  useEffect(() => {
+    if (patients.length === 0) {
+      if (selectedPatientId) setSelectedPatientId('')
+      return
+    }
+
+    const selectedPatientStillVisible = patients.some(
+      (patient) => patient.patient_id === selectedPatientId
+    )
+
+    if (!selectedPatientStillVisible) {
+      setSelectedPatientId(patients[0]?.patient_id ?? '')
+    }
+  }, [patients, selectedPatientId])
 
   // AI Chat mutation
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
       const response = await apiClient.ai.chat(message, {
-        role: 'physician',
-        context: 'clinical_guidance'
+        message_type: 'clinical_guidance'
       })
       return response
     },
     onSuccess: (data) => {
-      logger.info('AI chat response received');
-      setChatMessages(prev => [
+      logger.info('AI chat response received')
+      setChatMessages((prev) => [
         ...prev,
         {
           id: Date.now().toString(),
           role: ChatRole.ASSISTANT,
-          content: data.message || data.response,
+          content: data.message ?? data.response ?? '',
           timestamp: new Date().toISOString()
         }
       ])
     },
-    onError: (error) => {
-      logger.error('Chat error', { error });
-      setChatMessages(prev => [
+    onError: (error: unknown) => {
+      logger.error('Chat error', { error })
+      setChatMessages((prev) => [
         ...prev,
         {
           id: Date.now().toString(),
@@ -190,13 +238,55 @@ export default function PhysicianDashboard() {
     }
   })
 
+  const selectedPatientLabel = useMemo(() => {
+    const selectedPatient = patients.find((patient) => patient.patient_id === selectedPatientId)
+    return selectedPatient?.patient_name ?? 'Selecione um paciente'
+  }, [patients, selectedPatientId])
+
+  const panelInsights = useMemo<AIInsight[]>(() => {
+    if (!selectedPatientInsights?.key_insights?.length) return []
+
+    const createdAt = selectedPatientInsights.generated_at ?? new Date().toISOString()
+    const priority: AIInsight['priority'] =
+      selectedPatientInsights.risk_level === 'critical' || selectedPatientInsights.risk_level === 'high'
+        ? 'high'
+        : 'medium'
+
+    return selectedPatientInsights.key_insights.map((insightText, index) => ({
+      id: `${selectedPatientId}-insight-${index}`,
+      type: 'summary',
+      title: `Insight ${index + 1}`,
+      description: insightText,
+      confidence: 0.75,
+      priority,
+      patient_id: selectedPatientId || undefined,
+      created_at: createdAt
+    }))
+  }, [selectedPatientInsights, selectedPatientId])
+
+  const panelRecommendations = useMemo<InsightPanelRecommendation[]>(() => {
+    const recommendations = selectedPatientRecommendations?.recommendations ?? []
+
+    return recommendations.map((recommendation, index) => ({
+      id: `${selectedPatientId}-recommendation-${index}`,
+      title: recommendation.type
+        ? `Recomendação: ${recommendation.type}`
+        : `Recomendação ${index + 1}`,
+      description: recommendation.description,
+      priority: recommendation.priority,
+      type: recommendation.type,
+      rationale: recommendation.rationale
+    }))
+  }, [selectedPatientRecommendations, selectedPatientId])
+
   // Export report mutation
   const exportMutation = useMutation({
     mutationFn: async (_format: 'pdf' | 'excel') => {
       const reportData = {
-        patients: patients,
-        insights: summaryInsights,
+        patients,
         riskCounts,
+        aiInsights: selectedPatientInsights?.key_insights ?? [],
+        aiRecommendations: panelRecommendations,
         generatedAt: new Date().toISOString(),
         generatedBy: user?.full_name
       }
@@ -224,11 +314,12 @@ export default function PhysicianDashboard() {
   }, [riskData?.summary])
 
   // Handlers
-  const handlePatientClick = useCallback((patientId: string) => {
-    navigate(`/physician/patients/${patientId}`)
-  }, [navigate])
-
-
+  const handlePatientClick = useCallback(
+    (patientId: string) => {
+      navigate(`/physician/patients/${patientId}`)
+    },
+    [navigate]
+  )
 
   const handleSendChat = useCallback(() => {
     if (!chatInput.trim()) return
@@ -240,20 +331,26 @@ export default function PhysicianDashboard() {
       timestamp: new Date().toISOString()
     }
 
-    setChatMessages(prev => [...prev, userMessage])
+    setChatMessages((prev) => [...prev, userMessage])
     chatMutation.mutate(chatInput)
     setChatInput('')
   }, [chatInput, chatMutation])
 
-  const handleExport = useCallback((format: 'pdf' | 'excel') => {
-    exportMutation.mutate(format)
-  }, [exportMutation])
+  const handleExport = useCallback(
+    (format: 'pdf' | 'excel') => {
+      exportMutation.mutate(format)
+    },
+    [exportMutation]
+  )
 
   const handleRefresh = useCallback(() => {
     refetchPatients()
-    queryClient.invalidateQueries({ queryKey: ['physician-insights-summary'] })
+    refetchAlerts()
     queryClient.invalidateQueries({ queryKey: ['physician-dashboard-metrics'] })
-  }, [refetchPatients, queryClient])
+    queryClient.invalidateQueries({ queryKey: ['physician-patient-insights'] })
+    queryClient.invalidateQueries({ queryKey: ['physician-patient-recommendations'] })
+    queryClient.invalidateQueries({ queryKey: ['ai-analytics'] })
+  }, [refetchPatients, refetchAlerts, queryClient])
 
   // Permission denied screen
   if (!canAccessDashboard) {
@@ -268,8 +365,8 @@ export default function PhysicianDashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground">
-              Você não tem permissão para acessar o Dashboard do Médico.
-              Entre em contato com o administrador do sistema.
+              Você não tem permissão para acessar o Dashboard do Médico. Entre em contato com o
+              administrador do sistema.
             </p>
           </CardContent>
         </Card>
@@ -281,9 +378,6 @@ export default function PhysicianDashboard() {
     return <PhysicianDashboardSkeleton />
   }
 
-  // Patients are now filtered server-side
-  const patients = riskData?.assessments ?? []
-
   return (
     <div className="space-y-6 p-6">
       {/* Header */}
@@ -293,9 +387,7 @@ export default function PhysicianDashboard() {
             <Brain className="h-8 w-8 text-primary" />
             Dashboard do Médico
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Insights de IA e análise de risco dos pacientes
-          </p>
+          <p className="text-muted-foreground mt-1">Análise de risco dos pacientes e acompanhamento clínico</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={handleRefresh}>
@@ -327,7 +419,7 @@ export default function PhysicianDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {alerts.items.map((alert) => (
+              {alerts.items.map((alert: ApiAlert) => (
                 <div
                   key={alert.id}
                   className="flex items-center justify-between p-3 bg-destructive/10 rounded-lg"
@@ -351,11 +443,15 @@ export default function PhysicianDashboard() {
       )}
 
       {/* Main Content */}
-      <Tabs defaultValue="patients" className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => setActiveTab(value as 'patients' | 'insights' | 'analytics')}
+        className="space-y-4"
+      >
         <TabsList>
           <TabsTrigger value="patients">Pacientes</TabsTrigger>
           <TabsTrigger value="insights">Insights IA</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics IA</TabsTrigger>
         </TabsList>
 
         <TabsContent value="patients" className="space-y-4">
@@ -366,24 +462,44 @@ export default function PhysicianDashboard() {
                 {/* Search */}
                 <div className="flex-1">
                   <div className="relative">
+                    <label htmlFor="patient-search" className="sr-only">
+                      Buscar paciente
+                    </label>
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
+                      id="patient-search"
                       name="patientSearch"
                       placeholder="Buscar paciente..."
                       value={filters.search}
-                      onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
+                      onChange={(e) =>
+                        setFilters((currentFilters) => ({
+                          ...currentFilters,
+                          search: e.target.value,
+                          page: 1
+                        }))
+                      }
                       className="pl-10 max-w-md"
+                      autoComplete="off"
                     />
                   </div>
                 </div>
 
                 {/* Risk Level Filter */}
+                <label htmlFor="risk-level-filter" className="sr-only">
+                  Nível de risco
+                </label>
                 <Select
                   name="riskLevelFilter"
                   value={filters.risk_level}
-                  onValueChange={(value: 'all' | 'low' | 'medium' | 'high' | 'critical') => setFilters({ ...filters, risk_level: value, page: 1 })}
+                  onValueChange={(value: 'all' | 'low' | 'medium' | 'high' | 'critical') =>
+                    setFilters((currentFilters) => ({
+                      ...currentFilters,
+                      risk_level: value,
+                      page: 1
+                    }))
+                  }
                 >
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger id="risk-level-filter" className="w-[180px]">
                     <SelectValue placeholder="Nível de Risco" />
                   </SelectTrigger>
                   <SelectContent>
@@ -447,22 +563,106 @@ export default function PhysicianDashboard() {
               totalPatients={riskData?.summary.total_patients || 0}
               page={filters.page}
               size={filters.size}
-              onPageChange={(page) => setFilters({ ...filters, page })}
+              onPageChange={(page) =>
+                setFilters((currentFilters) => ({
+                  ...currentFilters,
+                  page
+                }))
+              }
               onPatientClick={handlePatientClick}
             />
           )}
         </TabsContent>
 
         <TabsContent value="insights" className="space-y-4">
-          <PhysicianInsightsPanel
-            isLoading={insightsLoading}
-            insights={summaryInsights?.insights}
-            recommendations={summaryInsights?.recommendations}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Paciente para análise</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {patients.length > 0 ? (
+                <>
+                  <label htmlFor="ai-insight-patient" className="sr-only">
+                    Selecionar paciente para insights
+                  </label>
+                  <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
+                    <SelectTrigger id="ai-insight-patient" className="max-w-md">
+                      <SelectValue placeholder={selectedPatientLabel} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {patients.map((patient) => (
+                        <SelectItem key={patient.patient_id} value={patient.patient_id}>
+                          {patient.patient_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sem pacientes disponíveis para análise no momento.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {insightsError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Falha ao carregar insights de IA</AlertTitle>
+              <AlertDescription>
+                {insightsError instanceof Error
+                  ? insightsError.message
+                  : 'Erro desconhecido ao buscar insights.'}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <Suspense fallback={<Skeleton className="h-64" />}>
+            <PhysicianInsightsPanel
+              isLoading={insightsLoading || recommendationsLoading}
+              insights={panelInsights}
+              recommendations={panelRecommendations}
+            />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
-          <AIAnalyticsDashboard timeframe="week" />
+          <Card>
+            <CardHeader>
+              <CardTitle>Paciente para analytics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {patients.length > 0 ? (
+                <>
+                  <label htmlFor="ai-analytics-patient" className="sr-only">
+                    Selecionar paciente para analytics
+                  </label>
+                  <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
+                    <SelectTrigger id="ai-analytics-patient" className="max-w-md">
+                      <SelectValue placeholder={selectedPatientLabel} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {patients.map((patient) => (
+                        <SelectItem key={patient.patient_id} value={patient.patient_id}>
+                          {patient.patient_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Sem pacientes disponíveis para analytics no momento.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Suspense fallback={<Skeleton className="h-96" />}>
+            <AIAnalyticsDashboard
+              patientId={selectedPatientId || undefined}
+              timeframe="week"
+              insights={selectedPatientInsights}
+              recommendations={selectedPatientRecommendations}
+            />
+          </Suspense>
         </TabsContent>
       </Tabs>
 

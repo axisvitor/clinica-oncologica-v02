@@ -38,7 +38,7 @@ class RiskAssessment(BaseModel):
                 "category": "medication_adherence",
                 "risk_level": "high",
                 "severity_score": 0.75,
-                "last_updated": "2025-10-06T14:30:00Z",
+                "last_updated": "2025-10-06T14:30:00-03:00",
                 "description": "Patient has missed 3 consecutive medication doses",
             }
         }
@@ -79,12 +79,12 @@ class PatientRiskProfile(BaseModel):
                         "category": "medication_adherence",
                         "risk_level": "high",
                         "severity_score": 0.75,
-                        "last_updated": "2025-10-06T14:30:00Z",
+                        "last_updated": "2025-10-06T14:30:00-03:00",
                         "description": "Missed doses detected",
                     }
                 ],
                 "alert_count": 3,
-                "last_assessment": "2025-10-06T14:30:00Z",
+                "last_assessment": "2025-10-06T14:30:00-03:00",
             }
         }
     )
@@ -115,12 +115,12 @@ class RiskAssessmentsResponse(BaseModel):
                         "risk_score": 0.65,
                         "assessments": [],
                         "alert_count": 3,
-                        "last_assessment": "2025-10-06T14:30:00Z",
+                        "last_assessment": "2025-10-06T14:30:00-03:00",
                     }
                 ],
                 "total_count": 50,
                 "high_risk_count": 8,
-                "timestamp": "2025-10-06T14:30:00Z",
+                "timestamp": "2025-10-06T14:30:00-03:00",
             }
         }
     )

@@ -11,6 +11,7 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.appointment import Appointment, AppointmentStatus
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,8 @@ class PhysicianAvailabilityService:
         Returns:
             List of available time slots with metadata
         """
+        _ = slot_duration_minutes  # Reserved for future slot generation logic.
+
         # Get existing appointments in the range
         self.db.query(Appointment).filter(
             Appointment.practitioner_id == physician_id,
@@ -183,7 +186,7 @@ class PhysicianAvailabilityService:
             Next available datetime or None
         """
         if after_datetime is None:
-            after_datetime = datetime.now(timezone.utc)
+            after_datetime = now_sao_paulo()
 
         # TODO: Implement logic to find next available slot
         # This would integrate with physician working hours/preferences

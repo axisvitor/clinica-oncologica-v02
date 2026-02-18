@@ -76,7 +76,7 @@ def sample_patient():
     patient = Mock()
     patient.id = uuid4()
     patient.cpf = "12345678909"
-    patient.full_name = "Test Patient"
+    patient.name = "Test Patient"
     patient.phone = "+5511987654321"
     patient.is_active = True
     return patient

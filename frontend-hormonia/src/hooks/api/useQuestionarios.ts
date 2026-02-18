@@ -1,22 +1,26 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, type UseQueryOptions } from '@tanstack/react-query'
 import { apiClient } from '@/lib/api-client'
+import type { QuizTemplate, QuizTemplateResponse } from '@/lib/api-client/types'
 
-interface QuizTemplateAnalytics {
-  total_responses: number
-  completion_rate: number
-  average_completion_time?: number | null
+interface QuestionariosResponse {
+  items: QuizTemplate[]
+  total: number
+  page: number
+  size: number
 }
 
-interface QuizTemplate {
-  id: string
-  name: string
-  version: string
-  questions: unknown[]
-  is_active: boolean
-  created_at: string
-  updated_at: string
-  analytics?: QuizTemplateAnalytics
-}
+type TemplateAnalytics = NonNullable<QuizTemplate['analytics']>
+type TemplatesResponse = QuizTemplateResponse | QuizTemplate[]
+type QuestionariosQueryOverrides = Omit<
+  UseQueryOptions<QuestionariosResponse, Error>,
+  'queryKey' | 'queryFn'
+>
+
+const getEmptyAnalytics = (): TemplateAnalytics => ({
+  total_responses: 0,
+  completion_rate: 0,
+  average_completion_time: undefined
+})
 
 interface UseQuestionariosOptions {
   search?: string
@@ -26,14 +30,7 @@ interface UseQuestionariosOptions {
   sortOrder?: 'asc' | 'desc'
   page?: number
   size?: number
-}
-
-// Response interface used internally for type checking
-interface _QuestionariosResponse {
-  items: QuizTemplate[]
-  total: number
-  page: number
-  size: number
+  queryOverrides?: QuestionariosQueryOverrides // For testing (e.g. retry: 0)
 }
 
 export function useQuestionarios(options?: UseQuestionariosOptions) {
@@ -44,10 +41,11 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
     sortBy = 'created_at',
     sortOrder = 'desc',
     page = 1,
-    size = 12
+    size = 12,
+    queryOverrides = {}
   } = options ?? {}
 
-  return useQuery({
+  return useQuery<QuestionariosResponse, Error>({
     queryKey: ['questionarios', { search, type, status, sortBy, sortOrder, page, size }],
     queryFn: async () => {
       // Build query params for future server-side filtering
@@ -61,23 +59,18 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
       params.append('size', size.toString())
 
       // Fetch templates
-      const result = await apiClient.quizzes.listTemplates({ limit: 100 })
-      type ResultType = { items?: QuizTemplate[] } | QuizTemplate[]
-      const resultData: QuizTemplate[] = ((result as ResultType) as { items?: QuizTemplate[] })?.items ||
-        (Array.isArray(result) ? result as QuizTemplate[] : [])
+      const result = await apiClient.quizzes.listTemplates({ limit: 100 }) as TemplatesResponse
+      const resultData = Array.isArray(result) ? result : result.items ?? []
 
-      // NOTE: Backend doesn't support server-side filtering yet,
-      // so we do client-side for now but structure is ready for migration
+      // Filter
       let filtered: QuizTemplate[] = resultData
 
-      // Search filter
       if (search) {
         filtered = filtered.filter((t: QuizTemplate) =>
           t.name.toLowerCase().includes(search.toLowerCase())
         )
       }
 
-      // Type filter
       if (type !== 'all') {
         filtered = filtered.filter((t: QuizTemplate) => {
           const templateType = t.name.toLowerCase().includes('medical') ||
@@ -86,12 +79,29 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
         })
       }
 
-      // Status filter
       if (status !== 'all') {
         filtered = filtered.filter((t: QuizTemplate) => {
           const isActive = t.is_active
           return (status === 'active' && isActive) || (status === 'inactive' && !isActive)
         })
+      }
+
+      // If sorting by responses, we MUST fetch analytics for all filtered items first
+      // since the backend doesn't support server-side sorting for this virtual field yet
+      if (sortBy === 'responses') {
+        filtered = (await Promise.all(
+          filtered.map(async (template: QuizTemplate) => {
+            try {
+              const analytics = await apiClient.quizzes.getTemplateAnalytics(template.id) as TemplateAnalytics
+              return { ...template, analytics }
+            } catch {
+              return {
+                ...template,
+                analytics: getEmptyAnalytics()
+              }
+            }
+          })
+        ))
       }
 
       // Sort
@@ -119,25 +129,17 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
       const start = (page - 1) * size
       const paginatedData = filtered.slice(start, start + size)
 
-      // Fetch analytics for paginated templates
+      // Fetch analytics for paginated templates (if not already fetched for sorting)
       const templatesWithAnalytics = await Promise.all(
         paginatedData.map(async (template: QuizTemplate) => {
+          if (template.analytics) return template
           try {
-            // Type-safe access to analytics endpoint
-            type QuizClient = typeof apiClient.quizzes & { getTemplateAnalytics?: (id: string) => Promise<QuizTemplate['analytics']> }
-            const quizClient = apiClient.quizzes as QuizClient
-            const analytics = quizClient.getTemplateAnalytics
-              ? await quizClient.getTemplateAnalytics(template.id)
-              : undefined
+            const analytics = await apiClient.quizzes.getTemplateAnalytics(template.id) as TemplateAnalytics
             return { ...template, analytics }
           } catch {
             return {
               ...template,
-              analytics: {
-                total_responses: 0,
-                completion_rate: 0,
-                average_completion_time: null
-              } as QuizTemplateAnalytics
+              analytics: getEmptyAnalytics()
             }
           }
         })
@@ -150,8 +152,9 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
         size
       }
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
-    retry: 3
+    retry: 3,
+    ...queryOverrides
   })
 }

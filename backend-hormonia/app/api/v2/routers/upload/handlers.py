@@ -52,8 +52,39 @@ from .validators import validate_file_type, get_file_category
 from .storage import save_upload_file
 from .processing import get_image_metadata, process_image
 from .security import scan_virus, validate_mime_type, scan_file_security
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
+
+
+def _build_upload_response(upload_record: Upload) -> UploadResponse:
+    """Build UploadResponse payload from Upload ORM record."""
+    return UploadResponse(
+        id=upload_record.id,
+        url=f"/uploads/{upload_record.storage_path}",
+        download_url=f"/api/v2/upload/{upload_record.id}/download",
+        file=FileMetadata(
+            id=upload_record.id,
+            filename=upload_record.file_name,
+            safe_filename=upload_record.file_name,
+            content_type=upload_record.file_type or "application/octet-stream",
+            category=get_file_category(upload_record.file_type or "application/octet-stream"),
+            size=upload_record.file_size,
+            checksum=upload_record.content_hash,
+        ),
+        image_metadata=None,
+        processing=ProcessingInfo(
+            status=ProcessingStatus.COMPLETED,
+            virus_scan_clean=upload_record.virus_clean,
+        ),
+        storage_provider=StorageProvider(upload_record.storage_provider),
+        storage_path=upload_record.storage_path,
+        uploaded_by=upload_record.user_id,
+        uploaded_at=upload_record.created_at,
+        is_public=upload_record.is_public,
+        expires_at=None,
+        custom_metadata=upload_record.file_metadata,
+    )
 
 
 async def upload_file_handler(
@@ -100,7 +131,7 @@ async def upload_file_handler(
         HTTPException: If upload fails
     """
     redis_client = await get_redis_client()
-    start_time = datetime.now(timezone.utc)
+    start_time = now_sao_paulo()
 
     try:
         logger.info(
@@ -231,7 +262,7 @@ async def upload_file_handler(
             storage_provider=StorageProvider.LOCAL,
             storage_path=storage_path,
             uploaded_by=current_user.id,
-            uploaded_at=datetime.now(timezone.utc),
+            uploaded_at=now_sao_paulo(),
             is_public=public,
             expires_at=None,
             custom_metadata=None,
@@ -282,7 +313,7 @@ async def upload_file_handler(
 
         logger.info(
             f"Upload completed: {file_path} ({file_size} bytes) in "
-            f"{(datetime.now(timezone.utc) - start_time).total_seconds():.2f}s"
+            f"{(now_sao_paulo() - start_time).total_seconds():.2f}s"
         )
 
         # Apply field selection
@@ -351,36 +382,7 @@ async def get_upload_info_handler(
             )
 
             if upload_record:
-                # Build response from database record
-                response_data = UploadResponse(
-                    id=upload_record.id,
-                    url=f"/uploads/{upload_record.storage_path}",
-                    download_url=f"/api/v2/upload/{upload_record.id}/download",
-                    file=FileMetadata(
-                        id=upload_record.id,
-                        filename=upload_record.file_name,
-                        safe_filename=upload_record.file_name,
-                        content_type=upload_record.file_type
-                        or "application/octet-stream",
-                        category=get_file_category(
-                            upload_record.file_type or "application/octet-stream"
-                        ),
-                        size=upload_record.file_size,
-                        checksum=upload_record.content_hash,
-                    ),
-                    image_metadata=None,
-                    processing=ProcessingInfo(
-                        status=ProcessingStatus.COMPLETED,
-                        virus_scan_clean=upload_record.virus_clean,
-                    ),
-                    storage_provider=StorageProvider(upload_record.storage_provider),
-                    storage_path=upload_record.storage_path,
-                    uploaded_by=upload_record.user_id,
-                    uploaded_at=upload_record.created_at,
-                    is_public=upload_record.is_public,
-                    expires_at=None,
-                    custom_metadata=upload_record.file_metadata,
-                )
+                response_data = _build_upload_response(upload_record)
 
                 # Cache for future requests
                 if redis_client:
@@ -459,35 +461,7 @@ async def delete_upload_handler(
 
             if upload_record:
                 # Build minimal info for deletion
-                upload_info = UploadResponse(
-                    id=upload_record.id,
-                    url=f"/uploads/{upload_record.storage_path}",
-                    download_url=f"/api/v2/upload/{upload_record.id}/download",
-                    file=FileMetadata(
-                        id=upload_record.id,
-                        filename=upload_record.file_name,
-                        safe_filename=upload_record.file_name,
-                        content_type=upload_record.file_type
-                        or "application/octet-stream",
-                        category=get_file_category(
-                            upload_record.file_type or "application/octet-stream"
-                        ),
-                        size=upload_record.file_size,
-                        checksum=upload_record.content_hash,
-                    ),
-                    image_metadata=None,
-                    processing=ProcessingInfo(
-                        status=ProcessingStatus.COMPLETED,
-                        virus_scan_clean=upload_record.virus_clean,
-                    ),
-                    storage_provider=StorageProvider(upload_record.storage_provider),
-                    storage_path=upload_record.storage_path,
-                    uploaded_by=upload_record.user_id,
-                    uploaded_at=upload_record.created_at,
-                    is_public=upload_record.is_public,
-                    expires_at=None,
-                    custom_metadata=upload_record.file_metadata,
-                )
+                upload_info = _build_upload_response(upload_record)
 
         if not upload_info:
             raise HTTPException(
@@ -529,7 +503,7 @@ async def delete_upload_handler(
                     db.query(Upload).filter(Upload.id == upload_id).first()
                 )
                 if upload_to_delete:
-                    upload_to_delete.deleted_at = datetime.now(timezone.utc)
+                    upload_to_delete.deleted_at = now_sao_paulo()
                     db.commit()
                     logger.info(f"Soft deleted upload {upload_id} in database")
             except Exception as e:

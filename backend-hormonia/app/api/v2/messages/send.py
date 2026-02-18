@@ -4,7 +4,7 @@ Handles message sending operations: send message, schedule message, cancel sched
 """
 
 from typing import Optional
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from uuid import UUID
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
@@ -16,8 +16,7 @@ from app.models.message import Message, MessageStatus, MessageType
 from app.models.patient import Patient
 from app.models.user import UserRole
 from app.domain.messaging.core import MessageService
-from app.domain.messaging.delivery import MessageSender
-from app.services.unified_whatsapp_service import MessagingMode
+from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSender
 from app.repositories.patient import PatientRepository
 from app.schemas.v2.messages import (
     MessageV2List,
@@ -31,8 +30,11 @@ from app.utils.rate_limiter import limiter
 from .helpers import (
     _extract_user_context,
     _serialize_message,
-    _create_cursor,
+    _apply_message_created_cursor_filter,
+    _paginate_query,
+    _load_message_with_access,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -75,7 +77,7 @@ async def send_message(
         )
 
     message_service = MessageService(db)
-    message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)  # type: ignore[call-arg]
+    message_sender = IdempotentMessageSender(db)
 
     # Map V2 type to V1 type
     type_map = {
@@ -93,14 +95,14 @@ async def send_message(
     message = message_service.schedule_message(
         patient_id=patient_uuid,
         content=message_data.content,
-        scheduled_for=datetime.now(timezone.utc),
+        scheduled_for=now_sao_paulo(),
         message_type=msg_type,
         message_metadata=message_data.message_metadata or {},
     )
 
     # Send immediately
     try:
-        await message_sender.send_message(message)  # type: ignore[call-arg]
+        await message_sender.send_message(message)
         db.refresh(message)
     except Exception as e:
         logger.error(f"Failed to send message: {e}")
@@ -108,7 +110,7 @@ async def send_message(
     return {
         "success": message.status != MessageStatus.FAILED,
         "message": _serialize_message(message, include_patient=True),
-        "estimated_delivery": (datetime.now(timezone.utc) + timedelta(seconds=3)).isoformat()
+        "estimated_delivery": (now_sao_paulo() + timedelta(seconds=3)).isoformat()
         if message.status == MessageStatus.SENT
         else None,
     }
@@ -147,31 +149,13 @@ async def list_scheduled_messages(
     if patient_id:
         query = query.filter(Message.patient_id == UUID(patient_id))
 
-    # Cursor pagination
-    if cursor_data and "id" in cursor_data:
-        cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
-        )
-        query = query.filter(
-            (Message.created_at < cursor_created_at)
-            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
-        )
-
-    total = None
-    if not cursor_data:
-        total = query.count()
-
-    query = query.order_by(Message.created_at.desc(), Message.id)
-    messages = query.limit(limit + 1).all()
-
-    has_more = len(messages) > limit
-    if has_more:
-        messages = messages[:limit]
-
-    next_cursor = None
-    if has_more and messages:
-        next_cursor = _create_cursor(messages[-1])
+    query = _apply_message_created_cursor_filter(query, cursor_data)
+    messages, has_more, next_cursor, total = _paginate_query(
+        query,
+        limit=limit,
+        cursor_data=cursor_data,
+        order_columns=(Message.created_at.desc(), Message.id),
+    )
 
     return {
         "data": [_serialize_message(msg) for msg in messages],
@@ -193,29 +177,13 @@ async def cancel_message(
     current_user=Depends(get_current_user_from_session),
 ):
     """Cancel a scheduled message."""
-    try:
-        msg_uuid = UUID(message_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid message ID format"
-        )
-
     message_service = MessageService(db)
-    message = message_service.get_message(msg_uuid)
-
-    if not message:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Message not found"
-        )
-
-    # RBAC check
-    role_enum, user_id = _extract_user_context(current_user)
-    if role_enum != UserRole.ADMIN:
-        patient = db.query(Patient).filter(Patient.id == message.patient_id).first()
-        if not patient or str(patient.doctor_id) != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
-            )
+    msg_uuid, message, user_id = _load_message_with_access(
+        db=db,
+        current_user=current_user,
+        message_id=message_id,
+        message_service=message_service,
+    )
 
     # Only allow canceling pending/scheduled messages
     if message.status not in [MessageStatus.PENDING, MessageStatus.SCHEDULED]:
@@ -235,7 +203,7 @@ async def cancel_message(
         "success": True,
         "message_id": message_id,
         "previous_status": previous_status.value,
-        "cancelled_at": datetime.now(timezone.utc).isoformat(),
+        "cancelled_at": now_sao_paulo().isoformat(),
         "message": "Message cancelled successfully",
     }
 
@@ -258,8 +226,8 @@ async def get_message_status(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid message ID format"
         )
 
-    message_sender = MessageSender(db, messaging_mode=MessagingMode.QUEUE)  # type: ignore[call-arg]
-    status_info = await message_sender.get_message_delivery_status(msg_uuid)  # type: ignore[attr-defined]
+    message_sender = IdempotentMessageSender(db)
+    status_info = await message_sender.get_message_delivery_status(msg_uuid)
 
     if not status_info:
         raise HTTPException(

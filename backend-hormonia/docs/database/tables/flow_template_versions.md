@@ -9,21 +9,21 @@
 | **version_number** | `INTEGER` | ❌ | - |  |  |
 | **template_name** | `VARCHAR(255)` | ❌ | - |  |  |
 | **description** | `TEXT` | ✅ | - |  |  |
-| **steps** | `JSONB` | ❌ | - |  |  |
-| **metadata** | `JSONB` | ✅ | `'{}'::jsonb` |  |  |
+| **steps** | `JSONB` | ✅ | - |  |  |
+| **metadata** | `JSONB` | ✅ | - |  |  |
 | **is_active** | `BOOLEAN` | ✅ | `false` |  |  |
 | **is_draft** | `BOOLEAN` | ✅ | `true` |  |  |
 | **published_at** | `TIMESTAMP` | ✅ | - |  |  |
 | **deprecated_at** | `TIMESTAMP` | ✅ | - |  |  |
-| **created_by** | `UUID` | ✅ | - |  | ➡️ [users]( users.md ).id |
-| **created_at** | `TIMESTAMP` | ✅ | `now()` |  |  |
-| **updated_at** | `TIMESTAMP` | ✅ | `now()` |  |  |
+| **created_by** | `UUID` | ✅ | - |  |  |
+| **created_at** | `TIMESTAMP` | ❌ | `now()` |  |  |
+| **updated_at** | `TIMESTAMP` | ❌ | `now()` |  |  |
 
 ## Indexes
 
 | Name | Unique | Columns |
 | :--- | :--- | :--- |
-| idx_flow_template_versions_active | ❌ | `flow_kind_id, is_active` |
-| idx_flow_template_versions_flow_kind | ❌ | `flow_kind_id` |
-| idx_flow_template_versions_version | ❌ | `flow_kind_id, version_number` |
+| idx_ftv_kind_active | ❌ | `flow_kind_id, is_active` |
+| ix_flow_template_versions_flow_kind_id | ❌ | `flow_kind_id` |
+| ix_flow_template_versions_id | ❌ | `id` |
 | unique_flow_version | ✅ | `flow_kind_id, version_number` |

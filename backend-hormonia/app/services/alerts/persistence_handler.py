@@ -12,6 +12,7 @@ from uuid import UUID
 
 from .types import Alert
 from .base import AlertRepository
+from .utils import apply_alert_filters
 
 logger = logging.getLogger(__name__)
 
@@ -241,29 +242,7 @@ class PersistenceHandler:
         Returns:
             Filtered list of alerts
         """
-        filtered = alerts
-
-        if "severity" in filters:
-            filtered = [a for a in filtered if a.severity == filters["severity"]]
-
-        if "rule_type" in filters:
-            filtered = [a for a in filtered if a.rule_type == filters["rule_type"]]
-
-        if "status" in filters:
-            filtered = [a for a in filtered if a.status == filters["status"]]
-
-        if "start_date" in filters:
-            start_date = filters["start_date"]
-            filtered = [a for a in filtered if a.created_at >= start_date]
-
-        if "end_date" in filters:
-            end_date = filters["end_date"]
-            filtered = [a for a in filtered if a.created_at <= end_date]
-
-        if "escalated" in filters:
-            filtered = [a for a in filtered if a.escalated == filters["escalated"]]
-
-        return filtered
+        return apply_alert_filters(alerts, filters)
 
     def get_cache_statistics(self) -> Dict[str, Any]:
         """

@@ -82,6 +82,6 @@ def mock_patient():
     patient = Mock()
     patient.id = "test-patient-id"
     patient.cpf = "12345678900"
-    patient.full_name = "Test Patient"
+    patient.name = "Test Patient"
     patient.is_active = True
     return patient

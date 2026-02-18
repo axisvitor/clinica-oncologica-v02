@@ -6,29 +6,19 @@
 import React, { memo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { getStatusBadgeConfig, formatLastContact } from '../utils'
+import { formatLastContact } from '../utils'
 import { PatientAvatar } from './PatientAvatar'
 import { QuizStatusBadge } from './QuizStatusBadge'
 import { PatientActions } from './PatientActions'
-
-import type { Patient } from '@/types/api'
-
-interface PatientRowData {
-  patients: Patient[]
-  onNavigate: (id: string) => void
-  onEdit?: (patient: Patient) => void
-  onDelete: (e: React.MouseEvent, patientId: string, patientName: string) => void
-  onActivate: (id: string) => void
-  onDeactivate: (id: string) => void
-  onSendQuiz: (patient: { id: string; name: string }) => void
-  confirmDeleteId: string | null
-  isResending: boolean
-}
+import {
+  resolvePatientListItemRenderContext,
+  type PatientListItemData,
+} from './patient-list-item-shared'
 
 interface PatientRowProps {
   style: React.CSSProperties
   index: number
-  data: PatientRowData
+  data: PatientListItemData
 }
 
 const GRID_COLS = "grid-cols-[2.5fr_1.5fr_1fr_1fr_1fr_0.8fr_1.2fr_70px]"
@@ -38,30 +28,22 @@ export const PatientRow = memo<PatientRowProps>(({
   index,
   data
 }) => {
+  const item = resolvePatientListItemRenderContext(data, index)
+  if (!item) return null
+
   const {
-    patients,
+    patient,
     onNavigate,
     onEdit,
     onDelete,
     onActivate,
     onDeactivate,
     onSendQuiz,
-    isResending
-  } = data ?? {}
-
-  if (!patients || !patients.length) return null
-
-  const patient = patients[index]
-
-  if (!patient) return null
-
-  const statusConfig = getStatusBadgeConfig(patient.status)
-  const handleRowKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      onNavigate(patient.id)
-    }
-  }
+    isResending,
+    canDelete,
+    statusConfig,
+    navigateProps,
+  } = item
 
   return (
     <div
@@ -70,11 +52,7 @@ export const PatientRow = memo<PatientRowProps>(({
         "grid items-center gap-4 px-4 py-2 border-b hover:bg-muted/50 transition-colors cursor-pointer",
         GRID_COLS
       )}
-      onClick={() => onNavigate(patient.id)}
-      onKeyDown={handleRowKeyDown}
-      role="button"
-      tabIndex={0}
-      aria-label={`Ver detalhes do paciente ${patient.name}`}
+      {...navigateProps}
     >
       {/* Patient Info */}
       <div className="flex items-center space-x-3 min-w-0">
@@ -131,6 +109,7 @@ export const PatientRow = memo<PatientRowProps>(({
           onDelete={onDelete}
           onActivate={onActivate}
           onDeactivate={onDeactivate}
+          canDelete={canDelete}
         />
       </div>
     </div>

@@ -113,7 +113,7 @@ class LocalizationService:
         Translate a key to the specified locale.
 
         Args:
-            key: Translation key (dot-separated path, e.g., 'day_1_15.steps.welcome.content')
+            key: Translation key (dot-separated path, e.g., 'onboarding.steps.welcome.content')
             locale: Target locale (defaults to default_locale)
             namespace: Translation namespace
             fallback: Fallback text if translation not found
@@ -174,7 +174,7 @@ class LocalizationService:
         Translate a specific flow step field.
 
         Args:
-            flow_type: Flow type (e.g., 'day_1_15', 'monthly')
+            flow_type: Flow type (e.g., 'onboarding', 'quiz_mensal')
             step_name: Step name (e.g., 'welcome', 'daily_check_in')
             field: Field to translate (e.g., 'content', 'name')
             locale: Target locale

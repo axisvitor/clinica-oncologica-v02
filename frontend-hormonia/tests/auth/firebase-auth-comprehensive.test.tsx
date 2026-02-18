@@ -18,6 +18,8 @@ vi.mock('@/services/firebase-auth', () => ({
   loginUser: vi.fn(),
   logoutUser: vi.fn(),
   logoutAllDevices: vi.fn(),
+  setSessionId: vi.fn(),
+  clearSessionId: vi.fn(),
 }))
 
 // Mock Firebase client

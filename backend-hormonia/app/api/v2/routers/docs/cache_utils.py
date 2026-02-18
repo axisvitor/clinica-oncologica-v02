@@ -8,7 +8,7 @@ import hashlib
 import logging
 from typing import Optional, Dict
 
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 
 logger = logging.getLogger(__name__)
 

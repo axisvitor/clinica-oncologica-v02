@@ -23,12 +23,14 @@ from app.schemas.v2.debug import (
 
 from .common import (
     check_debug_enabled,
+    require_debug_enabled,
     get_admin_user,
     log_debug_operation,
     mask_sensitive_value,
     SAFE_ENV_VARS,
-    DEBUG_ENDPOINTS_ENABLED,
+    is_debug_endpoints_enabled,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -41,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 @router.get(
     "/environment",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Get environment information",
     description="""
@@ -87,10 +90,10 @@ async def get_environment_info(
 
         env_info = EnvironmentInfo(
             environment=os.getenv("ENVIRONMENT", "unknown"),
-            debug_mode=DEBUG_ENDPOINTS_ENABLED,
+            debug_mode=is_debug_endpoints_enabled(),
             python_version=f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             variables=env_vars,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
         # Audit log
@@ -107,7 +110,7 @@ async def get_environment_info(
             success=True,
             data=env_info.dict(),
             audit_logged=True,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             warning="Debug mode active - disable in production",
         )
 

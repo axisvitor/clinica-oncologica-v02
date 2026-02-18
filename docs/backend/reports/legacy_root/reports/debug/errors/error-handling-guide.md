@@ -310,7 +310,7 @@ class ExponentialBackoffRetry(RecoveryAction):
 
         delays = [60, 300, 900, 1800, 3600]  # seconds
         delay_seconds = delays[min(error_record.recovery_attempts, len(delays) - 1)]
-        next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+        next_retry_at = now_sao_paulo() + timedelta(seconds=delay_seconds)
 
         await context.retry_manager.schedule_retry(error_record, next_retry_at)
         error_record.recovery_attempts += 1
@@ -345,10 +345,10 @@ class PauseFlowAction(RecoveryAction):
     async def execute(self, error_record, context) -> RecoveryResult:
         flow_state.state_data["paused"] = True
         flow_state.state_data["pause_reason"] = f"Error recovery: {error_record.error_type}"
-        flow_state.state_data["paused_at"] = datetime.now(timezone.utc).isoformat()
+        flow_state.state_data["paused_at"] = now_sao_paulo().isoformat()
 
         # Schedule resume after 1 hour
-        resume_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        resume_at = now_sao_paulo() + timedelta(hours=1)
         await context.retry_manager.schedule_flow_resume(patient_id, resume_at)
 
         return RecoveryResult(
@@ -369,7 +369,7 @@ class ResetFlowAction(RecoveryAction):
         backup_data = {
             "original_state": flow_state.state_data,
             "reset_reason": error_record.error_type,
-            "reset_at": datetime.now(timezone.utc).isoformat(),
+            "reset_at": now_sao_paulo().isoformat(),
             "error_id": error_record.id
         }
 
@@ -469,7 +469,7 @@ class RetryManager:
             "attempt": error_record.recovery_attempts
         }
 
-        ttl_seconds = int((retry_at - datetime.now(timezone.utc)).total_seconds()) + 60
+        ttl_seconds = int((retry_at - now_sao_paulo()).total_seconds()) + 60
         await self.redis.setex(f"flow_retry:{error_record.id}", ttl_seconds, json.dumps(retry_data))
         return True
 
@@ -480,7 +480,7 @@ class RetryManager:
             "resume_at": resume_at.isoformat(),
             "reason": "error_recovery"
         }
-        ttl_seconds = int((resume_at - datetime.now(timezone.utc)).total_seconds()) + 60
+        ttl_seconds = int((resume_at - now_sao_paulo()).total_seconds()) + 60
         await self.redis.setex(f"flow_resume:{patient_id}", ttl_seconds, json.dumps(resume_data))
         return True
 
@@ -596,7 +596,7 @@ async def get_error_statistics(self, timeframe_hours: int = 24, use_cache: bool 
         "pending_errors": 0,
         "recovery_success_rate": 0.0,
         "timeframe_hours": timeframe_hours,
-        "generated_at": datetime.now(timezone.utc).isoformat()
+        "generated_at": now_sao_paulo().isoformat()
     }
     # ... aggregation logic
     return stats
@@ -615,7 +615,7 @@ async def get_error_statistics(self, timeframe_hours: int = 24, use_cache: bool 
   "operation": "process_message",
   "recovery_attempts": 1,
   "resolved": false,
-  "created_at": "2025-12-26T10:00:00.000Z"
+  "created_at": "2025-12-26T10:00:00.000-03:00"
 }
 ```
 

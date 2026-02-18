@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -15,10 +15,12 @@ from app.services.audit import AuditService
 from app.core.monthly_quiz_config import get_monthly_quiz_config
 
 from ..session.token_manager import TokenManager
+from ..session.factory import generate_unique_short_code
 from ..delivery.link_builder import LinkBuilder
 from ..delivery.service import DeliveryService
 
 import logging
+from app.utils.timezone import now_sao_paulo, to_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +37,54 @@ class LinkOperations:
         self.link_builder = LinkBuilder()
         self.delivery_service = DeliveryService(db)
         self.audit_service = AuditService(db)
+
+    @staticmethod
+    def _normalize_datetime(dt: datetime) -> datetime:
+        """Normalize datetimes to Sao Paulo timezone for safe comparisons."""
+        return to_sao_paulo(dt)
+
+    def _parse_metadata_expires_at(self, raw_value: Optional[str]) -> Optional[datetime]:
+        """Parse metadata.expires_at safely."""
+        if not raw_value:
+            return None
+        try:
+            return self._normalize_datetime(datetime.fromisoformat(raw_value))
+        except (TypeError, ValueError):
+            return None
+
+    def _resolve_and_sync_expiration(
+        self,
+        session,
+        metadata: dict,
+        fallback_hours: Optional[int] = None,
+    ) -> datetime:
+        """
+        Resolve effective expiration from session/metadata and persist both fields.
+
+        When both values exist and diverge, choose the earliest expiry to avoid
+        unintentionally extending access.
+        """
+        session_expiration = (
+            self._normalize_datetime(session.expiration_date)
+            if session.expiration_date
+            else None
+        )
+        metadata_expiration = self._parse_metadata_expires_at(metadata.get("expires_at"))
+
+        if session_expiration and metadata_expiration:
+            expires_at = min(session_expiration, metadata_expiration)
+        elif session_expiration:
+            expires_at = session_expiration
+        elif metadata_expiration:
+            expires_at = metadata_expiration
+        else:
+            expires_at = self._normalize_datetime(
+                self.token_manager.generate_expiry(fallback_hours)
+            )
+
+        session.expiration_date = expires_at
+        metadata["expires_at"] = expires_at.isoformat()
+        return expires_at
 
     async def regenerate_link(
         self, session_id: UUID, actor_id: Optional[UUID] = None
@@ -63,7 +113,7 @@ class LinkOperations:
         regeneration_count = metadata.get("regeneration_count", 0)
 
         # Generate new expiry time
-        new_expires_at = self.token_manager.generate_expiry()
+        new_expires_at = self._normalize_datetime(self.token_manager.generate_expiry())
 
         # Generate new token
         new_token = self.token_manager.generate_token(
@@ -71,15 +121,20 @@ class LinkOperations:
             quiz_template_id=session.quiz_template_id,
             expires_at=new_expires_at,
             rotation_count=regeneration_count + 1,
+            session_id=session.id,
+            token_type="quiz_access",
         )
 
         # Update metadata
         metadata["token_hash"] = self.token_manager.hash_token(new_token)
         metadata["expires_at"] = new_expires_at.isoformat()
         metadata["regeneration_count"] = regeneration_count + 1
-        metadata["regenerated_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["regenerated_at"] = now_sao_paulo().isoformat()
         metadata["link_status"] = QuizLinkStatus.ACTIVE.value
+        if not metadata.get("short_code"):
+            metadata["short_code"] = generate_unique_short_code(self.db)
 
+        session.expiration_date = new_expires_at
         session.session_metadata = metadata
         self.db.commit()
 
@@ -123,7 +178,7 @@ class LinkOperations:
         # Update metadata to cancelled status
         metadata = session.session_metadata or {}
         metadata["link_status"] = QuizLinkStatus.CANCELLED.value
-        metadata["cancelled_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["cancelled_at"] = now_sao_paulo().isoformat()
         metadata["cancelled_by"] = str(actor_id) if actor_id else None
 
         session.session_metadata = metadata
@@ -170,10 +225,12 @@ class LinkOperations:
         metadata = session.session_metadata or {}
 
         # Check if session is still valid
-        expires_at = datetime.fromisoformat(
-            metadata.get("expires_at", datetime.now(timezone.utc).isoformat())
+        expires_at = self._resolve_and_sync_expiration(
+            session=session,
+            metadata=metadata,
+            fallback_hours=self.config.MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS,
         )
-        if datetime.now(timezone.utc) > expires_at:
+        if now_sao_paulo() > expires_at:
             raise ValidationError("Cannot resend expired quiz link")
 
         if session.status == "completed":
@@ -192,13 +249,22 @@ class LinkOperations:
 
         # Regenerate token for security
         token = self.token_manager.generate_token(
-            session.patient_id, session.quiz_template_id, expires_at
+            patient_id=session.patient_id,
+            quiz_template_id=session.quiz_template_id,
+            expires_at=expires_at,
+            session_id=session.id,
+            token_type="quiz_access",
         )
 
         # Update metadata
         metadata["token_hash"] = self.token_manager.hash_token(token)
+        metadata["expires_at"] = expires_at.isoformat()
         metadata["delivery_method"] = delivery_method.value
-        metadata["resent_at"] = datetime.now(timezone.utc).isoformat()
+        metadata["resent_at"] = now_sao_paulo().isoformat()
+        metadata["link_status"] = QuizLinkStatus.ACTIVE.value
+        if not metadata.get("short_code"):
+            metadata["short_code"] = generate_unique_short_code(self.db)
+        session.expiration_date = expires_at
         session.session_metadata = metadata
         self.db.commit()
 
@@ -215,12 +281,14 @@ class LinkOperations:
             )
 
         remaining_hours = (
-            max(int((expires_at - datetime.now(timezone.utc)).total_seconds() // 3600), 0)
+            max(int((expires_at - now_sao_paulo()).total_seconds() // 3600), 0)
             if expires_at
             else self.config.MONTHLY_QUIZ_TOKEN_EXPIRY_HOURS
         )
 
-        link_url = self.link_builder.build_link(token)
+        link_url = self.link_builder.build_preferred_link(
+            token, metadata.get("short_code")
+        )
 
         delivery_record = None
         last_status = "pending"

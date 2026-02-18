@@ -17,6 +17,7 @@ from contextlib import asynccontextmanager
 from .apm import APMCollector, RequestMetrics
 from .database_monitor import DatabasePerformanceMonitor
 from .business_metrics import BusinessMetricsCollector, MetricType
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,7 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
                 method=request.method,
                 status_code=response.status_code,
                 response_time=response_time,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now_sao_paulo(),
                 user_id=user_id,
                 db_queries=request.state.monitoring.get("db_queries", 0),
                 cache_hits=request.state.monitoring.get("cache_hits", 0),
@@ -102,7 +103,7 @@ class MonitoringMiddleware(BaseHTTPMiddleware):
                 method=request.method,
                 status_code=500,
                 response_time=response_time,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now_sao_paulo(),
                 user_id=user_id,
                 error_type=type(e).__name__,
                 db_queries=request.state.monitoring.get("db_queries", 0),

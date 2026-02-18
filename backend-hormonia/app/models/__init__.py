@@ -9,23 +9,13 @@ from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
 from app.models.message_archive import MessageArchive
+from app.models.template import MessageTemplate
 from app.models.message_events import MessageStatusEvent, EvolutionWebhookEvent
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate, QuizResponse
 from app.models.report import MedicalReport
 from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.models.flow_analytics import FlowAnalytics, FlowMessage
-from app.models.ab_experiment import (
-    ABExperiment,
-    ABVariantAssignment,
-    ABExperimentMetric,
-    ABExperimentResult,
-    ABExperimentAudit,
-    ABExperimentMonitoring,
-    ExperimentStatus,
-    VariantType,
-    PatientSafetyLevel,
-)
 
 # Pydantic models for API responses (not SQLAlchemy)
 from app.models.physician import (
@@ -96,6 +86,7 @@ __all__ = [
     "MessageType",
     "MessageStatus",
     "MessageArchive",
+    "MessageTemplate",
     "MessageStatusEvent",
     "EvolutionWebhookEvent",  # Evolution API webhook debugging
     "WebhookEvent",  # Idempotency tracking from webhook_event.py
@@ -115,16 +106,6 @@ __all__ = [
     # Analytics models
     "FlowAnalytics",
     "FlowMessage",
-    # A/B Testing models
-    "ABExperiment",
-    "ABVariantAssignment",
-    "ABExperimentMetric",
-    "ABExperimentResult",
-    "ABExperimentAudit",
-    "ABExperimentMonitoring",
-    "ExperimentStatus",
-    "VariantType",
-    "PatientSafetyLevel",
     # Physician API models (Pydantic)
     "RiskAssessment",
     "PatientRiskProfile",

@@ -62,7 +62,15 @@ class JSONBCompat(TypeDecorator):
     def process_bind_param(self, value, dialect):
         return json.dumps(value) if value is not None else value
     def process_result_value(self, value, dialect):
-        return json.loads(value) if value is not None else value
+        if value is None:
+            return None
+        if isinstance(value, (dict, list)):
+            return value
+        if isinstance(value, (bytes, bytearray)):
+            value = value.decode("utf-8")
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
 
 class INETCompat(TypeDecorator):
     impl = Text
@@ -122,7 +130,7 @@ def app_instance():
 def app_modules():
     """Load app modules lazily."""
     import app.models  # Ensure all models are registered for Base.metadata
-    from app.db.base import Base
+    from app.database import Base
     from app.models.user import User, UserRole
     from app.models.patient import Patient
     from app.database import get_db
@@ -138,70 +146,96 @@ def app_modules():
     }
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def test_engine(app_modules):
     """Create test database engine - uses real PostgreSQL."""
     db_url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL")
     allow_postgres = os.getenv("USE_TEST_POSTGRES", "").lower() in ("1", "true", "yes")
     db_host = urlparse(db_url).hostname if db_url else None
     is_local_host = db_host in {"localhost", "127.0.0.1", "::1"}
-    if db_url and "postgresql" in db_url and (allow_postgres or is_local_host):
-        engine = create_engine(db_url, pool_pre_ping=True, poolclass=NullPool)
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-    else:
-        Base = app_modules['Base']
-        import tempfile
-        db_fd, db_path = tempfile.mkstemp(suffix=".db")
-        os.close(db_fd)
-        db_url = f"sqlite:///{db_path}"
-        engine = create_engine(
-            db_url,
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
-        # SQLite type compatibility
-        if engine.dialect.name == 'sqlite':
-            for table in Base.metadata.tables.values():
-                for column in table.columns:
-                    if isinstance(column.type, JSONB):
-                        column.type = JSONBCompat()
-                    elif isinstance(column.type, INET):
-                        column.type = INETCompat()
-                    elif isinstance(column.type, ARRAY):
-                        column.type = JSONBCompat()
-                    elif str(column.type) == 'BYTEA' or isinstance(column.type, BYTEA):
-                        column.type = BLOB()
-                    if column.server_default is not None and hasattr(column.server_default, 'arg'):
-                        arg_str = str(column.server_default.arg).lower()
-                        if 'gen_random_uuid()' in arg_str:
-                            column.server_default = None
-                # Strip PG-specific indexes (dedupe by name)
-                index_by_name = {}
-                for idx in list(table.indexes):
-                    if idx.unique and any(
-                        hasattr(idx, k) and getattr(idx, k) is not None for k in ["postgresql_where"]
-                    ):
-                        new_idx = Index(
-                            idx.name,
-                            *[c for c in idx.columns],
-                            unique=True,
-                        )
-                        index_by_name.setdefault(new_idx.name, new_idx)
-                    elif not any(
-                        hasattr(idx, k) and getattr(idx, k) is not None
-                        for k in ["postgresql_where", "postgresql_concurrently"]
-                    ):
-                        index_by_name.setdefault(idx.name, idx)
+    Base = app_modules['Base']
 
-                table.indexes = set(index_by_name.values())
-        try:
-            Base.metadata.create_all(bind=engine)
-        except Exception as e:
-            print(f"Warning during create_all: {e}")
+    # Preserve global metadata state to avoid cross-suite contamination.
+    original_column_types = {}
+    original_server_defaults = {}
+    original_indexes = {}
+    for table in Base.metadata.tables.values():
+        original_indexes[table.name] = set(table.indexes)
+        for column in table.columns:
+            key = (table.name, column.name)
+            original_column_types[key] = column.type
+            original_server_defaults[key] = column.server_default
 
-    yield engine
-    engine.dispose()
+    engine = None
+    try:
+        if db_url and "postgresql" in db_url and (allow_postgres or is_local_host):
+            engine = create_engine(db_url, pool_pre_ping=True, poolclass=NullPool)
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+        else:
+            import tempfile
+            db_fd, db_path = tempfile.mkstemp(suffix=".db")
+            os.close(db_fd)
+            db_url = f"sqlite:///{db_path}"
+            engine = create_engine(
+                db_url,
+                connect_args={"check_same_thread": False},
+                poolclass=StaticPool,
+            )
+            # SQLite type compatibility
+            if engine.dialect.name == 'sqlite':
+                for table in Base.metadata.tables.values():
+                    for column in table.columns:
+                        if isinstance(column.type, JSONB):
+                            column.type = JSONBCompat()
+                        elif isinstance(column.type, INET):
+                            column.type = INETCompat()
+                        elif isinstance(column.type, ARRAY):
+                            column.type = JSONBCompat()
+                        elif str(column.type) == 'BYTEA' or isinstance(column.type, BYTEA):
+                            column.type = BLOB()
+                        if column.server_default is not None and hasattr(column.server_default, 'arg'):
+                            arg_str = str(column.server_default.arg).lower()
+                            if 'gen_random_uuid()' in arg_str:
+                                column.server_default = None
+                    # Strip PG-specific indexes (dedupe by name)
+                    index_by_name = {}
+                    for idx in list(table.indexes):
+                        if idx.unique and any(
+                            hasattr(idx, k) and getattr(idx, k) is not None for k in ["postgresql_where"]
+                        ):
+                            new_idx = Index(
+                                idx.name,
+                                *[c for c in idx.columns],
+                                unique=True,
+                            )
+                            index_by_name.setdefault(new_idx.name, new_idx)
+                        elif not any(
+                            hasattr(idx, k) and getattr(idx, k) is not None
+                            for k in ["postgresql_where", "postgresql_concurrently"]
+                        ):
+                            index_by_name.setdefault(idx.name, idx)
+
+                    table.indexes = set(index_by_name.values())
+            try:
+                Base.metadata.create_all(bind=engine)
+            except Exception as e:
+                print(f"Warning during create_all: {e}")
+
+        yield engine
+    finally:
+        if engine is not None:
+            engine.dispose()
+
+        # Restore metadata so non-critical suites keep their own type strategy.
+        for table in Base.metadata.tables.values():
+            for column in table.columns:
+                key = (table.name, column.name)
+                if key in original_column_types:
+                    column.type = original_column_types[key]
+                if key in original_server_defaults:
+                    column.server_default = original_server_defaults[key]
+            table.indexes = set(original_indexes.get(table.name, set()))
 
 
 @pytest.fixture(scope="function")

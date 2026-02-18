@@ -26,11 +26,13 @@ from app.monitoring.business_metrics import BusinessMetricsCollector
 from app.core.monthly_quiz_config import get_monthly_quiz_config
 
 from .session import TokenManager, SessionFactory
+from .session.factory import generate_unique_short_code
 from .delivery import LinkBuilder, DeliveryService
 from .operations import LinkOperations, ExpiryHandler, BulkManager
 from .queries import StatusQuery, HistoryQuery
 
 import logging
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -165,8 +167,17 @@ class QuizSessionManager:
             custom_message=link_data.custom_message,
         )
 
-        # Build link URL
-        link_url = self.link_builder.build_link(token)
+        # Ensure short code exists and build preferred link
+        metadata = session.session_metadata or {}
+        short_code = metadata.get("short_code")
+        if not short_code:
+            short_code = generate_unique_short_code(self.db)
+            metadata["short_code"] = short_code
+            session.session_metadata = metadata
+            self.db.commit()
+            self.db.refresh(session)
+
+        link_url = self.link_builder.build_preferred_link(token, short_code)
 
         delivery_record: Optional[Dict[str, Any]] = None
         last_status = "pending"
@@ -302,7 +313,15 @@ class QuizSessionManager:
 
         session = self.session_repository.get(session_id)
         updated_metadata = session.session_metadata or {}
-        link_url = self.link_builder.build_link(token)
+        short_code = updated_metadata.get("short_code")
+        if not short_code:
+            short_code = generate_unique_short_code(self.db)
+            updated_metadata["short_code"] = short_code
+            session.session_metadata = updated_metadata
+            self.db.commit()
+            self.db.refresh(session)
+
+        link_url = self.link_builder.build_preferred_link(token, short_code)
 
         return MonthlyQuizLinkResponse(
             id=session.id,
@@ -334,7 +353,15 @@ class QuizSessionManager:
 
         session = self.session_repository.get(session_id)
         metadata = session.session_metadata or {}
-        link_url = self.link_builder.build_link(new_token)
+        short_code = metadata.get("short_code")
+        if not short_code:
+            short_code = generate_unique_short_code(self.db)
+            metadata["short_code"] = short_code
+            session.session_metadata = metadata
+            self.db.commit()
+            self.db.refresh(session)
+
+        link_url = self.link_builder.build_preferred_link(new_token, short_code)
 
         return MonthlyQuizLinkResponse(
             id=session.id,
@@ -412,7 +439,7 @@ class QuizSessionManager:
     async def rotate_token(self, session: QuizSession, template: QuizTemplate) -> str:
         """Generate new rotated token for quiz session."""
         expires_at_dt = datetime.fromisoformat(
-            session.session_metadata.get("expires_at", datetime.now(timezone.utc).isoformat())
+            session.session_metadata.get("expires_at", now_sao_paulo().isoformat())
         )
 
         new_token = self.token_manager.generate_token(
@@ -425,8 +452,11 @@ class QuizSessionManager:
         new_token_hash = self.token_manager.hash_token(new_token)
 
         metadata = session.session_metadata or {}
-        metadata["previous_token_hash"] = metadata.get("token_hash")
-        metadata["token_rotated_at"] = datetime.now(timezone.utc).isoformat()
+        previous_token_hash = metadata.get("token_hash")
+        if previous_token_hash:
+            metadata["previous_token_hash"] = previous_token_hash
+            metadata["previous_token_invalidated_at"] = now_sao_paulo().isoformat()
+        metadata["token_rotated_at"] = now_sao_paulo().isoformat()
         metadata["token_hash"] = new_token_hash
 
         session.session_metadata = metadata

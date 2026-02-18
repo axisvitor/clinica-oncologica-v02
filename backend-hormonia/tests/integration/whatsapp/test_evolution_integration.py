@@ -11,6 +11,7 @@ from app.integrations.whatsapp.services.evolution_client import RateLimiter, Evo
 from app.integrations.whatsapp.services.mock_evolution import MockEvolutionAPIClient
 
 
+from app.utils.timezone import now_sao_paulo
 @pytest.mark.asyncio
 async def test_rate_limiter_throttles_requests():
     limiter = RateLimiter(max_requests=100, window_seconds=60)
@@ -65,7 +66,7 @@ async def test_health_check_connected_and_disconnected():
     assert disconnected["is_connected"] is False
 
     client.instances["test-instance"]["created_at"] = (
-        datetime.now(timezone.utc) - timedelta(seconds=20)
+        now_sao_paulo() - timedelta(seconds=20)
     )
 
     connected = await client.health_check("test-instance")

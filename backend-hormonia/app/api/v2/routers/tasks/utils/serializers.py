@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from app.api.v2.dependencies import apply_field_selection
 from app.schemas.v2.tasks import TaskStatus
+from app.utils.timezone import now_sao_paulo
 
 
 def _serialize_task(
@@ -46,7 +47,7 @@ def _serialize_task(
         "retry_config": task_data.get("retry_config"),
         "worker_name": task_data.get("worker_name"),
         "queue_name": task_data.get("queue_name", "celery"),
-        "created_at": task_data.get("created_at", datetime.now(timezone.utc)).isoformat()
+        "created_at": task_data.get("created_at", now_sao_paulo()).isoformat()
         if isinstance(task_data.get("created_at"), datetime)
         else task_data.get("created_at"),
         "started_at": task_data.get("started_at").isoformat()

@@ -33,6 +33,7 @@ from app.api.v2.dependencies import (
 )
 from app.utils.rate_limiter import limiter
 from .dependencies import _check_admin_or_owner
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -88,8 +89,8 @@ async def create_template(
             "is_active": True,
             "usage_count": 0,
             "created_by": current_user.get("id"),
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "created_at": now_sao_paulo(),
+            "updated_at": now_sao_paulo(),
         }
 
         # Store in cache (30 min TTL for templates)
@@ -333,7 +334,7 @@ async def update_template(
 
         # Increment version
         template_dict["version"] = template_dict.get("version", 1) + 1
-        template_dict["updated_at"] = datetime.now(timezone.utc)
+        template_dict["updated_at"] = now_sao_paulo()
 
         # Update cache
         await redis_cache.set(

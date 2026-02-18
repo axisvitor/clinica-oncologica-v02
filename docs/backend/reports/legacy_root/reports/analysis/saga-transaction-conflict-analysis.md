@@ -60,7 +60,7 @@ self.db.commit()  # ← Commit 3: Update saga with flow step
 **Commit #4** - Complete Saga (line 155):
 ```python
 saga.status = SagaStatus.COMPLETED
-saga.completed_at = datetime.now(timezone.utc)
+saga.completed_at = now_sao_paulo()
 self.db.commit()  # ← Commit 4: Mark saga as completed
 ```
 

@@ -72,8 +72,8 @@ export const createMockQuizTemplate = (overrides?: Partial<QuizTemplate>): QuizT
     createMockQuestion('yes_no', { order: 3, question: 'Teve náuseas esta semana?' }),
     createMockQuestion('text', { order: 4, question: 'Observações adicionais' }),
   ],
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z',
+  created_at: '2024-01-01T00:00:00-03:00',
+  updated_at: '2024-01-01T00:00:00-03:00',
   ...overrides,
 });
 

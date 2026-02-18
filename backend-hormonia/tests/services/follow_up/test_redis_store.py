@@ -14,6 +14,7 @@ from app.services.follow_up_system.models import (
     EscalationAlert,
     ConversationContext,
 )
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.follow_up_system.enums import (
     FollowUpType,
     EscalationLevel,
@@ -84,7 +85,7 @@ class TestActionStorage(TestFollowUpRedisStore):
             patient_id=uuid4(),
             follow_up_type=FollowUpType.EMOTIONAL_SUPPORT,
             priority="medium",
-            scheduled_for=datetime.utcnow() + timedelta(hours=1),
+            scheduled_for=now_sao_paulo_naive() + timedelta(hours=1),
             parameters={"reason": "Check progress"},
         )
         
@@ -99,7 +100,7 @@ class TestActionStorage(TestFollowUpRedisStore):
         """Test getting pending actions when none exist."""
         mock_redis.zrangebyscore.return_value = []
         
-        actions = await store.get_pending_actions(limit=10, before=datetime.utcnow())
+        actions = await store.get_pending_actions(limit=10, before=now_sao_paulo_naive())
         
         assert actions == []
 
@@ -112,7 +113,7 @@ class TestActionStorage(TestFollowUpRedisStore):
             "action_id": action_id,
             "patient_id": patient_id,
             "follow_up_type": FollowUpType.EMOTIONAL_SUPPORT.value,
-            "scheduled_for": datetime.utcnow().isoformat(),
+            "scheduled_for": now_sao_paulo_naive().isoformat(),
             "priority": "normal",
             "status": "pending"
         })
@@ -123,7 +124,7 @@ class TestActionStorage(TestFollowUpRedisStore):
             yield f"followup:actions:{patient_id}".encode()
         mock_redis.scan_iter = scan_iter_mock
         
-        actions = await store.get_pending_actions(limit=10, before=datetime.utcnow())
+        actions = await store.get_pending_actions(limit=10, before=now_sao_paulo_naive())
         
         assert len(actions) == 1
         assert actions[0]["action_id"] == action_id
@@ -134,7 +135,7 @@ class TestActionStorage(TestFollowUpRedisStore):
         patient_id = str(uuid4())
         low_id = str(uuid4())
         high_id = str(uuid4())
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
 
         low_action = json.dumps({
             "action_id": low_id,
@@ -192,7 +193,7 @@ class TestActionStorage(TestFollowUpRedisStore):
             "action_id": str(action_id),
             "patient_id": str(patient_id),
             "status": "pending",
-            "scheduled_for": datetime.utcnow().isoformat()
+            "scheduled_for": now_sao_paulo_naive().isoformat()
         })
         
         mock_redis.hget.return_value = existing_data.encode()
@@ -200,7 +201,7 @@ class TestActionStorage(TestFollowUpRedisStore):
             yield f"followup:actions:{patient_id}".encode()
         mock_redis.scan_iter = scan_iter_mock
         
-        result = await store.update_action_status(action_id, "executed", executed_at=datetime.utcnow())
+        result = await store.update_action_status(action_id, "executed", executed_at=now_sao_paulo_naive())
         
         assert result is True
         mock_redis.hset.assert_called()
@@ -225,7 +226,7 @@ class TestActionStorage(TestFollowUpRedisStore):
             "action_id": str(action_id),
             "patient_id": str(patient_id),
             "status": "pending",
-            "scheduled_for": datetime.utcnow().isoformat()
+            "scheduled_for": now_sao_paulo_naive().isoformat()
         })
         
         mock_redis.hget.return_value = existing_data.encode()
@@ -233,7 +234,7 @@ class TestActionStorage(TestFollowUpRedisStore):
             yield f"followup:actions:{patient_id}".encode()
         mock_redis.scan_iter = scan_iter_mock
         
-        result = await store.update_action_status(action_id, "failed", executed_at=datetime.utcnow())
+        result = await store.update_action_status(action_id, "failed", executed_at=now_sao_paulo_naive())
         
         assert result is True
         mock_redis.hset.assert_called()
@@ -314,7 +315,7 @@ class TestAlertStorage(TestFollowUpRedisStore):
         
         result = await store.update_alert_status(
             alert_id,
-            acknowledged_at=datetime.utcnow(),
+            acknowledged_at=now_sao_paulo_naive(),
             assigned_to="nurse"
         )
         
@@ -341,7 +342,7 @@ class TestAlertStorage(TestFollowUpRedisStore):
         
         result = await store.update_alert_status(
             alert_id,
-            resolved_at=datetime.utcnow(),
+            resolved_at=now_sao_paulo_naive(),
             assigned_to="nurse"
         )
         
@@ -359,7 +360,7 @@ class TestContextStorage(TestFollowUpRedisStore):
         context = ConversationContext(
             patient_id=uuid4(),
             conversation_history=[{"role": "system", "content": "How are you feeling?"}],
-            current_topic="daily_checkin",
+            current_topic="daily_follow_up",
             emotional_state="neutral",
             medical_context={"flow_id": str(uuid4())},
             preferences={"language": "pt-BR"},
@@ -377,11 +378,11 @@ class TestContextStorage(TestFollowUpRedisStore):
         context_data = json.dumps({
             "patient_id": str(patient_id),
             "conversation_history": [],
-            "current_topic": "daily_checkin",
+            "current_topic": "daily_follow_up",
             "emotional_state": "neutral",
             "medical_context": {},
             "preferences": {},
-            "last_updated": datetime.utcnow().isoformat()
+            "last_updated": now_sao_paulo_naive().isoformat()
         })
         
         mock_redis.get.return_value = context_data.encode()
@@ -467,7 +468,7 @@ class TestGracefulFallback(TestFollowUpRedisStore):
             patient_id=uuid4(),
             follow_up_type=FollowUpType.EMOTIONAL_SUPPORT,
             priority="medium",
-            scheduled_for=datetime.utcnow() + timedelta(hours=1),
+            scheduled_for=now_sao_paulo_naive() + timedelta(hours=1),
             parameters={},
         )
         
@@ -550,7 +551,7 @@ class TestDataSerialization:
             "id": str(uuid4()),
             "patient_id": str(uuid4()),
             "action_type": "follow_up_call",
-            "scheduled_for": datetime.utcnow().isoformat(),
+            "scheduled_for": now_sao_paulo_naive().isoformat(),
             "status": "pending"
         }
         
@@ -562,7 +563,7 @@ class TestDataSerialization:
 
     def test_serialize_datetime_as_iso(self):
         """Test datetime serialization as ISO format."""
-        dt = datetime.utcnow()
+        dt = now_sao_paulo_naive()
         iso_str = dt.isoformat()
         
         # Should be parseable back
@@ -617,7 +618,7 @@ class TestDeduplicationStorage(TestFollowUpRedisStore):
         store._redis = None
         patient_id = uuid4()
         store._fallback_storage["locks"][str(patient_id)] = {
-            "expires_at": datetime.now(timezone.utc) + timedelta(seconds=60)
+            "expires_at": now_sao_paulo() + timedelta(seconds=60)
         }
 
         result = await store.release_follow_up_lock(patient_id)
@@ -629,7 +630,7 @@ class TestDeduplicationStorage(TestFollowUpRedisStore):
     async def test_set_last_follow_up_sent_at_redis(self, store, mock_redis):
         """Test setting dedup timestamp in Redis."""
         patient_id = uuid4()
-        sent_at = datetime.now(timezone.utc)
+        sent_at = now_sao_paulo()
 
         result = await store.set_last_follow_up_sent_at(
             patient_id, sent_at, ttl_seconds=3600
@@ -646,7 +647,7 @@ class TestDeduplicationStorage(TestFollowUpRedisStore):
         store._redis_available = False
         store._redis = None
         patient_id = uuid4()
-        sent_at = datetime.now(timezone.utc)
+        sent_at = now_sao_paulo()
         store._fallback_storage["dedup"][str(patient_id)] = {
             "sent_at": sent_at,
             "expires_at": sent_at + timedelta(seconds=60),
@@ -662,10 +663,10 @@ class TestDeduplicationStorage(TestFollowUpRedisStore):
         store._redis_available = False
         store._redis = None
         patient_id = uuid4()
-        sent_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        sent_at = now_sao_paulo() - timedelta(hours=1)
         store._fallback_storage["dedup"][str(patient_id)] = {
             "sent_at": sent_at,
-            "expires_at": datetime.now(timezone.utc) - timedelta(seconds=1),
+            "expires_at": now_sao_paulo() - timedelta(seconds=1),
         }
 
         result = await store.get_last_follow_up_sent_at(patient_id)
@@ -683,7 +684,7 @@ class TestRedisReconnect(TestFollowUpRedisStore):
         store._redis_available = False
         store._redis = None
         store._redis_retry_delay = 4
-        store._redis_retry_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        store._redis_retry_at = now_sao_paulo() - timedelta(seconds=1)
 
         with patch(
             "app.services.follow_up.redis_store.get_async_redis",

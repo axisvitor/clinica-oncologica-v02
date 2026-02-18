@@ -17,16 +17,26 @@ from app.domain.messaging.core import MessageService
 from app.repositories.patient import PatientRepository
 from app.repositories.flow import FlowStateRepository
 from app.services.flow import FlowEngine
+from app.services.flow.context_parsing import (
+    parse_optional_str,
+)
+from app.services.flow.sequential_response_gate import (
+    evaluate_sequential_gate,
+    should_record_processed_response,
+)
 
 # NOTE: EnhancedFlowEngine imported lazily to avoid circular import
 import app.services.websocket_events as websocket_events_module
 from app.schemas.websocket import WebSocketEventType
 from app.schemas.message import MessageCreate
-from app.integrations.openai_client import get_langchain_orchestrator
-from app.core.redis_unified import get_async_redis
+from app.integrations import get_langchain_orchestrator
+from app.config import settings
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.utils.db_retry import with_db_retry
 from app.services.webhook.utils.phone_normalizer import PhoneNormalizer
 from app.services.webhook.utils.message_extractor import extract_message_data
+from app.utils.timezone import now_sao_paulo
+from sqlalchemy.orm.attributes import flag_modified
 
 logger = logging.getLogger(__name__)
 
@@ -124,47 +134,72 @@ class MessageWebhookHandler:
 
             # Step 2: Idempotency check via atomic SET NX + DB fallback
             # FIX: Use atomic SET NX BEFORE any database operation to prevent race conditions
-            redis_client = await get_async_redis()
+            # Fall back to DB-only idempotency if Redis is unavailable.
+            redis_client = None
+            try:
+                redis_client = await get_async_redis()
+            except Exception as redis_error:
+                logger.error(
+                    "Redis unavailable for webhook idempotency; falling back to DB-only check",
+                    exc_info=True,
+                    extra={
+                        "instance": "message_webhook_handler",
+                        "error_type": type(redis_error).__name__,
+                    },
+                )
             idempotency_key = f"webhook:message:{whatsapp_id}"
 
-            # First, try to atomically acquire processing lock
-            acquired = await redis_client.set(
-                idempotency_key,
-                "processing",
-                nx=True,  # Only set if doesn't exist
-                ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
-            )
+            if redis_client:
+                # First, try to atomically acquire processing lock
+                acquired = await redis_client.set(
+                    idempotency_key,
+                    "processing",
+                    nx=True,  # Only set if doesn't exist
+                    ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
+                )
 
-            if not acquired:
-                # Key exists - check if it's completed or still processing
-                existing_value = await redis_client.get(idempotency_key)
-                if existing_value:
-                    existing_str = existing_value.decode() if isinstance(existing_value, bytes) else str(existing_value)
-                    if existing_str != "processing":
-                        # Already completed, return the message ID
-                        logger.info(
-                            f"Duplicate webhook message detected (Redis): {whatsapp_id}"
+                if not acquired:
+                    # Key exists - check if it's completed or still processing
+                    existing_value = await redis_client.get(idempotency_key)
+                    if existing_value:
+                        existing_str = (
+                            existing_value.decode()
+                            if isinstance(existing_value, bytes)
+                            else str(existing_value)
                         )
-                        return existing_str
-                    else:
-                        # Another worker is processing, wait briefly and check DB
-                        logger.info(
-                            f"Message {whatsapp_id} being processed by another worker, checking DB"
-                        )
-                        for _ in range(3):
-                            await asyncio.sleep(0.2)
-                            existing_message = (
-                                self.db.query(Message)
-                                .filter(Message.whatsapp_id == whatsapp_id)
-                                .first()
+                        if existing_str != "processing":
+                            # Already completed, return the message ID
+                            logger.info(
+                                f"Duplicate webhook message detected (Redis): {whatsapp_id}"
                             )
-                            if existing_message:
-                                await redis_client.set(
-                                    idempotency_key,
-                                    str(existing_message.id),
-                                    ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
+                            return existing_str
+                        else:
+                            # Another worker is processing, wait briefly and check DB
+                            logger.info(
+                                f"Message {whatsapp_id} being processed by another worker, checking DB"
+                            )
+                            for _ in range(3):
+                                await asyncio.sleep(0.2)
+                                existing_message = (
+                                    self.db.query(Message)
+                                    .filter(Message.whatsapp_id == whatsapp_id)
+                                    .first()
                                 )
-                                return str(existing_message.id)
+                                if existing_message:
+                                    await redis_client.set(
+                                        idempotency_key,
+                                        str(existing_message.id),
+                                        ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
+                                    )
+                                    return str(existing_message.id)
+                            # Another worker still owns processing. Exit early to
+                            # avoid duplicate inbound creation; retry flow will
+                            # pick it up if the owner fails before commit.
+                            logger.info(
+                                "Message %s still in processing lock; deferring duplicate worker",
+                                whatsapp_id,
+                            )
+                            return None
 
             # DB fallback check (also catches race condition edge cases)
             existing_message = (
@@ -175,12 +210,13 @@ class MessageWebhookHandler:
 
             if existing_message:
                 logger.info(f"Duplicate webhook message detected (DB): {whatsapp_id}")
-                # Update Redis with actual message ID
-                await redis_client.set(
-                    idempotency_key,
-                    str(existing_message.id),
-                    ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
-                )
+                # Update Redis with actual message ID (best-effort)
+                if redis_client:
+                    await redis_client.set(
+                        idempotency_key,
+                        str(existing_message.id),
+                        ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
+                    )
                 return str(existing_message.id)
 
             # Step 3: Find patient with security monitoring
@@ -195,9 +231,14 @@ class MessageWebhookHandler:
             metadata = message_data.get("metadata", {})
 
             if active_flow:
+                step_data = active_flow.step_data or {}
                 metadata["context"] = "flow"
                 metadata["flow_state_id"] = str(active_flow.id)
                 metadata["current_step"] = active_flow.current_step
+                metadata["flow_kind"] = step_data.get("flow_kind") or active_flow.flow_type
+                metadata["flow_day"] = step_data.get("current_flow_day")
+                metadata["message_index"] = step_data.get("current_day_message_index")
+                metadata["awaiting_response"] = step_data.get("awaiting_response")
             else:
                 metadata["context"] = "general_chat"
 
@@ -212,11 +253,12 @@ class MessageWebhookHandler:
 
             # FIX: Update Redis key with message ID (replacing "processing" value)
             # This marks the message as fully processed with its actual ID
-            await redis_client.set(
-                idempotency_key,
-                str(message.id),
-                ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS
-            )
+            if redis_client:
+                await redis_client.set(
+                    idempotency_key,
+                    str(message.id),
+                    ex=cache_settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS,
+                )
 
             logger.info(
                 f"Processed inbound message {message.id} from patient {patient.id}",
@@ -265,11 +307,59 @@ class MessageWebhookHandler:
         Returns:
             Patient or None if not found/blocked
         """
+        metadata = message_data.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+
+        remote_jid = parse_optional_str(metadata.get("remote_jid")) or ""
+        remote_jid_alt = parse_optional_str(metadata.get("remote_jid_alt")) or ""
+        instance_name = parse_optional_str(metadata.get("instance_name"))
         phone = self.phone_normalizer.clean_phone_number(message_data["phone"])
         patient = self.phone_normalizer.find_patient_by_phone(phone)
 
         if patient:
             return patient
+
+        # Evolution official payload can include remoteJidAlt for LID addressed chats.
+        # Prefer this direct phone JID before network-based LID resolution.
+        if remote_jid_alt:
+            alt_phone = self.phone_normalizer.clean_phone_number(remote_jid_alt)
+            if alt_phone and alt_phone != phone:
+                patient = self.phone_normalizer.find_patient_by_phone(alt_phone)
+                if patient:
+                    message_data["phone"] = alt_phone
+                    metadata["resolved_from_remote_jid_alt"] = True
+                    metadata["resolved_phone"] = alt_phone
+                    message_data["metadata"] = metadata
+                    return patient
+
+        # Evolution can deliver inbound as @lid while the patient is registered by phone.
+        # Try to resolve the LID to a phone JID before classifying as unauthorized.
+        if remote_jid.endswith("@lid"):
+            resolved_phone = await self.phone_normalizer.resolve_phone_from_lid(
+                remote_jid, instance_name=instance_name
+            )
+            if resolved_phone:
+                phone = self.phone_normalizer.clean_phone_number(resolved_phone)
+                patient = self.phone_normalizer.find_patient_by_phone(phone)
+                if patient:
+                    message_data["phone"] = phone
+                    metadata["resolved_from_lid"] = True
+                    metadata["resolved_phone"] = phone
+                    message_data["metadata"] = metadata
+                    return patient
+            else:
+                logger.warning(
+                    "Skipping unauthorized handling for unresolved LID sender",
+                    extra={"remote_jid": remote_jid, "instance_name": instance_name},
+                )
+                if webhook_id and webhook_store:
+                    await webhook_store.mark_processed(
+                        webhook_id,
+                        False,
+                        "Unable to resolve LID sender to patient phone",
+                    )
+                return None
 
         # Patient not found - handle unauthorized access
         from app.services.security_monitor import SecurityMonitor
@@ -355,22 +445,110 @@ class MessageWebhookHandler:
             # Process response through enhanced flow engine
             # Note: process_patient_response calculates current_day internally
             # Returns: status, sentiment_analysis, engagement_score, follow_up_message, requires_attention, medical_concerns
-            response = await self.enhanced_flow_engine.process_patient_response(
-                patient_id=patient.id,
-                response_text=message.content,
+            step_data = flow_state.step_data or {}
+            message_metadata = getattr(message, "message_metadata", None)
+            if not isinstance(message_metadata, dict):
+                message_metadata = getattr(message, "metadata", None)
+            if not isinstance(message_metadata, dict):
+                message_metadata = {}
+            raw_flow_context = message_metadata.get("flow_context")
+            flow_context = raw_flow_context if isinstance(raw_flow_context, dict) else {}
+            pending_response_context = step_data.get("pending_response_context")
+            if not isinstance(pending_response_context, dict):
+                pending_response_context = {}
+            prompt_message_id = parse_optional_str(
+                flow_context.get("prompt_message_id")
+                or message_metadata.get("prompt_message_id")
+                or pending_response_context.get("prompt_message_id")
+            )
+            response_context = {
+                "flow_day": step_data.get("current_flow_day"),
+                "flow_kind": step_data.get("flow_kind"),
+                "message_index": step_data.get("current_day_message_index"),
+                "awaiting_response": step_data.get("awaiting_response"),
+                "prompt_message_id": prompt_message_id,
+                "response_message_id": str(message.id),
+            }
+            response_context = {
+                key: value for key, value in response_context.items() if value is not None
+            }
+            # Continue sequential flow first so webhook latency doesn't block the next prompt.
+            sequential_result = await self._trigger_sequential_continuation(
+                patient.id,
+                response_context=response_context,
+            )
+            status = (
+                sequential_result.get("status")
+                if isinstance(sequential_result, dict)
+                else None
+            )
+            should_advance = bool(
+                isinstance(sequential_result, dict)
+                and sequential_result.get("advance_allowed")
             )
 
-            # Always advance flow when patient responds (tracks engagement)
-            advancement = await self.enhanced_flow_engine.advance_patient_flow(
-                patient_id=patient.id
+            # Advance flow only for valid day-completion progressions.
+            if should_advance:
+                advancement = await self.enhanced_flow_engine.advance_patient_flow(
+                    patient_id=patient.id
+                )
+                logger.info(
+                    f"Flow advanced for patient {patient.id}: {advancement}",
+                    extra={
+                        "patient_id": str(patient.id),
+                        "status": status,
+                    },
+                )
+            else:
+                logger.info(
+                    "Skipping flow advance due to progression gate",
+                    extra={
+                        "patient_id": str(patient.id),
+                        "status": status,
+                        "reason": sequential_result.get("reason")
+                        if isinstance(sequential_result, dict)
+                        else None,
+                    },
+                )
+
+            # AI response analysis is optional and disabled inline by default to keep
+            # webhook latency low. Sequential continuation remains the primary path.
+            response: Dict[str, Any] = {}
+            inline_analysis_enabled = bool(
+                getattr(settings, "WHATSAPP_PROCESS_RESPONSE_ANALYSIS_INLINE", False)
             )
-            logger.info(
-                f"Flow advanced for patient {patient.id}: {advancement}",
-                extra={
-                    "requires_attention": response.get("requires_attention", False),
-                    "medical_concerns": response.get("medical_concerns", False),
-                }
-            )
+            if inline_analysis_enabled:
+                analysis_timeout = int(
+                    max(1, min(getattr(settings, "WHATSAPP_FLOW_RESPONSE_TIMEOUT_SECONDS", 8), 8))
+                )
+                try:
+                    maybe_response = await asyncio.wait_for(
+                        self.enhanced_flow_engine.process_patient_response(
+                            patient_id=patient.id,
+                            response_text=message.content,
+                            response_context=response_context,
+                        ),
+                        timeout=analysis_timeout,
+                    )
+                    if isinstance(maybe_response, dict):
+                        response = maybe_response
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "Timed out processing patient response analysis; sequential flow already continued",
+                        extra={
+                            "patient_id": str(patient.id),
+                            "timeout_seconds": analysis_timeout,
+                        },
+                    )
+                except Exception as analysis_error:
+                    logger.warning(
+                        "Patient response analysis failed; sequential flow already continued",
+                        extra={
+                            "patient_id": str(patient.id),
+                            "error_type": type(analysis_error).__name__,
+                        },
+                        exc_info=True,
+                    )
 
             # Send follow-up response if generated by AI (typically for attention cases)
             if response.get("follow_up_message"):
@@ -386,23 +564,64 @@ class MessageWebhookHandler:
                     },
                 )
 
-            await self._trigger_sequential_continuation(patient.id)
-
         except Exception as e:
             logger.error(
                 f"Error handling flow message for patient {patient.id}: {e}",
                 exc_info=True,
             )
 
-    async def _trigger_sequential_continuation(self, patient_id: UUID) -> None:
+    @staticmethod
+    def _should_record_processed_response(
+        *,
+        status: Optional[str],
+        reason: Optional[str],
+    ) -> bool:
+        """Return whether the inbound response should be marked as consumed."""
+        return should_record_processed_response(status=status, reason=reason)
+
+    def _evaluate_sequential_gate(
+        self, step_data: dict[str, Any], response_context: Optional[dict[str, Any]]
+    ) -> tuple[bool, str, dict[str, Any]]:
+        """Validate that an inbound response matches the pending flow prompt."""
+        return evaluate_sequential_gate(step_data, response_context)
+
+    async def _trigger_sequential_continuation(
+        self, patient_id: UUID, response_context: Optional[dict[str, Any]] = None
+    ) -> Optional[dict]:
         """Send next flow message when we're waiting for a patient response."""
         try:
+            flow_state = self.flow_state_repo.get_active_flow(patient_id)
+            if not flow_state:
+                return {"status": "no_active_flow", "advance_allowed": False}
+
+            step_data = flow_state.step_data or {}
+            gate_allowed, gate_reason, normalized_context = self._evaluate_sequential_gate(
+                step_data, response_context
+            )
+            if not gate_allowed:
+                logger.info(
+                    "Skipping sequential continuation due to progression gate",
+                    extra={
+                        "patient_id": str(patient_id),
+                        "reason": gate_reason,
+                        "response_context": normalized_context,
+                    },
+                )
+                status = "not_awaiting" if gate_reason == "not_awaiting_response" else "context_mismatch"
+                return {
+                    "status": status,
+                    "reason": gate_reason,
+                    "advance_allowed": False,
+                }
+
             from app.services.flow.sequential_message_handler import (
                 SequentialMessageHandler,
             )
 
             handler = SequentialMessageHandler(self.db)
-            result = await handler.handle_response_and_continue(patient_id)
+            result = await handler.handle_response_and_continue(
+                patient_id, response_context=normalized_context
+            )
             status = result.get("status") if isinstance(result, dict) else None
 
             if status in {"waiting", "day_complete", "complete"}:
@@ -410,9 +629,93 @@ class MessageWebhookHandler:
                     "Sequential flow progressed after response",
                     extra={"patient_id": str(patient_id), "status": status},
                 )
+
+            result_reason = result.get("reason") if isinstance(result, dict) else None
+            response_message_id = normalized_context.get("response_message_id")
+            if response_message_id and self._should_record_processed_response(
+                status=status,
+                reason=result_reason,
+            ):
+                latest_flow_state = self.flow_state_repo.get_active_flow(patient_id)
+                if latest_flow_state:
+                    latest_step_data = dict(latest_flow_state.step_data or {})
+                    latest_step_data["last_processed_response_message_id"] = (
+                        response_message_id
+                    )
+                    latest_flow_state.step_data = latest_step_data
+                    flag_modified(latest_flow_state, "step_data")
+                    self.db.commit()
+
+            if status in {"day_complete", "complete"}:
+                await self._send_deferred_followups(patient_id)
+            if isinstance(result, dict):
+                result.setdefault("advance_allowed", status in {"day_complete", "complete"})
+            return result
         except Exception as e:
             logger.error(
                 f"Failed to continue sequential flow for patient {patient_id}: {e}",
+                exc_info=True,
+            )
+            return {"status": "error", "message": str(e), "advance_allowed": False}
+
+    async def _send_deferred_followups(self, patient_id: UUID) -> None:
+        """Send any deferred follow-up messages after the day is complete."""
+        try:
+            flow_state = self.flow_state_repo.get_active_flow(patient_id)
+            if not flow_state:
+                return
+
+            # Copy to plain dict to avoid MutableDict flagging on detached state
+            step_data = dict(flow_state.step_data or {})
+            deferred_raw = list(step_data.get("deferred_followups") or [])
+            if not deferred_raw:
+                return
+
+            seen = set()
+            deferred = []
+            for item in deferred_raw:
+                key = (
+                    (item or {}).get("type"),
+                    (item or {}).get("reminder_id"),
+                    (item or {}).get("message"),
+                )
+                if key in seen:
+                    continue
+                seen.add(key)
+                deferred.append(item)
+
+            remaining = []
+            for item in deferred:
+                content = (item or {}).get("message")
+                if not content:
+                    continue
+
+                metadata = {
+                    "context": "deferred_followup",
+                    "type": (item or {}).get("type"),
+                    "reminder_id": (item or {}).get("reminder_id"),
+                    "flow_state_id": str(flow_state.id),
+                    "flow_day": step_data.get("current_flow_day"),
+                    "flow_kind": step_data.get("flow_kind"),
+                }
+                sent_message = await self._send_response(
+                    patient_id=patient_id,
+                    content=content,
+                    metadata=metadata,
+                )
+                if not sent_message:
+                    remaining.append(item)
+
+            if remaining:
+                step_data["deferred_followups"] = remaining
+            else:
+                step_data.pop("deferred_followups", None)
+            flow_state.step_data = step_data
+            flag_modified(flow_state, "step_data")
+            self.db.commit()
+        except Exception as exc:
+            logger.error(
+                f"Failed to send deferred follow-ups for patient {patient_id}: {exc}",
                 exc_info=True,
             )
 
@@ -430,13 +733,9 @@ class MessageWebhookHandler:
             quiz_session: Active quiz session
         """
         try:
-            from app.domain.quizzes.integration.flow_integration import (
-                ConversationalQuizService,
+            from app.domain.quizzes.integration.flow_integration.utils import (
+                process_quiz_response_with_debounce,
             )
-            from app.services.quiz_response_debounce import get_quiz_debouncer
-
-            # HIGH-005 FIX: Check debounce before processing
-            debouncer = get_quiz_debouncer(debounce_window_seconds=3)
 
             current_question_id = (
                 quiz_session.current_question
@@ -447,9 +746,12 @@ class MessageWebhookHandler:
                 else "unknown"
             )
 
-            should_process = await debouncer.should_process_response(
-                session_id=quiz_session.id,
-                question_id=current_question_id,
+            result = await process_quiz_response_with_debounce(
+                self.db,
+                patient_id=patient.id,
+                quiz_session_id=quiz_session.id,
+                current_question_id=str(current_question_id),
+                response_text=message.content,
                 message_metadata={
                     "message_id": str(message.id),
                     "whatsapp_id": message.whatsapp_id,
@@ -457,7 +759,7 @@ class MessageWebhookHandler:
                 },
             )
 
-            if not should_process:
+            if result.get("action") == "debounced":
                 logger.info(
                     f"Quiz response debounced for patient {patient.id}",
                     extra={
@@ -468,26 +770,9 @@ class MessageWebhookHandler:
                 )
                 return
 
-            # Process quiz response
-            quiz_service = ConversationalQuizService(self.db)
-            result = await quiz_service.process_quiz_response(
-                patient_id=patient.id,
-                response_text=message.content,
-                message_metadata={
-                    "message_id": str(message.id),
-                    "whatsapp_id": message.whatsapp_id,
-                },
-            )
-
             logger.info(
                 f"Quiz response processed for patient {patient.id}: action={result.get('action')}"
             )
-
-            # Handle result actions
-            if result.get("action") == "quiz_completed":
-                await debouncer.clear_debounce(quiz_session.id)
-            elif result.get("action") == "request_clarification":
-                await debouncer.clear_debounce(quiz_session.id, current_question_id)
 
         except Exception as e:
             logger.error(
@@ -579,7 +864,7 @@ class MessageWebhookHandler:
 
             scheduler = MessageScheduler(self.db)
 
-            send_time = datetime.now(timezone.utc) + timedelta(seconds=1)
+            send_time = now_sao_paulo() + timedelta(seconds=1)
             await scheduler.schedule_existing_message(
                 message_id=response_message.id, send_time=send_time, priority="high"
             )
@@ -657,13 +942,15 @@ class MessageWebhookHandler:
         if not websocket_events:
             logger.debug("WebSocket events service unavailable; skipping message event")
             return
-        await websocket_events.publish_message_event(
+        await websocket_events.broadcast_message_event(
             event_type=WebSocketEventType.NEW_MESSAGE,
-            message_id=message.id,
-            patient_id=patient_id,
-            direction=message.direction.value,
-            message_type=message.type.value,
-            content=message.content,
-            whatsapp_id=message.whatsapp_id,
-            metadata=message.message_metadata or {},
+            message_data={
+                "message_id": message.id,
+                "patient_id": patient_id,
+                "direction": message.direction.value,
+                "type": message.type.value,
+                "content": message.content,
+                "whatsapp_id": message.whatsapp_id,
+                "metadata": message.message_metadata or {},
+            },
         )

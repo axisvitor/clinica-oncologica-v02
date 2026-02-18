@@ -19,6 +19,7 @@ from uuid import uuid4
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.alerts import (
     EscalationManager,
     Escalation,
@@ -56,8 +57,8 @@ def sample_alert():
         message="Patient has not responded in 48 hours",
         escalation_level=0,
         metadata={"days_without_response": 2},
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive(),
     )
 
 
@@ -74,8 +75,8 @@ def critical_alert():
         message="Patient mentioned emergency keywords",
         escalation_level=0,
         metadata={"keywords": ["dor", "sangue"]},
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive(),
     )
 
 
@@ -137,7 +138,7 @@ def sample_escalation(sample_alert, immediate_rule):
         alert_id=sample_alert.id,
         rule_id=immediate_rule.id,
         level=1,
-        scheduled_at=datetime.utcnow(),
+        scheduled_at=now_sao_paulo_naive(),
         status="scheduled",
         metadata={"strategy": "immediate"},
     )
@@ -311,7 +312,7 @@ class TestEscalationScheduling:
         assert escalation.level == 1
         assert escalation.status == "scheduled"
         # IMMEDIATE should schedule for now
-        assert escalation.scheduled_at <= datetime.utcnow()
+        assert escalation.scheduled_at <= now_sao_paulo_naive()
 
     @pytest.mark.asyncio
     async def test_schedule_escalation_delayed(
@@ -329,8 +330,8 @@ class TestEscalationScheduling:
         # Assert
         assert escalation.level == 1
         # DELAYED should schedule for future (30 minutes)
-        expected_time = datetime.utcnow() + timedelta(minutes=30)
-        assert escalation.scheduled_at >= datetime.utcnow()
+        expected_time = now_sao_paulo_naive() + timedelta(minutes=30)
+        assert escalation.scheduled_at >= now_sao_paulo_naive()
         # Allow 1 minute tolerance
         assert abs((escalation.scheduled_at - expected_time).total_seconds()) < 60
 
@@ -613,7 +614,7 @@ class TestEscalationCancellation:
             alert_id=sample_alert.id,
             rule_id=uuid4(),
             level=1,
-            scheduled_at=datetime.utcnow(),
+            scheduled_at=now_sao_paulo_naive(),
             status="scheduled",
         )
         escalation2 = Escalation(
@@ -621,7 +622,7 @@ class TestEscalationCancellation:
             alert_id=sample_alert.id,
             rule_id=uuid4(),
             level=2,
-            scheduled_at=datetime.utcnow(),
+            scheduled_at=now_sao_paulo_naive(),
             status="scheduled",
         )
 
@@ -668,7 +669,7 @@ class TestProgressiveEscalation:
         # Assert
         assert escalation.level == 1
         # Level 1 should use 30 minute delay
-        expected_time = datetime.utcnow() + timedelta(minutes=30)
+        expected_time = now_sao_paulo_naive() + timedelta(minutes=30)
         assert abs((escalation.scheduled_at - expected_time).total_seconds()) < 60
 
     @pytest.mark.asyncio
@@ -688,7 +689,7 @@ class TestProgressiveEscalation:
         # Assert
         assert escalation.level == 2
         # Level 2 should use 60 minute delay
-        expected_time = datetime.utcnow() + timedelta(minutes=60)
+        expected_time = now_sao_paulo_naive() + timedelta(minutes=60)
         assert abs((escalation.scheduled_at - expected_time).total_seconds()) < 60
 
     @pytest.mark.asyncio
@@ -734,18 +735,18 @@ class TestEscalationHistory:
             alert_id=sample_alert.id,
             rule_id=uuid4(),
             level=1,
-            scheduled_at=datetime.utcnow(),
+            scheduled_at=now_sao_paulo_naive(),
             status="executed",
-            executed_at=datetime.utcnow(),
+            executed_at=now_sao_paulo_naive(),
         )
         escalation2 = Escalation(
             id=uuid4(),
             alert_id=sample_alert.id,
             rule_id=uuid4(),
             level=2,
-            scheduled_at=datetime.utcnow(),
+            scheduled_at=now_sao_paulo_naive(),
             status="executed",
-            executed_at=datetime.utcnow(),
+            executed_at=now_sao_paulo_naive(),
         )
 
         escalation_manager._escalations[escalation1.id] = escalation1

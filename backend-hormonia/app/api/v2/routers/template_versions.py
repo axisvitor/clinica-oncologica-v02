@@ -41,7 +41,8 @@ from app.api.v2.templates_shared import (
     RATE_LIMIT_READ,
     RATE_LIMIT_WRITE,
 )
-from app.utils.audit_logger import AuditLogger, AuditAction
+from app.monitoring.audit_logger import TemplateAuditLogger as AuditLogger, TemplateAuditAction as AuditAction
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -242,7 +243,7 @@ async def rollback_template_version(
             else False,
             is_draft=False,
             # Rollbacks are published by default
-            published_at=datetime.now(timezone.utc),
+            published_at=now_sao_paulo(),
             created_by=user_uuid,
         )
 
@@ -346,7 +347,7 @@ async def publish_template_version(
 
         # Publish template
         template.is_draft = False
-        template.published_at = datetime.now(timezone.utc)
+        template.published_at = now_sao_paulo()
 
         if set_as_active:
             # Deactivate other versions
@@ -356,7 +357,7 @@ async def publish_template_version(
             ).update({"is_active": False})
             template.is_active = True
 
-        template.updated_at = datetime.now(timezone.utc)
+        template.updated_at = now_sao_paulo()
 
         db.commit()
         db.refresh(template)

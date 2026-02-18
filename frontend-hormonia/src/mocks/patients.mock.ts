@@ -28,8 +28,8 @@ export const MOCK_PATIENTS: MockPatient[] = [
     diagnosis: 'Câncer de Mama - Estágio II',
     treatment_type: 'Quimioterapia',
     status: 'active',
-    registration_date: '2024-01-10T10:00:00Z',
-    last_contact: '2024-10-01T14:30:00Z',
+    registration_date: '2024-01-10T10:00:00-03:00',
+    last_contact: '2024-10-01T14:30:00-03:00',
     flow_status: 'active',
     medico_id: 'medico-001',
     notes: 'Paciente respondendo bem ao tratamento'
@@ -43,8 +43,8 @@ export const MOCK_PATIENTS: MockPatient[] = [
     diagnosis: 'Câncer de Próstata - Estágio III',
     treatment_type: 'Radioterapia',
     status: 'active',
-    registration_date: '2024-01-15T09:00:00Z',
-    last_contact: '2024-09-30T16:00:00Z',
+    registration_date: '2024-01-15T09:00:00-03:00',
+    last_contact: '2024-09-30T16:00:00-03:00',
     flow_status: 'active',
     medico_id: 'medico-001',
     notes: 'Acompanhamento semanal necessário'
@@ -58,8 +58,8 @@ export const MOCK_PATIENTS: MockPatient[] = [
     diagnosis: 'Câncer de Ovário - Estágio I',
     treatment_type: 'Cirurgia + Quimioterapia',
     status: 'active',
-    registration_date: '2024-02-01T11:00:00Z',
-    last_contact: '2024-10-02T10:15:00Z',
+    registration_date: '2024-02-01T11:00:00-03:00',
+    last_contact: '2024-10-02T10:15:00-03:00',
     flow_status: 'paused',
     medico_id: 'medico-001',
     notes: 'Cirurgia realizada com sucesso, iniciando quimio'
@@ -73,8 +73,8 @@ export const MOCK_PATIENTS: MockPatient[] = [
     diagnosis: 'Câncer de Pulmão - Estágio IV',
     treatment_type: 'Imunoterapia',
     status: 'active',
-    registration_date: '2024-02-10T14:00:00Z',
-    last_contact: '2024-09-28T13:45:00Z',
+    registration_date: '2024-02-10T14:00:00-03:00',
+    last_contact: '2024-09-28T13:45:00-03:00',
     flow_status: 'active',
     medico_id: 'medico-002',
     notes: 'Tratamento paliativo em andamento'
@@ -88,8 +88,8 @@ export const MOCK_PATIENTS: MockPatient[] = [
     diagnosis: 'Linfoma de Hodgkin - Estágio II',
     treatment_type: 'Quimioterapia',
     status: 'active',
-    registration_date: '2024-02-20T08:30:00Z',
-    last_contact: '2024-10-01T09:00:00Z',
+    registration_date: '2024-02-20T08:30:00-03:00',
+    last_contact: '2024-10-01T09:00:00-03:00',
     flow_status: 'active',
     medico_id: 'medico-002',
     notes: 'Ótima resposta ao tratamento'
@@ -103,8 +103,8 @@ export const MOCK_PATIENTS: MockPatient[] = [
     diagnosis: 'Câncer Colorretal - Estágio III',
     treatment_type: 'Cirurgia + Radioterapia',
     status: 'active',
-    registration_date: '2024-03-01T10:00:00Z',
-    last_contact: '2024-09-29T15:20:00Z',
+    registration_date: '2024-03-01T10:00:00-03:00',
+    last_contact: '2024-09-29T15:20:00-03:00',
     flow_status: 'completed',
     medico_id: 'medico-003',
     notes: 'Pós-operatório sem complicações'
@@ -118,8 +118,8 @@ export const MOCK_PATIENTS: MockPatient[] = [
     diagnosis: 'Câncer de Tireoide - Estágio I',
     treatment_type: 'Cirurgia',
     status: 'completed',
-    registration_date: '2023-11-10T09:00:00Z',
-    last_contact: '2024-09-15T11:00:00Z',
+    registration_date: '2023-11-10T09:00:00-03:00',
+    last_contact: '2024-09-15T11:00:00-03:00',
     flow_status: 'completed',
     notes: 'Tratamento concluído com sucesso'
   },
@@ -132,8 +132,8 @@ export const MOCK_PATIENTS: MockPatient[] = [
     diagnosis: 'Câncer de Bexiga - Estágio II',
     treatment_type: 'Quimioterapia',
     status: 'active',
-    registration_date: '2024-03-15T13:00:00Z',
-    last_contact: '2024-09-27T14:00:00Z',
+    registration_date: '2024-03-15T13:00:00-03:00',
+    last_contact: '2024-09-27T14:00:00-03:00',
     flow_status: 'active',
     notes: 'Em acompanhamento regular'
   }

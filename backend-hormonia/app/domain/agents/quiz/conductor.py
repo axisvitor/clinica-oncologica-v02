@@ -7,7 +7,6 @@ Coordinates quiz flow with adaptive intelligence and multi-agent collaboration.
 from __future__ import annotations
 
 # Standard library imports
-from datetime import datetime, timezone
 from typing import Any, Dict, List
 from uuid import UUID
 
@@ -16,8 +15,9 @@ from sqlalchemy.orm import Session
 
 # Local application imports
 from app.agents.base import BaseAgent, MessagePriority
-from app.domain.messaging.delivery import MessageSender
-from app.integrations.gemini_client import get_gemini_client
+from app.agents.registry import ALERT_ANALYZER_ID
+from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSender
+from app.ai.client import get_gemini_client
 from app.repositories.patient import PatientRepository
 from app.services.quiz import (
     QuizResponseService,
@@ -29,7 +29,9 @@ from .notification_manager import NotificationManager, QuizAdaptationType
 from .progress_tracker import ProgressTracker
 from .question_presenter import QuestionPresenter
 from .response_handler import ResponseHandler
-from .session_coordinator import QuizContext, SessionCoordinator
+from .session_coordinator import SessionCoordinator
+from .types import QuizContext
+from app.utils.timezone import now_sao_paulo
 
 
 class QuizConductor(BaseAgent):
@@ -53,6 +55,14 @@ class QuizConductor(BaseAgent):
         notification_manager: Notification handler.
     """
 
+    VALID_TASK_TYPES = {
+        "conduct_quiz_session",
+        "process_quiz_response",
+        "adapt_quiz_questions",
+        "analyze_quiz_completion",
+        "trigger_monthly_quiz",
+    }
+
     def __init__(self, db_session: Session, **kwargs):
         """
         Initialize QuizConductor.
@@ -62,7 +72,7 @@ class QuizConductor(BaseAgent):
             **kwargs: Additional keyword arguments for BaseAgent.
         """
         super().__init__(
-            agent_id=f"quiz_conductor_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
+            agent_id=f"quiz_conductor_{now_sao_paulo().strftime('%Y%m%d_%H%M%S')}",
             agent_type="communication",
             specialization="quiz_conductor",
             db_session=db_session,
@@ -73,7 +83,7 @@ class QuizConductor(BaseAgent):
         self.quiz_template_service = QuizTemplateService(db_session)
         self.quiz_session_service = QuizSessionService(db_session)
         self.quiz_response_service = QuizResponseService(db_session)
-        self.message_sender = MessageSender(db_session)
+        self.message_sender = IdempotentMessageSender(db_session)
         self.patient_repo = PatientRepository(db_session)
 
         # AI and memory dependencies
@@ -84,6 +94,7 @@ class QuizConductor(BaseAgent):
             db_session=db_session,
             quiz_template_service=self.quiz_template_service,
             quiz_session_service=self.quiz_session_service,
+            quiz_response_service=self.quiz_response_service,
             patient_repo=self.patient_repo,
             agent_id=self.agent_id,
             logger=self.logger,
@@ -132,8 +143,8 @@ class QuizConductor(BaseAgent):
         self.max_questions_per_session = 10
         self.response_timeout_minutes = 30
         self.adaptation_threshold = 0.6
-        self.stress_threshold = 0.7
-        self.engagement_threshold = 0.4
+        self.stress_threshold = self.progress_tracker.stress_threshold
+        self.engagement_threshold = self.progress_tracker.engagement_threshold
 
     async def _initialize(self):
         """
@@ -182,19 +193,10 @@ class QuizConductor(BaseAgent):
 
     async def validate_task(self, task_data: Dict[str, Any]) -> bool:
         """Validate if agent can handle the task."""
-        task_type = task_data.get("type", "")
+        task_type = task_data.get("task_type", "")
         payload = task_data.get("payload", {})
 
-        # Check task type compatibility
-        compatible_tasks = [
-            "conduct_quiz_session",
-            "process_quiz_response",
-            "adapt_quiz_questions",
-            "analyze_quiz_completion",
-            "trigger_monthly_quiz",
-        ]
-
-        if task_type not in compatible_tasks:
+        if task_type not in self.VALID_TASK_TYPES:
             return False
 
         # Check required fields
@@ -209,7 +211,7 @@ class QuizConductor(BaseAgent):
 
     async def process_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """Process assigned task."""
-        task_type = task_data.get("type")
+        task_type = task_data.get("task_type")
         payload = task_data.get("payload", {})
 
         self._logger.info(f"Processing quiz task: {task_type}")
@@ -268,92 +270,87 @@ class QuizConductor(BaseAgent):
         }
 
     async def _conduct_adaptive_quiz(self, context: QuizContext) -> Dict[str, Any]:
-        """Conduct quiz with real-time adaptation."""
+        """Conduct quiz start/continuation without bulk question dispatch."""
+        template = getattr(context, "template", None)
+        questions = getattr(template, "questions", None) if template else None
         completion_status = {
             "completed": False,
-            "total_questions": len(context.template.questions)
-            if context.template
-            else 0,
+            "total_questions": len(questions) if questions else 0,
             "questions_asked": 0,
             "adaptations_made": 0,
             "early_completion": False,
             "intervention_triggered": False,
+            "awaiting_response": False,
         }
 
         try:
+            if not template or not isinstance(questions, list) or not questions:
+                completion_status["error"] = "Quiz template is missing or has no questions"
+                return completion_status
+
             # Import adaptation limit checker
             from app.domain.quizzes.quiz_trigger_policy import (
                 check_adaptation_limit,
                 AdaptationLimitError,
             )
 
-            # Start with welcome message
-            await self.notification_manager.send_quiz_introduction(
-                context, self.max_questions_per_session, self.stress_threshold
-            )
-
-            # Process questions with adaptation
-            while (
-                context.current_question_index < len(context.template.questions)
-                and context.current_question_index < self.max_questions_per_session
-            ):
-                # Check if adaptation is needed
-                if await self._should_adapt_quiz(context):
-                    try:
-                        # Check adaptation limit before adapting
-                        check_adaptation_limit(len(context.adaptation_history))
-
-                        adaptation = await self._determine_adaptation(context)
-                        await self.notification_manager.send_adaptation_message(
-                            context, adaptation
-                        )
-                        context.adaptation_history.append(
-                            {
-                                "adaptation_type": adaptation.value,
-                                "question_index": context.current_question_index,
-                                "reason": self.notification_manager.get_adaptation_reason(
-                                    context, adaptation
-                                ),
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            }
-                        )
-                        completion_status["adaptations_made"] += 1
-
-                    except AdaptationLimitError as e:
-                        self._logger.warning(
-                            f"Adaptation limit reached: {e}. Proceeding without further adaptations."
-                        )
-                        # Continue quiz without more adaptations
-
-                # Send current question
-                question_result = await self.question_presenter.send_quiz_question(
-                    context, self.max_questions_per_session, self.stress_threshold
-                )
-
-                if not question_result["success"]:
-                    break
-
-                completion_status["questions_asked"] += 1
-                context.current_question_index += 1
-
-                # Check for early completion triggers
-                if await self.progress_tracker.should_complete_early(context):
-                    completion_status["early_completion"] = True
-                    break
-
-                # Check for intervention triggers
-                if await self.progress_tracker.should_trigger_intervention(context):
-                    await self._trigger_intervention(context)
-                    completion_status["intervention_triggered"] = True
-                    break
-
-            # Complete session
-            if context.current_question_index >= len(context.template.questions):
+            # If pointer is already beyond last question, finish safely.
+            if context.current_question >= len(questions):
                 await self.session_coordinator.complete_quiz_session(
                     context, self.send_message
                 )
                 await self.notification_manager.send_completion_message(context)
                 completion_status["completed"] = True
+                return completion_status
+
+            # Start with welcome message only when the session begins.
+            if context.current_question == 0:
+                await self.notification_manager.send_quiz_introduction(
+                    context,
+                    self.max_questions_per_session,
+                    self.progress_tracker.stress_threshold,
+                )
+
+            # Apply one-step adaptation before sending the current question.
+            if await self._should_adapt_quiz(context):
+                try:
+                    check_adaptation_limit(len(context.adaptation_history))
+
+                    adaptation = await self._determine_adaptation(context)
+                    await self.notification_manager.send_adaptation_message(
+                        context, adaptation
+                    )
+                    context.adaptation_history.append(
+                        {
+                            "adaptation_type": adaptation.value,
+                            "question_index": context.current_question,
+                            "reason": self.notification_manager.get_adaptation_reason(
+                                context, adaptation
+                            ),
+                            "timestamp": now_sao_paulo().isoformat(),
+                        }
+                    )
+                    completion_status["adaptations_made"] += 1
+                except AdaptationLimitError as e:
+                    self._logger.warning(
+                        "Adaptation limit reached: %s. Proceeding without further adaptations.",
+                        e,
+                    )
+
+            # Send only the current question and wait for callback-driven continuation.
+            question_result = await self.question_presenter.send_quiz_question(
+                context,
+                self.max_questions_per_session,
+                self.progress_tracker.stress_threshold,
+            )
+            if not question_result.get("success"):
+                completion_status["error"] = question_result.get(
+                    "error", "Failed to send quiz question"
+                )
+                return completion_status
+
+            completion_status["questions_asked"] = 1
+            completion_status["awaiting_response"] = True
 
             return completion_status
 
@@ -371,7 +368,7 @@ class QuizConductor(BaseAgent):
                 pid, qt, self.progress_tracker
             ),
             send_next_question_callback=lambda ctx: self.question_presenter.send_quiz_question(
-                ctx, self.max_questions_per_session, self.stress_threshold
+                ctx, self.max_questions_per_session, self.progress_tracker.stress_threshold
             ),
             complete_session_callback=lambda ctx: self._complete_session_with_notification(
                 ctx
@@ -386,62 +383,17 @@ class QuizConductor(BaseAgent):
 
     async def _should_adapt_quiz(self, context: QuizContext) -> bool:
         """Determine if quiz adaptation is needed."""
-        # Check stress level
-        if context.stress_level > self.stress_threshold:
-            return True
-
-        # Check engagement
-        if context.engagement_score < self.engagement_threshold:
-            return True
-
-        # Check mood indicators
-        if context.mood_indicators.get("distress", 0) > 0.7:
-            return True
-
-        # Check response patterns
-        if len(context.responses_so_far) >= 3:
-            # Check for pattern of short or unclear responses
-            unclear_responses = sum(
-                1
-                for r in context.responses_so_far[-3:]
-                if r.get("confidence", 1.0) < 0.6
-            )
-            if unclear_responses >= 2:
-                return True
-
-        return False
+        return self.progress_tracker.should_adapt_quiz(context)
 
     async def _determine_adaptation(self, context: QuizContext) -> QuizAdaptationType:
         """Determine what type of adaptation is needed."""
-        # High stress - reduce complexity
-        if context.stress_level > self.stress_threshold:
-            return QuizAdaptationType.REDUCE_COMPLEXITY
-
-        # Low engagement - increase support
-        if context.engagement_score < self.engagement_threshold:
-            return QuizAdaptationType.INCREASE_SUPPORT
-
-        # Mood distress - focus on mood
-        if context.mood_indicators.get("distress", 0) > 0.7:
-            return QuizAdaptationType.FOCUS_ON_MOOD
-
-        # Pattern of unclear responses - add clarification
-        if len(context.responses_so_far) >= 2:
-            recent_unclear = [
-                r
-                for r in context.responses_so_far[-2:]
-                if r.get("confidence", 1.0) < 0.6
-            ]
-            if len(recent_unclear) >= 1:
-                return QuizAdaptationType.ADD_CLARIFICATION
-
-        return QuizAdaptationType.INCREASE_SUPPORT
+        return self.progress_tracker.determine_adaptation(context)
 
     async def _trigger_intervention(self, context: QuizContext):
         """Trigger medical intervention."""
         # Send urgent message to alert analyzer
         await self.send_message(
-            "alert_analyzer_agent",
+            ALERT_ANALYZER_ID,
             "urgent_intervention_needed",
             {
                 "patient_id": str(context.patient_id),
@@ -542,7 +494,3 @@ class QuizConductor(BaseAgent):
         )
 
         return result
-
-
-# Backward compatibility alias
-QuizConductorAgent = QuizConductor

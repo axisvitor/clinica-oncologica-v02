@@ -554,7 +554,7 @@ async def health_check(self) -> Dict[str, Any]:
     health_status = {
         "service": "evolution_api",
         "healthy": False,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now_sao_paulo().isoformat(),
         "details": {},
     }
 
@@ -591,7 +591,7 @@ class EvolutionAPIError(ExternalServiceError):
         self.status_code = status_code
         self.response_data = response_data
         self.request_context = request_context or {}
-        self.timestamp = datetime.now(timezone.utc)
+        self.timestamp = now_sao_paulo()
         self.retry_count = None
 ```
 
@@ -611,7 +611,7 @@ async def health_check(self) -> Dict[str, Any]:
     health_status = {
         "service": "evolution_api",
         "healthy": False,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now_sao_paulo().isoformat(),
         "details": {},
         "checks": {
             "api_reachable": False,

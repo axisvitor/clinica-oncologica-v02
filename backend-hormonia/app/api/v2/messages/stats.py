@@ -21,7 +21,9 @@ from app.dependencies.auth_dependencies import (
 from .helpers import (
     _extract_user_context,
     _get_cached_or_compute,
+    _get_patient_with_access,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -40,25 +42,11 @@ async def get_patient_message_stats(
     redis_cache=Depends(get_redis_cache),
 ):
     """Get message statistics for a patient."""
-    try:
-        patient_uuid = UUID(patient_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format"
-        )
-
-    # Verify patient exists and access
-    patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
-    if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
-        )
-
-    role_enum, user_id = _extract_user_context(current_user)
-    if role_enum != UserRole.ADMIN and str(patient.doctor_id) != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
-        )
+    patient_uuid, _ = _get_patient_with_access(
+        db=db,
+        current_user=current_user,
+        patient_id=patient_id,
+    )
 
     # Try cache
     cache_key = f"message_stats:patient:{patient_id}"
@@ -134,7 +122,7 @@ async def get_statistics(
     cache_key = f"message_stats:overall:{user_id}:{days}"
 
     def compute_stats():
-        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+        start_date = now_sao_paulo() - timedelta(days=days)
 
         query = db.query(Message).filter(Message.created_at >= start_date)
 
@@ -165,7 +153,7 @@ async def get_statistics(
 
         return {
             "period_start": start_date.isoformat(),
-            "period_end": datetime.now(timezone.utc).isoformat(),
+            "period_end": now_sao_paulo().isoformat(),
             "total_messages": total_messages,
             "status_counts": status_counts,
             "success_rate": round(success_rate, 2),

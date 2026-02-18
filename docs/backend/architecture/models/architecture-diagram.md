@@ -335,7 +335,7 @@ Examples:
   "retries": 8,             ← Number of retries across all ops
   "failures": 2,            ← Operations that failed completely
   "fallbacks": 3,           ← Times fell back to local cache
-  "timestamp": "2025-12-23T20:00:00Z",
+  "timestamp": "2025-12-23T20:00:00-03:00",
   "backend": "redis"        ← Current primary backend
 }
 

@@ -163,7 +163,7 @@ deleted = await command_repo.hard_delete(
     "event": "patient_hard_delete",
     "patient_id": "uuid",
     "reason": "LGPD Art. 16 - Patient requested data deletion",
-    "timestamp": "2025-12-02T10:30:00Z",
+    "timestamp": "2025-12-02T10:30:00-03:00",
     "compliance_article": "LGPD Art. 16 (Right to deletion)"
 }
 ```
@@ -238,7 +238,7 @@ patient = query_repo.get_by_id(patient_id)
 ```
 
 **Affected Services:**
-- `app/services/base.py`
+- `app/services/base.py` (removed in cleanup wave on 2026-02-10)
 - `app/services/alerts/adapter.py`
 - `app/services/analytics/data_aggregator.py`
 - ~10 other services

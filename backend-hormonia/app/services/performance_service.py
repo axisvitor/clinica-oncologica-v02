@@ -24,8 +24,9 @@ from app.schemas.v2.performance import (
     PerformanceStatus,
     HealthStatus,
 )
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -311,7 +312,7 @@ class PerformanceService:
             status=perf_status,
             components=components,
             recommendations=recommendations,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
         await self._set_cached_result(cache_key, result, CACHE_TTL_STATS)
@@ -371,7 +372,7 @@ class PerformanceService:
             active_connections=active_connections,
             locks_count=locks_count,
             response_time_ms=round(response_time, 2),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             issues=issues,
         )
 

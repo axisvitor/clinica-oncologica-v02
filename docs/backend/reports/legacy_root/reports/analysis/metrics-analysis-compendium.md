@@ -170,7 +170,7 @@ Unit tests, integration tests, load testing
   "active_patients": 247,
   "daily_messages": 1523,
   "system_health_score": 98.5,
-  "timestamp": "2025-12-22T14:30:00Z"
+  "timestamp": "2025-12-22T14:30:00-03:00"
 }
 ```
 
@@ -182,7 +182,7 @@ Unit tests, integration tests, load testing
   "ai_personalization": { /* 7 fields + impact metrics */ },
   "system_performance": { /* 8 system metrics */ },
   "alerts_count": 3,
-  "last_updated": "2025-12-22T14:30:15Z"
+  "last_updated": "2025-12-22T14:30:15-03:00"
 }
 ```
 
@@ -1219,12 +1219,12 @@ async def get_realtime_metrics(
         "fallback_entries": 0,
 
         "sync_stats": {
-            "last_rehydration": "2025-12-24T08:00:00Z",
+            "last_rehydration": "2025-12-24T08:00:00-03:00",
             "rehydrated_actions": 142,
             "rehydrated_alerts": 18,
             "rehydration_errors": 0,
 
-            "last_memory_to_redis_sync": "2025-12-24T08:05:00Z",
+            "last_memory_to_redis_sync": "2025-12-24T08:05:00-03:00",
             "synced_actions": 0,  # No Redis downtime
             "synced_alerts": 0,
             "sync_errors": 0
@@ -1679,7 +1679,7 @@ logger.info(
 #   "action_type": "empathetic_response",
 #   "execution_time_seconds": 3.2,
 #   "status": "success",
-#   "timestamp": "2025-12-24T14:35:22Z"
+#   "timestamp": "2025-12-24T14:35:22-03:00"
 # }
 ```
 

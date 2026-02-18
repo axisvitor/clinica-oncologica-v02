@@ -1,6 +1,6 @@
 /**
  * Enhanced Analytics Dashboard Page
- * AI-powered analytics with predictions, trends, and insights
+ * Advanced analytics with predictions, trends, and insights
  */
 
 import React, { useState } from 'react';
@@ -243,7 +243,7 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Enhanced Analytics</h1>
-            <p className="text-gray-600 mt-1">AI-powered insights and predictions</p>
+          <p className="text-gray-600 mt-1">Insights e previsoes do sistema</p>
           </div>
 
           <div className="flex gap-3">
@@ -329,10 +329,10 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
               </section>
             )}
 
-            {/* AI Insights */}
+            {/* Resumo analitico */}
             {dashboard && dashboard.insights.length > 0 && (
               <section>
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">AI Insights</h2>
+                <h2 className="text-xl font-semibold text-gray-900 mb-4">Resumo analitico</h2>
                 <div className="space-y-4">
                   {dashboard.insights.slice(0, 5).map(renderInsightCard)}
                 </div>
@@ -374,9 +374,9 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
               </div>
             </section>
 
-            {/* AI Predictions */}
+            {/* Previsoes */}
             <section>
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">AI Predictions</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Previsoes</h2>
               <AIPredictionsPanel
                 predictions={predictions}
                 onRefresh={refreshForPatient}

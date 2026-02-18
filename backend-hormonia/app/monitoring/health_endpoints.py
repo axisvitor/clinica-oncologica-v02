@@ -13,9 +13,10 @@ from app.database import get_async_db
 from app.monitoring.infrastructure_monitor import infrastructure_monitor
 from app.monitoring.service_health_monitor import service_health_monitor
 from app.monitoring.capacity_planner import capacity_planner
-from app.monitoring.alert_manager import alert_manager, AlertSeverity
+from app.services.alerts import get_alert_manager, AlertSeverity
 from app.config import settings
 from app.utils.db_retry import reset_circuit_breaker, db_circuit_breaker
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ async def health_check() -> Dict[str, Any]:
             "status": "healthy"
             if health_summary["status"] == "healthy"
             else "degraded",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "service": "oncology-platform",
             "version": "1.0.0",
         }
@@ -60,7 +61,7 @@ async def detailed_health_check(db: AsyncSession = Depends(get_async_db)) -> Dic
         api_endpoints = [
             f"{settings.API_V2_STR}/monitoring/health",
             f"{settings.API_V2_STR}/patients",
-            f"{settings.API_V2_STR}/monthly-quiz",
+            f"{settings.API_V2_STR}/quiz-extensions/health",
         ]
 
         service_results = await service_health_monitor.check_all_services(
@@ -72,11 +73,18 @@ async def detailed_health_check(db: AsyncSession = Depends(get_async_db)) -> Dic
         )
 
         # Alert summary
-        alert_summary = alert_manager.get_alert_summary()
+        _am = get_alert_manager()
+        alert_stats = _am.get_alert_statistics()
+        alert_summary = {
+            "total_alerts": alert_stats.total_alerts,
+            "active_alerts": alert_stats.active_alerts,
+            "by_severity": {k.value: v for k, v in alert_stats.by_severity.items()},
+            "by_status": {k.value: v for k, v in alert_stats.by_status.items()},
+        }
 
         return {
             "status": infrastructure_health["status"],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "infrastructure": {
                 "cpu": infrastructure_health["resources"]["cpu"],
                 "memory": infrastructure_health["resources"]["memory"],
@@ -157,7 +165,7 @@ async def get_resource_trends(minutes: int = 30) -> Dict[str, Any]:
 
         return {
             "period_minutes": minutes,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "trends": trends,
         }
 
@@ -266,38 +274,21 @@ async def get_alerts(
     Get alerts with optional filtering
     """
     try:
-        # Get alerts
-        if severity:
-            alerts = alert_manager.get_active_alerts(AlertSeverity(severity))
-        else:
-            alerts = list(alert_manager.alerts.values())
+        _am = get_alert_manager()
+        stats = _am.get_alert_statistics()
 
-        # Filter by status if provided
-        if status_filter:
-            alerts = [a for a in alerts if a.status.value == status_filter]
-
-        # Convert to dict
-        alert_data = [
-            {
-                "alert_id": a.alert_id,
-                "severity": a.severity.value,
-                "title": a.title,
-                "description": a.description,
-                "source": a.source,
-                "metric_name": a.metric_name,
-                "current_value": a.current_value,
-                "threshold_value": a.threshold_value,
-                "created_at": a.created_at.isoformat(),
-                "status": a.status.value,
-                "escalation_level": a.escalation_level,
-            }
-            for a in alerts
-        ]
+        # Build summary dict
+        summary = {
+            "total_alerts": stats.total_alerts,
+            "active_alerts": stats.active_alerts,
+            "by_severity": {k.value: v for k, v in stats.by_severity.items()},
+            "by_status": {k.value: v for k, v in stats.by_status.items()},
+        }
 
         return {
-            "alerts": alert_data,
-            "total": len(alert_data),
-            "summary": alert_manager.get_alert_summary(),
+            "alerts": [],
+            "total": stats.total_alerts,
+            "summary": summary,
         }
 
     except Exception as e:
@@ -313,21 +304,26 @@ async def acknowledge_alert(alert_id: str, acknowledged_by: str) -> Dict[str, An
     Acknowledge an alert
     """
     try:
-        success = await alert_manager.acknowledge_alert(alert_id, acknowledged_by)
+        from uuid import UUID as _UUID
 
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Alert not found: {alert_id}",
-            )
+        _am = get_alert_manager()
+        alert = await _am.acknowledge_alert(
+            alert_id=_UUID(alert_id),
+            user_id=_UUID(acknowledged_by),
+        )
 
         return {
             "success": True,
-            "alert_id": alert_id,
+            "alert_id": str(alert.id),
             "acknowledged_by": acknowledged_by,
-            "acknowledged_at": datetime.now(timezone.utc).isoformat(),
+            "acknowledged_at": now_sao_paulo().isoformat(),
         }
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -345,24 +341,28 @@ async def resolve_alert(
     Resolve an alert
     """
     try:
-        success = await alert_manager.resolve_alert(
-            alert_id, resolved_by, resolution_note
-        )
+        from uuid import UUID as _UUID
 
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Alert not found: {alert_id}",
-            )
+        _am = get_alert_manager()
+        alert = await _am.resolve_alert(
+            alert_id=_UUID(alert_id),
+            resolution=resolution_note or "Resolved via monitoring endpoint",
+            user_id=_UUID(resolved_by),
+        )
 
         return {
             "success": True,
-            "alert_id": alert_id,
+            "alert_id": str(alert.id),
             "resolved_by": resolved_by,
-            "resolved_at": datetime.now(timezone.utc).isoformat(),
+            "resolved_at": now_sao_paulo().isoformat(),
             "resolution_note": resolution_note,
         }
 
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -382,7 +382,7 @@ async def get_service_uptime(hours: int = 24) -> Dict[str, Any]:
 
         return {
             "period_hours": hours,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "services": uptime_report,
         }
 
@@ -469,7 +469,7 @@ async def reset_database_circuit_breaker() -> Dict[str, Any]:
             "previous_state": current_state,
             "previous_failure_count": failure_count,
             "current_state": "closed",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
     except Exception as e:
@@ -492,7 +492,7 @@ async def get_circuit_breaker_status() -> Dict[str, Any]:
             "recovery_timeout": db_circuit_breaker.recovery_timeout,
             "last_failure_time": db_circuit_breaker.last_failure_time,
             "is_healthy": db_circuit_breaker.state == "closed",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
     except Exception as e:

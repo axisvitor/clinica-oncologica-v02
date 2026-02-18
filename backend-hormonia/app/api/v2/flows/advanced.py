@@ -1,6 +1,6 @@
 """
 Flow Advanced Features
-Handles rules engine, A/B testing, and utility operations
+Handles rules engine and utility operations
 """
 
 import logging
@@ -20,10 +20,6 @@ from app.schemas.v2.flows import (
     FlowRuleV2Update,
     FlowRuleV2Response,
     FlowRuleV2List,
-    ABTestV2Create,
-    ABTestV2Update,
-    ABTestV2Response,
-    ABTestV2List,
 )
 from ..dependencies import (
     get_pagination_params,
@@ -47,40 +43,15 @@ from app.exceptions import (
     internal_server_exception,
 )
 from app.utils.rate_limiter import limiter
-import base64
-import json
+from app.utils.cursor import encode_cursor as _create_cursor
+from app.utils.timezone import now_sao_paulo
+from .cache import get_cached_or_compute as _get_cached_or_compute
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Redis cache TTL constants (in seconds)
 CACHE_TTL_ANALYTICS = 900  # 15 minutes
-
-
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-
-def _create_cursor(item_id: str, created_at: datetime) -> str:
-    """Create cursor for pagination"""
-    cursor_data = {"id": str(item_id), "created_at": created_at.isoformat()}
-    return base64.b64encode(json.dumps(cursor_data).encode()).decode()
-
-
-async def _get_cached_or_compute(
-    cache_key: str, compute_fn, redis_cache, ttl: int = CACHE_TTL_ANALYTICS
-) -> Any:
-    """Get from cache or compute and cache result"""
-    # Try to get from cache
-    cached = await redis_cache.get(cache_key)
-    if cached is not None:
-        return cached
-
-    # Compute and cache
-    result = await compute_fn()
-    await redis_cache.set(cache_key, result, ttl=ttl)
-    return result
 
 
 # ============================================================================
@@ -146,7 +117,7 @@ async def get_flow_rules(
     if cursor_data and "id" in cursor_data:
         cursor_id = UUID(cursor_data["id"])
         cursor_created = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
+            cursor_data["created_at"]
         )
         filters.append(
             (FlowRule.created_at < cursor_created)
@@ -237,209 +208,6 @@ async def delete_flow_rule(
 
 
 # ============================================================================
-# A/B Testing (6 endpoints)
-# ============================================================================
-
-
-@router.post(
-    "/ab-tests",
-    response_model=ABTestV2Response,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create A/B test",
-    description="Create new A/B test configuration",
-)
-@limiter.limit("5/hour")
-async def create_ab_test(
-    request: Request,
-    test_config: ABTestV2Create,
-    current_user: User = Depends(get_current_user),
-    flow_management: FlowManagementService = Depends(get_flow_management_service),
-):
-    """Create A/B test configuration"""
-    try:
-        ab_test = await flow_management.create_ab_test(
-            test_config=test_config, created_by=current_user.id
-        )
-        return ABTestV2Response.from_orm(ab_test)
-    except Exception as e:
-        logger.error(f"Failed to create A/B test: {e}")
-        raise flow_operation_exception("create_ab_test", str(e))
-
-
-@router.get(
-    "/ab-tests",
-    response_model=ABTestV2List,
-    summary="List A/B tests",
-    description="Get paginated list of A/B tests",
-)
-async def get_ab_tests(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    pagination=Depends(get_pagination_params),
-    active_only: bool = Query(True),
-):
-    """List A/B tests with cursor pagination"""
-    cursor_data = pagination["cursor_data"]
-    limit = pagination["limit"]
-
-    # Build query
-    from app.models.flow import ABTest
-
-    query = db.query(ABTest)
-
-    # Apply filters
-    filters = []
-    if active_only:
-        from app.schemas.v2.flows import ABTestStatusV2
-
-        filters.append(ABTest.status == ABTestStatusV2.ACTIVE)
-
-    # Apply cursor
-    if cursor_data and "id" in cursor_data:
-        cursor_id = UUID(cursor_data["id"])
-        cursor_created = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
-        )
-        filters.append(
-            (ABTest.created_at < cursor_created)
-            | ((ABTest.created_at == cursor_created) & (ABTest.id > cursor_id))
-        )
-
-    if filters:
-        query = query.filter(and_(*filters))
-
-    # Get total (only on first page)
-    total = None
-    if not cursor_data:
-        total = query.count()
-
-    # Order and limit
-    query = query.order_by(ABTest.created_at.desc(), ABTest.id)
-    tests = query.limit(limit + 1).all()
-
-    # Check for more results
-    has_more = len(tests) > limit
-    if has_more:
-        tests = tests[:limit]
-
-    # Create next cursor
-    next_cursor = None
-    if has_more and tests:
-        next_cursor = _create_cursor(tests[-1].id, tests[-1].created_at)
-
-    return ABTestV2List(
-        data=[ABTestV2Response.from_orm(t) for t in tests],
-        next_cursor=next_cursor,
-        has_more=has_more,
-        total=total,
-    )
-
-
-@router.get(
-    "/ab-tests/{test_id}",
-    response_model=ABTestV2Response,
-    summary="Get A/B test",
-    description="Get specific A/B test details",
-)
-async def get_ab_test(
-    test_id: UUID,
-    current_user: User = Depends(get_current_user),
-    flow_management: FlowManagementService = Depends(get_flow_management_service),
-):
-    """Get specific A/B test"""
-    try:
-        ab_test = await flow_management.get_ab_test(test_id)
-        return ABTestV2Response.from_orm(ab_test)
-    except FlowStateNotFoundError:
-        raise flow_not_found_exception(f"ab_test_{test_id}")
-    except Exception as e:
-        logger.error(f"Failed to get A/B test {test_id}: {e}")
-        raise internal_server_exception("Failed to get A/B test")
-
-
-@router.put(
-    "/ab-tests/{test_id}",
-    response_model=ABTestV2Response,
-    summary="Update A/B test",
-    description="Update A/B test configuration",
-)
-@limiter.limit("10/hour")
-async def update_ab_test(
-    request: Request,
-    test_id: UUID,
-    test_config: ABTestV2Update,
-    current_user: User = Depends(get_current_user),
-    flow_management: FlowManagementService = Depends(get_flow_management_service),
-):
-    """Update A/B test"""
-    try:
-        ab_test = await flow_management.update_ab_test(
-            test_id=test_id, test_config=test_config, updated_by=current_user.id
-        )
-        return ABTestV2Response.from_orm(ab_test)
-    except FlowStateNotFoundError:
-        raise flow_not_found_exception(f"ab_test_{test_id}")
-    except Exception as e:
-        logger.error(f"Failed to update A/B test {test_id}: {e}")
-        raise flow_operation_exception("update_ab_test", str(e))
-
-
-@router.post(
-    "/ab-tests/{test_id}/stop",
-    summary="Stop A/B test",
-    description="Stop an active A/B test",
-)
-@limiter.limit("10/hour")
-async def stop_ab_test(
-    request: Request,
-    test_id: UUID,
-    current_user: User = Depends(get_current_user),
-    flow_management: FlowManagementService = Depends(get_flow_management_service),
-):
-    """Stop A/B test"""
-    try:
-        results = await flow_management.stop_ab_test(
-            test_id=test_id, stopped_by=current_user.id
-        )
-        return {
-            "success": True,
-            "message": "A/B test stopped successfully",
-            "final_results": results,
-        }
-    except FlowStateNotFoundError:
-        raise flow_not_found_exception(f"ab_test_{test_id}")
-    except Exception as e:
-        logger.error(f"Failed to stop A/B test {test_id}: {e}")
-        raise internal_server_exception("Failed to stop A/B test")
-
-
-@router.get(
-    "/ab-tests/{test_id}/results",
-    summary="Get A/B test results",
-    description="Get comprehensive A/B test results and analytics",
-)
-async def get_ab_test_results(
-    test_id: UUID,
-    current_user: User = Depends(get_current_user),
-    flow_management: FlowManagementService = Depends(get_flow_management_service),
-):
-    """Get A/B test results"""
-    try:
-        results = await flow_management.get_ab_test_results(test_id)
-        return {
-            "success": True,
-            "test_id": str(test_id),
-            "results": results,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-        }
-    except FlowStateNotFoundError:
-        raise flow_not_found_exception(f"ab_test_{test_id}")
-    except Exception as e:
-        logger.error(f"Failed to get A/B test results {test_id}: {e}")
-        raise internal_server_exception("Failed to get A/B test results")
-
-
-# ============================================================================
 # Utility Operations (7 endpoints)
 # ============================================================================
 
@@ -468,7 +236,7 @@ async def preview_flow_message(
             "template_id": str(template_id),
             "day": day,
             "preview": preview,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
     except FlowStateNotFoundError:
         raise flow_not_found_exception(str(patient_id))
@@ -494,7 +262,7 @@ async def check_gemini_health(
             "service": "gemini",
             "status": "healthy" if gemini_status else "unhealthy",
             "details": health_status,
-            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "checked_at": now_sao_paulo().isoformat(),
         }
     except Exception as e:
         logger.error(f"Gemini health check failed: {e}")
@@ -502,7 +270,7 @@ async def check_gemini_health(
             "service": "gemini",
             "status": "unhealthy",
             "error": str(e),
-            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "checked_at": now_sao_paulo().isoformat(),
         }
 
 
@@ -525,7 +293,7 @@ async def check_redis_health(
             "service": "redis",
             "status": "healthy" if redis_status else "unhealthy",
             "details": health_status,
-            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "checked_at": now_sao_paulo().isoformat(),
         }
     except Exception as e:
         logger.error(f"Redis health check failed: {e}")
@@ -533,7 +301,7 @@ async def check_redis_health(
             "service": "redis",
             "status": "unhealthy",
             "error": str(e),
-            "checked_at": datetime.now(timezone.utc).isoformat(),
+            "checked_at": now_sao_paulo().isoformat(),
         }
 
 
@@ -570,7 +338,7 @@ async def list_flows(
         if cursor_data and "id" in cursor_data:
             cursor_id = UUID(cursor_data["id"])
             cursor_created = datetime.fromisoformat(
-                cursor_data["created_at"].replace("Z", "+00:00")
+                cursor_data["created_at"]
             )
             query = query.filter(
                 (FlowStateModel.created_at < cursor_created)

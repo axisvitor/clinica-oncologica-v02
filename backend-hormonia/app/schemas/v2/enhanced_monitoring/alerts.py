@@ -29,7 +29,7 @@ class AnomalyRecord(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "metric": "cpu_usage",
                 "value": 95.5,
                 "expected_value": 45.0,
@@ -59,7 +59,7 @@ class AnomalySummaryResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "time_range_hours": 24,
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "total_anomalies": 15,
                 "by_severity": {"high": 3, "medium": 8, "low": 4},
                 "by_metric": {"cpu_usage": 5, "memory_usage": 7, "error_rate": 3},
@@ -91,7 +91,7 @@ class AlertRecord(BaseModel):
                 "message": "High CPU usage: 92.5%",
                 "value": 92.5,
                 "threshold": 80.0,
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
             }
         }
     )
@@ -114,11 +114,11 @@ class AlertListResponse(BaseModel):
                         "message": "High CPU usage: 92.5%",
                         "value": 92.5,
                         "threshold": 80.0,
-                        "timestamp": "2025-11-07T12:00:00Z",
+                        "timestamp": "2025-11-07T12:00:00-03:00",
                     }
                 ],
                 "count": 1,
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
             }
         }
     )

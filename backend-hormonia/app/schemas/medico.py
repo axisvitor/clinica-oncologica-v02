@@ -64,7 +64,7 @@ class MedicoDashboardStats(BaseModel):
                     "medium": 6,
                     "low": 2,
                 },
-                "timestamp": "2025-10-06T14:30:00Z",
+                "timestamp": "2025-10-06T14:30:00-03:00",
             }
         }
     )

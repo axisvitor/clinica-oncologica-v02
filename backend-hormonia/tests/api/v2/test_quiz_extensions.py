@@ -32,6 +32,7 @@ from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.models.patient import Patient
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Test Fixtures
 # ============================================================================
@@ -73,7 +74,7 @@ def sample_monthly_quiz_data() -> Dict[str, Any]:
         "name": "November 2025 Health Check",
         "description": "Monthly wellness questionnaire",
         "quiz_template_id": str(uuid4()),
-        "scheduled_for": (datetime.utcnow() + timedelta(days=1)).isoformat(),
+        "scheduled_for": (now_sao_paulo_naive() + timedelta(days=1)).isoformat(),
         "target_patient_ids": None,
         "auto_send": True,
         "delivery_method": "whatsapp"
@@ -115,7 +116,8 @@ def create_test_quiz_response(db: Session, test_patient: Patient) -> QuizRespons
         status="completed",
         score=75.0,
         max_score=100.0,
-        started_at=datetime.utcnow()
+        started_at=now_sao_paulo_naive(),
+        completed_at=now_sao_paulo_naive(),
     )
     db.add(session)
     db.flush()
@@ -129,7 +131,7 @@ def create_test_quiz_response(db: Session, test_patient: Patient) -> QuizRespons
         response_type="scale",
         response_value="7",
         response_metadata={"risk_score": 30.0},
-        responded_at=datetime.utcnow()
+        responded_at=now_sao_paulo_naive()
     )
     db.add(response)
     db.commit()
@@ -183,7 +185,7 @@ def create_multiple_quiz_responses(
             response_type="scale",
             response_value=str(i + 5),
             response_metadata={"risk_score": float(i * 10)},
-            responded_at=datetime.utcnow() - timedelta(days=i)
+            responded_at=now_sao_paulo_naive() - timedelta(days=i)
         )
         responses.append(response)
         db.add(response)
@@ -275,8 +277,8 @@ class TestQuizResponses:
         create_multiple_quiz_responses: List[QuizResponse]
     ):
         """Test filtering quiz responses by date range."""
-        start_date = (datetime.utcnow() - timedelta(days=3)).isoformat()
-        end_date = datetime.utcnow().isoformat()
+        start_date = (now_sao_paulo_naive() - timedelta(days=3)).isoformat()
+        end_date = now_sao_paulo_naive().isoformat()
 
         response = client.get(
             f"/api/v2/quiz-extensions/responses?start_date={start_date}&end_date={end_date}",
@@ -532,7 +534,7 @@ class TestQuizAlerts:
         create_test_quiz_alert: Alert
     ):
         """Test alert statistics filtered by patient and date range."""
-        start_date = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        start_date = (now_sao_paulo_naive() - timedelta(days=7)).isoformat()
 
         response = client.get(
             f"/api/v2/quiz-extensions/alerts/statistics?patient_id={test_patient.id}&start_date={start_date}",
@@ -906,14 +908,16 @@ class TestErrorHandling:
         client: TestClient,
         auth_headers: Dict[str, str]
     ):
-        """Test that invalid pagination limits are rejected."""
-        # Limit too high
+        """Test that high pagination limits are clamped by API defaults."""
         response = client.get(
             "/api/v2/quiz-extensions/responses?limit=1000",
             headers=auth_headers
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 200
+        data = response.json()
+        assert "data" in data
+        assert len(data["data"]) <= 100
 
     def test_invalid_date_format(
         self,

@@ -18,18 +18,6 @@ vi.mock('@sentry/react', () => ({
   withSentryConfig: vi.fn()
 }))
 
-vi.mock('@sentry/tracing', () => ({
-  BrowserTracing: vi.fn()
-}))
-
-vi.mock('@sentry/integrations', () => ({
-  CaptureConsole: vi.fn()
-}))
-
-vi.mock('@sentry/replay', () => ({
-  Replay: vi.fn()
-}))
-
 describe('SentryMonitoring', () => {
   beforeEach(() => {
     vi.clearAllMocks()

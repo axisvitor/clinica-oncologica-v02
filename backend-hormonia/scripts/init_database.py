@@ -206,7 +206,15 @@ class DatabaseInitializer:
                     WHERE table_schema = 'public'
                     ORDER BY table_name
                 """))
-                tables = [row[0] for row in result]
+                table_rows = result.fetchall() if hasattr(result, "fetchall") else list(result)
+                tables: list[str] = []
+                for row in table_rows:
+                    if isinstance(row, (tuple, list)) and row:
+                        tables.append(str(row[0]))
+                    elif hasattr(row, "table_name"):
+                        tables.append(str(getattr(row, "table_name")))
+                    elif row is not None:
+                        tables.append(str(row))
 
                 logger.info(f"✓ Found {len(tables)} tables")
                 for table in tables:

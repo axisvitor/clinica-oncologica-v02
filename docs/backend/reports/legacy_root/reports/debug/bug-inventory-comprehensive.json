@@ -1,0 +1,670 @@
+{
+  "metadata": {
+    "generated_at": "2025-12-24T05:47:00Z",
+    "analysis_agent": "Bug Analysis Researcher",
+    "total_bugs_identified": 28,
+    "critical_files_analyzed": 7,
+    "documentation_reviewed": 15
+  },
+  "summary": {
+    "p0_critical": 5,
+    "p1_high": 12,
+    "p2_medium": 11,
+    "already_fixed": 8,
+    "pending_fixes": 20
+  },
+  "p0_critical_bugs": [
+    {
+      "bug_id": "P0-001",
+      "title": "Patient Creation - is_active Invalid Keyword Argument",
+      "status": "FIXED",
+      "severity": "P0",
+      "component": "Backend - Patient CRUD",
+      "files": [
+        "/backend-hormonia/app/repositories/patient/base.py"
+      ],
+      "affected_lines": [67, 176],
+      "root_cause": "PatientRepositoryBase.create() and update() methods passing unsanitized data dictionary to Patient model constructor. The is_active field was included in data but Patient model doesn't have this column.",
+      "error_message": "TypeError: 'is_active' is an invalid keyword argument for Patient",
+      "impact": "BLOCKING - All patient creation requests failed with 500 error",
+      "fix_approach": "Extract is_active from data before passing to Patient(**data) - matching pattern for phone, email, cpf fields",
+      "fix_implemented": true,
+      "test_status": "4/9 tests passing after fix",
+      "fix_date": "2025-12-23",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P0-002",
+      "title": "Async/Sync Mismatch in PatientIntegrityService",
+      "status": "FIXED",
+      "severity": "P0",
+      "component": "Backend - Patient Validation",
+      "files": [
+        "/backend-hormonia/app/services/patient/integrity_service.py"
+      ],
+      "affected_lines": [67, 121, 146, 166, 291, 311, 321, 366, 406],
+      "root_cause": "Methods declared with 'async def' but using synchronous database operations (self.db.query(), query.first()). Created invalid Python syntax when methods called each other with await.",
+      "error_message": "SyntaxError: 'await' outside async function",
+      "impact": "BLOCKING - Application failed to start, import errors on all patient endpoints",
+      "fix_approach": "Remove 'async' keyword from methods using synchronous SQLAlchemy session. Remove 'await' from calls to these methods.",
+      "fix_implemented": true,
+      "test_status": "Application starts successfully, tests can import",
+      "fix_date": "2025-12-23",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P0-003",
+      "title": "Database Connection Pool - Worker Count Miscalculation",
+      "status": "PENDING",
+      "severity": "P0",
+      "component": "Backend - Database Configuration",
+      "files": [
+        "/backend-hormonia/app/core/database_config.py"
+      ],
+      "affected_lines": [140, 153, 228, 233],
+      "root_cause": "get_worker_count() defaults to 4 workers but development servers use 1 worker. Development pool config (20+30 per worker) × 4 workers = 200 connections, exceeding AWS RDS t3.micro limit (~80)",
+      "error_message": "ValidationError: total_connections (200) exceeds AWS RDS limits (~80)",
+      "impact": "CRITICAL - Would fail in production deployment, connection pool exhaustion",
+      "fix_approach": "1) Smart worker detection: default to 1 for dev, require explicit config for prod. 2) Reduce dev pool from 20/30 to 5/5. 3) Add validation for all environments.",
+      "fix_implemented": false,
+      "estimated_fix_time": "30 minutes",
+      "test_status": "Not tested yet",
+      "reference": "/docs/DATABASE_POOL_CRITICAL_ISSUE_REPORT.md"
+    },
+    {
+      "bug_id": "P0-004",
+      "title": "Template Injection Vulnerability",
+      "status": "FIXED",
+      "severity": "P0",
+      "component": "Backend - Message Templates",
+      "files": [
+        "/backend-hormonia/app/domain/messaging/core/message_factory.py",
+        "/backend-hormonia/app/domain/messaging/core/message_service/templates.py"
+      ],
+      "affected_lines": [142, 280],
+      "root_cause": "Unsanitized user input (patient names, URLs) passed directly to template.format() allowing XSS, HTML injection, and malicious URL injection",
+      "error_message": "N/A - Security vulnerability, no runtime error",
+      "impact": "SECURITY CRITICAL - XSS attacks, credential theft, session hijacking possible",
+      "fix_approach": "Created centralized TemplateSanitizer using markupsafe.escape for HTML/script tags, URL validation to block javascript: and data: schemes",
+      "fix_implemented": true,
+      "test_status": "21 security test cases passing",
+      "fix_date": "2025-12-22",
+      "reference": "/docs/SECURITY_FIXES_P0_CRITICAL.md"
+    },
+    {
+      "bug_id": "P0-005",
+      "title": "SQL String Concatenation Vulnerability",
+      "status": "FIXED",
+      "severity": "P0",
+      "component": "Backend - Database Optimization",
+      "files": [
+        "/backend-hormonia/app/utils/database_optimization.py"
+      ],
+      "affected_lines": [204, 228],
+      "root_cause": "String concatenation for SQL queries (optimized_query += 'LIMIT 1000') instead of parameterized queries, allowing SQL injection",
+      "error_message": "N/A - Security vulnerability, no runtime error",
+      "impact": "SECURITY CRITICAL - Complete database compromise, patient data breach, HIPAA violations",
+      "fix_approach": "Replace all string concatenation with SQLAlchemy query builder API (query.limit().offset()). Add regex validation for table/index names.",
+      "fix_implemented": true,
+      "test_status": "All database operations use SQLAlchemy API",
+      "fix_date": "2025-12-22",
+      "reference": "/docs/SECURITY_FIXES_P0_CRITICAL.md"
+    }
+  ],
+  "p1_high_priority_bugs": [
+    {
+      "bug_id": "P1-001",
+      "title": "FastAPI Initialization Timeout - Firebase Admin SDK",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Application Startup",
+      "files": [
+        "/backend-hormonia/app/services/firebase_auth_service.py"
+      ],
+      "affected_lines": [42, 73],
+      "root_cause": "Synchronous Firebase SDK initialization during startup with no timeout. Network call to Google OAuth endpoint can take 10-30s, blocking entire app startup",
+      "error_message": "N/A - Performance issue, not error",
+      "impact": "HIGH - App startup takes 14-56s (best to worst case), test reliability 60-70%",
+      "fix_approach": "Add 10s timeout wrapper using asyncio.wait_for. Implement circuit breaker for fast-fail. Enable graceful degradation without Firebase.",
+      "fix_implemented": false,
+      "estimated_fix_time": "1-2 hours",
+      "expected_improvement": "Startup: 56s → 20s (65% improvement)",
+      "reference": "/backend-hormonia/docs/INITIALIZATION_TIMEOUT_ANALYSIS.md"
+    },
+    {
+      "bug_id": "P1-002",
+      "title": "Redis Connection - Multiple Timeout Attempts",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Redis Manager",
+      "files": [
+        "/backend-hormonia/app/core/lifespan.py"
+      ],
+      "affected_lines": [189, 234],
+      "root_cause": "Sequential Redis connection attempts with 5-10s timeouts each. Three separate connection attempts during startup with no shared connection.",
+      "error_message": "N/A - Performance issue",
+      "impact": "HIGH - 15-20s additional startup time on Redis failures",
+      "fix_approach": "Reduce startup timeout to 2s for fast-fail. Share Redis connection across components. Add aggressive timeout override during startup phase.",
+      "fix_implemented": false,
+      "estimated_fix_time": "1 hour",
+      "expected_improvement": "Redis init: 15-20s → 2-4s",
+      "reference": "/backend-hormonia/docs/INITIALIZATION_TIMEOUT_ANALYSIS.md"
+    },
+    {
+      "bug_id": "P1-003",
+      "title": "Sequential Service Initialization - No Parallelization",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Application Lifespan",
+      "files": [
+        "/backend-hormonia/app/core/lifespan.py",
+        "/backend-hormonia/app/monitoring/manager.py"
+      ],
+      "affected_lines": [52, 102, 100, 166],
+      "root_cause": "All services initialized sequentially during startup (monitoring, websocket, redis, session manager, AI, etc.). No parallelization of independent services.",
+      "error_message": "N/A - Performance issue",
+      "impact": "HIGH - 18-36s cumulative initialization time",
+      "fix_approach": "Implement asyncio.gather() for independent services (monitoring, websocket, AI, enums). Keep dependent services sequential (redis pubsub after websocket).",
+      "fix_implemented": false,
+      "estimated_fix_time": "2-3 hours",
+      "expected_improvement": "Startup: 18-36s → 10-15s (40-60% faster)",
+      "reference": "/backend-hormonia/docs/INITIALIZATION_TIMEOUT_ANALYSIS.md"
+    },
+    {
+      "bug_id": "P1-004",
+      "title": "Patient Test Payloads - Missing Required Fields",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Tests",
+      "files": [
+        "/backend-hormonia/tests/api/critical/test_patients_crud.py"
+      ],
+      "affected_lines": [26, 31],
+      "root_cause": "Test payloads missing required 'email' and 'birth_date' fields. Causes 422 Unprocessable Entity errors.",
+      "error_message": "422 Unprocessable Entity - Missing required fields",
+      "impact": "HIGH - All patient creation tests fail",
+      "fix_approach": "Add email and birth_date to all test payloads. Pattern: {name, cpf, email, birth_date, phone}",
+      "fix_implemented": false,
+      "estimated_fix_time": "15 minutes",
+      "test_status": "Currently failing",
+      "reference": "/docs/QUICK_FIX_CHECKLIST.md"
+    },
+    {
+      "bug_id": "P1-005",
+      "title": "Quiz Session Endpoint - 405 Method Not Allowed",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Quiz API",
+      "files": [
+        "/backend-hormonia/app/api/v2/routers/quiz_sessions.py",
+        "/backend-hormonia/tests/api/critical/test_quiz_session.py"
+      ],
+      "affected_lines": ["Unknown"],
+      "root_cause": "Missing POST handler for quiz session creation or incorrect endpoint path registration",
+      "error_message": "405 Method Not Allowed",
+      "impact": "HIGH - Quiz session creation tests fail",
+      "fix_approach": "Option A: Add missing POST handler. Option B: Fix test endpoint path to match router registration.",
+      "fix_implemented": false,
+      "estimated_fix_time": "30 minutes",
+      "test_status": "Currently failing",
+      "reference": "/docs/QUICK_FIX_CHECKLIST.md"
+    },
+    {
+      "bug_id": "P1-006",
+      "title": "Integration Tests - Broken get_db Import",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Tests",
+      "files": [
+        "/backend-hormonia/tests/integration/conftest.py"
+      ],
+      "affected_lines": [10, 15],
+      "root_cause": "Database refactoring moved get_db function. Tests still import from old path: app.core.database_config",
+      "error_message": "ImportError: cannot import name 'get_db' from 'app.core.database_config'",
+      "impact": "HIGH - All integration tests fail to import",
+      "fix_approach": "Update import to: from app.database import get_db",
+      "fix_implemented": false,
+      "estimated_fix_time": "5 minutes",
+      "test_status": "Integration tests cannot run",
+      "reference": "/docs/QUICK_FIX_CHECKLIST.md"
+    },
+    {
+      "bug_id": "P1-007",
+      "title": "CPF Normalization - Silent Truncation",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Patient Validation",
+      "files": [
+        "/backend-hormonia/app/services/patient/integrity_service.py"
+      ],
+      "affected_lines": ["Unknown - validation logic"],
+      "root_cause": "Invalid CPF values silently truncated instead of raising ValidationError",
+      "error_message": "N/A - Silent failure",
+      "impact": "HIGH - Data integrity issue, invalid CPFs stored in database",
+      "fix_approach": "Raise ValidationError for invalid CPF format instead of truncating",
+      "fix_implemented": false,
+      "estimated_fix_time": "30 minutes",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P1-008",
+      "title": "Missing Phone Validation on Patient Creation",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Patient Creation",
+      "files": [
+        "/backend-hormonia/app/api/v2/routers/patients/crud.py"
+      ],
+      "affected_lines": ["Unknown"],
+      "root_cause": "Create endpoint doesn't verify phone format/validity before starting saga orchestration",
+      "error_message": "N/A - Missing validation",
+      "impact": "HIGH - Invalid phone numbers can start saga, wasting resources",
+      "fix_approach": "Add phone validation check before saga.orchestrate_patient_creation()",
+      "fix_implemented": false,
+      "estimated_fix_time": "30 minutes",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P1-009",
+      "title": "Idempotency Race Condition",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Patient Creation",
+      "files": [
+        "/backend-hormonia/app/api/v2/routers/patients/crud.py"
+      ],
+      "affected_lines": ["Unknown"],
+      "root_cause": "Database check and Redis check for duplicate patients not atomic. Race condition allows duplicate creation.",
+      "error_message": "N/A - Race condition",
+      "impact": "HIGH - Duplicate patient records possible under concurrent requests",
+      "fix_approach": "Use atomic Redis lock or database UPSERT for idempotency check",
+      "fix_implemented": false,
+      "estimated_fix_time": "1-2 hours",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P1-010",
+      "title": "Test Rate Limiting Causing False Failures",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Tests",
+      "files": [
+        "/backend-hormonia/tests/api/critical/test_patients_crud.py"
+      ],
+      "affected_lines": ["Test configuration"],
+      "root_cause": "Tests hitting 429 Too Many Requests (20/hour limit). Rate limiter not bypassed for test suite.",
+      "error_message": "429 Too Many Requests",
+      "impact": "HIGH - 4/9 tests skipped, 1 test failed due to rate limiting (not actual bugs)",
+      "fix_approach": "Add @pytest.mark.slow_api or rate limit bypass for test environment",
+      "fix_implemented": false,
+      "estimated_fix_time": "30 minutes",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P1-011",
+      "title": "Implicit Optional Type Hints (PEP 484 Violation)",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Code Quality",
+      "files": [
+        "/backend-hormonia/app/exceptions/external_service.py"
+      ],
+      "affected_lines": [7, 33, 40, 47],
+      "root_cause": "Parameters with default None use implicit Optional. Modern Python requires explicit Optional[T] annotation.",
+      "error_message": "mypy warning: implicit Optional",
+      "impact": "MEDIUM - Type checking incomplete, IDE autocomplete reduced",
+      "fix_approach": "Add from typing import Optional. Update def __init__(self, service: Optional[str] = None)",
+      "fix_implemented": false,
+      "estimated_fix_time": "2 hours for all files",
+      "reference": "/backend-hormonia/docs/PYTHON_SYNTAX_DEBUG_REPORT.md"
+    },
+    {
+      "bug_id": "P1-012",
+      "title": "Missing Type Stubs for jsonschema",
+      "status": "PENDING",
+      "severity": "P1",
+      "component": "Backend - Dependencies",
+      "files": [
+        "/backend-hormonia/app/utils/jsonb_validator.py"
+      ],
+      "affected_lines": [18],
+      "root_cause": "jsonschema library type stubs not installed",
+      "error_message": "Library stubs not installed for 'jsonschema'",
+      "impact": "MEDIUM - Incomplete type checking for jsonschema code",
+      "fix_approach": "pip install types-jsonschema",
+      "fix_implemented": false,
+      "estimated_fix_time": "5 minutes",
+      "reference": "/backend-hormonia/docs/PYTHON_SYNTAX_DEBUG_REPORT.md"
+    }
+  ],
+  "p2_medium_priority_bugs": [
+    {
+      "bug_id": "P2-001",
+      "title": "God Service Anti-Pattern - PatientIntegrityService",
+      "status": "PENDING",
+      "severity": "P2",
+      "component": "Backend - Architecture",
+      "files": [
+        "/backend-hormonia/app/services/patient/integrity_service.py"
+      ],
+      "affected_lines": ["Entire file - 651 lines"],
+      "root_cause": "Single service with too many responsibilities (validation, duplicate checking, CPF/email/phone validation, saga coordination)",
+      "error_message": "N/A - Architecture smell",
+      "impact": "MEDIUM - Code maintainability, testing complexity",
+      "fix_approach": "Split into: ValidationService, DuplicateCheckService, SagaCoordinationService",
+      "fix_implemented": false,
+      "estimated_fix_time": "4-6 hours",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P2-002",
+      "title": "Deprecated Method Still Callable",
+      "status": "PENDING",
+      "severity": "P2",
+      "component": "Backend - Patient Service",
+      "files": [
+        "/backend-hormonia/app/services/patient/integrity_service.py"
+      ],
+      "affected_lines": [291],
+      "root_cause": "validate_patient_creation() method marked as deprecated but still callable and used",
+      "error_message": "N/A - Deprecated code",
+      "impact": "MEDIUM - Code confusion, potential bugs from using old API",
+      "fix_approach": "Remove deprecated method, update all callers to use validate_patient_data()",
+      "fix_implemented": false,
+      "estimated_fix_time": "1 hour",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P2-003",
+      "title": "N+1 Query Risk - Inconsistent Eager Loading",
+      "status": "PENDING",
+      "severity": "P2",
+      "component": "Backend - Patient Repository",
+      "files": [
+        "/backend-hormonia/app/repositories/patient/eager_loading.py"
+      ],
+      "affected_lines": ["Multiple query methods"],
+      "root_cause": "Eager loading (joinedload) not consistently applied across all query methods",
+      "error_message": "N/A - Performance issue",
+      "impact": "MEDIUM - Potential N+1 queries, slower API responses",
+      "fix_approach": "Audit all query methods, apply consistent eager loading strategy",
+      "fix_implemented": false,
+      "estimated_fix_time": "2-3 hours",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P2-004",
+      "title": "Duplicate Code - UUID Parsing + Patient Lookup",
+      "status": "PENDING",
+      "severity": "P2",
+      "component": "Backend - Patient Routers",
+      "files": [
+        "/backend-hormonia/app/api/v2/routers/patients/crud.py",
+        "/backend-hormonia/app/api/v2/routers/patients/flow.py"
+      ],
+      "affected_lines": ["Multiple endpoints"],
+      "root_cause": "UUID parsing and patient lookup pattern repeated across multiple router files",
+      "error_message": "N/A - Code duplication",
+      "impact": "MEDIUM - Code maintainability, DRY violation",
+      "fix_approach": "Create shared utility function for UUID validation + patient lookup",
+      "fix_implemented": false,
+      "estimated_fix_time": "1-2 hours",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P2-005",
+      "title": "Information Disclosure in Exception Messages",
+      "status": "PENDING",
+      "severity": "P2",
+      "component": "Backend - Error Handling",
+      "files": [
+        "/backend-hormonia/app/api/v2/routers/patients/"
+      ],
+      "affected_lines": ["Multiple endpoints"],
+      "root_cause": "Exception messages returned to client may leak internal implementation details",
+      "error_message": "N/A - Security concern",
+      "impact": "MEDIUM - Potential information leakage, security best practices",
+      "fix_approach": "Sanitize exception messages, return generic errors to client, log details server-side",
+      "fix_implemented": false,
+      "estimated_fix_time": "2-3 hours",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P2-006",
+      "title": "Rate Limiting Bypass - Validation Endpoint CPF Enumeration",
+      "status": "PENDING",
+      "severity": "P2",
+      "component": "Backend - Security",
+      "files": [
+        "/backend-hormonia/app/api/v2/routers/patients/"
+      ],
+      "affected_lines": ["Validation endpoint"],
+      "root_cause": "Validation endpoint could be used to enumerate valid CPFs without proper rate limiting",
+      "error_message": "N/A - Security concern",
+      "impact": "MEDIUM - Potential data exposure through enumeration",
+      "fix_approach": "Add aggressive rate limiting to validation endpoints, consider CAPTCHA",
+      "fix_implemented": false,
+      "estimated_fix_time": "1-2 hours",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "P2-007",
+      "title": "Missing Variable Type Annotations",
+      "status": "PENDING",
+      "severity": "P2",
+      "component": "Backend - Code Quality",
+      "files": [
+        "/backend-hormonia/app/utils/template_sanitizer.py",
+        "/backend-hormonia/app/utils/jsonb_validator.py",
+        "/backend-hormonia/app/exceptions/external_service.py"
+      ],
+      "affected_lines": [54, 57, 164, 170, 13, 226, 262, 22],
+      "root_cause": "Dict and list variables lack type hints (error_details = {} instead of error_details: Dict[str, Any] = {})",
+      "error_message": "mypy warning: missing type annotation",
+      "impact": "LOW - IDE autocomplete reduced, type checking incomplete",
+      "fix_approach": "Add type annotations to all variables: config: Dict[str, Any] = {}, items: List[str] = []",
+      "fix_implemented": false,
+      "estimated_fix_time": "2 hours",
+      "reference": "/backend-hormonia/docs/PYTHON_SYNTAX_DEBUG_REPORT.md"
+    },
+    {
+      "bug_id": "P2-008",
+      "title": "Type Assignment Issues in TemplateSanitizer",
+      "status": "PENDING",
+      "severity": "P2",
+      "component": "Backend - Type Safety",
+      "files": [
+        "/backend-hormonia/app/utils/template_sanitizer.py"
+      ],
+      "affected_lines": [69, 72, 78],
+      "root_cause": "clean_value: str = sanitize_number(value) but sanitize_number returns int|float, not str. Type narrowing needed.",
+      "error_message": "mypy error: incompatible type assignment",
+      "impact": "LOW - Type checker confusion, runtime works correctly",
+      "fix_approach": "Update return type annotations or use Union types: def sanitize_value(value: Any) -> Union[str, int, float, list, dict]",
+      "fix_implemented": false,
+      "estimated_fix_time": "1 hour",
+      "reference": "/backend-hormonia/docs/PYTHON_SYNTAX_DEBUG_REPORT.md"
+    },
+    {
+      "bug_id": "P2-009",
+      "title": "Test Flow Advance - Using Non-Existent Flow Model",
+      "status": "PENDING",
+      "severity": "P2",
+      "component": "Backend - Tests",
+      "files": [
+        "/backend-hormonia/tests/api/v2/test_flows_advance.py"
+      ],
+      "affected_lines": ["Multiple tests"],
+      "root_cause": "Tests reference Flow model which doesn't exist. System uses PatientFlowState model instead.",
+      "error_message": "7 tests marked as @pytest.mark.skip",
+      "impact": "MEDIUM - Missing test coverage for flow advancement functionality",
+      "fix_approach": "Refactor tests to use PatientFlowState model, implement flow state transition tests",
+      "fix_implemented": false,
+      "estimated_fix_time": "2-4 hours",
+      "reference": "/docs/PENDING_CORRECTIONS_SUMMARY.md"
+    },
+    {
+      "bug_id": "P2-010",
+      "title": "Debug Endpoint Tests - Missing Auth Mocks",
+      "status": "PENDING",
+      "severity": "P2",
+      "component": "Backend - Tests",
+      "files": [
+        "/backend-hormonia/tests/api/v2/test_debug.py"
+      ],
+      "affected_lines": ["Multiple tests"],
+      "root_cause": "Tests have placeholder 'pass' statements. Need mocks for doctor and admin authentication.",
+      "error_message": "TODO: Mock authentication to test with doctor user",
+      "impact": "LOW - Debug endpoints only for development",
+      "fix_approach": "Implement authentication mocks, test endpoints with different roles",
+      "fix_implemented": false,
+      "estimated_fix_time": "2-4 hours",
+      "reference": "/docs/PENDING_CORRECTIONS_SUMMARY.md"
+    },
+    {
+      "bug_id": "P2-011",
+      "title": "Test Patients CRUD - Portuguese vs English Field Names",
+      "status": "PENDING",
+      "severity": "P2",
+      "component": "Backend - Tests",
+      "files": [
+        "/backend-hormonia/tests/api/critical/test_patients_crud.py"
+      ],
+      "affected_lines": ["Test payloads"],
+      "root_cause": "Tests using Portuguese field names ('nome', 'telefone') but API expects English ('name', 'phone')",
+      "error_message": "Tests marked as @pytest.mark.skip with TODO: Refactor to match PatientV2Create schema",
+      "impact": "LOW - Tests already covered by test_route_validation.py",
+      "fix_approach": "Refactor test payloads to use English field names matching PatientV2Create schema",
+      "fix_implemented": false,
+      "estimated_fix_time": "1-2 hours",
+      "reference": "/docs/PENDING_CORRECTIONS_SUMMARY.md"
+    }
+  ],
+  "already_fixed": [
+    {
+      "bug_id": "FIXED-001",
+      "title": "Template Injection Vulnerability",
+      "status": "FIXED",
+      "severity": "P0",
+      "fix_date": "2025-12-22",
+      "reference": "/docs/SECURITY_FIXES_P0_CRITICAL.md"
+    },
+    {
+      "bug_id": "FIXED-002",
+      "title": "SQL String Concatenation",
+      "status": "FIXED",
+      "severity": "P0",
+      "fix_date": "2025-12-22",
+      "reference": "/docs/SECURITY_FIXES_P0_CRITICAL.md"
+    },
+    {
+      "bug_id": "FIXED-003",
+      "title": "Patient is_active Invalid Keyword",
+      "status": "FIXED",
+      "severity": "P0",
+      "fix_date": "2025-12-23",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "FIXED-004",
+      "title": "Async/Sync Mismatch",
+      "status": "FIXED",
+      "severity": "P0",
+      "fix_date": "2025-12-23",
+      "reference": "/docs/PATIENT_CRUD_DEBUG_SUMMARY.md"
+    },
+    {
+      "bug_id": "FIXED-005",
+      "title": "Trailing Slash 307 Redirects",
+      "status": "FIXED",
+      "severity": "P1",
+      "fix_date": "2025-12-22",
+      "endpoints_fixed": 23,
+      "performance_improvement": "50%",
+      "reference": "/docs/PENDING_CORRECTIONS_SUMMARY.md"
+    },
+    {
+      "bug_id": "FIXED-006",
+      "title": "Session Fixation Vulnerability",
+      "status": "FIXED",
+      "severity": "P0",
+      "fix_date": "2025-12-22",
+      "reference": "/docs/PENDING_CORRECTIONS_SUMMARY.md"
+    },
+    {
+      "bug_id": "FIXED-007",
+      "title": "IDOR Vulnerabilities",
+      "status": "FIXED",
+      "severity": "P0",
+      "fix_date": "2025-12-22",
+      "reference": "/docs/PENDING_CORRECTIONS_SUMMARY.md"
+    },
+    {
+      "bug_id": "FIXED-008",
+      "title": "Missing Rate Limiting on Auth",
+      "status": "FIXED",
+      "severity": "P0",
+      "fix_date": "2025-12-22",
+      "reference": "/docs/PENDING_CORRECTIONS_SUMMARY.md"
+    }
+  ],
+  "recommended_fix_order": [
+    {
+      "priority": "P0 - Immediate (This Session)",
+      "bugs": [
+        "P0-003: Database Pool Worker Count",
+        "P1-004: Patient Test Payloads",
+        "P1-005: Quiz Session Endpoint",
+        "P1-006: Integration Test Imports"
+      ],
+      "estimated_time": "90 minutes",
+      "impact": "Unblock all critical tests, prevent production deployment issues"
+    },
+    {
+      "priority": "P1 - High (This Week)",
+      "bugs": [
+        "P1-001: Firebase Initialization Timeout",
+        "P1-002: Redis Connection Timeouts",
+        "P1-003: Sequential Service Initialization",
+        "P1-010: Test Rate Limiting"
+      ],
+      "estimated_time": "4-6 hours",
+      "impact": "Improve startup time by 65-79%, test reliability to 95%+"
+    },
+    {
+      "priority": "P2 - Medium (Next Sprint)",
+      "bugs": [
+        "P1-007: CPF Normalization",
+        "P1-008: Missing Phone Validation",
+        "P1-009: Idempotency Race Condition",
+        "P1-011: Type Hints",
+        "P1-012: Missing Type Stubs"
+      ],
+      "estimated_time": "4-6 hours",
+      "impact": "Data integrity, type safety, code quality"
+    },
+    {
+      "priority": "P3 - Low (Backlog)",
+      "bugs": [
+        "P2-001: God Service Refactoring",
+        "P2-002: Remove Deprecated Method",
+        "P2-003: N+1 Query Risk",
+        "P2-009: Test Flow Advance",
+        "P2-010: Debug Endpoint Tests"
+      ],
+      "estimated_time": "8-12 hours",
+      "impact": "Architecture improvements, test coverage"
+    }
+  ],
+  "metrics": {
+    "total_files_analyzed": 50,
+    "total_lines_of_code_reviewed": 5000,
+    "critical_security_vulnerabilities": 2,
+    "critical_security_vulnerabilities_fixed": 2,
+    "blocking_bugs": 3,
+    "blocking_bugs_fixed": 2,
+    "performance_issues": 3,
+    "test_failures": 7,
+    "code_quality_issues": 11
+  }
+}

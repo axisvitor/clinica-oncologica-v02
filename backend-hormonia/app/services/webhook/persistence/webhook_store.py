@@ -15,6 +15,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,32 @@ class WebhookEventStore:
             db: Database session
         """
         self.db = db
+
+    @staticmethod
+    def _build_insert_params(
+        *,
+        event_id: UUID,
+        event_type: str,
+        source: str,
+        payload: Dict[str, Any],
+        related_message_id: Optional[UUID],
+        related_patient_id: Optional[UUID],
+        event_hash: str,
+    ) -> Dict[str, Any]:
+        """Build canonical INSERT parameter mapping for webhook_events."""
+        return {
+            "id": str(event_id),
+            "event_type": event_type,
+            "source": source,
+            "payload": json.dumps(payload, default=str),
+            "processed": False,
+            "retry_count": 0,
+            "max_retries": 3,
+            "related_message_id": str(related_message_id) if related_message_id else None,
+            "related_patient_id": str(related_patient_id) if related_patient_id else None,
+            "event_hash": event_hash,
+            "is_duplicate": False,
+        }
 
     async def persist_event(
         self,
@@ -84,26 +111,17 @@ class WebhookEventStore:
                 RETURNING id
             """)
 
-            payload_json = json.dumps(payload, default=str)
             result = self.db.execute(
                 insert_stmt,
-                {
-                    "id": str(event_id),
-                    "event_type": event_type,
-                    "source": source,
-                    "payload": payload_json,
-                    "processed": False,
-                    "retry_count": 0,
-                    "max_retries": 3,
-                    "related_message_id": str(related_message_id)
-                    if related_message_id
-                    else None,
-                    "related_patient_id": str(related_patient_id)
-                    if related_patient_id
-                    else None,
-                    "event_hash": event_hash,
-                    "is_duplicate": False,
-                },
+                self._build_insert_params(
+                    event_id=event_id,
+                    event_type=event_type,
+                    source=source,
+                    payload=payload,
+                    related_message_id=related_message_id,
+                    related_patient_id=related_patient_id,
+                    event_hash=event_hash,
+                ),
             )
 
             row = result.fetchone()
@@ -197,26 +215,17 @@ class WebhookEventStore:
                 RETURNING id
             """)
 
-            payload_json = json.dumps(payload, default=str)
             result = self.db.execute(
                 insert_stmt,
-                {
-                    "id": str(db_uuid),
-                    "event_type": event_type,
-                    "source": source,
-                    "payload": payload_json,
-                    "processed": False,
-                    "retry_count": 0,
-                    "max_retries": 3,
-                    "related_message_id": str(related_message_id)
-                    if related_message_id
-                    else None,
-                    "related_patient_id": str(related_patient_id)
-                    if related_patient_id
-                    else None,
-                    "event_hash": event_hash,
-                    "is_duplicate": False,
-                },
+                self._build_insert_params(
+                    event_id=db_uuid,
+                    event_type=event_type,
+                    source=source,
+                    payload=payload,
+                    related_message_id=related_message_id,
+                    related_patient_id=related_patient_id,
+                    event_hash=event_hash,
+                ),
             )
 
             row = result.fetchone()
@@ -416,7 +425,7 @@ class WebhookEventStore:
             Number of deleted events
         """
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+            cutoff_date = now_sao_paulo() - timedelta(days=days)
 
             delete_stmt = text("""
                 DELETE FROM webhook_events

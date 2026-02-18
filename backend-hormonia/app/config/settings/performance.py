@@ -98,13 +98,13 @@ class PerformanceSettings(BaseAppSettings):
     REDIS_POOL_SIZE: int = Field(
         default=20,
         ge=10,
-        le=100,
+        le=1000,
         description="Redis connection pool size (lower than DB pool)",
     )
     REDIS_POOL_MAX_CONNECTIONS: int = Field(
         default=50,
         ge=20,
-        le=200,
+        le=1000,
         description="Redis maximum connections in pool (total limit)",
     )
 

@@ -17,18 +17,18 @@ bcrypt>=4.3.0,<5.0.0
 argon2-cffi>=25.1.0,<26.0.0  # Modern password hashing (replaces bcrypt)
 argon2-cffi-bindings>=25.1.0,<26.0.0  # Required for argon2-cffi
 
-# Pydantic and validation (Python 3.13 compatible - using v2.8.x to avoid model_validator descriptor proxy issues in v2.9.x)
-pydantic>=2.8.2,<2.9.0
-pydantic[email]>=2.8.2,<2.9.0
+# Pydantic and validation (Python 3.13 compatible - using v2.12.x)
+pydantic>=2.12.5,<3.0.0
+pydantic[email]>=2.12.5,<3.0.0
 pydantic-settings>=2.12.0,<3.0.0
 email-validator>=2.3.0,<3.0.0
+jsonschema>=4.23.0,<5.0.0  # JSON schema validation for patient metadata
 
 # Background tasks
 celery>=5.6.2,<6.0.0
 celery[redis]>=5.6.2,<6.0.0  # Celery with Redis broker support
 redis>=6.4.0,<7.0.0  # Redis 6.x required for ssl_context parameter (5.x uses 'ssl' param)
 certifi>=2024.12.14,<2025.0.0  # CA certificates for Redis SSL/TLS validation
-apscheduler>=3.11.2,<4.0.0  # Scheduled jobs (audit cleanup, etc.)
 asgiref>=3.11.0,<4.0.0  # Async utilities for Celery tasks (async_to_sync)
 
 # Celery monitoring
@@ -39,9 +39,10 @@ prometheus-client>=0.24.1,<1.0.0  # Prometheus metrics for Celery tasks
 # NOTE: Removed langchain meta-package (requires numpy<2.0.0, incompatible with Python 3.13 stack)
 # NOTE: Removed google-generativeai to avoid conflicts with langchain-google-genai
 # Using LangChain-specific packages (Option A from ultra-think analysis)
-langchain-core>=0.3.83,<0.4.0  # Core abstractions (NumPy 2.x compatible)
-langchain-google-genai>=2.1.12,<3.0.0  # Google Gemini integration via LangChain
-google-ai-generativelanguage==0.7.0  # Required by langchain-google-genai 2.1.12, Python 3.13 compatible
+langchain-core>=1.2.7,<2.0.0  # Core abstractions (NumPy 2.x compatible)
+langchain-google-genai>=2.1.12,<4.0.0  # Google Gemini integration via LangChain
+google-ai-generativelanguage>=0.7.0,<1.0.0  # Gemini API dependency (Python 3.13 compatible)
+langgraph>=1.0.7,<2.0.0  # LangGraph orchestration (Python 3.13 compatible)
 
 # Google API dependencies - Python 3.13 compatible (fixes pkg_resources deprecation)
 # NOTE: Removed gRPC dependencies to avoid Protobuf 6.x requirement (using HTTP-only OTLP)
@@ -49,7 +50,6 @@ googleapis-common-protos>=1.72.0,<2.0.0  # Fixes pkg_resources deprecation warni
 google-api-core>=2.29.0,<3.0.0  # Updated for Python 3.13 compatibility
 google-auth>=2.47.0,<3.0.0  # Modern authentication library
 proto-plus>=1.27.0,<2.0.0  # Protocol buffer utilities
-google-cloud-tasks>=2.20.0,<3.0.0  # Cloud Tasks client for Cloud Run background jobs
 
 # WhatsApp integration (Evolution API client) - Python 3.11 compatible
 httpx>=0.28.1,<0.29.0

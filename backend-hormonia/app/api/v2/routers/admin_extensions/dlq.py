@@ -15,7 +15,7 @@ from sqlalchemy import or_
 from app.database import get_db
 from app.models.user import User
 from app.models.failed_message import FailedMessage
-from app.services.dlq_service import DLQService
+from app.services.dlq import DLQService
 from app.services.audit import AuditService
 from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import cache_response, invalidate_cache
@@ -38,6 +38,7 @@ from app.api.v2.dependencies import (
 from .constants import CACHE_TTL_DLQ_ITEMS, CACHE_TTL_DLQ_STATS
 from .dependencies import get_admin_user, log_admin_extension_action
 from .utils import serialize_dlq_item
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -169,7 +170,7 @@ async def list_dlq_items(
 
 
 @router.get(
-    "/{dlq_id}",
+    "/{dlq_id:uuid}",
     response_model=DLQItemResponse,
     summary="Get DLQ Item",
     description="Retrieve detailed information about a specific DLQ item. Cached for 2 minutes.",
@@ -244,7 +245,7 @@ async def get_dlq_item(
 
 
 @router.post(
-    "/{dlq_id}/retry",
+    "/{dlq_id:uuid}/retry",
     response_model=DLQRetryResponse,
     summary="Retry DLQ Item",
     description="Manually retry a failed operation from the DLQ.",
@@ -409,7 +410,7 @@ async def bulk_retry_dlq_items(
 
 
 @router.delete(
-    "/{dlq_id}",
+    "/{dlq_id:uuid}",
     response_model=DLQRetryResponse,
     summary="Delete DLQ Item",
     description="Mark DLQ item as resolved/discarded (soft delete).",
@@ -482,7 +483,7 @@ async def delete_dlq_item(
 
 
 @router.get(
-    "/stats/",
+    "/stats",
     response_model=DLQStatsResponse,
     summary="Get DLQ Statistics",
     description="Get comprehensive DLQ statistics. Cached for 10 minutes.",
@@ -527,7 +528,7 @@ async def get_dlq_statistics(
 
 
 @router.delete(
-    "/purge/",
+    "/purge",
     response_model=DLQPurgeResponse,
     summary="Purge Old DLQ Items",
     description="Purge DLQ items older than specified days (default: 90 days).",
@@ -558,7 +559,7 @@ async def purge_old_dlq_items(
         Purge operation results
     """
     try:
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_date = now_sao_paulo() - timedelta(days=days)
 
         # Query old items (only safe statuses)
         safe_statuses = ["resolved", "discarded", "max_retries_exceeded"]

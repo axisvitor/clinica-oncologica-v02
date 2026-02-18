@@ -81,10 +81,9 @@ def real_database_url() -> str:
     # Safety check: require explicit override to run against non-test databases
     allow_real_db = os.getenv("CONFIRM_REAL_DB") == "1"
     if "test" not in db_url.lower() and not allow_real_db:
-        pytest.fail(
-            "DATABASE_URL does not contain 'test' - refusing to run integration tests "
-            "on what appears to be a production database! "
-            "If you intend to run on a real database, set CONFIRM_REAL_DB=1."
+        pytest.skip(
+            "DATABASE_URL does not contain 'test' and CONFIRM_REAL_DB!=1; "
+            "skipping integration tests that require real DB writes."
         )
     if "test" not in db_url.lower() and allow_real_db:
         print(

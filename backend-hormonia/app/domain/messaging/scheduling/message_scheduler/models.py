@@ -2,7 +2,7 @@
 Data models, enums, and exceptions for message scheduling.
 """
 
-from enum import Enum
+from app.domain.messaging.core.message_service.config import SchedulingWindow
 
 
 class MessageSchedulingError(Exception):
@@ -22,12 +22,3 @@ class TaskSchedulingError(MessageSchedulingError):
 
     pass
 
-
-class SchedulingWindow(Enum):
-    """Predefined scheduling windows for message delivery."""
-
-    MORNING = "morning"  # 9:00 - 12:00
-    AFTERNOON = "afternoon"  # 12:00 - 17:00
-    EVENING = "evening"  # 17:00 - 20:00
-    BUSINESS_HOURS = "business_hours"  # 9:00 - 18:00
-    EXTENDED_HOURS = "extended_hours"  # 8:00 - 21:00

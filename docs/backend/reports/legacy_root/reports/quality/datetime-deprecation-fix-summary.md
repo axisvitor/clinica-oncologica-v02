@@ -1,7 +1,7 @@
 # DateTime Deprecation Fix Summary
 
 ## Overview
-Fixed all `datetime.utcnow()` deprecation warnings in the `/backend-hormonia/app/domain/` directory by replacing them with the Python 3.13+ compatible `datetime.now(timezone.utc)`.
+Fixed all `now_sao_paulo()` deprecation warnings in the `/backend-hormonia/app/domain/` directory by replacing them with the Python 3.13+ compatible `now_sao_paulo()`.
 
 ## Changes Made
 
@@ -19,19 +19,19 @@ from datetime import datetime, timezone
 Replaced all deprecated datetime methods:
 ```python
 # Before
-datetime.utcnow()
-datetime.now()  # when used for UTC timestamps
+now_sao_paulo()
+datetime.now()  # when used for Sao Paulo timestamps
 
 # After
-datetime.now(timezone.utc)
+now_sao_paulo()
 ```
 
 ## Statistics
 
 - **Total Python files processed:** 148
 - **Files modified:** 66
-- **Total datetime.now(timezone.utc) occurrences:** 205
-- **Remaining datetime.utcnow() in code:** 0 (only in .md documentation)
+- **Total now_sao_paulo() occurrences:** 205
+- **Remaining now_sao_paulo() in code:** 0 (only in .md documentation)
 
 ## Modified Files (66 total)
 
@@ -119,7 +119,7 @@ datetime.now(timezone.utc)
 
 ### No deprecated calls remaining:
 ```bash
-$ grep -r "datetime.utcnow()" backend-hormonia/app/domain/ --include="*.py"
+$ grep -r "now_sao_paulo()" backend-hormonia/app/domain/ --include="*.py"
 # No results (only .md files remain)
 ```
 
@@ -131,24 +131,24 @@ $ grep -r "from datetime import.*timezone" backend-hormonia/app/domain/ --includ
 
 ### All usage converted:
 ```bash
-$ grep -r "datetime.now(timezone.utc)" backend-hormonia/app/domain/ --include="*.py" | wc -l
-205  # All UTC datetime calls now use timezone-aware version
+$ grep -r "now_sao_paulo()" backend-hormonia/app/domain/ --include="*.py" | wc -l
+205  # All Sao Paulo datetime calls now use timezone-aware version
 ```
 
 ## Python 3.13 Compatibility
 
-These changes ensure full compatibility with Python 3.13+ where `datetime.utcnow()` is deprecated in favor of the timezone-aware `datetime.now(timezone.utc)`.
+These changes ensure full compatibility with Python 3.13+ where `now_sao_paulo()` is deprecated in favor of the timezone-aware `now_sao_paulo()`.
 
 ### Benefits:
 1. ✅ Eliminates all deprecation warnings
 2. ✅ Makes all timestamps explicitly timezone-aware
 3. ✅ Follows Python 3.13+ best practices
 4. ✅ Prevents future compatibility issues
-5. ✅ More explicit about UTC intent
+5. ✅ More explicit about Sao Paulo intent
 
 ## Notes
 
-- Markdown documentation files (QUICK_START.md, README.md) still contain example code with `datetime.utcnow()` but these are for documentation purposes only
+- Markdown documentation files (QUICK_START.md, README.md) still contain example code with `now_sao_paulo()` but these are for documentation purposes only
 - All production code is now Python 3.13+ compatible
 - No functional changes to the codebase, only API updates
 

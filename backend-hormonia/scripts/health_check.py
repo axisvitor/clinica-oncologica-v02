@@ -17,14 +17,25 @@ import sys
 import asyncio
 import time
 import json
+import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict
-from datetime import datetime
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+from app.utils.timezone import now_sao_paulo_naive
+
+
+def _as_redis_string(value: Any) -> Optional[str]:
+    """Normalize Redis responses to plain strings for roundtrip checks."""
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
 
 
 @dataclass
@@ -38,7 +49,7 @@ class HealthStatus:
 
     def __post_init__(self):
         if self.timestamp is None:
-            self.timestamp = datetime.utcnow().isoformat()
+            self.timestamp = now_sao_paulo_naive().isoformat()
 
 
 class HealthChecker:
@@ -104,22 +115,22 @@ class HealthChecker:
         """Check Redis health"""
         start = time.time()
         try:
-            from app.core.redis_manager import RedisManager
-
-            redis_manager = RedisManager()
-            await redis_manager.initialize()
-
-            # Ping test
-            await redis_manager.ping()
-
-            # Get info
-            info = await redis_manager.get_redis_info()
-
-            # Test set/get
             test_key = "__health_check__"
-            await redis_manager.set(test_key, "ok", ex=10)
-            value = await redis_manager.get(test_key)
-            await redis_manager.delete(test_key)
+            info: Dict[str, Any] = {}
+
+            from app.core.redis_manager import get_async_redis_client
+
+            redis_client = await get_async_redis_client()
+            await redis_client.ping()
+            raw_info = await redis_client.info()
+            if isinstance(raw_info, dict):
+                info = raw_info
+            await redis_client.set(test_key, "ok", ex=10)
+            value = await redis_client.get(test_key)
+            await redis_client.delete(test_key)
+
+            if _as_redis_string(value) != "ok":
+                raise RuntimeError("Redis set/get roundtrip failed")
 
             response_time = (time.time() - start) * 1000
 
@@ -135,8 +146,6 @@ class HealthChecker:
                 }
             )
 
-            await redis_manager.close()
-
         except Exception as e:
             response_time = (time.time() - start) * 1000
             self.results['redis'] = HealthStatus(
@@ -150,10 +159,11 @@ class HealthChecker:
         start = time.time()
         try:
             import httpx
+            api_url = os.getenv("HEALTH_CHECK_API_URL", "http://localhost:8000/health")
 
             # Check health endpoint
             async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get("http://localhost:8000/health")
+                response = await client.get(api_url)
                 response.raise_for_status()
 
                 response_time = (time.time() - start) * 1000
@@ -231,7 +241,7 @@ class HealthChecker:
         """Convert results to dictionary"""
         return {
             'overall_healthy': self.is_healthy(),
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': now_sao_paulo_naive().isoformat(),
             'components': {
                 name: asdict(status)
                 for name, status in self.results.items()

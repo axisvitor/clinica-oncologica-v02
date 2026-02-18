@@ -2,6 +2,8 @@
 Test script to verify monthly_quiz_operations package imports work correctly.
 """
 
+import pytest
+
 def test_imports():
     """Test that all modules can be imported successfully."""
     try:
@@ -36,14 +38,12 @@ def test_imports():
         print(f"✓ Router has {route_count} routes registered")
 
         print("\n✅ All imports successful!")
-        return True
+        return
 
     except ImportError as e:
-        print(f"❌ Import error: {e}")
-        return False
+        pytest.fail(f"Import error: {e}")
     except Exception as e:
-        print(f"❌ Error: {e}")
-        return False
+        pytest.fail(f"Unexpected error: {e}")
 
 
 if __name__ == "__main__":

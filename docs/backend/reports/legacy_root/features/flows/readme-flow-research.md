@@ -142,7 +142,7 @@ This folder contains comprehensive research and analysis of the daily WhatsApp f
 | Task | Frequency | Purpose |
 |------|-----------|---------|
 | process-daily-flows | Every hour | Main flow processing |
-| send-daily-reminders | 9 AM UTC | Quiz reminders |
+| send-daily-reminders | 9 AM Sao Paulo | Quiz reminders |
 | check-pending-flows | Every 15 min | Auto-enrollment |
 | resume-paused-flows | Every 6 hours | Resume paused flows |
 | cleanup-expired-links | Daily 2 AM | Clean up expired quizzes |

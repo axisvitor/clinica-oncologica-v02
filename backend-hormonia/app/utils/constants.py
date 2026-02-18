@@ -40,7 +40,7 @@ NEGATIVE_MOOD_PATTERNS = r"\b(mal|bad|terrible|péssimo|triste|sad|pior|worse)\b
 
 # Boolean response patterns
 YES_PATTERNS = r"\b(sim|yes|yeah|ok|okay|claro|certo|positivo)\b"
-NO_PATTERNS = r"\b(não|no|nope|never|negativo|jamais)\b"
+NO_PATTERNS = r"\b(nao|não|no|nope|never|negativo|jamais)\b"
 
 # Medical patterns
 MEDICATION_PATTERNS = r"\b(mg|ml|comprimido|cápsula|medicamento|remédio)\b"

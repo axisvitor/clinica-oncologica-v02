@@ -9,7 +9,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
-from app.core.redis_client import get_async_redis_client
+from app.core.redis_manager import get_async_redis_client
 from app.dependencies.auth_dependencies import get_current_active_admin
 from app.services.follow_up_system.message_deduplication_service import (
     MessageDeduplicationService,

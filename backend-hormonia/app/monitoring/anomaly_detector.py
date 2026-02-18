@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 import statistics
 import redis.asyncio as redis
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -243,7 +244,7 @@ class AnomalyDetector:
     ) -> List[Anomaly]:
         """Process a metric value and detect anomalies."""
         if timestamp is None:
-            timestamp = datetime.now(timezone.utc)
+            timestamp = now_sao_paulo()
 
         anomalies = []
 
@@ -318,7 +319,7 @@ class AnomalyDetector:
         metric_filter: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Get recent anomalies with optional filtering."""
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = now_sao_paulo() - timedelta(hours=hours)
 
         filtered_anomalies = []
         for anomaly in self.recent_anomalies:
@@ -350,7 +351,7 @@ class AnomalyDetector:
 
     def get_anomaly_summary(self, hours: int = 24) -> Dict[str, Any]:
         """Get summary of anomalies."""
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = now_sao_paulo() - timedelta(hours=hours)
 
         recent_anomalies = [
             a for a in self.recent_anomalies if a.timestamp >= cutoff_time

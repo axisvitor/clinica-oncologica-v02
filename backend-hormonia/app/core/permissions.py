@@ -13,6 +13,7 @@ from pydantic import BaseModel, field_validator
 import re
 
 from app.models.user import UserRole
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +194,7 @@ ROLE_DEFINITIONS: Dict[UserRole, RoleDefinition] = {
         security_level=SecurityLevel.PRIVILEGED,
         description="Administrative access with management capabilities",
         requires_verification=True,
-        allowed_domains=["hormonia.io", "admin.local", "clinica.med.br"],
+        allowed_domains=["hormonia.io", "clinica.med.br"],
         max_auto_grant_duration=timedelta(hours=24),  # Require re-verification
     ),
     UserRole.DOCTOR: RoleDefinition(
@@ -257,75 +258,97 @@ class SecureRoleDeterminer:
 
         Returns:
             Tuple of (UserRole, reason)
+
+        Raises:
+            PermissionError: When role cannot be safely determined
         """
-        email = email.strip().lower()
-        domain = self._extract_domain(email)
+        normalized_email = (email or "").strip().lower()
 
         audit_entry = {
-            "timestamp": datetime.now(timezone.utc),
-            "email": email,
-            "domain": domain,
+            "timestamp": now_sao_paulo(),
+            "email": normalized_email,
+            "domain": None,
             "identity_claims": identity_claims or {},
             "request_context": request_context or {},
         }
 
         try:
+            domain = self._extract_domain(normalized_email)
+            audit_entry["domain"] = domain
+
             # Priority 1: Explicit role from custom claims
             if identity_claims:
                 explicit_role = self._get_role_from_claims(identity_claims)
                 if explicit_role:
                     audit_entry.update(
                         {
-                            "role_assigned": explicit_role,
+                            "role_assigned": explicit_role.value,
                             "assignment_reason": "identity_explicit_claim",
                             "security_level": "high",
+                            "decision": "granted",
                         }
                     )
                     self.audit_log.append(audit_entry)
                     return explicit_role, "Assigned from identity provider claims"
 
             # Priority 2: Domain-based assignment with restrictions
-            domain_role = self._get_role_from_domain(domain, email)
+            domain_role = self._get_role_from_domain(domain, normalized_email)
             if domain_role:
                 audit_entry.update(
                     {
-                        "role_assigned": domain_role,
+                        "role_assigned": domain_role.value,
                         "assignment_reason": "domain_based",
                         "security_level": "medium",
+                        "decision": "granted",
                     }
                 )
                 self.audit_log.append(audit_entry)
                 return domain_role, f"Auto-assigned based on domain: {domain}"
 
-            # Priority 3: Default role (most restrictive)
-            default_role = UserRole.DOCTOR
+            # Priority 3: Fail closed when domain is not recognized
             audit_entry.update(
                 {
-                    "role_assigned": default_role,
-                    "assignment_reason": "default_fallback",
-                    "security_level": "low",
+                    "role_assigned": None,
+                    "assignment_reason": "domain_not_recognized_denied",
+                    "security_level": "critical",
+                    "decision": "denied",
                 }
             )
             self.audit_log.append(audit_entry)
 
             logger.warning(
-                f"User {email} assigned default role due to unrecognized domain: {domain}"
+                "Role determination denied for %s: unrecognized domain %s",
+                normalized_email,
+                domain,
             )
-            return default_role, "Default role assigned - domain not recognized"
+            raise PermissionError(
+                f"Role determination denied - unrecognized domain: {domain}"
+            )
+
+        except PermissionError:
+            raise
 
         except Exception as e:
             audit_entry.update(
                 {
-                    "role_assigned": UserRole.DOCTOR,
-                    "assignment_reason": "error_fallback",
+                    "role_assigned": None,
+                    "assignment_reason": "error_fail_closed_denied",
                     "error": str(e),
                     "security_level": "critical",
+                    "decision": "denied",
                 }
             )
             self.audit_log.append(audit_entry)
 
-            logger.error(f"Error determining role for {email}: {e}")
-            return UserRole.DOCTOR, f"Error occurred - assigned default role: {e}"
+            logger.error(
+                "Role determination failed closed for %s: %s",
+                normalized_email,
+                e,
+                exc_info=True,
+            )
+            raise PermissionError(
+                "Role determination denied due to validation error"
+            ) from e
 
     def _extract_domain(self, email: str) -> str:
         """Safely extract domain from email."""
@@ -606,120 +629,3 @@ class PermissionChecker:
 # Create global instances for use throughout the application
 role_determiner = SecureRoleDeterminer()
 permission_checker = PermissionChecker()
-
-
-# Export key functions for backward compatibility
-def determine_user_role(
-    email: str, identity_claims: Optional[Dict[str, Any]] = None
-) -> Tuple[UserRole, str]:
-    """Backward compatible function for role determination."""
-    return role_determiner.determine_role_from_email(email, identity_claims)
-
-
-def has_permission(user_role: UserRole, permission: Permission) -> bool:
-    """Backward compatible function for permission checking."""
-    return permission_checker.has_permission(user_role, permission)
-
-
-# =============================================================================
-# BACKWARD COMPATIBILITY WRAPPER
-# =============================================================================
-
-
-class RolePermissions:
-    """
-    Backward compatibility wrapper for PermissionChecker.
-
-    This class provides a static interface matching the legacy RolePermissions
-    API while delegating to the new PermissionChecker implementation.
-
-    Note: This is a compatibility shim. New code should use PermissionChecker directly.
-    """
-
-    @staticmethod
-    def has_permission(user_role: Union[str, UserRole], permission: Permission) -> bool:
-        """
-        Check if a role has a specific permission.
-
-        Args:
-            user_role: Role as string or UserRole enum
-            permission: Permission to check
-
-        Returns:
-            True if role has permission, False otherwise
-        """
-        # Convert string to UserRole enum if needed
-        if isinstance(user_role, str):
-            try:
-                user_role = UserRole(user_role.lower())
-            except ValueError:
-                logger.warning(f"Invalid role string: {user_role}")
-                return False
-
-        return permission_checker.has_permission(user_role, permission)
-
-    @staticmethod
-    def has_any_permission(
-        user_role: Union[str, UserRole], permissions: List[Permission]
-    ) -> bool:
-        """
-        Check if a role has any of the specified permissions.
-
-        Args:
-            user_role: Role as string or UserRole enum
-            permissions: List of permissions to check
-
-        Returns:
-            True if role has any permission, False otherwise
-        """
-        if isinstance(user_role, str):
-            try:
-                user_role = UserRole(user_role.lower())
-            except ValueError:
-                logger.warning(f"Invalid role string: {user_role}")
-                return False
-
-        return permission_checker.has_any_permission(user_role, permissions)
-
-    @staticmethod
-    def has_all_permissions(
-        user_role: Union[str, UserRole], permissions: List[Permission]
-    ) -> bool:
-        """
-        Check if a role has all of the specified permissions.
-
-        Args:
-            user_role: Role as string or UserRole enum
-            permissions: List of permissions to check
-
-        Returns:
-            True if role has all permissions, False otherwise
-        """
-        if isinstance(user_role, str):
-            try:
-                user_role = UserRole(user_role.lower())
-            except ValueError:
-                logger.warning(f"Invalid role string: {user_role}")
-                return False
-
-        return permission_checker.has_all_permissions(user_role, permissions)
-
-    @staticmethod
-    def get_user_permissions(user_role: Union[str, UserRole]) -> Set[Permission]:
-        """
-        Get all permissions for a user role.
-
-        Args:
-            user_role: Role as string or UserRole enum
-
-        Returns:
-            Set of permissions for the role
-        """
-        if isinstance(user_role, str):
-            try:
-                user_role = UserRole(user_role.lower())
-            except ValueError:
-                logger.warning(f"Invalid role string: {user_role}")
-                return set()
-
-        return permission_checker.get_user_permissions(user_role)

@@ -1,11 +1,14 @@
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: hormonia-quiz
+  name: clinica-quiz
 spec:
   template:
     spec:
       containers:
-        - image: REPLACE_WITH_IMAGE
-          ports:
-            - containerPort: 8080
+      - image: us-central1-docker.pkg.dev/woven-framework-484323-n7/clinica-repo/quiz-interface:20260121-131733
+        ports:
+        - containerPort: 8080
+        env:
+        - name: TZ
+          value: America/Sao_Paulo

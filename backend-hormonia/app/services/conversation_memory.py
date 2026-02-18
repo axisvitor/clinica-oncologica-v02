@@ -5,9 +5,11 @@ Stores and analyzes conversation patterns to avoid repetitive messaging.
 
 import json
 import logging
+import re
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 from uuid import UUID
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -33,7 +35,7 @@ class ConversationPattern:
         self.sentence_starters = sentence_starters or []
         self.message_length = message_length
         self.emoji_count = emoji_count
-        self.timestamp = timestamp or datetime.now(timezone.utc)
+        self.timestamp = timestamp or now_sao_paulo()
         self.engagement_score = engagement_score
 
     def to_dict(self) -> Dict[str, Any]:
@@ -60,17 +62,165 @@ class ConversationPattern:
             message_length=data.get("message_length", 0),
             emoji_count=data.get("emoji_count", 0),
             timestamp=datetime.fromisoformat(
-                data.get("timestamp", datetime.now(timezone.utc).isoformat())
+                data.get("timestamp", now_sao_paulo().isoformat())
             ),
             engagement_score=data.get("engagement_score", 0.0),
         )
 
 
-# ... (PatternExtractor remains the same)
+class PatternExtractor:
+    """Extract basic conversation patterns for repetition detection."""
+
+    def __init__(self):
+        self.greeting_phrases = [
+            "oi",
+            "olá",
+            "ola",
+            "bom dia",
+            "boa tarde",
+            "boa noite",
+            "eai",
+            "e ai",
+            "hey",
+        ]
+        self.question_words = {
+            "como",
+            "qual",
+            "quando",
+            "onde",
+            "porque",
+            "por",
+            "que",
+            "o",
+            "quem",
+            "quanto",
+        }
+        self.positive_words = {
+            "bem",
+            "otimo",
+            "ótimo",
+            "melhor",
+            "tranquilo",
+            "feliz",
+            "obrigado",
+            "obrigada",
+        }
+        self.negative_words = {
+            "mal",
+            "pior",
+            "dor",
+            "cansado",
+            "cansada",
+            "triste",
+            "ansioso",
+            "ansiosa",
+            "preocupado",
+            "preocupada",
+        }
+        self.emoji_re = re.compile(r"[\U0001F300-\U0001FAFF]")
+        self.word_re = re.compile(r"[\w']+", re.UNICODE)
+
+    def _normalize(self, text: str) -> str:
+        return re.sub(r"\s+", " ", text or "").strip().lower()
+
+    def extract_patterns(self, message: str) -> ConversationPattern:
+        normalized = self._normalize(message)
+        words = self.word_re.findall(normalized)
+
+        greeting_words = []
+        for phrase in self.greeting_phrases:
+            if normalized.startswith(phrase):
+                greeting_words.append(phrase)
+
+        question_structures = []
+        if "?" in (message or ""):
+            question_structures.append("question_mark")
+        for word in words:
+            if word in self.question_words:
+                question_structures.append(word)
+
+        emotional_words = []
+        for word in words:
+            if word in self.positive_words:
+                emotional_words.append(f"positive:{word}")
+            elif word in self.negative_words:
+                emotional_words.append(f"negative:{word}")
+
+        sentence_starters = []
+        for segment in re.split(r"[.!?\n]+", normalized):
+            segment = segment.strip()
+            if not segment:
+                continue
+            starter_words = self.word_re.findall(segment)[:2]
+            if starter_words:
+                sentence_starters.append(" ".join(starter_words))
+
+        emoji_count = len(self.emoji_re.findall(message or ""))
+
+        return ConversationPattern(
+            greeting_words=greeting_words,
+            question_structures=list(dict.fromkeys(question_structures)),
+            emotional_words=list(dict.fromkeys(emotional_words)),
+            sentence_starters=list(dict.fromkeys(sentence_starters)),
+            message_length=len(message or ""),
+            emoji_count=emoji_count,
+        )
+
+    def calculate_similarity(
+        self, pattern_a: ConversationPattern, pattern_b: ConversationPattern
+    ) -> float:
+        def _jaccard(items_a: List[str], items_b: List[str]) -> float:
+            set_a = set(items_a or [])
+            set_b = set(items_b or [])
+            if not set_a and not set_b:
+                return 0.0
+            return len(set_a & set_b) / len(set_a | set_b)
+
+        greeting_sim = _jaccard(pattern_a.greeting_words, pattern_b.greeting_words)
+        question_sim = _jaccard(
+            pattern_a.question_structures, pattern_b.question_structures
+        )
+        emotion_sim = _jaccard(pattern_a.emotional_words, pattern_b.emotional_words)
+        starter_sim = _jaccard(
+            pattern_a.sentence_starters, pattern_b.sentence_starters
+        )
+
+        length_a = pattern_a.message_length or 0
+        length_b = pattern_b.message_length or 0
+        length_sim = 1.0
+        if max(length_a, length_b) > 0:
+            length_sim = 1.0 - (abs(length_a - length_b) / max(length_a, length_b))
+
+        emoji_a = pattern_a.emoji_count or 0
+        emoji_b = pattern_b.emoji_count or 0
+        emoji_sim = 1.0
+        if max(emoji_a, emoji_b) > 0:
+            emoji_sim = 1.0 - (abs(emoji_a - emoji_b) / max(emoji_a, emoji_b))
+
+        return (
+            greeting_sim * 0.2
+            + question_sim * 0.2
+            + emotion_sim * 0.2
+            + starter_sim * 0.2
+            + length_sim * 0.1
+            + emoji_sim * 0.1
+        )
 
 
 class ConversationMemory:
-    # ... (init and helper methods remain same)
+    def __init__(
+        self,
+        redis_client: Optional[Any] = None,
+        pattern_extractor: Optional[PatternExtractor] = None,
+        max_patterns_per_patient: int = 50,
+        pattern_expiry_days: int = 30,
+    ):
+        from app.core.redis_manager import get_sync_redis_client as get_sync_redis
+
+        self.redis = redis_client or get_sync_redis()
+        self.pattern_extractor = pattern_extractor or PatternExtractor()
+        self.max_patterns_per_patient = max_patterns_per_patient
+        self.pattern_expiry_days = pattern_expiry_days
 
     async def store_message_pattern(self, patient_id: UUID, message: str) -> None:
         """
@@ -214,7 +364,7 @@ class ConversationMemory:
                             "similarity": similarity,
                             "pattern": pattern.to_dict(),
                             "age_hours": (
-                                datetime.now(timezone.utc) - pattern.timestamp
+                                now_sao_paulo() - pattern.timestamp
                             ).total_seconds()
                             / 3600,
                         }
@@ -284,7 +434,7 @@ class ConversationMemory:
                 "emotional_tone": self._analyze_emotional_tone(patterns),
                 "message_length_preference": self._analyze_message_length(patterns),
                 "pattern_count": len(patterns),
-                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "last_updated": now_sao_paulo().isoformat(),
             }
 
             # Cache preferences
@@ -311,7 +461,7 @@ class ConversationMemory:
             "emotional_tone": "supportive",
             "message_length_preference": "moderate",
             "pattern_count": 0,
-            "last_updated": datetime.now(timezone.utc).isoformat(),
+            "last_updated": now_sao_paulo().isoformat(),
         }
 
     def _analyze_formality(self, patterns: List[ConversationPattern]) -> str:
@@ -450,9 +600,9 @@ class ConversationMemory:
             Dict with memory system stats
         """
         try:
-            # Get all pattern keys
-            pattern_keys = self.redis.keys("msg_patterns:*")
-            pref_keys = self.redis.keys("comm_prefs:*")
+            # Get all pattern keys (non-blocking scan)
+            pattern_keys = list(self.redis.scan_iter(match="msg_patterns:*", count=100))
+            pref_keys = list(self.redis.scan_iter(match="comm_prefs:*", count=100))
 
             # Calculate total patterns
             total_patterns = 0
@@ -469,12 +619,12 @@ class ConversationMemory:
                 "avg_patterns_per_patient": total_patterns / len(pattern_keys)
                 if pattern_keys
                 else 0,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
             logger.error(f"Failed to get memory stats: {e}")
-            return {"error": str(e), "timestamp": datetime.now(timezone.utc).isoformat()}
+            return {"error": str(e), "timestamp": now_sao_paulo().isoformat()}
 
     async def health_check(self) -> bool:
         """
@@ -507,47 +657,3 @@ def get_conversation_memory() -> ConversationMemory:
         _conversation_memory = ConversationMemory()
     return _conversation_memory
 
-
-async def test_conversation_memory():
-    """Test conversation memory system functionality."""
-    try:
-        memory = get_conversation_memory()
-
-        # Test health check
-        if not await memory.health_check():
-            logger.error("Conversation memory health check failed")
-            return False
-
-        # Test pattern storage and retrieval
-        test_patient_id = UUID("12345678-1234-5678-9012-123456789012")
-        test_messages = [
-            "Oi Maria, como você está se sentindo hoje?",
-            "Olá Maria, tudo bem por aí?",
-            "Hey Maria, me conta como foi seu dia!",
-        ]
-
-        # Store patterns
-        for message in test_messages:
-            await memory.store_message_pattern(test_patient_id, message)
-
-        # Check repetition
-        new_message = "Oi Maria, como você está hoje?"
-        repetition_check = await memory.check_message_repetition(
-            test_patient_id, new_message
-        )
-
-        logger.info(f"Repetition check result: {repetition_check}")
-
-        # Get preferences
-        preferences = await memory.get_communication_preferences(test_patient_id)
-        logger.info(f"Communication preferences: {preferences}")
-
-        # Clean up test data
-        await memory.clear_patient_patterns(test_patient_id)
-
-        logger.info("Conversation memory test completed successfully")
-        return True
-
-    except Exception as e:
-        logger.error(f"Conversation memory test failed: {e}")
-        return False

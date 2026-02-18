@@ -41,6 +41,7 @@ from typing import Dict, Any, Callable, Optional, Set
 from datetime import datetime, timezone
 import redis.asyncio as redis
 from app.services.websocket import UnifiedWebSocketConnectionManager
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,8 @@ class RedisPubSubManager:
         self.subscriptions: Set[str] = set()
         self.is_running = False
         self._listener_task: Optional[asyncio.Task] = None
+        self._reconnect_delay_seconds = 1.0
+        self._max_reconnect_delay_seconds = 30.0
 
         # Message handlers
         self._handlers: Dict[str, Callable] = {}
@@ -131,26 +134,33 @@ class RedisPubSubManager:
             except asyncio.CancelledError:
                 pass
 
-        # Unsubscribe and close pubsub (redis 5.x uses aclose)
+        await self._reset_pubsub(clear_subscriptions=True)
+        logger.info("RedisPubSubManager stopped")
+
+    async def _reset_pubsub(self, clear_subscriptions: bool = False) -> None:
+        """Close the current pubsub connection safely and optionally clear subscriptions."""
         if self.pubsub:
             try:
                 await self.pubsub.unsubscribe()
                 await self.pubsub.aclose()
             except Exception as e:
                 logger.error(f"Error closing pubsub: {e}")
-
-        self.subscriptions.clear()
-        logger.info("RedisPubSubManager stopped")
+        self.pubsub = None
+        if clear_subscriptions:
+            self.subscriptions.clear()
 
     async def _subscribe_to_channels(self):
         """Subscribe to all standard Redis channels."""
         if not self.pubsub:
             raise RuntimeError("PubSub not initialized")
 
-        channels = [
-            "ws:broadcast",  # Global broadcasts
-            "ws:heartbeat",  # Health checks
-        ]
+        if self.subscriptions:
+            channels = list(self.subscriptions)
+        else:
+            channels = [
+                "ws:broadcast",  # Global broadcasts
+                "ws:heartbeat",  # Health checks
+            ]
 
         for channel in channels:
             await self.pubsub.subscribe(channel)
@@ -217,18 +227,38 @@ class RedisPubSubManager:
         """
         logger.info("Redis pub/sub listener started")
 
+        reconnect_delay = self._reconnect_delay_seconds
         try:
-            async for message in self.pubsub.listen():
-                if not self.is_running:
+            while self.is_running:
+                if not self.pubsub:
+                    self.pubsub = self.redis_client.pubsub()
+                    await self._subscribe_to_channels()
+
+                try:
+                    async for message in self.pubsub.listen():
+                        if not self.is_running:
+                            break
+
+                        if message["type"] == "message":
+                            await self._handle_pubsub_message(message)
+
+                    if not self.is_running:
+                        break
+
+                    logger.warning(
+                        "Redis pub/sub listener stopped unexpectedly; reconnecting"
+                    )
+                except asyncio.CancelledError:
+                    logger.info("Redis pub/sub listener cancelled")
                     break
+                except Exception as e:
+                    logger.error(f"Error in pub/sub listener: {e}", exc_info=True)
 
-                if message["type"] == "message":
-                    await self._handle_pubsub_message(message)
-
-        except asyncio.CancelledError:
-            logger.info("Redis pub/sub listener cancelled")
-        except Exception as e:
-            logger.error(f"Error in pub/sub listener: {e}", exc_info=True)
+                await self._reset_pubsub(clear_subscriptions=False)
+                await asyncio.sleep(reconnect_delay)
+                reconnect_delay = min(
+                    reconnect_delay * 2, self._max_reconnect_delay_seconds
+                )
         finally:
             logger.info("Redis pub/sub listener stopped")
 
@@ -333,7 +363,7 @@ class RedisPubSubManager:
         """
         message = {
             "instance_id": self.instance_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "payload": payload,
         }
 
@@ -351,7 +381,7 @@ class RedisPubSubManager:
         """
         message = {
             "instance_id": self.instance_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "payload": payload,
         }
 
@@ -370,7 +400,7 @@ class RedisPubSubManager:
         """
         message = {
             "instance_id": self.instance_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "payload": payload,
         }
 
@@ -385,7 +415,7 @@ class RedisPubSubManager:
         """
         message = {
             "instance_id": self.instance_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "connections": len(self.connection_manager.connections),
         }
 

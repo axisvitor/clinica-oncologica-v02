@@ -26,9 +26,9 @@ class SentimentAnalysisResult(BaseModel):
         default_factory=list,
         description="Detected emotional indicators",
     )
-    medical_concerns: bool = Field(
-        default=False,
-        description="Whether medical concerns were detected",
+    medical_concerns: List[str] = Field(
+        default_factory=list,
+        description="Medical concerns detected from the response",
     )
     requires_attention: bool = Field(
         default=False,
@@ -51,6 +51,25 @@ class SentimentAnalysisResult(BaseModel):
         normalized = v.strip().lower()
         allowed = {"positive", "neutral", "negative", "concerning"}
         return normalized if normalized in allowed else "neutral"
+
+    @validator("medical_concerns", pre=True, always=True)
+    def normalize_medical_concerns(cls, v: Any) -> List[str]:
+        """Normalize medical concerns to a list of non-empty strings."""
+        if v is None:
+            return []
+        if isinstance(v, bool):
+            return ["possible_medical_concern"] if v else []
+        if isinstance(v, str):
+            normalized = v.strip()
+            return [normalized] if normalized else []
+        if isinstance(v, list):
+            normalized_list: List[str] = []
+            for item in v:
+                text = str(item).strip()
+                if text:
+                    normalized_list.append(text)
+            return normalized_list
+        return []
 
     @classmethod
     def fallback(cls) -> "SentimentAnalysisResult":

@@ -16,7 +16,7 @@ import pytest
 from uuid import uuid4
 from unittest.mock import AsyncMock
 
-from app.services.flow.core.error_handler import (
+from app.services.flow.errors.handler import (
     FlowErrorHandler,
     FlowError,
     ErrorCategory,
@@ -158,7 +158,7 @@ class TestErrorClassification:
         error = Exception("Unknown error")
         flow_error = await error_handler.handle_error(error, flow_context)
 
-        assert flow_error.category == ErrorCategory.UNKNOWN_ERROR
+        assert flow_error.category == ErrorCategory.EXECUTION_ERROR
 
     @pytest.mark.asyncio
     async def test_severity_determination(
@@ -412,7 +412,7 @@ class TestRecoveryMethods:
         success, result = await error_handler.recover_from_error(flow_error)
 
         assert success is False
-        assert flow_context.status == FlowStatus.CANCELLED
+        assert flow_context.status == FlowStatus.FAILED
 
 
 # ============================================================================

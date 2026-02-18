@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 
 from app.tasks.follow_up import execute_pending_follow_ups, process_escalation_alerts
+from app.utils.timezone import now_sao_paulo
 from app.services.follow_up_system.enums import (
     EscalationLevel,
     FollowUpType,
@@ -37,7 +38,7 @@ def _build_action_dict(action: FollowUpAction) -> dict:
 
 
 def test_execute_pending_follow_ups_rebuilds_actions_from_redis():
-    now = datetime.now(timezone.utc)
+    now = now_sao_paulo()
     patient_id = uuid4()
     action_one = FollowUpAction(
         action_id=uuid4(),
@@ -107,7 +108,7 @@ def test_process_escalation_alerts_rehydrates_from_redis():
         notification_channels=[NotificationChannel.WHATSAPP],
         requires_immediate_response=False,
     )
-    alert.created_at = datetime.now(timezone.utc) - timedelta(minutes=45)
+    alert.created_at = now_sao_paulo() - timedelta(minutes=45)
 
     follow_up_service = Mock()
     follow_up_service.active_alerts = {}

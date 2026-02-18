@@ -4,7 +4,7 @@
 
 | Name | Type | Nullable | Default | PK | FK |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **id** | `UUID` | ❌ | - | 🔑 |  |
+| **id** | `UUID` | ❌ | `gen_random_uuid()` | 🔑 |  |
 | **webhook_id** | `UUID` | ❌ | - |  | ➡️ [webhook_endpoints]( webhook_endpoints.md ).id |
 | **event_type** | `VARCHAR(100)` | ❌ | - |  |  |
 | **action** | `VARCHAR(100)` | ❌ | - |  |  |

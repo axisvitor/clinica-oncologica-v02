@@ -114,7 +114,7 @@ AuditLogger.log_security_event(
 
 ```json
 {
-  "timestamp": "2025-12-22T19:30:00.000000+00:00",
+  "timestamp": "2025-12-22T19:30:00.000000-03:00",
   "action": "create",
   "resource_type": "flow_template",
   "resource_id": "123e4567-e89b-12d3-a456-426614174000",

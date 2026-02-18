@@ -31,18 +31,20 @@ from app.api.v2.dependencies import (
 )
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
-from app.task_queue import get_task as get_stored_task
-from app.task_queue import list_tasks as list_stored_tasks
-from app.task_queue import task_queue as celery_app
-from app.task_queue import update_task as update_stored_task
-from app.config import settings
-from app.api.v2 import tasks as tasks_module
+from app.task_queue import (
+    task_queue as celery_app,
+    update_task as update_stored_task,
+)
+from app.api.v2.routers import tasks as tasks_module
 
 from ..dependencies import (
     _get_current_user_simple,
     _extract_user_role,
+    _get_task_or_404,
+    _get_task_with_celery_data,
     _serialize_task,
 )
+from ..registry import hydrate_registry_from_store
 from ..utils import (
     CACHE_TTL_ACTIVE_TASKS,
     CACHE_TTL_TASK_HISTORY,
@@ -103,13 +105,13 @@ async def list_tasks(
         role = _extract_user_role(current_user)
         current_user_id = UUID(current_user.get("id"))
 
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            raw_tasks = list_stored_tasks()
-        else:
-            raw_tasks = []
-            for celery_task_id, task_data in tasks_module.task_registry.items():
-                celery_data = tasks_module._get_task_from_celery(celery_task_id)
-                raw_tasks.append({**task_data, **celery_data})
+        # Merge persisted task metadata (Dragonfly/Redis) to avoid process-local
+        # blind spots from in-memory registry only.
+        hydrate_registry_from_store()
+
+        raw_tasks = []
+        for celery_task_id, task_data in tasks_module.task_registry.items():
+            raw_tasks.append(_get_task_with_celery_data(celery_task_id, task_data))
 
         tasks = []
         for task_data in raw_tasks:
@@ -243,24 +245,7 @@ async def get_task(
             logger.debug(f"Cache hit for task: {cache_key}")
             return cached_data
 
-        # Find task in registry
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            task_data = get_stored_task(task_id)
-            celery_task_id = task_id
-        else:
-            celery_task_id = None
-            task_data = None
-
-            for cid, data in tasks_module.task_registry.items():
-                if data.get("id") == task_id:
-                    celery_task_id = cid
-                    task_data = data
-                    break
-
-        if not task_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
-            )
+        celery_task_id, task_data = _get_task_or_404(task_id)
 
         # Check RBAC
         role = _extract_user_role(current_user)
@@ -274,8 +259,7 @@ async def get_task(
                 )
 
         # Get fresh data from Celery
-        celery_data = tasks_module._get_task_from_celery(celery_task_id)
-        merged_data = {**task_data, **celery_data}
+        merged_data = _get_task_with_celery_data(celery_task_id, task_data)
 
         # Serialize
         data = _serialize_task(merged_data, fields)
@@ -372,8 +356,17 @@ async def create_task(
                 "scheduled_at": task_data.schedule_at,
             }
         )
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            update_stored_task(task_id, tasks_module.task_registry[celery_task.id])
+        update_stored_task(
+            task_id,
+            {
+                "description": task_data.description,
+                "retry_config": task_data.retry_config.dict()
+                if task_data.retry_config
+                else None,
+                "timeout_seconds": task_data.timeout_seconds,
+                "scheduled_at": task_data.schedule_at,
+            },
+        )
 
         # Invalidate list cache
         await redis_cache.delete_pattern("tasks:list:*")
@@ -385,8 +378,7 @@ async def create_task(
 
         # Get and return task data
         task_info = tasks_module.task_registry[celery_task.id]
-        celery_data = tasks_module._get_task_from_celery(celery_task.id)
-        merged_data = {**task_info, **celery_data}
+        merged_data = _get_task_with_celery_data(celery_task.id, task_info)
 
         return _serialize_task(merged_data)
 

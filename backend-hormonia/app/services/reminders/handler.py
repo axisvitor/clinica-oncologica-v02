@@ -17,7 +17,7 @@ from uuid import uuid4
 from sqlalchemy import func, select
 
 from app.domain.messaging.core import MessageService
-from app.integrations.gemini_client import GeminiClient
+from app.ai.client import GeminiClient
 from app.models.flow import PatientFlowState
 from app.models.message import Message, MessageDirection, MessageStatus, MessageType
 from app.models.patient import Patient
@@ -29,6 +29,7 @@ from .extractors import (
     extract_intent,
     extract_interval_days,
     extract_time_local,
+    get_missing_fields as resolve_missing_fields,
     infer_recurrence_from_duration,
     infer_reminder_text,
     normalize_text,
@@ -82,7 +83,7 @@ class ReminderHandler:
         Returns:
             ReminderHandlingResult or None if no reminder intent
         """
-        state_data = state_data or {}
+        state_data = {} if state_data is None else state_data
         pending = state_data.get("pending_reminder")
         last_outbound = self._get_last_outbound_message(patient.id)
         conversation_history = self._get_recent_conversation(patient.id)
@@ -365,6 +366,9 @@ class ReminderHandler:
             .filter(
                 Message.patient_id == patient_id,
                 Message.direction == MessageDirection.OUTBOUND,
+                Message.status.in_(
+                    [MessageStatus.SENT, MessageStatus.DELIVERED, MessageStatus.READ]
+                ),
             )
             .order_by(Message.created_at.desc())
             .first()
@@ -375,7 +379,22 @@ class ReminderHandler:
         """Get recent conversation history."""
         messages = (
             self.db.query(Message)
-            .filter(Message.patient_id == patient_id)
+            .filter(
+                Message.patient_id == patient_id,
+                (
+                    (Message.direction == MessageDirection.INBOUND)
+                    | (
+                        (Message.direction == MessageDirection.OUTBOUND)
+                        & Message.status.in_(
+                            [
+                                MessageStatus.SENT,
+                                MessageStatus.DELIVERED,
+                                MessageStatus.READ,
+                            ]
+                        )
+                    )
+                ),
+            )
             .order_by(Message.created_at.desc())
             .limit(limit)
             .all()
@@ -396,29 +415,22 @@ class ReminderHandler:
     def _has_reached_reminder_limit(self, patient_id: Any) -> bool:
         """Check if patient has reached max active reminders (with row-level lock)."""
         reminder_id_expr = Message.message_metadata["reminder_id"].astext
-        # Use subquery with FOR UPDATE to prevent race conditions
-        subq = (
-            select(Message.id)
-            .where(
-                Message.patient_id == patient_id,
-                Message.direction == MessageDirection.OUTBOUND,
-                Message.status.in_([MessageStatus.PENDING, MessageStatus.SCHEDULED]),
-                Message.message_metadata["follow_up_type"].astext == "custom_reminder",
+        # Use SELECT ... FOR UPDATE to reduce race conditions across reminders
+        rows = (
+            self.db.execute(
+                select(reminder_id_expr)
+                .where(
+                    Message.patient_id == patient_id,
+                    Message.direction == MessageDirection.OUTBOUND,
+                    Message.status.in_([MessageStatus.PENDING, MessageStatus.SCHEDULED]),
+                    Message.message_metadata["follow_up_type"].astext == "custom_reminder",
+                )
+                .with_for_update(skip_locked=True)
             )
-            .with_for_update(skip_locked=True)
-            .subquery()
+            .all()
         )
-        active_count = (
-            self.db.query(func.count(func.distinct(reminder_id_expr)))
-            .filter(
-                Message.patient_id == patient_id,
-                Message.direction == MessageDirection.OUTBOUND,
-                Message.status.in_([MessageStatus.PENDING, MessageStatus.SCHEDULED]),
-                Message.message_metadata["follow_up_type"].astext == "custom_reminder",
-            )
-            .scalar()
-        )
-        return (active_count or 0) >= MAX_ACTIVE_REMINDERS
+        active_ids = {row[0] for row in rows if row and row[0]}
+        return len(active_ids) >= MAX_ACTIVE_REMINDERS
 
     # ---- State Builders ----
 
@@ -530,11 +542,13 @@ class ReminderHandler:
         duration_info: DurationInfo,
     ) -> tuple[bool, bool, bool, bool]:
         """Determine which required fields are missing."""
-        missing_text = not reminder_text
-        missing_time = not time_local
-        missing_interval = recurrence == "interval" and not interval_days
-        missing_duration = recurrence != "none" and not duration_info.has_value()
-        return missing_text, missing_time, missing_interval, missing_duration
+        return resolve_missing_fields(
+            reminder_text=reminder_text,
+            time_local=time_local,
+            recurrence=recurrence,
+            interval_days=interval_days,
+            duration_info=duration_info,
+        )
 
     def _collect_missing_fields(
         self,

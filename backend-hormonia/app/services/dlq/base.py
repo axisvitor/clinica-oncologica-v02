@@ -3,6 +3,15 @@ Base types and interfaces for DLQ Service.
 
 This module contains all base types, enums, and protocol definitions
 used across the DLQ (Dead Letter Queue) system.
+
+**This is the single source of truth** for retry configuration and error
+categorization.  Specializations (WebhookDLQ, WhatsApp DLQHandler) import
+from here to avoid duplicating constants.
+
+Consumers:
+    - ``app.services.dlq.service.DLQService`` (canonical orchestrator)
+    - ``app.services.webhook_dlq.WebhookDLQ`` (Redis-backed webhook DLQ)
+    - ``app.integrations.whatsapp.queue.dlq.DLQHandler`` (WhatsApp DLQ)
 """
 
 from enum import Enum

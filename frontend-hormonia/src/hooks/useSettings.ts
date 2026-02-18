@@ -311,7 +311,7 @@ export function useUserPreferences() {
 
   const updatePreferencesMutation = useMutation({
     mutationFn: settingsApi.updatePreferences,
-    onSuccess: (updatedData) => {
+    onSuccess: (updatedData: UserPreferences) => {
       queryClient.setQueryData(['user', 'preferences'], updatedData)
       toast({
         title: 'Preferências salvas',

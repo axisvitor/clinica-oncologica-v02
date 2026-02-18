@@ -5,7 +5,7 @@ This package provides time-based message delivery with timezone handling,
 integrating with Celery for reliable scheduling and delivery tracking.
 """
 
-# Import main classes for backward compatibility
+# Import main classes
 from .scheduler import MessageScheduler, get_message_scheduler
 from .config import MessageSchedulerConfig
 from .models import (

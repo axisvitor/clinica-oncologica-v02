@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.models.patient import Patient, FlowState
 from app.models.message import Message, MessageDirection, MessageStatus
-from app.models.alert import Alert, AlertSeverity, AlertStatus
+from app.models.alert import Alert, AlertSeverity
 from app.models.appointment import Appointment, AppointmentStatus
 from app.schemas.v2.physicians import (
     PhysicianStatistics,
@@ -21,8 +21,9 @@ from app.schemas.v2.physicians import (
     AppointmentStats,
     AlertStats,
 )
-from app.core.redis_unified import get_sync_redis
+from app.core.redis_manager import get_sync_redis_client as get_sync_redis
 from ..base import _calculate_workload_level
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ class PhysicianStatisticsService:
             alerts=alert_stats,
             patient_satisfaction_score=satisfaction_score,
             avg_treatment_duration_days=treatment_duration,
-            calculated_at=datetime.now(timezone.utc),
+            calculated_at=now_sao_paulo(),
         )
 
         # Cache the result
@@ -141,7 +142,7 @@ class PhysicianStatisticsService:
     def _calculate_patient_metrics(self, physician_id: UUID) -> Dict[str, Any]:
         """Calculate patient-related metrics with optimized queries."""
         # Single query with aggregations
-        start_of_month = datetime.now(timezone.utc).replace(
+        start_of_month = now_sao_paulo().replace(
             day=1, hour=0, minute=0, second=0, microsecond=0
         )
 
@@ -177,7 +178,7 @@ class PhysicianStatisticsService:
 
     def _calculate_message_stats(self, physician_id: UUID) -> MessageStats:
         """Calculate message statistics with optimized queries."""
-        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        week_ago = now_sao_paulo() - timedelta(days=7)
 
         # Get patient IDs subquery
         patient_ids = (
@@ -314,7 +315,7 @@ class PhysicianStatisticsService:
                     func.sum(
                         case(
                             (
-                                (Appointment.scheduled_at > datetime.now(timezone.utc))
+                                (Appointment.scheduled_at > now_sao_paulo())
                                 & (
                                     Appointment.status.in_(
                                         [
@@ -382,7 +383,9 @@ class PhysicianStatisticsService:
             )
             .filter(
                 Alert.patient_id.in_(patient_ids),
-                Alert.status.in_([AlertStatus.PENDING, AlertStatus.ACTIVE]),
+                # Alert.status is a Python property backed by acknowledged boolean.
+                # For DB filtering we must use the actual mapped column.
+                Alert.acknowledged.is_(False),
             )
             .first()
         )

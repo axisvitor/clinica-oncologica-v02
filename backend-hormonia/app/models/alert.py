@@ -13,8 +13,13 @@ import uuid
 from app.models.base import BaseModel
 
 
-class AlertSeverity(enum.Enum):
-    """Alert severity levels."""
+class AlertSeverity(str, enum.Enum):
+    """Alert severity levels.
+
+    Canonical definition for LOW/MEDIUM/HIGH/CRITICAL severity.
+    Used by: models, schemas, flow_monitoring, enhanced_monitoring.
+    Import from here to avoid duplication.
+    """
 
     LOW = "low"
     MEDIUM = "medium"

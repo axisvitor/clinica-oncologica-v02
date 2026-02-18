@@ -415,7 +415,7 @@ Test results stored in swarm memory:
 ```javascript
 {
   "hive/tests/integration_results": {
-    "timestamp": "2025-12-24T17:00:00Z",
+    "timestamp": "2025-12-24T17:00:00-03:00",
     "agent": "tester",
     "suites": {
       "patient_registration_flow": {

@@ -203,7 +203,7 @@ const MetricsDashboardPage: React.FC = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">IA</CardTitle>
+            <CardTitle className="text-sm font-medium">Automacao</CardTitle>
             <Brain className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -241,7 +241,7 @@ const MetricsDashboardPage: React.FC = () => {
           </TabsTrigger>
           <TabsTrigger value="insights" className="flex items-center space-x-2">
             <Brain className="h-4 w-4" />
-            <span>Insights</span>
+            <span>Resumo</span>
           </TabsTrigger>
           <TabsTrigger value="settings" className="flex items-center space-x-2">
             <Settings className="h-4 w-4" />
@@ -261,7 +261,7 @@ const MetricsDashboardPage: React.FC = () => {
             <CardHeader>
               <CardTitle>Análise de Tendências</CardTitle>
               <CardDescription>
-                Análise temporal de métricas e previsões baseadas em IA
+                Análise temporal de métricas e previsões baseadas em dados
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -280,7 +280,7 @@ const MetricsDashboardPage: React.FC = () => {
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Insights de IA</CardTitle>
+                <CardTitle>Análises automatizadas</CardTitle>
                 <CardDescription>
                   Recomendações automáticas baseadas em dados
                 </CardDescription>
@@ -302,7 +302,7 @@ const MetricsDashboardPage: React.FC = () => {
                   </div>
 
                   <div className="bg-purple-50 p-4 rounded-lg border-l-4 border-purple-400">
-                    <h4 className="font-medium text-purple-800">Personalização IA</h4>
+                    <h4 className="font-medium text-purple-800">Personalizacao de mensagens</h4>
                     <p className="text-sm text-purple-600 mt-1">
                       Mensagens personalizadas têm 18% mais engajamento que mensagens padrão.
                     </p>
@@ -335,7 +335,7 @@ const MetricsDashboardPage: React.FC = () => {
                     <div>
                       <h5 className="font-medium">Aumentar personalização</h5>
                       <p className="text-sm text-muted-foreground">
-                        Expandir uso de IA para 85% das mensagens
+                        Expandir personalizacao para 85% das mensagens
                       </p>
                     </div>
                   </div>
@@ -396,7 +396,7 @@ const MetricsDashboardPage: React.FC = () => {
                     </label>
                     <label className="flex items-center space-x-2">
                       <input type="checkbox" />
-                      <span className="text-sm">Insights de IA</span>
+                      <span className="text-sm">Análises automatizadas</span>
                     </label>
                   </div>
                 </div>

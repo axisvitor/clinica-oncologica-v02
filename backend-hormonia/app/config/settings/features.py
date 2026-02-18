@@ -24,6 +24,10 @@ class FeaturesSettings(BaseAppSettings):
         default="http://localhost:3001",
         description="Base URL for monthly quiz access links",
     )
+    QUIZ_SHORT_BASE_URL: str = Field(
+        default="",
+        description="Base URL for short quiz links (optional, e.g., https://api.example.com/q)",
+    )
     QUIZ_TOKEN_SECRET: str = Field(
         default="your-monthly-quiz-token-secret-change-this",
         description="Secret key for generating quiz tokens (should be different from main SECURITY_SECRET_KEY)",
@@ -116,4 +120,11 @@ class FeaturesSettings(BaseAppSettings):
         """Validate that quiz URL is present if link mode is enabled."""
         if v is None or (isinstance(v, str) and v.strip() == ""):
             return "http://localhost:3001"
+        return v.rstrip("/") if isinstance(v, str) else v
+
+    @field_validator("QUIZ_SHORT_BASE_URL", mode="before")
+    @classmethod
+    def validate_quiz_short_url(cls, v: str) -> str:
+        if v is None:
+            return ""
         return v.rstrip("/") if isinstance(v, str) else v

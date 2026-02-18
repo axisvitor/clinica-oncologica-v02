@@ -204,7 +204,7 @@ def create_password_reset_token(email: str, ...) -> str:
     ✅ Expiration configurável (default: 24h)
     ✅ Algoritmo: HS256
     """
-    expire = datetime.utcnow() + expires_delta
+    expire = now_sao_paulo() + expires_delta
     payload = {"sub": email, "exp": expire}
     return jwt.encode(payload, secret_key or settings.SECURITY_SECRET_KEY, algorithm)
 ```

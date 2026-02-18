@@ -2,15 +2,16 @@
 Schedule resolution and duration handling for reminders.
 """
 
-import calendar
 from datetime import date, datetime, time, timedelta
 from typing import Optional, Tuple
 
 from pytz.exceptions import AmbiguousTimeError, NonExistentTimeError
 
+from app.utils.date_math import add_months as _add_months
 from app.utils.timezone import SAO_PAULO_TZ_NAME
 
 from .models import DurationInfo
+from .recurrence import infer_recurrence_from_duration
 from .patterns import SAO_PAULO_PYTZ_TZ
 
 
@@ -27,11 +28,7 @@ def parse_time_parts(time_local: str) -> Tuple[Optional[int], Optional[int]]:
 
 def add_months(base_date: date, months: int) -> date:
     """Add months to a date, handling month-end edge cases."""
-    month = base_date.month - 1 + months
-    year = base_date.year + month // 12
-    month = month % 12 + 1
-    day = min(base_date.day, calendar.monthrange(year, month)[1])
-    return date(year, month, day)
+    return _add_months(base_date, months)
 
 
 def resolve_schedule(
@@ -167,17 +164,6 @@ def resolve_duration_settings(
         reminder_end_at = combine_local_date(local_dt, end_date)
 
     return reminder_remaining, reminder_end_at
-
-
-def infer_recurrence_from_duration(duration_info: DurationInfo) -> str:
-    """Infer recurrence type from duration info."""
-    if duration_info.months:
-        return "monthly"
-    if duration_info.weeks:
-        return "weekly"
-    if duration_info.days or duration_info.occurrences:
-        return "daily"
-    return "none"
 
 
 def duration_from_intent(intent) -> DurationInfo:

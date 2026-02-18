@@ -488,9 +488,9 @@ Every PR must pass:
 
 ### Automated Weekly Jobs
 
-- **Monday 00:00 UTC:** Generate dependency health report
-- **Monday 09:00 UTC:** Create update PRs (Dependabot)
-- **Sunday 02:00 UTC:** Security vulnerability scan
+- **Monday 00:00 Sao Paulo:** Generate dependency health report
+- **Monday 09:00 Sao Paulo:** Create update PRs (Dependabot)
+- **Sunday 02:00 Sao Paulo:** Security vulnerability scan
 
 ---
 

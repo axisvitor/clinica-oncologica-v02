@@ -20,7 +20,8 @@ from pydantic import ValidationError
 
 # Local application imports
 from app.repositories.flow import FlowStateRepository
-from ..types import FlowContext, FlowStatus, FlowType
+from ..types import FlowContext, FlowStatus, FlowType, normalize_flow_type
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -228,7 +229,7 @@ class FlowContextRepository:
             "flow_metadata": context.model_dump(mode="json"),
             "started_at": context.started_at,
             "completed_at": context.completed_at,
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": now_sao_paulo(),
         }
 
         existing = self._db_repo.get(context.flow_instance_id)
@@ -236,7 +237,7 @@ class FlowContextRepository:
             self._db_repo.update(existing, payload)
         else:
             payload["id"] = context.flow_instance_id
-            payload.setdefault("started_at", datetime.now(timezone.utc))
+            payload.setdefault("started_at", now_sao_paulo())
             self._db_repo.create(payload)
 
         return True, None
@@ -266,10 +267,7 @@ class FlowContextRepository:
         return None
 
     def _coerce_flow_type(self, value: str) -> FlowType:
-        try:
-            return FlowType(value)
-        except ValueError:
-            return FlowType.CUSTOM
+        return normalize_flow_type(value)
 
     def _coerce_status(self, value: Optional[str]) -> FlowStatus:
         if not value:

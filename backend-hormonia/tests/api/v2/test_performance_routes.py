@@ -32,7 +32,7 @@ class TestResponseTimes:
         doctor = User(
             id=uuid4(),
             email="doctor@example.com",
-            firebase_uid="doctor-firebase-uid",
+            firebase_uid="A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
             full_name="Doctor",
             role=UserRole.DOCTOR,
             is_active=True

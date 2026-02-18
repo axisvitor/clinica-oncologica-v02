@@ -14,7 +14,7 @@ from __future__ import annotations
 # Standard library imports
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 from uuid import UUID
 
 # Third-party imports
@@ -40,6 +40,10 @@ from app.schemas.quiz import (
     QuizTemplateResponse,
 )
 from app.utils.db_retry import with_db_retry
+from app.utils.timezone import now_sao_paulo
+
+if TYPE_CHECKING:
+    from app.schemas.monthly_quiz import MonthlyQuizLinkCreate, MonthlyQuizLinkResponse
 
 
 class QuizService:
@@ -101,7 +105,7 @@ class QuizTemplateService:
         return QuizTemplateResponse.from_orm(created)
 
     @with_db_retry(max_retries=3)
-    async def get_template(self, template_id: UUID) -> QuizTemplateResponse:
+    async def get_template(self, template_id: UUID) -> QuizTemplate:
         """
         Get template by ID.
 
@@ -114,10 +118,15 @@ class QuizTemplateService:
         Raises:
             NotFoundError: If template not found.
         """
-        template = await self.repository.get(template_id)
+        template = self.repository.get(template_id)
         if not template:
             raise NotFoundError(f"Template {template_id} not found")
-        return QuizTemplateResponse.from_orm(template)
+        return template
+
+    @with_db_retry(max_retries=3)
+    def get_template_by_name(self, name: str) -> Optional[QuizTemplate]:
+        """Get active template by name."""
+        return self.repository.get_by_name(name)
 
     @with_db_retry(max_retries=3)
     def get_templates(
@@ -161,10 +170,63 @@ class QuizSessionService:
         self.repository = repository or QuizSessionRepository(db)
         self._logger = logging.getLogger(__name__)
 
+    def _normalize_session_payload(
+        self, session_data: Union[QuizSessionCreate, dict[str, Any], Any]
+    ) -> dict[str, Any]:
+        """
+        Normalize legacy/new session payloads to QuizSession model fields.
+
+        This removes compatibility drift between callers that still send
+        `template_id`/`expires_at` and the current model fields.
+        """
+        if isinstance(session_data, QuizSessionCreate):
+            raw_data = session_data.model_dump(exclude_none=True)
+        elif isinstance(session_data, dict):
+            raw_data = {k: v for k, v in session_data.items() if v is not None}
+        elif hasattr(session_data, "model_dump"):
+            raw_data = {
+                k: v for k, v in session_data.model_dump(exclude_none=True).items()
+            }
+        else:
+            raise TypeError("session_data must be dict-like or QuizSessionCreate")
+
+        quiz_template_id = raw_data.get("quiz_template_id") or raw_data.get("template_id")
+        if quiz_template_id is None:
+            raise ValueError("quiz_template_id/template_id is required")
+
+        now = now_sao_paulo()
+        started_at = raw_data.get("started_at") or now
+        expiration_date = (
+            raw_data.get("expiration_date")
+            or raw_data.get("expires_at")
+            or (started_at + timedelta(days=7))
+        )
+
+        session_metadata = raw_data.get("session_metadata") or {}
+        if not isinstance(session_metadata, dict):
+            session_metadata = {}
+
+        current_question = raw_data.get("current_question")
+        if current_question is None:
+            current_question = raw_data.get("current_question_index", 0)
+
+        return {
+            "patient_id": raw_data.get("patient_id"),
+            "quiz_template_id": quiz_template_id,
+            "status": raw_data.get("status", "started"),
+            "current_question": current_question,
+            "answered_questions": raw_data.get("answered_questions", 0),
+            "total_questions": raw_data.get("total_questions"),
+            "started_at": started_at,
+            "expiration_date": expiration_date,
+            "session_metadata": session_metadata,
+        }
+
     @with_db_retry(max_retries=3)
     def create_session(self, data: QuizSessionCreate) -> QuizSessionResponse:
         """Create quiz session."""
-        session = QuizSession(**data.dict())
+        payload = self._normalize_session_payload(data)
+        session = QuizSession(**payload)
         created = self.repository.create(session)
         self.db.flush()
         return QuizSessionResponse.from_orm(created)
@@ -191,7 +253,7 @@ class QuizSessionService:
         Returns:
             Active QuizSession if found, None otherwise.
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         session = (
             self.db.query(QuizSession)
             .filter(
@@ -252,7 +314,7 @@ class QuizSessionService:
             return None
 
         session.is_completed = True
-        session.completed_at = datetime.now(timezone.utc)
+        session.completed_at = now_sao_paulo()
         if final_score is not None:
             session.final_score = final_score
 
@@ -260,8 +322,31 @@ class QuizSessionService:
         self._logger.info(f"Session {session_id} marked as completed")
         return session
 
+    def advance_session(self, session_id: UUID) -> Optional[QuizSession]:
+        """
+        Advance session to the next question in a single, consistent place.
+
+        Args:
+            session_id: Session identifier.
+
+        Returns:
+            Updated QuizSession if found, None otherwise.
+        """
+        session = self.repository.get(session_id)
+        if not session:
+            self._logger.warning(f"Session {session_id} not found for advancement")
+            return None
+
+        current_question = session.current_question or 0
+        answered_questions = session.answered_questions or 0
+
+        session.current_question = current_question + 1
+        session.answered_questions = answered_questions + 1
+        self.db.flush()
+        return session
+
     def start_quiz_session(
-        self, session_data: dict[str, Any]
+        self, session_data: Union[QuizSessionCreate, dict[str, Any], Any]
     ) -> QuizSession:
         """
         Start a new quiz session from dictionary data.
@@ -272,17 +357,9 @@ class QuizSessionService:
         Returns:
             Created QuizSession.
         """
-        session = QuizSession(
-            patient_id=session_data.get("patient_id"),
-            template_id=session_data.get("template_id"),
-            session_type=session_data.get("session_type", "monthly"),
-            expires_at=session_data.get(
-                "expires_at",
-                datetime.now(timezone.utc) + timedelta(days=7)
-            ),
-            session_metadata=session_data.get("session_metadata", {}),
-        )
-        self.db.add(session)
+        payload = self._normalize_session_payload(session_data)
+        session = QuizSession(**payload)
+        self.repository.create(session)
         self.db.flush()
         self._logger.info(f"Started quiz session {session.id} for patient {session.patient_id}")
         return session
@@ -338,8 +415,8 @@ class QuizResponseService:
         """
         responses = (
             self.db.query(QuizResponse)
-            .filter(QuizResponse.session_id == session_id)
-            .order_by(QuizResponse.question_order)
+            .filter(QuizResponse.quiz_session_id == session_id)
+            .order_by(QuizResponse.responded_at.asc())
             .all()
         )
         return responses
@@ -361,7 +438,7 @@ class QuizResponseService:
             self.db.query(QuizResponse)
             .join(QuizSession)
             .filter(QuizSession.patient_id == patient_id)
-            .order_by(QuizResponse.answered_at.desc())
+            .order_by(QuizResponse.responded_at.desc())
             .limit(limit)
             .all()
         )
@@ -398,9 +475,30 @@ class MonthlyQuizService:
             patient_id=patient_id,
             template_id=template_id,
             session_type="monthly",
-            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+            expires_at=now_sao_paulo() + timedelta(days=7),
         )
         return self.quiz_service.session_service.create_session(session_data)
+
+    async def create_quiz_link(self, link_data: "MonthlyQuizLinkCreate") -> "MonthlyQuizLinkResponse":
+        """Create a monthly quiz link via QuizSessionManager."""
+        from app.domain.quizzes.manager import QuizSessionManager
+
+        manager = QuizSessionManager(self.db)
+        return await manager.create_quiz_link(link_data)
+
+    async def get_quiz_link_status(self, session_id: UUID) -> "MonthlyQuizLinkResponse":
+        """Get quiz link status via QuizSessionManager."""
+        from app.domain.quizzes.manager import QuizSessionManager
+
+        manager = QuizSessionManager(self.db)
+        return await manager.get_quiz_link_status(session_id)
+
+    async def regenerate_link(self, session_id: UUID) -> "MonthlyQuizLinkResponse":
+        """Regenerate quiz link via QuizSessionManager."""
+        from app.domain.quizzes.manager import QuizSessionManager
+
+        manager = QuizSessionManager(self.db)
+        return await manager.regenerate_link(session_id)
 
 
 def get_quiz_service(db: Any) -> QuizService:

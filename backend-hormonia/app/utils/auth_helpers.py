@@ -82,6 +82,22 @@ def ensure_uuid(value: Optional[Union[str, UUID]]) -> Optional[UUID]:
         return None
 
 
+def extract_user_role_and_uuid(
+    current_user: Any,
+    *,
+    default_role: UserRole = UserRole.DOCTOR,
+) -> tuple[UserRole, Optional[UUID]]:
+    """
+    Extract user role and UUID with safe fallbacks.
+
+    Returns:
+        (role_enum, user_uuid)
+    """
+    role_enum, user_id = extract_user_context(current_user)
+    resolved_role = role_enum or default_role
+    return resolved_role, ensure_uuid(user_id)
+
+
 def get_user_uuid(current_user: Any) -> Optional[UUID]:
     """
     Get user's UUID from current_user context.
@@ -104,3 +120,27 @@ def is_doctor_or_admin(current_user: Any) -> bool:
     """
     role_enum, _ = extract_user_context(current_user)
     return role_enum in (UserRole.ADMIN, UserRole.DOCTOR)
+
+
+def extract_user_role(
+    current_user: Any,
+    *,
+    default_role: UserRole = UserRole.DOCTOR,
+) -> UserRole:
+    """
+    Extract user role with fallback for invalid/missing role values.
+    """
+    role_enum, _ = extract_user_context(current_user)
+    return role_enum or default_role
+
+
+def extract_user_id(current_user: Any) -> Optional[str]:
+    """
+    Extract user ID preserving legacy fallback semantics.
+    """
+    _, user_id = extract_user_context(current_user)
+    if user_id is not None:
+        return user_id
+    if isinstance(current_user, dict):
+        return current_user.get("id")
+    return str(getattr(current_user, "id", None))

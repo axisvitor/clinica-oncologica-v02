@@ -4,6 +4,13 @@
 **Project**: Clinica Oncológica Backend (Hormonia)
 **Analyzed Directory**: `/app/middleware/`
 
+> Status update (2026-02-10): `app/middleware/request_logging.py` and
+> `app/middleware/enhanced_error_handler.py` were removed during tombstone
+> cleanup. Runtime currently uses `RequestLoggingMiddleware` from
+> `app/middleware/enhanced_middleware.py`, rate limiting from
+> `app/middleware/distributed_rate_limiter.py`, and centralized exception
+> registration in `app/core/exception_handlers.py`.
+
 ## Executive Summary
 
 After analyzing 7 middleware files (3 "enhanced" and 4 "non-enhanced"), I've identified **significant overlapping functionality** that can be consolidated to improve maintainability, reduce code duplication, and eliminate confusion.
@@ -440,41 +447,27 @@ def __init__(
         self.optimized_logger = None
 ```
 
-**Step 2: Update middleware_setup.py**
+**Step 2: Verify middleware_setup.py imports**
 ```python
 # middleware_setup.py
-# CHANGE:
+# CURRENT:
 from app.middleware.enhanced_middleware import (
     EnhancedSecurityMiddleware,
-    RequestLoggingMiddleware,  # ❌ OLD
+    RequestLoggingMiddleware,
 )
 
-# TO:
-from app.middleware.enhanced_middleware import EnhancedSecurityMiddleware
-from app.middleware.request_logging import LoggingMiddleware  # ✅ NEW
-
-# CHANGE:
+# CURRENT:
 app.add_middleware(
-    RequestLoggingMiddleware,  # ❌ OLD
+    RequestLoggingMiddleware,
     log_request_body=False,
     log_response_body=False,
-)
-
-# TO:
-app.add_middleware(
-    LoggingMiddleware,  # ✅ NEW
-    log_request_body=False,
-    log_response_body=False,
-    enable_rate_limiting=True,  # ✅ NEW
-    max_logs_per_second=50,     # ✅ NEW
+    sensitive_headers=["authorization", "cookie", "x-api-key"],
 )
 ```
 
-**Step 3: Remove old RequestLoggingMiddleware**
-```python
-# enhanced_middleware.py
-# DELETE lines 504-745
-```
+**Step 3: Keep request logging in enhanced_middleware.py**
+- `request_logging.py` has already been removed.
+- `RequestLoggingMiddleware` remains the active implementation.
 
 **Testing**:
 ```bash
@@ -492,18 +485,13 @@ pytest app/tests/middleware/test_logging.py -v
 
 **Priority**: 🟢 **LOW** - Optional enhancement
 
-**Step 1: Add to middleware_setup.py**
+**Step 1: Register centralized exception handlers**
 ```python
-# middleware_setup.py
-# ADD after imports:
-from app.middleware.enhanced_error_handler import EnhancedErrorHandler
+# app/core/application_factory.py
+from app.core.exception_handlers import register_exception_handlers
 
-# ADD after monitoring middleware (position 2):
-app.add_middleware(
-    EnhancedErrorHandler,
-    enable_detailed_errors=settings.APP_ENABLE_DEBUG
-)
-logger.info("✅ [2/13] Error handler middleware added")
+# during app initialization:
+register_exception_handlers(app)
 ```
 
 **Testing**:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
-from app.database import get_db, get_scoped_session
+from app.database import get_scoped_session
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def _trigger_whatsapp_fallback(patient_id: UUID, quiz_session_id: UUID):
                 return  # Already completed or not found
 
             # Use QuizTriggerService to trigger a new quiz
-            from app.domain.quizzes.integration.flow_integration import (
+            from app.domain.quizzes.integration.flow_integration.trigger_service import (
                 QuizTriggerService,
             )
             from app.models.flow import PatientFlowState
@@ -108,26 +108,25 @@ def _notify_providers_of_quiz_completion(
         Settings()
 
         with get_scoped_session() as db:
-            # Use consolidated alert system
-            from app.services.alerts import AlertManagerAdapter
+            from app.models.alert import Alert, AlertSeverity
 
-            alert_service = AlertManagerAdapter(db)
-
-            # Create alert for healthcare providers
-            alert_data = {
-                "patient_id": UUID(patient_id),
-                "alert_type": "quiz_completed",
-                "priority": "medium",
-                "title": "Monthly Quiz Completed",
-                "message": "Patient has completed their monthly health assessment. Report available.",
-                "metadata": {
+            alert = Alert(
+                patient_id=UUID(patient_id),
+                alert_type="quiz_completed",
+                severity=AlertSeverity.MEDIUM,
+                description=(
+                    "Monthly Quiz Completed: "
+                    "Patient has completed their monthly health assessment. Report available."
+                ),
+                data={
                     "quiz_session_id": quiz_session_id,
                     "report_id": report_id,
                     "requires_review": True,
                 },
-            }
-
-            alert_service.create_alert(alert_data)  # type: ignore[attr-defined]
+                acknowledged=False,
+            )
+            db.add(alert)
+            db.commit()
 
     except Exception as e:
         logger.error(f"Error notifying providers of quiz completion: {e}")

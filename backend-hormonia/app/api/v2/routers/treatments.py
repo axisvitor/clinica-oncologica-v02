@@ -39,13 +39,8 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _is_admin(current_user) -> bool:
-    """Check if current user is admin."""
-    return is_admin(current_user)
-
-
 def _ensure_treatment_access(current_user, doctor_id):
-    if _is_admin(current_user):
+    if is_admin(current_user):
         return
     _, user_id = _extract_user_context(current_user)
     user_uuid = _ensure_uuid(user_id)
@@ -144,7 +139,7 @@ async def list_treatments(
 
     if cursor_data and "id" in cursor_data:
         cid = UUID(cursor_data["id"])
-        cdate = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cdate = datetime.fromisoformat(cursor_data["created_at"])
         filters.append(
             or_(
                 Treatment.created_at < cdate,

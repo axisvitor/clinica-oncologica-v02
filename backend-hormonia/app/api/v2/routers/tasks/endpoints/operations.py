@@ -7,7 +7,6 @@ Endpoints:
 """
 
 from typing import Dict, Any
-from datetime import datetime, timezone
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -23,18 +22,19 @@ from app.schemas.v2.tasks import (
 )
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
-from app.task_queue import get_task as get_stored_task
 from app.task_queue import task_queue as celery_app
-from app.task_queue import update_task as update_stored_task
-from app.config import settings
-from app.api.v2 import tasks as tasks_module
+from app.api.v2.routers import tasks as tasks_module
 
 from ..dependencies import (
     _get_current_user_simple,
     _extract_user_role,
+    _get_task_or_404,
+    _get_task_with_celery_data,
     _serialize_task,
 )
+from ..registry import update_task as update_registry_task
 from ..utils import _calculate_retry_delay
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -61,23 +61,7 @@ async def cancel_task(
     Rate limit: 30 requests/minute
     """
     try:
-        # Find task
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            task_data = get_stored_task(task_id)
-            celery_task_id = task_id
-        else:
-            celery_task_id = None
-            task_data = None
-            for cid, data in tasks_module.task_registry.items():
-                if data.get("id") == task_id:
-                    celery_task_id = cid
-                    task_data = data
-                    break
-
-        if not task_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
-            )
+        celery_task_id, task_data = _get_task_or_404(task_id)
 
         # Check RBAC
         role = _extract_user_role(current_user)
@@ -90,30 +74,15 @@ async def cancel_task(
                     detail="You do not have access to this task",
                 )
 
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            from google.cloud import tasks_v2
-
-            client = tasks_v2.CloudTasksClient()
-            task_path = client.task_path(
-                settings.CLOUD_TASKS_PROJECT_ID,
-                settings.CLOUD_TASKS_LOCATION,
-                settings.CLOUD_TASKS_QUEUE,
-                task_id,
-            )
-            try:
-                client.delete_task(task_path)
-            except Exception as exc:
-                logger.warning("Cloud Tasks delete failed for %s: %s", task_id, exc)
-        else:
-            celery_app.control.revoke(
-                celery_task_id,
-                terminate=cancel_data.force,
-                signal="SIGKILL" if cancel_data.force else "SIGTERM",
-            )
+        celery_app.control.revoke(
+            celery_task_id,
+            terminate=cancel_data.force,
+            signal="SIGKILL" if cancel_data.force else "SIGTERM",
+        )
 
         update_payload = {
             "status": TaskStatus.CANCELLED.value,
-            "completed_at": datetime.now(timezone.utc),
+            "completed_at": now_sao_paulo(),
             "metadata": {
                 **task_data.get("metadata", {}),
                 "cancellation_reason": cancel_data.reason,
@@ -121,10 +90,7 @@ async def cancel_task(
                 "forced": cancel_data.force,
             },
         }
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            update_stored_task(task_id, update_payload)
-        else:
-            tasks_module.task_registry[celery_task_id].update(update_payload)
+        update_registry_task(celery_task_id, update_payload)
 
         # Invalidate caches
         await redis_cache.delete(f"task:{task_id}:*")
@@ -137,12 +103,9 @@ async def cancel_task(
         )
 
         # Get updated data
-        celery_data = tasks_module._get_task_from_celery(celery_task_id)
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            updated_task = get_stored_task(task_id) or task_data
-            merged_data = {**updated_task, **celery_data}
-        else:
-            merged_data = {**tasks_module.task_registry[celery_task_id], **celery_data}
+        merged_data = _get_task_with_celery_data(
+            celery_task_id, tasks_module.task_registry[celery_task_id]
+        )
 
         return _serialize_task(merged_data)
 
@@ -178,23 +141,7 @@ async def retry_task(
     Rate limit: 30 requests/minute
     """
     try:
-        # Find task
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            task_data = get_stored_task(task_id)
-            celery_task_id = task_id
-        else:
-            celery_task_id = None
-            task_data = None
-            for cid, data in tasks_module.task_registry.items():
-                if data.get("id") == task_id:
-                    celery_task_id = cid
-                    task_data = data
-                    break
-
-        if not task_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
-            )
+        celery_task_id, task_data = _get_task_or_404(task_id)
 
         # Check RBAC
         role = _extract_user_role(current_user)
@@ -251,13 +198,10 @@ async def retry_task(
                 "manual_retry": True,
                 "retry_notes": retry_data.notes,
                 "retried_by": current_user.get("id"),
-                "retried_at": datetime.now(timezone.utc).isoformat(),
+                "retried_at": now_sao_paulo().isoformat(),
             },
         }
-        if settings.TASK_QUEUE_PROVIDER.lower() != "celery":
-            update_stored_task(task_id, update_payload)
-        else:
-            tasks_module.task_registry[celery_task_id].update(update_payload)
+        update_registry_task(celery_task_id, update_payload)
 
         # Invalidate caches
         await redis_cache.delete(f"task:{task_id}:*")
@@ -270,11 +214,7 @@ async def retry_task(
         )
 
         # Get updated data
-        merged_data = (
-            get_stored_task(task_id) or task_data
-            if settings.TASK_QUEUE_PROVIDER.lower() != "celery"
-            else tasks_module.task_registry[celery_task_id]
-        )
+        merged_data = tasks_module.task_registry[celery_task_id]
 
         return _serialize_task(merged_data)
 

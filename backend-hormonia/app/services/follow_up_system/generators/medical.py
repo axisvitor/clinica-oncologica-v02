@@ -11,7 +11,8 @@ from uuid import UUID, uuid4
 from .base import BaseGenerator
 from ..enums import FollowUpType
 from ..models import FollowUpAction
-from app.services.analytics.data_extraction import ConcernLevel
+from app.services.ai import ConcernLevel
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ class MedicalConcernGenerator(BaseGenerator):
                         patient_id=patient_id,
                         follow_up_type=FollowUpType.MEDICAL_CLARIFICATION,
                         priority="high",
-                        scheduled_for=datetime.now(timezone.utc) + timedelta(minutes=10),
+                        scheduled_for=now_sao_paulo() + timedelta(minutes=10),
                         parameters={
                             "concern": concern,
                             "concern_type": concern_type.value
@@ -70,7 +71,7 @@ class MedicalConcernGenerator(BaseGenerator):
                         patient_id=patient_id,
                         follow_up_type=FollowUpType.PROVIDER_ALERT,
                         priority="medium",
-                        scheduled_for=datetime.now(timezone.utc) + timedelta(minutes=30),
+                        scheduled_for=now_sao_paulo() + timedelta(minutes=30),
                         parameters={
                             "concern": concern,
                             "concern_type": concern_type.value
@@ -115,7 +116,7 @@ class MedicalConcernGenerator(BaseGenerator):
                         patient_id=patient_id,
                         follow_up_type=FollowUpType.MEDICAL_CLARIFICATION,
                         priority="high",
-                        scheduled_for=datetime.now(timezone.utc) + timedelta(minutes=15),
+                        scheduled_for=now_sao_paulo() + timedelta(minutes=15),
                         parameters={
                             "pain_level": pain_level,
                             "follow_up_questions": [
@@ -134,7 +135,7 @@ class MedicalConcernGenerator(BaseGenerator):
                     patient_id=patient_id,
                     follow_up_type=FollowUpType.MEDICATION_GUIDANCE,
                     priority="normal",
-                    scheduled_for=datetime.now(timezone.utc) + timedelta(hours=2),
+                    scheduled_for=now_sao_paulo() + timedelta(hours=2),
                     parameters={
                         "medication_context": structured_response.original_message,
                         "guidance_type": "general_medication_support",
@@ -149,7 +150,7 @@ class MedicalConcernGenerator(BaseGenerator):
                     patient_id=patient_id,
                     follow_up_type=FollowUpType.EMOTIONAL_SUPPORT,
                     priority="normal",
-                    scheduled_for=datetime.now(timezone.utc) + timedelta(hours=1),
+                    scheduled_for=now_sao_paulo() + timedelta(hours=1),
                     parameters={
                         "emotional_state": "negative",
                         "support_type": "encouragement_and_resources",
@@ -164,7 +165,7 @@ class MedicalConcernGenerator(BaseGenerator):
                     patient_id=patient_id,
                     follow_up_type=FollowUpType.TREATMENT_ENCOURAGEMENT,
                     priority="low",
-                    scheduled_for=datetime.now(timezone.utc) + timedelta(hours=4),
+                    scheduled_for=now_sao_paulo() + timedelta(hours=4),
                     parameters={
                         "encouragement_type": "positive_reinforcement",
                         "progress_acknowledgment": True,

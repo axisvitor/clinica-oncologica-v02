@@ -141,7 +141,7 @@ CREATE TABLE quiz_sessions (
 {
     "delivery_method": "whatsapp",
     "token_hash": "sha256_hash_of_token",    // ✅ UNIQUE TOKEN HASH
-    "expires_at": "2025-01-13T10:00:00Z",
+    "expires_at": "2025-01-13T10:00:00-03:00",
     "link_status": "active",
     "access_count": 0,
     "custom_message": "Custom message",

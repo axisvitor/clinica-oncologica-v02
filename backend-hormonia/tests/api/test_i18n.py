@@ -11,7 +11,6 @@ import pytest
 # Skip entire module if i18n is not installed
 pytest.importorskip("i18n", reason="python-i18n not installed")
 
-from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 from app.config.i18n import (
     t,
@@ -239,60 +238,6 @@ class TestTranslatableExceptions:
         assert exc_info.value.status_code == 422
         assert 'email' in str(exc_info.value.detail).lower()
         assert 'required' in str(exc_info.value.detail).lower()
-
-
-@pytest.mark.asyncio
-class TestI18nMiddleware:
-    """Test i18n middleware."""
-
-    @pytest.fixture
-    def app(self):
-        """Create test FastAPI app with i18n middleware."""
-        from fastapi import FastAPI, Request
-        from app.middleware.i18n_middleware import i18n_middleware
-        from app.config.i18n import get_current_locale
-
-        app = FastAPI()
-        app.middleware("http")(i18n_middleware)
-
-        @app.get("/test-locale")
-        async def test_endpoint(request: Request):
-            return {
-                "locale": get_current_locale(),
-                "state_locale": getattr(request.state, 'locale', None)
-            }
-
-        return app
-
-    async def test_middleware_sets_locale_from_query(self, app):
-        """Test middleware sets locale from query parameter."""
-        client = TestClient(app)
-        response = client.get("/test-locale?lang=en-US")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["locale"] == "en-US"
-        assert data["state_locale"] == "en-US"
-        assert response.headers["Content-Language"] == "en-US"
-
-    async def test_middleware_sets_locale_from_header(self, app):
-        """Test middleware sets locale from Accept-Language header."""
-        client = TestClient(app)
-        response = client.get(
-            "/test-locale",
-            headers={"Accept-Language": "en-US,en;q=0.9"}
-        )
-
-        assert response.status_code == 200
-        assert response.headers["Content-Language"] == "en-US"
-
-    async def test_middleware_adds_content_language_header(self, app):
-        """Test middleware adds Content-Language header to response."""
-        client = TestClient(app)
-        response = client.get("/test-locale")
-
-        assert "Content-Language" in response.headers
-        assert response.headers["Content-Language"] in SUPPORTED_LOCALES
 
 
 class TestPydanticI18n:

@@ -16,6 +16,7 @@ from app.services.flow.types import (
     FlowTemplate,
     FlowType,
     FlowStepType,
+    FlowTransitionType,
     FlowValidationResult,
 )
 
@@ -52,19 +53,21 @@ class TestFlowTemplateManagerCreation:
             "steps": [
                 {
                     "step_id": "start",
+                    "name": "Start",
                     "type": FlowStepType.START.value,
                     "action": "send_message",
                     "config": {"message": "Welcome"},
                 },
                 {
                     "step_id": "end",
+                    "name": "End",
                     "type": FlowStepType.END.value,
                     "action": "end_flow",
                     "config": {},
                 },
             ],
             "transitions": [
-                {"from_step": "start", "to_step": "end", "type": "direct"},
+                {"from_step": "start", "to_step": "end", "type": FlowTransitionType.AUTOMATIC.value},
             ],
             "is_active": True,
         }
@@ -173,19 +176,21 @@ class TestFlowTemplateManagerUpdate:
             "steps": [
                 {
                     "step_id": "start",
+                    "name": "Start",
                     "type": FlowStepType.START.value,
                     "action": "send_message",
                     "config": {"message": "Original"},
                 },
                 {
                     "step_id": "end",
+                    "name": "End",
                     "type": FlowStepType.END.value,
                     "action": "end_flow",
                     "config": {},
                 },
             ],
             "transitions": [
-                {"from_step": "start", "to_step": "end", "type": "direct"},
+                {"from_step": "start", "to_step": "end", "type": FlowTransitionType.AUTOMATIC.value},
             ],
             "is_active": True,
         }
@@ -286,6 +291,7 @@ class TestFlowTemplateManagerDelete:
             "steps": [
                 {
                     "step_id": "start",
+                    "name": "Start",
                     "type": FlowStepType.START.value,
                     "action": "send_message",
                     "config": {},
@@ -336,11 +342,12 @@ class TestFlowTemplateManagerRetrieval:
                 "version": "1.0.0",
                 "flow_type": FlowType.ONBOARDING.value
                 if i < 2
-                else FlowType.MONTHLY_QUIZ.value,
+                else FlowType.QUIZ_MENSAL.value,
                 "description": "Test",
                 "steps": [
                     {
                         "step_id": "start",
+                        "name": "Start",
                         "type": FlowStepType.START.value,
                         "action": "send_message",
                         "config": {},
@@ -450,19 +457,21 @@ class TestFlowTemplateManagerValidation:
             "steps": [
                 {
                     "step_id": "start",
+                    "name": "Start",
                     "type": FlowStepType.START.value,
                     "action": "send_message",
                     "config": {"message": "Welcome"},
                 },
                 {
                     "step_id": "end",
+                    "name": "End",
                     "type": FlowStepType.END.value,
                     "action": "end_flow",
                     "config": {},
                 },
             ],
             "transitions": [
-                {"from_step": "start", "to_step": "end", "type": "direct"},
+                {"from_step": "start", "to_step": "end", "type": FlowTransitionType.AUTOMATIC.value},
             ],
         }
         return manager.create_template(template_data, validate=False)
@@ -535,6 +544,7 @@ class TestFlowTemplateManagerActivation:
             "steps": [
                 {
                     "step_id": "start",
+                    "name": "Start",
                     "type": FlowStepType.START.value,
                     "action": "send_message",
                     "config": {},
@@ -603,6 +613,7 @@ class TestFlowTemplateManagerVersioning:
             "steps": [
                 {
                     "step_id": "start",
+                    "name": "Start",
                     "type": FlowStepType.START.value,
                     "action": "send_message",
                     "config": {},
@@ -678,6 +689,7 @@ class TestFlowTemplateManagerBulkOperations:
                     "steps": [
                         {
                             "step_id": "start",
+                            "name": "Start",
                             "type": FlowStepType.START.value,
                             "action": "send_message",
                             "config": {},
@@ -714,14 +726,17 @@ class TestFlowTemplateManagerBulkOperations:
     ):
         """Test bulk validation."""
         # Arrange
-        templates = [FlowTemplate(**data) for data in bulk_template_data]
+        created_templates = manager.create_templates_bulk(
+            bulk_template_data, validate=False
+        )
+        template_ids = [template.template_id for template in created_templates]
 
         # Act
-        results = manager.validate_templates_bulk(templates)
+        results = manager.validate_templates_bulk(template_ids)
 
         # Assert
         assert len(results) == 3
-        assert all(result.is_valid for result in results)
+        assert all(result.is_valid for result in results.values())
 
 
 class TestFlowTemplateManagerImportExport:
@@ -744,6 +759,7 @@ class TestFlowTemplateManagerImportExport:
             "steps": [
                 {
                     "step_id": "start",
+                    "name": "Start",
                     "type": FlowStepType.START.value,
                     "action": "send_message",
                     "config": {},
@@ -784,6 +800,7 @@ class TestFlowTemplateManagerImportExport:
             "steps": [
                 {
                     "step_id": "start",
+                    "name": "Start",
                     "type": FlowStepType.START.value,
                     "action": "send_message",
                     "config": {},
@@ -813,6 +830,7 @@ class TestFlowTemplateManagerImportExport:
                 "steps": [
                     {
                         "step_id": "start",
+                        "name": "Start",
                         "type": FlowStepType.START.value,
                         "action": "send_message",
                         "config": {},
@@ -841,6 +859,7 @@ class TestFlowTemplateManagerImportExport:
                 "steps": [
                     {
                         "step_id": "start",
+                        "name": "Start",
                         "type": FlowStepType.START.value,
                         "action": "send_message",
                         "config": {},
@@ -878,6 +897,7 @@ class TestFlowTemplateManagerCache:
             "steps": [
                 {
                     "step_id": "start",
+                    "name": "Start",
                     "type": FlowStepType.START.value,
                     "action": "send_message",
                     "config": {},
@@ -905,6 +925,7 @@ class TestFlowTemplateManagerCache:
             "steps": [
                 {
                     "step_id": "start",
+                    "name": "Start",
                     "type": FlowStepType.START.value,
                     "action": "send_message",
                     "config": {},
@@ -942,6 +963,7 @@ class TestFlowTemplateManagerStatistics:
                 "steps": [
                     {
                         "step_id": "start",
+                        "name": "Start",
                         "type": FlowStepType.START.value,
                         "action": "send_message",
                         "config": {},
@@ -974,6 +996,7 @@ class TestFlowTemplateManagerStatistics:
                 "steps": [
                     {
                         "step_id": "start",
+                        "name": "Start",
                         "type": FlowStepType.START.value,
                         "action": "send_message",
                         "config": {},
@@ -988,5 +1011,7 @@ class TestFlowTemplateManagerStatistics:
 
         # Assert
         assert health is not None
-        assert "status" in health
-        assert "template_count" in health
+        assert "checked_at" in health
+        assert "total_templates" in health
+        assert "templates_with_issues" in health
+        assert "issues" in health

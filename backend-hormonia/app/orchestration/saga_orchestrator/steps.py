@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.models.patient import Patient
 from app.models.message import MessageType
@@ -19,12 +20,15 @@ from app.models.template import MessageTemplate
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
 from app.schemas.patient import PatientCreate
+from app.exceptions import ValidationError
 from app.repositories.patient import PatientRepository
 from app.services.patient.flow_service import PatientFlowService
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.domain.messaging.core import MessageService
 from app.config.messages import DEFAULT_WELCOME_MESSAGE
 from app.config import settings
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
+from .query_helpers import metadata_key_equals
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +81,8 @@ class SagaStepExecutor:
         Raises:
             Exception: If patient creation fails
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         step_start = time.time()
         step_status = "success"
         try:
@@ -108,6 +114,45 @@ class SagaStepExecutor:
                 )
 
             return patient
+
+        except IntegrityError as e:
+            step_status = "failed"
+            logger.error(f"Step 1 failed: {type(e).__name__}", exc_info=True)
+            saga.add_log_entry(1, "create_patient", "failed", str(e))
+
+            error_message = str(e.orig) if getattr(e, "orig", None) else str(e)
+            if any(
+                term in error_message
+                for term in ["uq_patient_cpf_hash_doctor", "uq_patient_cpf_doctor", "cpf_hash", "cpf"]
+            ):
+                raise ValidationError(
+                    "Paciente com este CPF ja existe",
+                    field="cpf",
+                    code="duplicate_cpf",
+                ) from e
+            if any(
+                term in error_message
+                for term in ["ix_patients_phone_hash_doctor", "uq_patient_phone_doctor", "phone_hash", "phone"]
+            ):
+                raise ValidationError(
+                    "Paciente com este telefone ja existe",
+                    field="phone",
+                    code="duplicate_phone",
+                ) from e
+            if any(
+                term in error_message
+                for term in ["ix_patients_email_hash_doctor", "uq_patient_email_doctor", "email_hash", "email"]
+            ):
+                raise ValidationError(
+                    "Paciente com este email ja existe",
+                    field="email",
+                    code="duplicate_email",
+                ) from e
+
+            raise ValidationError(
+                "Patient creation failed due to data integrity constraints",
+                code="integrity_error",
+            ) from e
 
         except Exception as e:
             step_status = "failed"
@@ -145,6 +190,8 @@ class SagaStepExecutor:
         Raises:
             Exception: If flow initialization fails
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         step_start = time.time()
         step_status = "success"
         try:
@@ -265,22 +312,29 @@ class SagaStepExecutor:
             patient: The patient to send welcome message to
             idempotency_key: Optional key to avoid duplicate welcome messages
         """
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         step_start = time.time()
         step_status = "success"
         try:
             if idempotency_key:
                 from app.models.message import Message
 
-                existing_message = (
-                    self.db.query(Message)
-                    .filter(
-                        Message.patient_id == patient.id,
-                        Message.message_metadata["idempotency_key"].astext
-                        == idempotency_key,
-                        Message.message_metadata["message_type"].astext == "welcome",
-                    )
-                    .first()
+                message_query = self.db.query(Message).filter(
+                    Message.patient_id == patient.id,
+                    metadata_key_equals(
+                        Message.message_metadata,
+                        "idempotency_key",
+                        idempotency_key,
+                    ),
+                    metadata_key_equals(
+                        Message.message_metadata,
+                        "message_type",
+                        "welcome",
+                    ),
                 )
+
+                existing_message = message_query.first()
                 if existing_message:
                     step_status = "skipped_existing_message"
                     logger.info(
@@ -325,9 +379,9 @@ class SagaStepExecutor:
                     patient_name=patient.name
                 )
 
-            scheduled_for = saga.started_at or datetime.now(timezone.utc)
+            scheduled_for = saga.started_at or now_sao_paulo()
             if scheduled_for.tzinfo is None:
-                scheduled_for = scheduled_for.replace(tzinfo=timezone.utc)
+                scheduled_for = scheduled_for.replace(tzinfo=SAO_PAULO_TZ)
 
             message_metadata = {
                 "message_type": "welcome",
@@ -354,7 +408,7 @@ class SagaStepExecutor:
                 extra={
                     "patient_id": str(patient.id),
                     "message_id": str(message.id),
-                    "delivery_method": "cloud_scheduler",
+                    "delivery_method": "celery_beat",
                 },
             )
 

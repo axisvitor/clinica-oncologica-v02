@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 import logging
 
 from ..types import (
@@ -23,6 +23,7 @@ from ..types import (
     FlowContext,
 )
 from ..config import get_flow_config
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 
 
 logger = logging.getLogger(__name__)
@@ -70,12 +71,12 @@ class QuizFlowIntegration:
         if not self.config.enable_quiz_integration:
             raise RuntimeError("Quiz integration is disabled")
 
-        quiz_id = UUID()  # In production, get from quiz service
-        flow_instance_id = UUID()  # In production, create actual flow
+        quiz_id = uuid4()  # In production, get from quiz service
+        flow_instance_id = uuid4()  # In production, create actual flow
 
         # Map flow type based on quiz type
         flow_type_map = {
-            "monthly": FlowType.MONTHLY_QUIZ,
+            "monthly": FlowType.QUIZ_MENSAL,
             "symptom": FlowType.SYMPTOM_TRACKING,
             "onboarding": FlowType.ONBOARDING,
         }
@@ -93,13 +94,13 @@ class QuizFlowIntegration:
             "quiz_type": quiz_type,
             "flow_type": flow_type.value,
             "status": "pending",
-            "created_at": datetime.now(timezone.utc),
-            "expires_at": datetime.now(timezone.utc)
+            "created_at": now_sao_paulo(),
+            "expires_at": now_sao_paulo()
             + timedelta(hours=self.config.quiz_timeout_hours),
             "data": quiz_data or {},
         }
 
-        self._quiz_flows[flow_instance_id] = quiz_flow
+        self._quiz_flows[quiz_id] = quiz_flow
 
         logger.info(
             f"Created quiz flow: {flow_instance_id} (type: {quiz_type}, "
@@ -107,6 +108,21 @@ class QuizFlowIntegration:
         )
 
         return quiz_flow
+
+    def _get_flow_by_any_id(self, identifier: UUID) -> Optional[Dict[str, Any]]:
+        """Get quiz flow by quiz_id or flow_instance_id."""
+        if identifier in self._quiz_flows:
+            return self._quiz_flows.get(identifier)
+        quiz_id = self._flow_to_quiz.get(identifier)
+        if quiz_id:
+            return self._quiz_flows.get(quiz_id)
+        return None
+
+    def _get_quiz_id(self, identifier: UUID) -> Optional[UUID]:
+        """Resolve quiz_id from quiz_id or flow_instance_id."""
+        if identifier in self._quiz_flows:
+            return identifier
+        return self._flow_to_quiz.get(identifier)
 
     def start_quiz_flow(
         self,
@@ -123,19 +139,19 @@ class QuizFlowIntegration:
         Returns:
             True if started successfully, False otherwise.
         """
-        quiz_flow = self._quiz_flows.get(flow_instance_id)
+        quiz_flow = self._get_flow_by_any_id(flow_instance_id)
         if not quiz_flow:
             logger.warning(f"Quiz flow not found: {flow_instance_id}")
-            return False
+            raise ValueError("Quiz flow not found")
 
-        quiz_flow["status"] = "active"
-        quiz_flow["started_at"] = datetime.now(timezone.utc)
+        quiz_flow["status"] = "in_progress"
+        quiz_flow["started_at"] = now_sao_paulo()
 
         # In production: Call quiz service to start quiz
         # quiz_service.start_quiz(quiz_flow["quiz_id"])
 
         logger.info(f"Started quiz flow: {flow_instance_id}")
-        return True
+        return quiz_flow
 
     # ========================================================================
     # Quiz Flow Monitoring
@@ -151,7 +167,7 @@ class QuizFlowIntegration:
         Returns:
             Status string if found, None otherwise.
         """
-        quiz_flow = self._quiz_flows.get(flow_instance_id)
+        quiz_flow = self._get_flow_by_any_id(flow_instance_id)
         if not quiz_flow:
             return None
 
@@ -167,15 +183,11 @@ class QuizFlowIntegration:
         Returns:
             True if expired, False otherwise.
         """
-        quiz_flow = self._quiz_flows.get(flow_instance_id)
+        quiz_flow = self._get_flow_by_any_id(flow_instance_id)
         if not quiz_flow:
             return False
 
-        expires_at = quiz_flow.get("expires_at")
-        if not expires_at:
-            return False
-
-        return datetime.now(timezone.utc) > expires_at
+        return self._is_flow_expired(quiz_flow)
 
     def check_quiz_completion(self, flow_instance_id: UUID) -> bool:
         """
@@ -187,7 +199,7 @@ class QuizFlowIntegration:
         Returns:
             True if completed, False otherwise.
         """
-        quiz_flow = self._quiz_flows.get(flow_instance_id)
+        quiz_flow = self._get_flow_by_any_id(flow_instance_id)
         if not quiz_flow:
             return False
 
@@ -217,7 +229,7 @@ class QuizFlowIntegration:
         Returns:
             True if recorded successfully, False otherwise.
         """
-        quiz_flow = self._quiz_flows.get(flow_instance_id)
+        quiz_flow = self._get_flow_by_any_id(flow_instance_id)
         if not quiz_flow:
             logger.warning(f"Quiz flow not found: {flow_instance_id}")
             return False
@@ -228,7 +240,7 @@ class QuizFlowIntegration:
 
         quiz_flow["data"]["responses"][question_id] = {
             "value": response,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         # In production: Send to quiz service
@@ -239,6 +251,16 @@ class QuizFlowIntegration:
             f"{question_id} = {response}"
         )
 
+        return True
+
+    def record_response(self, quiz_id: UUID, response_data: Dict[str, Any]) -> bool:
+        """Record a response entry for a quiz flow."""
+        quiz_flow = self._get_flow_by_any_id(quiz_id)
+        if not quiz_flow:
+            raise ValueError("Quiz flow not found")
+
+        responses = quiz_flow.setdefault("responses", [])
+        responses.append(response_data)
         return True
 
     def get_quiz_responses(
@@ -254,7 +276,7 @@ class QuizFlowIntegration:
         Returns:
             Dictionary with responses, or None if not found.
         """
-        quiz_flow = self._quiz_flows.get(flow_instance_id)
+        quiz_flow = self._get_flow_by_any_id(flow_instance_id)
         if not quiz_flow:
             return None
 
@@ -268,7 +290,8 @@ class QuizFlowIntegration:
         self,
         flow_instance_id: UUID,
         final_data: Optional[Dict[str, Any]] = None,
-    ) -> bool:
+        results: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         Complete a quiz flow.
 
@@ -279,22 +302,24 @@ class QuizFlowIntegration:
         Returns:
             True if completed successfully, False otherwise.
         """
-        quiz_flow = self._quiz_flows.get(flow_instance_id)
+        quiz_flow = self._get_flow_by_any_id(flow_instance_id)
         if not quiz_flow:
             logger.warning(f"Quiz flow not found: {flow_instance_id}")
-            return False
+            raise ValueError("Quiz flow not found")
 
         quiz_flow["status"] = "completed"
-        quiz_flow["completed_at"] = datetime.now(timezone.utc)
+        quiz_flow["completed_at"] = now_sao_paulo()
 
-        if final_data:
-            quiz_flow["data"].update(final_data)
+        payload = final_data or results
+        if payload:
+            quiz_flow.setdefault("data", {}).update(payload)
+            quiz_flow["results"] = payload
 
         # In production: Notify quiz service
         # quiz_service.complete_quiz(quiz_flow["quiz_id"], final_data)
 
         logger.info(f"Completed quiz flow: {flow_instance_id}")
-        return True
+        return quiz_flow
 
     def cancel_quiz_flow(
         self,
@@ -311,20 +336,20 @@ class QuizFlowIntegration:
         Returns:
             True if cancelled successfully, False otherwise.
         """
-        quiz_flow = self._quiz_flows.get(flow_instance_id)
+        quiz_flow = self._get_flow_by_any_id(flow_instance_id)
         if not quiz_flow:
             logger.warning(f"Quiz flow not found: {flow_instance_id}")
-            return False
+            raise ValueError("Quiz flow not found")
 
         quiz_flow["status"] = "cancelled"
-        quiz_flow["cancelled_at"] = datetime.now(timezone.utc)
+        quiz_flow["cancelled_at"] = now_sao_paulo()
         quiz_flow["cancellation_reason"] = reason
 
         # In production: Notify quiz service
         # quiz_service.cancel_quiz(quiz_flow["quiz_id"], reason)
 
         logger.info(f"Cancelled quiz flow: {flow_instance_id} (reason: {reason})")
-        return True
+        return quiz_flow
 
     # ========================================================================
     # Quiz Reminders
@@ -340,7 +365,7 @@ class QuizFlowIntegration:
         Returns:
             True if reminder should be sent, False otherwise.
         """
-        quiz_flow = self._quiz_flows.get(flow_instance_id)
+        quiz_flow = self._get_flow_by_any_id(flow_instance_id)
         if not quiz_flow:
             return False
 
@@ -352,7 +377,7 @@ class QuizFlowIntegration:
         last_reminder = quiz_flow["data"].get("last_reminder_at")
         if last_reminder:
             last_reminder_dt = datetime.fromisoformat(last_reminder)
-            time_since_reminder = datetime.now(timezone.utc) - last_reminder_dt
+            time_since_reminder = now_sao_paulo() - last_reminder_dt
             if time_since_reminder < timedelta(
                 hours=self.config.quiz_reminder_interval_hours
             ):
@@ -367,9 +392,10 @@ class QuizFlowIntegration:
         Args:
             flow_instance_id: Flow instance ID.
         """
-        quiz_flow = self._quiz_flows.get(flow_instance_id)
+        quiz_flow = self._get_flow_by_any_id(flow_instance_id)
         if quiz_flow:
-            quiz_flow["data"]["last_reminder_at"] = datetime.now(timezone.utc).isoformat()
+            quiz_flow.setdefault("data", {})
+            quiz_flow["data"]["last_reminder_at"] = now_sao_paulo().isoformat()
             reminder_count = quiz_flow["data"].get("reminder_count", 0)
             quiz_flow["data"]["reminder_count"] = reminder_count + 1
 
@@ -387,7 +413,15 @@ class QuizFlowIntegration:
         Returns:
             Quiz flow data if found, None otherwise.
         """
-        return self._quiz_flows.get(flow_instance_id)
+        return self._get_flow_by_any_id(flow_instance_id)
+
+    def get_flow_by_quiz_id(self, quiz_id: UUID) -> Optional[UUID]:
+        """Alias: get flow_id by quiz_id."""
+        return self._quiz_to_flow.get(quiz_id)
+
+    def get_quiz_by_flow_id(self, flow_id: UUID) -> Optional[UUID]:
+        """Alias: get quiz_id by flow_id."""
+        return self._flow_to_quiz.get(flow_id)
 
     def get_quiz_id_for_flow(self, flow_instance_id: UUID) -> Optional[UUID]:
         """
@@ -429,7 +463,7 @@ class QuizFlowIntegration:
         active_flows = []
 
         for quiz_flow in self._quiz_flows.values():
-            if quiz_flow["status"] == "active":
+            if quiz_flow["status"] == "in_progress":
                 if patient_id is None or quiz_flow["patient_id"] == patient_id:
                     active_flows.append(quiz_flow)
 
@@ -449,7 +483,7 @@ class QuizFlowIntegration:
         Returns:
             Dictionary with metrics, or None if not found.
         """
-        quiz_flow = self._quiz_flows.get(flow_instance_id)
+        quiz_flow = self._get_flow_by_any_id(flow_instance_id)
         if not quiz_flow:
             return None
 
@@ -506,19 +540,126 @@ class QuizFlowIntegration:
         """
         expired_flows = []
 
-        for flow_id, quiz_flow in self._quiz_flows.items():
-            if self.is_quiz_flow_expired(flow_id):
+        for quiz_id, quiz_flow in self._quiz_flows.items():
+            if self._is_flow_expired(quiz_flow):
                 if quiz_flow["status"] not in ["completed", "cancelled"]:
-                    expired_flows.append(flow_id)
+                    expired_flows.append(quiz_id)
 
         # Cancel expired flows
-        for flow_id in expired_flows:
-            self.cancel_quiz_flow(flow_id, reason="expired")
+        for quiz_id in expired_flows:
+            self.cancel_quiz_flow(quiz_id, reason="expired")
+            self._quiz_flows.pop(quiz_id, None)
+            flow_id = self._quiz_to_flow.pop(quiz_id, None)
+            if flow_id:
+                self._flow_to_quiz.pop(flow_id, None)
 
         if expired_flows:
             logger.info(f"Cleaned up {len(expired_flows)} expired quiz flows")
 
         return len(expired_flows)
+
+    # ========================================================================
+    # Reminder scheduling (in-memory)
+    # ========================================================================
+
+    def schedule_reminder(
+        self,
+        quiz_id: UUID,
+        remind_at: datetime,
+        message: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Schedule a reminder for a quiz flow."""
+        quiz_flow = self._get_flow_by_any_id(quiz_id)
+        if not quiz_flow:
+            raise ValueError("Quiz flow not found")
+
+        reminder_id = uuid4()
+        reminder = {
+            "reminder_id": reminder_id,
+            "quiz_id": quiz_flow["quiz_id"],
+            "flow_instance_id": quiz_flow["flow_instance_id"],
+            "remind_at": remind_at,
+            "message": message,
+            "status": "pending",
+            "created_at": now_sao_paulo(),
+        }
+        reminders = quiz_flow.setdefault("reminders", [])
+        reminders.append(reminder)
+        return reminder
+
+    def cancel_reminder(self, reminder_id: UUID) -> bool:
+        """Cancel a scheduled reminder."""
+        for quiz_flow in self._quiz_flows.values():
+            reminders = quiz_flow.get("reminders", [])
+            for reminder in reminders:
+                if reminder.get("reminder_id") == reminder_id:
+                    reminder["status"] = "cancelled"
+                    return True
+        return False
+
+    def get_pending_reminders(self) -> List[Dict[str, Any]]:
+        """Get all pending reminders."""
+        pending: List[Dict[str, Any]] = []
+        for quiz_flow in self._quiz_flows.values():
+            for reminder in quiz_flow.get("reminders", []):
+                if reminder.get("status") == "pending":
+                    pending.append(reminder)
+        return pending
+
+    # ========================================================================
+    # Expiration helpers
+    # ========================================================================
+
+    def _is_flow_expired(self, quiz_flow: Dict[str, Any]) -> bool:
+        expires_at = quiz_flow.get("expires_at")
+        if not expires_at:
+            return False
+        if isinstance(expires_at, datetime) and expires_at.tzinfo is None:
+            return now_sao_paulo_naive() > expires_at
+        return now_sao_paulo() > expires_at
+
+    def get_expired_flows(self) -> List[Dict[str, Any]]:
+        """Return list of expired quiz flows."""
+        expired = []
+        for quiz_flow in self._quiz_flows.values():
+            if self._is_flow_expired(quiz_flow):
+                expired.append(quiz_flow)
+        return expired
+
+    # ========================================================================
+    # Statistics
+    # ========================================================================
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get basic quiz flow statistics."""
+        total = len(self._quiz_flows)
+        completed = sum(1 for flow in self._quiz_flows.values() if flow["status"] == "completed")
+        pending = sum(1 for flow in self._quiz_flows.values() if flow["status"] == "pending")
+        in_progress = sum(1 for flow in self._quiz_flows.values() if flow["status"] == "in_progress")
+        cancelled = sum(1 for flow in self._quiz_flows.values() if flow["status"] == "cancelled")
+
+        return {
+            "total_quiz_flows": total,
+            "completed_flows": completed,
+            "pending_flows": pending,
+            "in_progress_flows": in_progress,
+            "cancelled_flows": cancelled,
+        }
+
+    def get_patient_quiz_history(self, patient_id: UUID) -> List[Dict[str, Any]]:
+        """Get quiz history for a patient."""
+        return [
+            flow
+            for flow in self._quiz_flows.values()
+            if flow.get("patient_id") == patient_id
+        ]
+
+    def get_responses(self, quiz_id: UUID) -> List[Dict[str, Any]]:
+        """Alias for responses list."""
+        quiz_flow = self._get_flow_by_any_id(quiz_id)
+        if not quiz_flow:
+            return []
+        return quiz_flow.get("responses", [])
 
     def cleanup_old_flows(self, days: int = 30) -> int:
         """
@@ -530,7 +671,7 @@ class QuizFlowIntegration:
         Returns:
             Number of flows cleaned up.
         """
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_date = now_sao_paulo() - timedelta(days=days)
         old_flows = []
 
         for flow_id, quiz_flow in self._quiz_flows.items():

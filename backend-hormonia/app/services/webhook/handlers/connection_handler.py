@@ -9,8 +9,9 @@ from datetime import datetime, timezone
 
 from app.config.settings.cache import cache_settings
 from app.repositories.connection_state import ConnectionStateRepository
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.utils.db_retry import with_db_retry
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +168,7 @@ class ConnectionWebhookHandler:
             qr_data = {
                 "instance": instance,
                 "qrcode": qr_code,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "status": "pending",
             }
 

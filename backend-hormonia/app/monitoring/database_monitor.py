@@ -11,12 +11,13 @@ import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from collections import defaultdict, deque
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import threading
 import redis.asyncio as redis
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import Pool
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -74,6 +75,7 @@ class DatabasePerformanceMonitor:
             conn, cursor, statement, parameters, context, executemany
         ):
             """Track query start time."""
+            _ = conn, cursor, parameters, executemany
             context._query_start_time = time.time()
             context._query_statement = statement
 
@@ -82,6 +84,7 @@ class DatabasePerformanceMonitor:
             conn, cursor, statement, parameters, context, executemany
         ):
             """Track query completion and metrics."""
+            _ = conn, parameters, executemany
             if hasattr(context, "_query_start_time"):
                 execution_time = time.time() - context._query_start_time
 
@@ -109,18 +112,21 @@ class DatabasePerformanceMonitor:
         @event.listens_for(Pool, "connect")
         def pool_connect(dbapi_conn, connection_record):
             """Track pool connections."""
+            _ = dbapi_conn, connection_record
             with self._lock:
                 self.connection_stats.total_connections += 1
 
         @event.listens_for(Pool, "checkout")
         def pool_checkout(dbapi_conn, connection_record, connection_proxy):
             """Track connection checkout."""
+            _ = dbapi_conn, connection_record, connection_proxy
             with self._lock:
                 self.connection_stats.checked_out += 1
 
         @event.listens_for(Pool, "checkin")
         def pool_checkin(dbapi_conn, connection_record):
             """Track connection checkin."""
+            _ = dbapi_conn, connection_record
             with self._lock:
                 self.connection_stats.checked_in += 1
                 if self.connection_stats.checked_out > 0:
@@ -139,7 +145,7 @@ class DatabasePerformanceMonitor:
                 query_hash=query_hash,
                 query_text=statement[:500],  # Truncate for storage
                 execution_time=execution_time,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now_sao_paulo(),
                 table_names=table_names,
                 operation_type=operation_type,
                 rows_affected=rows_affected,
@@ -160,7 +166,7 @@ class DatabasePerformanceMonitor:
                 query_hash=query_hash,
                 query_text=statement[:500],
                 execution_time=0.0,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now_sao_paulo(),
                 table_names=table_names,
                 operation_type=operation_type,
                 error=error,
@@ -348,7 +354,7 @@ class DatabasePerformanceMonitor:
 
     def _calculate_qps(self) -> float:
         """Calculate queries per second over the last minute."""
-        minute_ago = datetime.now(timezone.utc) - timedelta(minutes=1)
+        minute_ago = now_sao_paulo() - timedelta(minutes=1)
 
         recent_queries = 0
         with self._lock:

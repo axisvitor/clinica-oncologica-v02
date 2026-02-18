@@ -9,7 +9,7 @@ import json
 from typing import List
 
 from app.services.ai import PatientContext
-from app.integrations.openai_client import LangChainOrchestrator
+from app.ai.client import GeminiClient
 
 from .models import PatientPreference
 from .patterns import MedicalPatterns
@@ -20,14 +20,14 @@ logger = logging.getLogger(__name__)
 class PreferenceExtractor:
     """Handles patient preference extraction from messages."""
 
-    def __init__(self, langchain_orchestrator: LangChainOrchestrator):
+    def __init__(self, gemini_client: GeminiClient):
         """
         Initialize preference extractor.
 
         Args:
-            langchain_orchestrator: LangChain orchestrator for AI extraction
+            gemini_client: Gemini client for AI extraction
         """
-        self.langchain_orchestrator = langchain_orchestrator
+        self.gemini_client = gemini_client
         self.patterns = MedicalPatterns()
 
     async def extract_patient_preferences(
@@ -174,7 +174,7 @@ class PreferenceExtractor:
             }}
             """
 
-            ai_response = await self.langchain_orchestrator.generate_text(
+            ai_response = await self.gemini_client.generate_content(
                 preference_prompt
             )
 

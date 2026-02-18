@@ -10,6 +10,7 @@ from datetime import datetime
 from uuid import uuid4
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 @pytest.fixture
 def mock_redis():
     """Mock Redis for idempotency checks."""
@@ -39,7 +40,7 @@ class TestWebhookIdempotency:
                 "message": {
                     "conversation": "Olá, gostaria de agendar uma consulta"
                 },
-                "messageTimestamp": int(datetime.utcnow().timestamp())
+                "messageTimestamp": int(now_sao_paulo_naive().timestamp())
             }
         }
 
@@ -258,7 +259,7 @@ class TestWebhookMessageProcessing:
                 "message": {
                     "conversation": "Preciso de ajuda"
                 },
-                "messageTimestamp": int(datetime.utcnow().timestamp()),
+                "messageTimestamp": int(now_sao_paulo_naive().timestamp()),
                 "pushName": "João Silva"
             }
         }

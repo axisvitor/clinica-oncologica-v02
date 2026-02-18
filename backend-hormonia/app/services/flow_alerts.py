@@ -3,6 +3,11 @@ Flow alerts service.
 
 Generates alerts for flow health and analytics thresholds and routes them
 through the unified AlertManager notification pipeline.
+
+Architecture note (QW-021 consolidation):
+    Unique alerting concern -- evaluates completion rates, duration anomalies,
+    inconsistent states, and inactive templates, then routes through AlertManager.
+    NOT duplicated in ``app.services.flow`` package.
 """
 
 import logging
@@ -15,6 +20,7 @@ from sqlalchemy import func, case
 from app.models.flow import PatientFlowState, FlowTemplateVersion, FlowKind
 from app.services.alerts import get_alert_manager
 from app.services.alerts.types import Alert, AlertRuleType, AlertSeverity, AlertStatus
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +31,8 @@ class FlowAlertsService:
         self.alert_manager = get_alert_manager()
 
     async def evaluate_alerts(self) -> List[Alert]:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         alerts: List[Alert] = []
 
         alerts.extend(await self._completion_rate_alerts())
@@ -41,6 +49,8 @@ class FlowAlertsService:
         return alerts
 
     async def _completion_rate_alerts(self) -> List[Alert]:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         threshold = 0.5
         results = (
             self.db.query(
@@ -86,6 +96,8 @@ class FlowAlertsService:
         return alerts
 
     async def _duration_alerts(self) -> List[Alert]:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         threshold_days = 30
         duration_seconds = threshold_days * 86400
 
@@ -128,6 +140,8 @@ class FlowAlertsService:
         return alerts
 
     async def _inconsistent_state_alerts(self) -> List[Alert]:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         inconsistent = (
             self.db.query(PatientFlowState)
             .filter(
@@ -153,6 +167,8 @@ class FlowAlertsService:
         return alerts
 
     async def _inactive_template_alerts(self) -> List[Alert]:
+        # TODO(async-migration): sync SQLAlchemy calls block event loop
+        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         active_templates = (
             self.db.query(FlowTemplateVersion)
             .filter(FlowTemplateVersion.is_active.is_(True))
@@ -190,7 +206,7 @@ class FlowAlertsService:
         message: str,
         context: Dict[str, Any],
     ) -> Alert:
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         return Alert(
             id=uuid4(),
             rule_id=uuid4(),

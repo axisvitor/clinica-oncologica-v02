@@ -1,0 +1,7 @@
+.venv/
+venv/
+venv_linux/
+node_modules/
+**/.venv/
+**/venv/
+**/venv_linux/

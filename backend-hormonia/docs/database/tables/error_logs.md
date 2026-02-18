@@ -8,12 +8,12 @@
 | **error_type** | `VARCHAR(100)` | ❌ | - |  |  |
 | **error_message** | `TEXT` | ❌ | - |  |  |
 | **stack_trace** | `TEXT` | ✅ | - |  |  |
-| **context** | `JSONB` | ❌ | `'{}'::jsonb` |  |  |
-| **count** | `INTEGER` | ❌ | `1` |  |  |
+| **context** | `JSONB` | ❌ | - |  |  |
+| **count** | `INTEGER` | ❌ | - |  |  |
 | **first_seen** | `TIMESTAMP` | ❌ | `CURRENT_TIMESTAMP` |  |  |
 | **last_seen** | `TIMESTAMP` | ❌ | `CURRENT_TIMESTAMP` |  |  |
-| **resolved** | `BOOLEAN` | ❌ | `false` |  |  |
-| **severity** | `VARCHAR(20)` | ❌ | `'ERROR'::character varying` |  |  |
+| **resolved** | `BOOLEAN` | ❌ | - |  |  |
+| **severity** | `VARCHAR(20)` | ❌ | - |  |  |
 | **created_at** | `TIMESTAMP` | ❌ | `CURRENT_TIMESTAMP` |  |  |
 | **updated_at** | `TIMESTAMP` | ❌ | `CURRENT_TIMESTAMP` |  |  |
 
@@ -21,14 +21,5 @@
 
 | Name | Unique | Columns |
 | :--- | :--- | :--- |
-| idx_error_logs_context_gin | ❌ | `context` |
-| idx_error_logs_count | ❌ | `count` |
-| idx_error_logs_deduplication | ✅ | `error_type, <expr>` |
-| idx_error_logs_error_type | ❌ | `error_type` |
-| idx_error_logs_first_seen | ❌ | `first_seen` |
-| idx_error_logs_last_seen | ❌ | `last_seen` |
-| idx_error_logs_resolved | ❌ | `resolved` |
-| idx_error_logs_severity | ❌ | `severity` |
-| idx_error_logs_severity_time | ❌ | `severity, last_seen` |
-| idx_error_logs_type_resolved | ❌ | `error_type, resolved` |
-| idx_error_logs_unresolved_recent | ❌ | `resolved, last_seen` |
+| ix_error_logs_error_type | ❌ | `error_type` |
+| ix_error_logs_id | ❌ | `id` |

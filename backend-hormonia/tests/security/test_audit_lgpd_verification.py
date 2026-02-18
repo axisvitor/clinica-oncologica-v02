@@ -150,7 +150,7 @@ class TestLGPDAuditVerification:
         """
         Verify that PII masking utility works correctly for all fields.
         """
-        from app.utils.pii_masking import mask_cpf, mask_phone, mask_email
+        from app.utils.pii_redaction import mask_cpf, mask_phone, mask_email
         
         # Test CPF masking
         assert mask_cpf("12345678901") == "123.***.***-01"

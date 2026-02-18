@@ -239,27 +239,14 @@ from app.core.redis_manager.firebase_cache import FirebaseRedisCache
 from app.core.redis_manager.session_cache import SessionCache
 ```
 
-## Files Using Redis Manager (17 total)
+## Files Using Redis Manager
 
-1. `app/dependencies/auth_dependencies.py`
-2. `app/domain/quizzes/quiz_session_manager.py`
-3. `app/api/v2/routers/health.py`
-4. `app/api/v2/routers/alerts.py`
-5. `app/services/token_rotation_service.py`
-6. `app/services/session_service.py`
-7. `app/services/optimized_monthly_quiz_service.py`
-8. `app/services.py`
-9. `app/celery_app.py`
-10. `app/core/redis_client.py`
-11. `app/core/redis_unified.py`
-12. `app/middleware/fast_404_middleware.py`
-13. `app/routers/auth.py`
-14. `app/utils/query_cache.py`
-15. `app/routers/auth_session.py`
-16. `app/core/lifespan.py`
-17. `app/api/websockets.py`
+The original file list in this report is outdated after cleanup waves.
+To get the current list from code, run:
 
-**All files continue to work without changes!**
+```bash
+rg -n "app\\.core\\.redis_manager" app --glob '*.py'
+```
 
 ## Testing
 

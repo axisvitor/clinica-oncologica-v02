@@ -565,7 +565,7 @@ async def _process_patient_daily_flow(self, flow_state):
 class FollowUpMonitoringService:
     async def check_stale_actions(self):
         """Alert on actions pending > 6 hours."""
-        stale_threshold = datetime.now(timezone.utc) - timedelta(hours=6)
+        stale_threshold = now_sao_paulo() - timedelta(hours=6)
 
         stale_actions = [
             action for action in self.pending_actions.values()
@@ -606,7 +606,7 @@ async def comprehensive_health_check(self) -> Dict[str, Any]:
     return {
         "healthy": overall_healthy,
         "checks": checks,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": now_sao_paulo().isoformat()
     }
 ```
 

@@ -5,8 +5,8 @@ ENV Variable Naming Convention: {CATEGORY}_{SUBCATEGORY}_{ATTRIBUTE}_{UNIT}
 
 from pydantic import Field, model_validator, field_validator
 from typing import List, Optional, Any
-import json
 from .base import BaseAppSettings
+from .parsing import parse_boolean_env_values, parse_list_field
 
 
 class SecuritySettings(BaseAppSettings):
@@ -34,6 +34,13 @@ class SecuritySettings(BaseAppSettings):
     )
     SECURITY_ENCRYPTION_KEY: Optional[str] = Field(
         default=None, description="Legacy fallback for ENCRYPTION_KEY_CURRENT"
+    )
+    SECURITY_ALLOW_WEAK_KEYS: bool = Field(
+        default=False,
+        description=(
+            "Allow startup in production with weak/legacy security keys. "
+            "Use only for backward compatibility while planning key rotation."
+        ),
     )
 
     # ============================================================================
@@ -90,10 +97,6 @@ class SecuritySettings(BaseAppSettings):
     # ========================================================================
     # Authentication Feature Flags
     # ========================================================================
-    ENABLE_STRICT_UID_VALIDATION: bool = Field(
-        default=True,
-        description="Enable strict Firebase UID validation (28 chars)",
-    )
     ENABLE_COOKIE_PRIORITY: bool = Field(
         default=True,
         description="Prioritize cookie over header for session ID",
@@ -472,47 +475,9 @@ class SecuritySettings(BaseAppSettings):
             "RATE_LIMIT_ENABLE_SERVICE",
         ]
 
-        for field in boolean_fields:
-            if field in data:
-                v = data[field]
-                if isinstance(v, bool):
-                    data[field] = v
-                elif isinstance(v, str):
-                    data[field] = v.lower() not in ("false", "0", "no", "off", "")
-                else:
-                    data[field] = bool(v)
-
-        # Parse FIREBASE_ALLOWED_DOMAINS from JSON string
-        if "FIREBASE_ALLOWED_DOMAINS" in data:
-            v = data["FIREBASE_ALLOWED_DOMAINS"]
-            if v is None or v == "":
-                data["FIREBASE_ALLOWED_DOMAINS"] = []
-            elif isinstance(v, str):
-                try:
-                    data["FIREBASE_ALLOWED_DOMAINS"] = json.loads(v)
-                except json.JSONDecodeError:
-                    data["FIREBASE_ALLOWED_DOMAINS"] = []
-
-        # Parse CORS_ALLOWED_ORIGINS
-        if "CORS_ALLOWED_ORIGINS" in data:
-            v = data["CORS_ALLOWED_ORIGINS"]
-            if isinstance(v, list) and len(v) > 0:
-                pass  # Already a list
-            elif isinstance(v, str) and v.strip():
-                s = v.strip()
-                if s.startswith("["):
-                    try:
-                        data["CORS_ALLOWED_ORIGINS"] = json.loads(s)
-                    except (json.JSONDecodeError, ValueError):
-                        data["CORS_ALLOWED_ORIGINS"] = [
-                            item.strip() for item in s.split(",") if item.strip()
-                        ]
-                else:
-                    data["CORS_ALLOWED_ORIGINS"] = [
-                        item.strip() for item in s.split(",") if item.strip()
-                    ]
-            else:
-                data["CORS_ALLOWED_ORIGINS"] = []
+        parse_boolean_env_values(data, boolean_fields)
+        parse_list_field(data, "FIREBASE_ALLOWED_DOMAINS")
+        parse_list_field(data, "CORS_ALLOWED_ORIGINS", allow_quoted_json=True)
 
         # Validate security keys are not placeholders (only in production)
         # In development, default insecure keys are allowed for local testing
@@ -571,7 +536,7 @@ class SecuritySettings(BaseAppSettings):
         if self.SECURITY_CSRF_SECRET_KEY:
             try:
                 # Import validation function
-                from app.utils.security_validation import validate_csrf_secret
+                from app.utils.key_validation import validate_csrf_secret
 
                 # Validate CSRF secret with entropy checking
                 # log_validation=True will log metrics without exposing the secret
@@ -649,7 +614,7 @@ class SecuritySettings(BaseAppSettings):
             # AUTH-001: Validate entropy of security keys (NEW)
             # ===================================================================
             try:
-                from app.utils.security_validation import (
+                from app.utils.key_validation import (
                     validate_all_secrets,
                     mask_secret_for_logging,
                 )
@@ -687,44 +652,49 @@ class SecuritySettings(BaseAppSettings):
                 if self.HASH_SALT:
                     secrets_to_validate["HASH_SALT"] = self.HASH_SALT
 
-                # Validate all secrets
-                validation_results = validate_all_secrets(
-                    secrets_to_validate, environment="production"
-                )
+                if self.SECURITY_ALLOW_WEAK_KEYS:
+                    logger.warning(
+                        "SECURITY_ALLOW_WEAK_KEYS enabled; skipping entropy validation for production keys."
+                    )
+                else:
+                    # Validate all secrets
+                    validation_results = validate_all_secrets(
+                        secrets_to_validate, environment="production"
+                    )
 
-                # Check for any invalid keys
-                for key_name, result in validation_results.items():
-                    if not result.is_valid:
-                        masked_key = mask_secret_for_logging(
-                            secrets_to_validate[key_name]
-                        )
+                    # Check for any invalid keys
+                    for key_name, result in validation_results.items():
+                        if not result.is_valid:
+                            masked_key = mask_secret_for_logging(
+                                secrets_to_validate[key_name]
+                            )
 
-                        error_msg = (
-                            f"{key_name} has insufficient entropy:\n"
-                            f"  - Masked value: {masked_key}\n"
-                            f"  - Entropy: {result.entropy_bits:.1f} bits (minimum: 128)\n"
-                            f"  - Strength: {result.strength_level}\n"
-                            f"  - Issues: {', '.join(result.issues)}\n"
-                            f"  - Recommendation: {result.recommendations[0] if result.recommendations else 'Generate secure key'}"
-                        )
-                        errors.append(error_msg)
-                        logger.error(f"❌ {key_name} validation failed: {error_msg}")
-                    else:
-                        # Log successful validation (with masked key)
-                        masked_key = mask_secret_for_logging(
-                            secrets_to_validate[key_name]
-                        )
-                        logger.info(
-                            f"✅ {key_name} validation passed: "
-                            f"entropy={result.entropy_bits:.1f} bits, "
-                            f"strength={result.strength_level}, "
-                            f"masked={masked_key}"
-                        )
+                            error_msg = (
+                                f"{key_name} has insufficient entropy:\n"
+                                f"  - Masked value: {masked_key}\n"
+                                f"  - Entropy: {result.entropy_bits:.1f} bits (minimum: 128)\n"
+                                f"  - Strength: {result.strength_level}\n"
+                                f"  - Issues: {', '.join(result.issues)}\n"
+                                f"  - Recommendation: {result.recommendations[0] if result.recommendations else 'Generate secure key'}"
+                            )
+                            errors.append(error_msg)
+                            logger.error(f"❌ {key_name} validation failed: {error_msg}")
+                        else:
+                            # Log successful validation (with masked key)
+                            masked_key = mask_secret_for_logging(
+                                secrets_to_validate[key_name]
+                            )
+                            logger.info(
+                                f"✅ {key_name} validation passed: "
+                                f"entropy={result.entropy_bits:.1f} bits, "
+                                f"strength={result.strength_level}, "
+                                f"masked={masked_key}"
+                            )
 
             except ImportError as e:
                 errors.append(
                     f"Could not import security validation module: {e}\n"
-                    "Ensure app.utils.security_validation is available"
+                    "Ensure app.utils.key_validation is available"
                 )
 
             if errors:
