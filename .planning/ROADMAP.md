@@ -36,7 +36,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans (Wave 1 — all parallel)
 
 Plans:
-- [ ] 01-01-PLAN.md — Replace placeholder monitoring auth with canonical get_admin_user + role check (SEC-01)
+- [x] 01-01-PLAN.md — Replace placeholder monitoring auth with canonical get_admin_user + role check (SEC-01)
 - [ ] 01-02-PLAN.md — Remove TEST_TOKEN_REGISTRY from production code + add Firebase key file startup guardrail (SEC-02, SEC-03)
 - [ ] 01-03-PLAN.md — Add pydantic model_validator to block APP_ENABLE_DEBUG=True in production/staging (SEC-04)
 
@@ -165,7 +165,7 @@ Phase 8 can begin after Phase 4 + Phase 5 complete, independently of Phase 6-7.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Security Hardening | 0/3 | Planned | - |
+| 1. Security Hardening | 2/3 | In Progress|  |
 | 2. LGPD Compliance | 0/3 | Not started | - |
 | 3. Operational Stability | 0/3 | Not started | - |
 | 4. AI Reliability | 0/2 | Not started | - |
