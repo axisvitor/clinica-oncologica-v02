@@ -348,29 +348,27 @@ def override_redis_cache(mocker, mock_redis_cache):
 
 @pytest.fixture
 def firebase_auth_headers(firebase_user: User, client) -> dict:
-    """Create auth headers for Firebase user."""
+    """Create auth headers for Firebase user using dependency_overrides."""
     from app.main import app
     from app.dependencies.auth_dependencies import (
         get_current_user,
         get_current_user_from_session,
-        TEST_TOKEN_REGISTRY,
     )
 
     app.dependency_overrides[get_current_user] = lambda: firebase_user
     app.dependency_overrides[get_current_user_from_session] = lambda: firebase_user
-    TEST_TOKEN_REGISTRY[f"firebase_token_{firebase_user.id}"] = firebase_user
 
-    return {"Authorization": f"Bearer firebase_token_{firebase_user.id}"}
+    yield {"Authorization": f"Bearer firebase_token_{firebase_user.id}"}
+
+    app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_current_user_from_session, None)
 
 
 @pytest.fixture
 def session_auth_headers(test_user: User, active_session: SessionModel, client) -> dict:
-    """Create auth headers with session ID."""
+    """Create auth headers with session ID using dependency_overrides."""
     from app.main import app
-    from app.dependencies.auth_dependencies import (
-        get_current_user_from_session,
-        TEST_TOKEN_REGISTRY,
-    )
+    from app.dependencies.auth_dependencies import get_current_user_from_session
 
     user_obj = test_user["user"] if isinstance(test_user, dict) else test_user
     session_user = (
@@ -385,9 +383,10 @@ def session_auth_headers(test_user: User, active_session: SessionModel, client) 
     )
 
     app.dependency_overrides[get_current_user_from_session] = lambda: session_user
-    TEST_TOKEN_REGISTRY[f"session_{active_session.id}"] = user_obj
 
-    return {
+    yield {
         "Authorization": f"Bearer session_{active_session.id}",
         "X-Session-ID": str(active_session.id),
     }
+
+    app.dependency_overrides.pop(get_current_user_from_session, None)

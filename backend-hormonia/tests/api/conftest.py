@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from app.dependencies.auth_dependencies import TEST_TOKEN_REGISTRY, get_current_user
+from app.dependencies.auth_dependencies import get_current_user, get_current_user_from_session
 from app.infrastructure.cache import get_unified_cache_manager
 from app.main import app
 from app.middleware.csrf import get_csrf_token
@@ -36,46 +36,48 @@ def regular_user(db_session):
 
 @pytest.fixture
 def admin_token(admin_user):
-    from app.dependencies import auth_dependencies as auth_deps
-    from app.api.v2.routers.admin import dependencies as admin_deps
+    """Override auth to return admin_user for all authenticated endpoints.
+
+    Overrides both get_current_user (Bearer-token flow) and get_admin_user
+    (admin router dependency) so admin contract tests work without real auth.
+    """
+    from app.api.v2.routers.admin.dependencies import get_admin_user
 
     token = f"admin_token_{admin_user.id}"
     app.dependency_overrides[get_current_user] = lambda: admin_user
-    if auth_deps.TEST_TOKEN_REGISTRY is None:
-        auth_deps.TEST_TOKEN_REGISTRY = {}
-    if admin_deps.TEST_TOKEN_REGISTRY is None or admin_deps.TEST_TOKEN_REGISTRY is not auth_deps.TEST_TOKEN_REGISTRY:
-        admin_deps.TEST_TOKEN_REGISTRY = auth_deps.TEST_TOKEN_REGISTRY
-
-    auth_deps.TEST_TOKEN_REGISTRY[token] = admin_user
-    admin_deps.TEST_TOKEN_REGISTRY[token] = admin_user
+    app.dependency_overrides[get_current_user_from_session] = lambda: {
+        "id": str(admin_user.id),
+        "email": admin_user.email,
+        "full_name": admin_user.full_name,
+        "role": admin_user.role.value if hasattr(admin_user.role, "value") else str(admin_user.role),
+        "is_active": admin_user.is_active,
+        "firebase_uid": getattr(admin_user, "firebase_uid", None),
+        "permissions": [],
+    }
+    app.dependency_overrides[get_admin_user] = lambda: admin_user
     yield token
-    if auth_deps.TEST_TOKEN_REGISTRY is not None:
-        auth_deps.TEST_TOKEN_REGISTRY.pop(token, None)
-    if admin_deps.TEST_TOKEN_REGISTRY is not None:
-        admin_deps.TEST_TOKEN_REGISTRY.pop(token, None)
     app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_current_user_from_session, None)
+    app.dependency_overrides.pop(get_admin_user, None)
 
 
 @pytest.fixture
 def user_token(regular_user):
-    from app.dependencies import auth_dependencies as auth_deps
-    from app.api.v2.routers.admin import dependencies as admin_deps
-
+    """Override auth to return regular_user for all authenticated endpoints."""
     token = f"test_token_{regular_user.id}"
     app.dependency_overrides[get_current_user] = lambda: regular_user
-    if auth_deps.TEST_TOKEN_REGISTRY is None:
-        auth_deps.TEST_TOKEN_REGISTRY = {}
-    if admin_deps.TEST_TOKEN_REGISTRY is None or admin_deps.TEST_TOKEN_REGISTRY is not auth_deps.TEST_TOKEN_REGISTRY:
-        admin_deps.TEST_TOKEN_REGISTRY = auth_deps.TEST_TOKEN_REGISTRY
-
-    auth_deps.TEST_TOKEN_REGISTRY[token] = regular_user
-    admin_deps.TEST_TOKEN_REGISTRY[token] = regular_user
+    app.dependency_overrides[get_current_user_from_session] = lambda: {
+        "id": str(regular_user.id),
+        "email": regular_user.email,
+        "full_name": regular_user.full_name,
+        "role": regular_user.role.value if hasattr(regular_user.role, "value") else str(regular_user.role),
+        "is_active": regular_user.is_active,
+        "firebase_uid": getattr(regular_user, "firebase_uid", None),
+        "permissions": [],
+    }
     yield token
-    if auth_deps.TEST_TOKEN_REGISTRY is not None:
-        auth_deps.TEST_TOKEN_REGISTRY.pop(token, None)
-    if admin_deps.TEST_TOKEN_REGISTRY is not None:
-        admin_deps.TEST_TOKEN_REGISTRY.pop(token, None)
     app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_current_user_from_session, None)
 
 
 @pytest.fixture
