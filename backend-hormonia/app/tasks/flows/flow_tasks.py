@@ -9,6 +9,7 @@ import asyncio
 import logging
 from typing import Any
 from datetime import datetime
+from asgiref.sync import async_to_sync
 from celery.exceptions import MaxRetriesExceededError
 
 from app.task_queue import task_queue as celery_app
@@ -281,8 +282,8 @@ def process_daily_flows(self, limit: int = 1000) -> dict[str, Any]:
     Process daily flows for all active patients using EnhancedFlowEngine.
 
     This is a wrapper task that delegates to the async implementation to prevent
-    event loop memory leaks. Uses asyncio.run() ONCE to create and manage a single
-    event loop for the entire batch processing.
+    event loop memory leaks. Uses async_to_sync from asgiref to manage the event
+    loop for the entire batch processing without creating one per call.
 
     Args:
         limit: Maximum number of patients to process
@@ -322,8 +323,8 @@ def process_daily_flows(self, limit: int = 1000) -> dict[str, Any]:
     try:
         logger.info(f"Starting daily flow processing task for up to {limit} patients")
 
-        # Execute async version ONCE with a single event loop
-        results = asyncio.run(process_daily_flows_async(limit))
+        # Execute async version via async_to_sync (avoids per-call event loop creation)
+        results = async_to_sync(process_daily_flows_async)(limit)
 
         return results
 
