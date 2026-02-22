@@ -1,88 +1,98 @@
-# Clínica Oncológica — Refinamento para Produção
+# Clinica Oncologica — Sistema de Acompanhamento
 
 ## What This Is
 
-Sistema de acompanhamento oncológico via WhatsApp que envia questionários humanizados aos pacientes entre consultas, permitindo que médicos acompanhem seus pacientes de forma contínua — não apenas no dia da consulta. Usa LangGraph para orquestrar o fluxo de conversa e humanizar templates fixos, evitando tom robótico. Atualmente é um protótipo funcional que precisa ser refinado, otimizado e preparado para produção com pacientes reais.
+Sistema de acompanhamento oncologico via WhatsApp que envia questionarios humanizados aos pacientes entre consultas, permitindo que medicos acompanhem seus pacientes de forma continua. Usa LangGraph para orquestrar o fluxo de conversa e humanizar templates fixos, evitando tom robotico. Apos v1.0, o sistema tem seguranca reforçada, compliance LGPD, estabilidade operacional, confiabilidade de IA e um unico sistema de flow canonico.
 
 ## Core Value
 
-Médicos acompanham pacientes oncológicos continuamente entre consultas via WhatsApp, com questionários humanizados que coletam dados clínicos sem sobrecarregar o paciente.
+Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
 
 ## Requirements
 
 ### Validated
 
-<!-- Capacidades já implementadas no protótipo existente -->
-
 - ✓ Backend FastAPI com DDD layers (API → Domain → Services → Infrastructure) — existing
 - ✓ Celery + Dragonfly (Redis-compatible) como task queue e broker — existing
 - ✓ 38 periodic tasks via Celery Beat — existing
-- ✓ LangGraph orquestrando fluxo de conversação + humanização de templates — existing
+- ✓ LangGraph orquestrando fluxo de conversaçao + humanizaçao de templates — existing
 - ✓ Templates fixos armazenados em banco de dados — existing
-- ✓ Integração WhatsApp via Evolution API (UnifiedWhatsAppService) — existing
-- ✓ Firebase Auth para autenticação de usuários — existing
+- ✓ Integraçao WhatsApp via Evolution API (UnifiedWhatsAppService) — existing
+- ✓ Firebase Auth para autenticaçao de usuarios — existing
 - ✓ LGPD compliance (middleware, PII redaction, consent management, encryption) — existing
-- ✓ Saga orchestrator para onboarding de pacientes com compensação — existing
+- ✓ Saga orchestrator para onboarding de pacientes com compensaçao — existing
 - ✓ Quiz mensal interface (Next.js) com short links — existing
 - ✓ Frontend admin SPA (React 19 + Vite + shadcn/ui) — existing
 - ✓ WebSocket para dashboard real-time — existing
 - ✓ Circuit breaker e resilience patterns — existing
 - ✓ Structured logging + Sentry integration — existing
 - ✓ DLQ para webhook/message failures — existing
+- ✓ Monitoring endpoints com auth canonica (session-based, role check) — v1.0
+- ✓ TEST_TOKEN_REGISTRY removido de produçao; Firebase key guardrail — v1.0
+- ✓ Debug flag validation bloqueando APP_ENABLE_DEBUG=True em prod/staging — v1.0
+- ✓ Audit trail imutavel para deleçoes de pacientes (patient_deletion_audit) — v1.0
+- ✓ WhatsApp opt-out handler (STOP/PARAR/CANCELAR) com send guard — v1.0
+- ✓ AI audit event types no AuditEventType enum — v1.0
+- ✓ Celery tasks usando async_to_sync (sem asyncio.run()) — v1.0
+- ✓ Rate limiter atomico via Lua sliding window script — v1.0
+- ✓ python-jose eliminado, substituido por PyJWT — v1.0
+- ✓ LangGraph startup health check + FeatureNotAvailableError — v1.0
+- ✓ Centralized invoke_langgraph_graph() wrapper (sem silent None fallback) — v1.0
+- ✓ Dual flow system eliminado: FlowDispatcher facade + QW-021 deletado — v1.0
+- ✓ Integration tests para flow unificado (onboarding, advancement, alerts) — v1.0
 
 ### Active
 
-<!-- Escopo deste trabalho: refinamento para produção -->
-
-- [ ] Validar se LangGraph é a melhor escolha para orquestração + humanização
-- [ ] Avaliar se templates no DB podem ser otimizados ou substituídos
-- [ ] Resolver sync-in-async pattern (42+ métodos bloqueando event loop)
-- [ ] Consolidar dual flow systems (production flat-file vs QW-021 step-based)
-- [ ] Refatorar arquivos >500 linhas (60+ arquivos identificados)
-- [ ] Corrigir bugs conhecidos (physician availability, asyncio.run() inconsistency)
-- [ ] Resolver security issues (placeholder auth em monitoring, test token registry)
-- [ ] Implementar funcionalidades faltantes críticas (batch re-encryption, AI audit types)
-- [ ] Aumentar cobertura de testes em áreas frágeis (saga compensation, dual flow, auth)
-- [ ] Remover código morto e shims desnecessários de forma segura
-- [ ] Preparar stack para produção com pacientes reais
+- [ ] Migrar hot paths para AsyncSession (webhook, flow, quiz, saga)
+- [ ] Batch re-encryption para key rotation (LGPD Art. 46)
+- [ ] Simplificar grafos LangGraph single-node para chamadas diretas GeminiClient
+- [ ] Adicionar circuit breaker ao redor de chamadas Gemini
+- [ ] Instrumentar metricas reais de Celery tasks (remover hardcoded 2.5s)
+- [ ] Implementar get_available_slots() com logica real de slots
+- [ ] WebSocket scaling com Redis pub/sub para multi-instance
 
 ### Out of Scope
 
-- Features novas além do que já existe — foco é refinamento
-- Migração de infra (manter Railway + AWS RDS + Dragonfly)
+- Features novas alem do que ja existe — foco e refinamento
+- Migraçao de infra (manter Railway + AWS RDS + Dragonfly)
 - Redesign de UI do frontend admin ou quiz interface
-- Implementação de real-time chat com pacientes
-- OAuth/SSO (Firebase Auth já atende)
+- Implementaçao de real-time chat com pacientes
+- OAuth/SSO (Firebase Auth ja atende)
+- Full AsyncSession migration de uma vez — migrar hot paths primeiro
+- Live chat medico-paciente via mesmo numero
 
 ## Context
 
-- Protótipo funcional, nunca usado com pacientes reais
-- Codebase brownfield com padrões maduros (DDD, Saga, Circuit Breaker) mas dívida técnica acumulada
-- Já mapeado em `.planning/codebase/` com 7 documentos detalhados
-- Python 3.13 + FastAPI + SQLAlchemy sync (AsyncSession migration pendente)
-- LangGraph 1.0.7 com Google Gemini para humanização de mensagens
-- Dual flow systems coexistindo (production vs QW-021) — precisa consolidar
+- v1.0 shipped: segurança, LGPD, estabilidade, AI reliability, flow consolidation
+- Codebase brownfield com padroes maduros (DDD, Saga, Circuit Breaker)
+- Python 3.13 + FastAPI + SQLAlchemy sync (AsyncSession migration pendente para hot paths)
+- LangGraph 1.0.7 com Google Gemini para humanizaçao de mensagens
+- Flow system unificado: FlowDispatcher facade routing to production flow_core.py
 - 42+ sync-in-async methods anotados com `# TODO(async-migration)`
 - 60+ arquivos com >500 linhas precisando split
-- Tombstone pattern e shim pattern já estabelecidos no projeto
+- Net -9,314 LOC reduzidos no v1.0 (QW-021 deletion foi maior contributor)
 
 ## Constraints
 
-- **Stack**: Manter Python/FastAPI, não migrar para outro framework
-- **AI Provider**: Google Gemini (já integrado via langchain-google-genai)
-- **Compliance**: LGPD obrigatório (dados de pacientes oncológicos são sensíveis)
+- **Stack**: Manter Python/FastAPI, nao migrar para outro framework
+- **AI Provider**: Google Gemini (ja integrado via langchain-google-genai)
+- **Compliance**: LGPD obrigatorio (dados de pacientes oncologicos sao sensiveis)
 - **Deploy**: Railway (API + Workers) + Firebase Hosting (frontends)
-- **Database**: PostgreSQL (AWS RDS) — manter, não migrar
-- **WhatsApp**: Evolution API — manter integração existente
+- **Database**: PostgreSQL (AWS RDS) — manter, nao migrar
+- **WhatsApp**: Evolution API — manter integraçao existente
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| LangGraph para orquestração + humanização | Precisa validação — pode ser overengineered | — Pending |
-| Templates fixos no DB reformulados por IA | Precisa validação — pode ter alternativa melhor | — Pending |
-| Manter dual flow vs consolidar em um | Dois sistemas paralelos geram overhead | — Pending |
-| Sync-in-async: migrar tudo vs migrar hot paths | Migração completa é projeto grande | — Pending |
+| LangGraph para orquestraçao + humanizaçao | Retained — rationalize single-node graphs, keep multi-node | ✓ Good (v1.0) |
+| Consolidar dual flow em production system | QW-021 tinha 7 callers vs 59 do production; low production use | ✓ Good (v1.0) |
+| FlowDispatcher como facade permanente | Stable import target for enrollment routing | ✓ Good (v1.0) |
+| Sync-in-async: migrar hot paths primeiro | Migraçao completa e projeto grande; hot paths cobrem 80% do throughput | — Pending (v1.1) |
+| Full code deletion (not tombstone) for QW-021 | Zero callers outside package; clean break preferred | ✓ Good (v1.0) |
+| Patient-type routing (not percentage) for flow flags | Deterministic: new patients always canonical, existing patients migrated | ✓ Good (v1.0) |
+| PostgreSQL RULE (not trigger) for audit immutability | RULEs intercept at rewrite layer, cannot be bypassed by superusers | ✓ Good (v1.0) |
+| async_to_sync as sole sync→async bridge | Eliminates asyncio.run() memory leaks; matches 15+ existing task files | ✓ Good (v1.0) |
 
 ---
-*Last updated: 2026-02-22 after initialization*
+*Last updated: 2026-02-22 after v1.0 milestone*
