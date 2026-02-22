@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Security Hardening** - Eliminar exposições de segurança que bloqueiam go-live com pacientes reais (completed 2026-02-22)
 - [x] **Phase 2: LGPD Compliance** - Fechar gaps de auditoria e opt-out que criam risco regulatório ativo (completed 2026-02-22)
-- [ ] **Phase 3: Operational Stability** - Corrigir bugs que causam memory leaks, race conditions e CVEs ativos
+- [x] **Phase 3: Operational Stability** - Corrigir bugs que causam memory leaks, race conditions e CVEs ativos (completed 2026-02-22)
 - [ ] **Phase 4: AI Reliability** - Garantir que falhas de LangGraph/Gemini sejam visíveis e explícitas
 - [ ] **Phase 5: Flow Consolidation** - Eliminar o dual flow system que causa divergência silenciosa de estado de pacientes
 - [ ] **Phase 6: Async Hot Path Migration** - Migrar os três hot paths de banco de dados para AsyncSession
@@ -167,7 +167,7 @@ Phase 8 can begin after Phase 4 + Phase 5 complete, independently of Phase 6-7.
 |-------|----------------|--------|-----------|
 | 1. Security Hardening | 3/3 | Complete    | 2026-02-22 |
 | 2. LGPD Compliance | 3/3 | Complete    | 2026-02-22 |
-| 3. Operational Stability | 2/3 | In Progress|  |
+| 3. Operational Stability | 3/3 | Complete   | 2026-02-22 |
 | 4. AI Reliability | 0/2 | Not started | - |
 | 5. Flow Consolidation | 0/2 | Not started | - |
 | 6. Async Hot Path Migration | 0/4 | Not started | - |
