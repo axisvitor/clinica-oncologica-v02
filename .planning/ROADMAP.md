@@ -13,7 +13,7 @@ Este roadmap leva o protótipo funcional a produção com pacientes oncológicos
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Security Hardening** - Eliminar exposições de segurança que bloqueiam go-live com pacientes reais (completed 2026-02-22)
-- [ ] **Phase 2: LGPD Compliance** - Fechar gaps de auditoria e opt-out que criam risco regulatório ativo
+- [x] **Phase 2: LGPD Compliance** - Fechar gaps de auditoria e opt-out que criam risco regulatório ativo (completed 2026-02-22)
 - [ ] **Phase 3: Operational Stability** - Corrigir bugs que causam memory leaks, race conditions e CVEs ativos
 - [ ] **Phase 4: AI Reliability** - Garantir que falhas de LangGraph/Gemini sejam visíveis e explícitas
 - [ ] **Phase 5: Flow Consolidation** - Eliminar o dual flow system que causa divergência silenciosa de estado de pacientes
@@ -166,7 +166,7 @@ Phase 8 can begin after Phase 4 + Phase 5 complete, independently of Phase 6-7.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Security Hardening | 3/3 | Complete    | 2026-02-22 |
-| 2. LGPD Compliance | 2/3 | In Progress|  |
+| 2. LGPD Compliance | 3/3 | Complete   | 2026-02-22 |
 | 3. Operational Stability | 0/3 | Not started | - |
 | 4. AI Reliability | 0/2 | Not started | - |
 | 5. Flow Consolidation | 0/2 | Not started | - |
