@@ -5,36 +5,38 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Médicos acompanham pacientes oncológicos continuamente entre consultas via WhatsApp, com questionários humanizados que coletam dados clínicos sem sobrecarregar o paciente.
-**Current focus:** Phase 1 — Security Hardening
+**Current focus:** Phase 2 — LGPD Compliance
 
 ## Current Position
 
-Phase: 1 of 9 (Security Hardening)
-Plan: 3 of 3 in current phase
-Status: Phase Complete — All 3 plans in Phase 1 executed
-Last activity: 2026-02-22 — Plan 01-03 executed (debug flag startup guardrail)
+Phase: 2 of 9 (LGPD Compliance)
+Plan: 1 of 4 in current phase
+Status: In Progress — Plan 02-01 executed (patient deletion audit table + hook)
+Last activity: 2026-02-22 — Plan 02-01 executed (PatientDeletionAudit model, Alembic migration, service hook)
 
-Progress: [██░░░░░░░░] 11%
+Progress: [███░░░░░░░] 14%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: ~6 min
-- Total execution time: 0.3 hours
+- Total plans completed: 4
+- Average duration: ~9 min
+- Total execution time: 0.6 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-security-hardening | 3/3 | ~18 min | ~6 min |
+| 02-lgpd-compliance | 1/4 | ~12 min | ~12 min |
 
 **Recent Trend:**
-- Last 5 plans: 5 min, 7 min, 6 min
-- Trend: consistent baseline established
+- Last 5 plans: 5 min, 7 min, 6 min, 12 min
+- Trend: LGPD plans slightly longer due to DB migration complexity
 
 *Updated after each plan completion*
 | Phase 01-security-hardening P02 | 16 | 3 tasks | 6 files |
+| Phase 02-lgpd-compliance P01 | ~12 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -57,6 +59,10 @@ Recent decisions affecting current work:
 - [01-03]: Tests use direct BaseAppSettings import from base module to avoid triggering module-level Settings() instantiation in __init__.py
 - [Phase 01-security-hardening]: Override get_admin_user in admin_token fixture - admin router depends on it directly, not get_current_user
 - [Phase 01-security-hardening]: SEC-03 guardrail is severity-aware: RuntimeError in prod/staging, CRITICAL log only in development
+- [02-01]: No FK from patient_deletion_audit to patients.id — audit row must survive even if patient is hard-deleted
+- [02-01]: PostgreSQL RULE objects (not triggers) used for immutability — RULEs intercept at rewrite layer, cannot be bypassed by superusers
+- [02-01]: Merge migration pattern (down_revision as tuple) used because codebase had two Alembic heads (015_rename_upload_metadata, a9c4e1d2b7f0)
+- [02-01]: PatientDeletionAudit import inside delete_patient() body — avoids circular import risk
 
 ### Pending Todos
 
@@ -72,5 +78,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 01-02-PLAN.md (TEST_TOKEN_REGISTRY elimination + Firebase credential guardrail — 3 tasks, 6 files)
-Resume file: .planning/phases/01-security-hardening/01-03-PLAN.md (Plan 03 next in Phase 1)
+Stopped at: Completed 02-01-PLAN.md (PatientDeletionAudit — LGPD immutable deletion audit table, 2 tasks, 6 files)
+Resume file: .planning/phases/02-lgpd-compliance/02-02-PLAN.md (Plan 02 next in Phase 2)

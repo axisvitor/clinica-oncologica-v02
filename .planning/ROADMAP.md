@@ -36,9 +36,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans (Wave 1 — all parallel)
 
 Plans:
-- [x] 01-01-PLAN.md — Replace placeholder monitoring auth with canonical get_admin_user + role check (SEC-01)
-- [ ] 01-02-PLAN.md — Remove TEST_TOKEN_REGISTRY from production code + add Firebase key file startup guardrail (SEC-02, SEC-03)
-- [ ] 01-03-PLAN.md — Add pydantic model_validator to block APP_ENABLE_DEBUG=True in production/staging (SEC-04)
+- [x] 01-01-PLAN.md — Replace placeholder monitoring auth with canonical get_admin_user + role check (SEC-01) — completed 2026-02-22
+- [x] 01-02-PLAN.md — Remove TEST_TOKEN_REGISTRY from production code + add Firebase key file startup guardrail (SEC-02, SEC-03) — completed 2026-02-22
+- [x] 01-03-PLAN.md — Add pydantic model_validator to block APP_ENABLE_DEBUG=True in production/staging (SEC-04) — completed 2026-02-22
 
 ### Phase 2: LGPD Compliance
 **Goal**: O sistema possui trilha de auditoria persistente e imutável de deleções, responde ao opt-out imediatamente, e registra eventos de IA no audit log
@@ -51,7 +51,7 @@ Plans:
 **Plans**: 3 plans (Wave 1 → Wave 2 → Wave 3 — sequential due to Alembic migration chain)
 
 Plans:
-- [ ] 02-01-PLAN.md — Create patient_deletion_audit table + immutability rules + hook into delete_patient() (LGPD-01)
+- [x] 02-01-PLAN.md — Create patient_deletion_audit table + immutability rules + hook into delete_patient() (LGPD-01) — completed 2026-02-22
 - [ ] 02-02-PLAN.md — WhatsApp opt-out handler (STOP/PARAR/CANCELAR) + messaging_stopped_at column + send guard (LGPD-02)
 - [ ] 02-03-PLAN.md — Add AI event types to AuditEventType enum + Alembic migration (LGPD-03)
 

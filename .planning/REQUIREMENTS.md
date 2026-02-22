@@ -16,7 +16,7 @@ Requirements para levar o protótipo a produção com pacientes reais.
 
 ### LGPD Compliance
 
-- [ ] **LGPD-01**: Tabela `patient_deletion_audit` persistente com registro imutável de deleções (LGPD Art. 16/18)
+- [x] **LGPD-01**: Tabela `patient_deletion_audit` persistente com registro imutável de deleções (LGPD Art. 16/18)
 - [ ] **LGPD-02**: Handler de opt-out WhatsApp (STOP/PARAR/CANCELAR) que interrompe messaging imediatamente e registra revogação de consentimento (LGPD Art. 18)
 - [ ] **LGPD-03**: AI event types (`AI_QUERY`, `AI_HUMANIZATION`, `AI_SENTIMENT`, `AI_FOLLOW_UP`) adicionados ao `AuditEventType` enum + Alembic migration
 - [ ] **LGPD-04**: Batch re-encryption implementado via Celery task com chunked processing para viabilizar key rotation (LGPD Art. 46)
@@ -95,7 +95,7 @@ Deferred para após validação clínica com primeiro cohort de pacientes.
 | SEC-02 | Phase 1 | Complete |
 | SEC-03 | Phase 1 | Complete |
 | SEC-04 | Phase 1 | Complete |
-| LGPD-01 | Phase 2 | Pending |
+| LGPD-01 | Phase 2 | Complete (02-01) |
 | LGPD-02 | Phase 2 | Pending |
 | LGPD-03 | Phase 2 | Pending |
 | LGPD-04 | Phase 7 | Pending |
