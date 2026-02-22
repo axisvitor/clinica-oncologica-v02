@@ -208,7 +208,7 @@ class TestResetPasswordContract:
     ):
         """Verify error on expired token"""
         # Generate expired token
-        from jose import jwt
+        import jwt
 
         # Create token that's already expired
         expired_time = now_sao_paulo_naive() - timedelta(hours=25)

@@ -201,7 +201,7 @@ class TestJWTSecurity:
     def test_jwt_algorithm_confusion_prevented(self):
         """Algorithm confusion attacks should be prevented"""
         from app.core.security import create_password_reset_token
-        from jose import jwt
+        import jwt
 
         # Create a valid token
         email = "test@example.com"
