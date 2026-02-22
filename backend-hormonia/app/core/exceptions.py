@@ -727,6 +727,31 @@ class AIServiceError(ExternalServiceError):
         self.prompt = prompt
 
 
+class FeatureNotAvailableError(AIServiceError):
+    """Raised when a required AI feature (LangGraph graph) returns no usable output.
+
+    This exception replaces silent None fallbacks. It signals to the caller
+    that the feature failed explicitly, enabling Sentry capture and retry logic.
+
+    Never shown to patients -- used for backend/ops visibility only.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        graph_name: str,
+        operation: Optional[str] = None,
+    ):
+        super().__init__(
+            message,
+            ai_service=f"langgraph:{graph_name}",
+            error_code="FEATURE_NOT_AVAILABLE",
+            is_recoverable=True,
+        )
+        self.graph_name = graph_name
+        self.operation = operation
+
+
 class RedisConnectionError(ExternalServiceError):
     """Exception raised when Redis connection fails."""
 
