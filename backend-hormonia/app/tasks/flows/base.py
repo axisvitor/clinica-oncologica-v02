@@ -5,9 +5,9 @@ This module provides the base FlowTaskBase class for all flow-related Celery tas
 as well as helper functions like send_critical_alert_sync.
 """
 
-import asyncio
 import logging
 from typing import Any
+from asgiref.sync import async_to_sync
 from celery import Task
 from app.utils.timezone import now_sao_paulo
 
@@ -25,8 +25,8 @@ def send_critical_alert_sync(task_name: str, error: str, context: dict = None):
         context: Optional context dictionary with additional information
 
     Note:
-        This function handles both running and non-running event loops to ensure
-        compatibility with Celery's synchronous task environment.
+        Uses async_to_sync from asgiref to run the async alert processing from
+        a synchronous Celery task context without manual event loop management.
     """
     try:
         from app.services.alerts import (
@@ -45,32 +45,9 @@ def send_critical_alert_sync(task_name: str, error: str, context: dict = None):
             timestamp=now_sao_paulo(),
         )
 
-        # Get manager and process
-        # Note: AlertManager methods are async, so we need to run them in a loop
-        # But since we are in a sync Celery task (or one that might be sync),
-        # we need to be careful about the event loop.
-
+        # Get manager and process using async_to_sync (no loop detection boilerplate)
         manager = get_alert_manager()
-
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        if loop.is_running():
-            # If loop is running, we can't use run_until_complete
-            # This happens if the task is async but called synchronously?
-            # For safety in Celery, we usually want a fresh loop if possible or use thread pool
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    lambda: asyncio.run(manager.process_alert(alert))
-                )
-                future.result(timeout=10)
-        else:
-            loop.run_until_complete(manager.process_alert(alert))
+        async_to_sync(manager.process_alert)(alert)
 
     except Exception as e:
         logger.error(f"Failed to send critical alert for {task_name}: {e}")
