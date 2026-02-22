@@ -28,6 +28,22 @@ from redis.exceptions import RedisError
 
 logger = logging.getLogger(__name__)
 
+_SLIDING_WINDOW_LUA = """
+local key = KEYS[1]
+local window_start = tonumber(ARGV[1])
+local current_time = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+local window = tonumber(ARGV[4])
+redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
+local count = redis.call('ZCARD', key)
+if count < limit then
+    redis.call('ZADD', key, current_time, tostring(current_time))
+    redis.call('EXPIRE', key, window + 60)
+    return {1, count + 1}
+end
+return {0, count}
+"""
+
 
 class RateLimitTier(str, Enum):
     """Rate limit tiers - aligned with actual system roles."""
@@ -108,6 +124,7 @@ class DistributedRateLimiter:
         self.enable_blocking = enable_blocking
         self.block_duration = block_duration
         self.fail_open = fail_open
+        self._sliding_window_script = redis.register_script(_SLIDING_WINDOW_LUA)
 
     def _get_key(self, identifier: str, window: int) -> str:
         """
