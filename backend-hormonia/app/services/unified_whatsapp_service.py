@@ -311,6 +311,33 @@ class UnifiedWhatsAppService:
             )
             return True
 
+        # LGPD Art. 18 — Opt-out guard (last-resort safety net).
+        # Refuse to send if the patient has revoked messaging consent.
+        # This check fires even if the Celery task scheduler failed to filter
+        # the patient earlier.  We load the patient lazily only when needed
+        # to avoid adding latency to the common (non-opted-out) path.
+        try:
+            patient_for_guard = await self._ensure_patient_loaded(message)
+            if patient_for_guard is not None and patient_for_guard.messaging_stopped_at is not None:
+                logger.warning(
+                    "Skipping message to opted-out patient %s (messaging_stopped_at=%s)",
+                    message.patient_id,
+                    patient_for_guard.messaging_stopped_at.isoformat(),
+                    extra={
+                        "message_id": str(message.id),
+                        "patient_id": str(message.patient_id),
+                        "messaging_stopped_at": patient_for_guard.messaging_stopped_at.isoformat(),
+                    },
+                )
+                return False
+        except Exception as guard_err:
+            # Guard failure must never block legitimate sends — log and continue.
+            logger.error(
+                "Opt-out guard check failed for message %s (proceeding with send): %s",
+                message.id,
+                guard_err,
+            )
+
         if not self._is_async:
             # Sync sessions cannot use the queue service directly; rehydrate via async session.
             try:

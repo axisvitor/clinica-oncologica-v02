@@ -40,6 +40,55 @@ from sqlalchemy.orm.attributes import flag_modified
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# LGPD Art. 18 — WhatsApp opt-out keyword detection
+# ---------------------------------------------------------------------------
+# Patients may revoke consent by sending any of these keywords.
+# Both accented and unaccented Portuguese forms are included so the check
+# is resilient to keyboard/IME differences.
+OPT_OUT_KEYWORDS: frozenset[str] = frozenset(
+    [
+        # English
+        "stop",
+        # Portuguese unaccented
+        "parar",
+        "cancelar",
+        "pare",
+        "sair",
+        "remover",
+        "descadastrar",
+        "nao quero",
+        "cancela",
+        "para",
+        # Portuguese with accent (common mobile keyboard output)
+        "não quero",
+        "não",
+    ]
+)
+
+
+def is_opt_out_message(text: str) -> bool:
+    """
+    Check whether an inbound message is an opt-out request.
+
+    Case-insensitive, strips surrounding whitespace before comparing.
+    Only exact matches are accepted to avoid false positives on phrases
+    that happen to contain these words mid-sentence.
+
+    Args:
+        text: Raw message text received from the patient.
+
+    Returns:
+        True if the message is recognised as an opt-out keyword.
+    """
+    if not text:
+        return False
+    normalized = text.strip().lower()
+    return normalized in OPT_OUT_KEYWORDS
+
+
+# ---------------------------------------------------------------------------
+
 
 class MessageWebhookHandler:
     """
@@ -225,6 +274,15 @@ class MessageWebhookHandler:
             )
             if not patient:
                 return None
+
+            # Step 3b: LGPD Art. 18 — opt-out interception
+            # Must run BEFORE any flow advancement or message creation so that
+            # no outbound response is triggered after the revocation is recorded.
+            if is_opt_out_message(message_data.get("content", "")):
+                await self._handle_opt_out(patient)
+                if stored_event_id and webhook_store:
+                    await webhook_store.mark_processed(stored_event_id, True)
+                return None  # Do not advance flow or create any outbound message
 
             # Step 4: Check flow status and add context
             active_flow = self.flow_state_repo.get_active_flow(patient.id)
@@ -413,6 +471,85 @@ class MessageWebhookHandler:
             )
 
         return None
+
+    async def _handle_opt_out(self, patient: Patient) -> None:
+        """
+        Handle a WhatsApp opt-out request from a patient.
+
+        LGPD Art. 18 compliance flow:
+        1. Stamp messaging_stopped_at immediately (primary, must succeed).
+        2. Revoke any active COMMUNICATION consents via ConsentService
+           (secondary — failure is logged but does NOT prevent the opt-out).
+        3. Commit the transaction.
+
+        The opt-out is resilient: if the patient has no formal consent
+        record, or revocation of a specific record fails, the
+        messaging_stopped_at timestamp is still persisted.
+
+        Args:
+            patient: Patient instance who sent the opt-out keyword.
+        """
+        now = now_sao_paulo()
+        patient.messaging_stopped_at = now
+        logger.info(
+            "Patient %s opted out of WhatsApp messaging via STOP keyword",
+            patient.id,
+            extra={"patient_id": str(patient.id)},
+        )
+
+        # Attempt to revoke active COMMUNICATION consents (best-effort)
+        try:
+            from app.models.consent import Consent, ConsentType, ConsentStatus
+            from app.services.lgpd.consent_service import ConsentService
+
+            active_consents = (
+                self.db.query(Consent)
+                .filter(
+                    Consent.patient_id == patient.id,
+                    Consent.consent_type == ConsentType.COMMUNICATION,
+                    Consent.status == ConsentStatus.GRANTED,
+                )
+                .all()
+            )
+
+            consent_service = ConsentService(self.db)
+            for consent in active_consents:
+                try:
+                    await consent_service.revoke_consent(
+                        consent_id=consent.id,
+                        reason="Patient opt-out via WhatsApp STOP message",
+                    )
+                    logger.info(
+                        "Revoked COMMUNICATION consent %s for patient %s",
+                        consent.id,
+                        patient.id,
+                    )
+                except Exception as revoke_err:
+                    logger.warning(
+                        "Failed to revoke consent %s for patient %s (opt-out still applied): %s",
+                        consent.id,
+                        patient.id,
+                        revoke_err,
+                    )
+
+        except Exception as consent_err:
+            logger.warning(
+                "Could not query consents for patient %s during opt-out (opt-out still applied): %s",
+                patient.id,
+                consent_err,
+            )
+
+        # Persist the opt-out timestamp regardless of consent revocation outcome
+        try:
+            self.db.commit()
+        except Exception as commit_err:
+            logger.error(
+                "Failed to commit opt-out for patient %s: %s",
+                patient.id,
+                commit_err,
+                exc_info=True,
+            )
+            self.db.rollback()
 
     async def _handle_flow_message(
         self, patient: Patient, message: Message, flow_state: PatientFlowState
