@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from app.services.reporting import ReportService
     from app.domain.analytics.analytics_service import AnalyticsService
     from app.domain.messaging.core import MessageService
-    from app.services.flow import FlowManager
+    from app.services.dispatcher import FlowDispatcher
     from app.services.enhanced_flow_engine import EnhancedFlowEngine
     from app.services.notification_service import NotificationService
     from app.services.file import FileService
@@ -79,7 +79,7 @@ class ServiceProvider:
         self._analytics_service: Optional[AnalyticsService] = None
         self._message_service: Optional[MessageService] = None
         self._flow_engine: Optional[EnhancedFlowEngine] = None
-        self._flow_service: Optional[FlowManager] = None
+        self._flow_service: Optional[FlowDispatcher] = None
         self._notification_service: Optional[NotificationService] = None
         self._file_service: Optional[FileService] = None
         self._monthly_quiz_service: Optional[MonthlyQuizService] = None
@@ -290,10 +290,10 @@ class ServiceProvider:
         return self._message_service
 
     @property
-    def flow_service(self) -> "FlowManager":
+    def flow_service(self) -> "FlowDispatcher":
         if self._flow_service is None:
-            from app.services.flow import FlowManager
-            self._flow_service = FlowManager(self.db)
+            from app.services.dispatcher import FlowDispatcher
+            self._flow_service = FlowDispatcher(self.db)
         return self._flow_service
 
     @property

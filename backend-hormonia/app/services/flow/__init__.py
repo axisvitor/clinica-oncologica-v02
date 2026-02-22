@@ -1,57 +1,21 @@
 """
-Flow Services Module - Consolidated Flow Management System (QW-021).
+Flow Services Module - Canonical Production Flow System.
 
-This module provides a unified, consolidated flow management system with
-clear separation of concerns and improved architecture.
+This module provides the public API for the canonical production flow system.
+Canonical system: production (flow_core.py / EnhancedFlowEngine / PatientFlowService).
 
-Consolidation Progress:
-    Target: 30 files (15,000 LOC) → 6-8 files (6,500-8,000 LOC)
-    Current Phase: Week 2 - Implementation (Foundation + Core)
-    Status: Foundation Complete ✅, Core In Progress 🔄
-
-Consolidated Components (Current):
-    ✅ types.py (510 LOC) - Type system (enums, models)
-    ✅ config.py (458 LOC) - Configuration system
-    ✅ core/engine.py (605 LOC) - Flow execution engine
-    ✅ core/validator.py (430 LOC) - Validation logic
-    ✅ core/error_handler.py (385 LOC) - Error handling
-    ✅ manager.py (578 LOC) - Main orchestrator
-    ✅ adapter.py (420 LOC) - Backward compatibility
-    ✅ analytics/ (2,587 LOC) - Analytics, metrics, monitoring, events
-    ✅ templates/ (1,928 LOC) - Template management, validation, storage
-    ✅ integrations/ (1,704 LOC) - Quiz, AI, and service integrations
-
-Legacy Files (To Be Deprecated):
-    This consolidates functionality from:
-    - orchestrators/flow_orchestrator.py (1,767 LOC)
-    - flow.py (1,524 LOC)
-    - flow_error_handler.py (1,444 LOC)
-    - flow_engine.py (1,359 LOC)
-    - quiz_flow_integration.py (1,261 LOC)
-    - enhanced_flow_engine.py (450 LOC)
-    - flow_core.py (670 LOC)
-    - flow_analytics.py (735 LOC)
-    - flow_dashboard.py (797 LOC)
-    - flow_data_integrity.py (855 LOC)
-    - flow_engine_ai_integration.py (259 LOC)
-    - flow_event_broadcaster.py (506 LOC)
-    - flow_integrity.py (474 LOC)
-    - flow_management.py (438 LOC)
-    - flow_monitoring.py (738 LOC)
-    - flow_template.py (343 LOC)
-    - flow_validation.py (527 LOC)
-    - quiz_flow_integration_service.py (371 LOC)
-    Total: 18 files, ~14,518 LOC
-
-    Consolidated To: 8 modules (~9,605 LOC)
-    Reduction: ~5,000 LOC (~34% reduction)
+The QW-021 consolidation package (core/, errors/, execution/, integrations/,
+validation/) has been fully deleted as part of Phase 5 flow consolidation.
+All flow operations now route through the production system exclusively.
 
 Public API:
-    Core Components:
-        - FlowManager: Main orchestrator for flow operations
-        - FlowEngine: Core execution logic for steps
-        - FlowValidator: Flow and step validation
-        - FlowErrorHandler: Error handling and recovery
+    Types:
+        - FlowType, FlowStatus, FlowStepType, etc. (enums)
+        - FlowContext, FlowTemplate, FlowEvent (models)
+
+    Configuration:
+        - get_flow_config(): Global configuration accessor
+        - FlowFeatureFlags: Patient-type routing flags for FlowDispatcher
 
     Analytics:
         - FlowAnalytics: Main analytics service
@@ -64,34 +28,19 @@ Public API:
         - FlowTemplateValidator: Template validation
         - FlowTemplateRepository: Template storage
 
-    Integrations:
-        - FlowIntegrationManager: Integration coordinator
-        - QuizFlowIntegration: Quiz service integration
-        - AIFlowIntegration: AI service integration
-
-    Types:
-        - FlowType, FlowStatus, FlowStepType, etc. (enums)
-        - FlowContext, FlowTemplate, FlowEvent (models)
-
-    Configuration:
-        - get_flow_config(): Global configuration accessor
-        - FlowFeatureFlags: Migration feature flags
-
 Example Usage:
-    >>> from app.services.flow import FlowManager, FlowType
+    >>> from app.services.flow import FlowType, FlowFeatureFlags
     >>> from app.services.flow.config import get_flow_config
+    >>> from app.services.dispatcher import FlowDispatcher
     >>>
-    >>> config = get_flow_config()
-    >>> manager = FlowManager(db)
-    >>> flow_id = await manager.start_flow(
-    ...     patient_id=patient_id,
-    ...     flow_type=FlowType.DAILY_FOLLOW_UP
-    ... )
-    >>> await manager.advance_flow(flow_id)
-
-Version History:
-    - v1.0: Legacy system (30 files, 15,000 LOC)
-    - v2.0: Consolidated system (QW-021) - IN PROGRESS
+    >>> # Use the canonical production engine directly
+    >>> from app.services.enhanced_flow_engine import EnhancedFlowEngine
+    >>> engine = EnhancedFlowEngine(db)
+    >>> await engine.advance_patient_flow(patient_id)
+    >>>
+    >>> # Route enrollment via FlowDispatcher
+    >>> dispatcher = FlowDispatcher(db)
+    >>> flow_state = await dispatcher.initialize_flow(patient)
 """
 
 # Import configuration (always available)
@@ -130,15 +79,6 @@ from .types import (
     TemplateID,
 )
 
-# Import core components (implementation)
-# Import core components (implementation)
-from .core.manager import FlowManager
-from .core.engine import FlowEngine
-
-# Import core components
-from .validation import FlowValidator
-from .errors import FlowErrorHandler
-
 # Import analytics components
 from .analytics import (
     FlowAnalytics,
@@ -156,50 +96,12 @@ from .templates import (
     get_template_manager,
 )
 
-# Import integration components
-from .integrations import (
-    FlowIntegrationManager,
-    QuizFlowIntegration,
-    AIFlowIntegration,
-    get_integration_manager,
-)
-
-
-# ============================================================================
-# Factory Functions
-# ============================================================================
-
-
-def get_flow_manager(db, **kwargs):
-    """
-    Get flow manager instance.
-
-    Factory function that returns the canonical FlowManager.
-
-    Args:
-        db: Database session
-        **kwargs: Additional configuration
-
-    Returns:
-        FlowManager instance
-
-    Example:
-        >>> manager = get_flow_manager(db)
-        >>> flow_id = await manager.start_flow(patient_id, FlowType.DAILY_FOLLOW_UP)
-    """
-    return FlowManager(db, **kwargs)
 
 # ============================================================================
 # Public Exports
 # ============================================================================
 
 __all__ = [
-    # Main Components
-    "FlowManager",
-    "FlowEngine",
-    "FlowValidator",
-    "FlowErrorHandler",
-    "get_flow_manager",
     # Analytics
     "FlowAnalytics",
     "FlowMetricsCollector",
@@ -211,11 +113,6 @@ __all__ = [
     "FlowTemplateValidator",
     "FlowTemplateRepository",
     "get_template_manager",
-    # Integrations
-    "FlowIntegrationManager",
-    "QuizFlowIntegration",
-    "AIFlowIntegration",
-    "get_integration_manager",
     # Configuration
     "FlowConfig",
     "get_flow_config",
@@ -247,7 +144,6 @@ __all__ = [
     "TemplateID",
 ]
 
-__version__ = "2.0.0-beta"  # QW-021 consolidation in progress
-__consolidation__ = "QW-021"
-__status__ = "Week 2 - Implementation Complete (Analytics, Templates, Integrations)"
-__progress__ = "95%"  # ~9,605 LOC consolidated (Target: 6,500-8,000 LOC)
+__version__ = "3.0.0"
+__status__ = "Production — canonical system: flow_core.py / EnhancedFlowEngine"
+__progress__ = "100%"  # QW-021 package fully deleted; production system is sole canonical

@@ -79,7 +79,7 @@ async def get_patient_service(services: "ServiceProvider" = Depends(_get_provide
 
 # Flow Domain Services (THREAD-SAFE: Per-request session isolation)
 def get_flow_service(services: "ServiceProvider" = Depends(_get_provider_dep)):
-    """Get FlowEngineIntegrationService with thread-safe session."""
+    """Get FlowDispatcher (enrollment routing facade) with thread-safe session."""
     return services.flow_service
 
 

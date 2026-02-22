@@ -16,7 +16,6 @@ from app.models.flow import PatientFlowState
 from app.domain.messaging.core import MessageService
 from app.repositories.patient import PatientRepository
 from app.repositories.flow import FlowStateRepository
-from app.services.flow import FlowEngine
 from app.services.flow.context_parsing import (
     parse_optional_str,
 )
@@ -113,7 +112,6 @@ class MessageWebhookHandler:
         self.db = db
         self.message_service = MessageService(db)
         self.patient_repo = PatientRepository(db)
-        self.flow_engine = FlowEngine(db)
         # Lazy import to avoid circular dependency
         from app.services.enhanced_flow_engine import EnhancedFlowEngine
 
