@@ -86,6 +86,9 @@ async def _startup(app: FastAPI) -> object:
     # SEC-03: Fail fast if credential files are present in working directory
     _check_no_service_account_file()
 
+    # AI-01: Fail fast if LangGraph is not importable in production/staging
+    _check_langgraph_available()
+
     try:
         if _is_test_environment():
             logger.info(
@@ -206,6 +209,38 @@ def _check_no_service_account_file() -> None:
                 f"Service account key file found in {env} environment: {found}. "
                 "Remove the file and use FIREBASE_ADMIN_PRIVATE_KEY env var."
             )
+
+
+def _check_langgraph_available() -> None:
+    """Fail fast if LangGraph is not importable in production/staging.
+
+    AI-01: In production/staging, raises RuntimeError to prevent the application
+    from accepting traffic without AI humanization capability.
+    In development/test, logs a critical warning only.
+
+    The check inspects _LANGGRAPH_IMPORT_ERROR (set at import time in graphs.py).
+    It does NOT compile any graphs or call any get_*_graph() functions -- graphs
+    are compiled lazily on first use via @lru_cache, which is correct behavior.
+    """
+    import logging as _logging
+
+    _logger = _logging.getLogger(__name__)
+
+    from app.ai.langgraph.graphs import _LANGGRAPH_IMPORT_ERROR
+
+    if _LANGGRAPH_IMPORT_ERROR is not None:
+        env = getattr(settings, "APP_ENVIRONMENT", "development").lower()
+        if env in ("production", "prod", "staging"):
+            raise RuntimeError(
+                f"LangGraph is not available in {env} environment: "
+                f"{_LANGGRAPH_IMPORT_ERROR}. "
+                "AI humanization will not function. "
+                "Install langgraph or check requirements.txt."
+            )
+        _logger.critical(
+            "LangGraph not available -- AI humanization will be disabled: %s",
+            _LANGGRAPH_IMPORT_ERROR,
+        )
 
 
 async def _shutdown(app: FastAPI, logger) -> None:
