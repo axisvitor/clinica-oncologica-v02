@@ -194,6 +194,11 @@ class Patient(BaseModel):
     # Soft delete support
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
+    # LGPD Art. 18 — Opt-out / consent revocation flag
+    # Set when patient sends STOP/PARAR/CANCELAR via WhatsApp.
+    # Non-NULL value means all outbound messaging must be halted immediately.
+    messaging_stopped_at = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     doctor = relationship("User", back_populates="patients")
     messages = relationship(
