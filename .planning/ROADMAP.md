@@ -12,10 +12,10 @@ Este roadmap leva o protótipo funcional a produção com pacientes oncológicos
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Security Hardening** - Eliminar exposições de segurança que bloqueiam go-live com pacientes reais (completed 2026-02-22)
-- [x] **Phase 2: LGPD Compliance** - Fechar gaps de auditoria e opt-out que criam risco regulatório ativo (completed 2026-02-22)
-- [x] **Phase 3: Operational Stability** - Corrigir bugs que causam memory leaks, race conditions e CVEs ativos (completed 2026-02-22)
-- [x] **Phase 4: AI Reliability** - Garantir que falhas de LangGraph/Gemini sejam visíveis e explícitas (completed 2026-02-22)
+- [x] **Phase 1: Security Hardening** - Eliminar exposições de segurança que bloqueiam go-live com pacientes reais (completed 2026-02-22)
+- [x] **Phase 2: LGPD Compliance** - Fechar gaps de auditoria e opt-out que criam risco regulatório ativo (completed 2026-02-22)
+- [x] **Phase 3: Operational Stability** - Corrigir bugs que causam memory leaks, race conditions e CVEs ativos (completed 2026-02-22)
+- [x] **Phase 4: AI Reliability** - Garantir que falhas de LangGraph/Gemini sejam visíveis e explícitas (completed 2026-02-22)
 - [ ] **Phase 5: Flow Consolidation** - Eliminar o dual flow system que causa divergência silenciosa de estado de pacientes
 - [ ] **Phase 6: Async Hot Path Migration** - Migrar os três hot paths de banco de dados para AsyncSession
 - [ ] **Phase 7: LGPD Key Rotation** - Implementar batch re-encryption para viabilizar rotação de chaves criptográficas
@@ -92,11 +92,11 @@ Plans:
   1. Um `FlowDispatcher` facade existe e roteia chamadas de flow baseado em feature flag — nenhum código chama `flow_core.py` ou `services/flow/core/manager.py` diretamente
   2. Novos pacientes são roteados exclusivamente para o sistema canônico escolhido via feature flag — a escolha está documentada e justificada
   3. Testes de integração cobrem o flow system unificado end-to-end: onboarding → avanço de flow → alert pipeline — os testes passam no CI
-**Plans**: TBD
+**Plans**: 2 plans (Wave 1 → Wave 2 — sequential, 05-02 depends on 05-01 for FlowDispatcher)
 
 Plans:
-- [ ] 05-01: Escolher sistema canônico + implementar FlowDispatcher facade com feature-flag routing (FLOW-01, FLOW-02)
-- [ ] 05-02: Escrever testes de integração do flow unificado + alert pipeline end-to-end (FLOW-03)
+- [ ] 05-01-PLAN.md — Designate production system as canonical + create FlowDispatcher facade + delete QW-021 package (FLOW-01, FLOW-02)
+- [ ] 05-02-PLAN.md — Write integration tests for unified flow system: onboarding, advancement, alert pipeline (FLOW-03)
 
 ### Phase 6: Async Hot Path Migration
 **Goal**: Os três hot paths de banco de dados de maior throughput usam AsyncSession — o webhook handler, quiz response processing e flow advancement não bloqueiam o event loop
@@ -177,4 +177,4 @@ Phase 8 can begin after Phase 4 + Phase 5 complete, independently of Phase 6-7.
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-22 after Phase 1 planning (3 plans created)*
+*Last updated: 2026-02-22 after Phase 5 planning (2 plans created)*
