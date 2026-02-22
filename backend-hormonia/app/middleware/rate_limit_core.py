@@ -198,53 +198,26 @@ class DistributedRateLimiter:
             current_time = time.time()
             window_start = current_time - window
 
-            # NOTE: This pipeline is NOT fully atomic - there's a race condition
-            # between ZCARD and ZADD where concurrent requests may all read count=0
-            # and all proceed before any increments are visible.
-            #
-            # TODO: For true atomicity, implement using Lua script:
-            # ```lua
-            # local key = KEYS[1]
-            # local window_start = tonumber(ARGV[1])
-            # local current_time = tonumber(ARGV[2])
-            # local limit = tonumber(ARGV[3])
-            # redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
-            # local count = redis.call('ZCARD', key)
-            # if count < limit then
-            #     redis.call('ZADD', key, current_time, tostring(current_time))
-            #     return {1, count + 1}  -- allowed, new_count
-            # end
-            # return {0, count}  -- denied, count
-            # ```
-            #
-            # Current implementation is acceptable for most use cases but may allow
-            # brief bursts during high concurrency. Consider Redis WATCH/MULTI/EXEC
-            # or Lua script for stricter rate limiting requirements.
-            pipe = self.redis.pipeline()
-
-            # 1. Remove old entries (outside window)
-            pipe.zremrangebyscore(key, 0, window_start)
-
-            # 2. Count current requests in window
-            pipe.zcard(key)
-
-            # 3. Add current request (if incrementing)
             if increment:
-                pipe.zadd(key, {str(current_time): current_time})
+                # Atomic path: Lua script executes check-and-increment as a single
+                # operation on the Redis server, eliminating the race condition
+                # between ZCARD and ZADD that existed in the pipeline implementation.
+                result = self._sliding_window_script(
+                    keys=[key],
+                    args=[window_start, current_time, limit, window]
+                )
+                allowed = int(result[0]) == 1
+                current_count = int(result[1])
+            else:
+                # Read-only path: no ZADD needed, pipeline is safe (no race condition
+                # because we are not mutating state)
+                pipe = self.redis.pipeline()
+                pipe.zremrangebyscore(key, 0, window_start)
+                pipe.zcard(key)
+                results = pipe.execute()
+                current_count = results[1]
+                allowed = current_count < limit
 
-            # 4. Set expiration (cleanup old keys)
-            pipe.expire(key, window + 60)  # Extra 60s buffer
-
-            # Execute pipeline
-            results = pipe.execute()
-            current_count = results[1]  # Result of zcard
-
-            # Adjust count if we just added
-            if increment:
-                current_count += 1
-
-            # Calculate result
-            allowed = current_count <= limit
             remaining = max(0, limit - current_count)
             reset_at = datetime.fromtimestamp(current_time + window)
 
