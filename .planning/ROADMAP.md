@@ -64,12 +64,12 @@ Plans:
   2. O rate limiter executa o Lua script atomicamente: dois requests simultâneos para o mesmo endpoint nunca ultrapassam o limite configurado sob carga paralela
   3. `grep -r "from jose" app/` retorna zero resultados — python-jose não está importado em nenhum módulo da aplicação
   4. `pip show python-jose` não retorna resultado no ambiente de produção — o pacote está removido das dependências
-**Plans**: TBD
+**Plans**: 3 plans (Wave 1 — all parallel)
 
 Plans:
-- [ ] 03-01: Substituir asyncio.run() por async_to_sync em todas Celery tasks (ASYNC-04)
-- [ ] 03-02: Implementar rate limiter atômico via Lua script Redis em rate_limit_core.py (REL-01)
-- [ ] 03-03: Sweep e remoção de imports from jose + confirmar remoção do pacote (REL-02, REL-03)
+- [ ] 03-01-PLAN.md — Replace asyncio.run() with async_to_sync in flow_tasks.py and base.py (ASYNC-04)
+- [ ] 03-02-PLAN.md — Implement atomic Lua script rate limiter in rate_limit_core.py (REL-01)
+- [ ] 03-03-PLAN.md — Sweep and remove from jose imports in tests + confirm package removal (REL-02, REL-03)
 
 ### Phase 4: AI Reliability
 **Goal**: Falhas de LangGraph e Gemini são visíveis, explícitas e capturadas pelo Sentry — nenhuma falha silenciosa entrega mensagens robóticas a pacientes
