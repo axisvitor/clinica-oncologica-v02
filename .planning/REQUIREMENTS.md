@@ -95,28 +95,28 @@ Deferred para após validação clínica com primeiro cohort de pacientes.
 | SEC-02 | Phase 1 | Pending |
 | SEC-03 | Phase 1 | Pending |
 | SEC-04 | Phase 1 | Pending |
-| LGPD-01 | Phase 1 | Pending |
-| LGPD-02 | Phase 1 | Pending |
-| LGPD-03 | Phase 1 | Pending |
-| LGPD-04 | Phase 3 | Pending |
-| AI-01 | Phase 1 | Pending |
-| AI-02 | Phase 1 | Pending |
-| AI-03 | Phase 4 | Pending |
-| AI-04 | Phase 4 | Pending |
-| FLOW-01 | Phase 2 | Pending |
-| FLOW-02 | Phase 2 | Pending |
-| FLOW-03 | Phase 2 | Pending |
-| ASYNC-01 | Phase 3 | Pending |
-| ASYNC-02 | Phase 3 | Pending |
-| ASYNC-03 | Phase 3 | Pending |
-| ASYNC-04 | Phase 1 | Pending |
-| ASYNC-05 | Phase 3 | Pending |
-| REL-01 | Phase 1 | Pending |
-| REL-02 | Phase 1 | Pending |
-| REL-03 | Phase 1 | Pending |
-| OBS-01 | Phase 5 | Pending |
-| OBS-02 | Phase 5 | Pending |
-| OBS-03 | Phase 5 | Pending |
+| LGPD-01 | Phase 2 | Pending |
+| LGPD-02 | Phase 2 | Pending |
+| LGPD-03 | Phase 2 | Pending |
+| LGPD-04 | Phase 7 | Pending |
+| AI-01 | Phase 4 | Pending |
+| AI-02 | Phase 4 | Pending |
+| AI-03 | Phase 8 | Pending |
+| AI-04 | Phase 8 | Pending |
+| FLOW-01 | Phase 5 | Pending |
+| FLOW-02 | Phase 5 | Pending |
+| FLOW-03 | Phase 5 | Pending |
+| ASYNC-01 | Phase 6 | Pending |
+| ASYNC-02 | Phase 6 | Pending |
+| ASYNC-03 | Phase 6 | Pending |
+| ASYNC-04 | Phase 3 | Pending |
+| ASYNC-05 | Phase 6 | Pending |
+| REL-01 | Phase 3 | Pending |
+| REL-02 | Phase 3 | Pending |
+| REL-03 | Phase 3 | Pending |
+| OBS-01 | Phase 9 | Pending |
+| OBS-02 | Phase 9 | Pending |
+| OBS-03 | Phase 9 | Pending |
 
 **Coverage:**
 - v1 requirements: 26 total
@@ -125,4 +125,4 @@ Deferred para após validação clínica com primeiro cohort de pacientes.
 
 ---
 *Requirements defined: 2026-02-22*
-*Last updated: 2026-02-22 after initial definition*
+*Last updated: 2026-02-22 after roadmap creation (9-phase structure)*
