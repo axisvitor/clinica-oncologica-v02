@@ -68,6 +68,9 @@ from app.models.lgpd_audit import (
     LGPDDataCategory,
 )
 
+# LGPD patient deletion audit (immutable append-only table, LGPD-01)
+from app.models.patient_deletion_audit import PatientDeletionAudit
+
 __all__ = [
     # Base
     "BaseModel",
@@ -154,4 +157,6 @@ __all__ = [
     "DataAccessRequest",
     "LGPDActionType",
     "LGPDDataCategory",
+    # LGPD patient deletion audit (LGPD-01)
+    "PatientDeletionAudit",
 ]
