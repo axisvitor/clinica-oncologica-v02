@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Médicos acompanham pacientes oncológicos continuamente entre consultas via WhatsApp, com questionários humanizados que coletam dados clínicos sem sobrecarregar o paciente.
-**Current focus:** Phase 3 — Operational Stability (parallel with Phase 2)
+**Current focus:** Phase 4 — AI Reliability (plan 1 of 2 complete)
 
 ## Current Position
 
-Phase: 3 of 9 (Operational Stability) — also Phase 2 in progress (3/4 plans done)
-Plan: 3 of 3 completed in Phase 3
-Status: In Progress — Plan 03-03 executed (python-jose removal from test files, CVE-2024-23342 remediation complete)
-Last activity: 2026-02-22 — Plan 03-03 executed (from jose import jwt replaced with import jwt in test_admin_contracts.py and test_security_comprehensive.py; python-jose 3.5.0 uninstalled from venv)
+Phase: 4 of 9 (AI Reliability) — Phase 2 also in progress (3/4 plans done), Phase 3 complete
+Plan: 1 of 2 completed in Phase 4
+Status: In Progress — Plan 04-01 executed (LangGraph startup health check + FeatureNotAvailableError exception class added)
+Last activity: 2026-02-22 — Plan 04-01 executed (FeatureNotAvailableError added to exceptions.py; _check_langgraph_available() added to lifespan.py before asyncio.gather())
 
-Progress: [█████░░░░░] 21%
+Progress: [█████░░░░░] 24%
 
 ## Performance Metrics
 
@@ -42,6 +42,7 @@ Progress: [█████░░░░░] 21%
 | Phase 03-operational-stability P02 | 2 | 2 tasks | 1 files |
 | Phase 03-operational-stability P03 | 2 | 2 tasks | 2 files |
 | Phase 03-operational-stability P01 | 5 | 2 tasks | 2 files |
+| Phase 04-ai-reliability P01 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,9 @@ Recent decisions affecting current work:
 - [Phase 03-operational-stability]: asyncio import retained in flow_tasks.py — process_daily_flows_async still uses Semaphore/gather/sleep/TimeoutError; only the sync entry point changed
 - [Phase 03-operational-stability]: asyncio import removed from base.py — was used only in the deleted loop-detection block; no other code needed it
 - [Phase 03-operational-stability]: async_to_sync is now the sole sync→async bridge pattern in app/tasks/ — matches established convention from 15+ existing task files
+- [Phase 04-ai-reliability]: AI-01: _check_langgraph_available inspects only _LANGGRAPH_IMPORT_ERROR sentinel — no graph compilation at startup (graphs compiled lazily via @lru_cache)
+- [Phase 04-ai-reliability]: AI-01: RuntimeError call placed before asyncio.gather() so it propagates — placing inside _initialize_ai_services() would be swallowed by return_exceptions=True
+- [Phase 04-ai-reliability]: AI-01: FeatureNotAvailableError uses is_recoverable=True and error_code=FEATURE_NOT_AVAILABLE — callers can retry without cascading failure
 
 ### Pending Todos
 
@@ -95,5 +99,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 03-01-PLAN.md (asyncio.run() elimination — flow_tasks.py + base.py, 2 tasks, 2 files; Phase 3 now fully complete — all 3 plans done)
-Resume file: .planning/phases/02-lgpd-compliance/02-04-PLAN.md (Plan 04 in Phase 2 — last remaining plan across both active phases)
+Stopped at: Completed 04-01-PLAN.md (LangGraph startup health check + FeatureNotAvailableError, 2 tasks, 2 files; Phase 4 plan 1 of 2 complete)
+Resume file: .planning/phases/04-ai-reliability/04-02-PLAN.md (Plan 02 in Phase 4 — None-fallback elimination)

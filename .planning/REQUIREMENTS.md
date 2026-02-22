@@ -23,7 +23,7 @@ Requirements para levar o protótipo a produção com pacientes reais.
 
 ### AI Reliability
 
-- [ ] **AI-01**: LangGraph startup health check que verifica disponibilidade na inicialização da aplicação
+- [x] **AI-01**: LangGraph startup health check que verifica disponibilidade na inicialização da aplicação
 - [ ] **AI-02**: Converter fallbacks `None` de LangGraph para `FeatureNotAvailableError` explícito (sem silent degradation)
 - [ ] **AI-03**: Simplificar 5 grafos single-node (humanization, sentiment, generation, question_variation, empathetic_follow_up) para chamadas diretas `GeminiClient.generate_content()`
 - [ ] **AI-04**: Adicionar circuit breaker ao redor de chamadas Gemini (gap identificado na pesquisa de arquitetura)
@@ -99,7 +99,7 @@ Deferred para após validação clínica com primeiro cohort de pacientes.
 | LGPD-02 | Phase 2 | Complete |
 | LGPD-03 | Phase 2 | Complete |
 | LGPD-04 | Phase 7 | Pending |
-| AI-01 | Phase 4 | Pending |
+| AI-01 | Phase 4 | Complete |
 | AI-02 | Phase 4 | Pending |
 | AI-03 | Phase 8 | Pending |
 | AI-04 | Phase 8 | Pending |
