@@ -39,31 +39,6 @@ from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
-# In-memory registry used by test fixtures to bypass Firebase validation.
-# SECURITY: This registry is ONLY used when APP_ENABLE_DEBUG=True
-# In production, test tokens are NEVER accepted
-
-def _is_test_mode_enabled() -> bool:
-    """Check if test/debug mode is enabled (NEVER in production)."""
-    app_env = settings.APP_ENVIRONMENT.lower()
-    debug_enabled = settings.APP_ENABLE_DEBUG
-    # SECURITY: Never allow test tokens in production
-    if app_env in ("production", "prod"):
-        return False
-    return debug_enabled
-
-# SECURITY: Disable TEST_TOKEN_REGISTRY in production environments
-_app_environment = settings.APP_ENVIRONMENT.lower()
-if _app_environment in ("production", "prod"):
-    logger.critical(
-        "SECURITY NOTICE: TEST_TOKEN_REGISTRY is disabled in production. "
-        "This authentication bypass mechanism must not exist in production deployments."
-    )
-    TEST_TOKEN_REGISTRY: Optional[Dict[str, User]] = None
-else:
-    # Only create registry in development/test environments
-    TEST_TOKEN_REGISTRY = {} if _app_environment in ("development", "test", "dev", "testing") else None
-
 security = HTTPBearer(auto_error=False)
 
 # Initialize Firebase Auth Service if configured
@@ -1199,22 +1174,6 @@ async def get_current_user(
         )
 
     token_value = credentials.credentials
-
-    allow_test_tokens = settings.APP_ENABLE_DEBUG and settings.APP_ENVIRONMENT.lower() != "production"
-
-    # Check test token registry (only exists in non-production environments)
-    cached_local = None
-    if allow_test_tokens and TEST_TOKEN_REGISTRY is not None:
-        cached_local = TEST_TOKEN_REGISTRY.get(token_value)
-    if cached_local:
-        return cached_local
-
-    # Fast-path for local/testing tokens used by contract tests
-    if allow_test_tokens and TEST_TOKEN_REGISTRY is not None and token_value.startswith(("admin_token_", "test_token_")):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unregistered test token. Use TEST_TOKEN_REGISTRY in tests.",
-        )
 
     # Check if Firebase is configured
     if _firebase_service is None:

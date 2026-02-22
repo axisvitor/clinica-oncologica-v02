@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.dependencies.auth_dependencies import (
-    TEST_TOKEN_REGISTRY,
     get_current_user_from_session,
     get_current_user_object_from_session,
     get_redis_cache,
@@ -76,16 +75,6 @@ async def get_admin_user(
         )
         if admin:
             return admin
-
-    if token_value and TEST_TOKEN_REGISTRY is not None:
-        test_user = TEST_TOKEN_REGISTRY.get(token_value)
-        if test_user:
-            if test_user.role != UserRole.ADMIN:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Admin access required",
-                )
-            return test_user
 
     dependency_overrides = getattr(request.app, "dependency_overrides", {}) or {}
     session_dependency = dependency_overrides.get(
