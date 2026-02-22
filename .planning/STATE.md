@@ -34,6 +34,7 @@ Progress: [██░░░░░░░░] 11%
 - Trend: consistent baseline established
 
 *Updated after each plan completion*
+| Phase 01-security-hardening P02 | 16 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -54,6 +55,8 @@ Recent decisions affecting current work:
 - [01-03]: validate_debug_flag placed in BaseAppSettings (not SecuritySettings) so ALL Settings subclasses inherit the startup guard
 - [01-03]: Both 'production'/'prod' and 'staging' are blocked — covers real-world CI/CD naming conventions
 - [01-03]: Tests use direct BaseAppSettings import from base module to avoid triggering module-level Settings() instantiation in __init__.py
+- [Phase 01-security-hardening]: Override get_admin_user in admin_token fixture - admin router depends on it directly, not get_current_user
+- [Phase 01-security-hardening]: SEC-03 guardrail is severity-aware: RuntimeError in prod/staging, CRITICAL log only in development
 
 ### Pending Todos
 
@@ -69,5 +72,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 01-03-PLAN.md (debug flag startup guardrail — 2 tasks, 13 tests passing)
-Resume file: .planning/phases/02-lgpd-compliance/02-01-PLAN.md (Phase 2 next)
+Stopped at: Completed 01-02-PLAN.md (TEST_TOKEN_REGISTRY elimination + Firebase credential guardrail — 3 tasks, 6 files)
+Resume file: .planning/phases/01-security-hardening/01-03-PLAN.md (Plan 03 next in Phase 1)

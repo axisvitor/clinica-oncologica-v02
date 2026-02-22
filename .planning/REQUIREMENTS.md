@@ -10,8 +10,8 @@ Requirements para levar o protótipo a produção com pacientes reais.
 ### Security
 
 - [x] **SEC-01**: Monitoring endpoints autenticados com `get_current_user` + role check (substituir placeholder auth em `enhanced_monitoring.py`)
-- [ ] **SEC-02**: TEST_TOKEN_REGISTRY removido do binário de produção (mover para conftest de testes)
-- [ ] **SEC-03**: Firebase service account key removido do working directory (usar GCP Secret Manager ou env var)
+- [x] **SEC-02**: TEST_TOKEN_REGISTRY removido do binário de produção (mover para conftest de testes)
+- [x] **SEC-03**: Firebase service account key removido do working directory (usar GCP Secret Manager ou env var)
 - [x] **SEC-04**: `APP_ENABLE_DEBUG=False` enforced em staging e produção via deployment config validation
 
 ### LGPD Compliance
@@ -92,8 +92,8 @@ Deferred para após validação clínica com primeiro cohort de pacientes.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | SEC-01 | Phase 1 | Complete (01-01) |
-| SEC-02 | Phase 1 | Pending |
-| SEC-03 | Phase 1 | Pending |
+| SEC-02 | Phase 1 | Complete |
+| SEC-03 | Phase 1 | Complete |
 | SEC-04 | Phase 1 | Complete |
 | LGPD-01 | Phase 2 | Pending |
 | LGPD-02 | Phase 2 | Pending |
