@@ -30,8 +30,8 @@ Requirements para levar o protótipo a produção com pacientes reais.
 
 ### Flow Consolidation
 
-- [ ] **FLOW-01**: Consolidar dual flow systems — escolher sistema canônico (production `flow_core.py` ou QW-021 `services/flow/core/manager.py`) e decomissionar o outro via Strangler Fig pattern
-- [ ] **FLOW-02**: Implementar `FlowDispatcher` facade com feature-flag routing para migração incremental
+- [x] **FLOW-01**: Consolidar dual flow systems — escolher sistema canônico (production `flow_core.py` ou QW-021 `services/flow/core/manager.py`) e decomissionar o outro via Strangler Fig pattern
+- [x] **FLOW-02**: Implementar `FlowDispatcher` facade com feature-flag routing para migração incremental
 - [ ] **FLOW-03**: Testes de integração cobrindo flow system unificado + alert pipeline end-to-end
 
 ### Async Migration
@@ -103,8 +103,8 @@ Deferred para após validação clínica com primeiro cohort de pacientes.
 | AI-02 | Phase 4 | Complete |
 | AI-03 | Phase 8 | Pending |
 | AI-04 | Phase 8 | Pending |
-| FLOW-01 | Phase 5 | Pending |
-| FLOW-02 | Phase 5 | Pending |
+| FLOW-01 | Phase 5 | Complete |
+| FLOW-02 | Phase 5 | Complete |
 | FLOW-03 | Phase 5 | Pending |
 | ASYNC-01 | Phase 6 | Pending |
 | ASYNC-02 | Phase 6 | Pending |

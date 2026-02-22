@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Médicos acompanham pacientes oncológicos continuamente entre consultas via WhatsApp, com questionários humanizados que coletam dados clínicos sem sobrecarregar o paciente.
-**Current focus:** Phase 5 — Async Migration (Phase 4 complete — 2/2 plans done)
+**Current focus:** Phase 5 — Flow Consolidation (Plan 1 of 2 complete)
 
 ## Current Position
 
-Phase: 4 of 9 (AI Reliability) — COMPLETE (2/2 plans done); Phase 2 also in progress (3/4 plans done), Phase 3 complete
-Plan: 2 of 2 completed in Phase 4
-Status: Phase 4 Complete — Plan 04-02 executed (LangGraph None-fallback elimination; all silent AI degradation paths eliminated; Sentry captures every AI failure)
-Last activity: 2026-02-22 — Plan 04-02 executed (invoke_langgraph_graph() wrapper created; 4 client_domain.py + 2 enhanced_flow_engine.py call sites replaced; confidence=0.0 fallback sentinel established)
+Phase: 5 of 9 (Flow Consolidation) — IN PROGRESS (1/2 plans done); Phase 4 complete (2/2 plans done)
+Plan: 1 of 2 completed in Phase 5
+Status: Phase 5 Plan 01 Complete — QW-021 package deleted, FlowDispatcher facade created, production flow system confirmed as sole canonical
+Last activity: 2026-02-22 — Plan 05-01 executed (FlowDispatcher created; QW-021 ~11,000 LOC deleted; service_provider.flow_service returns FlowDispatcher; FLOW-01, FLOW-02 satisfied)
 
-Progress: [█████░░░░░] 27%
+Progress: [██████░░░░] 30%
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Progress: [█████░░░░░] 27%
 | Phase 03-operational-stability P01 | 5 | 2 tasks | 2 files |
 | Phase 04-ai-reliability P01 | 2 | 2 tasks | 2 files |
 | Phase 04-ai-reliability P02 | 2 | 2 tasks | 4 files |
+| Phase 05-flow-consolidation P01 | 12 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,9 @@ Recent decisions affecting current work:
 - [Phase 04-ai-reliability]: AI-02: humanization fallback uses message_template.base_content — patient always receives a message
 - [Phase 04-ai-reliability]: AI-02: sentiment fallback confidence=0.0 not 0.5 — downstream threshold checks correctly treat as low-confidence
 - [Phase 04-ai-reliability]: AI-02: sentry_sdk.capture_exception before fallback branch in enhanced_flow_engine.py — every AI failure visible in dashboards
+- [Phase 05-flow-consolidation]: Full code deletion (not tombstone) for QW-021: zero callers outside package confirmed before deletion
+- [Phase 05-flow-consolidation]: FlowDispatcher is enrollment-only: advance_flow/pause/resume go directly to EnhancedFlowEngine/FlowManagementService
+- [Phase 05-flow-consolidation]: FlowFeatureFlags: dropped percentage-based rollout, replaced with patient-type routing (route_new/existing_patients_to_canonical)
 
 ### Pending Todos
 
@@ -104,5 +108,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 04-02-PLAN.md (LangGraph None-fallback elimination, 2 tasks, 4 files; Phase 4 complete 2 of 2 plans)
-Resume file: .planning/phases/05-async-migration/ (Phase 5 — Async Migration)
+Stopped at: Completed 05-01-PLAN.md (QW-021 deletion + FlowDispatcher facade, 2 tasks, 6 files; Phase 5 Plan 1 of 2 done)
+Resume file: .planning/phases/05-flow-consolidation/ (Phase 5 Plan 02)
