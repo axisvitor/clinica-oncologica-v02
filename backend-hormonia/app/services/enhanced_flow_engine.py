@@ -31,7 +31,10 @@ from app.models.patient import Patient
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.message import Message, MessageDirection
 from app.ai.client import GeminiClient, get_gemini_client
+import sentry_sdk
 from app.ai.langgraph.graphs import get_humanization_graph, get_sentiment_graph
+from app.ai.langgraph._invoke import invoke_langgraph_graph
+from app.core.exceptions import FeatureNotAvailableError
 from app.services.conversation_memory import ConversationMemory, get_conversation_memory
 from app.services.platform_synchronization import PlatformSynchronizationService
 from app.infrastructure.cache import UnifiedCacheManager as UnifiedCacheService
@@ -412,17 +415,22 @@ class EnhancedFlowEngine(FlowCore):
                             "ai_instructions": getattr(message_template, "ai_instructions", None)
                         },
                     }
-                    result = await graph.ainvoke(
-                        initial_state,
-                        config={
-                            "configurable": {
-                                "thread_id": f"flow_humanize:{patient_id}"
-                            }
-                        },
-                    )
-                    personalized_message = result.get("output", "")
-                    if not personalized_message:
-                        raise ValueError("Humanization graph returned empty output")
+                    try:
+                        personalized_message = await invoke_langgraph_graph(
+                            graph=graph,
+                            state=initial_state,
+                            config={"configurable": {"thread_id": f"flow_humanize:{patient_id}"}},
+                            graph_name="humanization_graph",
+                            operation="generate_flow_message",
+                        )
+                    except FeatureNotAvailableError as exc:
+                        sentry_sdk.capture_exception(exc)
+                        logger.error(
+                            "Humanization failed, using unhumanized template: %s",
+                            exc,
+                            extra={"graph_name": "humanization_graph"},
+                        )
+                        personalized_message = message_template.base_content
 
             # Single AI pass only: do not apply extra variation after the rewrite.
 
@@ -522,17 +530,23 @@ class EnhancedFlowEngine(FlowCore):
                     "input_text": response_text,
                     "context": patient_context,
                 }
-                result = await graph.ainvoke(
-                    initial_state,
-                    config={
-                        "configurable": {
-                            "thread_id": f"flow_sentiment:{patient_id}"
-                        }
-                    },
-                )
-                sentiment_analysis = result.get(
-                    "output", {"sentiment": "neutral", "confidence": 0.5}
-                )
+                try:
+                    sentiment_analysis = await invoke_langgraph_graph(
+                        graph=graph,
+                        state=initial_state,
+                        config={"configurable": {"thread_id": f"flow_sentiment:{patient_id}"}},
+                        graph_name="sentiment_graph",
+                        operation="analyze_flow_sentiment",
+                        expect_dict=True,
+                    )
+                except FeatureNotAvailableError as exc:
+                    sentry_sdk.capture_exception(exc)
+                    logger.error(
+                        "Sentiment analysis failed, using neutral fallback: %s",
+                        exc,
+                        extra={"graph_name": "sentiment_graph"},
+                    )
+                    sentiment_analysis = {"sentiment": "neutral", "confidence": 0.0}
 
             # Calculate engagement score and update memory
             engagement_score = self._calculate_engagement_score(

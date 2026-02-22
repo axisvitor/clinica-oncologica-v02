@@ -8,6 +8,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from app.ai.client import GeminiClient, GeminiAPIError
+from app.ai.langgraph._invoke import invoke_langgraph_graph
 
 logger = logging.getLogger(__name__)
 
@@ -67,13 +68,13 @@ class GeminiDomainClient(GeminiClient):
                 "ai_instructions": ai_instructions,
             },
         }
-        result = await graph.ainvoke(
-            state,
+        output = await invoke_langgraph_graph(
+            graph=graph,
+            state=state,
             config={"configurable": {"thread_id": f"humanize:{thread_id}"}},
+            graph_name="humanization_graph",
+            operation="humanize_flow_message",
         )
-        output = result.get("output") if isinstance(result, dict) else None
-        if not output:
-            raise GeminiAPIError("Humanization graph returned empty output")
         logger.info(
             "Message humanized successfully",
             extra={
@@ -125,13 +126,13 @@ class GeminiDomainClient(GeminiClient):
                 "ai_instructions": ai_instructions,
             },
         }
-        result = await graph.ainvoke(
-            state,
+        output = await invoke_langgraph_graph(
+            graph=graph,
+            state=state,
             config={"configurable": {"thread_id": f"question_variation:{thread_id}"}},
+            graph_name="question_variation_graph",
+            operation="generate_varied_question",
         )
-        output = result.get("output") if isinstance(result, dict) else None
-        if not output:
-            raise GeminiAPIError("Question variation graph returned empty output")
         logger.info(
             "Question variation generated",
             extra={"operation": "question_variation"},
@@ -162,13 +163,14 @@ class GeminiDomainClient(GeminiClient):
         )
         graph = get_sentiment_graph()
         state = {"input_text": response, "context": patient_context or {}}
-        result = await graph.ainvoke(
-            state,
+        analysis = await invoke_langgraph_graph(
+            graph=graph,
+            state=state,
             config={"configurable": {"thread_id": f"sentiment:{thread_id}"}},
+            graph_name="sentiment_graph",
+            operation="analyze_response_sentiment",
+            expect_dict=True,
         )
-        analysis = result.get("output") if isinstance(result, dict) else None
-        if not isinstance(analysis, dict):
-            raise GeminiAPIError("Sentiment graph returned invalid output")
         logger.info(
             "Sentiment analysis completed",
             extra={"operation": "sentiment"},
@@ -211,13 +213,13 @@ class GeminiDomainClient(GeminiClient):
             "context": patient_context or {},
             "metadata": {"few_shot_examples": few_shot_examples or []},
         }
-        result = await graph.ainvoke(
-            state,
+        output = await invoke_langgraph_graph(
+            graph=graph,
+            state=state,
             config={"configurable": {"thread_id": f"follow_up:{thread_id}"}},
+            graph_name="empathetic_follow_up_graph",
+            operation="create_empathetic_follow_up",
         )
-        output = result.get("output") if isinstance(result, dict) else None
-        if not output:
-            raise GeminiAPIError("Empathetic follow-up graph returned empty output")
         logger.info(
             "Empathetic follow-up generated",
             extra={"operation": "follow_up"},
