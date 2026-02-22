@@ -33,12 +33,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. O binário de produção não contém TEST_TOKEN_REGISTRY — `grep -r "TEST_TOKEN_REGISTRY" app/` retorna zero resultados fora de conftest
   3. A service account key do Firebase não existe como arquivo no working directory — está em env var ou Secret Manager
   4. Um deploy com `APP_ENABLE_DEBUG=True` falha na validação de configuração antes de aceitar tráfego
-**Plans**: TBD
+**Plans**: 3 plans (Wave 1 — all parallel)
 
 Plans:
-- [ ] 01-01: Autenticar monitoring endpoints com get_current_user + role check (SEC-01)
-- [ ] 01-02: Mover TEST_TOKEN_REGISTRY para conftest + remover service account key do working dir (SEC-02, SEC-03)
-- [ ] 01-03: Enforcar APP_ENABLE_DEBUG=False em staging/produção via deployment config validation (SEC-04)
+- [ ] 01-01-PLAN.md — Replace placeholder monitoring auth with canonical get_admin_user + role check (SEC-01)
+- [ ] 01-02-PLAN.md — Remove TEST_TOKEN_REGISTRY from production code + add Firebase key file startup guardrail (SEC-02, SEC-03)
+- [ ] 01-03-PLAN.md — Add pydantic model_validator to block APP_ENABLE_DEBUG=True in production/staging (SEC-04)
 
 ### Phase 2: LGPD Compliance
 **Goal**: O sistema possui trilha de auditoria persistente e imutável de deleções, responde ao opt-out imediatamente, e registra eventos de IA no audit log
@@ -165,7 +165,7 @@ Phase 8 can begin after Phase 4 + Phase 5 complete, independently of Phase 6-7.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Security Hardening | 0/3 | Not started | - |
+| 1. Security Hardening | 0/3 | Planned | - |
 | 2. LGPD Compliance | 0/3 | Not started | - |
 | 3. Operational Stability | 0/3 | Not started | - |
 | 4. AI Reliability | 0/2 | Not started | - |
@@ -177,4 +177,4 @@ Phase 8 can begin after Phase 4 + Phase 5 complete, independently of Phase 6-7.
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-22 after initial creation*
+*Last updated: 2026-02-22 after Phase 1 planning (3 plans created)*
