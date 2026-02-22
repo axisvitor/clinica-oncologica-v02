@@ -10,33 +10,34 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 2 of 9 (LGPD Compliance)
-Plan: 1 of 4 in current phase
-Status: In Progress — Plan 02-01 executed (patient deletion audit table + hook)
-Last activity: 2026-02-22 — Plan 02-01 executed (PatientDeletionAudit model, Alembic migration, service hook)
+Plan: 2 of 4 in current phase
+Status: In Progress — Plan 02-02 executed (WhatsApp opt-out handler + send guard)
+Last activity: 2026-02-22 — Plan 02-02 executed (messaging_stopped_at column, opt-out detection, UnifiedWhatsAppService guard)
 
-Progress: [███░░░░░░░] 14%
+Progress: [████░░░░░░] 18%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
+- Total plans completed: 5
 - Average duration: ~9 min
-- Total execution time: 0.6 hours
+- Total execution time: 0.75 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-security-hardening | 3/3 | ~18 min | ~6 min |
-| 02-lgpd-compliance | 1/4 | ~12 min | ~12 min |
+| 02-lgpd-compliance | 2/4 | ~22 min | ~11 min |
 
 **Recent Trend:**
-- Last 5 plans: 5 min, 7 min, 6 min, 12 min
+- Last 5 plans: 5 min, 7 min, 6 min, 12 min, 10 min
 - Trend: LGPD plans slightly longer due to DB migration complexity
 
 *Updated after each plan completion*
 | Phase 01-security-hardening P02 | 16 | 3 tasks | 6 files |
 | Phase 02-lgpd-compliance P01 | ~12 min | 2 tasks | 6 files |
+| Phase 02-lgpd-compliance P02 | 10 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -63,6 +64,9 @@ Recent decisions affecting current work:
 - [02-01]: PostgreSQL RULE objects (not triggers) used for immutability — RULEs intercept at rewrite layer, cannot be bypassed by superusers
 - [02-01]: Merge migration pattern (down_revision as tuple) used because codebase had two Alembic heads (015_rename_upload_metadata, a9c4e1d2b7f0)
 - [02-01]: PatientDeletionAudit import inside delete_patient() body — avoids circular import risk
+- [Phase 02-lgpd-compliance]: Opt-out interception placed after patient lookup and before flow advancement to prevent any outbound message post-revocation
+- [Phase 02-lgpd-compliance]: Consent revocation is best-effort — messaging_stopped_at is persisted regardless, satisfying LGPD Art. 18 immediacy
+- [Phase 02-lgpd-compliance]: OPT_OUT_KEYWORDS uses exact-match only to prevent false positives in medical conversations
 
 ### Pending Todos
 
@@ -78,5 +82,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 02-01-PLAN.md (PatientDeletionAudit — LGPD immutable deletion audit table, 2 tasks, 6 files)
-Resume file: .planning/phases/02-lgpd-compliance/02-02-PLAN.md (Plan 02 next in Phase 2)
+Stopped at: Completed 02-02-PLAN.md (WhatsApp opt-out handler — messaging_stopped_at column, opt-out detection, send guard, 2 tasks, 4 files)
+Resume file: .planning/phases/02-lgpd-compliance/02-03-PLAN.md (Plan 03 next in Phase 2)
