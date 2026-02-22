@@ -48,12 +48,12 @@ Plans:
   1. Quando um paciente é deletado, um registro persiste na tabela `patient_deletion_audit` no PostgreSQL com timestamp, motivo e executor — o registro não desaparece com rotação de logs da Railway
   2. Quando um paciente envia "STOP" ou "PARAR" via WhatsApp, o sistema para o envio de mensagens imediatamente e registra a revogação de consentimento antes de qualquer mensagem subsequente ser enviada
   3. Eventos de IA (`AI_QUERY`, `AI_HUMANIZATION`, `AI_SENTIMENT`, `AI_FOLLOW_UP`) aparecem no `AuditEventType` enum e a migration Alembic foi aplicada no banco — o audit log registra chamadas Gemini
-**Plans**: TBD
+**Plans**: 3 plans (Wave 1 → Wave 2 → Wave 3 — sequential due to Alembic migration chain)
 
 Plans:
-- [ ] 02-01: Criar tabela patient_deletion_audit via Alembic migration + registrar evento antes da deleção (LGPD-01)
-- [ ] 02-02: Implementar handler de opt-out WhatsApp (STOP/PARAR/CANCELAR) com revogação de consentimento (LGPD-02)
-- [ ] 02-03: Adicionar AI event types ao AuditEventType enum + migration Alembic (LGPD-03)
+- [ ] 02-01-PLAN.md — Create patient_deletion_audit table + immutability rules + hook into delete_patient() (LGPD-01)
+- [ ] 02-02-PLAN.md — WhatsApp opt-out handler (STOP/PARAR/CANCELAR) + messaging_stopped_at column + send guard (LGPD-02)
+- [ ] 02-03-PLAN.md — Add AI event types to AuditEventType enum + Alembic migration (LGPD-03)
 
 ### Phase 3: Operational Stability
 **Goal**: O sistema não vaza event loops, o rate limiter é atômico, e python-jose está completamente removido do codebase
