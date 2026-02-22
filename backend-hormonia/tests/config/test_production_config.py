@@ -58,7 +58,7 @@ class TestProductionConfig:
         }
         
         with patch.dict(os.environ, env_vars, clear=True):
-            with pytest.raises(ValueError, match="APP_ENABLE_DEBUG must be False"):
+            with pytest.raises(ValueError, match="APP_ENABLE_DEBUG=True is not allowed"):
                 Settings()
 
     def test_production_secure_cookies(self):

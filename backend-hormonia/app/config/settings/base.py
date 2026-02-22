@@ -49,6 +49,32 @@ class BaseAppSettings(BaseSettings):
         description="Allow AI simulation mode (mock data). Should be False in production.",
     )
 
+    @model_validator(mode="after")
+    def validate_debug_flag(self) -> "BaseAppSettings":
+        """Block startup with APP_ENABLE_DEBUG=True in production/staging.
+
+        Mirrors the validate_secret_key pattern in SecuritySettings.
+        Ensures debug routes and authentication bypasses cannot be active
+        in production or staging environments.
+        """
+        import logging
+
+        logger = logging.getLogger(__name__)
+        env = self.APP_ENVIRONMENT.lower()
+        if self.APP_ENABLE_DEBUG and env in ("production", "prod", "staging"):
+            raise ValueError(
+                f"APP_ENABLE_DEBUG=True is not allowed in '{env}' environment.\n"
+                "Set APP_ENABLE_DEBUG=False in your deployment configuration.\n"
+                "This prevents debug routes and authentication bypasses in production."
+            )
+        if self.APP_ENABLE_DEBUG and env not in ("development", "dev", "test", "testing"):
+            logger.warning(
+                "APP_ENABLE_DEBUG=True in environment '%s'. "
+                "This is only safe in development/test environments.",
+                env,
+            )
+        return self
+
     @model_validator(mode="before")
     @classmethod
     def parse_boolean_fields(cls, data: Any) -> Any:
