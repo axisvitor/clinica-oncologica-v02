@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Médicos acompanham pacientes oncológicos continuamente entre consultas via WhatsApp, com questionários humanizados que coletam dados clínicos sem sobrecarregar o paciente.
-**Current focus:** Phase 4 — AI Reliability (plan 1 of 2 complete)
+**Current focus:** Phase 5 — Async Migration (Phase 4 complete — 2/2 plans done)
 
 ## Current Position
 
-Phase: 4 of 9 (AI Reliability) — Phase 2 also in progress (3/4 plans done), Phase 3 complete
-Plan: 1 of 2 completed in Phase 4
-Status: In Progress — Plan 04-01 executed (LangGraph startup health check + FeatureNotAvailableError exception class added)
-Last activity: 2026-02-22 — Plan 04-01 executed (FeatureNotAvailableError added to exceptions.py; _check_langgraph_available() added to lifespan.py before asyncio.gather())
+Phase: 4 of 9 (AI Reliability) — COMPLETE (2/2 plans done); Phase 2 also in progress (3/4 plans done), Phase 3 complete
+Plan: 2 of 2 completed in Phase 4
+Status: Phase 4 Complete — Plan 04-02 executed (LangGraph None-fallback elimination; all silent AI degradation paths eliminated; Sentry captures every AI failure)
+Last activity: 2026-02-22 — Plan 04-02 executed (invoke_langgraph_graph() wrapper created; 4 client_domain.py + 2 enhanced_flow_engine.py call sites replaced; confidence=0.0 fallback sentinel established)
 
-Progress: [█████░░░░░] 24%
+Progress: [█████░░░░░] 27%
 
 ## Performance Metrics
 
@@ -43,6 +43,7 @@ Progress: [█████░░░░░] 24%
 | Phase 03-operational-stability P03 | 2 | 2 tasks | 2 files |
 | Phase 03-operational-stability P01 | 5 | 2 tasks | 2 files |
 | Phase 04-ai-reliability P01 | 2 | 2 tasks | 2 files |
+| Phase 04-ai-reliability P02 | 2 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,10 @@ Recent decisions affecting current work:
 - [Phase 04-ai-reliability]: AI-01: _check_langgraph_available inspects only _LANGGRAPH_IMPORT_ERROR sentinel — no graph compilation at startup (graphs compiled lazily via @lru_cache)
 - [Phase 04-ai-reliability]: AI-01: RuntimeError call placed before asyncio.gather() so it propagates — placing inside _initialize_ai_services() would be swallowed by return_exceptions=True
 - [Phase 04-ai-reliability]: AI-01: FeatureNotAvailableError uses is_recoverable=True and error_code=FEATURE_NOT_AVAILABLE — callers can retry without cascading failure
+- [Phase 04-ai-reliability]: AI-02: invoke_langgraph_graph() wrapper centralizes None validation — expect_dict=True for sentiment, False for strings
+- [Phase 04-ai-reliability]: AI-02: humanization fallback uses message_template.base_content — patient always receives a message
+- [Phase 04-ai-reliability]: AI-02: sentiment fallback confidence=0.0 not 0.5 — downstream threshold checks correctly treat as low-confidence
+- [Phase 04-ai-reliability]: AI-02: sentry_sdk.capture_exception before fallback branch in enhanced_flow_engine.py — every AI failure visible in dashboards
 
 ### Pending Todos
 
@@ -99,5 +104,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 04-01-PLAN.md (LangGraph startup health check + FeatureNotAvailableError, 2 tasks, 2 files; Phase 4 plan 1 of 2 complete)
-Resume file: .planning/phases/04-ai-reliability/04-02-PLAN.md (Plan 02 in Phase 4 — None-fallback elimination)
+Stopped at: Completed 04-02-PLAN.md (LangGraph None-fallback elimination, 2 tasks, 4 files; Phase 4 complete 2 of 2 plans)
+Resume file: .planning/phases/05-async-migration/ (Phase 5 — Async Migration)
