@@ -76,6 +76,12 @@ class AuditEventType(str, enum.Enum):
     ADMIN_DLQ_PURGE = "admin_dlq_purge"
     ADMIN_AUDIT_EXPORT = "admin_audit_export"
 
+    # AI events (LGPD-03 — audit trail for Gemini/LangGraph processing)
+    AI_QUERY = "ai_query"
+    AI_HUMANIZATION = "ai_humanization"
+    AI_SENTIMENT = "ai_sentiment"
+    AI_FOLLOW_UP = "ai_follow_up"
+
 
 class AuditLog(BaseModel):
     """
