@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Médicos acompanham pacientes oncológicos continuamente entre consultas via WhatsApp, com questionários humanizados que coletam dados clínicos sem sobrecarregar o paciente.
-**Current focus:** Phase 5 — Flow Consolidation (Plan 1 of 2 complete)
+**Current focus:** Phase 5 — Flow Consolidation (COMPLETE — 2/2 plans done)
 
 ## Current Position
 
-Phase: 5 of 9 (Flow Consolidation) — IN PROGRESS (1/2 plans done); Phase 4 complete (2/2 plans done)
-Plan: 1 of 2 completed in Phase 5
-Status: Phase 5 Plan 01 Complete — QW-021 package deleted, FlowDispatcher facade created, production flow system confirmed as sole canonical
-Last activity: 2026-02-22 — Plan 05-01 executed (FlowDispatcher created; QW-021 ~11,000 LOC deleted; service_provider.flow_service returns FlowDispatcher; FLOW-01, FLOW-02 satisfied)
+Phase: 5 of 9 (Flow Consolidation) — COMPLETE (2/2 plans done); Phase 6 is next
+Plan: 2 of 2 completed in Phase 5
+Status: Phase 5 Complete — QW-021 deleted, FlowDispatcher facade created, integration test suite added; FLOW-01, FLOW-02, FLOW-03 all satisfied
+Last activity: 2026-02-22 — Plan 05-02 executed (5 integration tests for unified flow system; TestFlowConsolidation; FLOW-03 satisfied)
 
-Progress: [██████░░░░] 30%
+Progress: [███████░░░] 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
+- Total plans completed: 7
 - Average duration: ~8 min
-- Total execution time: 0.80 hours
+- Total execution time: 0.93 hours
 
 **By Phase:**
 
@@ -45,6 +45,7 @@ Progress: [██████░░░░] 30%
 | Phase 04-ai-reliability P01 | 2 | 2 tasks | 2 files |
 | Phase 04-ai-reliability P02 | 2 | 2 tasks | 4 files |
 | Phase 05-flow-consolidation P01 | 12 | 2 tasks | 6 files |
+| Phase 05-flow-consolidation P02 | 8 | 1 task | 1 file |
 
 ## Accumulated Context
 
@@ -93,6 +94,8 @@ Recent decisions affecting current work:
 - [Phase 05-flow-consolidation]: Full code deletion (not tombstone) for QW-021: zero callers outside package confirmed before deletion
 - [Phase 05-flow-consolidation]: FlowDispatcher is enrollment-only: advance_flow/pause/resume go directly to EnhancedFlowEngine/FlowManagementService
 - [Phase 05-flow-consolidation]: FlowFeatureFlags: dropped percentage-based rollout, replaced with patient-type routing (route_new/existing_patients_to_canonical)
+- [Phase 05-flow-consolidation 02]: Mock PatientFlowService.initialize_default_flow in tests — avoids live FlowKind FK setup while still exercising FlowDispatcher routing
+- [Phase 05-flow-consolidation 02]: Integration tests add @pytest.mark.integration on each method (not just class) — satisfies grep-count CI check requiring N+ markers for N tests
 
 ### Pending Todos
 
@@ -108,5 +111,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 05-01-PLAN.md (QW-021 deletion + FlowDispatcher facade, 2 tasks, 6 files; Phase 5 Plan 1 of 2 done)
-Resume file: .planning/phases/05-flow-consolidation/ (Phase 5 Plan 02)
+Stopped at: Completed 05-02-PLAN.md (5 integration tests for unified flow system; FLOW-03 satisfied; Phase 5 complete — 2/2 plans done)
+Resume file: .planning/phases/06-async-migration/ (Phase 6 — next phase)

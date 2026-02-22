@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: LGPD Compliance** - Fechar gaps de auditoria e opt-out que criam risco regulatório ativo (completed 2026-02-22)
 - [x] **Phase 3: Operational Stability** - Corrigir bugs que causam memory leaks, race conditions e CVEs ativos (completed 2026-02-22)
 - [x] **Phase 4: AI Reliability** - Garantir que falhas de LangGraph/Gemini sejam visíveis e explícitas (completed 2026-02-22)
-- [ ] **Phase 5: Flow Consolidation** - Eliminar o dual flow system que causa divergência silenciosa de estado de pacientes
+- [x] **Phase 5: Flow Consolidation** - Eliminar o dual flow system que causa divergência silenciosa de estado de pacientes (completed 2026-02-22)
 - [ ] **Phase 6: Async Hot Path Migration** - Migrar os três hot paths de banco de dados para AsyncSession
 - [ ] **Phase 7: LGPD Key Rotation** - Implementar batch re-encryption para viabilizar rotação de chaves criptográficas
 - [ ] **Phase 8: AI Rationalization** - Simplificar cinco grafos single-node e adicionar circuit breaker para Gemini
@@ -169,7 +169,7 @@ Phase 8 can begin after Phase 4 + Phase 5 complete, independently of Phase 6-7.
 | 2. LGPD Compliance | 3/3 | Complete    | 2026-02-22 |
 | 3. Operational Stability | 3/3 | Complete    | 2026-02-22 |
 | 4. AI Reliability | 2/2 | Complete   | 2026-02-22 |
-| 5. Flow Consolidation | 1/2 | In Progress|  |
+| 5. Flow Consolidation | 2/2 | Complete   | 2026-02-22 |
 | 6. Async Hot Path Migration | 0/4 | Not started | - |
 | 7. LGPD Key Rotation | 0/1 | Not started | - |
 | 8. AI Rationalization | 0/2 | Not started | - |
