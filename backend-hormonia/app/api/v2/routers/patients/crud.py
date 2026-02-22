@@ -1034,9 +1034,23 @@ async def delete_patient(
     except (ValueError, TypeError, AttributeError):
         raise ValidationError("Invalid patient_id UUID", field="patient_id")
 
-    role_enum, _ = await extract_user_context(current_user)
+    role_enum, user_id_str = await extract_user_context(current_user)
     if role_enum != UserRole.ADMIN:
         raise ForbiddenError("Admin privileges required to delete patients")
+
+    # Resolve authenticated user identity for LGPD audit record
+    performer_uuid: Optional[UUID] = None
+    if user_id_str:
+        try:
+            performer_uuid = UUID(str(user_id_str))
+        except (TypeError, ValueError):
+            performer_uuid = None
+
+    performer_email: Optional[str] = (
+        current_user.get("email")
+        if isinstance(current_user, dict)
+        else getattr(current_user, "email", None)
+    )
 
     # Initialize CRUD service
     repo = PatientRepository(db)
@@ -1047,7 +1061,11 @@ async def delete_patient(
     if not patient:
         raise PatientNotFoundError(str(pid))
 
-    success = service.delete_patient(pid)
+    success = service.delete_patient(
+        pid,
+        performed_by_user_id=performer_uuid,
+        performed_by_email=performer_email,
+    )
     if not success:
         raise ServiceUnavailableError("Failed to delete patient")
 

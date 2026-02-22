@@ -564,7 +564,12 @@ class TestDeletePatient:
     def test_delete_patient_success(
         self, crud_service, mock_repository, mock_db_session, sample_patient
     ):
-        """Test successful soft delete."""
+        """Test successful soft delete.
+
+        After the LGPD-01 audit hook, session.add() is called twice:
+        first for the PatientDeletionAudit record, then for the patient.
+        The test verifies that the patient was added and deleted_at is set.
+        """
         # Arrange
         patient_id = sample_patient.id
         sample_patient.deleted_at = None
@@ -579,7 +584,11 @@ class TestDeletePatient:
         # Assert
         assert result is True
         assert sample_patient.deleted_at is not None
-        mock_db_session.add.assert_called_once_with(sample_patient)
+        # session.add() is called at least twice: once for the LGPD audit record
+        # (PatientDeletionAudit) and once for the soft-deleted patient.
+        assert mock_db_session.add.call_count >= 2
+        # The patient must be among the objects added to the session.
+        mock_db_session.add.assert_any_call(sample_patient)
 
     def test_delete_patient_not_found(
         self, crud_service, mock_repository

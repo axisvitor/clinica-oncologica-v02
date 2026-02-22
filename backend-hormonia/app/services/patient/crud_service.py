@@ -13,6 +13,7 @@ from __future__ import annotations
 
 # Standard library imports
 import asyncio
+import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Any, List, Optional
@@ -220,27 +221,50 @@ class PatientCRUDService:
         return updated_patient
 
     @with_db_retry(max_retries=3)
-    def delete_patient(self, patient_id: UUID) -> bool:
+    def delete_patient(
+        self,
+        patient_id: UUID,
+        *,
+        performed_by_user_id: Optional[UUID] = None,
+        performed_by_email: Optional[str] = None,
+        deletion_reason: Optional[str] = None,
+    ) -> bool:
         """
         Soft delete patient with transaction management.
-        
-        Also cancels all active flows and pending messages to stop background processing.
+
+        Writes a PatientDeletionAudit record BEFORE the soft-delete so that
+        the audit entry is guaranteed to exist even if the process crashes
+        after the transaction commits.  Both operations share the same
+        transaction — either both persist or neither does.
+
+        Also cancels all active flows and pending messages to stop background
+        processing.
 
         Args:
-            patient_id: UUID of the patient to soft delete
+            patient_id:            UUID of the patient to soft delete.
+            performed_by_user_id:  UUID of the authenticated user who
+                                   triggered this deletion.  Optional so
+                                   callers without a user context (e.g. bulk
+                                   jobs) continue to work unchanged.
+            performed_by_email:    Email of the executor.  Optional for the
+                                   same backward-compatibility reason.
+            deletion_reason:       Human-readable reason stored in the audit
+                                   record.  Defaults to a system message.
 
         Returns:
-            True if deletion successful, False if patient not found
+            True if deletion successful, False if patient not found.
 
         Transaction Strategy:
-            1. Start transaction
-            2. Set deleted_at timestamp
-            3. Cancel active flows (status='cancelled')
-            4. Cancel pending messages (status='cancelled')
-            5. Commit transaction
-            6. Invalidate cache (best-effort, outside transaction)
-            7. Rollback on any DB error
+            0. INSERT PatientDeletionAudit (LGPD-01 — FIRST, before soft-delete)
+            1. Set deleted_at timestamp
+            2. Cancel active flows (status='cancelled')
+            3. Cancel pending messages (status='cancelled')
+            4. Commit transaction (steps 0-3 are atomic)
+            5. Invalidate cache (best-effort, outside transaction)
+            6. Rollback on any DB error
         """
+        from app.models.patient_deletion_audit import PatientDeletionAudit
+
         patient = self.repository.get_by_id(patient_id)
         if not patient:
             return False
@@ -248,6 +272,23 @@ class PatientCRUDService:
         try:
             # Use transaction context manager for atomic operations
             with sync_transaction(self.db) as session:
+                # 0. Write LGPD audit record — MUST be the first INSERT in the
+                #    transaction so the audit row is guaranteed to land before
+                #    the soft-delete, even if rollback occurs after commit.
+                audit_record = PatientDeletionAudit(
+                    patient_id=patient.id,
+                    deleted_by_user_id=performed_by_user_id,
+                    deleted_by_email=performed_by_email,
+                    deletion_reason=(
+                        deletion_reason or "Admin deletion via API"
+                    ),
+                    patient_name_hash=hashlib.sha256(
+                        (patient.name or "").encode()
+                    ).hexdigest(),
+                    deleted_at=now_sao_paulo(),
+                )
+                session.add(audit_record)
+
                 # 1. Mark patient as deleted
                 patient.deleted_at = now_sao_paulo()
                 session.add(patient)
