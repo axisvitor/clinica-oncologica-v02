@@ -11,6 +11,7 @@ Provides a clean lifespan context manager that handles:
 
 import time
 import asyncio
+import glob as _glob
 import os
 import redis.asyncio as redis
 from contextlib import asynccontextmanager
@@ -81,6 +82,9 @@ async def _startup(app: FastAPI) -> object:
         "Starting Hormonia Backend System (parallel initialization)",
         extra={"event_type": "application_startup"}
     )
+
+    # SEC-03: Fail fast if credential files are present in working directory
+    _check_no_service_account_file()
 
     try:
         if _is_test_environment():
@@ -158,6 +162,50 @@ def _is_test_environment() -> bool:
         or os.getenv("TESTING") == "1"
         or settings.APP_ENVIRONMENT.lower() in ("test", "testing")
     )
+
+
+def _check_no_service_account_file() -> None:
+    """Fail fast if a Firebase service account key file is found in the working directory.
+
+    Firebase credentials should be passed via environment variables
+    (FIREBASE_ADMIN_PRIVATE_KEY etc.), never as files in the working directory.
+    In production/staging environments this raises RuntimeError to prevent the
+    application from accepting traffic with credential files present on disk.
+    """
+    import logging as _logging
+
+    _logger = _logging.getLogger(__name__)
+
+    patterns = [
+        "*service_account*.json",
+        "*firebase_adminsdk*.json",
+        "*serviceAccountKey*.json",
+    ]
+    found = []
+    for pattern in patterns:
+        matches = _glob.glob(pattern) + _glob.glob(f"**/{pattern}", recursive=True)
+        # Exclude virtual environments, test fixtures, and node_modules
+        matches = [
+            f for f in matches
+            if ".venv" not in f
+            and "/tests/" not in f
+            and "node_modules" not in f
+            and "\\tests\\" not in f
+        ]
+        found.extend(matches)
+
+    if found:
+        _logger.critical(
+            "SECURITY: Firebase service account key file found in working directory: %s. "
+            "Remove it immediately and use env vars (FIREBASE_ADMIN_PRIVATE_KEY).",
+            found,
+        )
+        env = getattr(settings, "APP_ENVIRONMENT", "development").lower()
+        if env in ("production", "prod", "staging"):
+            raise RuntimeError(
+                f"Service account key file found in {env} environment: {found}. "
+                "Remove the file and use FIREBASE_ADMIN_PRIVATE_KEY env var."
+            )
 
 
 async def _shutdown(app: FastAPI, logger) -> None:

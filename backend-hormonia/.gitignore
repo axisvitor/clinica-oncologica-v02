@@ -23,6 +23,12 @@ node_modules/
 secrets/
 credentials/
 
+# Firebase service account keys — NEVER commit
+*service_account*.json
+*firebase_adminsdk*.json
+*serviceAccountKey*.json
+firebase-credentials*.json
+
 # Exception: Redis Cloud public CA certificate (safe to commit)
 !certs/redis_ca.pem
 
