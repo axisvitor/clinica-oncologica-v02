@@ -78,11 +78,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Se LangGraph não está disponível na inicialização da aplicação, a aplicação falha com erro claro no startup em vez de aceitar tráfego e produzir mensagens sem humanização
   2. Quando uma chamada LangGraph retorna `None`, o sistema levanta `FeatureNotAvailableError` explícito que é capturado pelo Sentry — não há silent degradation entregando templates não humanizados
-**Plans**: TBD
+**Plans**: 2 plans (Wave 1 → Wave 2 — sequential, 04-02 depends on 04-01 for FeatureNotAvailableError)
 
 Plans:
-- [ ] 04-01: Adicionar LangGraph startup health check no lifespan.py (AI-01)
-- [ ] 04-02: Converter fallbacks None de LangGraph para FeatureNotAvailableError explícito (AI-02)
+- [ ] 04-01-PLAN.md — Add FeatureNotAvailableError exception + LangGraph startup health check in lifespan.py (AI-01)
+- [ ] 04-02-PLAN.md — Replace silent LangGraph None fallbacks with centralized invoke wrapper + Sentry capture (AI-02)
 
 ### Phase 5: Flow Consolidation
 **Goal**: Existe exatamente um sistema canônico de flow state para pacientes — o dual flow system está eliminado e os dois sistemas não podem divergir
