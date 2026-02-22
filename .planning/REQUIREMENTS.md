@@ -44,7 +44,7 @@ Requirements para levar o protótipo a produção com pacientes reais.
 
 ### Reliability
 
-- [ ] **REL-01**: Rate limiter atômico via Lua script Redis (template já existe em comment, `rate_limit_core.py`)
+- [x] **REL-01**: Rate limiter atômico via Lua script Redis (template já existe em comment, `rate_limit_core.py`)
 - [ ] **REL-02**: Sweep e remoção de imports `from jose` remanescentes (CVE-2024-23342)
 - [ ] **REL-03**: python-jose confirmado removido de todos os módulos — substituído por `pyjwt`
 
@@ -111,7 +111,7 @@ Deferred para após validação clínica com primeiro cohort de pacientes.
 | ASYNC-03 | Phase 6 | Pending |
 | ASYNC-04 | Phase 3 | Pending |
 | ASYNC-05 | Phase 6 | Pending |
-| REL-01 | Phase 3 | Pending |
+| REL-01 | Phase 3 | Complete |
 | REL-02 | Phase 3 | Pending |
 | REL-03 | Phase 3 | Pending |
 | OBS-01 | Phase 9 | Pending |

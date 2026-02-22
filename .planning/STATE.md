@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Médicos acompanham pacientes oncológicos continuamente entre consultas via WhatsApp, com questionários humanizados que coletam dados clínicos sem sobrecarregar o paciente.
-**Current focus:** Phase 2 — LGPD Compliance
+**Current focus:** Phase 3 — Operational Stability (parallel with Phase 2)
 
 ## Current Position
 
-Phase: 2 of 9 (LGPD Compliance)
-Plan: 3 of 4 in current phase
-Status: In Progress — Plan 02-03 executed (AI audit event types in AuditEventType enum + lgpd03 migration)
-Last activity: 2026-02-22 — Plan 02-03 executed (AI_QUERY, AI_HUMANIZATION, AI_SENTIMENT, AI_FOLLOW_UP added to AuditEventType, lgpd03 Alembic migration)
+Phase: 3 of 9 (Operational Stability) — also Phase 2 in progress (3/4 plans done)
+Plan: 2 of 3 completed in Phase 3
+Status: In Progress — Plan 03-02 executed (atomic Lua sliding window rate limiter in DistributedRateLimiter)
+Last activity: 2026-02-22 — Plan 03-02 executed (replaced non-atomic pipeline with Lua script for check_rate_limit, 2 tasks, 1 file)
 
 Progress: [█████░░░░░] 21%
 
@@ -39,6 +39,9 @@ Progress: [█████░░░░░] 21%
 | Phase 02-lgpd-compliance P01 | ~12 min | 2 tasks | 6 files |
 | Phase 02-lgpd-compliance P02 | 10 | 2 tasks | 4 files |
 | Phase 02-lgpd-compliance P03 | 3 | 2 tasks | 2 files |
+| Phase 03-operational-stability P02 | 2 | 2 tasks | 1 files |
+| Phase 03-operational-stability P03 | 2 | 2 tasks | 2 files |
+| Phase 03-operational-stability P01 | 5 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -70,6 +73,13 @@ Recent decisions affecting current work:
 - [Phase 02-lgpd-compliance]: OPT_OUT_KEYWORDS uses exact-match only to prevent false positives in medical conversations
 - [Phase 02-lgpd-compliance]: Four AI enum values grouped under LGPD-03 comment in AuditEventType for compliance traceability (Art. 20 automated processing)
 - [Phase 02-lgpd-compliance]: downgrade() for lgpd03 is intentionally a no-op — PostgreSQL cannot remove enum values, values are harmless if unused
+- [Phase 03-operational-stability]: increment=True path uses Lua script (atomic); increment=False path uses pipeline (no mutation, no race)
+- [Phase 03-operational-stability]: _sliding_window_script() called synchronously (no await) matching existing pipeline pattern in async check_rate_limit
+- [Phase 03-operational-stability]: PyJWT jwt.encode/decode provides identical API to python-jose for HS256 - zero code changes needed beyond import line replacement
+- [Phase 03-operational-stability]: python-jose 3.5.0 lingered in venv despite absence from requirements.txt - best-effort uninstall succeeded
+- [Phase 03-operational-stability]: asyncio import retained in flow_tasks.py — process_daily_flows_async still uses Semaphore/gather/sleep/TimeoutError; only the sync entry point changed
+- [Phase 03-operational-stability]: asyncio import removed from base.py — was used only in the deleted loop-detection block; no other code needed it
+- [Phase 03-operational-stability]: async_to_sync is now the sole sync→async bridge pattern in app/tasks/ — matches established convention from 15+ existing task files
 
 ### Pending Todos
 
@@ -85,5 +95,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 02-03-PLAN.md (AI audit event types — AuditEventType enum + lgpd03 migration, 2 tasks, 2 files)
-Resume file: .planning/phases/02-lgpd-compliance/02-04-PLAN.md (Plan 04 next in Phase 2)
+Stopped at: Completed 03-02-PLAN.md (atomic Lua sliding window rate limiter — 2 tasks, 1 file)
+Resume file: .planning/phases/03-operational-stability/03-03-PLAN.md (next in Phase 3) or .planning/phases/02-lgpd-compliance/02-04-PLAN.md (Plan 04 in Phase 2)
