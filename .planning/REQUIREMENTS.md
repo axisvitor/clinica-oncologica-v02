@@ -39,7 +39,7 @@ Requirements para levar o protótipo a produção com pacientes reais.
 - [ ] **ASYNC-01**: Migrar hot paths para `AsyncSession` — webhook handling (`sequential_message_handler.py`, 12 instances)
 - [ ] **ASYNC-02**: Migrar hot paths para `AsyncSession` — flow advancement (`flow_core.py`, 7 instances)
 - [ ] **ASYNC-03**: Migrar hot paths para `AsyncSession` — quiz response processing (`enhanced_quiz_service.py`, 8 instances)
-- [ ] **ASYNC-04**: Padronizar todas Celery tasks para `async_to_sync` (eliminar `asyncio.run()` — memory leak fix)
+- [x] **ASYNC-04**: Padronizar todas Celery tasks para `async_to_sync` (eliminar `asyncio.run()` — memory leak fix)
 - [ ] **ASYNC-05**: Migrar saga orchestrator para `AsyncSession` (compensation + steps — data integrity risk)
 
 ### Reliability
@@ -109,7 +109,7 @@ Deferred para após validação clínica com primeiro cohort de pacientes.
 | ASYNC-01 | Phase 6 | Pending |
 | ASYNC-02 | Phase 6 | Pending |
 | ASYNC-03 | Phase 6 | Pending |
-| ASYNC-04 | Phase 3 | Pending |
+| ASYNC-04 | Phase 3 | Complete |
 | ASYNC-05 | Phase 6 | Pending |
 | REL-01 | Phase 3 | Complete |
 | REL-02 | Phase 3 | Complete |
