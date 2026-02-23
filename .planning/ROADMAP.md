@@ -79,12 +79,12 @@ Plans:
   1. `avg_task_duration_seconds` nao esta hardcoded como 2.5 — o valor reflete a media real das ultimas N execuçoes de tasks, calculada via rolling average no Redis
   2. `get_available_slots()` retorna slots reais baseados nos horarios configurados do medico — o endpoint nao retorna lista vazia silenciosamente
   3. O WebSocket dashboard funciona corretamente com duas instancias da aplicaçao rodando simultaneamente — eventos de uma instancia aparecem nos dashboards conectados a outra instancia via Redis pub/sub
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 09-01: Instrumentar Celery task completion times com rolling average em Redis (OBS-01)
-- [ ] 09-02: Implementar get_available_slots() com logica real de geraçao de slots (OBS-02)
-- [ ] 09-03: Verificar e corrigir WebSocket scaling com Redis pub/sub para multi-instance (OBS-03)
+- [ ] 09-01-PLAN.md -- Instrument Celery task durations with Redis rolling average, replace hardcoded 2.5 (OBS-01)
+- [ ] 09-02-PLAN.md -- Implement get_available_slots() with real slot generation logic (OBS-02)
+- [ ] 09-03-PLAN.md -- Fix WebSocket pub/sub method name mismatches for multi-instance delivery (OBS-03)
 
 ## Progress
 
