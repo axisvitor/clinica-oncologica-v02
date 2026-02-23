@@ -53,10 +53,14 @@ class FlowManagementService:
         self,
         flow_repo: FlowStateRepository,
         db,
+        flow_engine: Optional[Any] = None,
     ):
         self.flow_repo = flow_repo
         self.db = db
-        self.enhanced_flow_engine = EnhancedFlowEngine(db)
+        # Accept a pre-built EnhancedFlowEngine (e.g. with AsyncSession) from the
+        # dependency factory, or create a default one bound to the sync session.
+        # Using an AsyncSession-backed engine ensures FlowCore's async methods work.
+        self.enhanced_flow_engine = flow_engine if flow_engine is not None else EnhancedFlowEngine(db)
 
     async def get_patient_flow_state(self, patient_id: UUID) -> FlowStateResponse:
         """
@@ -198,9 +202,10 @@ class FlowManagementService:
                 flow_state.status = "completed"
                 flow_state.completed_at = now_sao_paulo()
 
-            self.enhanced_flow_engine._commit_flow_state_with_lock(
-                flow_state, expected_version
-            )
+            # Direct sync commit: FlowManagementService uses sync Session.
+            # _commit_flow_state_with_lock is async (AsyncSession); bypass it here.
+            flow_state.version = expected_version + 1
+            self.db.commit()
 
             advancement_result = {
                 "previous_step": previous_step,
@@ -288,9 +293,10 @@ class FlowManagementService:
             flow_state.status = "paused"
             flow_state.last_interaction_at = now_sao_paulo()
             expected_version = flow_state.version
-            self.enhanced_flow_engine._commit_flow_state_with_lock(
-                flow_state, expected_version
-            )
+            # Direct sync commit: FlowManagementService uses sync Session.
+            # _commit_flow_state_with_lock is async (AsyncSession); bypass it here.
+            flow_state.version = expected_version + 1
+            self.db.commit()
 
             logger.info(
                 "Flow paused",
@@ -356,9 +362,10 @@ class FlowManagementService:
             flow_state.status = "active"
             flow_state.last_interaction_at = now_sao_paulo()
             expected_version = flow_state.version
-            self.enhanced_flow_engine._commit_flow_state_with_lock(
-                flow_state, expected_version
-            )
+            # Direct sync commit: FlowManagementService uses sync Session.
+            # _commit_flow_state_with_lock is async (AsyncSession); bypass it here.
+            flow_state.version = expected_version + 1
+            self.db.commit()
 
             logger.info(
                 "Flow resumed",

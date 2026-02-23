@@ -22,6 +22,8 @@ from typing import List, Optional, Any, Dict
 from datetime import datetime, timezone
 from uuid import UUID
 
+from sqlalchemy import select
+
 from app.services.flow_core import FlowCore
 from app.services.flow.context_parsing import parse_optional_int, parse_optional_str
 from app.services.flow.flags import message_expects_response
@@ -160,7 +162,7 @@ class EnhancedFlowEngine(FlowCore):
 
         # No extra AI passes; rewrite happens once per message.
 
-    def _get_flow_type_from_state(self, flow_state: PatientFlowState) -> str:
+    async def _get_flow_type_from_state(self, flow_state: PatientFlowState) -> str:
         """
         Helper method to get flow_type from a PatientFlowState using template_version_id.
 
@@ -170,21 +172,22 @@ class EnhancedFlowEngine(FlowCore):
         Returns:
             The flow_type string
         """
-        template_version = (
-            self.db.query(FlowTemplateVersion)
-            .filter(FlowTemplateVersion.id == flow_state.flow_template_version_id)
-            .first()
+        # Async select for AsyncSession compat
+        result = await self.db.execute(
+            select(FlowTemplateVersion).filter(
+                FlowTemplateVersion.id == flow_state.flow_template_version_id
+            )
         )
+        template_version = result.scalar_one_or_none()
 
         if not template_version:
             logger.error(f"Template version not found for flow state {flow_state.id}")
             return "unknown"
 
-        flow_kind = (
-            self.db.query(FlowKind)
-            .filter(FlowKind.id == template_version.flow_kind_id)
-            .first()
+        result = await self.db.execute(
+            select(FlowKind).filter(FlowKind.id == template_version.flow_kind_id)
         )
+        flow_kind = result.scalar_one_or_none()
 
         if not flow_kind:
             logger.error(
@@ -314,12 +317,22 @@ class EnhancedFlowEngine(FlowCore):
             Personalized message text
         """
         try:
-            # Get patient and flow context
-            patient = self.patient_repo.get(patient_id)
+            # Get patient and flow context (inlined from repos for async compat)
+            result = await self.db.execute(
+                select(Patient).filter(Patient.id == patient_id)
+            )
+            patient = result.scalar_one_or_none()
             if not patient:
                 raise NotFoundError(f"Patient {patient_id} not found")
 
-            flow_state = self.flow_state_repo.get_active_flow(patient_id)
+            # Inlined from FlowStateRepository.get_active_flow() for async compat
+            result = await self.db.execute(
+                select(PatientFlowState).filter(
+                    PatientFlowState.patient_id == patient_id,
+                    PatientFlowState.status == "active",
+                )
+            )
+            flow_state = result.scalar_one_or_none()
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
@@ -328,7 +341,7 @@ class EnhancedFlowEngine(FlowCore):
                 day = await self.calculate_patient_day(patient_id)
 
             # Get flow type from state
-            flow_type_str = self._get_flow_type_from_state(flow_state)
+            flow_type_str = await self._get_flow_type_from_state(flow_state)
 
             # Load message template from database if not provided
             if message_template is None:
@@ -466,12 +479,22 @@ class EnhancedFlowEngine(FlowCore):
             Response processing result
         """
         try:
-            # Get patient context
-            patient = self.patient_repo.get(patient_id)
+            # Get patient context (inlined from PatientRepository.get() for async compat)
+            result = await self.db.execute(
+                select(Patient).filter(Patient.id == patient_id)
+            )
+            patient = result.scalar_one_or_none()
             if not patient:
                 raise NotFoundError(f"Patient {patient_id} not found")
 
-            flow_state = self.flow_state_repo.get_active_flow(patient_id)
+            # Inlined from FlowStateRepository.get_active_flow() for async compat
+            result = await self.db.execute(
+                select(PatientFlowState).filter(
+                    PatientFlowState.patient_id == patient_id,
+                    PatientFlowState.status == "active",
+                )
+            )
+            flow_state = result.scalar_one_or_none()
             if not flow_state:
                 logger.warning(
                     f"No active flow for patient {patient_id}, processing response anyway"
@@ -693,7 +716,7 @@ class EnhancedFlowEngine(FlowCore):
                 commit_needed = True
 
             if commit_needed:
-                self.db.commit()
+                await self.db.commit()
 
             return {
                 "status": "processed",
@@ -786,20 +809,18 @@ class EnhancedFlowEngine(FlowCore):
             - "Clínica: Olá! Como posso ajudar?"
         """
         try:
-            # Query recent messages for this patient
-            messages = (
-                self.db.query(Message)
+            # Query recent messages for this patient (async select for AsyncSession compat)
+            result = await self.db.execute(
+                select(Message)
                 .filter(
                     Message.patient_id == patient_id,
                     Message.content.isnot(None),  # Only messages with text content
                     Message.content != "",  # Exclude empty messages
                 )
-                .order_by(
-                    Message.created_at.desc()  # Most recent first
-                )
+                .order_by(Message.created_at.desc())  # Most recent first
                 .limit(limit)
-                .all()
             )
+            messages = result.scalars().all()
 
             if not messages:
                 logger.debug(f"No conversation history found for patient {patient_id}")
@@ -842,8 +863,9 @@ class EnhancedFlowEngine(FlowCore):
         and the subsequent inbound reply(ies). Returns the last N completed pairs.
         """
         try:
-            messages = (
-                self.db.query(Message)
+            # Async select for AsyncSession compat
+            result = await self.db.execute(
+                select(Message)
                 .filter(
                     Message.patient_id == patient_id,
                     Message.content.isnot(None),
@@ -851,8 +873,8 @@ class EnhancedFlowEngine(FlowCore):
                 )
                 .order_by(Message.created_at.desc())
                 .limit(scan_limit)
-                .all()
             )
+            messages = result.scalars().all()
             if not messages:
                 return []
 

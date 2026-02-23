@@ -20,7 +20,7 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from sqlalchemy.orm import joinedload
-from sqlalchemy import and_
+from sqlalchemy import and_, select, func
 
 from app.models.flow import PatientFlowState as FlowStateModel, FlowTemplateVersion, FlowKind
 from app.schemas.v2.flows import (
@@ -256,22 +256,20 @@ class FlowService(FlowCore):
     ) -> FlowHistoryV2Response:
         cursor_data = pagination["cursor_data"]
         limit = pagination["limit"]
-        query = self.db.query(FlowStateModel).filter(
-            FlowStateModel.patient_id == patient_id
-        )
+
+        # Build async select statement (AsyncSession requires Core-style select)
+        stmt = select(FlowStateModel).filter(FlowStateModel.patient_id == patient_id)
 
         if include:
             if "patient" in include:
-                query = query.options(joinedload(FlowStateModel.patient))
+                stmt = stmt.options(joinedload(FlowStateModel.patient))
             if "template" in include:
-                query = query.options(joinedload(FlowStateModel.template_version))
+                stmt = stmt.options(joinedload(FlowStateModel.template_version))
 
         if cursor_data and "id" in cursor_data:
             cursor_id = UUID(cursor_data["id"])
-            cursor_created = datetime.fromisoformat(
-                cursor_data["created_at"]
-            )
-            query = query.filter(
+            cursor_created = datetime.fromisoformat(cursor_data["created_at"])
+            stmt = stmt.filter(
                 (FlowStateModel.created_at < cursor_created)
                 | (
                     (FlowStateModel.created_at == cursor_created)
@@ -279,9 +277,19 @@ class FlowService(FlowCore):
                 )
             )
 
-        total = query.count() if not cursor_data else None
-        query = query.order_by(FlowStateModel.created_at.desc(), FlowStateModel.id)
-        flow_states = query.limit(limit + 1).all()
+        # Count total without cursor (async)
+        if not cursor_data:
+            count_stmt = select(func.count()).select_from(FlowStateModel).filter(
+                FlowStateModel.patient_id == patient_id
+            )
+            total_result = await self.db.execute(count_stmt)
+            total = total_result.scalar_one()
+        else:
+            total = None
+
+        stmt = stmt.order_by(FlowStateModel.created_at.desc(), FlowStateModel.id)
+        result = await self.db.execute(stmt.limit(limit + 1))
+        flow_states = result.scalars().all()
 
         has_more = len(flow_states) > limit
         if has_more:
@@ -359,8 +367,8 @@ class FlowService(FlowCore):
         cursor_data = pagination["cursor_data"]
         limit = pagination["limit"]
 
-        # Use FlowTemplateVersion with join to FlowKind for flow_type filtering
-        query = self.db.query(FlowTemplateVersion).join(
+        # Build async select statement (AsyncSession requires Core-style select)
+        stmt = select(FlowTemplateVersion).join(
             FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id
         )
 
@@ -372,9 +380,7 @@ class FlowService(FlowCore):
 
         if cursor_data and "id" in cursor_data:
             cursor_id = UUID(cursor_data["id"])
-            cursor_created = datetime.fromisoformat(
-                cursor_data["created_at"]
-            )
+            cursor_created = datetime.fromisoformat(cursor_data["created_at"])
             filters.append(
                 (FlowTemplateVersion.created_at < cursor_created)
                 | (
@@ -384,11 +390,22 @@ class FlowService(FlowCore):
             )
 
         if filters:
-            query = query.filter(and_(*filters))
+            stmt = stmt.filter(and_(*filters))
 
-        total = query.count() if not cursor_data else None
-        query = query.order_by(FlowTemplateVersion.created_at.desc(), FlowTemplateVersion.id)
-        templates = query.limit(limit + 1).all()
+        if not cursor_data:
+            count_stmt = select(func.count()).select_from(FlowTemplateVersion).join(
+                FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id
+            )
+            if filters:
+                count_stmt = count_stmt.filter(and_(*filters))
+            total_result = await self.db.execute(count_stmt)
+            total = total_result.scalar_one()
+        else:
+            total = None
+
+        stmt = stmt.order_by(FlowTemplateVersion.created_at.desc(), FlowTemplateVersion.id)
+        result = await self.db.execute(stmt.limit(limit + 1))
+        templates = result.scalars().all()
 
         has_more = len(templates) > limit
         if has_more:

@@ -10,7 +10,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy import and_, desc, func, or_
 from sqlalchemy.orm import joinedload
 
-from app.database import get_db
+from app.database import get_db, get_async_db
 from app.models.user import User, UserRole
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState, FlowTemplateVersion, FlowKind
@@ -33,6 +33,7 @@ from app.schemas.v2.flows import (
     FlowStatusV2,
     PatientV2Brief,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies.auth_dependencies import get_current_user
 from app.dependencies.business_dependencies import validate_patient_access
 from app.services.flow_dashboard import get_flow_dashboard_service
@@ -53,16 +54,25 @@ FLOW_SERVICE_TIMEOUT_SECONDS = 15.0
 
 
 async def get_flow_service_dependency(
+    async_db: AsyncSession = Depends(get_async_db),
     db=Depends(get_db),
 ) -> FlowService:
     # Build dependencies directly in async context to avoid threadpool deadlocks
     # caused by sync dependency factories under AsyncTestClient.
+    #
+    # async_db (AsyncSession): injected into FlowService (FlowCore) and EnhancedFlowEngine
+    #   so that FlowCore's 7 async hot-path methods use non-blocking DB operations.
+    # db (sync Session): injected into FlowStateRepository, FlowManagementService, and
+    #   other sync services that use the legacy .query() ORM API and cannot use AsyncSession.
     flow_repo = FlowStateRepository(db)
-    flow_management = FlowManagementService(flow_repo, db)
+    flow_engine = EnhancedFlowEngine(async_db)
+    # Pass flow_engine (AsyncSession-backed) to FlowManagementService so that
+    # FlowCore's inherited async methods (calculate_patient_day, etc.) work
+    # non-blocking. FlowManagementService's own repo calls still use sync db.
+    flow_management = FlowManagementService(flow_repo, db, flow_engine=flow_engine)
     flow_analytics = FlowAnalyticsService(db)
     flow_dashboard = get_flow_dashboard_service(db)
-    flow_engine = EnhancedFlowEngine(db)
-    return FlowService(db, flow_management, flow_analytics, flow_dashboard, flow_engine)
+    return FlowService(async_db, flow_management, flow_analytics, flow_dashboard, flow_engine)
 
 
 def _coerce_uuid(value: Any) -> Optional[UUID]:
