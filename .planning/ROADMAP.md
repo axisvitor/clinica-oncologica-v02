@@ -38,7 +38,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
   2. `flow_core.py` usa AsyncSession nas 7 instancias anotadas — avanço de flow nao bloqueia o event loop sob carga
   3. `enhanced_quiz_service.py` usa AsyncSession nas 8 instancias anotadas — processamento de respostas de quiz nao bloqueia o event loop
   4. O saga orchestrator (compensation + steps) usa AsyncSession — operaçoes de compensaçao de saga nao criam risco de corrupçao de dados por timeout
-**Plans:** 4 plans
+**Plans:** 1/4 plans executed
 
 Plans:
 - [ ] 06-01-PLAN.md -- Migrate sequential_message_handler.py to AsyncSession (12 instances, ASYNC-01)
@@ -98,7 +98,7 @@ Phases 6-9 continue from v1.0. Phase 8 can begin after Phase 5 (already done), i
 | 3. Operational Stability | v1.0 | 3/3 | Complete | 2026-02-22 |
 | 4. AI Reliability | v1.0 | 2/2 | Complete | 2026-02-22 |
 | 5. Flow Consolidation | v1.0 | 2/2 | Complete | 2026-02-22 |
-| 6. Async Hot Path Migration | v1.1 | 0/4 | Not started | - |
+| 6. Async Hot Path Migration | 1/4 | In Progress|  | - |
 | 7. LGPD Key Rotation | v1.1 | 0/1 | Not started | - |
 | 8. AI Rationalization | v1.1 | 0/2 | Not started | - |
 | 9. Observability | v1.1 | 0/3 | Not started | - |
