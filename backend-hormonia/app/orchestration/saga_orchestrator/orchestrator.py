@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
+from typing import Any as _AnyType  # noqa: F401 - used for db type hint
 
 from app.models.patient import Patient
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
@@ -127,7 +128,7 @@ class SagaOrchestrator:
 
     def __init__(
         self,
-        db: Session,
+        db: Any,  # Accept AsyncSession or Session; sub-components (steps/compensator) use AsyncSession
         redis_client: Optional[Any] = None,
         evolution_client: Optional[EvolutionClient] = None,
     ):

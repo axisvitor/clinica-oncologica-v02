@@ -11,12 +11,13 @@ from typing import Any, Dict, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import cast, String
+from sqlalchemy import cast, String, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis_manager import get_sync_redis_client as get_redis_client
-from app.database import get_db
+from app.database import get_db, get_async_db
 from app.utils.request_context import get_request_context, RequestContext
 from app.models.enums import SagaStatus
 from app.models.patient import Patient
@@ -24,7 +25,6 @@ from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.user import User
 from app.orchestration.saga_orchestrator.compensation import SagaCompensator
 from app.orchestration.saga_orchestrator.exceptions import SagaCompensationError
-from app.repositories.patient import PatientRepository
 
 from .dependencies import get_admin_user
 from .utils import _log_admin_action
@@ -127,15 +127,15 @@ async def list_compensation_failures(
 )
 async def retry_compensation(
     saga_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ) -> Dict[str, Any]:
-    saga = (
-        db.query(PatientOnboardingSaga)
-        .filter(PatientOnboardingSaga.id == saga_id)
-        .first()
+    # Fetch saga using async select
+    _saga_result = await db.execute(
+        select(PatientOnboardingSaga).filter(PatientOnboardingSaga.id == saga_id)
     )
+    saga = _saga_result.scalars().first()
     if not saga:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Saga not found"
@@ -147,9 +147,9 @@ async def retry_compensation(
         )
 
     # Manual retry: rerun compensation and unquarantine if the rollback completes.
+    # SagaCompensator now uses AsyncSession natively.
     compensator = SagaCompensator(
         db=db,
-        patient_repo=PatientRepository(db),
         redis_client=get_redis_client(),
     )
 
@@ -181,13 +181,14 @@ async def retry_compensation(
 
     patient = None
     if saga.patient_id:
-        patient = (
-            db.query(Patient).filter(Patient.id == saga.patient_id).first()
+        _patient_result = await db.execute(
+            select(Patient).filter(Patient.id == saga.patient_id)
         )
+        patient = _patient_result.scalars().first()
     if patient:
         _clear_quarantine(patient)
 
-    db.commit()
+    await db.commit()
 
     await _log_admin_action(
         db,

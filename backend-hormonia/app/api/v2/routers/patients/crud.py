@@ -26,6 +26,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
+from sqlalchemy import select as sa_select
 
 # Local application imports
 from app.api.v2.dependencies import (
@@ -51,7 +52,8 @@ from app.exceptions import ValidationError as DomainValidationError
 from app.core.permissions import Permission
 from app.config.constants import TreatmentPhase
 from app.core import redis_client as redis_client_module
-from app.database import get_db
+from app.database import get_db, get_async_db
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.models.user import UserRole
 from app.metrics.patient_metrics import (
@@ -575,7 +577,7 @@ async def create_patient(
     request: Request,
     response: Response,
     patient_data: PatientV2Create,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),  # AsyncSession for saga compensation/steps
     current_user=Depends(get_current_user_from_session),
     x_idempotency_key: Optional[str] = Header(None, alias="X-Idempotency-Key"),
 ):
@@ -609,8 +611,16 @@ async def create_patient(
 
     # QW-004: Database-level idempotency key support for duplicate request prevention
     if x_idempotency_key:
-        repo = PatientRepository(db)
-        existing = repo.get_by_idempotency_key(x_idempotency_key)
+        from app.models.patient import Patient as PatientModel
+
+        # Async idempotency DB check (inlined for AsyncSession compat)
+        _idem_result = await db.execute(
+            sa_select(PatientModel).filter(
+                PatientModel.idempotency_key == x_idempotency_key,
+                PatientModel.deleted_at.is_(None),
+            )
+        )
+        existing = _idem_result.scalars().first()
         if existing:
             await ensure_patient_access(current_user, existing.doctor_id)
             duration_seconds = time.monotonic() - start_time
@@ -655,7 +665,14 @@ async def create_patient(
                         if cached_patient_id:
                             try:
                                 cached_patient_uuid = UUID(str(cached_patient_id))
-                                cached_patient = repo.get_by_id(cached_patient_uuid)
+                                # Async patient lookup for owner_doctor_id resolution
+                                _p_result = await db.execute(
+                                    sa_select(PatientModel).filter(
+                                        PatientModel.id == cached_patient_uuid,
+                                        PatientModel.deleted_at.is_(None),
+                                    )
+                                )
+                                cached_patient = _p_result.scalars().first()
                                 if cached_patient:
                                     owner_doctor_id = cached_patient.doctor_id
                             except (TypeError, ValueError):
