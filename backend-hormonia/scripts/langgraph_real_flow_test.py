@@ -100,7 +100,7 @@ async def _run() -> None:
     from app.services.flow.sequential_message_handler import SequentialMessageHandler
     from app.services.response_processor.processor import ResponseProcessor
     from app.services.response_processor.models import InboundMessage
-    from app.ai.langgraph.graphs import get_humanization_graph
+    from app.ai.client_domain import GeminiDomainClient
 
     if settings.ALLOW_AI_SIMULATION:
         raise SystemExit(
@@ -160,21 +160,14 @@ async def _run() -> None:
 
         continuation_result = await handler.handle_response_and_continue(patient.id)
 
-        graph = get_humanization_graph()
-        humanized = await graph.ainvoke(
-            {
-                "template": inbound_text,
-                "context": {"patient_name": patient.name or "Paciente"},
-                "history": [inbound_text],
-                "hints": ["empatia", "clareza"],
-                "output_kind": "message",
-            },
-            config={
-                "configurable": {
-                    "thread_id": f"real:humanization:{patient.id}",
-                }
-            },
+        domain_client = GeminiDomainClient()
+        humanized_text = await domain_client.humanize_flow_message(
+            template=inbound_text,
+            context={"patient_name": patient.name or "Paciente"},
+            history=[inbound_text],
+            hints=["empatia", "clareza"],
         )
+        humanized = {"humanized_text": humanized_text}
 
     print("FLOW_RESULT:", flow_result)
     print("INBOUND_RESULT:", {"escalation_required": inbound_result.escalation_required})
