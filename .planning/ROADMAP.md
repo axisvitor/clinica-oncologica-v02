@@ -38,13 +38,13 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
   2. `flow_core.py` usa AsyncSession nas 7 instancias anotadas — avanço de flow nao bloqueia o event loop sob carga
   3. `enhanced_quiz_service.py` usa AsyncSession nas 8 instancias anotadas — processamento de respostas de quiz nao bloqueia o event loop
   4. O saga orchestrator (compensation + steps) usa AsyncSession — operaçoes de compensaçao de saga nao criam risco de corrupçao de dados por timeout
-**Plans**: TBD
+**Plans:** 4 plans
 
 Plans:
-- [ ] 06-01: Migrar sequential_message_handler.py para AsyncSession (12 instancias) (ASYNC-01)
-- [ ] 06-02: Migrar flow_core.py para AsyncSession (7 instancias) (ASYNC-02)
-- [ ] 06-03: Migrar enhanced_quiz_service.py para AsyncSession (8 instancias) (ASYNC-03)
-- [ ] 06-04: Migrar saga orchestrator (compensation + steps) para AsyncSession (ASYNC-05)
+- [ ] 06-01-PLAN.md -- Migrate sequential_message_handler.py to AsyncSession (12 instances, ASYNC-01)
+- [ ] 06-02-PLAN.md -- Migrate flow_core.py to AsyncSession (7 instances, ASYNC-02)
+- [ ] 06-03-PLAN.md -- Migrate enhanced_quiz_service.py to AsyncSession (8 instances, ASYNC-03)
+- [ ] 06-04-PLAN.md -- Migrate saga orchestrator compensation + steps to AsyncSession (ASYNC-05)
 
 ### Phase 7: LGPD Key Rotation
 **Goal**: E possivel realizar rotaçao de chaves criptograficas via Celery task sem perda de dados — batch re-encryption existe e e operacional
