@@ -11,7 +11,8 @@ from typing import Optional, Any
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.models.patient import Patient
@@ -21,7 +22,6 @@ from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
 from app.schemas.patient import PatientCreate
 from app.exceptions import ValidationError
-from app.repositories.patient import PatientRepository
 from app.services.patient.flow_service import PatientFlowService
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.domain.messaging.core import MessageService
@@ -45,11 +45,11 @@ class SagaStepExecutor:
 
     def __init__(
         self,
-        db: Session,
-        patient_repo: PatientRepository,
-        flow_service: PatientFlowService,
-        whatsapp_service: UnifiedWhatsAppService,
-        message_service: MessageService,
+        db: Any,  # AsyncSession (typed as Any for backward compat with orchestrator)
+        patient_repo: Any = None,  # Kept for backward compat; inlined for async compat
+        flow_service: Optional[PatientFlowService] = None,
+        whatsapp_service: Optional[UnifiedWhatsAppService] = None,
+        message_service: Optional[MessageService] = None,
     ):
         self.db = db
         self.patient_repo = patient_repo
@@ -81,8 +81,6 @@ class SagaStepExecutor:
         Raises:
             Exception: If patient creation fails
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         step_start = time.time()
         step_status = "success"
         try:
@@ -98,7 +96,9 @@ class SagaStepExecutor:
             if idempotency_key:
                 patient_dict["idempotency_key"] = idempotency_key
 
-            patient = self.patient_repo.create(patient_dict, auto_commit=False)
+            # Inlined from PatientRepository.create() for async compat
+            patient = Patient(**patient_dict)
+            self.db.add(patient)  # self.db.add() is NOT a coroutine
 
             saga.patient_id = patient.id
             saga.current_step = 1
@@ -106,7 +106,8 @@ class SagaStepExecutor:
             saga.add_log_entry(1, "create_patient", "success")
 
             try:
-                self.db.flush()
+                await self.db.flush()
+                await self.db.refresh(patient)
             except Exception as flush_error:
                 logger.warning(
                     f"Saga {saga.id}: Flush failed in create_patient step: {flush_error}",
@@ -190,8 +191,10 @@ class SagaStepExecutor:
         Raises:
             Exception: If flow initialization fails
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
+        # NOTE: flow_service calls may still be sync if PatientFlowService
+        # has not been fully migrated to AsyncSession. The AsyncSession is
+        # passed through db and the service detects the session type.
+        # Direct idempotency check below is inlined for async compat.
         step_start = time.time()
         step_status = "success"
         try:
@@ -204,18 +207,20 @@ class SagaStepExecutor:
             if idempotency_key:
                 from app.models.flow import PatientFlowState
 
-                existing_flow = (
-                    self.db.query(PatientFlowState)
-                    .filter(PatientFlowState.patient_id == patient.id)
-                    .first()
+                # Inlined idempotency check for async compat
+                result = await self.db.execute(
+                    select(PatientFlowState).filter(
+                        PatientFlowState.patient_id == patient.id
+                    )
                 )
+                existing_flow = result.scalars().first()
                 if existing_flow:
                     step_status = "skipped_existing_flow"
                     saga.current_step = 3
                     saga.status = SagaStatus.STEP_3_FLOW_INITIALIZED
                     saga.add_log_entry(3, "initialize_flow", "skipped_existing_flow")
                     try:
-                        self.db.flush()
+                        await self.db.flush()
                     except Exception as flush_error:
                         logger.warning(
                             f"Saga {saga.id}: Flush failed in initialize_flow step: {flush_error}",
@@ -246,7 +251,7 @@ class SagaStepExecutor:
                 saga.step_data["flow_initialized"] = False
                 saga.step_data["flow_skip_reason"] = skip_reason
                 try:
-                    self.db.flush()
+                    await self.db.flush()
                 except Exception as flush_error:
                     logger.warning(
                         f"Saga {saga.id}: Flush failed in initialize_flow step: {flush_error}",
@@ -266,7 +271,7 @@ class SagaStepExecutor:
             saga.add_log_entry(3, "initialize_flow", "success")
 
             try:
-                self.db.flush()
+                await self.db.flush()
             except Exception as flush_error:
                 logger.warning(
                     f"Saga {saga.id}: Flush failed in initialize_flow step: {flush_error}",
@@ -312,29 +317,29 @@ class SagaStepExecutor:
             patient: The patient to send welcome message to
             idempotency_key: Optional key to avoid duplicate welcome messages
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         step_start = time.time()
         step_status = "success"
         try:
             if idempotency_key:
                 from app.models.message import Message
 
-                message_query = self.db.query(Message).filter(
-                    Message.patient_id == patient.id,
-                    metadata_key_equals(
-                        Message.message_metadata,
-                        "idempotency_key",
-                        idempotency_key,
-                    ),
-                    metadata_key_equals(
-                        Message.message_metadata,
-                        "message_type",
-                        "welcome",
-                    ),
+                # Inlined idempotency check for async compat
+                result = await self.db.execute(
+                    select(Message).filter(
+                        Message.patient_id == patient.id,
+                        metadata_key_equals(
+                            Message.message_metadata,
+                            "idempotency_key",
+                            idempotency_key,
+                        ),
+                        metadata_key_equals(
+                            Message.message_metadata,
+                            "message_type",
+                            "welcome",
+                        ),
+                    )
                 )
-
-                existing_message = message_query.first()
+                existing_message = result.scalars().first()
                 if existing_message:
                     step_status = "skipped_existing_message"
                     logger.info(
@@ -345,7 +350,7 @@ class SagaStepExecutor:
                     saga.status = SagaStatus.STEP_4_MESSAGE_SENT
                     saga.add_log_entry(4, "send_message", "skipped_existing_message")
                     try:
-                        self.db.flush()
+                        await self.db.flush()
                     except Exception as flush_error:
                         logger.warning(
                             f"Saga {saga.id}: Flush failed in send_welcome_message step: "
@@ -354,14 +359,14 @@ class SagaStepExecutor:
                         )
                     return
 
-            template = (
-                self.db.query(MessageTemplate)
-                .filter(
+            # Inlined template lookup for async compat
+            result = await self.db.execute(
+                select(MessageTemplate).filter(
                     MessageTemplate.name == "welcome_message",
                     MessageTemplate.is_active,
                 )
-                .first()
             )
+            template = result.scalars().first()
 
             if template:
                 try:
@@ -418,7 +423,7 @@ class SagaStepExecutor:
             saga.add_log_entry(4, "send_message", "scheduled_async")
 
             try:
-                self.db.flush()
+                await self.db.flush()
             except Exception as flush_error:
                 logger.warning(
                     f"Saga {saga.id}: Flush failed in send_welcome_message step: "
@@ -435,7 +440,7 @@ class SagaStepExecutor:
             saga.status = SagaStatus.STEP_4_MESSAGE_SENT
             saga.add_log_entry(4, "send_message", "failed_nonfatal", str(e))
             try:
-                self.db.flush()
+                await self.db.flush()
             except Exception as flush_err:
                 logger.error(
                     f"Failed to flush message step state: {flush_err}", exc_info=True

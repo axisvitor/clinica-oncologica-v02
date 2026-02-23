@@ -12,13 +12,13 @@ from typing import Optional, List, Tuple, Any
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.message import Message, MessageStatus
 from app.models.flow import PatientFlowState
 from app.models.enums import SagaStatus
-from app.repositories.patient import PatientRepository
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError
 
 from .exceptions import SagaCompensationError
@@ -41,8 +41,8 @@ class SagaCompensator:
 
     def __init__(
         self,
-        db: Session,
-        patient_repo: PatientRepository,
+        db: Any,  # AsyncSession (typed as Any for backward compat with orchestrator)
+        patient_repo: Any = None,  # Kept for backward compat; inlined for async compat
         redis_client: Optional[Any] = None,
     ):
         self.db = db
@@ -87,8 +87,6 @@ class SagaCompensator:
         self, saga: PatientOnboardingSaga
     ) -> None:
         """Internal compensation logic within lock context."""
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         logger.info(f"Compensating saga {saga.id} from step {saga.current_step}")
         saga.status = SagaStatus.COMPENSATING
 
@@ -136,7 +134,7 @@ class SagaCompensator:
                 saga.failed_at = None
 
             try:
-                self.db.commit()
+                await self.db.commit()
                 logger.info(
                     f"Saga {saga.id}: Compensation transaction committed successfully"
                 )
@@ -146,7 +144,7 @@ class SagaCompensator:
                     f"{commit_error}",
                     exc_info=True,
                 )
-                self.db.rollback()
+                await self.db.rollback()
                 await self._track_compensation_failure(saga.id, 0, commit_error)
                 raise SagaCompensationError(
                     f"Saga {saga.id}: Failed to commit compensation transaction",
@@ -238,8 +236,6 @@ class SagaCompensator:
 
         FIX P1-008: Made idempotent - checks if already compensated.
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             compensated_steps = (
                 saga.step_data.get("compensated_steps", []) if saga.step_data else []
@@ -250,9 +246,9 @@ class SagaCompensator:
                 )
                 return
 
-            messages = (
-                self.db.query(Message)
-                .filter(
+            # Inlined from sync query to async for async compat
+            result = await self.db.execute(
+                select(Message).filter(
                     Message.patient_id == saga.patient_id,
                     metadata_key_equals(
                         Message.message_metadata,
@@ -261,8 +257,8 @@ class SagaCompensator:
                     ),
                     Message.status != MessageStatus.CANCELLED,
                 )
-                .all()
             )
+            messages = result.scalars().all()
 
             for message in messages:
                 message.status = MessageStatus.CANCELLED
@@ -296,8 +292,6 @@ class SagaCompensator:
 
         FIX P1-008: Made idempotent - checks if already compensated.
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             compensated_steps = (
                 saga.step_data.get("compensated_steps", []) if saga.step_data else []
@@ -316,14 +310,16 @@ class SagaCompensator:
                 }
                 return
 
-            flow_states = (
-                self.db.query(PatientFlowState)
-                .filter(PatientFlowState.patient_id == saga.patient_id)
-                .all()
+            # Inlined from sync query to async for async compat
+            result = await self.db.execute(
+                select(PatientFlowState).filter(
+                    PatientFlowState.patient_id == saga.patient_id
+                )
             )
+            flow_states = result.scalars().all()
 
             for flow_state in flow_states:
-                self.db.delete(flow_state)
+                await self.db.delete(flow_state)  # AsyncSession.delete IS a coroutine
 
             saga.step_data = {
                 **(saga.step_data or {}),
@@ -351,8 +347,6 @@ class SagaCompensator:
 
         FIX P1-008: Made idempotent - checks if already compensated.
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             compensated_steps = (
                 saga.step_data.get("compensated_steps", []) if saga.step_data else []
@@ -371,7 +365,14 @@ class SagaCompensator:
                 }
                 return
 
-            patient = self.patient_repo.get_by_id(saga.patient_id)
+            # Inlined from PatientRepository for async compat
+            from app.models.patient import Patient
+
+            result = await self.db.execute(
+                select(Patient).filter(Patient.id == saga.patient_id)
+            )
+            patient = result.scalars().first()
+
             if not patient:
                 logger.info(
                     f"Saga {saga.id}: Patient {saga.patient_id} already deleted"
@@ -382,7 +383,7 @@ class SagaCompensator:
                 }
                 return
 
-            self.db.delete(patient)
+            await self.db.delete(patient)  # AsyncSession.delete IS a coroutine
 
             saga.step_data = {
                 **(saga.step_data or {}),
@@ -409,8 +410,6 @@ class SagaCompensator:
             step: Step number that failed
             error: Exception that occurred
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             # Track in Redis (7 days retention)
             if self.redis:
@@ -429,13 +428,15 @@ class SagaCompensator:
                     f"Compensation failure tracked in Redis: {failure_key}"
                 )
 
-            # Fetch saga to get patient_id
+            # Fetch saga to get patient_id (inlined for async compat)
             from app.models.patient_onboarding_saga import PatientOnboardingSaga
-            saga = (
-                self.db.query(PatientOnboardingSaga)
-                .filter(PatientOnboardingSaga.id == saga_id)
-                .first()
+
+            result = await self.db.execute(
+                select(PatientOnboardingSaga).filter(
+                    PatientOnboardingSaga.id == saga_id
+                )
             )
+            saga = result.scalars().first()
 
             patient_id = saga.patient_id if saga else None
 
@@ -525,11 +526,10 @@ class SagaCompensator:
                 from app.models.patient import Patient
                 from sqlalchemy.orm.attributes import flag_modified
 
-                patient = (
-                    self.db.query(Patient)
-                    .filter(Patient.id == patient_id)
-                    .first()
+                p_result = await self.db.execute(
+                    select(Patient).filter(Patient.id == patient_id)
                 )
+                patient = p_result.scalars().first()
                 if patient:
                     if patient.patient_data is None:
                         patient.patient_data = {}
@@ -547,7 +547,7 @@ class SagaCompensator:
                     )
 
                 # Flush changes (will be committed by caller)
-                self.db.flush()
+                await self.db.flush()
 
             # Send Sentry notification
             try:
