@@ -53,10 +53,10 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Uma Celery task de batch re-encryption existe e pode ser invocada com nova chave — ela processa registros em chunks sem timeout ou perda de dados
   2. A task pode ser interrompida e retomada sem corromper dados parcialmente re-encriptados — idempotencia verificada por teste
-**Plans**: TBD
+**Plans:** 1 plan
 
 Plans:
-- [ ] 07-01: Implementar Celery task de batch re-encryption com chunked processing e idempotencia (LGPD-04)
+- [ ] 07-01-PLAN.md -- Batch re-encryption Celery task with chunked processing, Redis idempotency, and tests (LGPD-04)
 
 ### Phase 8: AI Rationalization
 **Goal**: Cinco grafos LangGraph single-node estao eliminados — o codigo AI e mais simples, e chamadas Gemini tem circuit breaker explicito
@@ -99,7 +99,7 @@ Phases 6-9 continue from v1.0. Phase 8 can begin after Phase 5 (already done), i
 | 4. AI Reliability | v1.0 | 2/2 | Complete | 2026-02-22 |
 | 5. Flow Consolidation | v1.0 | 2/2 | Complete | 2026-02-22 |
 | 6. Async Hot Path Migration | 4/4 | Complete   | 2026-02-23 | - |
-| 7. LGPD Key Rotation | v1.1 | 0/1 | Not started | - |
+| 7. LGPD Key Rotation | v1.1 | 0/1 | Planned | - |
 | 8. AI Rationalization | v1.1 | 0/2 | Not started | - |
 | 9. Observability | v1.1 | 0/3 | Not started | - |
 
