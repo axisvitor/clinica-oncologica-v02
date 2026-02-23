@@ -23,6 +23,7 @@ from app.schemas.v2.health import (
 from app.config import settings
 from .compat import call_health_attr, get_current_user_compat
 from app.utils.timezone import now_sao_paulo
+from app.core.redis_manager import get_redis_manager
 
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,19 @@ async def check_redis_health() -> RedisHealth:
         )
 
 
+async def _read_avg_task_duration() -> float:
+    """Read rolling average task duration from Redis. Returns 0.0 on error or empty."""
+    try:
+        client = await get_redis_manager().get_async_client()
+        samples = await client.lrange("celery:metrics:avg_task_duration", 0, -1)
+        if not samples:
+            return 0.0
+        durations = [float(s) for s in samples]
+        return round(sum(durations) / len(durations), 3)
+    except Exception:
+        return 0.0
+
+
 async def check_worker_health(db: Any) -> WorkerHealth:
     """Check background worker health."""
     try:
@@ -126,7 +140,7 @@ async def check_worker_health(db: Any) -> WorkerHealth:
             failed_tasks_24h=failed_tasks_24h,
             pending_tasks=pending_tasks,
             queue_size=active_tasks + pending_tasks,
-            avg_task_duration_seconds=2.5,  # TODO: Calculate actual average
+            avg_task_duration_seconds=await _read_avg_task_duration(),
         )
     except Exception as e:
         logger.warning(f"Worker health check failed: {e}")
