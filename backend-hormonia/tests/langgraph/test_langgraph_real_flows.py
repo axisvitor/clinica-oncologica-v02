@@ -14,9 +14,8 @@ pytest.importorskip("langgraph")
 from app.ai.langgraph.graphs import (
     build_flow_message_graph,
     build_flow_response_graph,
-    build_humanization_graph,
 )
-from app.ai.langgraph import nodes_ai as langgraph_nodes
+# build_humanization_graph removed in Phase 8 (AI-03) — single-node graph eliminated.
 from app.models.patient import Patient
 
 
@@ -246,26 +245,27 @@ async def test_flow_response_graph_accepts_matching_context(db, patient):
 
 
 @pytest.mark.asyncio
-async def test_humanization_graph_ai_question_optimization(monkeypatch):
-    """Run real LangGraph humanization graph with stubbed Gemini client."""
+async def test_humanization_via_domain_client(monkeypatch):
+    """Verify humanization calls generate_content directly via GeminiDomainClient.
+
+    Phase 8 (AI-03): build_humanization_graph() removed. Humanization now goes
+    through GeminiDomainClient.humanize_flow_message() -> generate_content().
+    """
+    from app.ai.client_domain import GeminiDomainClient
 
     class _GeminiStub:
-        async def generate_content(self, *_args, **_kwargs):
+        async def generate_content(self, prompt: str, **kwargs) -> str:
             return "Como você está se sentindo hoje?"
 
-    monkeypatch.setattr(langgraph_nodes, "_get_gemini_client", lambda: _GeminiStub())
+    client = GeminiDomainClient.__new__(GeminiDomainClient)
+    client.generate_content = _GeminiStub().generate_content
 
-    graph = build_humanization_graph()
-    result = await graph.ainvoke(
-        {
-            "template": "Como você está?",
-            "context": {"patient_name": "Ana"},
-            "history": ["Oi"],
-            "hints": ["gentil"],
-            "output_kind": "message",
-        },
-        config={"configurable": {"thread_id": "test:humanization:ana"}},
+    result = await client.humanize_flow_message(
+        template="Como você está?",
+        patient_name="Ana",
+        patient_context={"patient_name": "Ana"},
+        conversation_history=["Oi"],
+        personalization_hints=["gentil"],
     )
 
-    assert result["output"] == "Como você está se sentindo hoje?"
-    assert result.get("confidence") is not None
+    assert result == "Como você está se sentindo hoje?"

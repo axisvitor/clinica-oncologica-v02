@@ -14,11 +14,13 @@ import pytest
 from app.ai.langgraph.ai_state import validate_ai_state
 from app.ai.langgraph.nodes import (
     dispatch_response_continuation,
-    generate_node,
-    humanize_node,
     load_flow_context,
     load_response_context,
 )
+# generate_node and humanize_node were removed in Phase 8 (AI-03).
+# Their tests are preserved below as historical documentation and now test
+# the underlying nodes_ai helpers instead.
+from app.ai.langgraph.nodes_ai import _get_gemini_client  # noqa: F401
 from app.ai.langgraph.state import validate_flow_message_state
 
 
@@ -386,34 +388,22 @@ async def test_dispatch_response_continuation_uses_handler_from_dispatch_context
 
 
 @pytest.mark.asyncio
-async def test_humanize_node_missing_template_fails_before_client_call(monkeypatch) -> None:
-    called = False
+async def test_validate_ai_state_missing_template_raises_value_error() -> None:
+    """validate_ai_state with required 'template' key missing raises ValueError.
 
-    def _unexpected_client_call():
-        nonlocal called
-        called = True
-        raise AssertionError("Gemini client should not be called on invalid AI state.")
-
-    monkeypatch.setattr("app.ai.langgraph.nodes_ai._get_gemini_client", _unexpected_client_call)
-
+    Phase 8 (AI-03): humanize_node removed. This test exercises the same state
+    validation that the removed node performed, now via validate_ai_state directly.
+    """
     with pytest.raises(ValueError, match="Missing required AIState keys: template."):
-        await humanize_node({"context": {"patient_name": "Ana"}})
-
-    assert called is False
+        validate_ai_state({"context": {"patient_name": "Ana"}}, required_keys=("template",))
 
 
 @pytest.mark.asyncio
-async def test_generate_node_missing_input_text_fails_before_client_call(monkeypatch) -> None:
-    called = False
+async def test_validate_ai_state_missing_input_text_raises_value_error() -> None:
+    """validate_ai_state with required 'input_text' key missing raises ValueError.
 
-    def _unexpected_client_call():
-        nonlocal called
-        called = True
-        raise AssertionError("Gemini client should not be called on invalid AI state.")
-
-    monkeypatch.setattr("app.ai.langgraph.nodes_ai._get_gemini_client", _unexpected_client_call)
-
+    Phase 8 (AI-03): generate_node removed. This test exercises the same state
+    validation that the removed node performed, now via validate_ai_state directly.
+    """
     with pytest.raises(ValueError, match="Missing required AIState keys: input_text."):
-        await generate_node({"output_kind": "message"})
-
-    assert called is False
+        validate_ai_state({"output_kind": "message"}, required_keys=("input_text",))
