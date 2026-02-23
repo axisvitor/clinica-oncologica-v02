@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 # Local application imports
 from app.config import settings
+from app.core.exceptions import FeatureNotAvailableError
 from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.ai.pii_redaction import sanitize_prompt_text_for_external_ai
 from app.resilience.circuit_breaker import get_ai_circuit_breaker
@@ -599,7 +600,11 @@ class GeminiClient:
                     )
 
                     if used_fallback:
-                        raise GeminiAPIError("Gemini circuit breaker fallback used")
+                        raise FeatureNotAvailableError(
+                            "Gemini circuit breaker open — feature unavailable",
+                            "gemini",
+                            "generate_content",
+                        )
 
                     if output_kind:
                         if output_kind == OutputKind.JSON:
