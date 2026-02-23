@@ -306,7 +306,7 @@ class RedisPubSubManager:
             data: Message data
         """
         payload = data.get("payload", {})
-        await self.connection_manager.broadcast(payload)
+        await self.connection_manager.broadcast_to_all_authenticated(payload)
 
     async def _handle_room_message(self, room_id: str, data: Dict[str, Any]):
         """
@@ -317,7 +317,7 @@ class RedisPubSubManager:
             data: Message data
         """
         payload = data.get("payload", {})
-        await self.connection_manager.broadcast_to_room(room_id, payload)
+        await self.connection_manager.broadcast_to_patient_room(room_id, payload)
 
     async def _handle_user_message(self, user_id: str, data: Dict[str, Any]):
         """
@@ -328,17 +328,7 @@ class RedisPubSubManager:
             data: Message data
         """
         payload = data.get("payload", {})
-
-        # Get all connections for this user
-        user_connections = [
-            conn_id
-            for conn_id, conn_data in self.connection_manager.connections.items()
-            if conn_data.get("user_id") == user_id
-        ]
-
-        # Send to each connection
-        for conn_id in user_connections:
-            await self.connection_manager.send_personal_message(payload, conn_id)
+        await self.connection_manager.broadcast_to_user(user_id, payload)
 
     async def _handle_heartbeat(self, data: Dict[str, Any]):
         """
