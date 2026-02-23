@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 08-ai-rationalization
-Plan: 02 complete (2 of 2 phase-08 plans complete)
-Status: Phase 08 complete — 08-01 and 08-02 done
-Last activity: 2026-02-23 — Completed 08-02: Circuit breaker exception type fix (FeatureNotAvailableError on circuit-open in GeminiClient, 4 unit tests, AI-04 satisfied)
+Phase: 09-observability
+Plan: 03 complete (3 of N phase-09 plans)
+Status: Phase 09 in progress — 09-03 done
+Last activity: 2026-02-23 — Completed 09-03: RedisPubSubManager method name fix (3 broken handler calls corrected, OBS-03 satisfied)
 
-Progress: [██████████] 100% (2 of 2 phase-08 plans complete)
+Progress: [███] (09-03 complete)
 
 ## Accumulated Context
 
@@ -49,8 +49,10 @@ None.
 ### Blockers/Concerns
 
 Carried forward from v1.0 (relevant to v1.1):
-- [Research flag] Phase 9: WebSocket multi-instance gap between redis_pubsub_manager.py and WebSocket connection manager not fully characterized
 - [Research gap] Phase 9: Physician availability slots model (what constitutes an available slot) is not documented in codebase
+
+RESOLVED (2026-02-23):
+- [Research flag] Phase 9: WebSocket multi-instance gap — FIXED in 09-03 (RedisPubSubManager method calls corrected)
 
 RESOLVED (2026-02-22):
 - enhanced_quiz_service.py (8 TODOs) — DONE in 06-03
@@ -80,8 +82,13 @@ RESOLVED (2026-02-23):
 - Monkeypatch call_gemini on circuit breaker instance (not class) to isolate the exact used_fallback=True path
 - Stale .pyc files from 08-01 caused router ImportError — cleared bytecode cache to unblock tests (no source change needed)
 
+**Phase 09-03 decisions (2026-02-23):**
+- Replace manual user connection iteration (conn_data.get()) with broadcast_to_user() — ConnectionInfo is a dataclass, not a dict; .get() raises AttributeError at runtime
+- broadcast_to_all_authenticated() is the correct broadcast name (not broadcast()) — sends only to authenticated connections per intended semantics
+- No public API of UnifiedWebSocketConnectionManager was changed — only fixed the callers in RedisPubSubManager
+
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 08-01-PLAN.md (Remove single-node LangGraph wrappers — AI-03 satisfied)
-Resume file: /gsd:execute-phase 09 (if next phase exists)
+Stopped at: Completed 09-03-PLAN.md (RedisPubSubManager method name fix — OBS-03 satisfied)
+Resume file: /gsd:execute-phase 09 (continue remaining phase-09 plans if any)

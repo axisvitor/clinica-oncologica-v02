@@ -79,7 +79,7 @@ Plans:
   1. `avg_task_duration_seconds` nao esta hardcoded como 2.5 — o valor reflete a media real das ultimas N execuçoes de tasks, calculada via rolling average no Redis
   2. `get_available_slots()` retorna slots reais baseados nos horarios configurados do medico — o endpoint nao retorna lista vazia silenciosamente
   3. O WebSocket dashboard funciona corretamente com duas instancias da aplicaçao rodando simultaneamente — eventos de uma instancia aparecem nos dashboards conectados a outra instancia via Redis pub/sub
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 
 Plans:
 - [ ] 09-01-PLAN.md -- Instrument Celery task durations with Redis rolling average, replace hardcoded 2.5 (OBS-01)
@@ -101,7 +101,7 @@ Phases 6-9 continue from v1.0. Phase 8 can begin after Phase 5 (already done), i
 | 6. Async Hot Path Migration | 4/4 | Complete   | 2026-02-23 | - |
 | 7. LGPD Key Rotation | v1.1 | 0/1 | Planned | - |
 | 8. AI Rationalization | 2/2 | Complete   | 2026-02-23 | - |
-| 9. Observability | v1.1 | 0/3 | Not started | - |
+| 9. Observability | 1/3 | In Progress|  | - |
 
 ---
 *Roadmap created: 2026-02-22*
