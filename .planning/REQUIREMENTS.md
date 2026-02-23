@@ -12,7 +12,7 @@ Requirements para completar migracao async dos hot paths, viabilizar key rotatio
 - [x] **ASYNC-01**: Migrar hot paths para `AsyncSession` — webhook handling (`sequential_message_handler.py`, 12 instancias anotadas com `TODO(async-migration)`)
 - [ ] **ASYNC-02**: Migrar hot paths para `AsyncSession` — flow advancement (`flow_core.py`, 7 instancias anotadas)
 - [x] **ASYNC-03**: Migrar hot paths para `AsyncSession` — quiz response processing (`enhanced_quiz_service.py`, 8 instancias anotadas)
-- [ ] **ASYNC-05**: Migrar saga orchestrator para `AsyncSession` (compensation + steps — data integrity risk por timeout)
+- [x] **ASYNC-05**: Migrar saga orchestrator para `AsyncSession` (compensation + steps — data integrity risk por timeout)
 
 ### LGPD Compliance
 

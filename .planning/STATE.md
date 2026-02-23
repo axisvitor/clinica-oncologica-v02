@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 06-async-hot-path-migration
-Plan: 01 complete (ASYNC-01 done)
-Status: In progress — 06-01 and 06-03 complete, 06-02/05 remaining
-Last activity: 2026-02-23 — Completed 06-01: SequentialMessageHandler AsyncSession migration (12 TODOs)
+Plan: 04 complete (ASYNC-05 done)
+Status: In progress — 06-01, 06-03, 06-04 complete, 06-02/05 remaining
+Last activity: 2026-02-22 — Completed 06-04: Saga Orchestrator AsyncSession migration (8 TODOs in compensation.py + steps.py)
 
-Progress: [████░░░░░░] ~50% (2 of ~4 phase-06 plans complete)
+Progress: [██████░░░░] ~60% (3 of ~5 phase-06 plans complete)
 
 ## Accumulated Context
 
@@ -34,6 +34,7 @@ v1.0 key decisions preserved in PROJECT.md and milestone archive.
 - Convert _set_flow_progress() from sync def to async def when it calls await self.db.commit()
 - coordinator.py and hive_mind_integration.py Hive-Mind agent paths keep sync Session with documented comments for follow-up
 - Add Session import back to webhooks.py alongside AsyncSession for non-migrated handler signatures to avoid NameError
+- [Phase 06-async-hot-path-migration]: SagaCompensator/SagaStepExecutor db typed as Any to accept both sync/async sessions; PatientRepository methods inlined as async select() for AsyncSession compat; SagaOrchestrator direct sync calls documented as known gap per ASYNC-05 scope
 
 ### Pending Todos
 
@@ -53,8 +54,11 @@ RESOLVED (2026-02-22):
 RESOLVED (2026-02-23):
 - sequential_message_handler.py (12 TODOs) — DONE in 06-01
 
+RESOLVED (2026-02-22):
+- saga_orchestrator/compensation.py (5 TODOs) + steps.py (3 TODOs) — DONE in 06-04 (ASYNC-05)
+
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 06-01-PLAN.md (SequentialMessageHandler AsyncSession migration)
-Resume file: /gsd:execute-phase 06 (next plan: 06-02 flow_core.py or 06-05 saga orchestrator)
+Last session: 2026-02-22
+Stopped at: Completed 06-04-PLAN.md (Saga Orchestrator compensation/steps AsyncSession migration)
+Resume file: /gsd:execute-phase 06 (next plan: 06-02 flow_core.py or 06-05)
