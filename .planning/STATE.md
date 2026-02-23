@@ -49,9 +49,8 @@ None.
 ### Blockers/Concerns
 
 Carried forward from v1.0 (relevant to v1.1):
-- [Research gap] Phase 9: Physician availability slots model (what constitutes an available slot) is not documented in codebase
-
 RESOLVED (2026-02-23):
+- [Research gap] Phase 9: Physician availability slots model — FIXED in 09-02 (Mon-Fri 08:00-17:00 hardcoded for v1.1, real slot generation implemented)
 - [Research flag] Phase 9: WebSocket multi-instance gap — FIXED in 09-03 (RedisPubSubManager method calls corrected)
 
 RESOLVED (2026-02-22):
@@ -82,6 +81,11 @@ RESOLVED (2026-02-23):
 - Monkeypatch call_gemini on circuit breaker instance (not class) to isolate the exact used_fallback=True path
 - Stale .pyc files from 08-01 caused router ImportError — cleared bytecode cache to unblock tests (no source change needed)
 
+**Phase 09-02 decisions (2026-02-23):**
+- Hardcoded Mon-Fri 08:00-17:00 defaults inside get_available_slots() — no physician preferences DB model exists for v1.1; comment directs future expansion to a physician preferences table
+- booked_starts uses set() with any() overlap check — appropriate for single-physician appointment counts in a date range (no interval tree needed)
+- appt_time.tzinfo is None guard added before timezone normalization — defensive for nullable scheduled_at column returning naive datetimes
+
 **Phase 09-03 decisions (2026-02-23):**
 - Replace manual user connection iteration (conn_data.get()) with broadcast_to_user() — ConnectionInfo is a dataclass, not a dict; .get() raises AttributeError at runtime
 - broadcast_to_all_authenticated() is the correct broadcast name (not broadcast()) — sends only to authenticated connections per intended semantics
@@ -90,5 +94,5 @@ RESOLVED (2026-02-23):
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 09-03-PLAN.md (RedisPubSubManager method name fix — OBS-03 satisfied)
+Stopped at: Completed 09-02-PLAN.md (Physician availability slot generation — OBS-02 satisfied) and 09-03-PLAN.md (RedisPubSubManager method name fix — OBS-03 satisfied)
 Resume file: /gsd:execute-phase 09 (continue remaining phase-09 plans if any)

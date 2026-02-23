@@ -26,7 +26,7 @@ Requirements para completar migracao async dos hot paths, viabilizar key rotatio
 ### Observability
 
 - [ ] **OBS-01**: Remover metricas hardcoded (`avg_task_duration_seconds` = 2.5) e instrumentar Celery task completion times com rolling average em Redis
-- [ ] **OBS-02**: Implementar `get_available_slots()` com logica real de geracao de slots baseada em horarios do medico
+- [x] **OBS-02**: Implementar `get_available_slots()` com logica real de geracao de slots baseada em horarios do medico
 - [x] **OBS-03**: Verificar e corrigir WebSocket scaling com Redis pub/sub para multi-instance
 
 ## Traceability
