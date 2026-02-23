@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 06-async-hot-path-migration
-Plan: 03 complete (ASYNC-03 done)
-Status: In progress — 06-03 complete, 06-01/02/05 remaining
-Last activity: 2026-02-22 — Completed 06-03: EnhancedQuizService AsyncSession migration
+Plan: 01 complete (ASYNC-01 done)
+Status: In progress — 06-01 and 06-03 complete, 06-02/05 remaining
+Last activity: 2026-02-23 — Completed 06-01: SequentialMessageHandler AsyncSession migration (12 TODOs)
 
-Progress: [██░░░░░░░░] ~25% (1 of ~4 phase-06 plans complete)
+Progress: [████░░░░░░] ~50% (2 of ~4 phase-06 plans complete)
 
 ## Accumulated Context
 
@@ -29,6 +29,12 @@ v1.0 key decisions preserved in PROJECT.md and milestone archive.
 - Delete loop: per-row await self.db.delete(obj) required; bulk query.delete() not supported same way in async
 - Count queries: select(func.count()).select_from(stmt.subquery()) — only async-compatible count pattern
 
+**Phase 06-01 decisions (2026-02-23):**
+- Inline FlowStateRepository.get_active_flow() as direct select() query to avoid converting the entire sync repository
+- Convert _set_flow_progress() from sync def to async def when it calls await self.db.commit()
+- coordinator.py and hive_mind_integration.py Hive-Mind agent paths keep sync Session with documented comments for follow-up
+- Add Session import back to webhooks.py alongside AsyncSession for non-migrated handler signatures to avoid NameError
+
 ### Pending Todos
 
 None.
@@ -36,7 +42,6 @@ None.
 ### Blockers/Concerns
 
 Carried forward from v1.0 (relevant to v1.1):
-- [Research flag] Phase 6: AsyncSession migration for sequential_message_handler.py (12 TODOs) — plan 06-01 pending
 - [Research flag] Phase 6: AsyncSession migration for flow_core.py (7 TODOs) — plan 06-02 pending
 - [Research flag] Phase 6: Saga orchestrator compensation+steps (ASYNC-05) — plan 06-05 pending
 - [Research flag] Phase 9: WebSocket multi-instance gap between redis_pubsub_manager.py and WebSocket connection manager not fully characterized
@@ -45,8 +50,11 @@ Carried forward from v1.0 (relevant to v1.1):
 RESOLVED (2026-02-22):
 - enhanced_quiz_service.py (8 TODOs) — DONE in 06-03
 
+RESOLVED (2026-02-23):
+- sequential_message_handler.py (12 TODOs) — DONE in 06-01
+
 ## Session Continuity
 
-Last session: 2026-02-22
-Stopped at: Completed 06-03-PLAN.md (EnhancedQuizService AsyncSession migration)
-Resume file: /gsd:execute-phase 06 (next plan)
+Last session: 2026-02-23
+Stopped at: Completed 06-01-PLAN.md (SequentialMessageHandler AsyncSession migration)
+Resume file: /gsd:execute-phase 06 (next plan: 06-02 flow_core.py or 06-05 saga orchestrator)
