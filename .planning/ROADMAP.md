@@ -65,11 +65,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Os grafos `humanization`, `sentiment`, `generation`, `question_variation` e `empathetic_follow_up` nao existem mais como StateGraph compilados — as chamadas Gemini correspondentes passam diretamente por `GeminiClient.generate_content()`
   2. Um circuit breaker envolve chamadas Gemini — quando Gemini retorna 5xx ou timeout repetidamente, o circuit breaker abre e `FeatureNotAvailableError` e levantado em vez de retry infinito
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 08-01: Substituir os 5 grafos single-node por chamadas diretas GeminiClient.generate_content() (AI-03)
-- [ ] 08-02: Adicionar circuit breaker ao redor de chamadas Gemini usando CircuitBreaker existente (AI-04)
+- [ ] 08-01-PLAN.md -- Remove 5 single-node LangGraph graphs, migrate all callers to direct GeminiClient.generate_content() (AI-03)
+- [ ] 08-02-PLAN.md -- Fix circuit breaker exception: raise FeatureNotAvailableError instead of GeminiAPIError on circuit open (AI-04)
 
 ### Phase 9: Observability
 **Goal**: Metricas refletem o comportamento real do sistema, o endpoint de disponibilidade do medico retorna slots reais, e o WebSocket funciona em multiplas instancias
