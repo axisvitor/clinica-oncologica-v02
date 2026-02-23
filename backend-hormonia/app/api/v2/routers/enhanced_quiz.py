@@ -20,7 +20,8 @@ from fastapi import (
     BackgroundTasks,
 )
 
-from app.database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.database import get_async_db
 from app.models.user import UserRole
 from app.schemas.v2.enhanced_quiz import (
     AdvancedQuizTemplate,
@@ -47,7 +48,9 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-async def get_enhanced_quiz_service(db=Depends(get_db)) -> EnhancedQuizService:
+async def get_enhanced_quiz_service(
+    db: AsyncSession = Depends(get_async_db),
+) -> EnhancedQuizService:
     return EnhancedQuizService(db)
 
 
