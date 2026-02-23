@@ -11,8 +11,9 @@ from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy.orm import joinedload
-from sqlalchemy import and_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy import and_, select, func
 
 from app.models.quiz import QuizSession, QuizTemplate, QuizResponse
 from app.models.patient import Patient
@@ -155,8 +156,6 @@ class EnhancedQuizService(RedisJsonCacheMixin):
         role_enum: Optional[UserRole],
         user_uuid: Optional[UUID],
     ) -> QuizAnalyticsResponse:
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         cache_key = self._get_cache_key(
             "analytics",
             start_date=start_date.isoformat() if start_date else None,
@@ -169,12 +168,14 @@ class EnhancedQuizService(RedisJsonCacheMixin):
         if cached:
             return QuizAnalyticsResponse(**cached)
 
-        query = self.db.query(QuizSession).join(
-            Patient, Patient.id == QuizSession.patient_id
+        stmt = (
+            select(QuizSession)
+            .join(Patient, Patient.id == QuizSession.patient_id)
+            .options(joinedload(QuizSession.quiz_template))
         )
 
         if role_enum != UserRole.ADMIN and user_uuid:
-            query = query.filter(Patient.doctor_id == user_uuid)
+            stmt = stmt.filter(Patient.doctor_id == user_uuid)
 
         filters = []
         if start_date:
@@ -182,9 +183,10 @@ class EnhancedQuizService(RedisJsonCacheMixin):
         if end_date:
             filters.append(QuizSession.created_at <= end_date)
         if filters:
-            query = query.filter(and_(*filters))
+            stmt = stmt.filter(and_(*filters))
 
-        sessions = query.options(joinedload(QuizSession.quiz_template)).all()
+        result = await self.db.execute(stmt)
+        sessions = result.scalars().unique().all()
 
         total_sessions = len(sessions)
         completed_sessions = sum(1 for s in sessions if s.status == "completed")
@@ -280,8 +282,6 @@ class EnhancedQuizService(RedisJsonCacheMixin):
     async def create_advanced_template(
         self, template_data: AdvancedQuizTemplate, user_id: Optional[UUID]
     ) -> Dict[str, Any]:
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         template_dict = template_data.dict()
         questions_json = [
             q.dict() if hasattr(q, "dict") else q for q in template_dict["questions"]
@@ -303,8 +303,8 @@ class EnhancedQuizService(RedisJsonCacheMixin):
         )
 
         self.db.add(new_template)
-        self.db.commit()
-        self.db.refresh(new_template)
+        await self.db.commit()
+        await self.db.refresh(new_template)
 
         return {
             "id": str(new_template.id),
@@ -322,27 +322,26 @@ class EnhancedQuizService(RedisJsonCacheMixin):
         user_uuid: Optional[UUID],
         role_enum: Optional[UserRole],
     ) -> AdaptiveQuizFlowResponse:
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         session_uuid = UUID(flow_request.session_id)
-        session = (
-            self.db.query(QuizSession).filter(QuizSession.id == session_uuid).first()
+        result = await self.db.execute(
+            select(QuizSession).filter(QuizSession.id == session_uuid)
         )
+        session = result.scalar_one_or_none()
         if not session:
             raise HTTPException(status_code=404, detail="Quiz session not found")
 
         if role_enum != UserRole.ADMIN:
-            patient = (
-                self.db.query(Patient).filter(Patient.id == session.patient_id).first()
+            patient_result = await self.db.execute(
+                select(Patient).filter(Patient.id == session.patient_id)
             )
+            patient = patient_result.scalar_one_or_none()
             if patient and patient.doctor_id != user_uuid:
                 raise HTTPException(status_code=403, detail="Not authorized")
 
-        template = (
-            self.db.query(QuizTemplate)
-            .filter(QuizTemplate.id == session.quiz_template_id)
-            .first()
+        template_result = await self.db.execute(
+            select(QuizTemplate).filter(QuizTemplate.id == session.quiz_template_id)
         )
+        template = template_result.scalar_one_or_none()
         if not template:
             raise HTTPException(status_code=404, detail="Quiz template not found")
 
@@ -416,7 +415,7 @@ class EnhancedQuizService(RedisJsonCacheMixin):
             session.status = "completed"
             session.completed_at = now_sao_paulo()
 
-        self.db.commit()
+        await self.db.commit()
 
         total_questions = len(questions)
         progress_percentage = (
@@ -442,8 +441,6 @@ class EnhancedQuizService(RedisJsonCacheMixin):
         user_uuid: Optional[UUID],
         role_enum: Optional[UserRole],
     ) -> RiskScoringResponse:
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         cache_key = self._get_cache_key(
             "risk-scoring",
             patient_id=risk_request.patient_id,
@@ -457,14 +454,17 @@ class EnhancedQuizService(RedisJsonCacheMixin):
             return RiskScoringResponse(**cached)
 
         patient_uuid = UUID(risk_request.patient_id)
-        patient = self.db.query(Patient).filter(Patient.id == patient_uuid).first()
+        patient_result = await self.db.execute(
+            select(Patient).filter(Patient.id == patient_uuid)
+        )
+        patient = patient_result.scalar_one_or_none()
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
         if role_enum != UserRole.ADMIN and patient.doctor_id != user_uuid:
             raise HTTPException(status_code=403, detail="Not authorized")
 
         lookback_date = now_sao_paulo() - timedelta(days=risk_request.lookback_days)
-        query = self.db.query(QuizSession).filter(
+        stmt = select(QuizSession).filter(
             and_(
                 QuizSession.patient_id == patient_uuid,
                 QuizSession.created_at >= lookback_date,
@@ -472,21 +472,20 @@ class EnhancedQuizService(RedisJsonCacheMixin):
             )
         )
         if risk_request.session_id:
-            query = query.filter(QuizSession.id == UUID(risk_request.session_id))
+            stmt = stmt.filter(QuizSession.id == UUID(risk_request.session_id))
 
-        # FIX: Use selectinload for one-to-many relationships to avoid cartesian product
-        # joinedload for one-to-one (quiz_template), selectinload for one-to-many (responses)
-        from sqlalchemy.orm import selectinload
-        sessions = query.options(
+        # Use joinedload for one-to-one (quiz_template), selectinload for one-to-many (responses)
+        stmt = stmt.options(
             joinedload(QuizSession.quiz_template),
             selectinload(QuizSession.responses)
-        ).all()
+        )
+        result = await self.db.execute(stmt)
+        sessions = result.scalars().unique().all()
         if not sessions:
             raise HTTPException(status_code=404, detail="No sessions found")
 
         latest_session = sessions[0]
-        # FIX: Use already-loaded responses from selectinload instead of N+1 queries
-        # The responses are already loaded via selectinload(QuizSession.responses) above
+        # Use already-loaded responses from selectinload instead of N+1 queries
         responses = list(latest_session.responses) if latest_session.responses else []
         current_risk = self._calculate_risk_score(
             responses, latest_session.quiz_template
@@ -494,8 +493,7 @@ class EnhancedQuizService(RedisJsonCacheMixin):
 
         historical_scores = []
         if risk_request.include_historical and len(sessions) > 1:
-            # FIX: Use already-loaded relationships instead of individual queries per session
-            # This eliminates the N+1 pattern that was causing len(sessions)-1 extra queries
+            # Use already-loaded relationships instead of individual queries per session
             for session in sessions[1:]:
                 # Use eager-loaded responses directly
                 s_responses = list(session.responses) if session.responses else []
@@ -535,8 +533,6 @@ class EnhancedQuizService(RedisJsonCacheMixin):
     async def get_quiz_recommendations(
         self, patient_id: str, user_uuid: Optional[UUID], role_enum: Optional[UserRole]
     ) -> QuizRecommendationsResponse:
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         cache_key = self._get_cache_key(
             "recommendations",
             patient_id=patient_id,
@@ -548,14 +544,17 @@ class EnhancedQuizService(RedisJsonCacheMixin):
             return QuizRecommendationsResponse(**cached)
 
         patient_uuid = UUID(patient_id)
-        patient = self.db.query(Patient).filter(Patient.id == patient_uuid).first()
+        patient_result = await self.db.execute(
+            select(Patient).filter(Patient.id == patient_uuid)
+        )
+        patient = patient_result.scalar_one_or_none()
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
         if role_enum != UserRole.ADMIN and patient.doctor_id != user_uuid:
             raise HTTPException(status_code=403, detail="Not authorized")
 
-        recent_sessions = (
-            self.db.query(QuizSession)
+        recent_sessions_result = await self.db.execute(
+            select(QuizSession)
             .filter(
                 and_(
                     QuizSession.patient_id == patient_uuid,
@@ -563,11 +562,14 @@ class EnhancedQuizService(RedisJsonCacheMixin):
                 )
             )
             .options(joinedload(QuizSession.quiz_template))
-            .all()
         )
-        available_templates = (
-            self.db.query(QuizTemplate).filter(QuizTemplate.is_active).all()
+        recent_sessions = recent_sessions_result.scalars().unique().all()
+
+        available_templates_result = await self.db.execute(
+            select(QuizTemplate).filter(QuizTemplate.is_active)
         )
+        available_templates = available_templates_result.scalars().all()
+
         completed_ids = {
             str(s.quiz_template_id) for s in recent_sessions if s.status == "completed"
         }
@@ -614,8 +616,6 @@ class EnhancedQuizService(RedisJsonCacheMixin):
         role_enum: Optional[UserRole],
         user_uuid: Optional[UUID],
     ) -> PerformanceMetricsResponse:
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         if not end_date:
             end_date = now_sao_paulo()
         if not start_date:
@@ -633,28 +633,32 @@ class EnhancedQuizService(RedisJsonCacheMixin):
         if cached:
             return PerformanceMetricsResponse(**cached)
 
-        query = self.db.query(QuizSession).join(
+        base_stmt = select(QuizSession).join(
             Patient, Patient.id == QuizSession.patient_id
         )
         if role_enum != UserRole.ADMIN and user_uuid:
-            query = query.filter(Patient.doctor_id == user_uuid)
+            base_stmt = base_stmt.filter(Patient.doctor_id == user_uuid)
 
-        current_sessions = query.filter(
+        current_stmt = base_stmt.filter(
             and_(
                 QuizSession.created_at >= start_date, QuizSession.created_at <= end_date
             )
-        ).all()
+        )
+        current_result = await self.db.execute(current_stmt)
+        current_sessions = current_result.scalars().all()
 
         previous_sessions = []
         if compare_period:
             period_length = (end_date - start_date).days
             prev_start = start_date - timedelta(days=period_length)
-            previous_sessions = query.filter(
+            previous_stmt = base_stmt.filter(
                 and_(
                     QuizSession.created_at >= prev_start,
                     QuizSession.created_at < start_date,
                 )
-            ).all()
+            )
+            previous_result = await self.db.execute(previous_stmt)
+            previous_sessions = previous_result.scalars().all()
 
         metrics = []
         # Completion Rate
@@ -742,11 +746,12 @@ class EnhancedQuizService(RedisJsonCacheMixin):
         user_uuid: Optional[UUID],
         role_enum: Optional[UserRole],
     ) -> BulkOperationResponse:
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         job_id = f"bulk-quiz-{uuid.uuid4().hex[:12]}"
         patient_uuids = [UUID(pid) for pid in operation.patient_ids]
-        patients = self.db.query(Patient).filter(Patient.id.in_(patient_uuids)).all()
+        patients_result = await self.db.execute(
+            select(Patient).filter(Patient.id.in_(patient_uuids))
+        )
+        patients = patients_result.scalars().all()
 
         if role_enum != UserRole.ADMIN:
             unauthorized = [p for p in patients if p.doctor_id != user_uuid]
@@ -760,11 +765,10 @@ class EnhancedQuizService(RedisJsonCacheMixin):
 
         if operation.operation == "assign":
             template_uuid = UUID(operation.template_id)
-            template = (
-                self.db.query(QuizTemplate)
-                .filter(QuizTemplate.id == template_uuid)
-                .first()
+            template_result = await self.db.execute(
+                select(QuizTemplate).filter(QuizTemplate.id == template_uuid)
             )
+            template = template_result.scalar_one_or_none()
             if not template or not template.is_active:
                 raise HTTPException(
                     status_code=404, detail="Template not found/inactive"
@@ -772,17 +776,16 @@ class EnhancedQuizService(RedisJsonCacheMixin):
 
             for patient in patients:
                 try:
-                    existing = (
-                        self.db.query(QuizSession)
-                        .filter(
+                    existing_result = await self.db.execute(
+                        select(QuizSession).filter(
                             and_(
                                 QuizSession.patient_id == patient.id,
                                 QuizSession.quiz_template_id == template_uuid,
                                 QuizSession.status == "started",
                             )
                         )
-                        .first()
                     )
+                    existing = existing_result.scalar_one_or_none()
                     if not existing:
                         self.db.add(
                             QuizSession(
@@ -799,32 +802,33 @@ class EnhancedQuizService(RedisJsonCacheMixin):
                 except Exception as e:
                     failed += 1
                     errors.append(f"Patient {patient.id}: {str(e)}")
-            self.db.commit()
+            await self.db.commit()
 
         elif operation.operation == "delete":
             for pid in patient_uuids:
                 try:
-                    count = (
-                        self.db.query(QuizSession)
-                        .filter(QuizSession.patient_id == pid)
-                        .delete()
+                    sessions_result = await self.db.execute(
+                        select(QuizSession).filter(QuizSession.patient_id == pid)
                     )
+                    sessions_to_delete = sessions_result.scalars().all()
+                    count = len(sessions_to_delete)
+                    for s in sessions_to_delete:
+                        await self.db.delete(s)
                     if count > 0:
                         successful += count
                 except Exception as e:
                     failed += 1
                     errors.append(f"Patient {pid}: {str(e)}")
-            self.db.commit()
+            await self.db.commit()
 
         elif operation.operation == "update":
             update_data = operation.update_data or {}
             for pid in patient_uuids:
                 try:
-                    sessions = (
-                        self.db.query(QuizSession)
-                        .filter(QuizSession.patient_id == pid)
-                        .all()
+                    sessions_result = await self.db.execute(
+                        select(QuizSession).filter(QuizSession.patient_id == pid)
                     )
+                    sessions = sessions_result.scalars().all()
                     for s in sessions:
                         for k, v in update_data.items():
                             if hasattr(s, k):
@@ -833,7 +837,7 @@ class EnhancedQuizService(RedisJsonCacheMixin):
                 except Exception as e:
                     failed += 1
                     errors.append(f"Patient {pid}: {str(e)}")
-            self.db.commit()
+            await self.db.commit()
 
         return BulkOperationResponse(
             job_id=job_id,
@@ -851,14 +855,12 @@ class EnhancedQuizService(RedisJsonCacheMixin):
         user_uuid: Optional[UUID],
         role_enum: Optional[UserRole],
     ) -> QuizExportResponse:
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         export_id = f"export-{uuid.uuid4().hex[:12]}"
-        query = self.db.query(QuizSession).join(
+        stmt = select(QuizSession).join(
             Patient, Patient.id == QuizSession.patient_id
         )
         if role_enum != UserRole.ADMIN and user_uuid:
-            query = query.filter(Patient.doctor_id == user_uuid)
+            stmt = stmt.filter(Patient.doctor_id == user_uuid)
 
         filters = []
         if export_request.patient_ids:
@@ -878,9 +880,11 @@ class EnhancedQuizService(RedisJsonCacheMixin):
         if export_request.end_date:
             filters.append(QuizSession.created_at <= export_request.end_date)
         if filters:
-            query = query.filter(and_(*filters))
+            stmt = stmt.filter(and_(*filters))
 
-        total = query.count()
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        count_result = await self.db.execute(count_stmt)
+        total = count_result.scalar_one()
         if total == 0:
             raise HTTPException(status_code=404, detail="No quiz data found")
 
