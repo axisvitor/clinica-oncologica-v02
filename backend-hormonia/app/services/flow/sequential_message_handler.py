@@ -18,15 +18,15 @@ from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
 
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text, select
 
 from app.ai.langgraph.graphs import get_flow_message_graph, get_flow_response_graph
 from app.ai.langgraph.runtime import build_graph_config
 from app.models.flow import PatientFlowState
 from app.models.message import Message, MessageDirection, MessageStatus, MessageType
 from app.models.patient import Patient
-from app.repositories.flow import FlowStateRepository
+from app.repositories.flow import FlowStateRepository  # used only for sync Celery callers; hot-path uses inlined async queries
 from app.repositories.message import MessageRepository
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
@@ -48,7 +48,7 @@ class SequentialMessageHandler:
     }
     """
     
-    def __init__(self, db: Session, use_ai_personalization: bool = True):
+    def __init__(self, db: AsyncSession, use_ai_personalization: bool = True):
         self.db = db
         self.flow_state_repo = FlowStateRepository(db)
         self.message_repo = MessageRepository(db)
@@ -229,14 +229,13 @@ class SequentialMessageHandler:
             logger.warning(f"Redis cache error (falling back to DB): {e}")
         
         # Cache miss or error - query database
-        # TODO(async-migration): sync SQLAlchemy execute in async method blocks event loop.
-        # Migrate handler DB access to AsyncSession and awaitable execute.
-        result = self.db.execute(text("""
-            SELECT ftv.steps 
-            FROM flow_template_versions ftv 
-            JOIN flow_kinds fk ON ftv.flow_kind_id = fk.id 
+        result_proxy = await self.db.execute(text("""
+            SELECT ftv.steps
+            FROM flow_template_versions ftv
+            JOIN flow_kinds fk ON ftv.flow_kind_id = fk.id
             WHERE fk.kind_key = :kind AND ftv.is_active = true
-        """), {"kind": flow_kind}).fetchone()
+        """), {"kind": flow_kind})
+        result = result_proxy.fetchone()
         
         if not result or not result[0]:
             return None
@@ -265,20 +264,26 @@ class SequentialMessageHandler:
         flow_kind: str
     ) -> PatientFlowState:
         """Get or create patient flow state."""
-        # TODO(async-migration): repository currently uses sync SQLAlchemy in async flow.
-        flow_state = self.flow_state_repo.get_active_flow(patient_id)
-        
+        # Inlined from FlowStateRepository.get_active_flow() for async compat
+        active_result = await self.db.execute(
+            select(PatientFlowState).filter(
+                PatientFlowState.patient_id == patient_id,
+                PatientFlowState.status == "active",
+            )
+        )
+        flow_state = active_result.scalar_one_or_none()
+
         if not flow_state:
             # Create new flow state
             # Get flow template version
-            # TODO(async-migration): sync SQLAlchemy execute/add/commit in async method.
-            result = self.db.execute(text("""
-                SELECT ftv.id 
-                FROM flow_template_versions ftv 
-                JOIN flow_kinds fk ON ftv.flow_kind_id = fk.id 
+            result_proxy = await self.db.execute(text("""
+                SELECT ftv.id
+                FROM flow_template_versions ftv
+                JOIN flow_kinds fk ON ftv.flow_kind_id = fk.id
                 WHERE fk.kind_key = :kind AND ftv.is_active = true
-            """), {"kind": flow_kind}).fetchone()
-            
+            """), {"kind": flow_kind})
+            result = result_proxy.fetchone()
+
             if result:
                 flow_state = PatientFlowState(
                     patient_id=patient_id,
@@ -287,7 +292,7 @@ class SequentialMessageHandler:
                     step_data={"flow_kind": flow_kind}
                 )
                 self.db.add(flow_state)
-                self.db.commit()
+                await self.db.commit()
         
         return flow_state
 
@@ -360,9 +365,8 @@ class SequentialMessageHandler:
             },
         )
 
-        # TODO(async-migration): sync SQLAlchemy add/commit in async method.
         self.db.add(message)
-        self.db.commit()
+        await self.db.commit()
 
         return await self.whatsapp_service.send_message(
             message, flow_context=flow_context
@@ -383,12 +387,10 @@ class SequentialMessageHandler:
         from app.core.monthly_quiz_config import get_monthly_quiz_config
         from app.utils.timezone import SAO_PAULO_TZ
 
-        templates = (
-            # TODO(async-migration): sync SQLAlchemy query in async method.
-            self.db.query(QuizTemplate)
-            .filter(QuizTemplate.is_active.is_(True))
-            .all()
+        _tmpl_result = await self.db.execute(
+            select(QuizTemplate).filter(QuizTemplate.is_active.is_(True))
         )
+        templates = _tmpl_result.scalars().all()
         if not templates:
             raise ValueError("No active quiz template found for monthly quiz link")
 
@@ -421,17 +423,16 @@ class SequentialMessageHandler:
         )
 
         manager = QuizSessionManager(self.db)
-        existing_session = (
-            # TODO(async-migration): sync SQLAlchemy query in async method.
-            self.db.query(QuizSession)
+        _es_result = await self.db.execute(
+            select(QuizSession)
             .filter(QuizSession.patient_id == patient.id)
             .filter(
                 QuizSession.session_metadata["monthly_cycle"].astext
                 == str(monthly_cycle)
             )
             .order_by(QuizSession.started_at.desc())
-            .first()
         )
+        existing_session = _es_result.scalar_one_or_none()
 
         if existing_session:
             link_response = await manager.regenerate_link(existing_session.id)
@@ -446,18 +447,15 @@ class SequentialMessageHandler:
             link_response = await manager.create_quiz_link(link_data)
 
         if link_response.session_id:
-            session = (
-                # TODO(async-migration): sync SQLAlchemy query in async method.
-                self.db.query(QuizSession)
-                .filter(QuizSession.id == link_response.session_id)
-                .first()
+            _sess_result = await self.db.execute(
+                select(QuizSession).filter(QuizSession.id == link_response.session_id)
             )
+            session = _sess_result.scalar_one_or_none()
             if session:
                 metadata = session.session_metadata or {}
                 metadata["monthly_cycle"] = monthly_cycle
                 session.session_metadata = metadata
-                # TODO(async-migration): sync SQLAlchemy commit in async method.
-                self.db.commit()
+                await self.db.commit()
 
         return content.replace(placeholder, link_response.link_url)
     
@@ -526,9 +524,8 @@ class SequentialMessageHandler:
             step_data.pop("pending_response_context", None)
         flow_state.step_data = step_data
         flow_state.last_interaction_at = now_sao_paulo()
-        # TODO(async-migration): sync SQLAlchemy commit in async method.
-        self.db.commit()
-        
+        await self.db.commit()
+
         return {"status": "ok", "sent_count": sent_count, "mode": "sequential_auto"}
     
     async def _send_wait_each_with_auto_advance(
@@ -574,7 +571,7 @@ class SequentialMessageHandler:
 
             if expects_response:
                 # Persist awaiting_response before send to avoid missing fast replies
-                self._set_flow_progress(
+                await self._set_flow_progress(
                     flow_state,
                     message_index=current_index,
                     awaiting_response=True,
@@ -593,7 +590,7 @@ class SequentialMessageHandler:
             if not success:
                 if expects_response:
                     # Revert awaiting flag on failure
-                    self._set_flow_progress(
+                    await self._set_flow_progress(
                         flow_state,
                         message_index=current_index,
                         awaiting_response=False,
@@ -601,9 +598,9 @@ class SequentialMessageHandler:
                         flow_kind=flow_kind,
                     )
                 return {"status": "error", "message": f"Failed to send message {current_index}"}
-            
+
             sent_count += 1
-            
+
             # Update flow state
             if expects_response:
                 # Stop here and wait for patient response
@@ -613,7 +610,7 @@ class SequentialMessageHandler:
                     day_number=day_number,
                     message_index=current_index,
                 )
-                self._set_flow_progress(
+                await self._set_flow_progress(
                     flow_state,
                     message_index=current_index,
                     awaiting_response=True,
@@ -622,17 +619,17 @@ class SequentialMessageHandler:
                     flow_kind=flow_kind,
                     pending_message_id=pending_message_id,
                 )
-                
+
                 return {
                     "status": "waiting",
                     "message_index": current_index,
                     "awaiting_response": True,
                     "sent_count": sent_count
                 }
-            
+
             # Message doesn't expect response - auto-advance to next
             current_index += 1
-            self._set_flow_progress(
+            await self._set_flow_progress(
                 flow_state,
                 message_index=current_index - 1,
                 awaiting_response=False,
@@ -654,9 +651,8 @@ class SequentialMessageHandler:
         step_data.pop("pending_response_context", None)
         flow_state.step_data = step_data
         flow_state.last_interaction_at = now_sao_paulo()
-        # TODO(async-migration): sync SQLAlchemy commit in async method.
-        self.db.commit()
-        
+        await self.db.commit()
+
         return {"status": "complete", "sent_count": sent_count, "day": day_number}
     
     async def _send_message_and_wait(
@@ -685,7 +681,7 @@ class SequentialMessageHandler:
         expects_response = msg.get("expects_response", True)
 
         # Persist awaiting_response before send to avoid missing fast replies
-        self._set_flow_progress(
+        await self._set_flow_progress(
             flow_state,
             message_index=index,
             awaiting_response=expects_response,
@@ -704,7 +700,7 @@ class SequentialMessageHandler:
             )
         except Exception:
             # Revert awaiting flag on failure
-            self._set_flow_progress(
+            await self._set_flow_progress(
                 flow_state,
                 message_index=index,
                 awaiting_response=False,
@@ -713,7 +709,7 @@ class SequentialMessageHandler:
             )
             raise
         if not success:
-            self._set_flow_progress(
+            await self._set_flow_progress(
                 flow_state,
                 message_index=index,
                 awaiting_response=False,
@@ -721,7 +717,7 @@ class SequentialMessageHandler:
                 flow_kind=flow_kind,
             )
             return {"status": "error", "message": "Failed to send flow message"}
-        
+
         # Update flow state after successful send
         pending_message_id = self._resolve_sent_message_id(
             patient_id=patient.id,
@@ -729,7 +725,7 @@ class SequentialMessageHandler:
             day_number=day_number,
             message_index=index,
         )
-        self._set_flow_progress(
+        await self._set_flow_progress(
             flow_state,
             message_index=index,
             awaiting_response=expects_response,
@@ -773,7 +769,7 @@ class SequentialMessageHandler:
             expects_response = msg.get("expects_response", False)
             if expects_response:
                 # Persist awaiting_response before send to avoid missing fast replies
-                self._set_flow_progress(
+                await self._set_flow_progress(
                     flow_state,
                     message_index=message_index,
                     awaiting_response=True,
@@ -790,7 +786,7 @@ class SequentialMessageHandler:
             )
             if not success:
                 if expects_response:
-                    self._set_flow_progress(
+                    await self._set_flow_progress(
                         flow_state,
                         message_index=message_index,
                         awaiting_response=False,
@@ -806,7 +802,7 @@ class SequentialMessageHandler:
                     day_number=day_number,
                     message_index=message_index,
                 )
-                self._set_flow_progress(
+                await self._set_flow_progress(
                     flow_state,
                     message_index=message_index,
                     awaiting_response=True,
@@ -821,7 +817,7 @@ class SequentialMessageHandler:
                     "awaiting_response": True,
                 }
 
-            self._set_flow_progress(
+            await self._set_flow_progress(
                 flow_state,
                 message_index=message_index,
                 awaiting_response=False,
@@ -843,9 +839,8 @@ class SequentialMessageHandler:
         step_data.pop("pending_response_context", None)
         flow_state.step_data = step_data
         flow_state.last_interaction_at = now_sao_paulo()
-        # TODO(async-migration): sync SQLAlchemy commit in async method.
-        self.db.commit()
-        
+        await self.db.commit()
+
         return {"status": "complete", "sent_count": len(remaining)}
 
     
@@ -1114,7 +1109,7 @@ class SequentialMessageHandler:
         message_id = getattr(message, "id", None)
         return str(message_id) if message_id else None
 
-    def _set_flow_progress(
+    async def _set_flow_progress(
         self,
         flow_state: PatientFlowState,
         *,
@@ -1151,11 +1146,10 @@ class SequentialMessageHandler:
             step_data["last_response_at"] = now_sao_paulo().isoformat()
         flow_state.step_data = step_data
         flow_state.last_interaction_at = now_sao_paulo()
-        # TODO(async-migration): sync SQLAlchemy commit in async method.
-        self.db.commit()
+        await self.db.commit()
         return step_data
 
 
-def get_sequential_message_handler(db: Session) -> SequentialMessageHandler:
+def get_sequential_message_handler(db: AsyncSession) -> SequentialMessageHandler:
     """Factory function to get handler instance."""
     return SequentialMessageHandler(db)
