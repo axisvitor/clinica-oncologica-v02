@@ -22,6 +22,9 @@ from typing import Optional, Any, Dict
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text
+
 from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.patient import Patient
 from app.domain.messaging.core import MessageTemplate
@@ -99,7 +102,7 @@ class FlowCore:
     # OPTIMISTIC LOCKING HELPER
     # =============================================================================
 
-    def _commit_flow_state_with_lock(
+    async def _commit_flow_state_with_lock(
         self, flow_state: PatientFlowState, expected_version: int
     ) -> None:
         """
@@ -115,11 +118,11 @@ class FlowCore:
         Raises:
             ConcurrentModificationError: If the record was modified by another process
         """
-        current_version = (
-            self.db.query(PatientFlowState.version)
-            .filter(PatientFlowState.id == flow_state.id)
-            .scalar()
+        # Inline query for async compat (inlined from sync .query() API)
+        result = await self.db.execute(
+            select(PatientFlowState.version).filter(PatientFlowState.id == flow_state.id)
         )
+        current_version = result.scalar_one_or_none()
 
         if current_version is None:
             raise ConcurrentModificationError(
@@ -139,7 +142,7 @@ class FlowCore:
 
         # Increment version and commit
         flow_state.version = expected_version + 1
-        self.db.commit()
+        await self.db.commit()
 
         logger.debug(
             f"Flow state {flow_state.id} updated with optimistic lock: "
@@ -172,25 +175,32 @@ class FlowCore:
             NotFoundError: If patient not found
             ValidationError: If patient already enrolled
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
-        # Get patient
-        patient = self.patient_repo.get(patient_id)
+        # Get patient (inlined from PatientRepository.get() for async compat)
+        result = await self.db.execute(
+            select(Patient).filter(Patient.id == patient_id)
+        )
+        patient = result.scalar_one_or_none()
         if not patient:
             raise NotFoundError(f"Patient {patient_id} not found")
 
         # Check for existing active flow
-        existing_flow = self.flow_state_repo.get_active_flow(patient_id)
+        # Inlined from FlowStateRepository.get_active_flow() for async compat
+        result = await self.db.execute(
+            select(PatientFlowState).filter(
+                PatientFlowState.patient_id == patient_id,
+                PatientFlowState.status == "active",
+            )
+        )
+        existing_flow = result.scalar_one_or_none()
         if existing_flow:
             raise ValidationError("Patient already has active flow")
 
         # Get current template version for the flow type
         # NOTE: Use kind_key column (not flow_type - that's just a property alias)
-        flow_kind = (
-            self.db.query(FlowKind)
-            .filter(FlowKind.kind_key == flow_type.value)
-            .first()
+        result = await self.db.execute(
+            select(FlowKind).filter(FlowKind.kind_key == flow_type.value)
         )
+        flow_kind = result.scalar_one_or_none()
         if not flow_kind:
             raise ValidationError(
                 f"No flow kind found for flow type: {flow_type.value}"
@@ -198,14 +208,13 @@ class FlowCore:
 
         # Get the active version for this flow kind (query the relationship)
         # NOTE: Use flow_kind_id column (not kind_id - that's just a property alias)
-        active_version = (
-            self.db.query(FlowTemplateVersion)
-            .filter(
+        result = await self.db.execute(
+            select(FlowTemplateVersion).filter(
                 FlowTemplateVersion.flow_kind_id == flow_kind.id,
                 FlowTemplateVersion.is_active,
             )
-            .first()
         )
+        active_version = result.scalar_one_or_none()
 
         if not active_version:
             raise ValidationError(
@@ -239,11 +248,11 @@ class FlowCore:
         # Add to session and persist
         self.db.add(flow_state)
         if auto_commit:
-            self.db.commit()
+            await self.db.commit()
         else:
             # Saga/Unit of Work pattern: flush only, caller commits
-            self.db.flush()
-        self.db.refresh(flow_state)
+            await self.db.flush()
+        await self.db.refresh(flow_state)
 
         logger.info(f"Patient {patient_id} enrolled in flow {flow_type.value}")
 
@@ -259,9 +268,14 @@ class FlowCore:
         Returns:
             Current day number
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.flow_state_repo to async, use await
-        flow_state = self.flow_state_repo.get_active_flow(patient_id)
+        # Inlined from FlowStateRepository.get_active_flow() for async compat
+        result = await self.db.execute(
+            select(PatientFlowState).filter(
+                PatientFlowState.patient_id == patient_id,
+                PatientFlowState.status == "active",
+            )
+        )
+        flow_state = result.scalar_one_or_none()
         if not flow_state:
             return 1
 
@@ -314,11 +328,16 @@ class FlowCore:
         Returns:
             Flow advancement result
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
             # Get current flow state
-            flow_state = self.flow_state_repo.get_active_flow(patient_id)
+            # Inlined from FlowStateRepository.get_active_flow() for async compat
+            result = await self.db.execute(
+                select(PatientFlowState).filter(
+                    PatientFlowState.patient_id == patient_id,
+                    PatientFlowState.status == "active",
+                )
+            )
+            flow_state = result.scalar_one_or_none()
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
@@ -372,7 +391,7 @@ class FlowCore:
             flow_state.step_data = step_data
 
             # Commit with optimistic locking to prevent race conditions
-            self._commit_flow_state_with_lock(flow_state, expected_version)
+            await self._commit_flow_state_with_lock(flow_state, expected_version)
 
             # Broadcast flow state change
             await self.flow_broadcaster.broadcast_flow_state_change(
@@ -437,10 +456,15 @@ class FlowCore:
         Returns:
             Pause result
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
-            flow_state = self.flow_state_repo.get_active_flow(patient_id)
+            # Inlined from FlowStateRepository.get_active_flow() for async compat
+            result = await self.db.execute(
+                select(PatientFlowState).filter(
+                    PatientFlowState.patient_id == patient_id,
+                    PatientFlowState.status == "active",
+                )
+            )
+            flow_state = result.scalar_one_or_none()
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
@@ -465,7 +489,7 @@ class FlowCore:
             flow_state.status = "paused"
 
             # Commit with optimistic locking to prevent race conditions
-            self._commit_flow_state_with_lock(flow_state, expected_version)
+            await self._commit_flow_state_with_lock(flow_state, expected_version)
 
             # Broadcast flow pause event
             await self.flow_broadcaster.broadcast_flow_state_change(
@@ -497,10 +521,15 @@ class FlowCore:
         Returns:
             Resume result
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
-            flow_state = self.flow_state_repo.get_active_flow(patient_id)
+            # Inlined from FlowStateRepository.get_active_flow() for async compat
+            result = await self.db.execute(
+                select(PatientFlowState).filter(
+                    PatientFlowState.patient_id == patient_id,
+                    PatientFlowState.status == "active",
+                )
+            )
+            flow_state = result.scalar_one_or_none()
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
@@ -527,7 +556,7 @@ class FlowCore:
             flow_state.status = "active"
 
             # Commit with optimistic locking to prevent race conditions
-            self._commit_flow_state_with_lock(flow_state, expected_version)
+            await self._commit_flow_state_with_lock(flow_state, expected_version)
 
             # Broadcast flow resume event
             await self.flow_broadcaster.broadcast_flow_state_change(
@@ -558,14 +587,23 @@ class FlowCore:
         Returns:
             Flow state information
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(select(...))
         try:
-            patient = self.patient_repo.get(patient_id)
+            # Inlined from PatientRepository.get() for async compat
+            result = await self.db.execute(
+                select(Patient).filter(Patient.id == patient_id)
+            )
+            patient = result.scalar_one_or_none()
             if not patient:
                 raise NotFoundError(f"Patient {patient_id} not found")
 
-            flow_state = self.flow_state_repo.get_active_flow(patient_id)
+            # Inlined from FlowStateRepository.get_active_flow() for async compat
+            result = await self.db.execute(
+                select(PatientFlowState).filter(
+                    PatientFlowState.patient_id == patient_id,
+                    PatientFlowState.status == "active",
+                )
+            )
+            flow_state = result.scalar_one_or_none()
             if not flow_state:
                 return {
                     "status": "no_active_flow",
@@ -789,8 +827,6 @@ class FlowCore:
         Returns:
             Health check results
         """
-        # TODO(async-migration): sync SQLAlchemy calls block event loop
-        # Migration: convert self.db to AsyncSession, use await self.db.execute(text("SELECT 1"))
         results = {
             "flow_core": True,
             "database": True,
@@ -800,7 +836,7 @@ class FlowCore:
 
         try:
             # Test database connection
-            self.db.execute("SELECT 1")
+            await self.db.execute(text("SELECT 1"))
             results["database"] = True
         except Exception as e:
             logger.error(f"Database health check failed: {e}")
