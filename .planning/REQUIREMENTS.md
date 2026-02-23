@@ -16,7 +16,7 @@ Requirements para completar migracao async dos hot paths, viabilizar key rotatio
 
 ### LGPD Compliance
 
-- [ ] **LGPD-04**: Batch re-encryption implementado via Celery task com chunked processing e idempotencia para viabilizar key rotation (LGPD Art. 46)
+- [x] **LGPD-04**: Batch re-encryption implementado via Celery task com chunked processing e idempotencia para viabilizar key rotation (LGPD Art. 46)
 
 ### AI Reliability
 

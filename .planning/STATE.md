@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 06-async-hot-path-migration
-Plan: 05 (next after 06-02 complete)
-Status: In progress — 06-01, 06-02, 06-03, 06-04 complete, 06-05 remaining
-Last activity: 2026-02-23 — Completed 06-02: FlowCore AsyncSession migration (7 TODOs in flow_core.py + flows router DI update)
+Phase: 07-lgpd-key-rotation
+Plan: 01 complete (1 of 1 phase-07 plans complete)
+Status: Phase 07 complete — 07-01 done
+Last activity: 2026-02-23 — Completed 07-01: LGPD batch re-encryption Celery task (batch_reencrypt_patients with chunked processing, Redis idempotency, 6 tests)
 
-Progress: [████████░░] ~80% (4 of ~5 phase-06 plans complete)
+Progress: [██████████] 100% (1 of 1 phase-07 plans complete)
 
 ## Accumulated Context
 
@@ -60,8 +60,14 @@ RESOLVED (2026-02-23):
 - sequential_message_handler.py (12 TODOs) — DONE in 06-01
 - flow_core.py (7 TODOs) + flows router DI — DONE in 06-02 (ASYNC-02)
 
+**Phase 07-01 decisions (2026-02-23):**
+- Secrets never as Celery task args — env var names passed as args, values read inside task body via os.environ (prevents PHI appearing in broker/backend logs)
+- has_more detection via last_batch_size == chunk_size after while loop exits — handles max_patients exact-boundary edge case
+- Per-patient errors counted/logged but do not abort batch — allows partial success and safe resume
+- rotate_encryption_key() only updates in-memory keys, explicitly delegates DB re-encryption to lgpd.batch_reencrypt_patients Celery task
+
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 06-02-PLAN.md (FlowCore AsyncSession migration — all 7 TODO sites resolved)
-Resume file: /gsd:execute-phase 06 (next plan: 06-05 if any remaining)
+Stopped at: Completed 07-01-PLAN.md (LGPD batch re-encryption Celery task — LGPD-04 satisfied)
+Resume file: /gsd:execute-phase 08 (if next phase exists)
