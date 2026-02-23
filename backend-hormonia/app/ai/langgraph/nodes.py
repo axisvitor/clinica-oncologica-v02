@@ -667,11 +667,6 @@ async def _prepare_dispatch_execution_context(
     }, None
 
 
-# AI generation and tone-adjustment nodes are defined in nodes_ai.
-from .nodes_ai import (  # noqa: F401, E402
-    generate_node,
-    humanize_node,
-    sentiment_node,
-    question_variation_node,
-    empathetic_follow_up_node,
-)
+# Note: AI generation node wrappers (generate_node, humanize_node, sentiment_node,
+# question_variation_node, empathetic_follow_up_node) removed in Phase 8 (AI-03).
+# Helper functions remain in nodes_ai.py. Use GeminiDomainClient methods directly.

@@ -1,4 +1,7 @@
-"""LangGraph AI processing nodes that call the Gemini client."""
+"""AI helper functions for prompt building and output parsing.
+
+Node wrappers removed in Phase 8 (AI-03) — logic moved to GeminiDomainClient and direct callers.
+"""
 
 from __future__ import annotations
 
@@ -7,15 +10,8 @@ import logging
 import re
 from typing import Any, Dict
 
-from app.services.ai.guardrails import OutputKind
-from app.services.ai.output_profiles import (
-    JSON_SENTIMENT,
-    MESSAGE_HUMANIZED,
-    MESSAGE_STANDARD,
-)
 from app.schemas.ai_schemas import AIResponseValidation
 
-from .ai_state import AIState, validate_ai_state
 from .prompts import (
     _replace_patient_name,
     build_empathetic_prompt,
@@ -146,19 +142,6 @@ def _get_gemini_client():
     return get_gemini_client()
 
 
-def _validate_ai_state_for_node(
-    state: AIState,
-    *,
-    required_keys: tuple[str, ...],
-    node_name: str,
-) -> AIState:
-    try:
-        return validate_ai_state(state, required_keys=required_keys)
-    except (TypeError, ValueError):
-        logger.exception("AI state validation failed in %s", node_name)
-        raise
-
-
 def _parse_sentiment_analysis(text: str) -> Dict[str, Any]:
     from json import JSONDecodeError
 
@@ -169,149 +152,3 @@ def _parse_sentiment_analysis(text: str) -> Dict[str, Any]:
 
     validated = AIResponseValidation.validate_sentiment(parsed)
     return validated.model_dump()
-
-
-async def humanize_node(state: AIState) -> AIState:
-    """Node for humanizing a template message."""
-    state = _validate_ai_state_for_node(
-        state,
-        required_keys=("template",),
-        node_name="humanize_node",
-    )
-    client = _get_gemini_client()
-    context = state.get("context", {}) or {}
-    patient_name = context.get("patient_name") or context.get("name") or "Paciente"
-    recent_interactions = _coerce_recent_interactions(
-        context.get("recent_interactions"),
-        fallback_history=state.get("history"),
-    )
-    template = state.get("template", "") or ""
-    template = _replace_patient_name(template, patient_name)
-    metadata = state.get("metadata") or {}
-    prompt = build_humanization_prompt(
-        template=template,
-        ai_instructions=metadata.get("ai_instructions"),
-        recent_interactions=recent_interactions,
-    )
-    output = await client.generate_content(
-        prompt,
-        profile=MESSAGE_HUMANIZED,
-    )
-    return {**state, "output": output, "confidence": 0.9}
-
-
-async def sentiment_node(state: AIState) -> AIState:
-    """Node for analyzing patient response sentiment."""
-    state = _validate_ai_state_for_node(
-        state,
-        required_keys=("input_text",),
-        node_name="sentiment_node",
-    )
-    client = _get_gemini_client()
-    context = state.get("context", {}) or {}
-    from app.ai.context_compactor import compact_patient_context
-
-    context_snapshot = compact_patient_context(context)
-    prompt = build_sentiment_prompt(
-        response=state.get("input_text", ""),
-        context_snapshot=context_snapshot,
-    )
-    analysis_text = await client.generate_content(
-        prompt,
-        profile=JSON_SENTIMENT,
-    )
-    analysis = _parse_sentiment_analysis(analysis_text)
-    return {**state, "output": analysis, "confidence": analysis.get("confidence", 0.0)}
-
-
-async def question_variation_node(state: AIState) -> AIState:
-    """Node for question variation."""
-    state = _validate_ai_state_for_node(
-        state,
-        required_keys=("input_text",),
-        node_name="question_variation_node",
-    )
-    client = _get_gemini_client()
-    context = state.get("context", {}) or {}
-    patient_name = context.get("patient_name") or context.get("name") or ""
-    recent_interactions = _coerce_recent_interactions(
-        context.get("recent_interactions"),
-        fallback_history=state.get("history"),
-    )
-    recent_questions = _extract_recent_questions(
-        recent_interactions,
-        state.get("history"),
-    )
-    metadata = state.get("metadata") or {}
-    base_question = _replace_patient_name(state.get("input_text", "") or "", patient_name)
-    prompt = build_question_variation_prompt(
-        base_question=base_question,
-        ai_instructions=metadata.get("ai_instructions"),
-        recent_interactions=recent_interactions,
-    )
-    output = await client.generate_content(
-        prompt,
-        profile=MESSAGE_STANDARD,
-    )
-    if _is_too_similar_to_recent(output, recent_questions):
-        output = _build_non_repetitive_question(base_question, recent_questions)
-    return {**state, "output": output, "confidence": 0.9}
-
-
-async def empathetic_follow_up_node(state: AIState) -> AIState:
-    """Node for empathetic follow-up generation."""
-    state = _validate_ai_state_for_node(
-        state,
-        required_keys=("input_text",),
-        node_name="empathetic_follow_up_node",
-    )
-    client = _get_gemini_client()
-    context = state.get("context", {}) or {}
-    from app.ai.context_compactor import compact_patient_context
-
-    context_snapshot = compact_patient_context(context)
-    metadata = state.get("metadata") or {}
-    prompt = build_empathetic_prompt(
-        patient_response=state.get("input_text", "") or "",
-        conversation_history=state.get("history", []) or [],
-        context_snapshot=context_snapshot,
-        examples=metadata.get("few_shot_examples") or [],
-        allow_questions=bool(metadata.get("allow_questions", False)),
-        day_complete=bool(metadata.get("day_complete", False)),
-    )
-    output = await client.generate_content(
-        prompt,
-        profile=MESSAGE_HUMANIZED,
-    )
-    return {**state, "output": output, "confidence": 0.9}
-
-
-async def generate_node(state: AIState) -> AIState:
-    """Node for generic content generation."""
-    state = _validate_ai_state_for_node(
-        state,
-        required_keys=("input_text",),
-        node_name="generate_node",
-    )
-    client = _get_gemini_client()
-    # Extract parameters
-    prompt = state.get("input_text", "")
-    output_kind_str = state.get("output_kind", "message")
-
-    try:
-        output_kind = OutputKind(output_kind_str)
-    except ValueError:
-        output_kind = OutputKind.MESSAGE
-
-    metadata = dict(state.get("metadata") or {})
-    profile = metadata.pop("profile", None)
-
-    # Delegate to GeminiClient
-    output = await client.generate_content(
-        prompt=prompt,
-        profile=profile,
-        output_kind=output_kind,
-        **metadata
-    )
-
-    return {**state, "output": output}
