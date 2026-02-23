@@ -24,7 +24,7 @@ Full details: `.planning/milestones/v1.0-ROADMAP.md`
 
 - [x] **Phase 6: Async Hot Path Migration** - Migrar os tres hot paths de banco de dados para AsyncSession (completed 2026-02-23)
 - [ ] **Phase 7: LGPD Key Rotation** - Implementar batch re-encryption para viabilizar rotaçao de chaves criptograficas
-- [ ] **Phase 8: AI Rationalization** - Simplificar cinco grafos single-node e adicionar circuit breaker para Gemini
+- [x] **Phase 8: AI Rationalization** - Simplificar cinco grafos single-node e adicionar circuit breaker para Gemini (completed 2026-02-23)
 - [ ] **Phase 9: Observability** - Substituir metricas hardcoded por instrumentaçao real e corrigir WebSocket scaling
 
 ## Phase Details
@@ -65,7 +65,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. Os grafos `humanization`, `sentiment`, `generation`, `question_variation` e `empathetic_follow_up` nao existem mais como StateGraph compilados — as chamadas Gemini correspondentes passam diretamente por `GeminiClient.generate_content()`
   2. Um circuit breaker envolve chamadas Gemini — quando Gemini retorna 5xx ou timeout repetidamente, o circuit breaker abre e `FeatureNotAvailableError` e levantado em vez de retry infinito
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 08-01-PLAN.md -- Remove 5 single-node LangGraph graphs, migrate all callers to direct GeminiClient.generate_content() (AI-03)
@@ -100,7 +100,7 @@ Phases 6-9 continue from v1.0. Phase 8 can begin after Phase 5 (already done), i
 | 5. Flow Consolidation | v1.0 | 2/2 | Complete | 2026-02-22 |
 | 6. Async Hot Path Migration | 4/4 | Complete   | 2026-02-23 | - |
 | 7. LGPD Key Rotation | v1.1 | 0/1 | Planned | - |
-| 8. AI Rationalization | v1.1 | 0/2 | Not started | - |
+| 8. AI Rationalization | 2/2 | Complete   | 2026-02-23 | - |
 | 9. Observability | v1.1 | 0/3 | Not started | - |
 
 ---

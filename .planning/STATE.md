@@ -66,6 +66,13 @@ RESOLVED (2026-02-23):
 - Per-patient errors counted/logged but do not abort batch — allows partial success and safe resume
 - rotate_encryption_key() only updates in-memory keys, explicitly delegates DB re-encryption to lgpd.batch_reencrypt_patients Celery task
 
+**Phase 08-01 decisions (2026-02-23):**
+- Lazy imports (inside method bodies) for nodes_ai helpers and prompt builders in client_domain.py — avoids circular imports at module load
+- EmpathyGenerator.ai_graph parameter retained with None default for API compat; parameter is unused after Phase 8 migration
+- _get_ai_graph() method removed from FollowUpSystemService — no callers remain after EmpathyGenerator refactor
+- get_ai_graph() module-level function removed from response_processor/processor.py — was a thin wrapper around deleted get_sentiment_graph()
+- Monkeypatch approach in test_nodes_question_variation.py simplified: removed prompt builder monkeypatching since builders are lazily imported; tests verify behavior instead
+
 **Phase 08-02 decisions (2026-02-23):**
 - Import FeatureNotAvailableError from app.core.exceptions (not re-defined locally) — single source of truth
 - Positional args for FeatureNotAvailableError constructor: (message, graph_name='gemini', operation='generate_content') — matches __init__ signature
@@ -76,5 +83,5 @@ RESOLVED (2026-02-23):
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 08-02-PLAN.md (Circuit breaker exception type fix — AI-04 satisfied)
+Stopped at: Completed 08-01-PLAN.md (Remove single-node LangGraph wrappers — AI-03 satisfied)
 Resume file: /gsd:execute-phase 09 (if next phase exists)
