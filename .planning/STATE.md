@@ -81,6 +81,13 @@ RESOLVED (2026-02-23):
 - Monkeypatch call_gemini on circuit breaker instance (not class) to isolate the exact used_fallback=True path
 - Stale .pyc files from 08-01 caused router ImportError — cleared bytecode cache to unblock tests (no source change needed)
 
+**Phase 09-01 decisions (2026-02-23):**
+- Use get_redis_manager() factory (not a redis_manager singleton) — matches actual app.core.redis_manager package API
+- Sync pipeline in _push_duration_to_redis: LPUSH + LTRIM(0,99) + EXPIRE(86400) — atomicity and bounded growth (100 samples max, 24h TTL)
+- Silent except (pass) in write path: metrics writes never interfere with task execution
+- _read_avg_task_duration returns 0.0 on empty list or any error — health endpoint never crashes from Redis issues
+- round(..., 3) on computed average prevents floating-point noise in JSON response
+
 **Phase 09-02 decisions (2026-02-23):**
 - Hardcoded Mon-Fri 08:00-17:00 defaults inside get_available_slots() — no physician preferences DB model exists for v1.1; comment directs future expansion to a physician preferences table
 - booked_starts uses set() with any() overlap check — appropriate for single-physician appointment counts in a date range (no interval tree needed)
@@ -94,5 +101,5 @@ RESOLVED (2026-02-23):
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 09-02-PLAN.md (Physician availability slot generation — OBS-02 satisfied) and 09-03-PLAN.md (RedisPubSubManager method name fix — OBS-03 satisfied)
+Stopped at: Completed 09-01-PLAN.md (Celery task duration Redis instrumentation — OBS-01 satisfied)
 Resume file: /gsd:execute-phase 09 (continue remaining phase-09 plans if any)
