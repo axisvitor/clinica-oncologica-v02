@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Request, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import redis.asyncio as redis
 
@@ -25,7 +26,7 @@ from ..models.message import (
     WhatsAppInstance,
 )
 from app.models.message_events import MessageStatusEvent
-from app.database import get_db
+from app.database import get_async_db
 from app.utils.rate_limiter import limiter, check_rate_limit_redis
 from app.config import settings
 from app.services.webhook.idempotency import AtomicWebhookIdempotency
@@ -301,7 +302,7 @@ async def _handle_evolution_webhook(
     instance_name: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: Session,
+    db: AsyncSession,
     event_override: Optional[str] = None,
 ):
     """Shared Evolution webhook handler for base and event-specific routes."""
@@ -461,7 +462,7 @@ async def evolution_webhook(
     instance_name: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Handle Evolution API webhooks for WhatsApp events.
@@ -485,7 +486,7 @@ async def evolution_webhook_by_event(
     event_name: str,
     request: Request,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Handle Evolution webhooks when events are sent as path segments."""
     return await _handle_evolution_webhook(
@@ -557,7 +558,7 @@ async def handle_message_upsert(
     instance_name: str,
     data: Dict[str, Any],
     background_tasks: BackgroundTasks,
-    db: Session,
+    db: AsyncSession,
 ):
     """Handle incoming messages with idempotency protection and proper transaction management."""
     try:

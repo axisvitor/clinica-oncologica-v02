@@ -107,7 +107,7 @@ class MessageWebhookHandler:
         Initialize message handler with required services.
 
         Args:
-            db: Database session
+            db: Database session (AsyncSession when called from FastAPI webhook route)
         """
         self.db = db
         self.message_service = MessageService(db)

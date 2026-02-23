@@ -480,6 +480,10 @@ class HiveMindIntegrationService:
                 SequentialMessageHandler,
             )
 
+            # Note: HiveMindIntegrationService receives db_session from the agent
+            # framework (sync Session via SessionLocal). SequentialMessageHandler now
+            # expects AsyncSession for the FastAPI hot-path. This Hive-Mind agent path
+            # should be migrated to AsyncSession in a follow-up task.
             handler = SequentialMessageHandler(self.db_session)
 
             for patient, _flow_state in patients:
