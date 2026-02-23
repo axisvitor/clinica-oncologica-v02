@@ -283,6 +283,7 @@ def batch_reencrypt_patients(
     errors = 0
     offset = 0
     has_more = False
+    last_batch_size = 0
 
     with get_scoped_session() as db:
         while processed < max_patients:
@@ -297,6 +298,8 @@ def batch_reencrypt_patients(
 
             if not batch:
                 break
+
+            last_batch_size = len(batch)
 
             for patient in batch:
                 if processed >= max_patients:
@@ -334,7 +337,7 @@ def batch_reencrypt_patients(
                 meta={"processed": processed, "re_encrypted": re_encrypted},
             )
 
-            if len(batch) < chunk_size:
+            if last_batch_size < chunk_size:
                 # Last chunk was smaller than chunk_size — no more rows
                 break
 
@@ -342,6 +345,10 @@ def batch_reencrypt_patients(
                 break
 
             offset += chunk_size
+
+        # If we hit max_patients exactly and the last batch was full, more rows may exist
+        if processed >= max_patients and last_batch_size == chunk_size and not has_more:
+            has_more = True
 
     logger.info(
         "Completed batch re-encryption job_id=%s processed=%d re_encrypted=%d "
