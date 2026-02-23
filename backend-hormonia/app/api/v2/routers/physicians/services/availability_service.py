@@ -54,10 +54,8 @@ class PhysicianAvailabilityService:
         Returns:
             List of available time slots with metadata
         """
-        _ = slot_duration_minutes  # Reserved for future slot generation logic.
-
         # Get existing appointments in the range
-        self.db.query(Appointment).filter(
+        booked_appointments = self.db.query(Appointment).filter(
             Appointment.practitioner_id == physician_id,
             Appointment.scheduled_at >= datetime.combine(start_date, time.min),
             Appointment.scheduled_at <= datetime.combine(end_date, time.max),
@@ -70,9 +68,43 @@ class PhysicianAvailabilityService:
             ),
         ).order_by(Appointment.scheduled_at).all()
 
-        # TODO: Implement slot generation logic based on working hours
-        # This would typically come from physician preferences/settings
+        # Build a set of booked start times for O(1) overlap checking
+        booked_starts = set()
+        for appt in booked_appointments:
+            appt_time = appt.scheduled_at
+            if appt_time is not None:
+                if appt_time.tzinfo is None:
+                    appt_time = appt_time.replace(tzinfo=timezone.utc)
+                booked_starts.add(appt_time)
+
+        # Default working hours for v1.1 — no DB model exists yet.
+        # Future: load from physician preferences/settings table.
+        WORK_START = time(8, 0)
+        WORK_END = time(17, 0)
+        WORK_DAYS = {0, 1, 2, 3, 4}  # Monday=0 through Friday=4
+
+        # Generate slots by iterating each day in the date range
         available_slots = []
+        current_date = start_date
+        while current_date <= end_date:
+            if current_date.weekday() in WORK_DAYS:
+                slot_start = datetime.combine(current_date, WORK_START).replace(tzinfo=timezone.utc)
+                end_of_day = datetime.combine(current_date, WORK_END).replace(tzinfo=timezone.utc)
+                while slot_start + timedelta(minutes=slot_duration_minutes) <= end_of_day:
+                    slot_end = slot_start + timedelta(minutes=slot_duration_minutes)
+                    # A slot is unavailable if any booked appointment starts within [slot_start, slot_end)
+                    is_booked = any(
+                        slot_start <= appt_start < slot_end
+                        for appt_start in booked_starts
+                    )
+                    if not is_booked:
+                        available_slots.append({
+                            "start": slot_start.isoformat(),
+                            "end": slot_end.isoformat(),
+                            "duration_minutes": slot_duration_minutes,
+                        })
+                    slot_start += timedelta(minutes=slot_duration_minutes)
+            current_date += timedelta(days=1)
 
         return available_slots
 
