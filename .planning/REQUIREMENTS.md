@@ -21,7 +21,7 @@ Requirements para completar migracao async dos hot paths, viabilizar key rotatio
 ### AI Reliability
 
 - [ ] **AI-03**: Simplificar 5 grafos single-node (humanization, sentiment, generation, question_variation, empathetic_follow_up) para chamadas diretas `GeminiClient.generate_content()`
-- [ ] **AI-04**: Adicionar circuit breaker ao redor de chamadas Gemini (FeatureNotAvailableError quando circuit abre)
+- [x] **AI-04**: Adicionar circuit breaker ao redor de chamadas Gemini (FeatureNotAvailableError quando circuit abre)
 
 ### Observability
 

@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 07-lgpd-key-rotation
-Plan: 01 complete (1 of 1 phase-07 plans complete)
-Status: Phase 07 complete — 07-01 done
-Last activity: 2026-02-23 — Completed 07-01: LGPD batch re-encryption Celery task (batch_reencrypt_patients with chunked processing, Redis idempotency, 6 tests)
+Phase: 08-ai-rationalization
+Plan: 02 complete (2 of 2 phase-08 plans complete)
+Status: Phase 08 complete — 08-01 and 08-02 done
+Last activity: 2026-02-23 — Completed 08-02: Circuit breaker exception type fix (FeatureNotAvailableError on circuit-open in GeminiClient, 4 unit tests, AI-04 satisfied)
 
-Progress: [██████████] 100% (1 of 1 phase-07 plans complete)
+Progress: [██████████] 100% (2 of 2 phase-08 plans complete)
 
 ## Accumulated Context
 
@@ -66,8 +66,15 @@ RESOLVED (2026-02-23):
 - Per-patient errors counted/logged but do not abort batch — allows partial success and safe resume
 - rotate_encryption_key() only updates in-memory keys, explicitly delegates DB re-encryption to lgpd.batch_reencrypt_patients Celery task
 
+**Phase 08-02 decisions (2026-02-23):**
+- Import FeatureNotAvailableError from app.core.exceptions (not re-defined locally) — single source of truth
+- Positional args for FeatureNotAvailableError constructor: (message, graph_name='gemini', operation='generate_content') — matches __init__ signature
+- Test uses GeminiClient.__new__() with minimal manual init to avoid real API/Redis calls in unit tests
+- Monkeypatch call_gemini on circuit breaker instance (not class) to isolate the exact used_fallback=True path
+- Stale .pyc files from 08-01 caused router ImportError — cleared bytecode cache to unblock tests (no source change needed)
+
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 07-01-PLAN.md (LGPD batch re-encryption Celery task — LGPD-04 satisfied)
-Resume file: /gsd:execute-phase 08 (if next phase exists)
+Stopped at: Completed 08-02-PLAN.md (Circuit breaker exception type fix — AI-04 satisfied)
+Resume file: /gsd:execute-phase 09 (if next phase exists)
