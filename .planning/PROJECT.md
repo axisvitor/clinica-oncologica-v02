@@ -41,6 +41,19 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - ✓ Dual flow system eliminado: FlowDispatcher facade + QW-021 deletado — v1.0
 - ✓ Integration tests para flow unificado (onboarding, advancement, alerts) — v1.0
 
+## Current Milestone: v1.1 Architecture & Observability
+
+**Goal:** Complete async migration of hot paths, enable LGPD key rotation, rationalize AI layer, and add real observability.
+
+**Target features:**
+- AsyncSession migration for webhook handler, flow advancement, quiz processing, saga orchestrator
+- Batch re-encryption Celery task for LGPD key rotation
+- Replace 5 single-node LangGraph graphs with direct GeminiClient calls
+- Gemini circuit breaker
+- Real Celery task metrics (replace hardcoded 2.5s)
+- Physician availability slot generation
+- WebSocket multi-instance scaling via Redis pub/sub
+
 ### Active
 
 - [ ] Migrar hot paths para AsyncSession (webhook, flow, quiz, saga)
@@ -95,4 +108,4 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 | async_to_sync as sole sync→async bridge | Eliminates asyncio.run() memory leaks; matches 15+ existing task files | ✓ Good (v1.0) |
 
 ---
-*Last updated: 2026-02-22 after v1.0 milestone*
+*Last updated: 2026-02-22 after v1.1 milestone start*

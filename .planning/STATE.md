@@ -5,22 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** v1.0 complete — planning v1.1 (Phases 6-9)
+**Current focus:** Milestone v1.1 — Architecture & Observability (defining requirements)
 
 ## Current Position
 
-Milestone: v1.0 SHIPPED (2026-02-22) — 5 phases, 13 plans, 28 tasks
-Next milestone: v1.1 Architecture & Observability (Phases 6-9)
-Status: Between milestones — run /gsd:new-milestone to start v1.1
-Last activity: 2026-02-22 — v1.0 milestone completed and archived
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for v1.1
+Last activity: 2026-02-22 — Milestone v1.1 started
 
-Progress: [██████████] 100% (v1.0)
-
-## v1.0 Summary
-
-**Delivered:** Security hardening, LGPD compliance, operational stability, AI reliability, flow consolidation
-**Stats:** 38 commits, 72 files changed, net -9,314 LOC
-**Archive:** .planning/milestones/v1.0-ROADMAP.md, .planning/milestones/v1.0-REQUIREMENTS.md
+Progress: [░░░░░░░░░░] 0%
 
 ## Accumulated Context
 
@@ -43,5 +37,5 @@ Carried forward from v1.0 (relevant to v1.1):
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: v1.0 milestone completed and archived
-Resume file: /gsd:new-milestone (start v1.1)
+Stopped at: Milestone v1.1 started — defining requirements
+Resume file: /gsd:new-milestone (in progress)
