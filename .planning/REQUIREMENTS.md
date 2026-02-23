@@ -37,7 +37,7 @@ Requirements para completar migracao async dos hot paths, viabilizar key rotatio
 | ASYNC-02 | Phase 6 | 06-02 | Complete |
 | ASYNC-03 | Phase 6 | 06-03 | Complete |
 | ASYNC-05 | Phase 6 | 06-04 | Complete |
-| LGPD-04 | Phase 7 | 07-01 | Pending |
+| LGPD-04 | Phase 7 | 07-01 | Complete |
 | AI-03 | Phase 8 | 08-01 | Pending |
 | AI-04 | Phase 8 | 08-02 | Pending |
 | OBS-01 | Phase 9 | 09-01 | Pending |
