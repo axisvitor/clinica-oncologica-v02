@@ -37,6 +37,7 @@ celery_app = Celery(
         "app.tasks.monitoring",
         "app.tasks.audit_cleanup",
         "app.tasks.lgpd_tasks",
+        "app.tasks.lgpd.reencrypt_patients",
     ],
 )
 

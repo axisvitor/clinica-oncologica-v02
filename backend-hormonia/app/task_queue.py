@@ -29,6 +29,7 @@ _TASK_MODULES = [
     "app.tasks.audit_cleanup",
     "app.tasks.monitoring",
     "app.tasks.lgpd_tasks",
+    "app.tasks.lgpd.reencrypt_patients",
 ]
 _registry_loaded = False
 _TASK_STORE_PREFIX = "tasks:registry:"

@@ -586,39 +586,57 @@ class UnifiedEncryptionService(BaseEncryptionService):
 
     def rotate_encryption_key(self, new_master_key: str) -> bool:
         """
-        Rotate encryption key by re-encrypting all data.
+        Rotate the in-memory encryption key to the new master key.
+
+        This method updates the service's in-memory key state so that all
+        *new* encryptions performed by this service instance will use the
+        rotated key immediately.
+
+        Database re-encryption (re-encrypting existing patient PII fields)
+        is handled separately by the Celery task
+        ``lgpd.batch_reencrypt_patients`` in
+        ``app.tasks.lgpd.reencrypt_patients``.  You MUST invoke that task
+        (with a unique ``job_id``) after calling this method to complete the
+        rotation for data already persisted in the database.
+
+        IMPORTANT: HASH_SALT must NOT be changed during key rotation.  Only
+        the PHI_ENCRYPTION_KEY (AES encryption key) is rotated.  The
+        searchable-hash salt must remain constant across all records.
 
         Args:
-            new_master_key: The new master encryption key
+            new_master_key: The new master encryption key (plaintext passphrase).
 
         Returns:
-            Success status
+            True on success.
 
-        Note:
-            This requires re-encrypting all encrypted data in the database.
-            Should be done during maintenance window.
+        Raises:
+            Exception: Re-raises any key derivation or algorithm init error.
         """
         try:
-            # Store old key temporarily
-            self._keys["phi"]
+            # Preserve the old key reference for diagnostics/logging (not used after rotation)
+            _old_phi_key = self._keys.get("phi")
 
-            # Derive new key
+            # Derive new PHI key from the new master key using the canonical salt
             salt = b"hormonia_unified_salt_2025"
-            new_key = self._derive_key(new_master_key, salt)
+            new_phi_key = self._derive_key(new_master_key, salt)
 
-            # TODO: Implement batch re-encryption
-            # 1. Decrypt all data with old key
-            # 2. Encrypt all data with new key
-            # 3. Update database in transaction
-            # 4. Only commit if all successful
+            # Derive new Fernet key for quiz tokens
+            new_quiz_key = self._derive_fernet_key(new_master_key)
 
-            # Update to new key
-            self._keys["phi"] = new_key
+            # Update in-memory keys
+            self._keys["phi"] = new_phi_key
+            self._keys["quiz"] = new_quiz_key
 
-            # Reinitialize algorithms with new key
+            # Reinitialize algorithms and field encryptors with the new key
             self._initialize_algorithms()
+            self._initialize_field_encryptors()
 
-            logger.info("Encryption key rotated successfully")
+            logger.info(
+                "In-memory encryption key rotated successfully. "
+                "New encryptions will use the rotated key. "
+                "Run Celery task 'lgpd.batch_reencrypt_patients' with a unique job_id "
+                "to re-encrypt existing patient records in the database."
+            )
             return True
 
         except Exception as e:
