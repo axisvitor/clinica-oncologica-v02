@@ -8,9 +8,9 @@ from typing import Dict, Any, Optional
 
 from app.agents.communication.utils import clean_message_content
 from app.ai.client import GeminiClient
-from app.ai.langgraph.graphs import get_generation_graph, get_humanization_graph
 from app.models.patient import Patient
 from app.services.ai.guardrails import OutputKind
+from app.services.ai.output_profiles import MESSAGE_HUMANIZED, MESSAGE_STANDARD
 from app.services.template_loader_pkg import MessageTemplate
 from app.utils.logging import get_logger
 from app.utils.thread_ids import sanitize_thread_component
@@ -76,27 +76,12 @@ class MessageComposer:
             {_OUTPUT_RULES}
             """
 
-            # Use LangGraph Generation Graph
-            graph = get_generation_graph()
-            initial_state = {
-                "input_text": prompt,
-                "output_kind": OutputKind.MESSAGE.value,
-            }
-            
-            result = await graph.ainvoke(
-                initial_state,
-                config={
-                    "configurable": {
-                        "thread_id": self._build_thread_id(
-                            "contextual_message",
-                            patient=patient,
-                            context=context,
-                            detail=message_type,
-                        )
-                    }
-                },
+            # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
+            message_content = await self.gemini_client.generate_content(
+                prompt,
+                output_kind=OutputKind.MESSAGE,
+                profile=MESSAGE_STANDARD,
             )
-            message_content = result.get("output", "")
 
             # Clean and validate message
             if not message_content:
@@ -141,27 +126,12 @@ class MessageComposer:
                 {_OUTPUT_RULES}
                 """
 
-                # Use LangGraph Generation Graph
-                graph = get_generation_graph()
-                initial_state = {
-                    "input_text": personalization_prompt,
-                    "output_kind": OutputKind.MESSAGE.value,
-                }
-                
-                result = await graph.ainvoke(
-                    initial_state,
-                    config={
-                        "configurable": {
-                            "thread_id": self._build_thread_id(
-                                "custom_content",
-                                patient=patient,
-                                context=context,
-                                detail=personalization_level,
-                            )
-                        }
-                    },
+                # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
+                ai_personalized = await self.gemini_client.generate_content(
+                    personalization_prompt,
+                    output_kind=OutputKind.MESSAGE,
+                    profile=MESSAGE_STANDARD,
                 )
-                ai_personalized = result.get("output", "")
                 if not ai_personalized:
                     raise ValueError("AI returned empty personalized content")
                 personalized = clean_message_content(ai_personalized)
@@ -197,27 +167,12 @@ class MessageComposer:
                 {_OUTPUT_RULES}
                 """
 
-                # Use LangGraph Generation Graph
-                graph = get_generation_graph()
-                initial_state = {
-                    "input_text": enhanced_prompt,
-                    "output_kind": OutputKind.MESSAGE.value,
-                }
-                
-                result = await graph.ainvoke(
-                    initial_state,
-                    config={
-                        "configurable": {
-                            "thread_id": self._build_thread_id(
-                                "template_personalization",
-                                patient=patient,
-                                context=context,
-                                detail=personalization_level,
-                            )
-                        }
-                    },
+                # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
+                enhanced_content = await self.gemini_client.generate_content(
+                    enhanced_prompt,
+                    output_kind=OutputKind.MESSAGE,
+                    profile=MESSAGE_STANDARD,
                 )
-                enhanced_content = result.get("output", "")
                 if not enhanced_content:
                     raise ValueError("AI returned empty enhanced content")
                 personalized_content = clean_message_content(enhanced_content)
@@ -255,27 +210,12 @@ class MessageComposer:
             {_OUTPUT_RULES}
             """
 
-            # Use LangGraph Generation Graph
-            graph = get_generation_graph()
-            initial_state = {
-                "input_text": follow_up_prompt,
-                "output_kind": OutputKind.MESSAGE.value,
-            }
-            
-            result = await graph.ainvoke(
-                initial_state,
-                config={
-                    "configurable": {
-                        "thread_id": self._build_thread_id(
-                            "follow_up",
-                            patient=patient,
-                            context=previous_interaction,
-                            detail=follow_up_reason,
-                        )
-                    }
-                },
+            # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
+            follow_up_content = await self.gemini_client.generate_content(
+                follow_up_prompt,
+                output_kind=OutputKind.MESSAGE,
+                profile=MESSAGE_STANDARD,
             )
-            follow_up_content = result.get("output", "")
             if not follow_up_content:
                 raise ValueError("AI returned empty follow-up")
 
@@ -319,28 +259,12 @@ class MessageComposer:
             {_OUTPUT_RULES}
             """
 
-            # Use LangGraph Generation Graph
-            graph = get_generation_graph()
-            initial_state = {
-                "input_text": quiz_prompt,
-                "output_kind": OutputKind.MESSAGE.value,
-            }
-            
-            result = await graph.ainvoke(
-                initial_state,
-                config={
-                    "configurable": {
-                        "thread_id": self._build_thread_id(
-                            "quiz_message",
-                            patient=patient,
-                            context=quiz_context,
-                            detail=question_data.get("id")
-                            or question_data.get("type"),
-                        )
-                    }
-                },
+            # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
+            quiz_message = await self.gemini_client.generate_content(
+                quiz_prompt,
+                output_kind=OutputKind.MESSAGE,
+                profile=MESSAGE_STANDARD,
             )
-            quiz_message = result.get("output", "")
             if not quiz_message:
                 raise ValueError("AI returned empty quiz message")
 
@@ -388,31 +312,25 @@ class MessageComposer:
     ) -> str:
         """Compose message using AI instructions from template."""
         try:
-            # Use LangGraph Humanization Graph
-            graph = get_humanization_graph()
-            initial_state = {
-                "template": template.base_content,
-                "context": context,
-                "history": context.get("conversation_history", []),
-                "hints": context.get("personalization_hints", []),
-                "metadata": {
-                    "ai_instructions": template.ai_instructions,
-                },
-            }
-            result = await graph.ainvoke(
-                initial_state,
-                config={
-                    "configurable": {
-                        "thread_id": self._build_thread_id(
-                            "flow_template",
-                            context=context,
-                            detail=getattr(template, "id", None)
-                            or getattr(template, "name", None),
-                        )
-                    }
-                },
+            from app.ai.langgraph.nodes_ai import _coerce_recent_interactions, _replace_patient_name
+            from app.ai.langgraph.prompts import build_humanization_prompt
+
+            patient_name = context.get("patient_name", "")
+            recent_interactions = _coerce_recent_interactions(
+                context.get("recent_interactions"),
+                fallback_history=context.get("conversation_history", []),
             )
-            composed_message = result.get("output", "")
+            template_text = _replace_patient_name(template.base_content, patient_name)
+            prompt = build_humanization_prompt(
+                template=template_text,
+                ai_instructions=template.ai_instructions,
+                recent_interactions=recent_interactions,
+            )
+            # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
+            composed_message = await self.gemini_client.generate_content(
+                prompt,
+                profile=MESSAGE_HUMANIZED,
+            )
 
             if not composed_message:
                 raise ValueError("AI returned empty composed message")

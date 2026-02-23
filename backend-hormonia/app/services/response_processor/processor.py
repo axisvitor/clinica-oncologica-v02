@@ -39,7 +39,6 @@ from .extractors import DataExtractor
 from .handlers import ResponseHandlers, QuizResponseHandler
 from .flow_helpers import FlowHelpers
 from app.utils.timezone import now_sao_paulo
-from app.ai.langgraph.graphs import get_sentiment_graph
 from app.services.flow.sequential_response_gate import (
     evaluate_sequential_gate,
     should_record_processed_response,
@@ -52,10 +51,6 @@ logger = logging.getLogger(__name__)
 _follow_up_rehydrated = False
 _follow_up_rehydrate_lock = asyncio.Lock()
 
-
-def get_ai_graph():
-    """Returns the sentiment analysis graph."""
-    return get_sentiment_graph()
 
 
 class ResponseProcessor:

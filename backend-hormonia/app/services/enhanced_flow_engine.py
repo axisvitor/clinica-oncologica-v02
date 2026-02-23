@@ -34,9 +34,8 @@ from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.message import Message, MessageDirection
 from app.ai.client import GeminiClient, get_gemini_client
 import sentry_sdk
-from app.ai.langgraph.graphs import get_humanization_graph, get_sentiment_graph
-from app.ai.langgraph._invoke import invoke_langgraph_graph
 from app.core.exceptions import FeatureNotAvailableError
+from app.services.ai.output_profiles import JSON_SENTIMENT, MESSAGE_HUMANIZED
 from app.services.conversation_memory import ConversationMemory, get_conversation_memory
 from app.services.platform_synchronization import PlatformSynchronizationService
 from app.infrastructure.cache import UnifiedCacheManager as UnifiedCacheService
@@ -417,31 +416,38 @@ class EnhancedFlowEngine(FlowCore):
                         strict=strict,
                     )
                 else:
-                    # Use LangGraph Humanization Graph
-                    graph = get_humanization_graph()
-                    initial_state = {
-                        "template": message_template.base_content,
-                        "context": {**flow_context.to_dict(), "patient_name": patient.name},
-                        "history": conversation_history,
-                        "hints": getattr(message_template, "personalization_hints", []),
-                        "metadata": {
-                            "ai_instructions": getattr(message_template, "ai_instructions", None)
-                        },
-                    }
+                    # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
+                    from app.ai.langgraph.nodes_ai import _coerce_recent_interactions, _replace_patient_name
+                    from app.ai.langgraph.prompts import build_humanization_prompt
+                    recent_interactions = _coerce_recent_interactions(
+                        flow_context.to_dict().get("recent_interactions"),
+                        fallback_history=conversation_history,
+                    )
+                    template_text = _replace_patient_name(
+                        message_template.base_content, patient.name
+                    )
+                    prompt = build_humanization_prompt(
+                        template=template_text,
+                        ai_instructions=getattr(message_template, "ai_instructions", None),
+                        recent_interactions=recent_interactions,
+                    )
                     try:
-                        personalized_message = await invoke_langgraph_graph(
-                            graph=graph,
-                            state=initial_state,
-                            config={"configurable": {"thread_id": f"flow_humanize:{patient_id}"}},
-                            graph_name="humanization_graph",
-                            operation="generate_flow_message",
+                        personalized_message = await self.gemini_client.generate_content(
+                            prompt,
+                            profile=MESSAGE_HUMANIZED,
                         )
+                        if not personalized_message:
+                            raise FeatureNotAvailableError(
+                                "humanization returned no output",
+                                "humanization",
+                                "generate_flow_message",
+                            )
                     except FeatureNotAvailableError as exc:
                         sentry_sdk.capture_exception(exc)
                         logger.error(
                             "Humanization failed, using unhumanized template: %s",
                             exc,
-                            extra={"graph_name": "humanization_graph"},
+                            extra={"feature": "humanization"},
                         )
                         personalized_message = message_template.base_content
 
@@ -548,26 +554,33 @@ class EnhancedFlowEngine(FlowCore):
                     )
 
             if not isinstance(sentiment_analysis, dict):
-                graph = get_sentiment_graph()
-                initial_state = {
-                    "input_text": response_text,
-                    "context": patient_context,
-                }
+                # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
+                from app.ai.langgraph.nodes_ai import _parse_sentiment_analysis
+                from app.ai.langgraph.prompts import build_sentiment_prompt
+                from app.ai.context_compactor import compact_patient_context
                 try:
-                    sentiment_analysis = await invoke_langgraph_graph(
-                        graph=graph,
-                        state=initial_state,
-                        config={"configurable": {"thread_id": f"flow_sentiment:{patient_id}"}},
-                        graph_name="sentiment_graph",
-                        operation="analyze_flow_sentiment",
-                        expect_dict=True,
+                    context_snapshot = compact_patient_context(patient_context)
+                    sentiment_prompt = build_sentiment_prompt(
+                        response=response_text,
+                        context_snapshot=context_snapshot,
                     )
+                    analysis_text = await self.gemini_client.generate_content(
+                        sentiment_prompt,
+                        profile=JSON_SENTIMENT,
+                    )
+                    if not analysis_text:
+                        raise FeatureNotAvailableError(
+                            "sentiment analysis returned no output",
+                            "sentiment",
+                            "analyze_flow_sentiment",
+                        )
+                    sentiment_analysis = _parse_sentiment_analysis(analysis_text)
                 except FeatureNotAvailableError as exc:
                     sentry_sdk.capture_exception(exc)
                     logger.error(
                         "Sentiment analysis failed, using neutral fallback: %s",
                         exc,
-                        extra={"graph_name": "sentiment_graph"},
+                        extra={"feature": "sentiment"},
                     )
                     sentiment_analysis = {"sentiment": "neutral", "confidence": 0.0}
 

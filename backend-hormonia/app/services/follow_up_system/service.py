@@ -343,11 +343,6 @@ class FollowUpSystemService:
             logger.warning(f"Failed to convert dict to EscalationAlert: {e}")
             return None
 
-    async def _get_ai_graph(self):
-        """Get empathetic follow-up graph."""
-        from app.ai.langgraph.graphs import get_empathetic_follow_up_graph
-        return get_empathetic_follow_up_graph()
-
     async def process_response_follow_up(
         self, response_result: ResponseProcessingResult
     ) -> List[FollowUpAction]:
@@ -363,8 +358,8 @@ class FollowUpSystemService:
             # Generate empathetic follow-up
             patient = self.patient_repo.get(patient_id)
             if patient:
-                graph = await self._get_ai_graph()
-                empathy_gen = EmpathyGenerator(graph)
+                # Phase 8 (AI-03): EmpathyGenerator no longer requires a graph object.
+                empathy_gen = EmpathyGenerator()
                 patient_context = self.context_builder.build_patient_context(
                     patient_id, patient
                 )

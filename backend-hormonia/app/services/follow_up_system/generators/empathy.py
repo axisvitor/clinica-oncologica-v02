@@ -1,6 +1,8 @@
 """
 Empathetic follow-up message generator.
 Creates personalized, empathetic messages for patient responses.
+
+Phase 8 (AI-03): Migrated from LangGraph ainvoke() to direct generate_content() calls.
 """
 
 import logging
@@ -23,14 +25,16 @@ logger = logging.getLogger(__name__)
 class EmpathyGenerator(BaseGenerator):
     """Generates empathetic follow-up messages."""
 
-    def __init__(self, ai_graph):
+    def __init__(self, ai_graph=None):
         """
         Initialize empathy generator.
 
         Args:
-            ai_graph: LangGraph graph instance for message generation
+            ai_graph: Unused. Kept for backward compatibility (Phase 8 AI-03: removed).
         """
-        self.ai_graph = ai_graph
+        # ai_graph parameter retained for API compatibility but no longer used.
+        # All generation now goes through GeminiClient.generate_content() directly.
+        pass
 
     async def create_empathetic_follow_up(
         self,
@@ -108,6 +112,8 @@ class EmpathyGenerator(BaseGenerator):
         """
         Generate empathetic message using AI.
 
+        Phase 8 (AI-03): calls generate_content() directly — no LangGraph intermediary.
+
         Args:
             structured_response: Processed response data
             patient_context: Patient context for personalization
@@ -116,35 +122,26 @@ class EmpathyGenerator(BaseGenerator):
             Generated message or None if failed
         """
         try:
-            if not self.ai_graph:
-                return None
+            from app.ai.client import get_gemini_client
+            from app.ai.langgraph.prompts import build_empathetic_prompt
+            from app.ai.context_compactor import compact_patient_context
+            from app.services.ai.output_profiles import MESSAGE_HUMANIZED
 
-            # Generate empathetic response using LangGraph (empathetic follow-up graph)
-            initial_state = {
-                "input_text": structured_response.original_message,
-                "history": (patient_context.recent_responses or []),
-                "context": patient_context.to_dict(),
-                "metadata": {
-                    "allow_questions": allow_questions,
-                    "day_complete": day_complete,
-                },
-            }
-
-            result = await self.ai_graph.ainvoke(
-                initial_state,
-                config={
-                    "configurable": {
-                        "thread_id": self._build_thread_id(
-                            structured_response,
-                            patient_context,
-                            allow_questions=allow_questions,
-                            day_complete=day_complete,
-                        )
-                    }
-                },
+            client = get_gemini_client()
+            context_snapshot = compact_patient_context(patient_context.to_dict())
+            prompt = build_empathetic_prompt(
+                patient_response=structured_response.original_message,
+                conversation_history=list(patient_context.recent_responses or []),
+                context_snapshot=context_snapshot,
+                examples=[],
+                allow_questions=allow_questions,
+                day_complete=day_complete,
             )
-            response_text = result.get("output", "") if isinstance(result, dict) else ""
-            
+            response_text = await client.generate_content(
+                prompt,
+                profile=MESSAGE_HUMANIZED,
+            )
+
             if not self._is_ai_response_safe(response_text):
                 return None
 

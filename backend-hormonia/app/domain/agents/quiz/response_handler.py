@@ -22,7 +22,7 @@ from app.agents.registry import ALERT_ANALYZER_ID, PATIENT_MONITOR_ID, FLOW_COOR
 from app.schemas.quiz import QuestionType, QuizResponseCreate
 from app.services.quiz import QuizResponseService, QuizSessionService
 from app.services.ai.guardrails import OutputKind
-from app.ai.langgraph.graphs import get_generation_graph
+from app.services.ai.output_profiles import MESSAGE_STANDARD
 from app.domain.quizzes.integration.flow_integration.utils import process_quiz_response_with_debounce
 from app.utils.thread_ids import sanitize_thread_component
 from app.utils.timezone import now_sao_paulo
@@ -370,20 +370,14 @@ class ResponseHandler:
             self._logger.error("Failed to persist fallback quiz response: %s", exc)
 
     async def _invoke_interpretation_graph(self, prompt: str, thread_id: str) -> str:
-        """Helper to invoke LangGraph for interpretation."""
-        graph = get_generation_graph()
-        initial_state = {
-            "input_text": prompt,
-            "output_kind": OutputKind.MESSAGE.value,
-            "metadata": {"min_length": 1, "max_length": 50},
-        }
-        result = await graph.ainvoke(
-            initial_state,
-            config={
-                "configurable": {"thread_id": thread_id}
-            },
+        """Helper to call Gemini for interpretation. Phase 8 (AI-03): direct generate_content()."""
+        from app.ai.client import get_gemini_client
+        client = get_gemini_client()
+        return await client.generate_content(
+            prompt,
+            output_kind=OutputKind.MESSAGE,
+            profile=MESSAGE_STANDARD,
         )
-        return result.get("output", "")
 
     async def process_response_with_swarm(
         self, context: "QuizContext", response_text: str

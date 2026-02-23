@@ -10,7 +10,6 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from app.ai.models import PatientContext, ConcernLevel as ModelConcernLevel
-from app.ai.langgraph.graphs import get_sentiment_graph
 from app.ai.client import get_gemini_client
 from app.services.ai.ai_service import get_sentiment_analyzer
 from app.services.ai.guardrails import OutputKind
@@ -52,9 +51,6 @@ class DataExtractionService:
         self.patient_repo = PatientRepository(db)
         self.flow_state_repo = FlowStateRepository(db)
         self.message_repo = MessageRepository(db)
-        self.sentiment_graph = (
-            get_sentiment_graph()
-        )
         self.gemini_client = get_gemini_client()
         self.sentiment_analyzer = None
 
@@ -427,28 +423,27 @@ class DataExtractionService:
                 }
                 health_status["healthy"] = False
 
-            # Check sentiment analyzer
+            # Check sentiment analyzer (Phase 8 AI-03: direct generate_content call)
             try:
-                # Create dummy context for test
+                from app.ai.langgraph.nodes_ai import _parse_sentiment_analysis
+                from app.ai.langgraph.prompts import build_sentiment_prompt
+                from app.ai.context_compactor import compact_patient_context
+                from app.services.ai.output_profiles import JSON_SENTIMENT
                 test_context = PatientContext(
                     patient_id="test",
                     name="Test",
                     treatment_type="test",
                     treatment_day=1,
                 )
-                initial_state = {
-                    "input_text": "Test message",
-                    "context": test_context.to_dict(),
-                }
-                sentiment_thread_id = (
-                    f"sentiment:health_check:patient:{test_context.patient_id}:"
-                    f"day:{test_context.treatment_day}"
+                test_prompt = build_sentiment_prompt(
+                    response="Test message",
+                    context_snapshot=compact_patient_context(test_context.to_dict()),
                 )
-                sentiment_result = await self.sentiment_graph.ainvoke(
-                    initial_state,
-                    config={"configurable": {"thread_id": sentiment_thread_id}},
+                sentiment_text = await self.gemini_client.generate_content(
+                    test_prompt,
+                    profile=JSON_SENTIMENT,
                 )
-                sentiment_data = sentiment_result.get("output", {})
+                sentiment_data = _parse_sentiment_analysis(sentiment_text) if sentiment_text else {}
                 health_status["components"]["sentiment_analyzer"] = {  # type: ignore[index]
                     "healthy": True,
                     "sentiment_detected": bool(sentiment_data.get("sentiment")),

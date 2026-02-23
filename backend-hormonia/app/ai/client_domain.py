@@ -2,13 +2,17 @@
 
 Extends the core GeminiClient with methods for humanization, question variation,
 sentiment analysis, and empathetic follow-up generation.
+
+Phase 8 (AI-03): All methods now call generate_content() directly instead of
+going through single-node LangGraph StateGraph wrappers.
 """
 
 import logging
 from typing import Any, Dict, List, Optional
 
 from app.ai.client import GeminiClient, GeminiAPIError
-from app.ai.langgraph._invoke import invoke_langgraph_graph
+from app.core.exceptions import FeatureNotAvailableError
+from app.services.ai.output_profiles import JSON_SENTIMENT, MESSAGE_HUMANIZED, MESSAGE_STANDARD
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +23,7 @@ class GeminiDomainClient(GeminiClient):
 
     Provides methods for message humanization, question variation,
     sentiment analysis, and empathetic follow-up generation.
-    All methods delegate to LangGraph graphs for structured execution.
+    All methods call generate_content() directly — no LangGraph intermediary.
     """
 
     async def humanize_flow_message(
@@ -49,32 +53,27 @@ class GeminiDomainClient(GeminiClient):
         Returns:
             Humanized message text
         """
-        from app.ai.langgraph.graphs import get_humanization_graph
+        from app.ai.langgraph.nodes_ai import _coerce_recent_interactions, _replace_patient_name
+        from app.ai.langgraph.prompts import build_humanization_prompt
 
-        thread_id = (
-            (patient_context or {}).get("patient_id")
-            or (patient_context or {}).get("id")
-            or patient_name
-            or "humanize"
+        context = {**(patient_context or {}), "patient_name": patient_name}
+        recent_interactions = _coerce_recent_interactions(
+            context.get("recent_interactions"),
+            fallback_history=conversation_history or [],
         )
-        graph = get_humanization_graph()
-        state = {
-            "template": template,
-            "context": {**(patient_context or {}), "patient_name": patient_name},
-            "history": conversation_history or [],
-            "hints": personalization_hints or [],
-            "metadata": {
-                "few_shot_examples": few_shot_examples or [],
-                "ai_instructions": ai_instructions,
-            },
-        }
-        output = await invoke_langgraph_graph(
-            graph=graph,
-            state=state,
-            config={"configurable": {"thread_id": f"humanize:{thread_id}"}},
-            graph_name="humanization_graph",
-            operation="humanize_flow_message",
+        template_with_name = _replace_patient_name(template, patient_name)
+        prompt = build_humanization_prompt(
+            template=template_with_name,
+            ai_instructions=ai_instructions,
+            recent_interactions=recent_interactions,
         )
+        output = await self.generate_content(prompt, profile=MESSAGE_HUMANIZED)
+        if not output:
+            raise FeatureNotAvailableError(
+                "humanization returned no output",
+                "humanization",
+                "humanize_flow_message",
+            )
         logger.info(
             "Message humanized successfully",
             extra={
@@ -108,31 +107,34 @@ class GeminiDomainClient(GeminiClient):
         Returns:
             Varied question text
         """
-        from app.ai.langgraph.graphs import get_question_variation_graph
+        from app.ai.langgraph.nodes_ai import (
+            _coerce_recent_interactions,
+            _extract_recent_questions,
+            _is_too_similar_to_recent,
+            _build_non_repetitive_question,
+            _replace_patient_name,
+        )
+        from app.ai.langgraph.prompts import build_question_variation_prompt
 
-        thread_id = (
-            (patient_context or {}).get("patient_id")
-            or (patient_context or {}).get("id")
-            or (patient_context or {}).get("patient_name")
-            or "question_variation"
+        context = patient_context or {}
+        patient_name = context.get("patient_name") or context.get("name") or ""
+        recent_interactions = _coerce_recent_interactions(
+            context.get("recent_interactions"),
+            fallback_history=previous_questions or [],
         )
-        graph = get_question_variation_graph()
-        state = {
-            "input_text": base_question,
-            "history": previous_questions or [],
-            "context": patient_context or {},
-            "metadata": {
-                "few_shot_examples": few_shot_examples or [],
-                "ai_instructions": ai_instructions,
-            },
-        }
-        output = await invoke_langgraph_graph(
-            graph=graph,
-            state=state,
-            config={"configurable": {"thread_id": f"question_variation:{thread_id}"}},
-            graph_name="question_variation_graph",
-            operation="generate_varied_question",
+        recent_questions = _extract_recent_questions(
+            recent_interactions,
+            previous_questions or [],
         )
+        question_with_name = _replace_patient_name(base_question, patient_name)
+        prompt = build_question_variation_prompt(
+            base_question=question_with_name,
+            ai_instructions=ai_instructions,
+            recent_interactions=recent_interactions,
+        )
+        output = await self.generate_content(prompt, profile=MESSAGE_STANDARD)
+        if _is_too_similar_to_recent(output, recent_questions):
+            output = _build_non_repetitive_question(base_question, recent_questions)
         logger.info(
             "Question variation generated",
             extra={"operation": "question_variation"},
@@ -153,24 +155,23 @@ class GeminiDomainClient(GeminiClient):
         Returns:
             Sentiment analysis results
         """
-        from app.ai.langgraph.graphs import get_sentiment_graph
+        from app.ai.langgraph.nodes_ai import _parse_sentiment_analysis
+        from app.ai.langgraph.prompts import build_sentiment_prompt
+        from app.ai.context_compactor import compact_patient_context
 
-        thread_id = (
-            (patient_context or {}).get("patient_id")
-            or (patient_context or {}).get("id")
-            or (patient_context or {}).get("patient_name")
-            or "sentiment"
+        context_snapshot = compact_patient_context(patient_context or {})
+        prompt = build_sentiment_prompt(
+            response=response,
+            context_snapshot=context_snapshot,
         )
-        graph = get_sentiment_graph()
-        state = {"input_text": response, "context": patient_context or {}}
-        analysis = await invoke_langgraph_graph(
-            graph=graph,
-            state=state,
-            config={"configurable": {"thread_id": f"sentiment:{thread_id}"}},
-            graph_name="sentiment_graph",
-            operation="analyze_response_sentiment",
-            expect_dict=True,
-        )
+        analysis_text = await self.generate_content(prompt, profile=JSON_SENTIMENT)
+        if not analysis_text:
+            raise FeatureNotAvailableError(
+                "sentiment analysis returned no output",
+                "sentiment",
+                "analyze_response_sentiment",
+            )
+        analysis = _parse_sentiment_analysis(analysis_text)
         logger.info(
             "Sentiment analysis completed",
             extra={"operation": "sentiment"},
@@ -198,28 +199,25 @@ class GeminiDomainClient(GeminiClient):
         Returns:
             Empathetic follow-up message
         """
-        from app.ai.langgraph.graphs import get_empathetic_follow_up_graph
+        from app.ai.langgraph.prompts import build_empathetic_prompt
+        from app.ai.context_compactor import compact_patient_context
 
-        thread_id = (
-            (patient_context or {}).get("patient_id")
-            or (patient_context or {}).get("id")
-            or (patient_context or {}).get("patient_name")
-            or "follow_up"
+        context_snapshot = compact_patient_context(patient_context or {})
+        prompt = build_empathetic_prompt(
+            patient_response=patient_response,
+            conversation_history=conversation_history or [],
+            context_snapshot=context_snapshot,
+            examples=few_shot_examples or [],
+            allow_questions=False,
+            day_complete=False,
         )
-        graph = get_empathetic_follow_up_graph()
-        state = {
-            "input_text": patient_response,
-            "history": conversation_history or [],
-            "context": patient_context or {},
-            "metadata": {"few_shot_examples": few_shot_examples or []},
-        }
-        output = await invoke_langgraph_graph(
-            graph=graph,
-            state=state,
-            config={"configurable": {"thread_id": f"follow_up:{thread_id}"}},
-            graph_name="empathetic_follow_up_graph",
-            operation="create_empathetic_follow_up",
-        )
+        output = await self.generate_content(prompt, profile=MESSAGE_HUMANIZED)
+        if not output:
+            raise FeatureNotAvailableError(
+                "empathetic follow-up returned no output",
+                "empathetic_follow_up",
+                "create_empathetic_follow_up",
+            )
         logger.info(
             "Empathetic follow-up generated",
             extra={"operation": "follow_up"},
