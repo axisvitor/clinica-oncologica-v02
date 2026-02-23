@@ -29,6 +29,8 @@ import time
 from datetime import datetime
 from functools import wraps
 
+from app.core.redis_manager import get_redis_manager
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -105,6 +107,27 @@ _task_metadata_lock = threading.Lock()
 _TASK_METADATA_MAX_AGE_SECONDS = 6 * 60 * 60
 # Grace period for failure/revoked/rejected tasks waiting for possible postrun
 _TASK_TERMINAL_METADATA_TTL_SECONDS = 5 * 60
+
+# Redis key used to store rolling task duration samples
+_DURATION_REDIS_KEY = "celery:metrics:avg_task_duration"
+
+
+def _push_duration_to_redis(duration: float) -> None:
+    """
+    Push a task duration sample to the Redis rolling list.
+
+    Keeps the last 100 samples with a 24-hour TTL.
+    Silently swallows all exceptions — metrics writes must never affect task execution.
+    """
+    try:
+        client = get_redis_manager().get_sync_client()
+        pipe = client.pipeline()
+        pipe.lpush(_DURATION_REDIS_KEY, str(duration))
+        pipe.ltrim(_DURATION_REDIS_KEY, 0, 99)  # Keep last 100 samples
+        pipe.expire(_DURATION_REDIS_KEY, 86400)  # 24h TTL
+        pipe.execute()
+    except Exception:
+        pass
 
 
 def _resolve_task_name(sender=None, task=None) -> str:
@@ -200,6 +223,7 @@ def _finalize_task_metadata(
         if isinstance(start_time, (float, int)):
             duration = max(0.0, time.time() - start_time)
             celery_task_duration.labels(task_name=task_name).observe(duration)
+            _push_duration_to_redis(duration)
             logger.debug(f"Task {task_name} [{task_id}] completed in {duration:.2f}s")
 
     return True
