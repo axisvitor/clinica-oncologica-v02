@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 12 of 13 (Flow Orchestration Replacement)
-Plan: 2 of 3 in current phase
+Plan: 3 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-24 - Completed 12-02 helper/flow inlining and LangGraph dependency removal verification
+Last activity: 2026-02-24 - Completed 12-03 LangGraph tombstoning, checkpoint purge script, and LGPD audit logging
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ███████░░░ 67%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ████████░░ 75%
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 11 P04 | 17 min | 2 tasks | 6 files |
 | Phase 12-flow-orchestration-replacement P01 | 15 min | 2 tasks | 13 files |
 | Phase 12-flow-orchestration-replacement P02 | 18 min | 2 tasks | 4 files |
+| Phase 12-flow-orchestration-replacement P03 | 19 min | 2 tasks | 19 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 12-flow-orchestration-replacement]: Routed prompt/node helper imports through app.ai.agents.helpers as tombstoning boundary
 - [Phase 12-flow-orchestration-replacement]: Moved LangGraph imports in sequential handler to lazy branches and lazy-loaded heavy services to keep module imports working after package removal.
 - [Phase 12-flow-orchestration-replacement]: Kept helper and flow behavior identical while replacing all app.ai.langgraph runtime imports with inlined implementations.
+- [Phase 12-flow-orchestration-replacement]: Kept LangGraph imports lazy only inside sequential_message_handler legacy branches so startup remains safe while legacy mode intentionally fails when invoked.
+- [Phase 12-flow-orchestration-replacement]: Used structured CRITICAL lgpd_data_deleted logs as the primary checkpoint purge audit record with best-effort DB AuditService logging as secondary evidence.
 
 ### Pending Todos
 
@@ -101,5 +104,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 12-flow-orchestration-replacement-02-PLAN.md
+Stopped at: Completed 12-flow-orchestration-replacement-03-PLAN.md
 Resume file: None
