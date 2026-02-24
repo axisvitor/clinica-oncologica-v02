@@ -26,6 +26,19 @@ class GeminiDomainClient(GeminiClient):
     All methods call generate_content() directly — no LangGraph intermediary.
     """
 
+    def _use_pydantic_agents(self) -> bool:
+        """Check if pydantic-ai agents should be used instead of direct generate_content."""
+        from app.config import settings
+
+        ai_framework = getattr(settings, "AI_FRAMEWORK", "legacy")
+        if ai_framework != "pydantic-ai":
+            logger.info(
+                "AI_FRAMEWORK=%s -- using GeminiClient.generate_content() path",
+                ai_framework,
+            )
+            return False
+        return True
+
     async def humanize_flow_message(
         self,
         template: str,
@@ -53,6 +66,21 @@ class GeminiDomainClient(GeminiClient):
         Returns:
             Humanized message text
         """
+        if self._use_pydantic_agents():
+            from app.ai.agents.deps import AIDeps
+            from app.ai.agents.humanize_agent import HumanizeAgent
+
+            deps = AIDeps(gemini_api_key=self.api_key, model_name=self.model_name)
+            return await HumanizeAgent().humanize(
+                template=template,
+                patient_name=patient_name,
+                patient_context=patient_context,
+                conversation_history=conversation_history,
+                personalization_hints=personalization_hints,
+                ai_instructions=ai_instructions,
+                deps=deps,
+            )
+
         from app.ai.langgraph.nodes_ai import _coerce_recent_interactions, _replace_patient_name
         from app.ai.langgraph.prompts import build_humanization_prompt
 
@@ -107,6 +135,19 @@ class GeminiDomainClient(GeminiClient):
         Returns:
             Varied question text
         """
+        if self._use_pydantic_agents():
+            from app.ai.agents.deps import AIDeps
+            from app.ai.agents.variation_agent import VariationAgent
+
+            deps = AIDeps(gemini_api_key=self.api_key, model_name=self.model_name)
+            return await VariationAgent().vary(
+                base_question=base_question,
+                previous_questions=previous_questions,
+                patient_context=patient_context,
+                ai_instructions=ai_instructions,
+                deps=deps,
+            )
+
         from app.ai.langgraph.nodes_ai import (
             _coerce_recent_interactions,
             _extract_recent_questions,
@@ -155,6 +196,20 @@ class GeminiDomainClient(GeminiClient):
         Returns:
             Sentiment analysis results
         """
+        if self._use_pydantic_agents():
+            from app.ai.agents.deps import AIDeps
+            from app.ai.agents.sentiment_agent import SentimentAgent
+            from app.ai.context_compactor import compact_patient_context
+
+            deps = AIDeps(gemini_api_key=self.api_key, model_name=self.model_name)
+            context_snapshot = compact_patient_context(patient_context or {})
+            result = await SentimentAgent().analyze(
+                response=response,
+                context_snapshot=context_snapshot,
+                deps=deps,
+            )
+            return result.model_dump()
+
         from app.ai.langgraph.nodes_ai import _parse_sentiment_analysis
         from app.ai.langgraph.prompts import build_sentiment_prompt
         from app.ai.context_compactor import compact_patient_context
@@ -199,6 +254,19 @@ class GeminiDomainClient(GeminiClient):
         Returns:
             Empathetic follow-up message
         """
+        if self._use_pydantic_agents():
+            from app.ai.agents.deps import AIDeps
+            from app.ai.agents.empathy_agent import EmpathyAgent
+
+            deps = AIDeps(gemini_api_key=self.api_key, model_name=self.model_name)
+            return await EmpathyAgent().follow_up(
+                patient_response=patient_response,
+                conversation_history=conversation_history,
+                patient_context=patient_context,
+                few_shot_examples=few_shot_examples,
+                deps=deps,
+            )
+
         from app.ai.langgraph.prompts import build_empathetic_prompt
         from app.ai.context_compactor import compact_patient_context
 
