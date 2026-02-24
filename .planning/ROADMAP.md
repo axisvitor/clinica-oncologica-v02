@@ -89,7 +89,7 @@ Plans:
   3. `requirements.txt` no longer contains `langgraph`, `langchain-core`, `langchain-google-genai`, or `google-ai-generativelanguage` — confirmed by a single clean `pip check` run
   4. `scan_iter` on Dragonfly DB 0 returns zero results for `langgraph:checkpoint:*` keys — purge executed, purge count logged as a LGPD data deletion event in the audit record
   5. Every file in `app/ai/langgraph/` raises `ImportError` with a migration message when imported — directory tombstoned, not deleted
-**Plans**: 3 plans
+**Plans**: 5 plans
 
 Plans:
 - [ ] 12-01-PLAN.md — Direct async flow functions + AI_FLOW_FRAMEWORK feature flag + caller migration to helpers.py
@@ -110,6 +110,8 @@ Plans:
 - [ ] 13-01-PLAN.md — GeminiClient + PatientSummaryService migrated to google-genai SDK
 - [ ] 13-02-PLAN.md — Collapse feature-flag shims, purge all langchain references, permanent CI gate
 - [ ] 13-03-PLAN.md — PIISafeAgent._safe_run_sync() Celery bridge + 100-task load test
+- [ ] 13-04-PLAN.md — Harden run_sync bridge and add GeminiDomainClient sync-agent mode
+- [ ] 13-05-PLAN.md — Wire Celery AI task chain to sync bridge + permanent regression audit
 
 ## Progress
 
