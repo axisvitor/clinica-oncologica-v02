@@ -89,12 +89,12 @@ Plans:
   3. `requirements.txt` no longer contains `langgraph`, `langchain-core`, `langchain-google-genai`, or `google-ai-generativelanguage` — confirmed by a single clean `pip check` run
   4. `scan_iter` on Dragonfly DB 0 returns zero results for `langgraph:checkpoint:*` keys — purge executed, purge count logged as a LGPD data deletion event in the audit record
   5. Every file in `app/ai/langgraph/` raises `ImportError` with a migration message when imported — directory tombstoned, not deleted
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 12-01: flow_message_graph and flow_response_graph replaced with async Python functions
-- [ ] 12-02: LangGraph packages removed from requirements.txt + import graph clean verification
-- [ ] 12-03: Redis LangGraph checkpoint purge script (LGPD PHI event) + langgraph/ tombstone
+- [ ] 12-01-PLAN.md — Direct async flow functions + AI_FLOW_FRAMEWORK feature flag + caller migration to helpers.py
+- [ ] 12-02-PLAN.md — Inline function bodies into helpers.py/_flow_functions.py + remove LangGraph packages from requirements.txt
+- [ ] 12-03-PLAN.md — Tombstone app/ai/langgraph/ directory + Redis checkpoint PHI purge script (LGPD)
 
 ### Phase 13: SDK Migration & Cleanup
 **Goal**: The last LangChain reference in the entire backend is eliminated — GeminiClient initializes directly via the google-genai SDK, Celery tasks use agent.run_sync() to avoid event loop closure errors, and zero LangChain imports remain anywhere
