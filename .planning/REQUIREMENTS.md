@@ -13,8 +13,8 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 - [x] **FIX-02**: Auto-resume Celery Beat job checks `auto_resume_at` timestamps and resumes expired pauses
 - [x] **FIX-03**: Cancel flow implemented in flow_management with cleanup of pending messages and state reset
 - [x] **FIX-04**: Quiz template missing triggers graceful fallback (skip quiz link, send message without it) instead of ValueError
-- [ ] **FIX-05**: Phase constants consolidated to single canonical source (`flow_coordinator/constants.py`), all duplicates removed
-- [ ] **FIX-06**: Quiz mensal cycle calculation consolidated to single algorithm used by both flow_coordinator and sequential_message_handler
+- [x] **FIX-05**: Phase constants consolidated to single canonical source (`flow_coordinator/constants.py`), all duplicates removed
+- [x] **FIX-06**: Quiz mensal cycle calculation consolidated to single algorithm used by both flow_coordinator and sequential_message_handler
 - [ ] **FIX-07**: Failed flow messages routed to DLQ with retry and monitoring integration
 
 ### Dead Code Removal
@@ -64,8 +64,8 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 | FIX-02 | Phase 14 | Complete |
 | FIX-03 | Phase 14 | Complete |
 | FIX-04 | Phase 15 | Complete |
-| FIX-05 | Phase 15 | Pending |
-| FIX-06 | Phase 15 | Pending |
+| FIX-05 | Phase 15 | Complete |
+| FIX-06 | Phase 15 | Complete |
 | FIX-07 | Phase 15 | Pending |
 | DEAD-01 | Phase 16 | Pending |
 | DEAD-02 | Phase 16 | Pending |
