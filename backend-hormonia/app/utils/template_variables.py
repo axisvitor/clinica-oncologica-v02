@@ -7,6 +7,12 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 
+from app.agents.patient.flow_coordinator.constants import (
+    DEFAULT_QUIZ_TRIGGER_DAY,
+    MONTHLY_CYCLE_DAYS,
+    MONTHLY_CYCLE_START_DAY,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -14,10 +20,6 @@ class TemplateVariableProcessor:
     """
     Handles template variable substitution and validation.
     """
-
-    MONTHLY_PHASE_START_DAY = 46
-    MONTHLY_CYCLE_DAYS = 30
-    MONTHLY_QUIZ_DAY_IN_CYCLE = 30
 
     # Define all available template variables and their context mappings
     VARIABLE_MAPPINGS = {
@@ -158,14 +160,14 @@ class TemplateVariableProcessor:
                 try:
                     current = int(current_day)
                     # Monthly phase starts on day 46 (after onboarding + follow-up).
-                    if current >= cls.MONTHLY_PHASE_START_DAY:
+                    if current >= MONTHLY_CYCLE_START_DAY:
                         day_in_cycle = (
-                            (current - cls.MONTHLY_PHASE_START_DAY)
-                            % cls.MONTHLY_CYCLE_DAYS
+                            (current - MONTHLY_CYCLE_START_DAY)
+                            % MONTHLY_CYCLE_DAYS
                         ) + 1
                         days_until_quiz = (
-                            cls.MONTHLY_QUIZ_DAY_IN_CYCLE - day_in_cycle
-                        ) % cls.MONTHLY_CYCLE_DAYS
+                            DEFAULT_QUIZ_TRIGGER_DAY - day_in_cycle
+                        ) % MONTHLY_CYCLE_DAYS
                         next_date = datetime.now() + timedelta(days=days_until_quiz)
                         content = content.replace(
                             "{next_quiz_date}", next_date.strftime("%d/%m/%Y")

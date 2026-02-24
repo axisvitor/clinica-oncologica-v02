@@ -19,6 +19,23 @@ DEFAULT_QUIZ_TRIGGER_DAY = 30
 FLOW_TYPES = ["onboarding", "daily_follow_up", "quiz_mensal"]
 
 
+def compute_cycle_number(days_since_enrollment: int) -> tuple[int, int]:
+    """Compute monthly cycle and day within cycle from enrollment day count.
+
+    Returns:
+        Tuple of (monthly_cycle, day_in_cycle).
+        - Before monthly phase (days < 45): (0, days_since_enrollment)
+        - Monthly phase (days >= 45): cycle/day within 30-day cycles
+    """
+    if days_since_enrollment < DAILY_FOLLOWUP_END_DAY:
+        return 0, days_since_enrollment
+
+    days_in_monthly_phase = days_since_enrollment - DAILY_FOLLOWUP_END_DAY
+    monthly_cycle = (days_in_monthly_phase // MONTHLY_CYCLE_DAYS) + 1
+    day_in_cycle = (days_in_monthly_phase % MONTHLY_CYCLE_DAYS) + 1
+    return monthly_cycle, day_in_cycle
+
+
 def resolve_flow_type_and_day(current_day: int) -> tuple:
     """Resolve flow type and relative day from absolute treatment day.
 
@@ -30,7 +47,7 @@ def resolve_flow_type_and_day(current_day: int) -> tuple:
     elif current_day <= DAILY_FOLLOWUP_END_DAY:
         return "daily_follow_up", current_day
     else:
-        cycle_day = ((current_day - MONTHLY_CYCLE_START_DAY) % MONTHLY_CYCLE_DAYS) + 1
+        _, cycle_day = compute_cycle_number(current_day)
         return "quiz_mensal", cycle_day
 
 

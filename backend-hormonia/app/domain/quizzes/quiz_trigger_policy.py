@@ -10,6 +10,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.agents.patient.flow_coordinator.constants import (
+    DAILY_FOLLOWUP_END_DAY,
+    DEFAULT_QUIZ_TRIGGER_DAY,
+    ONBOARDING_END_DAY,
+    compute_cycle_number,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,9 +39,9 @@ class QuizTriggerPolicy:
     """
 
     # Quiz trigger day constants
-    MONTHLY_QUIZ_DAY = 30  # Centralized: day 30 of each monthly cycle
-    INITIAL_ASSESSMENT_DAY = 15  # Day 15 of initial flow
-    MID_TREATMENT_DAY = 45  # Day 45 for mid-treatment assessment
+    MONTHLY_QUIZ_DAY = DEFAULT_QUIZ_TRIGGER_DAY
+    INITIAL_ASSESSMENT_DAY = ONBOARDING_END_DAY
+    MID_TREATMENT_DAY = DAILY_FOLLOWUP_END_DAY
 
     # Adaptation limits
     MAX_ADAPTATION_RETRIES = 3  # Maximum adaptation attempts to prevent infinite loops
@@ -68,10 +75,11 @@ class QuizTriggerPolicy:
             # Monthly recurring flow - triggers on day 30 of each cycle
             if flow_kind == "quiz_mensal":
                 # For monthly cycles, check if we're on day 30 of the current 30-day cycle
-                if days_since_enrollment is not None and days_since_enrollment >= 45:
-                    # Patient is in monthly phase (after day 45)
-                    days_in_monthly_phase = days_since_enrollment - 45
-                    day_in_current_cycle = (days_in_monthly_phase % 30) + 1
+                if (
+                    days_since_enrollment is not None
+                    and days_since_enrollment >= DAILY_FOLLOWUP_END_DAY
+                ):
+                    _, day_in_current_cycle = compute_cycle_number(days_since_enrollment)
                     return day_in_current_cycle == cls.MONTHLY_QUIZ_DAY
                 else:
                     # Direct day check for flow day counter
@@ -119,16 +127,7 @@ class QuizTriggerPolicy:
             (2, 1)  # Cycle 2, day 1
         """
         try:
-            if days_since_enrollment < 45:
-                # Patient is still in initial/mid-treatment phase
-                return 0, days_since_enrollment
-
-            # Patient is in monthly recurring phase
-            days_in_monthly_phase = days_since_enrollment - 45
-            monthly_cycle = (days_in_monthly_phase // 30) + 1
-            day_in_cycle = (days_in_monthly_phase % 30) + 1
-
-            return monthly_cycle, day_in_cycle
+            return compute_cycle_number(days_since_enrollment)
 
         except Exception as e:
             logger.error(f"Error calculating monthly cycle: {e}")
