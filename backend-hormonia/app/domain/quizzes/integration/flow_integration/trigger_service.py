@@ -35,6 +35,7 @@ from app.core.monthly_quiz_config import (
 from app.services.monthly_quiz_message_integration import MonthlyQuizMessageIntegration
 from app.schemas.monthly_quiz import DeliveryMethod
 from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
+from app.agents.patient.flow_coordinator.constants import DAILY_FOLLOWUP_END_DAY
 
 from .enums import QuizFlowState
 
@@ -170,7 +171,7 @@ class QuizTriggerService:
             )
 
             # Check if patient is in monthly phase and it's quiz day
-            if days_since_enrollment < 45:
+            if days_since_enrollment < DAILY_FOLLOWUP_END_DAY:
                 return False, {"reason": "Patient not yet in monthly phase"}
 
             # Check using centralized policy
@@ -279,6 +280,34 @@ class QuizTriggerService:
             # Get or create monthly quiz template
             template = await self._get_or_create_monthly_template(quiz_info)
 
+            if template is None:
+                logger.warning(
+                    "Quiz template not found for patient %s, flow_type=%s, cycle=%s. "
+                    "Sending message without quiz link.",
+                    patient_id,
+                    flow_state.flow_type,
+                    quiz_info.get("monthly_cycle"),
+                    extra={
+                        "patient_id": str(patient_id),
+                        "flow_context": quiz_info,
+                        "fallback_reason": "quiz_template_missing",
+                    },
+                )
+
+                flow_state.state_data = flow_state.state_data or {}
+                flow_state.state_data["quiz_template_missing_fallback"] = True
+                flow_state.state_data["quiz_fallback_at"] = now_sao_paulo().isoformat()
+                flow_state.state_data["quiz_state"] = "skipped_no_template"
+                self.db.commit()
+
+                return {
+                    "success": False,
+                    "patient_id": str(patient_id),
+                    "error": "quiz_template_not_found",
+                    "fallback_applied": True,
+                    "message": "Quiz skipped - template not available. Message sent without quiz link.",
+                }
+
             # Determine if patient should receive link-based quiz
             use_link = should_use_link_based_quiz(str(patient_id))
 
@@ -316,7 +345,7 @@ class QuizTriggerService:
 
     async def _get_or_create_monthly_template(
         self, quiz_info: dict[str, Any]
-    ) -> QuizTemplate:
+    ) -> Optional[QuizTemplate]:
         """Get or create monthly quiz template."""
         try:
             template_name = quiz_info.get("template_name") or get_monthly_quiz_config().MONTHLY_QUIZ_DEFAULT_TEMPLATE
@@ -406,14 +435,21 @@ class QuizTriggerService:
                 is_active=True,
             )
 
-            template_response = self.quiz_template_service.create_template(
-                template_data
+            template_response = self.quiz_template_service.create_template(template_data)
+            created_template = self.quiz_template_service.repository.get(
+                template_response.id
             )
-            return self.quiz_template_service.repository.get(template_response.id)
+            if not created_template:
+                logger.warning(
+                    "Failed to resolve created quiz template for name %s", preferred_name
+                )
+                return None
+
+            return created_template
 
         except Exception as e:
             logger.error(f"Error getting/creating monthly template: {e}")
-            raise
+            return None
 
     async def _send_quiz_introduction_message(
         self, patient_id: UUID, session: Any, template: QuizTemplate
