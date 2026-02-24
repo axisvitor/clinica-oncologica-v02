@@ -1,292 +1,422 @@
 # Feature Research
 
-**Domain:** Healthcare WhatsApp patient monitoring — oncology remote symptom tracking with AI-humanized questionnaires
-**Researched:** 2026-02-22
-**Confidence:** HIGH (codebase verified) / MEDIUM (domain standards from peer-reviewed literature and production healthcare WhatsApp deployments)
+**Domain:** AI framework migration — LangGraph to Pydantic AI agents + Google ADK orchestration for oncology WhatsApp backend
+**Researched:** 2026-02-23
+**Confidence:** HIGH (Pydantic AI v1 official docs + ADK official docs verified) / MEDIUM (Gemini-specific structured output patterns — active issues in pydantic-ai repo)
 
 ---
 
-## Context: Subsequent Milestone Framing
+## Context: Migration Milestone Framing
 
-This is a **refinement milestone**, not a greenfield build. The prototype is functionally complete with the following already implemented:
+This is a **framework replacement**, not a new feature. The 4 core AI operations already exist and work. The goal is to remove LangGraph and its associated infrastructure (graphs, runtime, checkpointing, state) and re-implement the same operations using:
 
-- WhatsApp delivery via Evolution API (UnifiedWhatsAppService)
-- LangGraph + Gemini AI humanization pipeline (graphs.py, nodes_ai.py)
-- Periodic quiz delivery via Celery Beat (38 tasks)
-- Patient flow state machine (dual systems, production + QW-021)
-- Alert system with severity levels (INFO/WARNING/CRITICAL/FATAL)
-- LGPD consent management, PII redaction before AI calls, encryption
-- Saga pattern for patient onboarding with compensation
-- Firebase Auth + session management
-- Real-time dashboard via WebSocket + Redis Pub/Sub
+- **Pydantic AI agents** for each of the 4 operations (typed, dependency-injected, validated output)
+- **Google ADK** (SequentialAgent / ParallelAgent) for orchestrating multi-step AI flows
 
-The question is therefore: **what must be fixed, hardened, and validated before real oncology patients touch this system?** The categories below are calibrated to that context.
+Existing infrastructure that must be preserved and wired in:
+- Redis semantic cache (in `GeminiClient._get_cached_response` / `_cache_response`)
+- Circuit breaker (`AIServiceCircuitBreaker` via `get_ai_circuit_breaker()`)
+- Rate limiter (`check_ai_rate_limit` in `utils/rate_limiter.py`)
+- PII redaction (`sanitize_prompt_text_for_external_ai` in `ai/pii_redaction.py`)
+- Output guardrails (`GuardrailViolation`, `validate_ai_output`, `OutputProfile` in `services/ai/`)
+- Audit event types (`AI_QUERY`, `AI_HUMANIZATION` etc. in `AuditEventType`)
 
 ---
 
 ## Feature Landscape
 
-### Table Stakes (Users Expect These — Missing = Unacceptable for Real Patients)
+### Table Stakes (Required for a Correct Migration)
 
-These are clinical and operational requirements that make the system safe and trustworthy for real-world patient use. The evidence base is the PRO-CTCAE framework (NCI), Lancet Digital Health implementation studies across 33 cancer centers, and LGPD compliance requirements under ANPD oversight.
+These are the features that must exist for the migration to be complete and correct. Missing any = the migration is broken or regresses existing behavior.
 
-| Feature | Why Expected | Complexity | Current Status | Notes |
-|---------|--------------|------------|----------------|-------|
-| **Persistent LGPD deletion audit trail** | Art. 16/18 requires immutable record of patient deletion operations; log-only approach fails regulatory audit | MEDIUM | MISSING — only written to app logs (`repositories/patient/audit.py` lines 190-205) | Must create `patient_deletion_audit` table and write before any deletion; this is a compliance blocker |
-| **Patient WhatsApp opt-out handling** | Patients must be able to STOP WhatsApp messages at any time (LGPD Art. 18, Meta policy); absent = regulatory violation and account suspension risk | MEDIUM | MISSING — no "STOP" keyword handler in webhook processing | Webhook handler must detect "STOP", "PARAR", "CANCELAR" etc. and immediately halt messaging + record consent revocation |
-| **Proper auth on monitoring endpoints** | Monitoring metrics cannot be publicly accessible; placeholder auth = security breach | LOW | BROKEN — `enhanced_monitoring.py` lines 84-97 uses raw DB query with `# TODO: Replace with actual auth integration` | Replace with standard `get_current_user` + role check dependency |
-| **Clinical alert escalation to physician** | Research across 33 cancer centers shows physician notification (not just patient) is the most important factor in symptom monitoring effectiveness (Lancet Regional Health 2024) | MEDIUM | PARTIAL — alert system exists (`services/alerts/`) with escalation strategies, but physician availability endpoint returns empty list silently | Alert delivery confirmed working; escalation path needs validation; physician scheduling endpoint needs implementation |
-| **Sync-in-async event loop fix (hot paths)** | Under load, blocking DB calls in async context cause cascading timeouts across ALL requests; with real patients, a Celery spike during quiz delivery stalls the entire API | HIGH | BROKEN — 42+ annotated instances, worst in `flow_core.py` (7), `sequential_message_handler.py` (12), `enhanced_quiz_service.py` (8) | Minimum: fix hot paths (quiz response processing, webhook handling, flow advancement); full AsyncSession migration is v2 |
-| **Single flow system (decommission QW-021 or production)** | Two parallel flow engines cause double-maintenance, divergence bugs, and test coverage gaps at seam between systems | HIGH | BROKEN — dual systems coexist in `flow_core.py` + `services/flow/core/manager.py` with no integration tests between them | Pick one, migrate all patients to it, tombstone the other; divergence is a patient safety risk |
-| **AI event types in audit enum** | HIPAA/LGPD audit trails must capture AI model queries and responses for regulatory reporting and clinical accountability | LOW | MISSING — `services/audit/reports.py` line 70: `# TODO: Add AI event types` | Add `AI_QUERY`, `AI_HUMANIZATION`, `AI_SENTIMENT`, `AI_FOLLOW_UP` to `AuditEventType`; add Alembic migration |
-| **Batch re-encryption for key rotation** | LGPD Art. 46 requires ability to rotate encryption keys; without batch re-encryption, any security incident requiring key rotation is unrecoverable | HIGH | MISSING — `services/encryption/service.py` line 609: `# TODO: Implement batch re-encryption` | Blocking: key rotation cannot work safely without this; Celery task with chunked processing recommended |
-| **Test token registry removed from production binary** | Debug bypass code shipped in production binary is an auditable security risk; Firebase bypass active when `APP_ENABLE_DEBUG=True` | LOW | EXISTS — `auth_dependencies.py` lines 43-60: `TEST_TOKEN_REGISTRY` | Move to test-only conftest; remove from production code path entirely |
-| **Firebase service account key out of working directory** | Service account key on disk in any developer working directory is a credential leak risk | LOW | AT RISK — file exists at repo root, gitignored but not removed | Store via GCP Secret Manager or mounted volume; remove from disk |
-| **Hardcoded metrics stubs removed** | `avg_task_duration_seconds` returns hardcoded `2.5`; physicians and admins cannot trust a dashboard that lies about system health | LOW | BROKEN — `health/service_health.py` line 129 | Instrument Celery task completion times; store rolling average in Redis via Beat task |
-| **Rate limiter atomicity (Lua script)** | Race condition in distributed rate limiter under high traffic allows brief burst above limit; WhatsApp API rate limit violations cause account suspension | LOW | KNOWN BUG — `rate_limit_core.py` lines 184-205; Lua script template already in comment | Apply Lua script from existing comment; low effort, high risk if ignored |
-| **asyncio.run() replaced with async_to_sync in Celery tasks** | Memory leak from new event loop per call; at 38 periodic tasks with high frequency, this accumulates | LOW | KNOWN BUG — `tasks/flows/flow_tasks.py`; fix pattern already applied in `trigger_tasks.py` and `helpers.py` | Standardize all Celery tasks to `async_to_sync` from asgiref |
-| **python-jose import sweep** | Package removed for CVE-2024-23342; any remaining `from jose import` causes silent runtime import failure | LOW | AT RISK — confirmed removal in requirements.txt but no import sweep validated | Grep sweep for `from jose`; replace with `import jwt` (pyjwt) |
-| **LangGraph startup health check** | Guarded imports with `None` fallbacks mean LangGraph failures silently no-op; with real patients, silent degradation = unhumanized clinical messages sent undetected | LOW | BROKEN — `ai/langgraph/runtime.py`, `graphs.py`, `consensus.py` use try/except with None | Add startup health check verifying LangGraph availability; convert None fallbacks to `FeatureNotAvailableError` |
+| Feature | Why Required | Complexity | Infrastructure Dependency |
+|---------|--------------|------------|--------------------------|
+| **HumanizeAgent: typed output** | Humanization is the core product value — must produce a valid, non-empty, punctuation-terminated Brazilian Portuguese message or raise `FeatureNotAvailableError`; silent degradation = robotic messages to cancer patients | MEDIUM | `MESSAGE_HUMANIZED` OutputProfile; Redis cache; circuit breaker; PII redaction |
+| **SentimentAgent: structured JSON output** | Sentiment drives clinical escalation decisions; JSON must have all 7 required keys (`sentiment`, `confidence`, `emotional_indicators`, `medical_concerns`, `requires_attention`, `key_themes`, `suggested_follow_up`); a missing key downstream causes `KeyError` in alert logic | MEDIUM | `JSON_SENTIMENT` OutputProfile; `AIResponseValidation.validate_sentiment()`; circuit breaker |
+| **VariationAgent: anti-repetition logic preserved** | 88% word-overlap threshold must survive migration; the `_is_too_similar_to_recent()` fallback to wrapper phrases must remain; agents seeing the same question every visit disengage | MEDIUM | `MESSAGE_STANDARD` OutputProfile; `_is_too_similar_to_recent()` logic in `nodes_ai.py` (can migrate to agent tool or post-run hook) |
+| **EmpathyAgent: conditional question suppression** | `allow_questions=False` and `day_complete` flags control whether the AI may ask a follow-up question — this is a clinical decision, not a style preference; losing this produces prompts that confuse patients | MEDIUM | `MESSAGE_HUMANIZED` OutputProfile; prompt flag injection via system prompt or `deps` |
+| **Pydantic AI `deps_type` pattern for infra injection** | Redis client, circuit breaker, and rate limiter must be injected as typed dependencies — not accessed as module-level globals inside agents — to enable test overrides and avoid singleton coupling during migration | MEDIUM | `dataclasses.dataclass` deps; `RunContext[Deps]` typed tools |
+| **PII redaction as pre-run hook or tool** | `sanitize_prompt_text_for_external_ai()` must fire before ANY text reaches Gemini; this is a LGPD hard requirement; the existing `GeminiClient._redact_prompt_for_external_ai()` call must not be lost in the migration | LOW | `app/ai/pii_redaction.py` — no migration needed, just must be called |
+| **`FeatureNotAvailableError` on circuit-open** | All callers of the 4 AI operations already catch `FeatureNotAvailableError` to degrade gracefully (send template message instead of humanized); the exception contract must be preserved | LOW | `app/core/exceptions.FeatureNotAvailableError`; circuit breaker state |
+| **Output guardrail enforcement post-agent-run** | `validate_ai_output()` must run after agent output is produced, before the result is returned to the caller; moving validation into the Pydantic model field validators is acceptable but the semantics (prompt leak detection, placeholder detection, JSON key checks) must match the existing `GuardrailViolation` behavior | MEDIUM | `app/services/ai/guardrails.py`; `app/services/ai/output_profiles.py` |
+| **Redis cache hit/miss preserved** | Cache lookup (SHA-256 of PII-redacted prompt + profile_hint) and write must survive migration; cache TTL 3600s must remain; cache misses that fail guardrails must regenerate, not return stale output | MEDIUM | `GeminiClient._generate_cache_key()`, `_get_cached_response()`, `_cache_response()` |
+| **`GeminiDomainClient` methods replaced, not deprecated** | The 4 methods (`humanize_flow_message`, `generate_varied_question`, `analyze_response_sentiment`, `create_empathetic_follow_up`) are called directly by `flow_core.py`, `flow_service.py`, `enhanced_flow_engine.py` — they must remain importable during transition; use shim pattern until all callers migrated | LOW | Shim pattern in `app/ai/client_domain.py` |
+| **LangGraph removal: no orphan imports** | After migration, `langgraph`, `langgraph.graph`, `StateGraph`, `END` must not appear in any non-tombstoned import; `graphs.py`, `runtime.py`, `state.py`, `nodes.py`, `_invoke.py` must be tombstoned or deleted | LOW | Tombstone pattern from `MEMORY.md` |
+| **Consensus system deletion** | `app/ai/langgraph/consensus.py` and `app/agents/patient/flow_coordinator/consensus_manager.py` are dead code; deleting them is part of this milestone per PROJECT.md | LOW | No callers; full deletion (not tombstone) |
 
 ---
 
-### Differentiators (Competitive Advantage in Healthcare AI)
+### Differentiators (Migration-Specific Competitive Advantages)
 
-These are where this system can be meaningfully better than alternatives. The core differentiator is AI-humanized oncology questionnaires via WhatsApp — not EHR integration, not wearables, not video calls. The evidence from JMIR Cancer, PMC, and ASCO confirms this niche is underserved and clinically validated.
+Features that the migration uniquely enables, beyond parity with current behavior.
 
-| Feature | Value Proposition | Complexity | Current Status | Notes |
-|---------|-------------------|------------|----------------|-------|
-| **LangGraph humanization graph (validated and hardened)** | Template-based messages sound robotic; AI humanization per patient context significantly improves response rates; breast cancer chatbot study (PMC6521209) showed patients feel more comfortable disclosing to non-judgmental AI; this is the core product value | MEDIUM | PARTIAL — `graphs.py` has `build_humanization_graph()` with `humanize_node`, `sentiment_node`, `question_variation_node`, `empathetic_follow_up_node` but LangGraph import is fragile | Harden the import path, add startup validation, add fallback behavior (send template without humanization vs silent fail) |
-| **Sentiment-aware follow-up escalation** | Negative sentiment detected in patient responses triggers empathetic follow-up before clinical alert; reduces false positives and improves patient relationship | MEDIUM | PARTIAL — `NEGATIVE_SENTIMENT` alert rule type exists in `AlertRuleType`; `sentiment_node` in nodes_ai.py; integration with alert escalation needs verification | Verify sentiment detection → alert escalation pipeline is end-to-end connected |
-| **Emergency keyword detection** | Patient types "EMERGÊNCIA", "socorro", "dor intensa" → immediate physician notification; literal life-safety feature | MEDIUM | PARTIAL — `EMERGENCY_KEYWORDS` in `AlertRuleType`; needs threshold configuration and response time SLA | Must be tested with real keyword variations in Portuguese; response time < 1 hour SLA should be defined |
-| **AI audit trail for clinical accountability** | Every AI-generated message logged with input context, model version, and output; allows physician to review what AI said to patient and why | LOW | MISSING — audit enum doesn't capture AI events (see Table Stakes above) | Directly enables clinical trust; low complexity once audit enum is fixed |
-| **PII-safe AI pipeline** | Patient data never reaches Gemini; `pii_redaction.py` strips identifiers before AI calls; differentiates from naive AI integrations that send full PHI to LLMs | LOW | IMPLEMENTED — `app/ai/pii_redaction.py` with explicit allowlist/blocklist | Competitive moat; ensure it is tested and documented |
-| **Continuous monitoring between consultations** | Weekly/monthly questionnaires between visits detect problems before the next appointment; Lancet study of 33 centers showed 70% of alerts managed without ER visit | HIGH | PARTIAL — Celery Beat sends questionnaires; flow state machine tracks engagement; alert thresholds configurable | Core clinical value; depends on fixing dual flow systems and alert pipeline reliability |
-| **Physician dashboard with real-time patient status** | Oncologist sees all patients' current engagement, recent responses, and active alerts in real-time without checking each individually | MEDIUM | PARTIAL — WebSocket + Redis pub/sub + React admin frontend exist; `flow_monitoring.py` (923 lines) provides status aggregation; WebSocket in-memory = no multi-instance scaling | Address WebSocket scaling (Redis pub/sub already exists via `redis_pubsub_manager.py`); verify dashboard data accuracy |
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| **Typed output models for all 4 operations** | `SentimentResult(BaseModel)` with `sentiment: Literal["positive", "neutral", "negative"]`, `confidence: float = Field(ge=0.0, le=1.0)`, etc. replaces manual `json.loads()` + `AIResponseValidation.validate_sentiment()` — type errors caught at schema level, not at runtime | MEDIUM | Pydantic AI's `output_type=SentimentResult` converts BaseModel to JSON schema sent to Gemini; validation is automatic before result is returned; eliminates the current `_parse_sentiment_analysis()` + `AIResponseValidation` dual-validation pattern |
+| **PromptedOutput for Gemini JSON operations** | Gemini cannot use tool calling AND structured outputs simultaneously (confirmed limitation); for `SentimentAgent`, use `PromptedOutput(SentimentResult)` which injects JSON schema into the system prompt rather than using function calling — avoids the Gemini tool-calling-vs-structured-output conflict | MEDIUM | `pydantic_ai.PromptedOutput` wrapper; MEDIUM confidence — this is the documented workaround per Pydantic AI docs; validate with `gemini-2.5-flash` before committing |
+| **Google ADK SequentialAgent for flow_message_graph replacement** | Current `build_flow_message_graph()` is `load_flow_context → dispatch_send_mode`; ADK SequentialAgent with two sub-agents replaces this with no StateGraph overhead, no checkpoint store, no graph compilation at startup | MEDIUM | ADK `SequentialAgent(sub_agents=[LoadContextAgent, HumanizeAgent])`; `output_key` pattern for passing context between steps |
+| **Google ADK ParallelAgent for sentiment + follow-up** | When a patient responds, sentiment analysis and follow-up generation are independent operations on the same input; ParallelAgent runs them concurrently, halving wall-clock latency for the response flow | HIGH | ADK `ParallelAgent(sub_agents=[SentimentAgent, EmpathyAgent])`; each agent writes to separate `output_key`; results merged by downstream agent or caller |
+| **`deps_type` enables test isolation per agent** | Each Pydantic AI agent can be tested with `agent.override(deps=TestDeps(redis=FakeRedis(), circuit_breaker=AlwaysOpenBreaker()))` — no more module-level singleton patching with `mock.patch` during testing | LOW | `pydantic_ai.Agent.override()` test pattern; enables proper unit tests for each of the 4 agents independently |
+| **`GoogleModelSettings` for safety thresholds** | Current `ChatGoogleGenerativeAI` initialization has `temperature`, `max_output_tokens`, `top_p`, `top_k` — these map directly to `GoogleModelSettings` in Pydantic AI; adds explicit `google_safety_settings` per operation type | LOW | `pydantic_ai.models.google.GoogleModelSettings`; sentiment agent may want different thresholds than humanization |
+| **`UsageLimits` per agent run** | Pydantic AI supports `UsageLimits(request_tokens_limit=N, response_tokens_limit=N)` at the per-run level, complementing the existing distributed rate limiter | LOW | Replaces the manual `max_output_tokens` config in `ChatGoogleGenerativeAI` with per-operation limits |
 
 ---
 
-### Anti-Features (Deliberately NOT Build at This Stage)
+### Anti-Features (Commonly Proposed, Explicitly Avoid in This Migration)
 
-These are either scope-creep risks, known overengineering patterns for a single-clinic rollout, or features that would add complexity without clinical value at this stage.
-
-| Anti-Feature | Why Requested | Why Avoid | What to Do Instead |
-|--------------|---------------|-----------|-------------------|
-| **Autonomous AI clinical recommendations** | "AI can suggest treatment changes" | Research and Lancet Digital Health confirm AI overtrust is the primary risk with healthcare LLMs; patients view AI responses as valid as doctors even when wrong (PMC12325106); this clinic has no regulatory clearance for AI clinical decisions | Keep AI role strictly as humanizer/empathizer of fixed clinical templates; never let AI generate clinical content |
-| **Real-time chat with patients** | "WhatsApp is a chat app, let patients message freely" | Unstructured patient messages require 24/7 clinical triage; out of scope per PROJECT.md; Evolution API webhook already handles structured responses | Continue structured questionnaire flow only; unrecognized messages routed to DLQ with physician notification |
-| **EHR/HIS integration** | "Connect to hospital records" | Adds external API dependency, security surface, and onboarding complexity; clinic uses this as standalone; not in current scope per PROJECT.md | Export capability (patient data export in CSV/JSON) satisfies data portability under LGPD Art. 18 |
-| **Multi-tenant / multi-clinic** | "Other clinics want this too" | Architecture is single-tenant; adding multi-tenancy requires schema isolation, billing, onboarding — a separate product; current codebase has no tenant scoping | Document as v2 product decision; do not add tenant_id columns or routing logic now |
-| **Wearable device integration** | "Patients could wear a monitor" | Zero code exists for this; adds hardware dependency and FDA/ANVISA regulatory pathway; clinical value at this stage is unproven vs questionnaire approach | Validate questionnaire approach clinically first before adding data sources |
-| **Whatsapp Live Chat (nurse/physician reply via same number)** | "Make it a two-way conversation" | WhatsApp Business API requires message templates for outbound; live chat requires a shared inbox product (Chatwoot, etc.) separate from this system | If physicians need to message patients directly, they use personal WhatsApp — separate channel |
-| **Full AsyncSession migration (all 42+ methods at once)** | "Just migrate everything to async" | This is a multi-week project requiring schema query changes throughout; doing it all at once creates large diff, high regression risk, and review bottleneck | Migrate hot paths only: webhook handling, quiz response processing, flow advancement; annotate remainder for v2 |
-| **Redux/Zustand global state in frontend** | "The admin frontend needs better state management" | Current React Query + Context pattern is adequate; adding a global store now is premature optimization; out of scope (UI redesign excluded per PROJECT.md) | Keep current frontend patterns; fix backend data accuracy issues instead |
-| **Celery Beat HA (redbeat) at launch** | "What if Beat crashes?" | Single Beat instance is adequate for a clinic with <500 patients; adding redbeat adds operational complexity; Beat restarts are recoverable within minutes | Document the risk; add monitoring/alerting when Beat heartbeat is missed; implement HA when patient volume justifies it |
+| Anti-Feature | Why Attractive | Why Avoid | What to Do Instead |
+|--------------|----------------|-----------|-------------------|
+| **Native structured output mode for Gemini** | Guarantees schema adherence at the protocol level | Gemini cannot use tools simultaneously with native structured outputs; adding tools for cache/rate-limit checks is blocked; confirmed limitation in Pydantic AI issues #582, #1237, #3483 | Use `PromptedOutput` for JSON operations (SentimentAgent); keep validation via Pydantic field validators |
+| **Full streaming of agent output** | Lower time-to-first-byte for patient messages | Gemini streaming is unsupported with structured outputs (Pydantic AI issue #1237); streaming text output conflicts with JSON validation; healthcare messages must be fully validated before delivery | Retain `await agent.run()` non-streaming; validate complete output before return |
+| **ADK `LlmAgent` for all 4 operations instead of Pydantic AI agents** | Single framework, no Pydantic AI dependency | ADK's `LlmAgent` has weaker Python typing, no `output_type` BaseModel validation, no `deps_type` system; Pydantic AI agents produce type-safe results that integrate naturally with existing Pydantic domain models | Use ADK SequentialAgent/ParallelAgent ONLY for orchestration; keep Pydantic AI agents for the 4 AI operations themselves |
+| **Replacing `GeminiClient.generate_content()` with direct Pydantic AI agent call everywhere** | Cleaner — one fewer abstraction layer | `generate_content()` is called in at least 3 places outside the 4 domain operations; replacing all callsites simultaneously creates large migration diff; risk of breaking callers | Migrate `GeminiDomainClient` methods to Pydantic AI agents first; leave `GeminiClient.generate_content()` intact for other callers; deprecate later |
+| **LangGraph checkpointing/persistence migration to ADK SessionService** | "We should preserve conversation history with ADK sessions" | ADK's `SessionService` is designed for interactive conversations, not fire-and-forget clinical flows; current flows are stateless request-response (state lives in PostgreSQL `patient_flow_state`, not in the graph checkpoint); adding ADK session persistence adds Redis/DB dependency with zero benefit | Keep flow state in PostgreSQL as-is; do not use ADK session persistence for these operations |
+| **Using `ModelRetry` for automatic JSON correction** | Let the framework retry on validation failure | Gemini structured output retries within Pydantic AI already cost extra API calls; existing code has its own `guardrail_retries` counter that already handles re-prompting; two retry loops conflict | Keep existing guardrail retry counter in the wrapping infrastructure; configure `output_retries=0` on agents and handle retries at the caller level |
+| **Migrating prompt strings into ADK LlmAgent `instruction` field** | "One place for everything ADK" | Current prompt builders (`build_humanization_prompt`, `build_sentiment_prompt` etc.) do PII-safe template substitution, question counting, and Portuguese-language specific formatting; ADK `instruction` field does not support dynamic prompt building with pre-processing hooks | Keep `app/ai/langgraph/prompts.py` prompt builders (rename to `app/ai/prompts.py`); call them before passing prompt to Pydantic AI agent |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[LGPD Deletion Audit Table]
-    └──required by──> [Patient Delete CRUD] (patients cannot be deleted safely without it)
-    └──required by──> [LGPD Compliance Certification]
+[PII Redaction Hook]
+    └──required by──> [HumanizeAgent] (LGPD hard requirement)
+    └──required by──> [SentimentAgent]
+    └──required by──> [VariationAgent]
+    └──required by──> [EmpathyAgent]
 
-[AI Audit Enum (AI_QUERY, AI_HUMANIZATION)]
-    └──required by──> [AI Audit Trail for Clinical Accountability]
-    └──required by──> [Full LGPD/HIPAA Audit Coverage]
+[Pydantic AI deps_type pattern]
+    └──required by──> [Redis cache integration in agents]
+    └──required by──> [Circuit breaker injection in agents]
+    └──enables──> [Test isolation per agent]
 
-[Batch Re-Encryption]
-    └──required by──> [Encryption Key Rotation]
-    └──required by──> [Security Incident Response Capability]
+[PromptedOutput workaround]
+    └──required by──> [SentimentAgent typed JSON output] (Gemini tool+structured limitation)
+    └──does NOT apply to──> [HumanizeAgent] (text output, no conflict)
+    └──does NOT apply to──> [VariationAgent] (text output, no conflict)
+    └──does NOT apply to──> [EmpathyAgent] (text output, no conflict)
 
-[Single Flow System (dual decommission)]
-    └──required by──> [Reliable Alert Pipeline] (alerts read from one flow state)
-    └──required by──> [Patient Flow Integration Tests]
-    └──required by──> [Physician Dashboard Data Accuracy]
+[SentimentResult BaseModel]
+    └──replaces──> [AIResponseValidation.validate_sentiment()]
+    └──required by──> [Alert escalation pipeline] (fields: requires_attention, medical_concerns)
+    └──required by──> [SentimentAgent]
 
-[Sync-in-Async Hot Path Fix]
-    └──required by──> [System Stability Under Load]
-    └──required by──> [Webhook Reliability] (webhook handler is the primary patient interaction)
+[GeminiDomainClient shim]
+    └──required by──> [Zero-downtime migration] (existing callers in flow_core.py, flow_service.py)
+    └──enables──> [Incremental replacement of 4 methods]
 
-[WhatsApp Opt-Out Handling]
-    └──required by──> [LGPD Art. 18 Compliance]
-    └──required by──> [Meta WhatsApp Business API Policy Compliance] (account not suspended)
+[ADK SequentialAgent (flow_message)]
+    └──replaces──> [build_flow_message_graph() in langgraph/graphs.py]
+    └──requires──> [HumanizeAgent] (sub-agent)
+    └──requires──> [LoadContextAgent or equivalent]
 
-[LangGraph Startup Health Check]
-    └──required by──> [AI Humanization Reliability]
-    └──required by──> [Silent Degradation Prevention]
+[ADK ParallelAgent (response processing)]
+    └──replaces──> [build_flow_response_graph() in langgraph/graphs.py]
+    └──requires──> [SentimentAgent] (sub-agent)
+    └──requires──> [EmpathyAgent] (sub-agent)
 
-[Rate Limiter Atomicity]
-    └──required by──> [WhatsApp API Rate Compliance] (prevents account suspension)
+[LangGraph removal]
+    └──requires──> [All 4 agents implemented]
+    └──requires──> [ADK orchestration replacing graphs]
+    └──requires──> [GeminiDomainClient callers migrated]
+    └──enables──> [Consensus system deletion]
+    └──enables──> [LangGraph package removal from requirements.txt]
 
-[Proper Monitoring Auth]
-    └──required by──> [Production Security Posture]
-
-[Sentiment Detection → Alert Escalation Pipeline]
-    └──requires──> [Single Flow System] (reads from one consistent flow state)
-    └──requires──> [Emergency Keyword Detection] (complementary rule)
-
-[Emergency Keyword Detection]
-    └──enhances──> [Clinical Alert Escalation to Physician]
-    └──requires──> [Alert Severity Thresholds Configured] (Portuguese keyword list)
-
-[Physician Dashboard Accuracy]
-    └──requires──> [Single Flow System]
-    └──requires──> [WebSocket Scaling Fix] (multi-instance consistency)
-    └──requires──> [Hardcoded Metrics Stubs Removed]
+[Consensus system deletion]
+    └──requires──> [Zero callers verified] (consensus_manager.py, consensus.py)
+    └──does NOT require──> [4 agents complete] (independent dead code removal)
 ```
 
 ### Dependency Notes
 
-- **Single Flow System is a root dependency**: Fixing the dual flow coexistence unblocks alert pipeline reliability, physician dashboard data accuracy, and integration test coverage. It should be the first major technical work.
-- **LGPD features are independent but time-critical**: Deletion audit trail, batch re-encryption, and AI audit enum can each be done in isolation. They must be done before first real patient, not after.
-- **Auth fixes are independent and quick**: Monitoring endpoint auth and test token registry removal are each under 1 hour of work but have security implications. Do these early.
-- **Opt-out handling depends only on webhook infrastructure**: WhatsApp STOP handling requires adding keyword detection to the webhook handler; no flow system changes needed.
+- **PII redaction is unconditional**: It must fire before the prompt text reaches any Pydantic AI agent. The cleanest pattern is a `@agent.system_prompt` async function in `deps` that pre-processes the input, or wrapping the agent call in the shim method. Do not rely on the agent framework to enforce this.
+- **PromptedOutput applies only to SentimentAgent**: The Gemini tool-calling + structured output conflict only manifests when `output_type` is a Pydantic BaseModel AND you want to use tools simultaneously. HumanizeAgent, VariationAgent, and EmpathyAgent produce text (not JSON schemas), so standard `output_type=str` or custom type with `ToolOutput` works.
+- **ADK orchestration is additive, not required for individual agents**: The 4 Pydantic AI agents can be used standalone (called directly) without ADK. ADK SequentialAgent/ParallelAgent adds value for the flow execution paths that need multi-step coordination — but is not a prerequisite for migrating the 4 agents themselves.
+- **Shim pattern gates the migration deadline**: Because `flow_core.py`, `flow_service.py`, and `enhanced_flow_engine.py` call `GeminiDomainClient` methods directly, those methods must remain importable during the migration. The shim at `app/ai/client_domain.py` should delegate to the new Pydantic AI agent implementations without changing the method signatures.
 
 ---
 
-## Production-Readiness Requirements Specific to Healthcare/LGPD
+## How Each AI Operation Maps to Pydantic AI Patterns
 
-These are not features per se, but production gate criteria before any real patient can use the system.
+### Operation 1: Message Humanization
 
-### Security Gates (All Must Pass)
+**Current**: `GeminiDomainClient.humanize_flow_message()` → `build_humanization_prompt()` → `generate_content(profile=MESSAGE_HUMANIZED)`
 
-| Requirement | Evidence Basis | Current Gap |
-|-------------|---------------|-------------|
-| No placeholder auth in production endpoints | OWASP API Security Top 10; ANPD inspection risk | `enhanced_monitoring.py` placeholder auth |
-| No debug bypass code in production binary | LGPD accountability principle; audit risk | `TEST_TOKEN_REGISTRY` in production code path |
-| Firebase service account key not on disk | Credential management best practice | File exists at repo root |
-| Default JWT secret key rejected even in dev | Credential hygiene; dev habits bleed to prod | `security.py` line 19 default insecure value |
-| `APP_ENABLE_DEBUG=False` enforced in staging and production | Debug endpoints expose DB environment data | Requires deployment config validation |
+**Pydantic AI pattern**:
+```python
+from dataclasses import dataclass
+from pydantic import BaseModel, field_validator
+from pydantic_ai import Agent, RunContext
 
-### Compliance Gates (All Must Pass for First Real Patient)
+@dataclass
+class AIDeps:
+    redis_client: Any          # injected; existing async Redis client
+    circuit_breaker: Any       # AIServiceCircuitBreaker from get_ai_circuit_breaker()
+    pii_redactor: Callable     # sanitize_prompt_text_for_external_ai
 
-| Requirement | LGPD Article | Current Gap |
-|-------------|-------------|-------------|
-| Patient deletion produces immutable audit record | Art. 16/18 | Logs only, not DB-persisted |
-| Consent revocation stops messaging immediately | Art. 18 §2 | No opt-out webhook handler |
-| Encryption key rotation is operationally possible | Art. 46 | Batch re-encryption not implemented |
-| AI actions are auditable (what AI sent, when, with what context) | Art. 37 (accountability) | AI events not in audit enum |
-| Patient data export available on request | Art. 18 (portability) | Export endpoint exists (`import_export.py`) — validate it works |
+class HumanizedMessage(BaseModel):
+    text: str
 
-### Observability Gates (Must Have Before Real Patients)
+    @field_validator("text")
+    @classmethod
+    def validate_message(cls, v: str) -> str:
+        # Run existing validate_ai_output() logic here
+        validate_ai_output(v, OutputKind.MESSAGE, ...)
+        return v
 
-| Requirement | Why | Current Gap |
-|-------------|-----|-------------|
-| LangGraph availability confirmed at startup | Silent AI failure = robotic messages to cancer patients undetected | Guarded imports with None fallbacks |
-| Celery Beat liveness monitoring | If Beat dies, no questionnaires are sent — patients fall off protocol | No Beat heartbeat alerting configured |
-| Webhook delivery failure visibility | Missed patient messages are invisible without DLQ monitoring | DLQ exists; verify metrics surfaced to dashboard |
-| Real health metrics (no hardcoded stubs) | Physicians and admins need to trust system health data | `avg_task_duration_seconds` hardcoded at 2.5 |
+humanize_agent = Agent(
+    "google-gla:gemini-2.5-flash",
+    deps_type=AIDeps,
+    output_type=HumanizedMessage,
+    output_retries=0,              # handled by existing guardrail loop
+)
+
+@humanize_agent.system_prompt
+async def system_prompt(ctx: RunContext[AIDeps]) -> str:
+    return (
+        "Reescreva a mensagem mantendo o mesmo propósito. "
+        "Escreva em português do Brasil. "
+        "Responda apenas com a mensagem final, sem listas e sem aspas."
+    )
+```
+
+**Output mode**: `ToolOutput(HumanizedMessage)` (default) — acceptable for text output; no Gemini tool conflict because we are not asking for JSON schema output simultaneously.
+
+**Complexity**: MEDIUM — field validator wraps existing guardrail logic; deps injection replaces module-level globals.
 
 ---
 
-## MVP Definition (Production Readiness Phasing)
+### Operation 2: Sentiment Analysis
 
-### Must Be Done Before First Real Patient (v0 → v1)
+**Current**: `GeminiDomainClient.analyze_response_sentiment()` → `build_sentiment_prompt()` → `generate_content(profile=JSON_SENTIMENT)` → `_parse_sentiment_analysis()` → `AIResponseValidation.validate_sentiment()`
 
-These are blockers. None can be deferred.
+**Pydantic AI pattern**:
+```python
+from typing import Literal
+from pydantic import BaseModel, Field
 
-- [x] ~~WhatsApp delivery works~~ (already implemented)
-- [x] ~~Quiz questionnaire flow works~~ (already implemented)
-- [x] ~~LGPD consent management~~ (already implemented)
-- [ ] Fix placeholder auth on monitoring endpoints
-- [ ] Remove test token registry from production binary
-- [ ] Add persistent LGPD deletion audit table
-- [ ] Implement WhatsApp opt-out (STOP keyword) handling
-- [ ] Add AI event types to audit enum + migration
-- [ ] Implement LangGraph startup health check
-- [ ] Fix asyncio.run() → async_to_sync in all Celery tasks (memory leak fix)
-- [ ] Apply Lua script to rate limiter (atomic operations)
-- [ ] Sweep and remove any remaining `from jose import` statements
-- [ ] Confirm `APP_ENABLE_DEBUG=False` in staging and production deployment
+class SentimentResult(BaseModel):
+    sentiment: Literal["positive", "neutral", "negative"]
+    confidence: float = Field(ge=0.0, le=1.0)
+    emotional_indicators: list[str]
+    medical_concerns: list[str]
+    requires_attention: bool
+    key_themes: list[str]
+    suggested_follow_up: str
 
-### Add After First Patient Cohort (v1.x — Within First 30 Days)
+sentiment_agent = Agent(
+    "google-gla:gemini-2.5-flash",
+    deps_type=AIDeps,
+    output_type=PromptedOutput(SentimentResult),  # avoids Gemini tool+JSON conflict
+    output_retries=2,
+)
+```
 
-These significantly improve reliability but are not day-one blockers if the patient cohort is small.
+**Output mode**: `PromptedOutput` — injects JSON schema into system prompt; Gemini returns JSON text which Pydantic AI parses; avoids the tool-calling conflict. Replaces the entire `_parse_sentiment_analysis()` + `AIResponseValidation.validate_sentiment()` chain.
 
-- [ ] Consolidate dual flow systems — pick production or QW-021, decommission the other
-- [ ] Fix sync-in-async hot paths (webhook, quiz response, flow advancement)
-- [ ] Implement physician availability slots (currently returns empty silently)
-- [ ] Implement batch re-encryption capability (needed before key rotation event)
-- [ ] Add integration tests for single flow system + alert pipeline
-- [ ] WebSocket scaling: verify Redis pub/sub integration handles multi-instance
-- [ ] Remove hardcoded metrics stubs; instrument real task duration metrics
+**Complexity**: MEDIUM — `PromptedOutput` is the critical choice; must be validated against `gemini-2.5-flash` before committing. Pydantic AI issues #582 and #3483 document edge cases with nested models.
 
-### Defer to v2 (After Clinical Validation)
+---
 
-- [ ] Full AsyncSession migration (all 42+ methods) — requires major architectural work
-- [ ] Celery Beat HA with redbeat — justified only at >500 patients
-- [ ] Multi-tenant architecture — separate product decision
-- [ ] Wearable/device data integration
-- [ ] EHR/HIS integration
+### Operation 3: Question Variation
+
+**Current**: `GeminiDomainClient.generate_varied_question()` → `build_question_variation_prompt()` → `generate_content(profile=MESSAGE_STANDARD)` → `_is_too_similar_to_recent()` → `_build_non_repetitive_question()` fallback
+
+**Pydantic AI pattern**:
+```python
+variation_agent = Agent(
+    "google-gla:gemini-2.5-flash",
+    deps_type=AIDeps,
+    output_type=str,
+    output_retries=0,
+)
+```
+
+The `_is_too_similar_to_recent()` check and wrapper fallback happen **after** the agent run — they are not agent behavior, they are post-processing. This logic stays in the shim method (migrated from `client_domain.py`), calling `agent.run()` then checking similarity.
+
+**Output mode**: `str` output with no structured type; validate with existing guardrails after run.
+
+**Complexity**: LOW — simpler than sentiment; post-run similarity check is pure Python logic, does not touch Gemini.
+
+---
+
+### Operation 4: Empathetic Follow-Up
+
+**Current**: `GeminiDomainClient.create_empathetic_follow_up()` → `build_empathetic_prompt()` (with `allow_questions`, `day_complete` flags) → `generate_content(profile=MESSAGE_HUMANIZED)`
+
+**Pydantic AI pattern**:
+```python
+@dataclass
+class EmpathyDeps(AIDeps):
+    allow_questions: bool = False
+    day_complete: bool = False
+
+empathy_agent = Agent(
+    "google-gla:gemini-2.5-flash",
+    deps_type=EmpathyDeps,
+    output_type=str,
+    output_retries=0,
+)
+
+@empathy_agent.system_prompt
+async def empathy_system_prompt(ctx: RunContext[EmpathyDeps]) -> str:
+    question_rule = (
+        "Se fizer pergunta, faça no máximo uma." if ctx.deps.allow_questions
+        else "Não faça perguntas."
+    )
+    completion = (
+        "Se for apropriado, informe que as perguntas de hoje terminaram."
+        if ctx.deps.day_complete else ""
+    )
+    return f"Crie uma resposta empática e de apoio ao paciente. {question_rule} {completion}"
+```
+
+The `allow_questions` and `day_complete` flags become `deps` fields — injected at call time, consumed by the dynamic system prompt. This preserves the clinical behavior while eliminating the prompt-building function's flag parameters.
+
+**Output mode**: `str` with guardrail validation post-run.
+
+**Complexity**: MEDIUM — flag injection via deps is idiomatic; the critical risk is that the system prompt must precisely replicate the existing `build_empathetic_prompt()` clinical constraints.
+
+---
+
+## ADK Orchestration Patterns
+
+### Pattern A: SequentialAgent replacing `flow_message_graph`
+
+Current LangGraph graph: `load_flow_context → conditional → dispatch_send_mode`
+
+ADK equivalent:
+```python
+from google.adk.agents import SequentialAgent
+# Step 1: custom BaseAgent subclass that loads context from DB, writes to session.state
+# Step 2: Pydantic AI HumanizeAgent (wrapped via AgentTool or custom BaseAgent subclass)
+
+flow_message_orchestrator = SequentialAgent(
+    name="FlowMessageOrchestrator",
+    sub_agents=[LoadContextAgent, HumanizeDispatchAgent],
+)
+```
+
+**Key constraint**: ADK `LlmAgent` cannot directly call Pydantic AI agents. The integration pattern is wrapping the Pydantic AI agent call inside a custom `BaseAgent._run_async_impl()` method.
+
+**Complexity**: HIGH — requires custom `BaseAgent` subclasses; ADK event model differs from LangGraph state model; must preserve the early-exit branch (`if state.get("result"): return END`).
+
+---
+
+### Pattern B: ParallelAgent replacing `flow_response_graph` (new capability)
+
+ADK equivalent for response processing:
+```python
+from google.adk.agents import ParallelAgent
+
+response_analysis_orchestrator = ParallelAgent(
+    name="ResponseAnalysis",
+    sub_agents=[SentimentAnalysisAgent, EmpathyGenerationAgent],
+)
+```
+
+Both agents receive the same patient response and context from session state. `SentimentAnalysisAgent` writes to `session.state["sentiment_result"]`; `EmpathyGenerationAgent` writes to `session.state["empathy_message"]`. A downstream aggregator reads both.
+
+**Complexity**: HIGH — parallel agents with shared session state require careful key namespacing; the existing `flow_response_graph` is sequential, not parallel; this is a new optimization beyond parity.
+
+**Recommendation**: Implement parity (sequential) first; add parallel optimization only after sequential migration is stable.
+
+---
+
+## MVP Definition for Migration Milestone
+
+### Phase 1: Agent Parity (Must Complete for Migration to be Correct)
+
+- [ ] `HumanizedMessage` Pydantic model with field validator wrapping existing guardrail logic
+- [ ] `SentimentResult` Pydantic model replacing `AIResponseValidation.validate_sentiment()`
+- [ ] `humanize_agent` with `deps_type=AIDeps` (Redis, circuit breaker, PII redactor injected)
+- [ ] `sentiment_agent` with `PromptedOutput(SentimentResult)` — validated against Gemini
+- [ ] `variation_agent` with post-run `_is_too_similar_to_recent()` preserved
+- [ ] `empathy_agent` with `allow_questions` / `day_complete` via `EmpathyDeps`
+- [ ] PII redaction called before all agent prompts (in system_prompt hook or shim)
+- [ ] Redis cache read/write preserved in shim wrapper around each agent
+- [ ] Circuit breaker wrapping each `agent.run()` call
+- [ ] `GeminiDomainClient` shim: all 4 methods delegate to new agents, same signatures
+- [ ] Consensus system deleted (`consensus.py`, `consensus_manager.py`)
+
+### Phase 2: LangGraph Removal (After Phase 1 Verified in Staging)
+
+- [ ] `build_flow_message_graph()` replaced with ADK SequentialAgent or direct agent calls
+- [ ] `build_flow_response_graph()` replaced with ADK SequentialAgent (sequential parity)
+- [ ] All `langgraph.*` imports removed from non-tombstoned files
+- [ ] `ai/langgraph/` directory: `graphs.py`, `runtime.py`, `state.py`, `nodes.py`, `_invoke.py` tombstoned
+- [ ] `langgraph` removed from `requirements.txt`
+- [ ] `langchain_core`, `langchain_google_genai` removed if no other callers
+
+### Phase 3: ADK Optimization (After Phase 2 Stable — Optional for This Milestone)
+
+- [ ] ParallelAgent for simultaneous sentiment + empathy during response processing
+- [ ] `GoogleModelSettings` per operation type (different temperatures for message vs JSON)
+- [ ] `UsageLimits` per agent run complementing distributed rate limiter
 
 ---
 
 ## Feature Prioritization Matrix
 
-| Feature | Patient Safety Value | Compliance Value | Implementation Cost | Priority |
-|---------|---------------------|-----------------|---------------------|----------|
-| LGPD deletion audit table | MEDIUM | HIGH | LOW | P1 |
-| WhatsApp opt-out handling | HIGH | HIGH | MEDIUM | P1 |
-| Monitoring endpoint auth fix | MEDIUM | HIGH | LOW | P1 |
-| AI audit enum | LOW | HIGH | LOW | P1 |
-| LangGraph startup health check | HIGH | MEDIUM | LOW | P1 |
-| asyncio.run → async_to_sync | MEDIUM | LOW | LOW | P1 |
-| Rate limiter Lua script | MEDIUM | MEDIUM | LOW | P1 |
-| Test token registry removal | MEDIUM | HIGH | LOW | P1 |
-| python-jose import sweep | HIGH | MEDIUM | LOW | P1 |
-| Dual flow consolidation | HIGH | MEDIUM | HIGH | P2 |
-| Sync-in-async hot paths | HIGH | LOW | HIGH | P2 |
-| Physician availability slots | MEDIUM | LOW | MEDIUM | P2 |
-| Batch re-encryption | LOW | HIGH | HIGH | P2 |
-| WebSocket multi-instance scaling | MEDIUM | LOW | MEDIUM | P2 |
-| Hardcoded metrics stub removal | LOW | LOW | LOW | P2 |
-| Full AsyncSession migration | MEDIUM | LOW | VERY HIGH | P3 |
-| Celery Beat HA (redbeat) | MEDIUM | LOW | MEDIUM | P3 |
+| Feature | Migration Correctness | Clinical Safety | Implementation Cost | Priority |
+|---------|----------------------|-----------------|---------------------|----------|
+| HumanizeAgent (parity) | HIGH | HIGH | MEDIUM | P1 |
+| SentimentAgent with PromptedOutput | HIGH | HIGH | MEDIUM | P1 |
+| PII redaction hook in agents | HIGH | HIGH | LOW | P1 |
+| Circuit breaker wrapping agent.run() | HIGH | HIGH | LOW | P1 |
+| FeatureNotAvailableError contract | HIGH | HIGH | LOW | P1 |
+| VariationAgent (parity + similarity check) | HIGH | MEDIUM | LOW | P1 |
+| EmpathyAgent with flag injection | HIGH | HIGH | MEDIUM | P1 |
+| GeminiDomainClient shim (zero-downtime) | HIGH | MEDIUM | LOW | P1 |
+| Consensus system deletion | LOW | MEDIUM | LOW | P1 |
+| Redis cache preservation | MEDIUM | LOW | MEDIUM | P1 |
+| LangGraph import removal | MEDIUM | LOW | MEDIUM | P2 |
+| ADK SequentialAgent for flow_message | MEDIUM | LOW | HIGH | P2 |
+| SentimentResult typed fields in alert pipeline | MEDIUM | HIGH | LOW | P2 |
+| ADK ParallelAgent for response | LOW | LOW | HIGH | P3 |
+| GoogleModelSettings per operation | LOW | LOW | LOW | P3 |
+| UsageLimits per agent run | LOW | LOW | LOW | P3 |
 
 **Priority key:**
-- P1: Must have before first real patient
-- P2: Should have within first 30 days of operation
-- P3: Defer until volume justifies complexity
+- P1: Must complete for migration to be correct and production-safe
+- P2: Should complete for full LangGraph removal
+- P3: Future optimization — defer to post-migration milestone
 
 ---
 
-## Competitor Feature Analysis
+## Gemini-Specific Structured Output Notes
 
-This system occupies a specific niche: WhatsApp-based ePRO (electronic patient-reported outcomes) for oncology in Brazil. The relevant comparisons are not generic chatbot platforms but dedicated ePRO and remote patient monitoring systems.
+These constraints are MEDIUM confidence (from Pydantic AI GitHub issues and official docs, as of Feb 2026):
 
-| Feature | Dedicated ePRO Systems (Medidata Rave, ICON, etc.) | Generic WhatsApp Healthcare Platforms (BotMD, ChatArchitect) | This System |
-|---------|----------------------------------------------------|-------------------------------------------------------------|-------------|
-| Validated questionnaire frameworks (PRO-CTCAE, ESAS) | YES — clinical gold standard | NO — generic forms | PARTIAL — custom templates, not standardized frameworks |
-| Alert escalation to clinical team | YES | PARTIAL | YES — alert system with escalation strategies |
-| EHR/HIS integration | YES | PARTIAL | NO (out of scope) |
-| WhatsApp delivery | NO — email/app | YES | YES |
-| AI humanization of clinical messages | NO | NO | YES — core differentiator |
-| LGPD compliance | N/A (US-focused) | PARTIAL | YES — explicit LGPD compliance layer |
-| Brazil Portuguese language native | NO | PARTIAL | YES |
-| Cost (clinic perspective) | Very high (enterprise) | Medium | Low (self-hosted) |
+| Scenario | Pydantic AI Output Mode | Works with Gemini? | Notes |
+|----------|------------------------|--------------------|-------|
+| Text message output (str) | `ToolOutput(str)` default | YES | HumanizeAgent, VariationAgent, EmpathyAgent |
+| Simple JSON with flat schema | `PromptedOutput(Model)` | YES | SentimentResult — all fields are primitives or `list[str]` |
+| Nested Pydantic models in JSON | `PromptedOutput(NestedModel)` | RISKY | Issues #3483: nested models may be treated as tool calls |
+| JSON + simultaneous tool calls | `NativeOutput` or `ToolOutput` | NO | Gemini limitation — tool + structured output conflict |
+| Streaming structured output | Any mode | NO | Gemini does not support streaming with structured output |
 
-The system's competitive advantage is clear: WhatsApp delivery + AI humanization + LGPD compliance + Portuguese-native in a single integrated system. No competitor combines all four. The risk is operational reliability — clinical systems must work every time.
+**Recommendation**: Keep `SentimentResult` flat (no nested Pydantic models as fields). Use `list[str]` and `str` for all fields. This avoids issue #3483.
 
 ---
 
 ## Sources
 
-- [Optimization of alert notifications in ePRO remote symptom monitoring (PMC11825061)](https://pmc.ncbi.nlm.nih.gov/articles/PMC11825061/) — alert threshold research, 38% suppression finding
-- [Implementation of remote symptom monitoring in 33 cancer centres, Lancet Regional Health 2024](https://www.thelancet.com/journals/lanepe/article/PIIS2666-7762(24)00172-8/fulltext) — physician notification as key factor
-- [How Should Oncologists Choose an ePRO System, JMIR 2021](https://www.jmir.org/2021/9/e30549) — system selection criteria, EHR integration, real-time alerts
-- [Remote Oncology Care: Review of Current Technology, PMC7526951](https://pmc.ncbi.nlm.nih.gov/articles/PMC7526951/) — clinical benefits overview
-- [When Chatbots Meet Patients: One-Year Study, PMC6521209](https://pmc.ncbi.nlm.nih.gov/articles/PMC6521209/) — breast cancer chatbot acceptance
-- [LLM Risks in Consumer Health, PMC12325106](https://pmc.ncbi.nlm.nih.gov/articles/PMC12325106/) — AI overtrust risk in healthcare
-- [Generative AI consumer health framework, Frontiers Digital Health 2025](https://www.frontiersin.org/journals/digital-health/articles/10.3389/fdgth.2025.1616488/full) — clinical safety with LLMs
-- [LangGraph in Production, LangChain Blog](https://blog.langchain.com/is-langgraph-used-in-production/) — production use including healthcare (Komodo Health)
-- [WhatsApp Business API Healthcare Compliance Guide](https://tringtring.ai/blog/whatsapp-ai/compliance-guide-whatsapp-business-api-regulations-by-country/) — Brazil LGPD + Meta policy
-- [LGPD Compliance Checklist, Captain Compliance 2026](https://captaincompliance.com/education/lgpd-compliance-checklist/) — Art. 16/18 deletion requirements
-- [Healthcare SaaS Compliance Checklist, Neumetric](https://www.neumetric.com/journal/compliance-checklist-for-healthcare-saas-2566/) — audit trail, consent management
-- [PRO-CTCAE Overview, NCI](https://healthcaredelivery.cancer.gov/pro-ctcae/overview.html) — validated symptom reporting framework
-- Codebase analysis: `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/` — all gaps verified directly in code
+- [Pydantic AI Output Modes — official docs](https://ai.pydantic.dev/output/) — ToolOutput / NativeOutput / PromptedOutput patterns; HIGH confidence
+- [Pydantic AI Google Model — official docs](https://ai.pydantic.dev/models/google/) — GoogleModel, GoogleModelSettings, API key setup; HIGH confidence
+- [Pydantic AI Dependencies — official docs](https://ai.pydantic.dev/dependencies/) — deps_type, RunContext, override() test pattern; HIGH confidence
+- [Pydantic AI v1 announcement](https://pydantic.dev/articles/pydantic-ai-v1) — API stability guarantees, Logfire integration; HIGH confidence
+- [Google ADK Sequential Agents — official docs](https://google.github.io/adk-docs/agents/workflow-agents/sequential-agents/) — SequentialAgent, output_key, InvocationContext; HIGH confidence
+- [Google ADK Parallel Agents — official docs](https://google.github.io/adk-docs/agents/workflow-agents/parallel-agents/) — ParallelAgent, concurrent execution, state isolation; HIGH confidence
+- [Google ADK Multi-Agent Systems — official docs](https://google.github.io/adk-docs/agents/multi-agents/) — agent hierarchy, AgentTool, delegation patterns; HIGH confidence
+- [Gemini structured output + tool calling limitation — Pydantic AI issue #582](https://github.com/pydantic/pydantic-ai/issues/582) — confirmed incompatibility; MEDIUM confidence (open issue)
+- [Nested models as tool calls — Pydantic AI issue #3483](https://github.com/pydantic/pydantic-ai/issues/3483) — flat schema recommendation; MEDIUM confidence (open issue)
+- [Gemini streaming structured output — Pydantic AI issue #1237](https://github.com/pydantic/pydantic-ai/issues/1237) — streaming limitation confirmed; MEDIUM confidence
+- [Google ADK + FastAPI integration — DEV Community](https://dev.to/timtech4u/building-ai-agents-with-google-adk-fastapi-and-mcp-26h7) — production integration patterns; MEDIUM confidence
+- [Coercing LLM agents to structured outputs — Higherpass](https://www.higherpass.com/2025/05/22/coercing-llm-agents-with-structured-responses-using-pydantic-ai/) — field validator production patterns; MEDIUM confidence
+- Codebase analysis: `/mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia/app/ai/` — current implementation patterns verified directly; HIGH confidence
 
 ---
 
-*Feature research for: Healthcare WhatsApp oncology patient monitoring (production refinement milestone)*
-*Researched: 2026-02-22*
+*Feature research for: AI framework migration — LangGraph to Pydantic AI + Google ADK (oncology WhatsApp backend v1.2)*
+*Researched: 2026-02-23*

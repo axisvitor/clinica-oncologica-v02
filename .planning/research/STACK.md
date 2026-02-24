@@ -1,163 +1,305 @@
 # Stack Research
 
-**Domain:** Healthcare WhatsApp patient monitoring with AI-humanized questionnaires (refinement/production readiness)
-**Researched:** 2026-02-22
-**Confidence:** HIGH (core framework choices), MEDIUM (LangGraph trade-offs), HIGH (DB templates verdict)
+**Domain:** Healthcare WhatsApp backend — AI framework migration (LangGraph → Pydantic AI + Google ADK)
+**Researched:** 2026-02-23
+**Confidence:** HIGH (pydantic-ai versions and DI patterns), MEDIUM (google-adk dependency conflicts), HIGH (removal decisions)
 
 ---
 
-## Executive Verdict: What to Keep, Change, or Add
+## Executive Verdict: What to Add, Remove, or Change
 
-| Component | Status | Action |
-|-----------|--------|--------|
-| Python 3.13 + FastAPI + Pydantic v2 | Keep | Optimal for 2025/2026 |
-| SQLAlchemy sync Session | Problematic | Migrate hot paths to AsyncSession |
-| LangGraph (flow orchestration graphs) | Keep | Justified for stateful multi-step flows |
-| LangGraph (single-node AI graphs) | Overengineered | Replace with direct async Gemini calls |
-| Celery + Celery Beat | Keep | Right tool for 38 periodic tasks at this scale |
-| Dragonfly (Redis-compatible) | Keep | Production-proven, 100% API-compatible |
-| Evolution API (WhatsApp) | Monitor | Unofficial protocol risk; plan Cloud API migration path |
-| Google Gemini 2.0 Flash | Keep | Cost-optimal for healthcare message humanization |
-| Templates in database | Keep | Correct pattern; optimize retrieval with caching |
-| Firebase Auth | Keep | No change needed |
+| Component | Status | Action | Rationale |
+|-----------|--------|--------|-----------|
+| `langgraph>=1.0.7` | REMOVE | Full removal after migration | Entire orchestration layer being replaced |
+| `langchain-core>=1.2.7` | REMOVE | After removing LangGraph | LangGraph's sole use of langchain-core |
+| `langchain-google-genai>=2.1.12` | REMOVE | After Pydantic AI migration | `ChatGoogleGenerativeAI` replaced by `google-genai` via pydantic-ai |
+| `google-ai-generativelanguage>=0.7.0` | REMOVE | Transitively with langchain-google-genai | Legacy SDK superseded by `google-genai` |
+| `pydantic-ai-slim[google,retries]` | ADD | Core of migration | Typed agents, structured output, Gemini via `google-genai` |
+| `google-genai>=1.56.0` | ADD (transitive) | Pulled in by pydantic-ai-slim[google] | New unified Google Gen AI SDK |
+| `google-adk` | DO NOT ADD (yet) | Decision below | Critical dependency conflicts with existing stack |
 
 ---
 
 ## Recommended Stack
 
-### Core Technologies
+### New Packages to Add
 
-| Technology | Version | Purpose | Why Recommended |
-|------------|---------|---------|-----------------|
-| Python | 3.13 | Runtime | Latest stable with JIT improvements; already in use |
-| FastAPI | >=0.128.0 | HTTP API | Async-first, Pydantic v2 native, production-proven |
-| Pydantic v2 | >=2.12.5 | Validation + settings | 5-50x faster than v1; already migrated |
-| SQLAlchemy 2.0 | >=2.0.45 | ORM | AsyncSession available; sync session is the debt |
-| Alembic | >=1.14.1 | Migrations | Standard Python ORM migration tool |
-| Uvicorn | >=0.39.0 | ASGI server | Correct for FastAPI production |
-| Celery | >=5.6.2 | Task queue + periodic scheduler | The right tool for 38 periodic tasks requiring distributed execution, retries, and DLQ |
-| Dragonfly | Latest stable | Redis-compatible broker/cache | 25x throughput vs Redis, 100% redis-py compatible, production-deployed by thousands of companies |
-| LangGraph | 1.0.9 | Stateful flow orchestration only | Use only for graphs with conditional edges, multiple nodes, or state persistence requirements |
-| Google Gemini 2.0 Flash | Latest via langchain-google-genai | AI message humanization | $0.10/1M input tokens; sub-second latency; cost-optimal for this volume |
-| Evolution API | v2 | WhatsApp integration | Currently integrated; acceptable for prototype/early production; plan migration path |
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| pydantic-ai-slim[google] | >=1.63.0,<2.0.0 | Typed Pydantic AI agents with Gemini support | Use slim variant to avoid pulling all model providers; `[google]` extra installs `google-genai>=1.56.0` |
+| pydantic-ai-slim[retries] | Same version | Tenacity-backed retry transport for httpx | Replaces existing `ChatGoogleGenerativeAI` retry handling; integrates with existing `tenacity` |
+| google-genai | >=1.56.0,<2.0.0 | Google Gen AI SDK (transitive via pydantic-ai) | New unified SDK replacing `google-ai-generativelanguage`; direct async API |
 
-### The LangGraph Decision: When to Use vs When Not To
+### Packages to Remove
 
-This is the central question of this research. The answer is nuanced: **the current codebase uses LangGraph in two fundamentally different ways, and only one is justified.**
+| Package | Safe to Remove After | Why |
+|---------|---------------------|-----|
+| `langgraph>=1.0.7` | Migration of `graphs.py`, `runtime.py`, `nodes.py` | All graph orchestration replaced by Pydantic AI agents + programmatic Python |
+| `langchain-core>=1.2.7` | After langgraph removal | Used exclusively by langgraph; `HumanMessage` in `client.py` replaced by `google-genai` types |
+| `langchain-google-genai>=2.1.12` | After pydantic-ai migration | `ChatGoogleGenerativeAI` replaced by `pydantic_ai.models.google.GoogleModel` |
+| `google-ai-generativelanguage>=0.7.0` | With langchain-google-genai | Legacy gRPC-based SDK; `google-genai` is the modern replacement |
 
-#### Justified Use: Multi-node Stateful Flow Graphs
+### What Does NOT Change
 
-`build_flow_message_graph` and `build_flow_response_graph` are legitimately complex:
-- Conditional routing (`_route_after_load`, `_route_after_response_load`)
-- Multiple nodes with business logic (`load_flow_context` → `dispatch_send_mode`)
-- State carries patient context, flow state IDs, message indexes, send modes
-- External dependency injection via `config["configurable"]["handler"]`
-- Awaiting-response state management across async operations
+| Package | Version | Keep Because |
+|---------|---------|-------------|
+| pydantic | >=2.12.5 | pydantic-ai-slim requires pydantic>=2.12; already met |
+| httpx | >=0.28.1 | pydantic-ai-slim requires httpx>=0.27; already met |
+| tenacity | >=8.2.3 | pydantic-ai retries extra uses tenacity under the hood |
+| google-auth | >=2.47.0 | Still needed for Firebase Admin + other Google APIs |
+| google-api-core | >=2.29.0 | Still needed for Firebase Admin; no conflict |
+| aiobreaker | >=1.2.0 | Circuit breaker pattern stays; wraps pydantic-ai agent calls |
 
-For these graphs, LangGraph's value is real: explicit state typing, testable nodes, and the graph structure itself documents the routing logic. **Keep these as LangGraph graphs.**
+---
 
-Confidence: HIGH — verified against actual code and LangGraph 1.0 production-readiness claims.
+## The Google ADK Decision: DO NOT ADD in v1.2
 
-#### Overengineered Use: Single-Node AI Graphs
+**Recommendation: Skip google-adk for this milestone. Use Pydantic AI alone for agent structure and programmatic Python for orchestration.**
 
-`build_humanization_graph`, `build_sentiment_graph`, `build_generation_graph`, `build_question_variation_graph`, `build_empathetic_follow_up_graph` are all this pattern:
+### Why google-adk Is Not Ready for This Stack
 
+**Conflict 1: OpenTelemetry version range incompatibility.**
+google-adk 1.25.1 requires `opentelemetry-sdk>=1.36.0,<1.39.0`. The existing requirements pin `opentelemetry-sdk>=1.28.0,<2.0.0`. These ranges overlap on the paper but google-adk's upper bound `<1.39.0` conflicts with future upgrades and the existing project may be on versions above 1.36.0.
+
+**Conflict 2: google-adk bundles FastAPI internally (known design issue).**
+google-adk pulls in its own FastAPI + Starlette as required dependencies for its web UI and development server. This caused documented version conflicts at v1.12 (starlette range mismatch), v1.16 (Pydantic 2.11+ schema generation failures with non-serializable httpx types). As of v1.25.1 there is no `google-adk-core` or `[minimal]` extra — the full web stack always installs. Issue #3615 requesting a lightweight install is open with no resolution timeline.
+
+**Conflict 3: Heavy dependency footprint for embedded use.**
+google-adk installs: FastAPI, Uvicorn, MCP, google-cloud-aiplatform, google-cloud-spanner, google-cloud-bigtable, google-cloud-pubsub, aiosqlite, and full OpenTelemetry stack. This is a framework designed to BE a server, not to be embedded in one. The oncology backend is already a FastAPI server.
+
+**Conflict 4: OpenTelemetry context management issues with async code.**
+ADK manages its own OpenTelemetry tracer and does not expose a public API to disable, configure, or extend it. With async generators and multiprocessing, there are persistent context detachment errors ("was created in a different Context"). The existing backend uses async generators in WebSocket and Celery contexts.
+
+**What to use instead of SequentialAgent/ParallelAgent:**
+The two remaining LangGraph graphs (`flow_message_graph`, `flow_response_graph`) have only 2 nodes each with simple conditional routing. Replace the graph execution with straightforward async Python:
+
+```python
+# Instead of LangGraph StateGraph or ADK SequentialAgent
+async def execute_flow_message(state: FlowMessageState, handler: Any) -> dict:
+    # Node 1: load_flow_context
+    state = await load_flow_context(state, config={"configurable": {"handler": handler}})
+    if state.get("result"):
+        return state["result"]
+    # Conditional: route to dispatch_send_mode
+    state = await dispatch_send_mode(state, config={"configurable": {"handler": handler}})
+    return state.get("result", {})
 ```
-START → single_node → END
+
+This replaces ~30 lines of graph builder code with ~10 lines of readable Python. No ADK dependency needed.
+
+**Revisit google-adk in v1.3** if: (a) issue #3615 is resolved with a `[core]` extra, (b) the OTel range conflict is loosened, and (c) there is a concrete multi-agent orchestration need that programmatic Python cannot cleanly express.
+
+---
+
+## Detailed Package Analysis: pydantic-ai-slim
+
+### Version and Python Compatibility
+
+| Attribute | Value |
+|-----------|-------|
+| Latest stable version | 1.63.0 (released 2026-02-23) |
+| Python support | 3.10, 3.11, 3.12, 3.13, 3.14 |
+| Python 3.13 status | CONFIRMED SUPPORTED |
+| Production stability | "5 - Production/Stable" on PyPI (V1 released September 2025) |
+| API stability commitment | V2 planned April 2026 earliest; V1 receives security fixes for 6 months after V2 |
+| License | MIT |
+
+### Core Dependencies of pydantic-ai-slim (directly relevant)
+
+| Dependency | Version Required | Status in Existing Stack |
+|------------|-----------------|-------------------------|
+| pydantic | >2.12 | ALREADY MET (>=2.12.5 in requirements) |
+| httpx | >0.27 | ALREADY MET (>=0.28.1 in requirements) |
+| griffe | >2.0 | NEW — small dependency for docstring introspection |
+| google-genai | >1.56.0 (via [google] extra) | NEW — replaces google-ai-generativelanguage |
+
+### The `google-genai` SDK Transition
+
+The existing stack uses `langchain-google-genai` which wraps the legacy `google-ai-generativelanguage` gRPC-based SDK. Pydantic AI uses `google-genai` (the new unified SDK) directly.
+
+`langchain-google-genai` 4.2.1 (latest) also migrated to `google-genai` under the hood as of v4.0.0. This means both pydantic-ai-slim[google] and langchain-google-genai 4.x reference the same underlying SDK — **they can coexist during migration** without version conflict. The old `google-ai-generativelanguage` package becomes removable once `langchain-google-genai` is removed.
+
+Confidence: MEDIUM — the specific version constraint pydantic-ai-slim places on google-genai (>1.56.0) matches what google-adk also requires (>=1.56.0 minimum). No conflict found between these two packages on the google-genai version.
+
+---
+
+## Pydantic AI Integration with Existing FastAPI DI Patterns
+
+### How pydantic-ai Dependency Injection Works
+
+pydantic-ai uses typed dataclass dependencies passed at `agent.run()` time, accessed via `RunContext[DepsType]`. This is the analog of FastAPI's `Depends()` — not the same mechanism but composable with it:
+
+```python
+from dataclasses import dataclass
+from pydantic_ai import Agent, RunContext
+from sqlalchemy.ext.asyncio import AsyncSession
+
+@dataclass
+class FlowDeps:
+    db: AsyncSession
+    redis_manager: Any  # existing RedisManager singleton
+    patient_id: str
+
+humanization_agent = Agent(
+    "google-gla:gemini-2.0-flash",  # google-genai model identifier
+    deps_type=FlowDeps,
+    output_type=str,  # or a Pydantic BaseModel for structured output
+    system_prompt="You humanize medical questionnaire messages for oncology patients.",
+)
+
+@humanization_agent.system_prompt
+async def get_dynamic_prompt(ctx: RunContext[FlowDeps]) -> str:
+    # Can access ctx.deps.db, ctx.deps.patient_id
+    return f"Patient ID: {ctx.deps.patient_id}. Be empathetic."
 ```
 
-Each is a single async function call wrapped in `StateGraph(AIState)` boilerplate. The `@lru_cache` on the compiled graph shows awareness of overhead. These graphs have:
-- No conditional edges
-- No routing decisions
-- No state persistence across calls
-- No multi-actor coordination
+In FastAPI route handlers:
+```python
+@router.post("/flow/message")
+async def send_flow_message(
+    payload: FlowMessageRequest,
+    db: AsyncSession = Depends(get_async_db_session),
+):
+    deps = FlowDeps(db=db, redis_manager=redis_manager, patient_id=str(payload.patient_id))
+    result = await humanization_agent.run(payload.template_text, deps=deps)
+    return result.output
+```
 
-**Benchmark data**: LangGraph adds ~14ms framework overhead per invocation vs ~3-6ms for direct calls. For a single humanization call (already dominated by Gemini latency of 300-800ms), this is negligible in absolute terms — but architecturally, wrapping a single async function in a StateGraph is pure complexity with no benefit.
+The FastAPI `Depends()` system provides the `AsyncSession`; pydantic-ai's `deps_type` receives it. No framework collision. This is the recommended pattern.
 
-**Recommendation: Replace single-node graphs with direct async Gemini calls via the existing `GeminiClient`.** The `GeminiClient.generate_content()` abstraction already handles retry, output profiles, and PII redaction. The graph infrastructure for these is dead weight.
+### PII Redaction Integration
 
-Migration is low-risk: the compiled graphs are `@lru_cache`'d, so callers just invoke them once. Replace callers to call `client.generate_content(prompt, profile=...)` directly.
+The existing `app/ai/pii_redaction.py` with `sanitize_prompt_text_for_external_ai()` integrates into pydantic-ai at two points:
 
-Confidence: HIGH — based on actual code analysis + LangGraph overhead benchmarks.
+1. **System prompt function:** Apply PII redaction to dynamic system prompt content before passing to Gemini.
+2. **Before `agent.run()`:** Redact the user-provided message before it reaches the agent.
 
-#### LangGraph 1.0 Production Status
+```python
+# Pattern: redact before run
+sanitized_message = sanitize_prompt_text_for_external_ai(template_text)
+result = await humanization_agent.run(sanitized_message, deps=deps)
+```
 
-LangGraph reached 1.0 in October 2025 (current version 1.0.9 released 2026-02-19). The 1.0 release:
-- Commits to no breaking changes until 2.0
-- Supports Python 3.10–3.13
-- Durable execution with checkpointing (not relevant here — you use `@lru_cache` not persistent checkpointers)
-- Production adoption: Uber, LinkedIn, Klarna
+The existing `AIResponseValidation.validate_sentiment()` in `nodes_ai.py` maps directly to pydantic-ai's `output_type=SentimentResult` (a Pydantic BaseModel), which replaces manual JSON parsing.
 
-**Known issue**: `langgraph-runtime-postgres` package is missing from PyPI (as of early 2026), blocking PostgreSQL backend. This is not relevant to the current use — the codebase uses in-memory compiled graphs without checkpointing.
+### Circuit Breaker Integration
 
-### The Async Migration Decision
+The existing `aiobreaker`-based circuit breaker (`get_ai_circuit_breaker()`) wraps agent calls at the service layer — not inside pydantic-ai:
 
-The codebase has 42+ methods annotated `# TODO(async-migration)` because SQLAlchemy sync `Session` is used throughout while FastAPI runs on asyncio. The pattern `await asyncio.to_thread(lambda: db.query(...).first())` is correct but suboptimal — it offloads sync blocking I/O to a thread pool, which consumes threads and adds latency.
+```python
+async def humanize_message(template: str, patient_id: str, db: AsyncSession) -> str:
+    cb = get_ai_circuit_breaker()
+    async with cb:  # raises FeatureNotAvailableError when circuit is open
+        deps = FlowDeps(db=db, patient_id=patient_id)
+        result = await humanization_agent.run(
+            sanitize_prompt_text_for_external_ai(template), deps=deps
+        )
+        return result.output
+```
 
-**What the research says**: The combination of FastAPI + SQLAlchemy 2.0 AsyncSession + asyncpg is the established 2025 production pattern for high-performance APIs. The migration path is:
-1. `create_async_engine` with `asyncpg` dialect
-2. `async_sessionmaker` providing `AsyncSession`
-3. FastAPI dependencies yield `AsyncSession` per request
-4. All `.query()` calls become `await session.execute(select(Model)...)`
+This preserves the existing circuit breaker pattern without pydantic-ai changes.
 
-**Verdict for this project**: Full migration is the correct long-term direction but is a large project (165+ sync call sites in 65+ files per project notes). The pragmatic approach for production readiness:
-- **Hot paths** (request handlers that call the database): migrate to AsyncSession first
-- **Celery tasks**: these run outside FastAPI's event loop and can legitimately use sync Session with run_sync() — no migration needed
-- **LangGraph flow nodes**: already use `asyncio.to_thread()` correctly as a bridge; clean up with AsyncSession when migrating the hot paths
+---
 
-### The Templates-in-Database Decision
+## Coexistence Strategy During Migration
 
-**Verdict: Keep templates in database. This is the correct approach.**
+The migration can proceed module by module without a big-bang cutover:
 
-Rationale:
-- WhatsApp message templates for healthcare follow-up need to be updated by clinic staff without code deployments (new treatment protocols, seasonal messaging, physician preference)
-- AI humanization requires the template as structured input to the Gemini prompt — the template is data, not logic
-- Database storage enables per-flow-kind, per-day configuration (exactly what `day_config` provides)
-- Versioning and audit trail are possible with DB-stored templates (important for LGPD compliance)
+| Phase | LangGraph | pydantic-ai | Notes |
+|-------|-----------|-------------|-------|
+| Start | Active (graphs.py) | Not yet installed | v1.1 state |
+| Install | Active | Installed, no agents yet | Add to requirements.txt; install creates no conflicts |
+| Migrate AI ops | Active | Agents for 4 AI operations | consensus.py removed first (dead code) |
+| Migrate flows | Removed | Async Python for flow routing | graphs.py, runtime.py deleted |
+| Cleanup | Removed | Active | Remove langchain-core, langchain-google-genai |
 
-**What to optimize**: Template retrieval is currently synchronous (SQLAlchemy sync query). Templates are stable data that changes infrequently. Add a Redis-backed cache layer with TTL (30-60 minutes) to eliminate DB round-trips on every message send. The `RedisManager` infrastructure already exists.
+**Key insight:** pydantic-ai-slim[google] and langchain-google-genai can coexist in the same virtualenv because both now use `google-genai` as the underlying SDK. There is no import conflict. The migration can safely install pydantic-ai before removing LangGraph.
 
-The pattern: `get_day_config(flow_kind, day_number)` should check Redis first, fallback to DB, write to Redis on miss.
+**Order of removal matters:**
+1. Remove consensus system (dead code, zero callers)
+2. Replace 4 AI operations with pydantic-ai agents
+3. Replace flow graph execution with direct async Python functions
+4. Remove langgraph, langchain-core, langchain-google-genai, google-ai-generativelanguage
 
-Confidence: HIGH — based on actual code analysis + WhatsApp healthcare best practices.
+---
 
-### Supporting Libraries
+## The 4 AI Operations: Migration Targets
 
-| Library | Version | Purpose | When to Use |
-|---------|---------|---------|-------------|
-| langchain-google-genai | >=2.1.12 | Gemini API access via LangChain | Required for current Gemini integration; consider migrating to `google-genai` SDK directly if removing LangChain |
-| google-genai | Latest | Google's official async Gemini SDK | Use if removing LangChain overhead; `from google import genai` |
-| asyncpg | >=0.30.0 | Async PostgreSQL driver | Required for AsyncSession migration; already in requirements |
-| psycopg[binary] | >=3.2.13 | Sync PostgreSQL driver | Keep for Celery tasks and Alembic migrations |
-| tenacity | >=8.2.3 | Retry with exponential backoff | Keep; used for Gemini API retries |
-| aiobreaker | >=1.2.0 | Async circuit breaker | Keep; existing resilience pattern |
-| httpx | >=0.28.1 | Async HTTP client | Keep; Evolution API calls |
-| fakeredis | >=2.20.0 | In-memory Redis for tests | Keep; essential for fast test isolation |
-| pytest-asyncio | >=0.23.0 | Async test support | Keep; asyncio_mode=auto configured |
+Based on codebase analysis, the 4 AI operations that move to pydantic-ai agents are:
 
-### Development Tools
+| Operation | Current Implementation | New Implementation | Output Type |
+|-----------|----------------------|-------------------|-------------|
+| Message Humanization | `GeminiClient.generate_content()` via `ChatGoogleGenerativeAI` | `humanization_agent.run(template)` | `str` |
+| Sentiment Analysis | `_parse_sentiment_analysis()` with manual JSON parsing | `sentiment_agent.run(response)` | `SentimentResult(BaseModel)` |
+| Question Variation | Direct Gemini call in `nodes_ai.py` | `variation_agent.run(question)` | `str` |
+| Empathetic Follow-up | Direct Gemini call | `followup_agent.run(context)` | `str` |
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| Black (py313) | Code formatter | Line-length=120; already configured |
-| ruff | Linter (F rules) | Minimal config; consider enabling more rules for production readiness |
-| mypy | Type checking | Currently non-blocking (`|| true`); should be blocking for production |
-| bandit | Security scanning | Keep; important for healthcare data |
-| pytest-cov | Coverage reporting | Target 80%+ on core domain, saga, and AI paths |
+The `flow_message_graph` and `flow_response_graph` graphs are NOT AI operations — they are routing logic. Replace with direct async Python (not pydantic-ai agents).
+
+---
+
+## Structured Output: Pydantic AI + Gemini Compatibility Note
+
+Pydantic AI supports two modes for structured output with Gemini:
+
+1. **Tool-calling mode (default):** Agent uses Gemini's function-calling API to return structured JSON. Works with most Pydantic models.
+2. **NativeOutput mode:** Uses Gemini's native JSON schema response format. Required for deeply nested models. **Limitation:** Cannot use tools simultaneously when NativeOutput is active with Gemini.
+
+For this project's use case (sentiment analysis returning a flat model like `SentimentScore`, `sentiment: str`, `confidence: float`), tool-calling mode is sufficient and the NativeOutput limitation does not apply.
+
+Confidence: MEDIUM — verified via pydantic-ai docs and GitHub issue #3483 about nested models with Gemini.
+
+---
+
+## Version Compatibility Matrix
+
+| Package | Our Version | pydantic-ai-slim Requires | Compatible? |
+|---------|------------|--------------------------|-------------|
+| pydantic | >=2.12.5 | >2.12 | YES |
+| httpx | >=0.28.1 | >0.27 | YES |
+| tenacity | >=8.2.3 | (used internally by [retries] extra) | YES |
+| google-auth | >=2.47.0 | No direct constraint | YES (no conflict) |
+| google-api-core | >=2.29.0 | No direct constraint | YES (no conflict) |
+| protobuf | >=5.0,<7.0.0 | Inherited via google-genai | YES (google-genai requires protobuf; same range) |
+| opentelemetry-sdk | >=1.28.0,<2.0.0 | No constraint | YES |
+
+| Package | Our Version | google-adk 1.25.1 Requires | Compatible? |
+|---------|------------|---------------------------|-------------|
+| opentelemetry-sdk | >=1.28.0,<2.0.0 | >=1.36.0,<1.39.0 | CONFLICT (upper bound) |
+| fastapi | >=0.128.0,<0.200.0 | >=0.124.1,<1.0.0 | Overlaps but starlette sub-dep causes issues |
+| google-cloud-aiplatform | Not pinned | >=1.132.0,<2.0.0 | Would force new heavy dependency |
+
+---
+
+## Installation
+
+```bash
+# Add to requirements.txt (production)
+pydantic-ai-slim[google,retries]>=1.63.0,<2.0.0
+
+# google-genai installs transitively; do NOT pin separately unless needed
+# google-genai>=1.56.0,<2.0.0  # only add if direct use is needed
+
+# Remove from requirements.txt (after migration complete):
+# - langgraph>=1.0.7
+# - langchain-core>=1.2.7
+# - langchain-google-genai>=2.1.12
+# - google-ai-generativelanguage>=0.7.0
+```
+
+**Note on pinning pydantic-ai-slim:** Pin to `<2.0.0` because pydantic-ai V2 is planned for April 2026 and is expected to have breaking API changes. The V1 API (`Agent`, `RunContext`, `output_type`) is stable until V2.
 
 ---
 
 ## Alternatives Considered
 
-| Category | Current/Recommended | Alternative | Why Not Alternative |
-|----------|---------------------|-------------|---------------------|
-| AI Orchestration (multi-node flows) | LangGraph 1.0.9 | CrewAI, OpenAI Agents SDK | LangGraph is optimal for deterministic stateful flows with conditional routing; CrewAI is for role-based multi-agent; OpenAI SDK is OpenAI-specific |
-| AI Orchestration (single AI calls) | Direct GeminiClient.generate_content() | LangGraph single-node graph | No benefit from graph abstraction for linear single-call patterns; removes ~14ms overhead and complexity |
-| Background tasks | Celery 5.x + Celery Beat | Dramatiq, RQ, APScheduler | Celery is correct for 38 periodic tasks requiring distributed execution, retry, DLQ, and multi-broker support; alternatives lack this combination |
-| Redis-compatible store | Dragonfly | Redis (OSS), Valkey | Dragonfly is 100% API-compatible with zero migration cost; 25x throughput advantage; production-proven |
-| WhatsApp integration | Evolution API (current) | WhatsApp Cloud API (Meta official) | Cloud API has official support, SLAs, compliance path; Evolution API uses unofficial Baileys protocol with ban/disconnect risk |
-| LLM provider | Google Gemini 2.0 Flash | OpenAI GPT-4o-mini, Claude Haiku | Gemini Flash is cost-optimal ($0.10/1M input tokens) and Google provides native LangChain integration; switching requires re-testing prompt behavior |
-| ORM | SQLAlchemy 2.0 async | SQLModel, Tortoise ORM | SQLAlchemy 2.0 is the mature standard; already integrated; AsyncSession is the migration target |
+| Recommended | Alternative | Why Not Alternative |
+|-------------|-------------|---------------------|
+| pydantic-ai-slim[google] | pydantic-ai (full) | Full variant installs all model providers (OpenAI, Anthropic, etc.) and Logfire; unnecessary bloat for a Google-only deployment |
+| Programmatic Python for flow routing | google-adk SequentialAgent | ADK creates irresolvable dependency conflicts (OTel, FastAPI/Starlette) in v1.2; the routing logic is only 2-node graphs replaceable with 10 lines of Python |
+| Programmatic Python for flow routing | LangGraph (keep it) | Migration goal is to remove LangGraph entirely; programmatic Python is more readable for 2-node conditional routing |
+| pydantic-ai-slim[google] | Direct google-genai SDK | pydantic-ai adds typed output validation, DI system, and test mocking via `agent.override()`; the `google-genai` SDK would require rebuilding all of this manually |
+| aiobreaker (keep existing) | pydantic-ai retries transport | pydantic-ai retries are for HTTP-level retries (429, 503); circuit breaker is a different concern (open/half-open/closed state machine); both are needed |
 
 ---
 
@@ -165,127 +307,94 @@ Confidence: HIGH — based on actual code analysis + WhatsApp healthcare best pr
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| Single-node LangGraph graphs for AI calls | Adds boilerplate, ~14ms overhead, complexity with zero benefit for linear single-call patterns | Direct `GeminiClient.generate_content()` call |
-| `asyncio.run()` inside async context | Creates nested event loop; known bug in this codebase | `await` or `asyncio.to_thread()` for sync code |
-| SQLAlchemy `db.query()` in FastAPI request handlers | Blocks event loop thread; causes concurrency degradation under load | `AsyncSession` with `await session.execute(select(...))` |
-| `redis.keys()` in any context | O(N) blocking scan freezes Redis; already documented in project | `scan_iter(match=pattern, count=100)` |
-| `langgraph-checkpoint-postgres` (PyPI missing) | `langgraph-runtime-postgres` package is missing from PyPI as of early 2026 | In-memory compiled graphs with `@lru_cache` (current approach) or custom checkpoint implementation |
-| LangGraph Platform / LangGraph Cloud | Paid, managed; overkill for this scale and usage | Self-hosted compiled graphs with `@lru_cache` |
-| APScheduler | Removed from project correctly; creates in-process scheduling that doesn't scale across workers | Celery Beat (already in use) |
-| Evolution API without fallback | Unofficial Baileys protocol can result in account bans; no SLA | Add WhatsApp Cloud API as fallback for critical messages |
+| `google-adk` in v1.2 | Irresolvable dependency conflicts: OTel upper bound `<1.39.0`, FastAPI/Starlette sub-dep hell, heavy footprint (aiplatform, spanner, bigtable), OTel context detachment in async | Programmatic async Python for flow routing + pydantic-ai agents for AI ops |
+| `pydantic-ai` (full, not slim) | Installs all model providers (OpenAI, Anthropic, Groq) and Logfire; unnecessary for Google-only deployment | `pydantic-ai-slim[google,retries]` |
+| `google-generativeai` (old SDK) | Being deprecated; replaced by `google-genai`; langchain-google-genai 4.x already migrated away from it | Already transitive; remove `google-ai-generativelanguage` when removing langchain |
+| Keeping `ChatGoogleGenerativeAI` after pydantic-ai migration | Two Gemini client abstractions creates confusion about which is authoritative; increases surface area for PII redaction bypass | Remove `langchain-google-genai` after migration; use `pydantic_ai.models.google.GoogleModel` |
+| ADK's `SequentialAgent` for 2-node graphs | Massive dependency for a pattern solved in 10 lines of Python | Direct `async def execute_flow_sequence(*steps)` function |
+| `NativeOutput` mode for simple schemas | Loses tool-calling capability; Gemini cannot use tools simultaneously | Default tool-calling mode for flat structured outputs (`SentimentResult`, etc.) |
 
 ---
 
-## Stack Patterns by Context
+## Stack Patterns for This Migration
 
-**For AI message humanization (single LLM call):**
-- Call `GeminiClient.generate_content(prompt, profile=MESSAGE_HUMANIZED)` directly
-- No LangGraph wrapper needed
-- Already structured correctly in `nodes_ai.py` — just remove the graph scaffolding
+**For AI operations that return unstructured text (humanization, question variation, empathetic follow-up):**
+```python
+from pydantic_ai import Agent
 
-**For flow orchestration (stateful, multi-step):**
-- Keep LangGraph with `StateGraph`, `@lru_cache` compiled graph
-- The flow_message_graph and flow_response_graph are valid uses
-- Do not add persistent checkpointing until `langgraph-runtime-postgres` is stable on PyPI
+humanization_agent = Agent(
+    "google-gla:gemini-2.0-flash",
+    output_type=str,
+    system_prompt="...",  # or dynamic via @agent.system_prompt
+)
+# PII redaction before run, circuit breaker wraps the call
+result = await humanization_agent.run(sanitized_template, deps=deps)
+return result.output
+```
 
-**For database operations in FastAPI request handlers:**
-- Use `AsyncSession` from `async_sessionmaker`
-- Inject via FastAPI `Depends(get_async_db_session)`
-- The existing `base_v2.py` repository pattern should be adapted to `AsyncSession`
+**For AI operations that return structured data (sentiment analysis):**
+```python
+from pydantic import BaseModel
+from pydantic_ai import Agent
 
-**For database operations in Celery tasks:**
-- Celery workers have their own event loop per task
-- Sync `Session` is acceptable here; use `asyncio.run()` only at the top level of a task, never nested
-- Alternatively, use `asyncpg` directly for async operations in tasks
+class SentimentResult(BaseModel):
+    sentiment: str  # positive/negative/neutral
+    confidence: float
+    pain_indicators: list[str]
 
-**For template retrieval (templates in DB):**
-- Add Redis cache layer in `_get_day_config()`:
-  ```python
-  cache_key = f"day_config:{flow_kind}:{day_number}"
-  cached = await redis_manager.get(cache_key)
-  if cached:
-      return json.loads(cached)
-  config = db.query(FlowTemplate)...
-  await redis_manager.setex(cache_key, 1800, json.dumps(config))
-  return config
-  ```
+sentiment_agent = Agent(
+    "google-gla:gemini-2.0-flash",
+    output_type=SentimentResult,
+    system_prompt="...",
+)
+result = await sentiment_agent.run(patient_response, deps=deps)
+return result.output  # type: SentimentResult — no more manual JSON parsing
+```
 
----
+**For flow routing (replacing LangGraph 2-node graphs):**
+```python
+# Replaces build_flow_message_graph() + 30 lines of StateGraph builder
+async def execute_flow_message(state: FlowMessageState, *, handler: Any) -> dict:
+    state = await load_flow_context(state, handler=handler)
+    if state.get("result"):
+        return state["result"]
+    state = await dispatch_send_mode(state, handler=handler)
+    return state.get("result", {})
+```
 
-## Production Readiness Gaps (Current Stack)
+**For testing pydantic-ai agents (replaces LangGraph mock patterns):**
+```python
+from pydantic_ai.models.test import TestModel
 
-These are not stack replacements — they are the production-readiness work needed with the existing stack:
-
-| Gap | Severity | Action |
-|-----|----------|--------|
-| 42+ sync-in-async methods blocking event loop | HIGH | Migrate FastAPI request-path methods to AsyncSession; Celery tasks are lower priority |
-| Single-node LangGraph graphs (5 graphs) | MEDIUM | Replace with direct GeminiClient calls; reduces complexity and marginal overhead |
-| Evolution API unofficial protocol risk | MEDIUM | Acceptable for current scale; document migration path to Cloud API for >500 patients |
-| mypy non-blocking in CI | MEDIUM | Enable type checking as CI gate; healthcare code should be type-safe |
-| Template retrieval uncached | LOW | Add Redis TTL cache in `_get_day_config()`; reduces DB load on every message send |
-| Dual flow systems (production vs QW-021) | MEDIUM | Consolidate to production `flow_core.py` system; QW-021 is low-production-use per project notes |
-
----
-
-## Version Compatibility
-
-| Package | Version | Compatible With | Notes |
-|---------|---------|-----------------|-------|
-| LangGraph | 1.0.9 | Python 3.10–3.13, langgraph-prebuilt | Pin minor version; `langgraph-prebuilt==1.0.2` had breaking change without proper constraints (GitHub issue #6363) |
-| langchain-google-genai | >=2.1.12 | langchain-core >=1.2.7 | Google officially partners with LangChain; stable integration |
-| SQLAlchemy | >=2.0.45 | asyncpg >=0.30.0 | asyncpg 0.29.0+ may have issues with `create_async_engine`; test before pinning |
-| Celery | >=5.6.2 | redis >=6.4.0, Dragonfly | Dragonfly is 100% Redis protocol compatible; no changes needed |
-| Pydantic v2 | >=2.12.5 | FastAPI >=0.128.0 | Already on v2; do not mix v1 validators |
-| redis (client) | >=6.4.0 | Dragonfly, SSL | Uses `ssl_context` for Dragonfly TLS; keep |
-
----
-
-## Installation
-
-```bash
-# Core (already installed — for documentation purposes)
-pip install fastapi uvicorn[standard] pydantic[email] pydantic-settings sqlalchemy alembic
-
-# AI stack
-pip install langchain-core langchain-google-genai langgraph
-
-# Database drivers
-pip install psycopg[binary] asyncpg
-
-# Task queue
-pip install celery redis
-
-# Resilience
-pip install tenacity aiobreaker httpx
-
-# Auth / Security
-pip install firebase-admin pyjwt cryptography passlib[bcrypt] argon2-cffi
-
-# Observability
-pip install sentry-sdk[fastapi] opentelemetry-sdk prometheus-client structlog
-
-# Dev tools
-pip install -U pytest pytest-asyncio pytest-cov fakeredis pytest-mock black ruff mypy bandit
+async def test_humanization():
+    with humanization_agent.override(model=TestModel()):
+        result = await humanization_agent.run("template text", deps=test_deps)
+        assert result.output  # validates without real Gemini call
 ```
 
 ---
 
 ## Sources
 
-- LangGraph PyPI — version 1.0.9, release date 2026-02-19, Python 3.10–3.13 supported: https://pypi.org/project/langgraph/
-- LangChain blog — LangGraph 1.0 production readiness, Uber/LinkedIn/Klarna adoption: https://blog.langchain.com/langchain-langgraph-1dot0/
-- ZenML blog — LangGraph alternatives comparison, framework overhead benchmarks (~14ms for LangGraph): https://www.zenml.io/blog/langgraph-alternatives
-- Dragonfly vs Redis 2025 — 25x throughput, production deployment data: https://martinuke0.github.io/posts/2025-12-11-dragonfly-vs-redis-a-practical-data-backed-comparison-for-2025/
-- Dragonfly official — scaling and performance vs Redis: https://www.dragonflydb.io/blog/scaling-performance-redis-vs-dragonfly
-- Google AI pricing — Gemini 2.0 Flash: $0.10/1M input, $0.40/1M output: https://ai.google.dev/gemini-api/docs/pricing
-- Evolution API risks — unofficial Baileys protocol production issues: https://wasenderapi.com/blog/evolution-api-problems-2025-issues-errors-best-alternative-wasenderapi
-- FastAPI + AsyncSQLAlchemy 2.0 patterns 2025: https://dev-faizan.medium.com/fastapi-sqlalchemy-2-0-modern-async-database-patterns-7879d39b6843
-- LangGraph GitHub issue #6363 — prebuilt version constraint: https://github.com/langchain-ai/langgraph/issues/6363
-- LangGraph GitHub issue #6709 — runtime-postgres missing from PyPI: https://github.com/langchain-ai/langgraph/issues/6709
-- Celery production patterns 2025: https://judoscale.com/blog/choose-python-task-queue
-- Actual codebase analysis: `backend-hormonia/app/ai/langgraph/graphs.py`, `nodes.py`, `nodes_ai.py`
+- pydantic-ai PyPI — latest 1.63.0, Python 3.10–3.14, Production/Stable: https://pypi.org/project/pydantic-ai/
+- pydantic-ai install docs — slim vs full, [google] extra installs google-genai: https://ai.pydantic.dev/install/
+- pydantic-ai-slim pyproject.toml — core deps: pydantic>2.12, httpx>0.27, google-genai>1.56.0 (for [google]): https://github.com/pydantic/pydantic-ai/blob/main/pydantic_ai_slim/pyproject.toml
+- pydantic-ai Google model docs — uses google-genai SDK, not google-generativeai: https://ai.pydantic.dev/models/google/
+- pydantic-ai dependencies docs — RunContext DI pattern, dataclass deps: https://ai.pydantic.dev/dependencies/
+- pydantic-ai retries docs — tenacity-based AsyncTenacityTransport: https://ai.pydantic.dev/retries/
+- pydantic-ai output docs — structured output, NativeOutput mode, Gemini tool-calling limitation: https://ai.pydantic.dev/output/
+- google-adk PyPI — latest 1.25.1, Python >=3.10: https://pypi.org/project/google-adk/
+- google-adk pyproject.toml — deps: google-genai>=1.56.0, opentelemetry-sdk>=1.36.0,<1.39.0, fastapi>=0.124.1: https://github.com/google/adk-python/blob/main/pyproject.toml
+- google-adk issue #2657 — FastAPI/starlette version conflict, closed as "won't relax": https://github.com/google/adk-python/issues/2657
+- google-adk issue #3173 — Swagger docs fail in v1.16 due to Pydantic 2.11+/FastAPI schema conflict: https://github.com/google/adk-python/issues/3173
+- google-adk issue #3615 — lightweight/core-only install request, OPEN, no resolution: https://github.com/google/adk-python/issues/3615
+- langchain-google-genai PyPI — 4.2.1, now uses google-genai SDK (v4.0.0+ migration): https://pypi.org/project/langchain-google-genai/
+- langchain-google-genai discussion #1422 — Consolidated SDK migration to google-genai in v4.0.0: https://github.com/langchain-ai/langchain-google/discussions/1422
+- Codebase analysis — app/ai/client.py (ChatGoogleGenerativeAI usage), app/ai/langgraph/graphs.py (2 multi-node graphs), app/ai/langgraph/consensus.py (dead code, zero callers), app/ai/langgraph/nodes_ai.py (AI helpers, manual JSON parsing)
+- ZenML blog — pydantic-ai vs LangGraph, ADK vs LangGraph comparison: https://www.zenml.io/blog/google-adk-vs-langgraph
 
 ---
 
-*Stack research for: Healthcare WhatsApp patient monitoring — refinement/production readiness*
-*Researched: 2026-02-22*
+*Stack research for: Healthcare WhatsApp backend — AI framework migration (LangGraph → Pydantic AI)*
+*Researched: 2026-02-23*
+*Confidence: HIGH for pydantic-ai choices, MEDIUM for google-adk conflict analysis (verified against GitHub issues but dependency resolution can shift with new versions)*

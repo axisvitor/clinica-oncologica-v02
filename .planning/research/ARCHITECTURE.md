@@ -1,494 +1,456 @@
 # Architecture Research
 
-**Domain:** Healthcare WhatsApp AI messaging — oncology patient monitoring with LangGraph + FastAPI
-**Researched:** 2026-02-22
-**Confidence:** HIGH (based on direct codebase inspection + verified external patterns)
+**Domain:** AI Framework Migration — LangGraph to Pydantic AI + Google ADK (oncology WhatsApp backend)
+**Researched:** 2026-02-23
+**Confidence:** MEDIUM-HIGH (Pydantic AI API: HIGH via official docs; Google ADK integration patterns: MEDIUM via community sources and GitHub discussions; migration coexistence strategy: HIGH via codebase analysis)
 
 ---
 
-## Standard Architecture
+## Migration Goal
+
+Replace LangGraph and its associated infrastructure (graphs, runtime, checkpointing, state, consensus) with Pydantic AI agents for the 4 AI operations (humanize, sentiment, question variation, empathetic follow-up) and Google ADK workflow agents for the 2 flow orchestration operations (send_day_messages, handle_response_and_continue). The resulting system must be simpler, fully type-safe, and preserve all existing protections (PII redaction, rate limiting, circuit breaker, output guardrails, LGPD compliance).
+
+---
+
+## Current State: What Exists
+
+### LangGraph Components to Remove
+
+```
+backend-hormonia/app/ai/langgraph/
+├── __init__.py          — imports to delete
+├── _invoke.py           — invoke_langgraph_graph() wrapper — replace with direct agent calls
+├── ai_state.py          — AIState TypedDict — replace with Pydantic models
+├── consensus.py         — DEAD CODE — delete outright (no production callers)
+├── graphs.py            — build_flow_message_graph(), build_flow_response_graph() — replace with ADK
+├── nodes.py             — load_flow_context(), dispatch_send_mode(), etc — logic moves to ADK agents
+├── nodes_ai.py          — prompt building helpers — KEEP (move to prompts package)
+├── prompts.py           — build_humanization_prompt(), build_sentiment_prompt(), etc — KEEP as-is
+├── runtime.py           — compile_graph(), instrument_node(), RedisCheckpointer — DELETE
+└── state.py             — FlowMessageState TypedDict — REPLACE with Pydantic model
+```
+
+### Components to Keep (Unchanged)
+
+```
+backend-hormonia/app/ai/
+├── client.py            — GeminiClient (rate limiting, circuit breaker, Redis cache, PII redaction) — KEEP, adapt
+├── client_domain.py     — GeminiDomainClient (4 domain methods) — REWORK as Pydantic AI agents
+├── context_compactor.py — compact_patient_context() — KEEP as-is
+├── models.py            — PatientContext, ConcernLevel Pydantic models — KEEP as-is
+├── pii_redaction.py     — sanitize_prompt_text_for_external_ai() — KEEP, called from agents
+
+backend-hormonia/app/services/ai/
+├── guardrails.py        — normalize_ai_output(), validate_ai_output() — KEEP as-is
+├── output_profiles.py   — OutputProfile, MESSAGE_HUMANIZED, JSON_SENTIMENT, etc — KEEP as-is
+├── ai_service.py        — AIService wrapper — KEEP, update imports
+└── ...                  — other files — KEEP as-is
+
+backend-hormonia/app/services/flow/
+├── sequential_message_handler.py — REWORK (remove graph invocations, call ADK runner)
+└── ...                            — other files — KEEP as-is
+```
+
+### The 4 AI Operations (Currently GeminiDomainClient methods)
+
+| Method | What It Does | Output Type |
+|--------|-------------|-------------|
+| `humanize_flow_message()` | Transform template into natural message | `str` (MESSAGE_HUMANIZED profile) |
+| `generate_varied_question()` | Generate non-repetitive question variant | `str` (MESSAGE_STANDARD profile) |
+| `analyze_response_sentiment()` | Analyze patient response sentiment | `Dict[str,Any]` (JSON_SENTIMENT profile) |
+| `create_empathetic_follow_up()` | Generate empathetic follow-up after patient response | `str` (MESSAGE_HUMANIZED profile) |
+
+### The 2 Flow Orchestration Operations (Currently LangGraph graphs)
+
+| Graph | Entry | Nodes | What It Does |
+|-------|-------|-------|-------------|
+| `flow_message_graph` | `load_flow_context` -> `dispatch_send_mode` | 2 nodes + conditional edge | Send day messages to patient |
+| `flow_response_graph` | `load_response_context` -> `dispatch_response_continuation` | 2 nodes + conditional edge | Handle patient response and continue flow |
+
+---
+
+## Target State: New Architecture
 
 ### System Overview
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                         CLIENT SURFACES                                │
-│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐    │
-│  │  Admin SPA       │  │  Quiz Next.js    │  │  WhatsApp        │    │
-│  │  React 19 + Vite │  │  (short-link)    │  │  (Evolution API) │    │
-│  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘    │
-└───────────┼─────────────────────┼────────────────────  ┼─────────────┘
-            │                     │                       │
-┌───────────▼─────────────────────▼───────────────────────▼─────────────┐
-│                    FastAPI Application (main.py)                       │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
-│  │  API v2     │  │  Auth +     │  │  Webhook    │  │  WebSocket  │  │
-│  │  Routers    │  │  LGPD Mware │  │  Handlers   │  │  Manager    │  │
-│  └──────┬──────┘  └─────────────┘  └──────┬──────┘  └──────┬──────┘  │
-│         │                                  │                │         │
-│  ┌──────▼──────────────────────────────────▼────────────────▼──────┐  │
-│  │                      Domain / Services Layer                     │  │
-│  │  ┌────────────┐  ┌────────────┐  ┌─────────────┐               │  │
-│  │  │  FlowCore  │  │  Saga      │  │  AI Layer   │               │  │
-│  │  │  (prod)    │  │  Orchestr. │  │  LangGraph  │               │  │
-│  │  └────────────┘  └────────────┘  └─────────────┘               │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                        │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                      Infrastructure / Core                       │  │
-│  │  RedisManager · CircuitBreaker · SessionManager · LGPD Services  │  │
-│  └────────────────────────────┬─────────────────────────────────────┘  │
-└───────────────────────────────┼────────────────────────────────────────┘
-                                │
-┌───────────────────────────────▼────────────────────────────────────────┐
-│               Background Processing (Celery + Dragonfly)               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                  │
-│  │ Flow Tasks   │  │ Quiz Tasks   │  │ Saga Retry   │  (38 beat tasks) │
-│  │ Messaging    │  │ LGPD / Audit │  │ Monitoring   │                  │
-│  └──────────────┘  └──────────────┘  └──────────────┘                  │
-└────────────────────────────────────────────────────────────────────────┘
-                                │
-┌───────────────────────────────▼────────────────────────────────────────┐
-│                          Data Stores                                   │
-│  ┌──────────────────┐  ┌──────────────────────────────────────────┐   │
-│  │ PostgreSQL/RDS   │  │ Dragonfly (Redis-compatible)             │   │
-│  │ (ORM: sync SA)   │  │ DB0=broker DB1=cache DB2=sess DB3=rate  │   │
-│  └──────────────────┘  └──────────────────────────────────────────┘   │
-└────────────────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------------------+
+|                         FastAPI Request Layer                           |
+|  Webhook Handler  |  Flow Router  |  Quiz Handler  |  Celery Tasks      |
++------------------------------------+------------------------------------+
+                                     |
++------------------------------------v------------------------------------+
+|                    SequentialMessageHandler (REWORKED)                  |
+|  send_day_messages()  |  handle_response_and_continue()                 |
+|  -- previously called LangGraph graph.ainvoke()                         |
+|  -- now calls ADK Runner.run_async()                                    |
++------------------------+-----------------------------------------------+
+                         |
+          +--------------v--------------+
+          |     Google ADK Layer         |
+          |  (NEW: app/ai/adk/)          |
+          |                             |
+          |  FlowMessageAgent           |
+          |  (SequentialAgent)          |
+          |  +----------------------+   |
+          |  | LoadFlowContextAgent |   |
+          |  | (custom BaseAgent)   |   |
+          |  +----------------------+   |
+          |  | DispatchSendMode     |   |
+          |  | Agent (custom)       |   |
+          |  +----------------------+   |
+          |                             |
+          |  FlowResponseAgent          |
+          |  (SequentialAgent)          |
+          |  +----------------------+   |
+          |  | LoadResponseContext  |   |
+          |  | Agent (custom)       |   |
+          |  +----------------------+   |
+          |  | DispatchResponse     |   |
+          |  | ContinuationAgent    |   |
+          |  +----------------------+   |
+          +--------------+--------------+
+                         |
+          +--------------v--------------+
+          |    Pydantic AI Agent Layer   |
+          |  (NEW: app/ai/agents/)       |
+          |                             |
+          |  HumanizeAgent              |
+          |  SentimentAgent             |
+          |  QuestionVariationAgent     |
+          |  EmpathyAgent               |
+          +--------------+--------------+
+                         |
+          +--------------v--------------+
+          |      GeminiClient (KEPT)     |
+          |   Rate limit | Circuit breaker|
+          |   Cache      | PII redaction  |
+          |   Guardrails | Output profiles|
+          +-----------------------------+
 ```
+
+---
+
+## Component Architecture
 
 ### Component Responsibilities
 
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| FastAPI routers (api/v2) | HTTP request routing, input validation, response serialization | Domain/services layer, schemas |
-| FlowCore + FlowService (prod) | Day-based patient treatment flow progression, SQLAlchemy state | FlowStateRepository, WhatsApp, AI layer |
-| FlowManager (QW-021) | Step-based flow execution engine with Pydantic contexts | FlowEngine, FlowValidator, integrations |
-| AI Layer (langgraph/) | LangGraph graphs for humanization, sentiment, empathetic follow-up | Gemini via gemini_orchestrator, PII redaction |
-| SagaOrchestrator | Distributed patient onboarding transaction with compensation | Redis distributed lock, all domain services |
-| UnifiedWhatsAppService | Canonical messaging facade over Evolution API | Evolution API client, DLQ |
-| RedisManager | Singleton Redis/Dragonfly client with pooling + circuit breaker | All layers that need Redis |
-| Celery workers | Async background tasks: messaging, flows, quiz, saga retry | All services, Dragonfly broker |
-| Celery Beat | 38 periodic tasks for flows, quizzes, alerts, reports | All task modules |
+| Component | Location | Responsibility | Status |
+|-----------|----------|---------------|--------|
+| `HumanizeAgent` | `app/ai/agents/humanize.py` | Pydantic AI agent: wrap `humanize_flow_message` with typed input/output | NEW |
+| `SentimentAgent` | `app/ai/agents/sentiment.py` | Pydantic AI agent: wrap `analyze_response_sentiment` with `SentimentResult` output | NEW |
+| `QuestionVariationAgent` | `app/ai/agents/question_variation.py` | Pydantic AI agent: wrap `generate_varied_question` with typed input/output | NEW |
+| `EmpathyAgent` | `app/ai/agents/empathy.py` | Pydantic AI agent: wrap `create_empathetic_follow_up` with typed input/output | NEW |
+| `FlowMessageAgent` | `app/ai/adk/flow_message/agent.py` | ADK SequentialAgent: orchestrate load+dispatch for sending day messages | NEW |
+| `FlowResponseAgent` | `app/ai/adk/flow_response/agent.py` | ADK SequentialAgent: orchestrate load+dispatch for response continuation | NEW |
+| `ADKRunner` | `app/ai/adk/runner.py` | Singleton InMemorySessionService + Runners, shared across requests | NEW |
+| `GeminiClient` | `app/ai/client.py` | Core Gemini HTTP client with all protections — continues as underlying model for Pydantic AI | KEEP |
+| `GeminiDomainClient` | `app/ai/client_domain.py` | Thin shim re-exporting from agents (backward compat) then tombstoned after migration | REWORK |
+| `SequentialMessageHandler` | `app/services/flow/sequential_message_handler.py` | Remove LangGraph invocations, call ADK Runner instead | REWORK |
+| `app/ai/langgraph/` | entire directory | All files deleted or tombstoned after migration complete | DELETE |
 
 ---
 
-## Current LangGraph Integration Assessment
+## Pydantic AI Agent Pattern
 
-### What's Actually There
+### How Pydantic AI Agents Work
 
-The codebase has **8 LangGraph graphs**, each compiled with `@lru_cache(maxsize=1)` and a Redis-backed `RedisCheckpointer` (with in-memory `MemorySaver` fallback):
-
-| Graph | Nodes | Purpose |
-|-------|-------|---------|
-| `flow_message_graph` | load_flow_context → dispatch_send_mode | Route outbound message type |
-| `flow_response_graph` | load_response_context → dispatch_response_continuation | Route inbound response handling |
-| `humanization_graph` | humanize | Single-node: Gemini humanizes template text |
-| `sentiment_graph` | sentiment | Single-node: Gemini sentiment classification |
-| `generation_graph` | generate | Single-node: Gemini generic generation |
-| `question_variation_graph` | question_variation | Single-node: Gemini question variant generation |
-| `empathetic_follow_up_graph` | empathetic_follow_up | Single-node: Gemini empathetic message generation |
-
-**Key Observation:** 5 of 8 graphs are single-node pipelines. Each graph compiles full LangGraph infrastructure (StateGraph, checkpointer, instrumentation wrapper) for what is functionally one `await llm.invoke(prompt)` call.
-
-### Is LangGraph the Right Choice Here?
-
-**Verdict: KEEP with rationalization, not replace.**
-
-The architecture as-is is over-structured for single-node use cases but defensible because:
-
-1. **The infrastructure is already invested and working.** LangGraph is installed, the Redis checkpointer is production-quality, `instrument_node` wraps all nodes with structured logging, and `guarded imports` provide degraded-mode operation. Ripping this out would introduce more risk than benefit.
-
-2. **The 2-node routing graphs (flow_message, flow_response) ARE legitimate LangGraph use cases** — conditional branching on state, different execution paths.
-
-3. **The single-node graphs are over-engineered but harmless at current scale.** The `@lru_cache` means graph compilation happens exactly once per process. The per-invocation overhead is the checkpointer write, which is a single Redis `setex`. At the throughput this system handles (oncology clinic, not WhatsApp at scale), this is negligible.
-
-4. **Future expansion will benefit from the structure.** Adding retry logic, fallback nodes, or streaming would require no graph architecture changes.
-
-**What to fix instead of replacing:**
-- Convert `try/except ImportError` silent fallbacks to startup health check assertions (fail fast, not silent no-op)
-- Add a `FeatureNotAvailableError` path for when LangGraph is missing rather than returning `None`
-- Consider merging the 5 single-node AI graphs into one `unified_ai_graph` with routing based on `AIState.operation` — reduces compiled graph count from 8 to 3
-
----
-
-## Dual Flow System Consolidation Strategy
-
-### The Problem: Two Parallel Systems
-
-```
-Production System (flat files)              QW-021 System (package)
-────────────────────────────────            ──────────────────────────────
-app/services/flow_core.py                   app/services/flow/core/manager.py
-app/services/flow_service.py                app/services/flow/core/engine.py
-app/services/enhanced_flow_engine.py        app/services/flow/core/state_machine.py
-app/services/flow_management.py             app/services/flow/core/context.py
-
-SQLAlchemy PatientFlowState (ORM)           Pydantic FlowContext (in-memory)
-Day-based progression                       Step-based progression
-High production usage                       Low production usage
-```
-
-**The migration docstring in `flow_core.py` already names the intent correctly:** the organized `app.services.flow` package (QW-021) IS the intended consolidation target. The flat-file system is the legacy system.
-
-### Recommended Consolidation: Strangler Fig Applied Internally
-
-**Phase approach — do not do a big-bang rewrite:**
-
-**Phase A (Preparation):** Make QW-021 system feature-complete.
-- The QW-021 `FlowManager` already has lifecycle, error handlers, event broadcast, templates, integrations, and analytics sub-packages.
-- Identify what the production flat-file system does that QW-021 does NOT yet cover — primarily the `PatientFlowState` SQLAlchemy persistence path.
-- Add `AsyncSession`-aware persistence to `FlowContextRepository` so it can write to the same `patient_flow_states` table.
-
-**Phase B (Facade + Routing):** Introduce a single `FlowDispatcher` facade that routes calls to either system based on a feature flag.
-```python
-# New: app/services/flow_dispatcher.py
-class FlowDispatcher:
-    def __init__(self, use_new: bool = False):
-        self._new = FlowManager(db)  # QW-021
-        self._old = FlowService(db)  # flat-file production
-
-    async def advance_flow(self, patient_id, ...):
-        if self._use_new_system:
-            return await self._new.advance(...)
-        return await self._old.advance(...)
-```
-- All callers (webhook handlers, Celery tasks, API routers) talk to `FlowDispatcher` only.
-- Set `use_new=False` initially. Zero functional change.
-
-**Phase C (Gradual Migration):** Enable the new system for new patients first. The QW-021 `FlowContext` is step-based — ensure it writes the `PatientFlowState` SQLAlchemy record for backward compatibility with dashboards and reporting.
-
-**Phase D (Decommission):** When 100% of active patients are on the new system, tombstone the flat-file modules (`flow_core.py`, `enhanced_flow_engine.py`, etc.) using the existing tombstone pattern.
-
-### Build Order Implications
-
-The consolidation depends on `AsyncSession` migration for the QW-021 path (the flat-file system works with sync sessions; the new system should not inherit that).
-
-**Recommended sequence:**
-1. AsyncSession migration (hot paths) → removes sync-in-async blockers
-2. FlowContextRepository gets AsyncSession support
-3. FlowDispatcher facade introduced
-4. Migration activated incrementally
-
----
-
-## Sync-in-Async Migration Strategy
-
-### The Problem
-
-42+ methods annotated `# TODO(async-migration)` in 9 files block the FastAPI event loop with synchronous SQLAlchemy `Session` calls inside `async def` functions. **Performance impact is measured at ~550 req/s vs ~1400 req/s** for identical hardware (WebSearch verified).
-
-### Recommended Approach: Phase by Throughput Priority, Not File Size
-
-**Do not migrate all 42 methods in one sprint.** Migrate by impact.
-
-**Tier 1 — Event Loop Killers (highest concurrency paths):**
-These sit directly in async FastAPI request paths or Celery worker hot loops:
-
-| File | Methods | Impact |
-|------|---------|--------|
-| `flow/sequential_message_handler.py` | 12 | Every inbound WhatsApp message |
-| `flow_core.py` | 7 | Flow advance on message receipt |
-| `enhanced_quiz_service.py` | 8 | Quiz response processing |
-| `services/webhook/handlers/` (implied) | — | All inbound Evolution API webhooks |
-
-**Tier 2 — Background Task Paths (less critical but still important):**
-
-| File | Methods | Impact |
-|------|---------|--------|
-| `flow_alerts.py` | 5 | Alert generation in Celery workers |
-| `flow_dashboard.py` | 4 | Dashboard data updates |
-| `saga_orchestrator/compensation.py` | 5 | Saga rollback (high risk if event-loop blocked during distributed transaction) |
-| `saga_orchestrator/steps.py` | 3 | Saga execution |
-
-**Tier 3 — Lower Priority:**
-
-| File | Methods | Impact |
-|------|---------|--------|
-| `firebase_user_sync_service.py` | 5 | Async sync task |
-| `data_integrity_monitoring.py` | 5 | Monitoring job |
-
-### Migration Pattern
-
-**Two valid intermediate strategies exist:**
-
-**Strategy A — run_in_executor (quick, safe, imperfect):**
-```python
-# Before: blocks event loop
-def _load_patient_flow(self, patient_id: UUID) -> PatientFlowState:
-    return self.db.query(PatientFlowState).filter(...).first()
-
-# After: wraps in thread pool, unblocks event loop
-async def _load_patient_flow(self, patient_id: UUID) -> PatientFlowState:
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None, lambda: self.db.query(PatientFlowState).filter(...).first()
-    )
-```
-- Pros: Minimal code change per method, backward compatible
-- Cons: Creates thread pool churn, does NOT give full async throughput gains, introduces risks with session lifecycle across thread boundaries
-
-**Strategy B — AsyncSession (proper, higher change volume):**
-```python
-# Requires create_async_engine + AsyncSession throughout
-async def _load_patient_flow(self, patient_id: UUID) -> PatientFlowState:
-    result = await self.db.execute(
-        select(PatientFlowState).where(PatientFlowState.patient_id == patient_id)
-    )
-    return result.scalar_one_or_none()
-```
-- Pros: Full performance gains (~1400 req/s), clean async, works with modern SQLAlchemy 2.0 patterns
-- Cons: Requires query syntax migration throughout touched files
-
-**Recommendation:** Use Strategy B for Tier 1 paths (they're the ones that matter). Use Strategy A as a short-term bridge for Tier 2-3 if timeline is constrained. **Never apply Strategy A to the Saga orchestrator** — session lifecycle across thread boundaries during compensation is a data integrity risk. Migrate the Saga to proper `AsyncSession` or leave it synchronous and wrap the entire saga invocation in `run_in_executor`.
-
-### Celery Worker Compatibility
-
-Celery workers are **synchronous by design**. The existing `asyncio.run()` / `async_to_sync` inconsistency is a real bug (identified in CONCERNS.md). The correct pattern is:
+Pydantic AI `Agent` is a generic class parameterized by `(DepsType, OutputType)`:
 
 ```python
-# Correct: in Celery tasks that call async services
-from asgiref.sync import async_to_sync
+from pydantic_ai import Agent
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.providers.google import GoogleProvider
 
-@celery_app.task
-def send_scheduled_message(patient_id: str) -> None:
-    async_to_sync(_send_message_async)(patient_id)  # correct
-    # NOT: asyncio.run(_send_message_async(patient_id))  — leaks event loop
-```
-
-**When `AsyncSession` is introduced, Celery tasks must use a separate sync session factory** — the async session cannot be used in sync Celery worker context without `run_until_complete`.
-
-The recommended pattern for dual-use code (called from both FastAPI and Celery):
-```python
-# Service method is sync, accepting session as parameter
-def advance_flow_sync(db: Session, patient_id: UUID) -> FlowResult: ...
-
-# Async wrapper for FastAPI routes
-async def advance_flow(db: AsyncSession, patient_id: UUID) -> FlowResult:
-    # Uses AsyncSession
-    ...
-
-# Celery task uses sync version directly
-@celery_app.task
-def advance_flow_task(patient_id: str) -> None:
-    with SyncSession() as db:
-        advance_flow_sync(db, UUID(patient_id))
-```
-
----
-
-## Component Boundaries — What Talks to What
-
-### Strict Boundaries (must not be crossed)
-
-```
-AI Layer  →  Domain Services ONLY (never → Repositories directly)
-AI Layer  →  PII Redaction (always, before Gemini calls)
-Routers   →  Domain/Services ONLY (never → Repositories directly)
-Celery    →  Services ONLY (never → AI Layer directly — use service method that wraps AI)
-```
-
-### Data Flow Direction
-
-```
-Inbound WhatsApp message:
-  Evolution Webhook → FastAPI /webhook → WebhookHandler
-    → FlowDispatcher.handle_response()
-      → [new] FlowManager.process_step() OR [old] FlowCore.advance_day()
-        → AI Layer (sentiment graph) if response classification needed
-        → FlowStateRepository (persist state)
-        → UnifiedWhatsAppService (send next message if needed)
-          → AI Layer (humanization graph) → Gemini → PII-redacted response
-          → Evolution API client
-
-Outbound scheduled message:
-  Celery Beat → messaging task
-    → FlowDispatcher.get_next_message()
-      → Template DB lookup
-        → AI Layer (humanization graph) → Gemini
-          → UnifiedWhatsAppService → Evolution API
-```
-
-### Layer Dependency Rules (dependency inversion respected)
-
-```
-api/ → domain/ → services/ → repositories/ → models/
-                ↘ core/ (infrastructure: redis, auth, logging)
-ai/ → services/ai/ → integrations/gemini_orchestrator
-                   ↘ core/redis_manager (for checkpointing)
-orchestration/ → services/ + repositories/ + core/distributed_lock
-tasks/ → services/ (NEVER → api/)
-```
-
----
-
-## Architectural Patterns to Follow
-
-### Pattern 1: Facade over External Integrations
-
-**What:** All external service calls go through a single facade class. Nothing calls Evolution API, Gemini, or Firebase directly.
-**When:** Any integration with a third-party API.
-**Why:** Enables circuit breaking, retry, DLQ, and swap-out testing without touching callers.
-
-Current implementations:
-- `UnifiedWhatsAppService` (Evolution API facade)
-- `GeminiOrchestrator` (Gemini facade, called by AI layer)
-- `RedisManager` (Redis/Dragonfly facade)
-
-**Extend this pattern to:** If a second AI provider is ever needed, add it as a `BaseAIProvider` with a factory, similar to `RedisManager`'s singleton pattern.
-
-### Pattern 2: Repository Pattern with Typed Base
-
-**What:** All DB access through typed repository classes. No raw `db.query()` outside of repositories.
-**When:** Any data model access.
-
-```python
-# Correct
-patient = await patient_repo.get_by_id(patient_id)
-
-# Wrong — never do this in a service or router
-patient = db.query(Patient).filter(Patient.id == patient_id).first()
-```
-
-**Important during async migration:** Repositories must be migrated to accept `AsyncSession` — the base class `BaseRepository` in `repositories/base.py` is the correct single point of change.
-
-### Pattern 3: Tombstone Dead Code, Shim Old Locations
-
-**What:** When retiring a module, replace with `raise ImportError` docstring (tombstone) or thin re-export shim. Never delete silently.
-**When:** Any consolidation step (flow system, middleware, auth).
-**Why:** Silent import failures are invisible bugs. Tombstones fail fast with a clear message.
-
-```python
-# Tombstone pattern (module no longer used)
-"""
-TOMBSTONE — [Module Name] (2026-XX-XX)
-Replaced by: [canonical location]
-Reason: [why replaced]
-"""
-raise ImportError(
-    "[Module Name] has been removed. Use [canonical] instead."
+agent: Agent[HumanizeDeps, str] = Agent(
+    model=GoogleModel(
+        settings.AI_GEMINI_MODEL,
+        provider=GoogleProvider(api_key=settings.AI_GEMINI_API_KEY)
+    ),
+    deps_type=HumanizeDeps,
+    output_type=str,
+    system_prompt="You are a healthcare message humanizer...",
 )
-
-# Shim pattern (old location kept for backward compatibility)
-from app.canonical.module import MyClass  # noqa: F401  # shim
 ```
 
-### Pattern 4: LangGraph Graphs as Cached Pipelines
+Agents are run with `await agent.run(user_prompt, deps=deps_instance)` which returns an `AgentRunResult[str]` where `result.output` is the validated typed output.
 
-**What:** Compile LangGraph graphs once with `@lru_cache`, use Redis checkpointer with MemorySaver fallback.
-**When:** Any AI pipeline invocation.
+### Dependency Injection Pattern
+
+The `deps_type` pattern is Pydantic AI's way to inject runtime context (database sessions, services, config) into system prompts and tools without global state:
 
 ```python
-@lru_cache(maxsize=1)
-def get_humanization_graph() -> Any:
-    return build_humanization_graph()
+from dataclasses import dataclass
+from pydantic_ai import RunContext
 
-# Caller
-graph = get_humanization_graph()
-result = await graph.ainvoke(state, config=build_graph_config(thread_id=patient_id))
+@dataclass
+class HumanizeDeps:
+    gemini_client: GeminiClient  # existing client with all protections
+    template: str
+    patient_name: str
+    patient_context: dict
+    conversation_history: list[str]
+    recent_interactions: list[dict] | None = None
+    ai_instructions: str | None = None
+
+@agent.system_prompt
+async def build_system_prompt(ctx: RunContext[HumanizeDeps]) -> str:
+    return build_humanization_prompt(
+        template=ctx.deps.template,
+        ai_instructions=ctx.deps.ai_instructions,
+        recent_interactions=ctx.deps.recent_interactions,
+    )
 ```
 
-**Improvement needed:** Add a startup health check that calls `get_humanization_graph()` and catches `RuntimeError("LangGraph is not installed")` — convert from silent `None` fallback to explicit startup failure.
+This replaces the LangGraph `config["configurable"]["handler"]` pattern which was brittle and untyped.
 
-### Pattern 5: Circuit Breaker Around External I/O
+### Structured Output for Sentiment
 
-**What:** Wrap all calls to Evolution API, Gemini, Dragonfly with the `CircuitBreaker` from `app/resilience/circuit_breaker/`.
-**When:** Any call that can fail and cause cascading timeouts.
+The 3 string-output agents use `output_type=str` with guardrail post-processing. The sentiment agent uses a Pydantic model for structured output, replacing the JSON dict return:
 
-The `RedisManager` already wraps Redis calls. The `UnifiedWhatsAppService` uses DLQ for failed deliveries. The AI layer currently does NOT have a circuit breaker for Gemini calls — this is a gap.
-
----
-
-## Anti-Patterns to Avoid
-
-### Anti-Pattern 1: Raw `asyncio.run()` in Celery Tasks
-
-**What people do:** `asyncio.run(my_async_service())` inside a Celery task function.
-**Why it's wrong:** Creates and destroys a new event loop on every task invocation, leaking resources and causing "Event loop already running" errors on repeated calls.
-**Do this instead:** `async_to_sync(my_async_service)()` from `asgiref.sync`.
-
-### Anti-Pattern 2: SQLAlchemy `Session.query()` Inside `async def`
-
-**What people do:** Call `self.db.query(Model).filter(...).first()` inside an `async def` function.
-**Why it's wrong:** Blocks the FastAPI/uvicorn event loop. Under concurrent load, all simultaneous requests queue behind the blocking DB call.
-**Do this instead:** Use `AsyncSession` with `await session.execute(select(Model).where(...))`.
-
-### Anti-Pattern 3: `redis.keys("pattern:*")`
-
-**What people do:** Use `redis_client.keys("*")` for cache invalidation or inspection.
-**Why it's wrong:** Blocks the Redis server for the duration of the scan on large key sets. O(N) blocking operation.
-**Do this instead:** `redis_client.scan_iter(match="pattern:*", count=100)` — lazy, non-blocking.
-
-Already enforced in `RedisManager`; must be validated during any new Redis-touching code in the codebase.
-
-### Anti-Pattern 4: Feature Flag Buried in Service Constructor
-
-**What people do:** `FlowDispatcher(use_new=True)` hardcoded at call site.
-**Why it's wrong:** Cannot be changed at runtime without deploying.
-**Do this instead:** Read from `settings.FLOW_SYSTEM` env var in the constructor. Can be toggled in Railway without a redeploy.
-
-### Anti-Pattern 5: Guarded Imports with `None` Fallback for Critical Features
-
-**What people do:**
 ```python
-try:
-    from langgraph.graph import StateGraph
-except ImportError:
-    StateGraph = None  # silently degrades
+from pydantic import BaseModel
+from typing import Literal
+
+class SentimentResult(BaseModel):
+    sentiment: Literal["positive", "neutral", "negative", "concerning"]
+    confidence: float
+    emotional_indicators: list[str]
+    medical_concerns: list[str]
+    requires_attention: bool
+    key_themes: list[str]
+    suggested_follow_up: str
+
+sentiment_agent: Agent[SentimentDeps, SentimentResult] = Agent(
+    model=...,
+    output_type=SentimentResult,
+)
 ```
-**Why it's wrong:** When LangGraph is missing (misdeployment, broken package), message humanization silently does nothing instead of failing visibly. Patients receive un-humanized robotic messages without any alert.
-**Do this instead:** Validate at startup in `app/core/lifespan.py` — raise `RuntimeError` if LangGraph is absent in production.
+
+Pydantic AI uses the model's tool-calling capability to enforce this schema — the Gemini model receives a JSON schema tool definition and must return valid JSON matching `SentimentResult`. This replaces the fragile JSON parsing in `_parse_sentiment_analysis()`.
+
+### How Google Gemini is Configured in Pydantic AI
+
+```python
+# Pydantic AI uses google-genai SDK (not langchain-google-genai)
+from pydantic_ai.models.google import GoogleModel
+from pydantic_ai.providers.google import GoogleProvider
+
+provider = GoogleProvider(api_key=settings.AI_GEMINI_API_KEY)
+model = GoogleModel(settings.AI_GEMINI_MODEL, provider=provider)
+```
+
+**Important dependency change:** Pydantic AI uses `google-genai` (the official Google SDK) not `langchain-google-genai`. This means `langchain-google-genai` and `langchain-core` can eventually be removed from `requirements.txt`. The `langchain_core.messages.HumanMessage` import in `client.py` line 25 will need updating when GeminiClient is migrated to the official SDK.
+
+Confidence: HIGH — verified against official Pydantic AI Google model documentation.
 
 ---
 
-## Recommended Refactoring Order
+## Google ADK Orchestration Pattern
 
-The order matters because of dependencies between work items:
+### How ADK SequentialAgent Replaces LangGraph Multi-Node Graphs
+
+The current LangGraph graphs follow this pattern:
 
 ```
-1. Security fixes (placeholder auth, LGPD audit persistence)
-   ─── No dependencies, unblocks compliance. Do first.
-
-2. Bug fixes (asyncio.run() → async_to_sync, physician availability stub)
-   ─── No dependencies. Low risk. Do early.
-
-3. AsyncSession migration — Tier 1 paths (webhook handler, sequential_message_handler)
-   ─── Prerequisite for: flow consolidation (QW-021 needs async-capable repos)
-   ─── Prerequisite for: full performance gains
-
-4. Flow consolidation (FlowDispatcher facade + strangler fig)
-   ─── Depends on: AsyncSession in FlowContextRepository
-   ─── Prerequisite for: decommissioning flat-file flow system
-
-5. AI audit enum + batch re-encryption
-   ─── Depends on: nothing critical. Can run parallel to 3-4.
-   ─── Prerequisite for: LGPD compliance sign-off
-
-6. Large file splits (auth_dependencies.py, flow_monitoring.py, etc.)
-   ─── Depends on: 3 (async migration) because split files will be re-organized
-   ─── No external dependency otherwise
-
-7. Shim removal + dead code cleanup
-   ─── Depends on: 4 (flow consolidation complete), 6 (splits done)
-   ─── Must verify no callers remain before tombstoning
+START -> load_flow_context -> (conditional) -> dispatch_send_mode -> END
 ```
+
+The conditional edge checks `state.get("result")` — if a result was already set (error, skip, waiting), it exits early via the END edge.
+
+ADK SequentialAgent maps directly to this pattern:
+
+```python
+from google.adk.agents import SequentialAgent
+from google.adk.agents.base_agent import BaseAgent
+
+# Sub-agent 1: load context (equivalent to load_flow_context node)
+load_context_agent = LoadFlowContextAgent(name="LoadFlowContext")
+
+# Sub-agent 2: dispatch send (equivalent to dispatch_send_mode node)
+dispatch_agent = DispatchSendModeAgent(name="DispatchSendMode")
+
+# Orchestrator (equivalent to the compiled StateGraph)
+flow_message_agent = SequentialAgent(
+    name="FlowMessageAgent",
+    sub_agents=[load_context_agent, dispatch_agent],
+    description="Orchestrates sending day messages to a patient",
+)
+```
+
+**State passing between ADK agents:** ADK uses `context.session.state` (a dict on `InvocationContext`) as the shared state between sub-agents. Sub-agents write to `context.session.state["key"]` and subsequent agents read from it. This is functionally equivalent to LangGraph's `FlowMessageState` TypedDict, but simpler — it is a plain dict with no schema enforcement at the graph level (enforce with Pydantic models inside each agent if needed).
+
+**Conditional routing:** The conditional edge (`_route_after_load` in LangGraph) was a function returning `"end"` or `"dispatch_send_mode"` based on `state.get("result")`. In ADK, this becomes a check at the start of `DispatchSendModeAgent._run_async_impl()` — if `context.session.state.get("result")` is already set, the agent returns immediately. This is explicit Python control flow rather than graph edge routing.
+
+### ADK Runner Integration with FastAPI
+
+The ADK `Runner` is the execution engine. It is stateless, safe for concurrent use, and should be created once and reused:
+
+```python
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+
+class ADKRunner:
+    """Singleton ADK runner for flow message orchestration."""
+
+    def __init__(self):
+        self._session_service = InMemorySessionService()
+        self._flow_message_runner = Runner(
+            agent=flow_message_agent,
+            app_name="clinica-flow-message",
+            session_service=self._session_service,
+        )
+        self._flow_response_runner = Runner(
+            agent=flow_response_agent,
+            app_name="clinica-flow-response",
+            session_service=self._session_service,
+        )
+
+    async def run_flow_message(
+        self,
+        session_id: str,
+        patient_id: UUID,
+        day_number: int,
+        flow_kind: str,
+        handler: Any,
+    ) -> dict:
+        session = await self._session_service.create_session(
+            app_name="clinica-flow-message",
+            user_id=str(patient_id),
+            session_id=session_id,
+            state={
+                "patient_id": patient_id,
+                "day_number": day_number,
+                "flow_kind": flow_kind,
+                "handler": handler,
+            },
+        )
+        async for event in self._flow_message_runner.run_async(
+            user_id=str(patient_id),
+            session_id=session_id,
+            new_message=Content(parts=[Part(text="run")]),
+        ):
+            pass  # events consumed; result is written to session state
+        final_session = await self._session_service.get_session(
+            app_name="clinica-flow-message",
+            user_id=str(patient_id),
+            session_id=session_id,
+        )
+        return final_session.state.get("result", {})
+```
+
+**Session isolation:** Each flow invocation gets a unique `session_id` (equivalent to the current `thread_id` in LangGraph's `config["configurable"]["thread_id"]`). The `InMemorySessionService` isolates state per session. For the current production use case (stateless invocations, no cross-request state persistence needed), in-memory session is correct — no checkpointing is used in the current LangGraph implementation either.
+
+**Known ADK limitation:** ADK's `run_live()` does not work with `SequentialAgent`/`ParallelAgent` because they lack a `.tools` attribute (GitHub issue #819, May 2025). This is not relevant here — the codebase uses `runner.run_async()` for event-driven batch processing, not live streaming.
+
+Confidence: MEDIUM — ADK FastAPI patterns verified via GitHub discussions and community articles; exact API surface for custom BaseAgent subclasses needs validation during Phase 1 implementation spike.
 
 ---
 
-## Scaling Considerations
+## Proposed Directory Layout
 
-| Scale | What Breaks First | Fix |
-|-------|------------------|-----|
-| Current (prototype) | sync-in-async event loop blocking | AsyncSession migration (Tier 1 paths) |
-| ~500 concurrent patients | Celery Beat SPOF | redbeat distributed lock (multiple Beat instances) |
-| ~2000 concurrent patients | WebSocket manager in-memory state | Move connection registry to Redis pub/sub (redis_pubsub_manager.py already exists) |
-| ~5000+ patients | Single Dragonfly instance as sole cache+broker+sessions | Separate Dragonfly instances per role; circuit breakers already in place provide degraded-mode operation |
+```
+backend-hormonia/app/ai/
+├── __init__.py
+├── client.py                    — GeminiClient (KEEP — used by Pydantic AI agents)
+├── context_compactor.py         — compact_patient_context() (KEEP)
+├── models.py                    — PatientContext, ConcernLevel (KEEP)
+├── pii_redaction.py             — sanitize_prompt_text_for_external_ai() (KEEP)
+|
+├── agents/                      — NEW: Pydantic AI agent layer
+|   ├── __init__.py
+|   ├── base.py                  — Shared GeminiDeps dataclass, model factory
+|   ├── humanize.py              — HumanizeAgent + HumanizeDeps
+|   ├── sentiment.py             — SentimentAgent + SentimentDeps + SentimentResult
+|   ├── question_variation.py    — QuestionVariationAgent + QuestionVariationDeps
+|   └── empathy.py               — EmpathyAgent + EmpathyDeps
+|
+├── adk/                         — NEW: Google ADK orchestration layer
+|   ├── __init__.py
+|   ├── runner.py                — ADKRunner singleton (InMemorySessionService + Runners)
+|   ├── flow_message/            — FlowMessageAgent (SequentialAgent)
+|   |   ├── __init__.py
+|   |   ├── agent.py             — SequentialAgent definition
+|   |   ├── load_context.py      — LoadFlowContext sub-agent (custom BaseAgent)
+|   |   └── dispatch_send.py     — DispatchSendMode sub-agent (custom BaseAgent)
+|   └── flow_response/           — FlowResponseAgent (SequentialAgent)
+|       ├── __init__.py
+|       ├── agent.py             — SequentialAgent definition
+|       ├── load_response.py     — LoadResponseContext sub-agent
+|       └── dispatch_response.py — DispatchResponseContinuation sub-agent
+|
+├── prompts/                     — MOVED from langgraph/prompts.py (no content changes)
+|   ├── __init__.py
+|   ├── humanize.py              — build_humanization_prompt()
+|   ├── sentiment.py             — build_sentiment_prompt()
+|   ├── question.py              — build_question_variation_prompt()
+|   └── empathy.py               — build_empathetic_prompt()
+|
+└── langgraph/                   — TOMBSTONED after migration complete
+    ├── __init__.py              — raises ImportError with migration message
+    └── [all files]              — tombstoned; kept only as import error guards
+```
 
-### Scaling Priority
+**Note on `client_domain.py`:** After agents are implemented, `GeminiDomainClient` becomes a thin shim that delegates to the Pydantic AI agents via feature flag. It is kept temporarily for backward-compatibility, then tombstoned after full migration. Primary callers are: `sequential_message_handler.py`, `nodes_ai.py` (via prompts), `gemini_orchestrator.py`.
 
-1. **First bottleneck:** Sync SQLAlchemy blocking event loop under concurrent webhook + request load. Fix with AsyncSession on hot paths.
-2. **Second bottleneck:** Celery Beat single instance. Fix with `redbeat` (minimal change: add redbeat to requirements, configure URL, deploy multiple Beat containers).
-3. **Third bottleneck:** WebSocket in-memory connection registry breaks multi-pod deploy. `redis_pubsub_manager.py` already exists — integration with WebSocket manager is the gap.
+---
+
+## Data Flow: Before vs After
+
+### Before (LangGraph)
+
+```
+SequentialMessageHandler.send_day_messages()
+  |
+  +-- get_flow_message_graph()          # lru_cache compiled StateGraph
+  |   # graphs.py -> runtime.py -> nodes.py
+  |
+  +-- graph.ainvoke(state, config)      # config carries thread_id + handler
+       |
+       +-- load_flow_context(state, config)
+       |   +-- _require_handler(config)         # extracts handler from untyped dict
+       |   +-- asyncio.to_thread(db.query(...)) # sync Session in thread pool
+       |   +-- handler._get_day_config(...)     # Redis cache + DB query
+       |   +-- handler._get_or_create_flow_state(...)
+       |
+       +-- dispatch_send_mode(state, config)
+           +-- asyncio.to_thread(db.query(...))
+           +-- handler._send_message_at_index(...)
+                +-- GeminiDomainClient.humanize_flow_message(...)
+                    +-- GeminiClient.generate_content(prompt, profile=MESSAGE_HUMANIZED)
+```
+
+### After (Pydantic AI + ADK)
+
+```
+SequentialMessageHandler.send_day_messages()
+  |
+  +-- adk_runner.run_flow_message(      # replaces graph.ainvoke()
+  |       session_id=thread_id,
+  |       patient_id=...,
+  |       day_number=...,
+  |       flow_kind=...,
+  |       handler=self,
+  |   )
+  |   |
+  |   +-- FlowMessageAgent (SequentialAgent)
+  |       |
+  |       +-- LoadFlowContextAgent._run_async_impl(context)
+  |       |   +-- handler._get_day_config(...)    # unchanged -- direct call
+  |       |   +-- await db.execute(select(...))   # AsyncSession (existing hot-path pattern)
+  |       |   +-- context.session.state["result"] = {...}   # replaces LangGraph state dict
+  |       |
+  |       +-- DispatchSendModeAgent._run_async_impl(context)
+  |           +-- if context.session.state.get("result"): return  # early exit (was conditional edge)
+  |           +-- handler._send_message_at_index(...)
+  |               +-- humanize_agent.run(prompt, deps=deps)
+  |                   +-- build_humanization_prompt(deps)  # typed deps, not untyped config
+  |                   +-- GeminiClient.generate_content(...)  # same client, all protections kept
+  |
+  +-- result = final_session.state["result"]
+```
+
+**Key difference:** The ADK session state replaces LangGraph's `FlowMessageState` TypedDict. The handler injection changes from `config["configurable"]["handler"]` (stringly-typed dict lookup) to `context.session.state["handler"]` (explicit pre-populated state). No change to the GeminiClient layer below.
 
 ---
 
@@ -496,38 +458,302 @@ The order matters because of dependencies between work items:
 
 ### External Services
 
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| Evolution API (WhatsApp) | `UnifiedWhatsAppService` facade + HTTP client | DLQ for failed deliveries; webhook signature validation |
-| Google Gemini | `GeminiOrchestrator` facade + LangGraph nodes | PII redaction always applied before call; circuit breaker missing — gap |
-| Firebase Auth | `auth_dependencies.py` token verification | TEST_TOKEN_REGISTRY bypass must be removed from production binary |
-| Dragonfly/Redis | `RedisManager` singleton with 4 logical DBs | Circuit breaker already present; SSL in production |
-| Sentry | Initialized at lifespan in `core/setup/sentry.py` | Structured logging context propagated |
+| Service | Current Integration | Status After Migration |
+|---------|-------------------|----------------------|
+| Google Gemini API | `langchain-google-genai.ChatGoogleGenerativeAI` in GeminiClient | Pydantic AI uses `google-genai` SDK for agent model calls; GeminiClient itself needs to migrate from `langchain-google-genai` to `google-genai` direct SDK |
+| Dragonfly/Redis | Response cache in GeminiClient via `redis_manager` | No change — GeminiClient cache layer is preserved entirely |
+| PostgreSQL | `AsyncSession` for DB queries in flow nodes | No change — existing async queries in hot paths are preserved |
 
 ### Internal Boundaries
 
-| Boundary | Communication | Notes |
-|----------|---------------|-------|
-| FastAPI ↔ Celery | Dragonfly message queue (broker) | Celery tasks defined in `app/tasks/`; called via `.delay()` or `.apply_async()` |
-| FastAPI ↔ WebSocket clients | Redis Pub/Sub via `redis_pubsub_manager.py` | Multi-instance safe in theory; WebSocket manager integration incomplete |
-| AI Layer ↔ Services | Direct Python function calls | LangGraph graphs called synchronously from services (no queue); LangGraph nodes are synchronous too — acceptable |
-| Saga ↔ Redis | Distributed lock via `core/distributed_lock.py` | Must maintain lock during full saga execution; blocking sync calls in steps risk lock expiry |
+| Boundary | Before | After |
+|----------|--------|-------|
+| `SequentialMessageHandler` -> AI layer | `from app.ai.langgraph.graphs import get_flow_message_graph` | `from app.ai.adk.runner import get_adk_runner` |
+| `GeminiDomainClient` -> AI operations | Direct method calls | Shim delegating to Pydantic AI agents via feature flag |
+| Flow nodes -> DB | `asyncio.to_thread(db.query(...))` (sync Session in thread) | `await db.execute(select(...))` (AsyncSession — already the pattern in hot paths) |
+| `nodes_ai.py` helpers | Used by LangGraph nodes | Moved to `app/ai/prompts/` — used by Pydantic AI agent `system_prompt` builders |
+| `_invoke.py` wrapper | `invoke_langgraph_graph()` wrapper function | Deleted — replaced by `agent.run()` which raises `FeatureNotAvailableError` on empty output |
+
+### GeminiClient Preservation Strategy
+
+The `GeminiClient` (757 LOC) must be preserved entirely through the migration. It contains:
+- Redis-backed semantic caching (`_generate_cache_key`, `_get_cached_response`, `_cache_response`)
+- Rate limiting with Redis sliding window + in-process fallback
+- Circuit breaker via `get_ai_circuit_breaker()`
+- PII redaction via `_redact_prompt_for_external_ai()`
+- Output guardrails via `validate_ai_output()` + `normalize_ai_output()`
+- Retry logic with exponential backoff
+- Loop-safe model reinitialization (`_ensure_model_for_loop`)
+
+**The Pydantic AI agents do NOT replace the GeminiClient directly.** Instead, the Pydantic AI agent's `system_prompt` function assembles the typed prompt via `deps`, and the agent's execution still calls `GeminiClient.generate_content()`. This preserves all protections without reimplementing them.
+
+Recommended implementation approach for the 3 string-output agents (humanize, question_variation, empathy):
+
+```python
+class HumanizeAgent:
+    """Typed wrapper around GeminiClient.generate_content for humanization."""
+
+    async def run(self, deps: HumanizeDeps) -> str:
+        # Type-safe prompt assembly (was untyped in nodes_ai.py)
+        prompt = build_humanization_prompt(
+            template=deps.template,
+            ai_instructions=deps.ai_instructions,
+            recent_interactions=deps.recent_interactions,
+        )
+        # GeminiClient handles: PII redaction, rate limit, circuit breaker, cache, guardrails
+        result = await deps.gemini_client.generate_content(prompt, profile=MESSAGE_HUMANIZED)
+        if not result:
+            raise FeatureNotAvailableError(
+                "humanization returned no output", "humanization", "humanize"
+            )
+        return result
+```
+
+For `SentimentAgent`, the `output_type=SentimentResult` Pydantic model can be applied either via:
+1. Full Pydantic AI `Agent` with `output_type=SentimentResult` (using google-genai SDK directly via Pydantic AI) — replaces the brittle JSON parsing
+2. Calling `GeminiClient.generate_content(prompt, profile=JSON_SENTIMENT)` then validating the JSON output against `SentimentResult.model_validate(json.loads(result))` — keeps GeminiClient guardrails
+
+Option 2 is lower risk for the initial migration. Option 1 is the architectural ideal.
+
+---
+
+## Coexistence Strategy During Migration
+
+### Strategy: Feature-Flag Routing with Parallel Paths
+
+The migration uses env-var feature flags to route each operation independently. This allows per-operation migration, instant rollback without code deployment, and integration testing with real traffic before full cutover.
+
+```python
+# settings.py additions
+AI_FRAMEWORK: str = "langgraph"  # "langgraph" | "pydantic_ai"
+AI_FLOW_FRAMEWORK: str = "langgraph"  # "langgraph" | "adk"
+```
+
+### Coexistence in SequentialMessageHandler
+
+```python
+async def send_day_messages(self, patient_id, day_number, flow_kind):
+    if settings.AI_FLOW_FRAMEWORK == "adk":
+        return await self._send_via_adk(patient_id, day_number, flow_kind)
+    return await self._send_via_langgraph(patient_id, day_number, flow_kind)
+
+async def _send_via_langgraph(self, ...):
+    # Existing code unchanged
+    graph = get_flow_message_graph()
+    state = await graph.ainvoke(...)
+    ...
+
+async def _send_via_adk(self, ...):
+    # New ADK path
+    runner = get_adk_runner()
+    return await runner.run_flow_message(...)
+```
+
+### Coexistence in GeminiDomainClient
+
+```python
+async def humanize_flow_message(self, template, patient_name, ...):
+    if settings.AI_FRAMEWORK == "pydantic_ai":
+        from app.ai.agents.humanize import HumanizeAgent, HumanizeDeps
+        deps = HumanizeDeps(gemini_client=self, template=template, ...)
+        return await HumanizeAgent().run(deps)
+    # Original implementation preserved exactly below
+    ...
+```
+
+### Migration Order
+
+Recommended migration sequence ordered by risk and dependency:
+
+**Step 1 — Pydantic AI agents for 4 AI operations** (Low risk)
+- Start with `SentimentAgent` (most benefit from structured output; replaces fragile `_parse_sentiment_analysis()` JSON parsing)
+- Then `HumanizeAgent`, `QuestionVariationAgent`, `EmpathyAgent` (same pattern, same GeminiClient integration)
+- GeminiDomainClient becomes a shim with feature flag; no callers change
+
+**Step 2 — ADK FlowMessageAgent** (Medium risk)
+- Most complex step: requires ADK session plumbing, porting `load_flow_context` (200+ LOC node)
+- Must be tested with shadow traffic before full cutover via `AI_FLOW_FRAMEWORK` flag
+- `consensus.py` is already dead code — delete immediately as part of step 2 setup
+
+**Step 3 — ADK FlowResponseAgent** (Medium risk, same as Step 2)
+- Build after FlowMessageAgent is stable
+
+**Step 4 — Delete LangGraph infrastructure** (Do last)
+- Tombstone `langgraph/` directory
+- Remove `langgraph`, `langchain-core`, `langchain-google-genai` from `requirements.txt`
+- Add `pydantic-ai[google]`, `google-adk`, `google-genai` to `requirements.txt`
+- Update GeminiClient to use `google-genai` SDK directly (removes last LangChain dependency)
+
+### What Can Run in Parallel
+
+Steps 1 and 2 can begin simultaneously (different files, no conflicts). However, within a single patient request, the feature flag routes entirely to LangGraph OR entirely to ADK — never mixed. This avoids state divergence between LangGraph checkpoints and ADK session state.
+
+---
+
+## Architectural Patterns
+
+### Pattern 1: GeminiClient as Execution Backend (Preserved)
+
+**What:** Pydantic AI agents assemble typed prompts using deps, but execute through `GeminiClient.generate_content()`, not the raw Pydantic AI model invocation path.
+**When to use:** When the existing client has production-hardened protections that would be expensive to replicate in Pydantic AI model settings.
+**Trade-offs:** Loses Pydantic AI's model-level retry and streaming. Gains zero migration risk to cache/rate-limit/circuit-breaker layer. Accepted tradeoff for this migration.
+
+### Pattern 2: ADK Custom BaseAgent for Deterministic Logic
+
+**What:** Use ADK `BaseAgent` subclass (not `LlmAgent`) for sub-agents that execute deterministic Python logic without LLM calls.
+**When to use:** Flow context loading and send-mode dispatching are pure Python logic (DB queries, cache lookups, WhatsApp sends). They do not need an LLM.
+**Trade-offs:** Requires implementing `_run_async_impl()` instead of providing a natural-language instruction string. ADK documentation focuses on `LlmAgent` — `BaseAgent` usage is less documented but well-supported.
+
+```python
+from google.adk.agents.base_agent import BaseAgent
+from google.adk.agents.invocation_context import InvocationContext
+from typing import AsyncGenerator
+from google.adk.events import Event
+
+class LoadFlowContextAgent(BaseAgent):
+    """Pure-Python ADK agent: loads patient + flow state from DB."""
+
+    async def _run_async_impl(
+        self, ctx: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
+        handler = ctx.session.state["handler"]
+        patient_id = ctx.session.state["patient_id"]
+        day_number = ctx.session.state["day_number"]
+        flow_kind = ctx.session.state["flow_kind"]
+        # Direct port of load_flow_context() LangGraph node logic
+        result = await _load_and_validate(handler, patient_id, day_number, flow_kind)
+        ctx.session.state["result"] = result
+        yield Event(author=self.name, content=Content(parts=[Part(text="done")]))
+```
+
+### Pattern 3: FeatureNotAvailableError as Unified AI Failure Signal
+
+**What:** All Pydantic AI agents and ADK agents raise `FeatureNotAvailableError` (existing exception in `app/core/exceptions.py`) when output is empty or invalid.
+**When to use:** Always. This is the established contract from v1.0 — `FeatureNotAvailableError` is caught by the circuit breaker and by all callers throughout the codebase. Do not introduce new exception types.
+**Trade-offs:** None — this is the existing pattern and must be continued.
+
+### Pattern 4: InMemorySessionService for Stateless Flow Invocations
+
+**What:** ADK `InMemorySessionService` holds state for the duration of a single flow invocation (milliseconds), then is discarded. No cross-request state persistence.
+**When to use:** The current LangGraph implementation has zero state persistence across requests (no Redis checkpointer used; `@lru_cache` is on the compiled graph object, not execution state). ADK session matches this: state is per-invocation.
+**Trade-offs:** If future requirements need cross-request state (e.g., resuming a flow after a crash mid-execution), this would need to change to `DatabaseSessionService`. Flag as future consideration.
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Replacing GeminiClient with Pydantic AI Model Invocation
+
+**What people do:** Use `Agent('google-gla:gemini-2.5-flash')` as the model, letting Pydantic AI handle all model calls, effectively removing GeminiClient.
+**Why it's wrong:** GeminiClient contains 757 LOC of production-hardened logic: Redis semantic caching, distributed rate limiting with in-process fallback, circuit breaker, PII redaction, loop-safe reinitialization. Removing it for a clean framework migration would require reimplementing all of this in Pydantic AI model settings — a scope-expanding, high-risk rework that goes far beyond the migration goal.
+**Do this instead:** Keep GeminiClient as execution backend. Use Pydantic AI agents only for typed prompt assembly and structured output validation.
+
+### Anti-Pattern 2: Using LlmAgent for Deterministic Flow Logic
+
+**What people do:** Define all ADK sub-agents as `LlmAgent` with natural-language instructions describing the flow logic.
+**Why it's wrong:** Loading flow context from DB and dispatching messages are pure deterministic operations — they must not be delegated to an LLM. Using `LlmAgent` for these creates non-deterministic behavior, adds ~500ms per LLM call, and incurs unnecessary Gemini API cost for each patient message.
+**Do this instead:** Use `BaseAgent` subclasses with `_run_async_impl()` for all sub-agents performing deterministic operations. Only use `LlmAgent` if a step genuinely requires language model reasoning.
+
+### Anti-Pattern 3: Mixing ADK and LangGraph State Within a Single Request
+
+**What people do:** During migration, attempt to share state between the LangGraph path and the ADK path within a single `send_day_messages()` call.
+**Why it's wrong:** LangGraph state is a `TypedDict` passed through node return values. ADK state lives in `InvocationContext.session.state` (a plain dict). They have different lifecycles and serialization. Sharing state between them requires either duplication (inconsistency risk) or a complex adapter.
+**Do this instead:** Use the `AI_FLOW_FRAMEWORK` feature flag to route entirely to one path per invocation. Never mix paths within a single call.
+
+### Anti-Pattern 4: Deleting LangGraph Before Cutover Validation
+
+**What people do:** Remove LangGraph from `requirements.txt` as soon as the ADK implementation is code-complete.
+**Why it's wrong:** The feature flag coexistence strategy requires LangGraph to remain importable during validation. If the ADK path has a bug in production, reverting requires re-adding LangGraph — which requires a code deployment on Railway.
+**Do this instead:** Keep LangGraph in requirements until the ADK path has been validated with real traffic for at least one week with zero errors. Only then tombstone the `langgraph/` directory and remove from `requirements.txt`.
+
+### Anti-Pattern 5: Creating a New BaseAgent for the Existing Agent Pattern
+
+**What people do:** Replace the existing `app/agents/base.py` (the hive-mind BaseAgent with message queues, heartbeat, consensus) with the ADK BaseAgent.
+**Why it's wrong:** The existing `app/agents/` directory (with `BaseAgent`, `AlertAnalyzerAgent`, `PatientMonitor`, etc.) is a separate concern — it is the hive-mind coordination layer, not the Gemini AI layer. The ADK `BaseAgent` is for flow orchestration sub-agents only.
+**Do this instead:** Keep `app/agents/` unchanged. ADK agents live exclusively under `app/ai/adk/`. The two agent systems do not interact.
+
+---
+
+## Scaling Considerations
+
+| Scale | Architecture Considerations |
+|-------|----------------------------|
+| Current (dozens of patients) | InMemorySessionService is correct — no persistence needed, no cross-instance state sharing required |
+| 500+ patients | ADK session service remains in-memory (sessions are sub-second, not persisted). Monitor Pydantic AI agent overhead per request (should be less than 5ms vs LangGraph's ~14ms). |
+| 2000+ patients | Consider ADK `DatabaseSessionService` if post-execution session inspection is needed for debugging. No architectural change needed for throughput at this scale — bottleneck remains Gemini API rate limit and DB connections. |
+
+**First bottleneck:** Gemini API rate limit (60 RPM default) — existing rate limiter in GeminiClient handles this. ADK does not change this boundary.
+**Second bottleneck:** PostgreSQL connection pool — unchanged by this migration. AsyncSession in flow nodes is already established.
+
+---
+
+## Build Order (considering dependencies)
+
+The dependency graph for implementation:
+
+```
+1. prompts/ module extraction        (no deps -- pure file move, no content changes)
+   |
+   +-- 2. SentimentAgent             (depends on: google-genai or pydantic-ai[google] installed,
+   |       SentimentResult Pydantic  SentimentResult model defined, GeminiClient integration validated)
+   |       model defined
+   |
+   +-- 3. HumanizeAgent              (depends on: prompts/ moved, step 2 pattern validated)
+   +-- 4. QuestionVariationAgent     (depends on: step 2 pattern validated, parallel with 3)
+   +-- 5. EmpathyAgent               (depends on: step 2 pattern validated, parallel with 3)
+   |
+   +-- 6. ADKRunner setup            (depends on: google-adk installed, session service API confirmed)
+       |
+       +-- 7. FlowMessageAgent       (depends on: ADKRunner, load_flow_context logic ported)
+       |
+       +-- 8. FlowResponseAgent      (depends on: FlowMessageAgent pattern validated, parallel with 7)
+           |
+           +-- 9. Feature flag cutover + LangGraph deletion
+```
+
+**Parallelizable:** Steps 3, 4, 5 can be built in parallel once step 2 validates the GeminiClient integration pattern. Steps 7 and 8 can be built in parallel once step 6 is validated.
+
+**Critical path:** google-genai/pydantic-ai integration (step 2) -> ADK custom BaseAgent pattern (step 7) -> LangGraph deletion (step 9).
+
+---
+
+## New Dependencies
+
+| Package | Version | Purpose | Replaces |
+|---------|---------|---------|---------|
+| `pydantic-ai[google]` | >=0.0.46 | Pydantic AI framework with Google provider | Nothing directly; sits above GeminiClient |
+| `google-adk` | >=1.0.0 | Google Agent Development Kit for SequentialAgent | `langgraph` (flow orchestration) |
+| `google-genai` | Latest stable | Official Google Gemini SDK (used by Pydantic AI) | `langchain-google-genai` (for Pydantic AI model path) |
+
+**Packages to remove (after migration complete):**
+
+| Package | Currently Used For | Safe to Remove When |
+|---------|-------------------|---------------------|
+| `langgraph` | flow_message_graph, flow_response_graph | After ADK paths validated and AI_FLOW_FRAMEWORK="adk" is default |
+| `langchain-google-genai` | ChatGoogleGenerativeAI in GeminiClient | After GeminiClient updated to use `google-genai` SDK directly |
+| `langchain-core` | HumanMessage import in client.py line 25 | After langchain-google-genai is removed |
+
+**Note on `langchain-google-genai` in GeminiClient:** `client.py` imports `ChatGoogleGenerativeAI` from `langchain-google-genai` and `HumanMessage` from `langchain-core`. These are the last remaining LangChain imports after LangGraph is removed. Migrating `_initialize_model()` and `_generate_content_internal()` to use `google-genai` SDK directly completes the full LangChain removal. This is medium complexity (~50 LOC change) and is the final cleanup step.
 
 ---
 
 ## Sources
 
-- Direct codebase inspection: `backend-hormonia/app/ai/langgraph/graphs.py`, `runtime.py`, `nodes_ai.py`, `state.py`
-- Direct codebase inspection: `backend-hormonia/app/services/flow_core.py`, `app/services/flow/core/manager.py`
-- Direct codebase inspection: `.planning/codebase/ARCHITECTURE.md`, `.planning/codebase/CONCERNS.md`
-- [FastAPI SQLAlchemy async performance: ~1400 req/s async vs ~550 req/s sync](https://leapcell.io/blog/building-high-performance-async-apis-with-fastapi-sqlalchemy-2-0-and-asyncpg) — MEDIUM confidence (WebSearch, single source)
-- [LangGraph production FastAPI template patterns](https://github.com/wassim249/fastapi-langgraph-agent-production-ready-template) — MEDIUM confidence (WebSearch)
-- [Strangler Fig Pattern for internal service consolidation](https://learn.microsoft.com/en-us/azure/architecture/patterns/strangler-fig) — HIGH confidence (official Azure Architecture docs)
-- [SQLAlchemy asyncio documentation](https://docs.sqlalchemy.org/en/20/orm/extensions/asyncio.html) — HIGH confidence (official SQLAlchemy docs)
-- [async_to_sync vs asyncio.run Celery pattern](https://medium.com/@neverwalkaloner/fastapi-with-async-sqlalchemy-celery-and-websockets-1b40cd9528da) — MEDIUM confidence (WebSearch, community source)
-- [LangGraph overhead for single-node graphs](https://github.com/langchain-ai/langgraph/discussions/4595) — LOW confidence (community discussion, no official benchmark)
+- [Pydantic AI official docs — Agent class API](https://ai.pydantic.dev/agent/) — HIGH confidence (official)
+- [Pydantic AI official docs — Output types and structured validation](https://ai.pydantic.dev/output/) — HIGH confidence (official)
+- [Pydantic AI official docs — Google model provider configuration](https://ai.pydantic.dev/models/google/) — HIGH confidence (official)
+- [Google ADK docs — SequentialAgent](https://google.github.io/adk-docs/agents/workflow-agents/sequential-agents/) — HIGH confidence (official)
+- [Google ADK docs — ParallelAgent](https://google.github.io/adk-docs/agents/workflow-agents/parallel-agents/) — HIGH confidence (official)
+- [Google ADK docs — Multi-agent systems and state passing](https://google.github.io/adk-docs/agents/multi-agents/) — HIGH confidence (official)
+- [ADK GitHub issue #819 — run_live() incompatibility with SequentialAgent](https://github.com/google/adk-python/issues/819) — HIGH confidence (confirmed issue; not relevant to run_async path used here)
+- [ADK GitHub discussion #3924 — FastAPI + Runner concurrency safety](https://github.com/google/adk-python/discussions/3924) — MEDIUM confidence (community, confirmed: Runner is reusable and concurrency-safe)
+- [ZenML blog — Pydantic AI vs LangGraph](https://www.zenml.io/blog/pydantic-ai-vs-langgraph) — MEDIUM confidence (third-party, consistent with framework documentation)
+- Direct codebase analysis: `backend-hormonia/app/ai/langgraph/graphs.py`, `nodes.py`, `runtime.py`, `state.py`, `_invoke.py`
+- Direct codebase analysis: `backend-hormonia/app/ai/client.py`, `client_domain.py`
+- Direct codebase analysis: `backend-hormonia/app/services/flow/sequential_message_handler.py`
+- Direct codebase analysis: `backend-hormonia/app/services/ai/output_profiles.py`, `guardrails.py`
 
 ---
 
-*Architecture research for: Healthcare WhatsApp AI Messaging — Oncology Patient Monitoring*
-*Researched: 2026-02-22*
+*Architecture research for: AI Framework Migration — LangGraph to Pydantic AI + Google ADK*
+*Researched: 2026-02-23*
