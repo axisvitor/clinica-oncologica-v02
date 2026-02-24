@@ -71,13 +71,13 @@ Plans:
   3. Banned patterns, prompt leak markers, character length bounds, and Brazilian Portuguese punctuation rules fire as `@result_validator` decorators on each agent — identical guardrail assertions to the old `GeminiClient.generate_content()` path
   4. `GeminiDomainClient` callers (`flow_core.py`, `flow_service.py`, `enhanced_flow_engine.py`) receive responses with identical signatures when `AI_FRAMEWORK` feature flag is toggled — zero breaking changes observable at call sites
   5. The 50-scenario output regression test suite passes with all guardrail assertions satisfied and agent outputs compared against old GeminiClient baseline
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 11-01: PIISafeAgent base class + AIDeps dataclass + app/ai/agents/ scaffold
-- [ ] 11-02: SentimentAgent with PromptedOutput(SentimentResult) + result_validator guardrails
-- [ ] 11-03: HumanizeAgent + VariationAgent + EmpathyAgent implementation
-- [ ] 11-04: GeminiDomainClient shim with AI_FRAMEWORK feature flag + 50-scenario regression suite
+- [ ] 11-01-PLAN.md — PIISafeAgent base class + AIDeps dataclass + app/ai/agents/ scaffold
+- [ ] 11-02-PLAN.md — SentimentAgent with PromptedOutput(SentimentResult) + output_validator guardrails
+- [ ] 11-03-PLAN.md — HumanizeAgent + VariationAgent + EmpathyAgent implementation
+- [ ] 11-04-PLAN.md — GeminiDomainClient shim with AI_FRAMEWORK feature flag + 50-scenario regression suite
 
 ### Phase 12: Flow Orchestration Replacement
 **Goal**: LangGraph is completely removed from the codebase — the 2 flow routing graphs are replaced by direct async Python functions, all LangGraph packages are uninstalled, and Redis checkpoint keys (PHI data) are purged and logged as a LGPD compliance event
