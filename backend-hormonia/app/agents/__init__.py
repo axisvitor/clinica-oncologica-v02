@@ -14,6 +14,8 @@ All agents inherit from BaseAgent and participate in swarm coordination.
 
 from __future__ import annotations
 
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
+
 from typing import TYPE_CHECKING
 
 __all__ = [

@@ -1,3 +1,4 @@
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
 """
 Base Agent class for Hive-Mind system.
 

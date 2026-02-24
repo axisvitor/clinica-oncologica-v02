@@ -1,3 +1,4 @@
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
 """Shared agent identifiers for swarm routing."""
 
 ALERT_ANALYZER_ID = "alert_analyzer"

@@ -7,6 +7,8 @@ and alert analysis for oncology treatment workflows.
 
 from __future__ import annotations
 
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
+
 from typing import TYPE_CHECKING
 
 __all__ = [
