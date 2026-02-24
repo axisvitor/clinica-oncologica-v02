@@ -6,7 +6,9 @@ All agents inherit from PIISafeAgent to enforce mandatory LGPD PII redaction.
 Direct agent.run() calls outside PIISafeAgent are prohibited.
 """
 
-__all__ = ["AIDeps", "PIISafeAgent"]
+__all__ = ["AIDeps", "PIISafeAgent", "SentimentAgent", "SentimentResult"]
+
+from app.ai.agents.sentiment_agent import SentimentAgent, SentimentResult  # noqa: F401
 
 
 def __getattr__(name: str):
