@@ -508,7 +508,7 @@ def send_flow_day_for_patient(
                     "day_number": resolved_day,
                 }
 
-            handler = SequentialMessageHandler(db)
+            handler = SequentialMessageHandler(db, use_sync_agent_bridge=True)
             result = await handler.send_day_messages(
                 patient_id=patient.id,
                 day_number=resolved_day,

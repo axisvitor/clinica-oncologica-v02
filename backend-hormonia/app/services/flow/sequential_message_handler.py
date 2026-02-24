@@ -48,7 +48,12 @@ class SequentialMessageHandler:
     }
     """
     
-    def __init__(self, db: AsyncSession, use_ai_personalization: bool = True):
+    def __init__(
+        self,
+        db: AsyncSession,
+        use_ai_personalization: bool = True,
+        use_sync_agent_bridge: bool = False,
+    ):
         self.db = db
         self.flow_state_repo = FlowStateRepository(db)
         self.message_repo = MessageRepository(db)
@@ -56,6 +61,7 @@ class SequentialMessageHandler:
 
         self.whatsapp_service = UnifiedWhatsAppService(db)
         self.use_ai_personalization = use_ai_personalization
+        self.use_sync_agent_bridge = use_sync_agent_bridge
         self._enhanced_flow_engine: Optional["EnhancedFlowEngine"] = None
     
     def _get_ai_engine(self) -> "EnhancedFlowEngine":
@@ -882,6 +888,7 @@ class SequentialMessageHandler:
                 day=day_number,
                 message_template=template,
                 strict=True,
+                use_sync_agents=self.use_sync_agent_bridge,
             )
             if not personalized:
                 logger.warning(

@@ -17,6 +17,7 @@ Architecture note (QW-021 consolidation):
     Canonical FlowType enum: ``app.services.flow.types.FlowType``
 """
 
+import asyncio
 import logging
 from typing import List, Optional, Any, Dict
 from datetime import datetime, timezone
@@ -303,6 +304,7 @@ class EnhancedFlowEngine(FlowCore):
         day: Optional[int] = None,
         message_template: Optional[MessageTemplate] = None,
         strict: bool = False,
+        use_sync_agents: bool = False,
     ) -> str:
         """
         Generate personalized flow message using AI and database templates.
@@ -316,6 +318,7 @@ class EnhancedFlowEngine(FlowCore):
             Personalized message text
         """
         try:
+            gemini_client: Any = self.gemini_client
             # Get patient and flow context (inlined from repos for async compat)
             result = await self.db.execute(
                 select(Patient).filter(Patient.id == patient_id)
@@ -407,38 +410,98 @@ class EnhancedFlowEngine(FlowCore):
                     else:
                         base_content = message_template.base_content
 
-                    personalized_message = await self.gemini_client.generate_varied_question(
-                        base_content,
-                        conversation_history[-5:],  # Last 5 messages
-                        flow_context.to_dict(),
-                        few_shot_examples=few_shot_examples,
-                        ai_instructions=getattr(message_template, "ai_instructions", None),
-                        strict=strict,
-                    )
-                else:
-                    # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
-                    from app.ai.agents.helpers import (
-                        _coerce_recent_interactions,
-                        _replace_patient_name,
-                        build_humanization_prompt,
-                    )
-                    recent_interactions = _coerce_recent_interactions(
-                        flow_context.to_dict().get("recent_interactions"),
-                        fallback_history=conversation_history,
-                    )
-                    template_text = _replace_patient_name(
-                        message_template.base_content, patient.name
-                    )
-                    prompt = build_humanization_prompt(
-                        template=template_text,
-                        ai_instructions=getattr(message_template, "ai_instructions", None),
-                        recent_interactions=recent_interactions,
-                    )
-                    try:
-                        personalized_message = await self.gemini_client.generate_content(
-                            prompt,
-                            profile=MESSAGE_HUMANIZED,
+                    if use_sync_agents:
+                        sync_varied_question = getattr(
+                            gemini_client, "generate_varied_question_sync", None
                         )
+                        if not callable(sync_varied_question):
+                            raise FeatureNotAvailableError(
+                                "sync variation method unavailable",
+                                "variation",
+                                "generate_flow_message",
+                            )
+                        personalized_message = await asyncio.to_thread(
+                            sync_varied_question,
+                            base_content,
+                            conversation_history[-5:],
+                            flow_context.to_dict(),
+                            few_shot_examples,
+                            getattr(message_template, "ai_instructions", None),
+                            strict,
+                        )
+                    else:
+                        async_varied_question = getattr(
+                            gemini_client, "generate_varied_question", None
+                        )
+                        if not callable(async_varied_question):
+                            raise FeatureNotAvailableError(
+                                "async variation method unavailable",
+                                "variation",
+                                "generate_flow_message",
+                            )
+                        varied_result: Any = async_varied_question(
+                            base_content,
+                            conversation_history[-5:],  # Last 5 messages
+                            flow_context.to_dict(),
+                            few_shot_examples=few_shot_examples,
+                            ai_instructions=getattr(message_template, "ai_instructions", None),
+                            strict=strict,
+                        )
+                        if asyncio.iscoroutine(varied_result):
+                            varied_result = await varied_result
+                        personalized_message = varied_result
+                else:
+                    try:
+                        if use_sync_agents:
+                            sync_humanize = getattr(
+                                gemini_client, "humanize_flow_message_sync", None
+                            )
+                            if not callable(sync_humanize):
+                                raise FeatureNotAvailableError(
+                                    "sync humanization method unavailable",
+                                    "humanization",
+                                    "generate_flow_message",
+                                )
+                            personalized_message = await asyncio.to_thread(
+                                sync_humanize,
+                                message_template.base_content,
+                                patient.name,
+                                flow_context.to_dict(),
+                                conversation_history,
+                                list(getattr(message_template, "personalization_hints", []) or []),
+                                few_shot_examples,
+                                getattr(message_template, "ai_instructions", None),
+                                strict,
+                            )
+                        else:
+                            async_humanize = getattr(
+                                gemini_client, "humanize_flow_message", None
+                            )
+                            if not callable(async_humanize):
+                                raise FeatureNotAvailableError(
+                                    "async humanization method unavailable",
+                                    "humanization",
+                                    "generate_flow_message",
+                                )
+                            humanized_result: Any = async_humanize(
+                                message_template.base_content,
+                                patient.name,
+                                flow_context.to_dict(),
+                                conversation_history,
+                                list(getattr(message_template, "personalization_hints", []) or []),
+                                few_shot_examples=few_shot_examples,
+                                ai_instructions=getattr(message_template, "ai_instructions", None),
+                                strict=strict,
+                            )
+                            if asyncio.iscoroutine(humanized_result):
+                                humanized_result = await humanized_result
+                            personalized_message = humanized_result
+                        if not isinstance(personalized_message, str):
+                            raise FeatureNotAvailableError(
+                                "humanization returned non-text output",
+                                "humanization",
+                                "generate_flow_message",
+                            )
                         if not personalized_message:
                             raise FeatureNotAvailableError(
                                 "humanization returned no output",
@@ -457,14 +520,12 @@ class EnhancedFlowEngine(FlowCore):
             # Single AI pass only: do not apply extra variation after the rewrite.
 
             # Store message pattern for future anti-repetition
-            await self.conversation_memory.store_message_pattern(
-                patient_id, personalized_message
-            )
+            await self.conversation_memory.store_message_pattern(patient_id, str(personalized_message))
 
             logger.info(
                 f"Generated personalized message for patient {patient_id}, day {day}"
             )
-            return personalized_message
+            return str(personalized_message)
 
         except Exception as e:
             logger.error(f"Failed to generate flow message: {e}")
@@ -476,6 +537,7 @@ class EnhancedFlowEngine(FlowCore):
         patient_id: UUID,
         response_text: str,
         response_context: Optional[Dict[str, Any]] = None,
+        use_sync_agents: bool = False,
     ) -> dict[str, Any]:
         """
         Process patient response with AI analysis.
@@ -488,6 +550,7 @@ class EnhancedFlowEngine(FlowCore):
             Response processing result
         """
         try:
+            gemini_client: Any = self.gemini_client
             # Get patient context (inlined from PatientRepository.get() for async compat)
             result = await self.db.execute(
                 select(Patient).filter(Patient.id == patient_id)
@@ -539,17 +602,59 @@ class EnhancedFlowEngine(FlowCore):
             }
 
             sentiment_analysis: Dict[str, Any] | None = None
-            sentiment_analyzer = getattr(
-                self.gemini_client, "analyze_response_sentiment", None
+            sentiment_analyzer: Any = getattr(
+                gemini_client, "analyze_response_sentiment", None
             )
             if callable(sentiment_analyzer):
                 try:
-                    sentiment_analysis = await sentiment_analyzer(
-                        response_text, patient_context
-                    )
+                    if use_sync_agents:
+                        sync_sentiment_analyzer: Any = getattr(
+                            gemini_client, "analyze_response_sentiment_sync", None
+                        )
+                        if not callable(sync_sentiment_analyzer):
+                            raise FeatureNotAvailableError(
+                                "sync sentiment method unavailable",
+                                "sentiment",
+                                "process_patient_response",
+                            )
+                        sentiment_analysis = await asyncio.to_thread(
+                            sync_sentiment_analyzer,
+                            response_text,
+                            patient_context,
+                        )
+                    else:
+                        sentiment_result: Any = sentiment_analyzer(
+                            response_text, patient_context
+                        )
+                        if asyncio.iscoroutine(sentiment_result):
+                            sentiment_result = await sentiment_result
+                        sentiment_analysis = (
+                            sentiment_result
+                            if isinstance(sentiment_result, dict)
+                            else None
+                        )
                 except TypeError:
                     # Backward compatibility for alternate adapter signatures.
-                    sentiment_analysis = await sentiment_analyzer(response_text)
+                    if use_sync_agents:
+                        sync_sentiment_analyzer: Any = getattr(
+                            gemini_client, "analyze_response_sentiment_sync", None
+                        )
+                        if not callable(sync_sentiment_analyzer):
+                            raise
+                        sentiment_analysis = await asyncio.to_thread(
+                            sync_sentiment_analyzer,
+                            response_text,
+                            {},
+                        )
+                    else:
+                        sentiment_result: Any = sentiment_analyzer(response_text)
+                        if asyncio.iscoroutine(sentiment_result):
+                            sentiment_result = await sentiment_result
+                        sentiment_analysis = (
+                            sentiment_result
+                            if isinstance(sentiment_result, dict)
+                            else None
+                        )
                 except Exception:
                     logger.warning(
                         "Gemini sentiment analysis failed; falling back to LangGraph node",
@@ -608,11 +713,40 @@ class EnhancedFlowEngine(FlowCore):
                 "medical_concerns"
             ):
                 conversation_history = await self._get_conversation_history(patient_id)
-                follow_up_message = (
-                    await self.gemini_client.create_empathetic_follow_up(
+                if use_sync_agents:
+                    sync_follow_up: Any = getattr(
+                        gemini_client, "create_empathetic_follow_up_sync", None
+                    )
+                    if not callable(sync_follow_up):
+                        raise FeatureNotAvailableError(
+                            "sync empathy method unavailable",
+                            "empathy",
+                            "process_patient_response",
+                        )
+                    follow_up_message = await asyncio.to_thread(
+                        sync_follow_up,
+                        response_text,
+                        conversation_history,
+                        patient_context,
+                    )
+                else:
+                    async_follow_up: Any = getattr(
+                        gemini_client, "create_empathetic_follow_up", None
+                    )
+                    if not callable(async_follow_up):
+                        raise FeatureNotAvailableError(
+                            "async empathy method unavailable",
+                            "empathy",
+                            "process_patient_response",
+                        )
+                    follow_up_result = async_follow_up(
                         response_text, conversation_history, patient_context
                     )
-                )
+                    if asyncio.iscoroutine(follow_up_result):
+                        follow_up_result = await follow_up_result
+                    follow_up_message = (
+                        follow_up_result if isinstance(follow_up_result, str) else None
+                    )
 
             # Update flow state with response data
             commit_needed = False

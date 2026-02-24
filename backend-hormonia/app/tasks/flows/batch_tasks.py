@@ -294,7 +294,10 @@ async def _process_single_patient_flow(
 
         # Generate personalized message
         personalized_content = await flow_engine.generate_flow_message(
-            patient_id, current_day, message_template
+            patient_id,
+            current_day,
+            message_template,
+            use_sync_agents=True,
         )
 
         # Persist message and dispatch via the unified scheduled message pipeline.

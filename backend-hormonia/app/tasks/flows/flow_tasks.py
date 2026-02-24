@@ -282,8 +282,8 @@ def process_daily_flows(self, limit: int = 1000) -> dict[str, Any]:
     Process daily flows for all active patients using EnhancedFlowEngine.
 
     This is a wrapper task that delegates to the async implementation to prevent
-    event loop memory leaks. Uses async_to_sync from asgiref to manage the event
-    loop for the entire batch processing without creating one per call.
+    event loop memory leaks. It remains a non-AI async_to_sync bridge only; Celery
+    AI run_sync wiring is enforced in batch processing paths.
 
     Args:
         limit: Maximum number of patients to process
