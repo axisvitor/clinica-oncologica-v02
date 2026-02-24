@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 12 of 13 (Flow Orchestration Replacement)
-Plan: 0 of 3 in current phase
+Plan: 1 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-24 - Completed 11-04 GeminiDomainClient AI_FRAMEWORK shim and 50-scenario regression suite
+Last activity: 2026-02-24 - Completed 12-01 direct flow orchestration functions, helper import migration, and lifespan LangGraph gate removal
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 █████░░░░░ 50%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████░░░░ 58%
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 11 P02 | 2 min | 1 tasks | 2 files |
 | Phase 11 P03 | 5 min | 2 tasks | 6 files |
 | Phase 11 P04 | 17 min | 2 tasks | 6 files |
+| Phase 12-flow-orchestration-replacement P01 | 15 min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 11]: Use app.ai.agents.helpers as the only import surface to isolate Phase 12 langgraph tombstoning.
 - [Phase 11]: Keep AI_FRAMEWORK default as legacy to preserve production behavior until explicit opt-in.
 - [Phase 11]: Convert SentimentAgent output to dict in GeminiDomainClient shim for backward-compatible caller signatures.
+- [Phase 12-flow-orchestration-replacement]: Kept flow orchestration dual-path with AI_FLOW_FRAMEWORK defaulting to legacy
+- [Phase 12-flow-orchestration-replacement]: Routed prompt/node helper imports through app.ai.agents.helpers as tombstoning boundary
 
 ### Pending Todos
 
@@ -95,5 +98,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 11-04-PLAN.md
+Stopped at: Completed 12-flow-orchestration-replacement-01-PLAN.md
 Resume file: None
