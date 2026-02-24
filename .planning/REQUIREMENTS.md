@@ -9,7 +9,7 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 
 ### Critical Fixes
 
-- [ ] **FIX-01**: Pause detection uses `state_data.paused` consistently across daily processor and flow management
+- [x] **FIX-01**: Pause detection uses `state_data.paused` consistently across daily processor and flow management
 - [ ] **FIX-02**: Auto-resume Celery Beat job checks `auto_resume_at` timestamps and resumes expired pauses
 - [ ] **FIX-03**: Cancel flow implemented in flow_management with cleanup of pending messages and state reset
 - [ ] **FIX-04**: Quiz template missing triggers graceful fallback (skip quiz link, send message without it) instead of ValueError
@@ -60,7 +60,7 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FIX-01 | Phase 14 | Pending |
+| FIX-01 | Phase 14 | Complete |
 | FIX-02 | Phase 14 | Pending |
 | FIX-03 | Phase 14 | Pending |
 | FIX-04 | Phase 15 | Pending |

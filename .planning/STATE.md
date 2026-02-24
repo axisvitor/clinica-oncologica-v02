@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 14 of 19 — v1.3 active (Flow Control Fixes)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-02-24 — v1.3 roadmap created (phases 14-19)
+Plan: 02 of 3 — 14-02-PLAN.md next
+Status: In progress
+Last activity: 2026-02-24 — completed 14-01 flow pause state alignment
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ░░░░░░░░░░ 0%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ███░░░░░░░ 33%
 
 ## Performance Metrics
 
@@ -29,6 +29,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | v1.0 (phases 1-5) | 13 | 1 day | - |
 | v1.1 (phases 6-9) | 10 | 1 day | - |
 | v1.2 (phases 10-13) | 16 | 1 day | ~8 min |
+| Phase 14 P01 | 9 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -41,6 +42,8 @@ Recent decisions affecting v1.3:
 - Phase 15 before 17: FIX-05 (constants consolidation) must complete before SPLIT-06 (flow_core split uses those constants)
 - Phase 16 before 17: dead imports cleared before core layer refactor to avoid re-exporting tombstoned paths
 - Shim pattern mandatory for all splits: old paths kept as re-export shims for backward compat
+- [Phase 14]: Pause detection contract standardized on state_data.paused across flow services and daily processor
+- [Phase 14]: Re-pausing an already paused flow is idempotent and refreshes auto_resume_at when duration is provided
 
 ### Pending Todos
 
@@ -57,5 +60,5 @@ Carried tech debt (not v1.3-scoped):
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: v1.3 roadmap created, ready to plan Phase 14
+Stopped at: Completed 14-01-PLAN.md
 Resume file: None
