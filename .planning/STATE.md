@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Planning next milestone
+**Current focus:** v1.2 AI Framework Migration
 
 ## Current Position
 
-Phase: None (between milestones)
-Plan: N/A
-Status: v1.1 milestone complete — all 4 phases (6-9), 10 plans, 20 tasks shipped
-Last activity: 2026-02-23 — Completed v1.1 milestone archival
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-23 — Milestone v1.2 started
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ░░░░░░░░░░ 0%
 
 ## Accumulated Context
 
@@ -38,5 +38,5 @@ All v1.0 and v1.1 blockers resolved. Carried forward as tech debt:
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: v1.1 milestone completion
-Resume file: /gsd:new-milestone (start next milestone)
+Stopped at: Defining v1.2 requirements
+Resume file: /gsd:new-milestone (requirements + roadmap pending)

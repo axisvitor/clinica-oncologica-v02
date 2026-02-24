@@ -49,7 +49,16 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 
 ### Active
 
-(None — next milestone not defined yet)
+## Current Milestone: v1.2 AI Framework Migration
+
+**Goal:** Substituir LangGraph por Pydantic AI + Google ADK, eliminando overhead de orquestracao mantendo as mesmas operacoes AI com melhor type safety e estrutura de agentes.
+
+**Target features:**
+- Remover LangGraph e toda infraestrutura associada (grafos, runtime, checkpointing, state)
+- Remover sistema de consensus (codigo morto, nao utilizado em producao)
+- Implementar agentes Pydantic AI com structured output tipado para as 4 operacoes AI
+- Implementar orquestracao Google ADK (SequentialAgent/ParallelAgent) para fluxos
+- Reavaliar e migrar protecoes do GeminiClient (cache, rate limit, circuit breaker, PII redaction)
 
 ### Out of Scope
 
@@ -97,4 +106,4 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 | async_to_sync as sole sync→async bridge | Eliminates asyncio.run() memory leaks; matches 15+ existing task files | ✓ Good (v1.0) |
 
 ---
-*Last updated: 2026-02-23 after v1.1 milestone completion*
+*Last updated: 2026-02-23 after v1.2 milestone start*
