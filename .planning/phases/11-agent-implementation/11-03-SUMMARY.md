@@ -86,10 +86,18 @@ Each task was committed atomically:
 - **Verification:** `from app.ai.agents import SentimentAgent` succeeds and `ruff check app/ai/agents/` passes.
 - **Committed in:** `4b97ae0b`
 
+**2. [Rule 3 - Blocking] Manually updated STATE.md when state tool parsing failed**
+- **Found during:** Post-task state updates
+- **Issue:** `state advance-plan` and `state record-session` returned parse errors against existing STATE.md format, blocking required position/session updates.
+- **Fix:** Updated Current Position and Session Continuity fields in `.planning/STATE.md` manually to reflect 11-03 completion.
+- **Files modified:** `.planning/STATE.md`
+- **Verification:** `.planning/STATE.md` now shows `Plan: 3 of 4 in current phase` and `Stopped at: Completed 11-03-PLAN.md`.
+- **Committed in:** `2634222f`
+
 ---
 
-**Total deviations:** 1 auto-fixed (1 missing critical)
-**Impact on plan:** No scope creep; change was required to satisfy migration-isolation success criteria.
+**Total deviations:** 2 auto-fixed (1 missing critical, 1 blocking)
+**Impact on plan:** No scope creep; both fixes were required to satisfy success criteria and metadata completeness.
 
 ## Issues Encountered
 - Local environment does not guarantee global `python`, so verification commands used `.venv/bin/python` when available.
