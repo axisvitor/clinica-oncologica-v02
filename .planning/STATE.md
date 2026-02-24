@@ -10,16 +10,16 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 14 of 19 — v1.3 active (Flow Control Fixes)
-Plan: 02 of 3 — 14-02-PLAN.md next
+Plan: 03 of 3 — 14-03-PLAN.md next
 Status: In progress
-Last activity: 2026-02-24 — completed 14-01 flow pause state alignment
+Last activity: 2026-02-24 — completed 14-02 auto-resume timestamp gating
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ███░░░░░░░ 33%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ███████░░░ 67%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 39 (v1.0: 13, v1.1: 10, v1.2: 16)
+- Total plans completed: 40 (v1.0: 13, v1.1: 10, v1.2: 16, v1.3: 1)
 - Total execution time: 3 days (v1.0: 1 day, v1.1: 1 day, v1.2: 1 day)
 
 **By Phase:**
@@ -30,6 +30,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | v1.1 (phases 6-9) | 10 | 1 day | - |
 | v1.2 (phases 10-13) | 16 | 1 day | ~8 min |
 | Phase 14 P01 | 9 min | 2 tasks | 4 files |
+| Phase 14 P02 | 1 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -44,6 +45,8 @@ Recent decisions affecting v1.3:
 - Shim pattern mandatory for all splits: old paths kept as re-export shims for backward compat
 - [Phase 14]: Pause detection contract standardized on state_data.paused across flow services and daily processor
 - [Phase 14]: Re-pausing an already paused flow is idempotent and refreshes auto_resume_at when duration is provided
+- [Phase 14]: Auto-resume query now requires state_data.auto_resume_at and expired timestamp instead of updated_at age
+- [Phase 14]: resume_paused_flows uses FlowManagementService.resume_patient_flow to keep state_data pause semantics consistent
 
 ### Pending Todos
 
@@ -60,5 +63,5 @@ Carried tech debt (not v1.3-scoped):
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 14-01-PLAN.md
+Stopped at: Completed 14-02-PLAN.md
 Resume file: None
