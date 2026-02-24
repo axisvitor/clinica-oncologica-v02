@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 10 of 13 (Preparation & Scope)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-02-24 - Completed 10-02 consensus deletion and DDD scope annotation
+Plan: 2 of 2 in current phase
+Status: Phase complete
+Last activity: 2026-02-24 - Completed 10-01 LangGraph audit + pydantic-ai-slim dependency baseline
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 █░░░░░░░░░ 8%
 
@@ -37,6 +37,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 
 *Updated after each plan completion*
 | Phase 10 P02 | 2 min | 2 tasks | 13 files |
+| Phase 10 P01 | 4 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -53,6 +54,8 @@ Recent decisions affecting v1.2 work:
 - GeminiClient preserved as execution backend throughout migration: cache, circuit breaker, rate limiter, PII redaction unchanged
 - [Phase 10]: Consensus path removed entirely; FlowCoordinator now escalates directly to ALERT_ANALYZER_ID via critical message.
 - [Phase 10]: Added one-line scope annotations across app/agents DDD services to prevent pydantic-ai migration confusion in Phase 11.
+- [Phase 10]: Keep LangGraph and pydantic-ai-slim coexisting during migration phases 10-12.
+- [Phase 10]: Pin pydantic-ai-slim below 2.0.0 to avoid planned April 2026 breaking changes.
 
 ### Pending Todos
 
@@ -73,5 +76,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 10-02-PLAN.md
+Stopped at: Completed 10-01-PLAN.md
 Resume file: None

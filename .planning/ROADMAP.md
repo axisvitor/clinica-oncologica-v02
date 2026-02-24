@@ -37,7 +37,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 
 **Milestone Goal:** Substituir LangGraph por Pydantic AI, eliminando overhead de orquestracao mantendo as mesmas 4 operacoes AI com melhor type safety, PII safety, e output guardrails explicitos.
 
-- [ ] **Phase 10: Preparation & Scope** - Audit LangGraph imports, install pydantic-ai, delete consensus (dead code)
+- [x] **Phase 10: Preparation & Scope** - Audit LangGraph imports, install pydantic-ai, delete consensus (dead code) (completed 2026-02-24)
 - [ ] **Phase 11: Agent Implementation** - Implement 4 typed pydantic-ai agents with PIISafeAgent wrapper, guardrails, and shim
 - [ ] **Phase 12: Flow Orchestration Replacement** - Replace 2 LangGraph graphs with async Python, remove LangGraph packages, purge Redis checkpoints
 - [ ] **Phase 13: SDK Migration & Cleanup** - Migrate GeminiClient from ChatGoogleGenerativeAI to google-genai SDK, validate Celery async bridge
@@ -122,7 +122,7 @@ Plans:
 | 7. LGPD Key Rotation | v1.1 | 1/1 | Complete | 2026-02-23 |
 | 8. AI Rationalization | v1.1 | 2/2 | Complete | 2026-02-23 |
 | 9. Observability | v1.1 | 3/3 | Complete | 2026-02-23 |
-| 10. Preparation & Scope | 1/2 | In Progress|  | - |
+| 10. Preparation & Scope | 2/2 | Complete   | 2026-02-24 | - |
 | 11. Agent Implementation | v1.2 | 0/4 | Not started | - |
 | 12. Flow Orchestration Replacement | v1.2 | 0/3 | Not started | - |
 | 13. SDK Migration & Cleanup | v1.2 | 0/3 | Not started | - |
