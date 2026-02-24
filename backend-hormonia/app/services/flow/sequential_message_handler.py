@@ -14,7 +14,7 @@ import hashlib
 import difflib
 import re
 import os
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, TYPE_CHECKING
 from uuid import UUID
 from datetime import datetime
 
@@ -26,10 +26,12 @@ from app.models.message import Message, MessageDirection, MessageStatus, Message
 from app.models.patient import Patient
 from app.repositories.flow import FlowStateRepository  # used only for sync Celery callers; hot-path uses inlined async queries
 from app.repositories.message import MessageRepository
-from app.services.unified_whatsapp_service import UnifiedWhatsAppService
-from app.services.enhanced_flow_engine import EnhancedFlowEngine
 from app.services.template_loader_pkg import MessageTemplate as FlowMessageTemplate
 from app.utils.timezone import now_sao_paulo
+
+if TYPE_CHECKING:
+    from app.services.enhanced_flow_engine import EnhancedFlowEngine
+    from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 
 logger = logging.getLogger(__name__)
 
@@ -50,13 +52,17 @@ class SequentialMessageHandler:
         self.db = db
         self.flow_state_repo = FlowStateRepository(db)
         self.message_repo = MessageRepository(db)
+        from app.services.unified_whatsapp_service import UnifiedWhatsAppService
+
         self.whatsapp_service = UnifiedWhatsAppService(db)
         self.use_ai_personalization = use_ai_personalization
-        self._enhanced_flow_engine: Optional[EnhancedFlowEngine] = None
+        self._enhanced_flow_engine: Optional["EnhancedFlowEngine"] = None
     
-    def _get_ai_engine(self) -> EnhancedFlowEngine:
+    def _get_ai_engine(self) -> "EnhancedFlowEngine":
         """Lazy initialization of AI engine."""
         if self._enhanced_flow_engine is None:
+            from app.services.enhanced_flow_engine import EnhancedFlowEngine
+
             self._enhanced_flow_engine = EnhancedFlowEngine(self.db)
         return self._enhanced_flow_engine
 

@@ -35,14 +35,7 @@ asgiref>=3.11.0,<4.0.0  # Async utilities for Celery tasks (async_to_sync)
 flower==2.0.1  # Web-based Celery monitoring UI
 prometheus-client>=0.24.1,<1.0.0  # Prometheus metrics for Celery tasks
 
-# AI (Gemini) and LangChain - Python 3.13 + NumPy 2.x compatible
-# NOTE: Removed langchain meta-package (requires numpy<2.0.0, incompatible with Python 3.13 stack)
-# NOTE: Removed google-generativeai to avoid conflicts with langchain-google-genai
-# Using LangChain-specific packages (Option A from ultra-think analysis)
-langchain-core>=1.2.7,<2.0.0  # Core abstractions (NumPy 2.x compatible)
-langchain-google-genai>=2.1.12,<4.0.0  # Google Gemini integration via LangChain
-google-ai-generativelanguage>=0.7.0,<1.0.0  # Gemini API dependency (Python 3.13 compatible)
-langgraph>=1.0.7,<2.0.0  # LangGraph orchestration (Python 3.13 compatible)
+# AI (Gemini)
 # pydantic-ai-slim: Typed AI agents with Gemini support (v1.2 migration)
 # Pin <2.0.0: V2 planned for April 2026 with breaking API changes
 # [google]: pulls google-genai SDK (unified Google GenAI client)
@@ -136,7 +129,6 @@ opentelemetry-exporter-otlp-proto-http>=1.28.0,<2.0.0
 opentelemetry-proto>=1.28.0,<2.0.0
 # Protobuf 5.x-6.x compatible with ALL packages:
 # - opentelemetry-proto>=1.28.0 requires protobuf>=5.0
-# - google-ai-generativelanguage 0.7.0 accepts protobuf>=3.20.2,<7.0.0
 # - googleapis-common-protos 1.70.0 accepts protobuf>=3.20.2,<7.0.0
 # - google-api-core 2.25.0 accepts protobuf>=3.19.5,<7.0.0
 protobuf>=5.0,<7.0.0
