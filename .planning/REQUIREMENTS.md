@@ -11,7 +11,7 @@ Requirements for AI framework migration. Each maps to roadmap phases.
 
 - [ ] **PREP-01**: Developer can see a complete import graph of all LangGraph/LangChain dependencies across the codebase (audit)
 - [ ] **PREP-02**: System installs pydantic-ai-slim[google,retries] without conflicts on Python 3.13
-- [ ] **PREP-03**: Consensus graph and all associated code are deleted (0 callers, confirmed dead code)
+- [x] **PREP-03**: Consensus graph and all associated code are deleted (0 callers, confirmed dead code)
 
 ### Agent Implementation
 
@@ -63,7 +63,7 @@ Requirements for AI framework migration. Each maps to roadmap phases.
 |-------------|-------|--------|
 | PREP-01 | Phase 10 | Pending |
 | PREP-02 | Phase 10 | Pending |
-| PREP-03 | Phase 10 | Pending |
+| PREP-03 | Phase 10 | Complete |
 | AGENT-01 | Phase 11 | Pending |
 | AGENT-02 | Phase 11 | Pending |
 | AGENT-03 | Phase 11 | Pending |

@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 10 of 13 (Preparation & Scope)
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-02-23 — Roadmap for v1.2 created (phases 10-13)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-24 - Completed 10-02 consensus deletion and DDD scope annotation
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ░░░░░░░░░░ 0%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 █░░░░░░░░░ 8%
 
 ## Performance Metrics
 
@@ -36,6 +36,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 - Trend: Stable
 
 *Updated after each plan completion*
+| Phase 10 P02 | 2 min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -50,6 +51,8 @@ Recent decisions affecting v1.2 work:
 - PIISafeAgent wrapper MANDATORY: only sanctioned way to call any agent; direct .run() calls blocked by CI lint rule; LGPD Art. 46 requirement
 - Flow graphs replaced with direct async Python (not ADK): 10-15 lines each, identical runtime semantics, zero new dependencies
 - GeminiClient preserved as execution backend throughout migration: cache, circuit breaker, rate limiter, PII redaction unchanged
+- [Phase 10]: Consensus path removed entirely; FlowCoordinator now escalates directly to ALERT_ANALYZER_ID via critical message.
+- [Phase 10]: Added one-line scope annotations across app/agents DDD services to prevent pydantic-ai migration confusion in Phase 11.
 
 ### Pending Todos
 
@@ -70,5 +73,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-preparation-scope/10-CONTEXT.md
+Stopped at: Completed 10-02-PLAN.md
+Resume file: None

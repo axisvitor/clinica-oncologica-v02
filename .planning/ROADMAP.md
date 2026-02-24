@@ -122,7 +122,7 @@ Plans:
 | 7. LGPD Key Rotation | v1.1 | 1/1 | Complete | 2026-02-23 |
 | 8. AI Rationalization | v1.1 | 2/2 | Complete | 2026-02-23 |
 | 9. Observability | v1.1 | 3/3 | Complete | 2026-02-23 |
-| 10. Preparation & Scope | v1.2 | 0/2 | Not started | - |
+| 10. Preparation & Scope | 1/2 | In Progress|  | - |
 | 11. Agent Implementation | v1.2 | 0/4 | Not started | - |
 | 12. Flow Orchestration Replacement | v1.2 | 0/3 | Not started | - |
 | 13. SDK Migration & Cleanup | v1.2 | 0/3 | Not started | - |
