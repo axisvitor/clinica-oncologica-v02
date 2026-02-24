@@ -50,7 +50,7 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
 
 **Milestone Goal:** Fix 7 critical functional gaps in patient flow control, remove ~4,550 LOC of dead code from unused packages, and split 10 oversized files (500-1,141 LOC each) into focused modules for long-term maintainability.
 
-- [ ] **Phase 14: Flow Control Fixes** - Fix pause detection, auto-resume, and cancel flow end-to-end
+- [x] **Phase 14: Flow Control Fixes** - Fix pause detection, auto-resume, and cancel flow end-to-end (completed 2026-02-24)
 - [ ] **Phase 15: Data Integrity Fixes** - Fix quiz crash, consolidate constants, align cycle calculation, wire DLQ
 - [ ] **Phase 16: Dead Code Removal** - Tombstone 5 unused packages/files (~4,550 LOC)
 - [ ] **Phase 17: Flow Core Splits** - Split _flow_functions, flow_core, flow_management into focused modules
@@ -71,9 +71,9 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
 **Plans**: 3 plans
 
 Plans:
-- [ ] 14-01-PLAN.md — Standardize pause detection to state_data.paused across daily processor, FlowCore, and FlowManagementService
-- [ ] 14-02-PLAN.md — Rewrite auto-resume Beat job to check auto_resume_at timestamps instead of blanket 48h heuristic
-- [ ] 14-03-PLAN.md — Implement cancel flow with pending message cleanup, Celery task revocation, and API endpoint
+- [x] 14-01-PLAN.md — Standardize pause detection to state_data.paused across daily processor, FlowCore, and FlowManagementService
+- [x] 14-02-PLAN.md — Rewrite auto-resume Beat job to check auto_resume_at timestamps instead of blanket 48h heuristic
+- [x] 14-03-PLAN.md — Implement cancel flow with pending message cleanup, Celery task revocation, and API endpoint
 
 ### Phase 15: Data Integrity Fixes
 **Goal**: Quiz links never crash on missing templates, all phase constants come from one canonical source, cycle calculation is consistent, and failed messages reach the DLQ.
@@ -174,7 +174,7 @@ Plans:
 | 11. Agent Implementation | v1.2 | 4/4 | Complete | 2026-02-24 |
 | 12. Flow Orchestration Replacement | v1.2 | 3/3 | Complete | 2026-02-24 |
 | 13. SDK Migration & Cleanup | v1.2 | 5/5 | Complete | 2026-02-24 |
-| 14. Flow Control Fixes | 2/3 | In Progress|  | - |
+| 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | 0/4 | Not started | - |
 | 16. Dead Code Removal | v1.3 | 0/3 | Not started | - |
 | 17. Flow Core Splits | v1.3 | 0/3 | Not started | - |
@@ -183,4 +183,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-24 — Phase 14 plan 01 completed (1/3)*
+*Last updated: 2026-02-24 — Phase 14 complete (3/3)*
