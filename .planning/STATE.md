@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 12 of 13 (Flow Orchestration Replacement)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-24 - Completed 12-01 direct flow orchestration functions, helper import migration, and lifespan LangGraph gate removal
+Last activity: 2026-02-24 - Completed 12-02 helper/flow inlining and LangGraph dependency removal verification
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████░░░░ 58%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ███████░░░ 67%
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 11 P03 | 5 min | 2 tasks | 6 files |
 | Phase 11 P04 | 17 min | 2 tasks | 6 files |
 | Phase 12-flow-orchestration-replacement P01 | 15 min | 2 tasks | 13 files |
+| Phase 12-flow-orchestration-replacement P02 | 18 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 11]: Convert SentimentAgent output to dict in GeminiDomainClient shim for backward-compatible caller signatures.
 - [Phase 12-flow-orchestration-replacement]: Kept flow orchestration dual-path with AI_FLOW_FRAMEWORK defaulting to legacy
 - [Phase 12-flow-orchestration-replacement]: Routed prompt/node helper imports through app.ai.agents.helpers as tombstoning boundary
+- [Phase 12-flow-orchestration-replacement]: Moved LangGraph imports in sequential handler to lazy branches and lazy-loaded heavy services to keep module imports working after package removal.
+- [Phase 12-flow-orchestration-replacement]: Kept helper and flow behavior identical while replacing all app.ai.langgraph runtime imports with inlined implementations.
 
 ### Pending Todos
 
@@ -98,5 +101,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 12-flow-orchestration-replacement-01-PLAN.md
+Stopped at: Completed 12-flow-orchestration-replacement-02-PLAN.md
 Resume file: None

@@ -28,7 +28,7 @@ Requirements for AI framework migration. Each maps to roadmap phases.
 
 - [x] **FLOW-01**: flow_message_graph replaced by async Python function (load_flow_context → dispatch_send_mode)
 - [x] **FLOW-02**: flow_response_graph replaced by async Python function (load_response_context → dispatch_response_continuation)
-- [ ] **FLOW-03**: LangGraph, langchain-core packages removed from requirements.txt
+- [x] **FLOW-03**: LangGraph, langchain-core packages removed from requirements.txt
 - [ ] **FLOW-04**: Redis LangGraph checkpoint keys purged via migration script (PHI data, LGPD compliance)
 - [ ] **FLOW-05**: app/ai/langgraph/ directory tombstoned (runtime.py, nodes.py, state.py, graphs.py, _invoke.py, prompts.py)
 
@@ -74,7 +74,7 @@ Requirements for AI framework migration. Each maps to roadmap phases.
 | AGENT-08 | Phase 11 | Complete |
 | FLOW-01 | Phase 12 | Complete |
 | FLOW-02 | Phase 12 | Complete |
-| FLOW-03 | Phase 12 | Pending |
+| FLOW-03 | Phase 12 | Complete |
 | FLOW-04 | Phase 12 | Pending |
 | FLOW-05 | Phase 12 | Pending |
 | SDK-01 | Phase 13 | Pending |
