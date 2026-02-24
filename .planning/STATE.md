@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 15 of 19 — v1.3 active (Data Integrity Fixes)
-Plan: In progress (2/3 complete) — remaining 15-03-PLAN.md
-Status: Phase 15 in progress
-Last activity: 2026-02-24 — completed 15-01 constants consolidation and cycle canonicalization
+Plan: Complete (3/3) — next 16-01-PLAN.md
+Status: Phase 15 complete
+Last activity: 2026-02-24 — completed 15-03 DLQ wiring and retry monitoring
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██░░░░░░░░ 25%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ███░░░░░░░ 33%
 
 ## Performance Metrics
 
@@ -34,6 +34,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 14 P03 | 10 min | 2 tasks | 5 files |
 | Phase 15-data-integrity-fixes P02 | 3 min | 2 tasks | 3 files |
 | Phase 15 P01 | 3 min | 2 tasks | 4 files |
+| Phase 15 P03 | 7 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -57,6 +58,8 @@ Recent decisions affecting v1.3:
 - [Phase 15]: Cycle arithmetic centralized in flow_coordinator constants via compute_cycle_number
 - [Phase 15]: QuizTriggerPolicy monthly cycle now delegates to canonical compute_cycle_number
 - [Phase 15]: TemplateVariableProcessor uses canonical monthly constants imports instead of class-local copies
+- [Phase 15]: Use existing FailureReason enum values (MAX_RETRIES_EXCEEDED/UNKNOWN) to avoid DB enum drift.
+- [Phase 15]: Keep DLQ routing non-fatal so delivery-task failure reporting remains deterministic.
 
 ### Pending Todos
 
@@ -73,5 +76,5 @@ Carried tech debt (not v1.3-scoped):
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 15-01-PLAN.md
+Stopped at: Completed 15-03-PLAN.md
 Resume file: None

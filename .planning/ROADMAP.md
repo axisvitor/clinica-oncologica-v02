@@ -51,7 +51,7 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
 **Milestone Goal:** Fix 7 critical functional gaps in patient flow control, remove ~4,550 LOC of dead code from unused packages, and split 10 oversized files (500-1,141 LOC each) into focused modules for long-term maintainability.
 
 - [x] **Phase 14: Flow Control Fixes** - Fix pause detection, auto-resume, and cancel flow end-to-end (completed 2026-02-24)
-- [ ] **Phase 15: Data Integrity Fixes** - Fix quiz crash, consolidate constants, align cycle calculation, wire DLQ
+- [x] **Phase 15: Data Integrity Fixes** - Fix quiz crash, consolidate constants, align cycle calculation, wire DLQ (completed 2026-02-24)
 - [ ] **Phase 16: Dead Code Removal** - Tombstone 5 unused packages/files (~4,550 LOC)
 - [ ] **Phase 17: Flow Core Splits** - Split _flow_functions, flow_core, flow_management into focused modules
 - [ ] **Phase 18: Flow Service Splits** - Split sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring
@@ -89,7 +89,7 @@ Plans:
 Plans:
 - [ ] 15-01-PLAN.md — Consolidate phase constants and cycle calculation to canonical source (FIX-05, FIX-06)
 - [ ] 15-02-PLAN.md — Add graceful fallback for missing quiz templates (FIX-04)
-- [ ] 15-03-PLAN.md — Wire failed flow messages to DLQ with retry and monitoring (FIX-07)
+- [x] 15-03-PLAN.md — Wire failed flow messages to DLQ with retry and monitoring (FIX-07)
 
 ### Phase 16: Dead Code Removal
 **Goal**: Five unused code packages and files are tombstoned, reducing the active codebase by ~4,550 LOC and eliminating future confusion about which modules are in use.
@@ -174,7 +174,7 @@ Plans:
 | 12. Flow Orchestration Replacement | v1.2 | 3/3 | Complete | 2026-02-24 |
 | 13. SDK Migration & Cleanup | v1.2 | 5/5 | Complete | 2026-02-24 |
 | 14. Flow Control Fixes | v1.3 | Complete    | 2026-02-24 | 2026-02-24 |
-| 15. Data Integrity Fixes | 2/3 | In Progress|  | - |
+| 15. Data Integrity Fixes | 3/3 | Complete   | 2026-02-24 | - |
 | 16. Dead Code Removal | v1.3 | 0/3 | Not started | - |
 | 17. Flow Core Splits | v1.3 | 0/3 | Not started | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |

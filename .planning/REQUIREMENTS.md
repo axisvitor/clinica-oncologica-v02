@@ -15,7 +15,7 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 - [x] **FIX-04**: Quiz template missing triggers graceful fallback (skip quiz link, send message without it) instead of ValueError
 - [x] **FIX-05**: Phase constants consolidated to single canonical source (`flow_coordinator/constants.py`), all duplicates removed
 - [x] **FIX-06**: Quiz mensal cycle calculation consolidated to single algorithm used by both flow_coordinator and sequential_message_handler
-- [ ] **FIX-07**: Failed flow messages routed to DLQ with retry and monitoring integration
+- [x] **FIX-07**: Failed flow messages routed to DLQ with retry and monitoring integration
 
 ### Dead Code Removal
 
@@ -66,7 +66,7 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 | FIX-04 | Phase 15 | Complete |
 | FIX-05 | Phase 15 | Complete |
 | FIX-06 | Phase 15 | Complete |
-| FIX-07 | Phase 15 | Pending |
+| FIX-07 | Phase 15 | Complete |
 | DEAD-01 | Phase 16 | Pending |
 | DEAD-02 | Phase 16 | Pending |
 | DEAD-03 | Phase 16 | Pending |
