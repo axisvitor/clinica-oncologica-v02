@@ -4,6 +4,7 @@
 
 - ✅ **v1.0 Foundations** — Phases 1-5 (shipped 2026-02-22)
 - ✅ **v1.1 Architecture & Observability** — Phases 6-9 (shipped 2026-02-23)
+- 🚧 **v1.2 AI Framework Migration** — Phases 10-13 (in progress)
 
 ## Phases
 
@@ -32,6 +33,83 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 
 </details>
 
+### 🚧 v1.2 AI Framework Migration (In Progress)
+
+**Milestone Goal:** Substituir LangGraph por Pydantic AI, eliminando overhead de orquestracao mantendo as mesmas 4 operacoes AI com melhor type safety, PII safety, e output guardrails explicitos.
+
+- [ ] **Phase 10: Preparation & Scope** - Audit LangGraph imports, install pydantic-ai, delete consensus (dead code)
+- [ ] **Phase 11: Agent Implementation** - Implement 4 typed pydantic-ai agents with PIISafeAgent wrapper, guardrails, and shim
+- [ ] **Phase 12: Flow Orchestration Replacement** - Replace 2 LangGraph graphs with async Python, remove LangGraph packages, purge Redis checkpoints
+- [ ] **Phase 13: SDK Migration & Cleanup** - Migrate GeminiClient from ChatGoogleGenerativeAI to google-genai SDK, validate Celery async bridge
+
+## Phase Details
+
+### Phase 10: Preparation & Scope
+**Goal**: The codebase is ready for agent implementation — all LangGraph import dependencies are mapped, pydantic-ai is installed without conflicts, and dead code (consensus system) is deleted
+**Depends on**: Nothing (first v1.2 phase)
+**Requirements**: PREP-01, PREP-02, PREP-03
+**Success Criteria** (what must be TRUE):
+  1. Developer can run `python -c "import app.main"` and see a printed list of every file that imports from langgraph, langchain_core, or langchain_google_genai (import audit complete)
+  2. `pip install pydantic-ai-slim[google,retries]>=1.63.0,<2.0.0` succeeds in the project virtualenv on Python 3.13 with zero dependency conflicts
+  3. `consensus.py` and `consensus_manager.py` files no longer exist in the codebase and `grep -r "consensus" app/ai/` returns zero results
+  4. All files in `app/agents/` (DDD service components) have a one-line scope comment confirming they contain no LLM calls and are not migration targets
+**Plans**: TBD
+
+Plans:
+- [ ] 10-01: LangGraph import audit + google-adk deferral documentation
+- [ ] 10-02: pydantic-ai-slim installation and Python 3.13 compatibility validation
+- [ ] 10-03: Consensus system deletion and app/agents/ scope annotation
+
+### Phase 11: Agent Implementation
+**Goal**: All 4 AI operations (humanize, sentiment, variation, empathy) are delivered by typed pydantic-ai agents with mandatory PII redaction, reconnected output guardrails, and a feature-flag shim that callers cannot distinguish from the old interface
+**Depends on**: Phase 10
+**Requirements**: AGENT-01, AGENT-02, AGENT-03, AGENT-04, AGENT-05, AGENT-06, AGENT-07, AGENT-08
+**Success Criteria** (what must be TRUE):
+  1. SentimentAgent returns a fully-populated `SentimentResult` with all 7 fields (sentiment, confidence, emotional_indicators, medical_concerns, requires_attention, key_themes, suggested_follow_up) on every invocation — downstream alert logic never encounters a KeyError
+  2. Every agent invocation passes patient data through `sanitize_prompt_text_for_external_ai()` before calling Gemini — confirmed by CI lint rule that blocks direct `.run()` calls outside `PIISafeAgent`
+  3. Banned patterns, prompt leak markers, character length bounds, and Brazilian Portuguese punctuation rules fire as `@result_validator` decorators on each agent — identical guardrail assertions to the old `GeminiClient.generate_content()` path
+  4. `GeminiDomainClient` callers (`flow_core.py`, `flow_service.py`, `enhanced_flow_engine.py`) receive responses with identical signatures when `AI_FRAMEWORK` feature flag is toggled — zero breaking changes observable at call sites
+  5. The 50-scenario output regression test suite passes with all guardrail assertions satisfied and agent outputs compared against old GeminiClient baseline
+**Plans**: TBD
+
+Plans:
+- [ ] 11-01: PIISafeAgent base class + AIDeps dataclass + app/ai/agents/ scaffold
+- [ ] 11-02: SentimentAgent with PromptedOutput(SentimentResult) + result_validator guardrails
+- [ ] 11-03: HumanizeAgent + VariationAgent + EmpathyAgent implementation
+- [ ] 11-04: GeminiDomainClient shim with AI_FRAMEWORK feature flag + 50-scenario regression suite
+
+### Phase 12: Flow Orchestration Replacement
+**Goal**: LangGraph is completely removed from the codebase — the 2 flow routing graphs are replaced by direct async Python functions, all LangGraph packages are uninstalled, and Redis checkpoint keys (PHI data) are purged and logged as a LGPD compliance event
+**Depends on**: Phase 11
+**Requirements**: FLOW-01, FLOW-02, FLOW-03, FLOW-04, FLOW-05
+**Success Criteria** (what must be TRUE):
+  1. `flow_message_graph` callers invoke a direct async Python function that executes `load_flow_context → dispatch_send_mode` with no LangGraph runtime involved — `AI_FLOW_FRAMEWORK` flag routes between old and new paths
+  2. `flow_response_graph` callers invoke a direct async Python function that executes `load_response_context → dispatch_response_continuation` — same behavior, zero graph overhead
+  3. `requirements.txt` no longer contains `langgraph`, `langchain-core`, `langchain-google-genai`, or `google-ai-generativelanguage` — confirmed by a single clean `pip check` run
+  4. `scan_iter` on Dragonfly DB 0 returns zero results for `langgraph:checkpoint:*` keys — purge executed, purge count logged as a LGPD data deletion event in the audit record
+  5. Every file in `app/ai/langgraph/` raises `ImportError` with a migration message when imported — directory tombstoned, not deleted
+**Plans**: TBD
+
+Plans:
+- [ ] 12-01: flow_message_graph and flow_response_graph replaced with async Python functions
+- [ ] 12-02: LangGraph packages removed from requirements.txt + import graph clean verification
+- [ ] 12-03: Redis LangGraph checkpoint purge script (LGPD PHI event) + langgraph/ tombstone
+
+### Phase 13: SDK Migration & Cleanup
+**Goal**: The last LangChain reference in the entire backend is eliminated — GeminiClient initializes directly via the google-genai SDK, Celery tasks use agent.run_sync() to avoid event loop closure errors, and zero LangChain imports remain anywhere
+**Depends on**: Phase 12
+**Requirements**: SDK-01, SDK-02, SDK-03
+**Success Criteria** (what must be TRUE):
+  1. `GeminiClient._initialize_model()` creates a `google.genai.Client` instance directly — no `ChatGoogleGenerativeAI`, no `HumanMessage` from langchain-core anywhere in `client.py`
+  2. `langchain-google-genai` is absent from `requirements.txt` and `pip check` passes — confirmed by `grep -r "langchain" requirements.txt` returning zero results
+  3. All Celery tasks that call AI agents use `agent.run_sync()` directly — a 100-task sequential load test completes without `RuntimeError: Event loop is closed` errors
+**Plans**: TBD
+
+Plans:
+- [ ] 13-01: GeminiClient._initialize_model() migrated to direct google-genai SDK
+- [ ] 13-02: langchain-google-genai removal + zero-LangChain import verification
+- [ ] 13-03: Celery tasks migrated to agent.run_sync() + 100-task load test validation
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -45,7 +123,11 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 | 7. LGPD Key Rotation | v1.1 | 1/1 | Complete | 2026-02-23 |
 | 8. AI Rationalization | v1.1 | 2/2 | Complete | 2026-02-23 |
 | 9. Observability | v1.1 | 3/3 | Complete | 2026-02-23 |
+| 10. Preparation & Scope | v1.2 | 0/3 | Not started | - |
+| 11. Agent Implementation | v1.2 | 0/4 | Not started | - |
+| 12. Flow Orchestration Replacement | v1.2 | 0/3 | Not started | - |
+| 13. SDK Migration & Cleanup | v1.2 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-23 after v1.1 milestone completion*
+*Last updated: 2026-02-23 — v1.2 AI Framework Migration phases 10-13 added*

@@ -88,4 +88,4 @@ Requirements for AI framework migration. Each maps to roadmap phases.
 
 ---
 *Requirements defined: 2026-02-23*
-*Last updated: 2026-02-23 after initial definition*
+*Last updated: 2026-02-23 — traceability table confirmed against ROADMAP.md phases 10-13*
