@@ -49,15 +49,17 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 **Depends on**: Nothing (first v1.2 phase)
 **Requirements**: PREP-01, PREP-02, PREP-03
 **Success Criteria** (what must be TRUE):
-  1. Developer can run `python -c "import app.main"` and see a printed list of every file that imports from langgraph, langchain_core, or langchain_google_genai (import audit complete)
+  1. Developer can run `LANGGRAPH_AUDIT=1 python -c "import app.main"` and see a printed list of every file that imports from langgraph, langchain_core, or langchain_google_genai (import audit complete)
   2. `pip install pydantic-ai-slim[google,retries]>=1.63.0,<2.0.0` succeeds in the project virtualenv on Python 3.13 with zero dependency conflicts
   3. `consensus.py` and `consensus_manager.py` files no longer exist in the codebase and `grep -r "consensus" app/ai/` returns zero results
   4. All files in `app/agents/` (DDD service components) have a one-line scope comment confirming they contain no LLM calls and are not migration targets
-**Plans**: 2 plans
+**Plans**: 4 plans
 
 Plans:
 - [ ] 10-01-PLAN.md — LangGraph import audit + pydantic-ai-slim installation
 - [ ] 10-02-PLAN.md — Consensus system deletion + app/agents/ scope annotation
+- [ ] 10-03-PLAN.md — Gap closure part 1: annotate shared/patient app/agents modules
+- [ ] 10-04-PLAN.md — Gap closure part 2: annotate communication modules + run full annotation audit
 
 ### Phase 11: Agent Implementation
 **Goal**: All 4 AI operations (humanize, sentiment, variation, empathy) are delivered by typed pydantic-ai agents with mandatory PII redaction, reconnected output guardrails, and a feature-flag shim that callers cannot distinguish from the old interface
@@ -122,7 +124,7 @@ Plans:
 | 7. LGPD Key Rotation | v1.1 | 1/1 | Complete | 2026-02-23 |
 | 8. AI Rationalization | v1.1 | 2/2 | Complete | 2026-02-23 |
 | 9. Observability | v1.1 | 3/3 | Complete | 2026-02-23 |
-| 10. Preparation & Scope | 2/2 | Complete   | 2026-02-24 | - |
+| 10. Preparation & Scope | 3/4 | In Progress|  | - |
 | 11. Agent Implementation | v1.2 | 0/4 | Not started | - |
 | 12. Flow Orchestration Replacement | v1.2 | 0/3 | Not started | - |
 | 13. SDK Migration & Cleanup | v1.2 | 0/3 | Not started | - |
