@@ -84,6 +84,33 @@ class PIISafeAgent:
         self._warn_on_output_pii(str(result.output), operation=operation)
         return result.output
 
+    def _safe_run_sync(self, prompt: str, deps: AIDeps, *, operation: str) -> Any:
+        """Celery-safe synchronous runner for pydantic-ai agents.
+
+        pydantic-ai's ``run_sync()`` relies on ``asyncio.get_event_loop()``,
+        which may return a closed loop in Celery worker processes after cleanup.
+        This wrapper guarantees a fresh open loop before invoking ``run_sync()``.
+        """
+        import asyncio
+
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        safe_prompt = sanitize_prompt_text_for_external_ai(prompt)
+        model = GoogleModel(
+            deps.model_name,
+            provider=GoogleProvider(api_key=deps.gemini_api_key),
+        )
+        result = self._agent.run_sync(safe_prompt, model=model, deps=deps)
+        self._warn_on_output_pii(str(result.output), operation=operation)
+        return result.output
+
     def _warn_on_output_pii(self, output_text: str, *, operation: str) -> None:
         scans = (
             ("cpf", _CPF_PATTERN),
