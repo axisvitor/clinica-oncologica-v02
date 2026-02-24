@@ -10,7 +10,7 @@ going through single-node LangGraph StateGraph wrappers.
 import logging
 from typing import Any, Dict, List, Optional
 
-from app.ai.client import GeminiClient, GeminiAPIError
+from app.ai.client import GeminiClient
 from app.core.exceptions import FeatureNotAvailableError
 from app.services.ai.output_profiles import JSON_SENTIMENT, MESSAGE_HUMANIZED, MESSAGE_STANDARD
 

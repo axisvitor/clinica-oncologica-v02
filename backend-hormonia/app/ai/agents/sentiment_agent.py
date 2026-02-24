@@ -59,6 +59,43 @@ class SentimentResult(BaseModel):
             return normalized
         return []
 
+    @field_validator("emotional_indicators", "key_themes", mode="before")
+    @classmethod
+    def normalize_text_list(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            text = value.strip()
+            return [text] if text else []
+        if isinstance(value, list):
+            normalized: list[str] = []
+            for item in value:
+                text = str(item).strip()
+                if text:
+                    normalized.append(text)
+            return normalized
+        return []
+
+    @field_validator("requires_attention", mode="before")
+    @classmethod
+    def normalize_requires_attention(cls, value: Any) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            return normalized in {"1", "true", "yes", "sim"}
+        return bool(value)
+
+    @field_validator("suggested_follow_up", mode="before")
+    @classmethod
+    def normalize_suggested_follow_up(cls, value: Any) -> str:
+        if value is None:
+            return "standard"
+        text = str(value).strip()
+        return text or "standard"
+
 
 _sentiment_agent = Agent(
     model=None,
