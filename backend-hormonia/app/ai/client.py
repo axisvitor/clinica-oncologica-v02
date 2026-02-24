@@ -2,7 +2,7 @@
 Google Gemini 2.5 Flash integration for healthcare messaging and conversation flows.
 Provides AI-powered message humanization, personalization, and conversation management.
 
-REFACTORED TO USE LANGCHAIN-GOOGLE-GENAI (Option A - LangChain-only)
+Uses google-genai SDK directly
 
 Security Fixes:
 - Thread-safe singleton with asyncio.Lock
@@ -18,13 +18,11 @@ import logging
 import threading
 import time
 from collections import deque
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional
 
 # Third-party imports
-from langchain_core.messages import HumanMessage
-
-if TYPE_CHECKING:
-    from langchain_google_genai import ChatGoogleGenerativeAI
+from google import genai
+from google.genai import types
 
 # Local application imports
 from app.config import settings
@@ -61,8 +59,7 @@ class GeminiClient:
     Google Gemini 3.0 Flash client optimized for healthcare messaging.
     Handles message humanization, personalization, and conversation flows.
 
-    REFACTORED: Now uses ChatGoogleGenerativeAI from langchain-google-genai
-    instead of google.generativeai SDK to avoid dependency conflicts.
+    Uses google-genai SDK directly for Gemini calls.
 
     ADDED: Semantic Caching with Redis.
     """
@@ -80,7 +77,8 @@ class GeminiClient:
         # FIX: Use lazy async Redis initialization to prevent event loop blocking
         self._redis_client = None
         self._redis_initialized = False
-        self._model_loop_id: Optional[int] = None
+        self._genai_client: Optional[genai.Client] = None
+        self._genai_config: Optional[types.GenerateContentConfig] = None
         self._fallback_rate_limit_lock = asyncio.Lock()
         self._fallback_rate_limit_events: deque[float] = deque()
         # Circuit breaker for AI service protection
@@ -93,36 +91,26 @@ class GeminiClient:
             self.model = None
             return
 
-        # Initialize LangChain ChatGoogleGenerativeAI model
+        # Initialize google-genai client
         self._initialize_model()
-
-    @staticmethod
-    def _current_loop_id() -> Optional[int]:
-        try:
-            return id(asyncio.get_running_loop())
-        except RuntimeError:
-            return None
 
     def _initialize_model(self, *, reason: str = "initial") -> None:
         """Initialize or reinitialize the Gemini model for the current event loop."""
         if not self.api_key:
             self.model = None
-            self._model_loop_id = None
+            self._genai_client = None
+            self._genai_config = None
             return
 
         try:
-            # Lazy import avoids heavy Google package metadata scan during API bootstrap.
-            from langchain_google_genai import ChatGoogleGenerativeAI
-
-            self.model = ChatGoogleGenerativeAI(
-                model=self.model_name,
-                google_api_key=self.api_key,
+            self._genai_client = genai.Client(api_key=self.api_key)
+            self._genai_config = types.GenerateContentConfig(
                 temperature=settings.AI_GEMINI_TEMPERATURE,
                 max_output_tokens=settings.AI_GEMINI_MAX_OUTPUT_TOKENS,
                 top_p=settings.AI_GEMINI_TOP_P,
                 top_k=settings.AI_GEMINI_TOP_K,
             )
-            self._model_loop_id = self._current_loop_id()
+            self.model = self._genai_client
             logger.info(
                 "Gemini client initialized with model: %s",
                 self.model_name,
@@ -130,30 +118,15 @@ class GeminiClient:
             )
         except Exception as e:
             logger.error(
-                "Failed to initialize ChatGoogleGenerativeAI: %s",
+                "Failed to initialize google-genai Client: %s",
                 str(e),
                 exc_info=True,
                 extra={"model": self.model_name, "reason": reason},
             )
             self.model = None
+            self._genai_client = None
+            self._genai_config = None
             raise GeminiAPIError(f"Failed to initialize Gemini client: {str(e)}")
-
-    def _ensure_model_for_loop(self) -> None:
-        """Ensure model is bound to the current event loop."""
-        current_loop_id = self._current_loop_id()
-        if self.model is None:
-            self._initialize_model(reason="missing_model")
-            return
-
-        if current_loop_id is not None and current_loop_id != self._model_loop_id:
-            logger.info(
-                "Reinitializing Gemini model for new event loop",
-                extra={
-                    "previous_loop_id": self._model_loop_id,
-                    "current_loop_id": current_loop_id,
-                },
-            )
-            self._initialize_model(reason="loop_changed")
 
     def _generate_cache_key(self, prompt: str, *, profile_hint: str = "raw") -> str:
         """Generate a deterministic cache key for the prompt."""
@@ -342,10 +315,14 @@ class GeminiClient:
         Raises:
             GeminiAPIError: If generation fails after retries
         """
-        self._ensure_model_for_loop()
         prompt = self._redact_prompt_for_external_ai(prompt)
 
-        if not self.api_key or not self.model:
+        if (
+            not self.api_key
+            or not self.model
+            or self._genai_client is None
+            or self._genai_config is None
+        ):
             raise GeminiAPIError(
                 "Gemini client not properly initialized - missing API key"
             )
@@ -393,48 +370,28 @@ class GeminiClient:
 
         for attempt in range(max_retries):
             try:
-                # Use LangChain's ainvoke method for async generation
-                messages = [HumanMessage(content=prompt)]
-
                 # Run with timeout
                 response = await asyncio.wait_for(
-                    self.model.ainvoke(messages),
+                    self._genai_client.aio.models.generate_content(
+                        model=self.model_name,
+                        contents=prompt,
+                        config=self._genai_config,
+                    ),
                     timeout=settings.AI_GEMINI_TIMEOUT_SECONDS,
                 )
 
-                # Extract text from LangChain response
-                if hasattr(response, "content"):
-                    content = response.content
-                    if isinstance(content, list):
-                        parts = []
-                        for part in content:
-                            if isinstance(part, dict):
-                                parts.append(str(part.get("text", part)))
-                            else:
-                                text = getattr(part, "text", None)
-                                parts.append(str(text if text is not None else part))
-                        response_text = "".join(parts).strip()
-                    else:
-                        response_text = str(content).strip()
-                else:
-                    response_text = str(response).strip()
+                response_text = (response.text or "").strip()
 
                 if not response_text:
-                    raise GeminiAPIError("Empty response from Gemini API via LangChain")
+                    raise GeminiAPIError("Empty response from Gemini API")
 
                 finish_reason = None
-                for attr in ("response_metadata", "additional_kwargs", "metadata"):
-                    meta = getattr(response, attr, None)
-                    if isinstance(meta, dict):
-                        value = meta.get("finish_reason") or meta.get("finishReason")
-                        if value is not None:
-                            finish_reason = value
-                            break
-                if isinstance(finish_reason, list) and finish_reason:
-                    finish_reason = finish_reason[0]
+                if response.candidates:
+                    fr = response.candidates[0].finish_reason
+                    finish_reason = fr.name if fr is not None else None
 
                 finish_reason_str = (
-                    str(finish_reason).upper() if finish_reason is not None else None
+                    finish_reason.upper() if finish_reason is not None else None
                 )
                 output_length = len(response_text)
 
@@ -454,10 +411,6 @@ class GeminiClient:
                     incomplete = finish_reason_str not in {
                         "STOP",
                         "FINISH_REASON_UNSPECIFIED",
-                        "STOPPED",
-                        "COMPLETE",
-                        "COMPLETED",
-                        "SUCCESS",
                     }
 
                 if incomplete:
@@ -562,7 +515,7 @@ class GeminiClient:
         profile_hint = profile.name if profile else (output_kind.value if output_kind else "raw")
         cache_key = self._generate_cache_key(prompt, profile_hint=profile_hint)
         cached_response = await self._get_cached_response(cache_key)
-        if cached_response:
+        if cached_response is not None:
             if output_kind:
                 try:
                     if output_kind == OutputKind.JSON:
@@ -663,6 +616,8 @@ class GeminiClient:
                 extra={"prompt_length": len(prompt), "circuit_breaker": "active"},
             )
             raise
+
+        raise GeminiAPIError("Unexpected error in guarded content generation")
 
     def compact_patient_context(self, patient_context: Dict[str, Any]) -> Dict[str, Any]:
         """Public wrapper delegating to the standalone context_compactor module."""
