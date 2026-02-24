@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
+
 import logging
 from typing import Any, Dict, List
 

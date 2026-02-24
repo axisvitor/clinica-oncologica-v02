@@ -1,3 +1,4 @@
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
 """Centralized flow phase constants for treatment timeline.
 
 These constants define the treatment phase boundaries used across

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
+
 # Standard library
 from dataclasses import dataclass, field
 from enum import Enum
