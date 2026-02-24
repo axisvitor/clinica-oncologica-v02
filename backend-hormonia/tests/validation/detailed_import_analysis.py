@@ -97,8 +97,6 @@ class DetailedImportAnalyzer:
         # Sub-packages of installed packages (false positives)
         subpackages = {
             'email_validator': 'email-validator (already in requirements.txt)',
-            'langchain_core': 'langchain-core (already in requirements.txt)',
-            'langchain_google_genai': 'langchain-google-genai (already in requirements.txt)',
             'pyclamd': 'python-clamd (commented out - incompatible with Python 3.12+)',
             'pythonjsonlogger': 'python-json-logger (already in requirements.txt)',
             'sentry_sdk': 'sentry-sdk (already in requirements.txt)',

@@ -2,7 +2,7 @@
   "summary": {
     "total_circular_deps": 6,
     "total_stdlib_false_positives": 30,
-    "total_already_installed": 9,
+    "total_already_installed": 7,
     "total_truly_missing": 5,
     "total_import_style_issues": 0
   },
@@ -73,8 +73,6 @@
     "type_checking_issues": [],
     "already_installed": {
       "email_validator": "email-validator (already in requirements.txt)",
-      "langchain_core": "langchain-core (already in requirements.txt)",
-      "langchain_google_genai": "langchain-google-genai (already in requirements.txt)",
       "pyclamd": "python-clamd (commented out - incompatible with Python 3.12+)",
       "pythonjsonlogger": "python-json-logger (already in requirements.txt)",
       "sentry_sdk": "sentry-sdk (already in requirements.txt)",

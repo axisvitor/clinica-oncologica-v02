@@ -6,8 +6,6 @@ if os.getenv("LANGGRAPH_AUDIT") == "1":
 
     _AUDIT_PATTERNS = {
         "langgraph",
-        "langchain_core",
-        "langchain_google_genai",
         "app.ai.langgraph",
     }
     _hits = []
