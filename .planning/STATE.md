@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 13 of 13 (SDK Migration & Cleanup)
-Plan: 4 of 5 in current phase
-Status: In progress
-Last activity: 2026-02-24 - Completed 13-04 sync API surface for agent/domain run_sync paths
+Plan: 5 of 5 in current phase
+Status: Complete
+Last activity: 2026-02-24 - Completed 13-05 Celery AI sync wiring + regression validation gate
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 93%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 13-sdk-migration-cleanup P03 | 2 min | 2 tasks | 3 files |
 | Phase 13-sdk-migration-cleanup P02 | 7 min | 2 tasks | 8 files |
 | Phase 13-sdk-migration-cleanup P04 | 7 min | 2 tasks | 6 files |
+| Phase 13-sdk-migration-cleanup P05 | 11 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 13-sdk-migration-cleanup]: Removed SequentialMessageHandler legacy branches and retained only direct flow function execution.
 - [Phase 13-sdk-migration-cleanup]: Reuse existing prompt construction and post-processing paths in sync methods to keep output behavior aligned with async methods.
 - [Phase 13-sdk-migration-cleanup]: Expose explicit sync APIs on GeminiDomainClient without introducing new settings or framework toggles.
+- [Phase 13-sdk-migration-cleanup]: Use explicit use_sync_agents/use_sync_agent_bridge call-site flags to force Celery AI sync bridging without new global toggles.
+- [Phase 13-sdk-migration-cleanup]: Enforce SDK-03 with AST validation over Celery AI sync wiring plus non-AI async_to_sync import boundaries.
 
 ### Pending Todos
 
@@ -110,11 +113,11 @@ Carried from v1.1 (not in v1.2 scope):
 
 v1.2 risks to watch:
 - PromptedOutput validation against gemini-2.5-flash: MEDIUM confidence; 1-day spike recommended as first Phase 11 task
-- Celery async bridge: _safe_run_sync loop-closure resilience validated with 100-task test in Phase 13 Plan 03; adoption in direct sync Celery call sites remains future work
+- Celery async bridge: _safe_run_sync loop-closure resilience validated and explicit sync-agent call-site wiring enforced in Phase 13 Plan 05
 - LangGraph checkpoint PHI audit: sample existing keys before purge to determine LGPD documentation obligations
 
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 13-04-PLAN.md
+Stopped at: Completed 13-05-PLAN.md
 Resume file: None
