@@ -19,7 +19,7 @@ Requirements for AI framework migration. Each maps to roadmap phases.
 - [ ] **AGENT-02**: HumanizeAgent transforms flow templates into natural conversation messages preserving question count and placeholders
 - [ ] **AGENT-03**: VariationAgent generates question variations avoiding 88% word overlap with recent interactions
 - [ ] **AGENT-04**: EmpathyAgent generates empathetic follow-up messages based on sentiment analysis
-- [ ] **AGENT-05**: All 4 agents enforce PII/PHI redaction before every Gemini call via PIISafeAgent wrapper (LGPD Art. 46)
+- [x] **AGENT-05**: All 4 agents enforce PII/PHI redaction before every Gemini call via PIISafeAgent wrapper (LGPD Art. 46)
 - [ ] **AGENT-06**: All 4 agents validate output via @result_validator decorators reconnecting existing guardrails (banned patterns, prompt leak detection, length validation)
 - [ ] **AGENT-07**: GeminiDomainClient methods delegate to new Pydantic AI agents via shim pattern (zero breaking changes to callers)
 - [ ] **AGENT-08**: 50-scenario output regression test suite passes comparing old GeminiClient vs new agent outputs
@@ -68,7 +68,7 @@ Requirements for AI framework migration. Each maps to roadmap phases.
 | AGENT-02 | Phase 11 | Pending |
 | AGENT-03 | Phase 11 | Pending |
 | AGENT-04 | Phase 11 | Pending |
-| AGENT-05 | Phase 11 | Pending |
+| AGENT-05 | Phase 11 | Complete |
 | AGENT-06 | Phase 11 | Pending |
 | AGENT-07 | Phase 11 | Pending |
 | AGENT-08 | Phase 11 | Pending |

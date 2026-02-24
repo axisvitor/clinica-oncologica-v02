@@ -5,14 +5,14 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** v1.2 AI Framework Migration — Phase 10: Preparation & Scope
+**Current focus:** v1.2 AI Framework Migration — Phase 11: Agent Implementation
 
 ## Current Position
 
-Phase: 10 of 13 (Preparation & Scope)
-Plan: 4 of 4 in current phase
-Status: Phase complete
-Last activity: 2026-02-24 - Completed 10-04 communication annotation and full app/agents audit gap closure
+Phase: 11 of 13 (Agent Implementation)
+Plan: 1 of 4 in current phase
+Status: In progress
+Last activity: 2026-02-24 - Completed 11-01 PIISafeAgent base scaffold and CI run-call lint gate
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ███░░░░░░░ 25%
 
@@ -40,6 +40,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 10 P01 | 4 min | 2 tasks | 2 files |
 | Phase 10 P03 | 7 min | 2 tasks | 12 files |
 | Phase 10 P04 | 4 min | 2 tasks | 7 files |
+| Phase 11 P01 | 7 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -62,6 +63,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 10]: Place scope annotation after __future__ imports when present to preserve import ordering conventions.
 - [Phase 10]: Use no-LLM annotation wording for communication support modules and package initializers.
 - [Phase 10]: Use composer-specific scope annotation explicitly documenting GeminiClient.generate_content() delegation.
+- [Phase 11]: Use PIISafeAgent as the only sanctioned agent.run() entrypoint enforced by CI lint.
+- [Phase 11]: Inject GoogleModel per call from AIDeps to avoid global API key coupling at import time.
 
 ### Pending Todos
 
@@ -82,5 +85,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 10-04-PLAN.md
+Stopped at: Completed 11-01-PLAN.md
 Resume file: None
