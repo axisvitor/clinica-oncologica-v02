@@ -225,6 +225,22 @@ class FlowResumeV2Response(BaseModel):
     message: str
 
 
+class FlowCancelV2Response(BaseModel):
+    """Response after cancelling a flow"""
+
+    success: bool
+    patient_id: str
+    flow_id: str
+    cancelled_at: datetime
+    messages_cancelled: int = Field(
+        0, description="Number of pending messages cancelled"
+    )
+    tasks_revoked: int = Field(
+        0, description="Number of queued Celery tasks revoked"
+    )
+    message: str
+
+
 class FlowHistoryV2Response(CursorPaginatedResponse[FlowStateV2Response]):
     """Flow history for a patient with cursor pagination"""
 

@@ -21,6 +21,7 @@ from app.schemas.v2.flows import (
     FlowPauseV2Request,
     FlowPauseV2Response,
     FlowResumeV2Response,
+    FlowCancelV2Response,
     FlowHistoryV2Response,
     FlowTemplateV2Create,
     FlowTemplateV2Update,
@@ -1021,6 +1022,16 @@ async def resume_patient_flow(
     service: FlowService = Depends(get_flow_service_dependency),
 ):
     return await service.resume_patient_flow(patient_id, current_user.id)
+
+
+@router.post("/{patient_id}/cancel", response_model=FlowCancelV2Response)
+async def cancel_patient_flow(
+    patient_id: UUID,
+    current_user: User = Depends(get_current_user),
+    _patient: Patient = Depends(validate_patient_access),
+    service: FlowService = Depends(get_flow_service_dependency),
+):
+    return await service.cancel_patient_flow(patient_id, current_user.id)
 
 
 @router.get("/{patient_id}/history", response_model=FlowHistoryV2Response)
