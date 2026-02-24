@@ -84,13 +84,12 @@ Plans:
   2. All flow phase constants resolve to the same values regardless of which module imports them (no divergence between flow_coordinator and sequential_message_handler)
   3. The monthly quiz cycle number computed by flow_coordinator and sequential_message_handler is identical for every input date
   4. A flow message that fails delivery is visible in the DLQ monitoring dashboard and retried automatically
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 15-01: Add graceful fallback in quiz template resolution (skip link, send message)
-- [ ] 15-02: Consolidate phase constants to `flow_coordinator/constants.py` and remove all duplicates
-- [ ] 15-03: Unify quiz mensal cycle calculation to a single shared algorithm
-- [ ] 15-04: Wire failed flow messages to DLQ with retry policy and monitoring hook
+- [ ] 15-01-PLAN.md — Consolidate phase constants and cycle calculation to canonical source (FIX-05, FIX-06)
+- [ ] 15-02-PLAN.md — Add graceful fallback for missing quiz templates (FIX-04)
+- [ ] 15-03-PLAN.md — Wire failed flow messages to DLQ with retry and monitoring (FIX-07)
 
 ### Phase 16: Dead Code Removal
 **Goal**: Five unused code packages and files are tombstoned, reducing the active codebase by ~4,550 LOC and eliminating future confusion about which modules are in use.
@@ -175,7 +174,7 @@ Plans:
 | 12. Flow Orchestration Replacement | v1.2 | 3/3 | Complete | 2026-02-24 |
 | 13. SDK Migration & Cleanup | v1.2 | 5/5 | Complete | 2026-02-24 |
 | 14. Flow Control Fixes | v1.3 | Complete    | 2026-02-24 | 2026-02-24 |
-| 15. Data Integrity Fixes | v1.3 | 0/4 | Not started | - |
+| 15. Data Integrity Fixes | v1.3 | 0/3 | Not started | - |
 | 16. Dead Code Removal | v1.3 | 0/3 | Not started | - |
 | 17. Flow Core Splits | v1.3 | 0/3 | Not started | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
