@@ -125,23 +125,6 @@ class IntegrationsSettings(BaseAppSettings):
     # AI Services - Direct ENV names
     # ============================================================================
 
-    AI_FRAMEWORK: str = Field(
-        default="legacy",
-        description=(
-            "AI agent framework: 'legacy' uses GeminiClient.generate_content() directly, "
-            "'pydantic-ai' delegates to typed pydantic-ai agents with PIISafeAgent wrapper. "
-            "Toggle at runtime via environment variable."
-        ),
-    )
-    AI_FLOW_FRAMEWORK: str = Field(
-        default="legacy",
-        description=(
-            "Flow orchestration framework: 'legacy' uses LangGraph StateGraph, "
-            "'direct' uses direct async Python functions. "
-            "Toggle at runtime via environment variable."
-        ),
-    )
-
     # LangChain Configuration - Direct ENV names
     AI_LANGCHAIN_ENABLE_TRACING_V2: bool = Field(
         default=False, description="Enable LangChain tracing"
