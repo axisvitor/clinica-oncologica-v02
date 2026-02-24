@@ -10,10 +10,13 @@ from asgiref.sync import async_to_sync
 from sqlalchemy import text, select
 from sqlalchemy.exc import SQLAlchemyError
 from app.models.template import MessageTemplate
+from app.exceptions import FlowStateConflictError
 
 from app.tasks.base import get_db_session
 from app.task_queue import task_queue as celery_app
+from app.repositories.flow import FlowStateRepository
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine
+from app.services.flow_management import FlowManagementService
 from app.services.flow.sequential_message_handler import SequentialMessageHandler
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState
@@ -293,7 +296,7 @@ def send_daily_reminders() -> dict:
 def resume_paused_flows() -> dict:
     """
     Check for flows that were paused and should be resumed.
-    This task should run every 6 hours via Celery Beat.
+    This task should run every hour via Celery Beat.
 
     Returns:
         dict: Summary of flows resumed
@@ -305,14 +308,14 @@ def resume_paused_flows() -> dict:
 
         with get_db_session() as db:
             try:
-                # Query for paused flows that should be resumed
+                # Query for paused flows with expired auto-resume timestamps.
                 query = text("""
                     SELECT pfs.*
                     FROM patient_flow_states pfs
                     INNER JOIN patients p ON pfs.patient_id = p.id
                     WHERE pfs.status = 'paused'
-                        AND pfs.updated_at < NOW() - INTERVAL '48 hours'
-                        AND p.flow_state = 'active'
+                        AND pfs.state_data->>'auto_resume_at' IS NOT NULL
+                        AND (pfs.state_data->>'auto_resume_at')::timestamptz <= NOW()
                         AND p.deleted_at IS NULL
                     LIMIT 50
                     FOR UPDATE OF pfs SKIP LOCKED
@@ -322,19 +325,46 @@ def resume_paused_flows() -> dict:
                 paused_flows = result.fetchall()
 
                 logger.info(
-                    f"Found {len(paused_flows)} paused flows to potentially resume"
+                    f"Found {len(paused_flows)} paused flows with expired auto-resume timestamps"
                 )
 
-                flow_engine = get_enhanced_flow_engine(db)
+                flow_repo = FlowStateRepository(db)
+                mgmt_service = FlowManagementService(flow_repo, db)
 
                 for flow_row in paused_flows:
                     try:
-                        # Resume the flow
-                        await flow_engine.resume_patient_flow(flow_row.id)
+                        auto_resume_at_raw = None
+                        if getattr(flow_row, "state_data", None):
+                            auto_resume_at_raw = flow_row.state_data.get("auto_resume_at")
+
+                        if not _is_auto_resume_due(auto_resume_at_raw):
+                            continue
+
+                        # Resume via management service so state_data.paused is authoritative.
+                        await mgmt_service.resume_patient_flow(patient_id=flow_row.patient_id)
 
                         flows_resumed += 1
                         logger.info(
-                            f"Resumed flow {flow_row.id} for patient {flow_row.patient_id}"
+                            "Auto-resumed flow",
+                            extra={
+                                "patient_id": str(flow_row.patient_id),
+                                "flow_id": str(flow_row.id),
+                                "auto_resume_at": auto_resume_at_raw,
+                                "action": "auto_resume",
+                                "actor": "celery_beat",
+                            },
+                        )
+
+                    except FlowStateConflictError as exc:
+                        logger.warning(
+                            "Skipped auto-resume because flow is no longer paused",
+                            extra={
+                                "patient_id": str(flow_row.patient_id),
+                                "flow_id": str(flow_row.id),
+                                "reason": str(exc),
+                                "action": "auto_resume_skip",
+                                "actor": "celery_beat",
+                            },
                         )
 
                     except Exception as e:
@@ -587,6 +617,21 @@ def _determine_template_for_patient(patient) -> Optional[str]:
 
     # Default template
     return "hormonia_fluxo_padrao"
+
+
+def _is_auto_resume_due(auto_resume_at: Optional[str]) -> bool:
+    if not auto_resume_at:
+        return False
+
+    try:
+        normalized = auto_resume_at.replace("Z", "+00:00")
+        due_at = datetime.fromisoformat(normalized)
+        if due_at.tzinfo is None:
+            due_at = due_at.replace(tzinfo=now_sao_paulo().tzinfo)
+        return due_at <= now_sao_paulo()
+    except ValueError:
+        logger.warning("Skipping auto-resume due to invalid auto_resume_at", extra={"auto_resume_at": auto_resume_at})
+        return False
 
 
 # NOTE: Schedule configuration is in app/celery_app.py beat_schedule.

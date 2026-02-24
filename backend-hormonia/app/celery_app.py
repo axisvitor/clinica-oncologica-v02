@@ -196,7 +196,7 @@ celery_app.conf.beat_schedule = {
     },
     "resume-paused-flows": {
         "task": "app.tasks.flow_automation.resume_paused_flows",
-        "schedule": 21600.0,  # Every 6 hours
+        "schedule": 3600.0,  # Every hour — checks auto_resume_at timestamps on paused flows
     },
     "cleanup-expired-quiz-links": {
         "task": "app.tasks.flow_automation.cleanup_expired_quiz_links",
