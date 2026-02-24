@@ -21,8 +21,6 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
 
-from app.ai.langgraph.graphs import get_flow_message_graph, get_flow_response_graph
-from app.ai.langgraph.runtime import build_graph_config
 from app.models.flow import PatientFlowState
 from app.models.message import Message, MessageDirection, MessageStatus, MessageType
 from app.models.patient import Patient
@@ -139,6 +137,9 @@ class SequentialMessageHandler:
                 return {"status": "error", "message": str(e)}
 
         try:
+            from app.ai.langgraph.graphs import get_flow_message_graph
+            from app.ai.langgraph.runtime import build_graph_config
+
             graph = get_flow_message_graph()
             state = await graph.ainvoke(
                 {
@@ -203,6 +204,9 @@ class SequentialMessageHandler:
                 return {"status": "error", "message": str(e)}
 
         try:
+            from app.ai.langgraph.graphs import get_flow_response_graph
+            from app.ai.langgraph.runtime import build_graph_config
+
             graph = get_flow_response_graph()
             graph_state: Dict[str, Any] = {"patient_id": patient_id}
             # Clear persisted checkpoint terminal payloads from prior invocations.
