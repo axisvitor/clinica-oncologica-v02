@@ -175,6 +175,11 @@ celery_app.conf.beat_schedule = {
         "schedule": 600.0,  # Every 10 minutes
         "kwargs": {"limit": 50},
     },
+    "process-dlq-scheduled-retries": {
+        "task": "app.tasks.messaging.process_dlq_messages",
+        "schedule": crontab(minute="*/5"),
+        "kwargs": {"limit": 100},
+    },
     # Quiz session expiration cleanup (HIGH-004)
     "cleanup-expired-quiz-sessions": {
         "task": "app.tasks.quiz_flow.cleanup_tasks.cleanup_expired_quiz_sessions_task",

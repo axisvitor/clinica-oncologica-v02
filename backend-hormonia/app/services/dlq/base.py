@@ -72,6 +72,13 @@ class RetryConfig:
     ]
 
 
+class FlowMessageRetryConfig(RetryConfig):
+    """Retry config for flow message delivery failures."""
+
+    MAX_RETRY_ATTEMPTS: int = 3
+    RETRY_DELAYS: list[int] = [30, 120, 600]
+
+
 class MessageProcessor(Protocol):
     """Protocol for message processing handlers."""
 
@@ -139,6 +146,7 @@ class MetricsCollector(Protocol):
 __all__ = [
     "ErrorCategory",
     "RetryConfig",
+    "FlowMessageRetryConfig",
     "MessageProcessor",
     "RetryHandler",
     "MetricsCollector",

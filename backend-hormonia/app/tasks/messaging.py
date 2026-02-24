@@ -313,6 +313,8 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                     "found": True,
                     "non_retriable": True,
                     "error": "Patient not found",
+                    "patient_id": None,
+                    "flow_context": (message.message_metadata or {}).get("flow_context", {}),
                 }
 
             # SAFETY CHECK: Do not send messages to deleted patients
@@ -335,6 +337,8 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                     "found": True,
                     "non_retriable": True,
                     "error": "Patient phone number missing",
+                    "patient_id": str(message.patient_id),
+                    "flow_context": (message.message_metadata or {}).get("flow_context", {}),
                 }
 
             # Send using Unified WhatsApp Service with AsyncSession
@@ -418,6 +422,55 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
 
         # Handle deterministic non-retriable failures
         if result.get("non_retriable"):
+            try:
+                from app.models.failed_message import FailureReason
+                from app.services.dlq.service import DLQService
+
+                with get_db_session() as dlq_db:
+                    failed_message = (
+                        dlq_db.query(Message)
+                        .filter(Message.id == UUID(message_id))
+                        .first()
+                    )
+
+                    if failed_message and failed_message.patient_id:
+                        dlq_service = DLQService(dlq_db)
+                        dlq_service.add_to_dlq(
+                            message_id=failed_message.id,
+                            patient_id=failed_message.patient_id,
+                            error_message=result["error"],
+                            error_type="ValidationError",
+                            payload={
+                                "message_id": message_id,
+                                "patient_id": str(failed_message.patient_id),
+                                "message_type": str(
+                                    getattr(failed_message.type, "value", failed_message.type)
+                                    or "unknown"
+                                ),
+                                "flow_context": result.get("flow_context", {}),
+                                "original_status": "failed",
+                                "non_retriable": True,
+                                "last_error": result["error"],
+                            },
+                            failure_reason=FailureReason.UNKNOWN,
+                        )
+                        logger.info(
+                            "Message %s routed to DLQ due to non-retriable failure",
+                            message_id,
+                        )
+                    else:
+                        logger.warning(
+                            "Skipping DLQ routing for non-retriable message %s: message/patient not found",
+                            message_id,
+                        )
+            except Exception as dlq_error:
+                logger.error(
+                    "Failed to route non-retriable message %s to DLQ: %s",
+                    message_id,
+                    dlq_error,
+                    exc_info=True,
+                )
+
             return self.create_error_result(
                 result["error"],
                 message_id=message_id,
@@ -468,6 +521,45 @@ def send_scheduled_message(self, message_id: str) -> dict[str, Any]:
                         message.status = MessageStatus.FAILED
                         message.delivery_status = DeliveryStatus.FAILED
                         message.failure_reason = str(exc)
+
+                        try:
+                            from app.models.failed_message import FailureReason
+                            from app.services.dlq.service import DLQService
+
+                            dlq_service = DLQService(db)
+                            dlq_service.add_to_dlq(
+                                message_id=message.id,
+                                patient_id=message.patient_id,
+                                error_message=str(exc),
+                                error_type=type(exc).__name__,
+                                payload={
+                                    "message_id": str(message.id),
+                                    "patient_id": str(message.patient_id),
+                                    "message_type": str(
+                                        getattr(message.type, "value", message.type)
+                                        or "unknown"
+                                    ),
+                                    "flow_context": (message.message_metadata or {}).get(
+                                        "flow_context", {}
+                                    ),
+                                    "original_status": "failed",
+                                    "celery_retries_exhausted": max_retries,
+                                    "last_error": str(exc),
+                                },
+                                failure_reason=FailureReason.MAX_RETRIES_EXCEEDED,
+                            )
+                            logger.info(
+                                "Message %s routed to DLQ after %d Celery retries",
+                                message_id,
+                                max_retries,
+                            )
+                        except Exception as dlq_error:
+                            logger.error(
+                                "Failed to route message %s to DLQ: %s",
+                                message_id,
+                                dlq_error,
+                                exc_info=True,
+                            )
                     db.commit()
         except Exception as sync_error:
             logger.error(
@@ -1001,6 +1093,27 @@ def process_whatsapp_dlq(limit: int = 50) -> dict[str, Any]:
     except Exception as exc:
         logger.error(f"Error processing WhatsApp DLQ: {exc}", exc_info=True)
         return {"success": False, "error": str(exc), "processed": 0}
+
+
+@celery_app.task(name="app.tasks.messaging.process_dlq_messages")
+def process_dlq_messages(limit: int = 100) -> dict[str, Any]:
+    """Process scheduled retries for SQL-backed DLQ entries."""
+    try:
+        with get_db_session() as db:
+            from app.services.dlq.service import DLQService
+
+            dlq_service = DLQService(db)
+            processed = dlq_service.process_scheduled_retries()
+
+            return {
+                "success": True,
+                "processed": processed,
+                "limit": limit,
+                "processed_at": now_sao_paulo().isoformat(),
+            }
+    except Exception as exc:
+        logger.error("Error processing scheduled DLQ retries: %s", exc, exc_info=True)
+        return {"success": False, "error": str(exc), "processed": 0, "limit": limit}
 
 
 @celery_app.task(
