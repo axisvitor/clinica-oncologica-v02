@@ -1,11 +1,12 @@
+from __future__ import annotations
+
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
 """
 Patient Monitor Agent.
 
 Responsible for continuous monitoring of patient status, adherence to treatment,
 and detection of potential issues requiring intervention.
 """
-
-from __future__ import annotations
 
 # Standard library
 from datetime import timedelta

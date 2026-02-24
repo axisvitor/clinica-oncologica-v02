@@ -1,6 +1,7 @@
-"""Flow Coordinator Agent - Main coordinator class."""
-
 from __future__ import annotations
+
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
+"""Flow Coordinator Agent - Main coordinator class."""
 
 # Standard library
 from typing import Any, Dict, List, Optional

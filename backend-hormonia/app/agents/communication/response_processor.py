@@ -1,3 +1,4 @@
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
 """
 Response Processor Agent - Intelligent Message Processing.
 

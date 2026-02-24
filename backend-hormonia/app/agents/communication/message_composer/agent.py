@@ -1,3 +1,4 @@
+# DDD service agent - delegates to GeminiClient.generate_content() directly, not a pydantic-ai migration target.
 """
 Message Composer Agent
 
