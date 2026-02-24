@@ -16,9 +16,9 @@ Requirements for AI framework migration. Each maps to roadmap phases.
 ### Agent Implementation
 
 - [x] **AGENT-01**: SentimentAgent analyzes patient responses returning typed SentimentResult (sentiment, confidence, emotional_indicators, medical_concerns, requires_attention, key_themes, suggested_follow_up) via PromptedOutput
-- [ ] **AGENT-02**: HumanizeAgent transforms flow templates into natural conversation messages preserving question count and placeholders
-- [ ] **AGENT-03**: VariationAgent generates question variations avoiding 88% word overlap with recent interactions
-- [ ] **AGENT-04**: EmpathyAgent generates empathetic follow-up messages based on sentiment analysis
+- [x] **AGENT-02**: HumanizeAgent transforms flow templates into natural conversation messages preserving question count and placeholders
+- [x] **AGENT-03**: VariationAgent generates question variations avoiding 88% word overlap with recent interactions
+- [x] **AGENT-04**: EmpathyAgent generates empathetic follow-up messages based on sentiment analysis
 - [x] **AGENT-05**: All 4 agents enforce PII/PHI redaction before every Gemini call via PIISafeAgent wrapper (LGPD Art. 46)
 - [x] **AGENT-06**: All 4 agents validate output via @result_validator decorators reconnecting existing guardrails (banned patterns, prompt leak detection, length validation)
 - [ ] **AGENT-07**: GeminiDomainClient methods delegate to new Pydantic AI agents via shim pattern (zero breaking changes to callers)
@@ -65,9 +65,9 @@ Requirements for AI framework migration. Each maps to roadmap phases.
 | PREP-02 | Phase 10 | Complete |
 | PREP-03 | Phase 10 | Complete |
 | AGENT-01 | Phase 11 | Complete |
-| AGENT-02 | Phase 11 | Pending |
-| AGENT-03 | Phase 11 | Pending |
-| AGENT-04 | Phase 11 | Pending |
+| AGENT-02 | Phase 11 | Complete |
+| AGENT-03 | Phase 11 | Complete |
+| AGENT-04 | Phase 11 | Complete |
 | AGENT-05 | Phase 11 | Complete |
 | AGENT-06 | Phase 11 | Complete |
 | AGENT-07 | Phase 11 | Pending |

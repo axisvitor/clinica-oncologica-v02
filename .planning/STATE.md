@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 11 of 13 (Agent Implementation)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: In progress
-Last activity: 2026-02-24 - Completed 11-02 SentimentAgent typed output and guardrail validator implementation
+Last activity: 2026-02-24 - Completed 11-03 Humanize/Variation/Empathy agents with guardrail validators and helpers shim
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ███░░░░░░░ 25%
 
@@ -42,6 +42,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 10 P04 | 4 min | 2 tasks | 7 files |
 | Phase 11 P01 | 7 min | 3 tasks | 4 files |
 | Phase 11 P02 | 2 min | 1 tasks | 2 files |
+| Phase 11 P03 | 5 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ Recent decisions affecting v1.2 work:
 - [Phase 11]: Inject GoogleModel per call from AIDeps to avoid global API key coupling at import time.
 - [Phase 11]: Use PromptedOutput(SentimentResult) with defer_model_check=True so SentimentAgent keeps runtime model injection through AIDeps.
 - [Phase 11]: Raise ModelRetry inside SentimentAgent output_validator for banned pattern/prompt leak violations to trigger pydantic-ai regeneration.
+- [Phase 11]: Keep guardrails duplicated as per-agent output_validator decorators using ModelRetry for re-ask behavior.
+- [Phase 11]: Place the 88% similarity check after _safe_run in VariationAgent and fallback deterministically instead of validator retry loops.
+- [Phase 11]: Use app.ai.agents.helpers as the only import surface to isolate Phase 12 langgraph tombstoning.
 
 ### Pending Todos
 
@@ -88,5 +92,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 11-02-PLAN.md
+Stopped at: Completed 11-03-PLAN.md
 Resume file: None
