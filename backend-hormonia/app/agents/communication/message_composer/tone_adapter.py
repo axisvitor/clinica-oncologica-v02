@@ -1,3 +1,4 @@
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
 """
 Tone Adaptation Module
 
@@ -104,5 +105,4 @@ class MessageToneAdapter:
         except Exception as e:
             self.logger.error(f"AI tone adaptation failed: {e}")
             raise
-
 
