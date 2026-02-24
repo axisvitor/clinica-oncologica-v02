@@ -57,7 +57,15 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 
 ### Active
 
-(No active requirements — next milestone not yet defined)
+## Current Milestone: v1.3 Flow Health & Cleanup
+
+**Goal:** Refine all patient flows — fix critical functional gaps, remove dead code and duplications, and split oversized files for maintainability.
+
+**Target features:**
+- Fix 7 critical functional gaps (pause mismatch, auto-resume, cancel flow, quiz crash, constant duplication, cycle divergence, DLQ wiring)
+- Remove ~4,550 LOC dead/test-only code from QW-021 package
+- Consolidate duplicated modules (constants, templates, monitoring, event broadcasting)
+- Split 10 oversized flow files (>500 lines each) into focused modules
 
 ### Out of Scope
 
@@ -67,7 +75,7 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - OAuth/SSO — Firebase Auth ja atende
 - Migraçao de infra (Railway/AWS RDS/Dragonfly) — manter stack atual
 - 60+ files >500 lines needing split — tracked as tech debt
-- Google ADK — deferred to v1.3 pending issue #3615 resolution (OTel cap + Pydantic 2.11+ conflicts)
+- Google ADK — deferred pending issue #3615 resolution (OTel cap + Pydantic 2.11+ conflicts)
 - Physician availability hours model — hardcoded Mon-Fri 08:00-17:00 functional baseline
 
 ## Context
@@ -115,4 +123,4 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 | LangGraph tombstone (not delete) | ImportError sentinels with migration messages for discoverability | ✓ Good (v1.2) |
 
 ---
-*Last updated: 2026-02-24 after v1.2 milestone*
+*Last updated: 2026-02-24 after v1.3 milestone start*
