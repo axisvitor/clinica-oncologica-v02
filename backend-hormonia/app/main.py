@@ -1,3 +1,30 @@
+import os
+
+if os.getenv("LANGGRAPH_AUDIT") == "1":
+    import ast
+    import pathlib
+
+    _AUDIT_PATTERNS = {
+        "langgraph",
+        "langchain_core",
+        "langchain_google_genai",
+        "app.ai.langgraph",
+    }
+    _hits = []
+    for _p in pathlib.Path("app").rglob("*.py"):
+        try:
+            _tree = ast.parse(_p.read_bytes())
+        except SyntaxError:
+            continue
+        for _node in ast.walk(_tree):
+            if isinstance(_node, (ast.Import, ast.ImportFrom)):
+                _mod = getattr(_node, "module", None) or ""
+                _names = [alias.name for alias in getattr(_node, "names", [])]
+                if any(_pat in (_mod + " " + " ".join(_names)) for _pat in _AUDIT_PATTERNS):
+                    _hits.append(str(_p))
+                    break
+    print("LANGGRAPH AUDIT:", sorted(set(_hits)))
+
 """
 FastAPI application entry point for Hormonia Backend System.
 
@@ -12,7 +39,6 @@ Last deployment: 2025-12-20T16:50:00-03:00
 """
 
 import logging
-import os
 import sys
 from dotenv import load_dotenv
 
