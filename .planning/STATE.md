@@ -2,26 +2,25 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-23)
+See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** v1.2 AI Framework Migration — Phase 13: SDK Migration & Cleanup
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 13 of 13 (SDK Migration & Cleanup)
-Plan: 5 of 5 in current phase
-Status: Complete
-Last activity: 2026-02-24 - Completed 13-05 Celery AI sync wiring + regression validation gate
+Phase: All v1.2 phases complete
+Plan: N/A — between milestones
+Status: Milestone v1.2 shipped
+Last activity: 2026-02-24 - Archived v1.2 AI Framework Migration milestone
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 20 (v1.0: 13, v1.1: 10 — but v1.1 had overlap)
-- Average duration: tracking (latest: 11 min)
-- Total execution time: 2 days + active v1.2
+- Total plans completed: 39 (v1.0: 13, v1.1: 10, v1.2: 16)
+- Total execution time: 3 days (v1.0: 1 day, v1.1: 1 day, v1.2: 1 day)
 
 **By Phase:**
 
@@ -29,76 +28,35 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 |-------|-------|-------|----------|
 | v1.0 (phases 1-5) | 13 | 1 day | - |
 | v1.1 (phases 6-9) | 10 | 1 day | - |
-| v1.2 (phases 10-13) | TBD | - | - |
+| v1.2 (phases 10-13) | 16 | 1 day | ~8 min |
 
-**Recent Trend:**
-- v1.1 completed in 1 day (30+ commits, 69 files)
-- Trend: Stable
+**v1.2 Plan Durations:**
 
-*Updated after each plan completion*
-| Phase 10 P02 | 2 min | 2 tasks | 13 files |
-| Phase 10 P01 | 4 min | 2 tasks | 2 files |
-| Phase 10 P03 | 7 min | 2 tasks | 12 files |
-| Phase 10 P04 | 4 min | 2 tasks | 7 files |
-| Phase 11 P01 | 7 min | 3 tasks | 4 files |
-| Phase 11 P02 | 2 min | 1 tasks | 2 files |
-| Phase 11 P03 | 5 min | 2 tasks | 6 files |
-| Phase 11 P04 | 17 min | 2 tasks | 6 files |
-| Phase 12-flow-orchestration-replacement P01 | 15 min | 2 tasks | 13 files |
-| Phase 12-flow-orchestration-replacement P02 | 18 min | 2 tasks | 4 files |
-| Phase 12-flow-orchestration-replacement P03 | 19 min | 2 tasks | 19 files |
-| Phase 13-sdk-migration-cleanup P01 | 11 min | 2 tasks | 3 files |
-| Phase 13-sdk-migration-cleanup P03 | 2 min | 2 tasks | 3 files |
-| Phase 13-sdk-migration-cleanup P02 | 7 min | 2 tasks | 8 files |
-| Phase 13-sdk-migration-cleanup P04 | 7 min | 2 tasks | 6 files |
-| Phase 13-sdk-migration-cleanup P05 | 11 min | 2 tasks | 6 files |
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 10 P01 | 4 min | 2 | 2 |
+| Phase 10 P02 | 2 min | 2 | 13 |
+| Phase 10 P03 | 7 min | 2 | 12 |
+| Phase 10 P04 | 4 min | 2 | 7 |
+| Phase 11 P01 | 7 min | 3 | 4 |
+| Phase 11 P02 | 2 min | 1 | 2 |
+| Phase 11 P03 | 5 min | 2 | 6 |
+| Phase 11 P04 | 17 min | 2 | 6 |
+| Phase 12 P01 | 15 min | 2 | 13 |
+| Phase 12 P02 | 18 min | 2 | 4 |
+| Phase 12 P03 | 19 min | 2 | 19 |
+| Phase 13 P01 | 11 min | 2 | 3 |
+| Phase 13 P02 | 7 min | 2 | 8 |
+| Phase 13 P03 | 2 min | 2 | 3 |
+| Phase 13 P04 | 7 min | 2 | 6 |
+| Phase 13 P05 | 11 min | 2 | 6 |
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting v1.2 work:
-
-- google-adk DEFERRED to v1.3: irresolvable OTel cap conflict + Pydantic 2.11+ FastAPI schema failures + 300-400 MB GCP footprint; documented in research/SUMMARY.md
-- pydantic-ai-slim[google,retries]>=1.63.0,<2.0.0: correct variant (not full pydantic-ai); pin <2.0.0 (V2 planned April 2026 with breaking changes)
-- PromptedOutput(SentimentResult) for SentimentAgent: Gemini cannot use tool-calling + native structured output simultaneously; PromptedOutput injects JSON schema into system prompt
-- PIISafeAgent wrapper MANDATORY: only sanctioned way to call any agent; direct .run() calls blocked by CI lint rule; LGPD Art. 46 requirement
-- Flow graphs replaced with direct async Python (not ADK): 10-15 lines each, identical runtime semantics, zero new dependencies
-- GeminiClient preserved as execution backend throughout migration: cache, circuit breaker, rate limiter, PII redaction unchanged
-- [Phase 10]: Consensus path removed entirely; FlowCoordinator now escalates directly to ALERT_ANALYZER_ID via critical message.
-- [Phase 10]: Added one-line scope annotations across app/agents DDD services to prevent pydantic-ai migration confusion in Phase 11.
-- [Phase 10]: Keep LangGraph and pydantic-ai-slim coexisting during migration phases 10-12.
-- [Phase 10]: Pin pydantic-ai-slim below 2.0.0 to avoid planned April 2026 breaking changes.
-- [Phase 10]: Use identical one-line DDD scope annotation text across all 12 target files for consistent migration signaling.
-- [Phase 10]: Place scope annotation after __future__ imports when present to preserve import ordering conventions.
-- [Phase 10]: Use no-LLM annotation wording for communication support modules and package initializers.
-- [Phase 10]: Use composer-specific scope annotation explicitly documenting GeminiClient.generate_content() delegation.
-- [Phase 11]: Use PIISafeAgent as the only sanctioned agent.run() entrypoint enforced by CI lint.
-- [Phase 11]: Inject GoogleModel per call from AIDeps to avoid global API key coupling at import time.
-- [Phase 11]: Use PromptedOutput(SentimentResult) with defer_model_check=True so SentimentAgent keeps runtime model injection through AIDeps.
-- [Phase 11]: Raise ModelRetry inside SentimentAgent output_validator for banned pattern/prompt leak violations to trigger pydantic-ai regeneration.
-- [Phase 11]: Keep guardrails duplicated as per-agent output_validator decorators using ModelRetry for re-ask behavior.
-- [Phase 11]: Place the 88% similarity check after _safe_run in VariationAgent and fallback deterministically instead of validator retry loops.
-- [Phase 11]: Use app.ai.agents.helpers as the only import surface to isolate Phase 12 langgraph tombstoning.
-- [Phase 11]: Keep AI_FRAMEWORK default as legacy to preserve production behavior until explicit opt-in.
-- [Phase 11]: Convert SentimentAgent output to dict in GeminiDomainClient shim for backward-compatible caller signatures.
-- [Phase 12-flow-orchestration-replacement]: Kept flow orchestration dual-path with AI_FLOW_FRAMEWORK defaulting to legacy
-- [Phase 12-flow-orchestration-replacement]: Routed prompt/node helper imports through app.ai.agents.helpers as tombstoning boundary
-- [Phase 12-flow-orchestration-replacement]: Moved LangGraph imports in sequential handler to lazy branches and lazy-loaded heavy services to keep module imports working after package removal.
-- [Phase 12-flow-orchestration-replacement]: Kept helper and flow behavior identical while replacing all app.ai.langgraph runtime imports with inlined implementations.
-- [Phase 12-flow-orchestration-replacement]: Kept LangGraph imports lazy only inside sequential_message_handler legacy branches so startup remains safe while legacy mode intentionally fails when invoked.
-- [Phase 12-flow-orchestration-replacement]: Used structured CRITICAL lgpd_data_deleted logs as the primary checkpoint purge audit record with best-effort DB AuditService logging as secondary evidence.
-- [Phase 13]: Hard-cut GeminiClient and PatientSummaryService from LangChain to google-genai without feature toggles.
-- [Phase 13]: Preserved retry/rate-limit/circuit-breaker interfaces while swapping only SDK internals.
-- [Phase 13]: Keep Celery retry/backoff configuration unchanged while adding PIISafeAgent _safe_run_sync loop guard.
-- [Phase 13]: Validate sync and async agent paths separately with mocked deterministic tests to prove Celery loop resilience.
-- [Phase 13-sdk-migration-cleanup]: Deleted AI_FRAMEWORK and AI_FLOW_FRAMEWORK without deprecation to enforce hard-cut migration behavior.
-- [Phase 13-sdk-migration-cleanup]: Removed SequentialMessageHandler legacy branches and retained only direct flow function execution.
-- [Phase 13-sdk-migration-cleanup]: Reuse existing prompt construction and post-processing paths in sync methods to keep output behavior aligned with async methods.
-- [Phase 13-sdk-migration-cleanup]: Expose explicit sync APIs on GeminiDomainClient without introducing new settings or framework toggles.
-- [Phase 13-sdk-migration-cleanup]: Use explicit use_sync_agents/use_sync_agent_bridge call-site flags to force Celery AI sync bridging without new global toggles.
-- [Phase 13-sdk-migration-cleanup]: Enforce SDK-03 with AST validation over Celery AI sync wiring plus non-AI async_to_sync import boundaries.
+All v1.2 decisions archived in milestones/v1.2-ROADMAP.md.
 
 ### Pending Todos
 
@@ -106,18 +64,14 @@ None.
 
 ### Blockers/Concerns
 
-Carried from v1.1 (not in v1.2 scope):
+Carried tech debt (not milestone-scoped):
 - Full AsyncSession migration (42+ remaining methods) — hot paths cover ~80% throughput
 - 60+ files >500 lines need splitting
 - Physician availability hours model — hardcoded defaults
-
-v1.2 risks to watch:
-- PromptedOutput validation against gemini-2.5-flash: MEDIUM confidence; 1-day spike recommended as first Phase 11 task
-- Celery async bridge: _safe_run_sync loop-closure resilience validated and explicit sync-agent call-site wiring enforced in Phase 13 Plan 05
-- LangGraph checkpoint PHI audit: sample existing keys before purge to determine LGPD documentation obligations
+- PromptedOutput validation confidence against gemini-2.5-flash is MEDIUM
 
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 13-05-PLAN.md
+Stopped at: v1.2 milestone archived
 Resume file: None

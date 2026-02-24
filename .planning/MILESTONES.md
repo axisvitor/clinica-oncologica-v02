@@ -49,3 +49,30 @@
 
 ---
 
+
+## v1.2 AI Framework Migration (Shipped: 2026-02-24)
+
+**Phases completed:** 4 phases, 16 plans, 32 tasks
+**Git range:** `279193d4..88f64d35` (72 commits)
+**Files changed:** 131 files, +13,411 / -5,731 lines (net +7,680 LOC)
+**Timeline:** 2026-02-24
+
+**Key accomplishments:**
+- 4 typed Pydantic AI agents shipped (Sentiment, Humanize, Variation, Empathy) with mandatory PII redaction via PIISafeAgent wrapper and CI enforcement (LGPD Art. 46) (AGENT-01..08)
+- LangGraph fully decommissioned: 9 modules tombstoned, 3 LangChain packages removed from requirements, Redis checkpoint PHI keys purged with LGPD audit logging (FLOW-01..05)
+- GeminiClient migrated from ChatGoogleGenerativeAI (langchain-google-genai) to google-genai SDK directly, preserving all resilience patterns (SDK-01, SDK-02)
+- 2 LangGraph StateGraphs replaced by direct async Python functions (10-15 lines each), zero graph overhead (FLOW-01, FLOW-02)
+- Celery-safe sync bridge: PIISafeAgent run_sync handles closed/missing event loops, 100-call sequential load test, all Celery AI paths wired to explicit sync entrypoints (SDK-03)
+- Permanent CI gates: AST-based LangChain import blocker and Celery AI sync wiring validator prevent regression
+
+**Known Gaps (deferred):**
+- Google ADK installation deferred to v1.3 (irresolvable dependency conflicts)
+- Full AsyncSession migration (42+ remaining methods) — hot paths cover ~80% throughput
+- 60+ files >500 lines still need splitting
+- Physician availability hours model — hardcoded defaults
+- PromptedOutput validation confidence against gemini-2.5-flash is MEDIUM
+
+**Archive:** `.planning/milestones/v1.2-ROADMAP.md`, `.planning/milestones/v1.2-REQUIREMENTS.md`
+
+---
+
