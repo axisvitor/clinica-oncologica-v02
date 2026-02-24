@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 13 of 13 (SDK Migration & Cleanup)
-Plan: 3 of 3 in current phase
+Plan: 4 of 5 in current phase
 Status: In progress
-Last activity: 2026-02-24 - Completed 13-02 LangChain purge, toggle removal, and permanent CI import gate
+Last activity: 2026-02-24 - Completed 13-04 sync API surface for agent/domain run_sync paths
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 93%
 
@@ -50,6 +50,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 13-sdk-migration-cleanup P01 | 11 min | 2 tasks | 3 files |
 | Phase 13-sdk-migration-cleanup P03 | 2 min | 2 tasks | 3 files |
 | Phase 13-sdk-migration-cleanup P02 | 7 min | 2 tasks | 8 files |
+| Phase 13-sdk-migration-cleanup P04 | 7 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 13]: Validate sync and async agent paths separately with mocked deterministic tests to prove Celery loop resilience.
 - [Phase 13-sdk-migration-cleanup]: Deleted AI_FRAMEWORK and AI_FLOW_FRAMEWORK without deprecation to enforce hard-cut migration behavior.
 - [Phase 13-sdk-migration-cleanup]: Removed SequentialMessageHandler legacy branches and retained only direct flow function execution.
+- [Phase 13-sdk-migration-cleanup]: Reuse existing prompt construction and post-processing paths in sync methods to keep output behavior aligned with async methods.
+- [Phase 13-sdk-migration-cleanup]: Expose explicit sync APIs on GeminiDomainClient without introducing new settings or framework toggles.
 
 ### Pending Todos
 
@@ -113,5 +116,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 13-02-PLAN.md
+Stopped at: Completed 13-04-PLAN.md
 Resume file: None
