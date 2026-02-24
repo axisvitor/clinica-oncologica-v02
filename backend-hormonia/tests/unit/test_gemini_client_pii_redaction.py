@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import asyncio
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import AsyncMock
 
 import pytest
-
-pytest.importorskip("langchain_google_genai")
 
 from app.ai import client as ai_client_module
 from app.ai.client import GeminiClient
@@ -14,21 +13,26 @@ from app.services.ai.guardrails import OutputKind
 from app.utils.rate_limiter import AIRateLimitExceeded
 
 
-class _ModelStub:
-    def __init__(self) -> None:
-        self.last_messages = None
-
-    async def ainvoke(self, messages):
-        self.last_messages = messages
-        return SimpleNamespace(content="Mensagem segura.")
+def _build_response_stub(text: str = "Mensagem segura.") -> SimpleNamespace:
+    return SimpleNamespace(
+        text=text,
+        candidates=[SimpleNamespace(finish_reason=SimpleNamespace(name="STOP"))],
+        usage_metadata=SimpleNamespace(total_token_count=0),
+    )
 
 
 def _build_client_stub() -> GeminiClient:
     client = GeminiClient.__new__(GeminiClient)
     client.api_key = "test-key"
     client.model_name = "gemini-test"
-    client.model = _ModelStub()
-    client._ensure_model_for_loop = lambda: None
+    client._genai_config = cast(Any, SimpleNamespace(name="test-config"))
+    generate_content_mock = AsyncMock(return_value=_build_response_stub())
+    client._genai_client = cast(Any, SimpleNamespace(
+        aio=SimpleNamespace(
+            models=SimpleNamespace(generate_content=generate_content_mock)
+        )
+    ))
+    client.model = client._genai_client
     return client
 
 
@@ -54,7 +58,10 @@ async def test_generate_content_internal_redacts_pii_before_model_call(monkeypat
     )
 
     assert result == "Mensagem segura."
-    sent_prompt = client.model.last_messages[0].content
+    sent_prompt = cast(
+        Any,
+        client._genai_client,
+    ).aio.models.generate_content.await_args.kwargs["contents"]
     assert "Maria Souza" not in sent_prompt
     assert "abc-123" not in sent_prompt
     assert "123.456.789-09" not in sent_prompt
@@ -81,7 +88,7 @@ async def test_generate_content_redacts_prompt_before_cache_and_circuit():
     client._generate_cache_key = _cache_key
     client._get_cached_response = AsyncMock(return_value=None)
     client._cache_response = AsyncMock()
-    client._circuit_breaker = SimpleNamespace(call_gemini=_call_gemini)
+    client._circuit_breaker = cast(Any, SimpleNamespace(call_gemini=_call_gemini))
 
     prompt = (
         'name: "Maria Souza"\n'
@@ -110,11 +117,14 @@ async def test_generate_content_redacts_prompt_before_cache_and_circuit():
 async def test_generate_content_repairs_missing_ending_punctuation_for_messages():
     client = GeminiClient.__new__(GeminiClient)
 
-    client._generate_cache_key = lambda _prompt, profile_hint="raw": "cache-key"
+    client._generate_cache_key = lambda prompt, *, profile_hint="raw": "cache-key"
     client._get_cached_response = AsyncMock(return_value=None)
     client._cache_response = AsyncMock()
-    client._circuit_breaker = SimpleNamespace(
-        call_gemini=AsyncMock(return_value=("Mensagem sem ponto", False))
+    client._circuit_breaker = cast(
+        Any,
+        SimpleNamespace(
+            call_gemini=AsyncMock(return_value=("Mensagem sem ponto", False))
+        ),
     )
 
     result = await GeminiClient.generate_content(

@@ -19,7 +19,8 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from langchain_core.messages import HumanMessage, SystemMessage
+from google import genai
+from google.genai import types
 
 from app.config import settings
 from app.models.patient_summary import PatientSummary
@@ -73,15 +74,12 @@ class PatientSummaryService:
         self.aggregator = SummaryDataAggregator(db)
 
         # Initialize Gemini model
-        # Lazy import avoids expensive package metadata lookup at module import time.
-        from langchain_google_genai import ChatGoogleGenerativeAI
-
-        self.model = ChatGoogleGenerativeAI(
-            model=settings.AI_GEMINI_MODEL,
-            google_api_key=settings.AI_GEMINI_API_KEY,
-            temperature=0.3,  # Lower temperature for more consistent output
-            max_output_tokens=2000,  # Enough for full summary
+        self._genai_client = genai.Client(api_key=settings.AI_GEMINI_API_KEY)
+        self._genai_config = types.GenerateContentConfig(
+            temperature=0.3,
+            max_output_tokens=2000,
         )
+        self.model = self._genai_client
 
         logger.info(
             f"PatientSummaryService initialized with model: {settings.AI_GEMINI_MODEL}"
@@ -173,28 +171,30 @@ class PatientSummaryService:
         prompt_context = data.to_prompt_context()
         formatted_prompt = PATIENT_SUMMARY_PROMPT.format(**prompt_context)
 
-        # Create messages
-        messages = [
-            SystemMessage(content=PATIENT_SUMMARY_SYSTEM_PROMPT),
-            HumanMessage(content=formatted_prompt),
-        ]
-
         try:
             # FIX: Add timeout to prevent hanging indefinitely on network issues
             # Call Gemini with timeout protection
+            config_with_system = types.GenerateContentConfig(
+                temperature=0.3,
+                max_output_tokens=2000,
+                system_instruction=PATIENT_SUMMARY_SYSTEM_PROMPT,
+            )
             response = await asyncio.wait_for(
-                self.model.ainvoke(messages),
+                self._genai_client.aio.models.generate_content(
+                    model=settings.AI_GEMINI_MODEL,
+                    contents=formatted_prompt,
+                    config=config_with_system,
+                ),
                 timeout=settings.AI_GEMINI_TIMEOUT_SECONDS
             )
 
             # Parse response
-            content_text = response.content
+            content_text = str(response.text or "").strip()
 
-            # Extract token usage from response metadata if available
+            # Extract token usage from SDK metadata if available
             token_usage = 0
-            if hasattr(response, "response_metadata"):
-                usage = response.response_metadata.get("usage_metadata", {})
-                token_usage = usage.get("total_token_count", 0)
+            if response.usage_metadata:
+                token_usage = response.usage_metadata.total_token_count or 0
 
             # Parse JSON from response
             summary_data = self._parse_summary_response(content_text)
