@@ -68,8 +68,6 @@ class PatientMonitorAgent(BaseAgent):
             "adherence_alert_threshold": 0.7,  # 70% adherence
         }
 
-        self.register_message_handler("consensus_request", self._handle_consensus_request)
-
         self.logger.info("Patient Monitor Agent initialized")
 
     async def process_task(self, task: Dict[str, Any]) -> Dict[str, Any]:
@@ -90,35 +88,6 @@ class PatientMonitorAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"Task processing failed: {e}")
             return {"success": False, "error": str(e)}
-
-    async def _handle_consensus_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Return a conservative vote for inter-agent consensus requests."""
-        decision_topic = str(payload.get("decision_topic") or "").strip().lower()
-        decision_data = payload.get("decision_data") or {}
-        risk_factors = decision_data.get("risk_factors")
-        if not isinstance(risk_factors, list):
-            risk_factors = []
-
-        is_escalation_path = "escalat" in decision_topic or "intervention" in decision_topic
-        high_risk_signal = bool(risk_factors) or str(decision_data.get("priority", "")).lower() == "high"
-
-        vote = "approve" if is_escalation_path and high_risk_signal else "abstain"
-        confidence = 0.85 if vote == "approve" else 0.5
-        rationale = (
-            "monitoring_risk_signals_support_intervention"
-            if vote == "approve"
-            else "insufficient_monitoring_signal_for_strong_vote"
-        )
-
-        return {
-            "agent_id": self.agent_id,
-            "decision_topic": decision_topic or "unknown",
-            "vote": vote,
-            "confidence": confidence,
-            "rationale": rationale,
-            "risk_factor_count": len(risk_factors),
-            "reviewed_at": now_sao_paulo().isoformat(),
-        }
 
     async def _check_patient_status(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Check status of a specific patient."""

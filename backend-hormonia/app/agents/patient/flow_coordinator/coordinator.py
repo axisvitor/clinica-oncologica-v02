@@ -10,11 +10,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 # Local
-from app.agents.base import BaseAgent
-from app.agents.registry import FLOW_COORDINATOR_ID
+from app.agents.base import BaseAgent, MessagePriority
+from app.agents.registry import ALERT_ANALYZER_ID, FLOW_COORDINATOR_ID
 from app.services.template_loader_pkg import EnhancedTemplateLoader
+from app.utils.timezone import now_sao_paulo
 
-from .consensus_manager import ConsensusManager
 from .constants import (
     DEFAULT_DAILY_FLOW_HOURS,
     DEFAULT_QUIZ_TRIGGER_DAY,
@@ -32,13 +32,12 @@ class FlowCoordinatorAgent(BaseAgent):
     """
     Coordinates patient treatment flow progression.
 
-    Manages state transitions, consensus building, and
+    Manages state transitions and
     message generation for patient treatment flows.
 
     Key responsibilities:
     - Analyze patient progress through treatment phases.
     - Make decisions on flow progression and timing.
-    - Coordinate with other agents for consensus on critical decisions.
     - Adapt flows based on patient responses and patterns.
     - Manage transitions between different flow types.
 
@@ -47,7 +46,6 @@ class FlowCoordinatorAgent(BaseAgent):
         decision_engine: Makes flow decisions.
         message_generator: Generates and personalizes messages.
         transition_handler: Handles phase transitions.
-        consensus_manager: Manages agent consensus.
     """
 
     VALID_TASK_TYPES = {
@@ -82,18 +80,6 @@ class FlowCoordinatorAgent(BaseAgent):
         self.transition_handler = TransitionHandler(
             db_session, self.agent_id, self.logger
         )
-        self.consensus_manager = ConsensusManager(
-            self.agent_id,
-            self.logger,
-            self.send_message,
-            fetch_votes_fn=self._consume_consensus_votes,
-            prepare_vote_collection_fn=self._reset_consensus_vote_buffer,
-        )
-        self._captured_consensus_votes: Dict[str, Dict[str, Any]] = {}
-        self.register_message_handler(
-            "consensus_request_response", self._handle_consensus_request_response
-        )
-
         # Service dependencies (LangGraph handles flow sending)
 
         # Agent capabilities
@@ -103,7 +89,6 @@ class FlowCoordinatorAgent(BaseAgent):
             "timing_optimization",
             "phase_transition",
             "patient_adaptation",
-            "consensus_participation",
         ]
 
         # Flow timing parameters
@@ -197,8 +182,6 @@ class FlowCoordinatorAgent(BaseAgent):
         decision = await self.decision_engine.make_flow_decision(
             context,
             analysis,
-            self.decision_engine.requires_consensus_decision,
-            self.consensus_manager.seek_agent_consensus,
         )
 
         # Execute decision
@@ -244,7 +227,7 @@ class FlowCoordinatorAgent(BaseAgent):
 
             elif decision == FlowDecision.ESCALATE_INTERVENTION:
                 # Escalate for medical intervention
-                await self.consensus_manager.escalate_intervention(context)
+                await self._send_escalation_alert(context)
                 execution_result["actions_taken"].append("escalated_intervention")
 
             elif decision == FlowDecision.PAUSE_FLOW:
@@ -374,7 +357,7 @@ class FlowCoordinatorAgent(BaseAgent):
 
         # Coordinate based on intervention type
         if intervention_type == "escalation":
-            await self.consensus_manager.escalate_intervention(context)
+            await self._send_escalation_alert(context)
         elif intervention_type == "pause":
             await self.transition_handler.pause_flow(context)
         elif intervention_type == "resume":
@@ -387,44 +370,25 @@ class FlowCoordinatorAgent(BaseAgent):
             "coordinated": True,
         }
 
-    async def _handle_consensus_request_response(
-        self, payload: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Capture inbound consensus responses for later LangGraph vote polling."""
-        if not isinstance(payload, dict):
-            return {"captured": False, "reason": "invalid_payload"}
-
-        agent_id = str(payload.get("agent_id") or payload.get("responder_id") or "").strip()
-        vote = str(payload.get("vote") or "").strip().lower()
-
-        if not agent_id:
-            return {"captured": False, "reason": "missing_agent_id"}
-        if vote not in {"approve", "reject", "abstain"}:
-            return {"captured": False, "reason": "missing_or_invalid_vote"}
-
-        captured_payload = dict(payload)
-        captured_payload["vote"] = vote
-        self._captured_consensus_votes[agent_id] = captured_payload
-        return {"captured": True, "agent_id": agent_id}
-
-    def _reset_consensus_vote_buffer(self, agent_ids: List[str]) -> None:
-        """Drop stale captured votes before dispatching a new consensus request."""
-        for agent_id in agent_ids:
-            self._captured_consensus_votes.pop(agent_id, None)
-
-    def _consume_consensus_votes(
-        self, correlation_ids: Dict[str, Optional[str]]
-    ) -> Dict[str, Dict[str, Any]]:
-        """Return and clear captured votes for the expected agent set."""
-        if not isinstance(correlation_ids, dict):
-            return {}
-
-        votes: Dict[str, Dict[str, Any]] = {}
-        for agent_id in correlation_ids:
-            captured_payload = self._captured_consensus_votes.pop(agent_id, None)
-            if isinstance(captured_payload, dict):
-                votes[agent_id] = captured_payload
-        return votes
+    async def _send_escalation_alert(self, context: FlowContext) -> None:
+        """Send escalation alert directly to AlertAnalyzerAgent."""
+        await self.send_message(
+            ALERT_ANALYZER_ID,
+            "escalation_alert",
+            {
+                "patient_id": str(context.patient_id),
+                "risk_factors": context.risk_factors,
+                "escalated_by": self.agent_id,
+                "escalated_at": now_sao_paulo().isoformat(),
+                "priority": "high",
+                "recommended_actions": [
+                    "schedule_medical_consultation",
+                    "increase_monitoring_frequency",
+                    "review_treatment_plan",
+                ],
+            },
+            MessagePriority.CRITICAL,
+        )
 
     # Template management methods
     def get_loaded_templates(self) -> Dict[str, str]:

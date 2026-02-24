@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from app.agents.base import BaseAgent, AgentCapabilities
 from app.agents.registry import ALERT_ANALYZER_ID
 from app.utils.logging import get_logger
-from app.utils.timezone import now_sao_paulo
 
 
 class AlertAnalyzerAgent(BaseAgent):
@@ -48,7 +47,6 @@ class AlertAnalyzerAgent(BaseAgent):
             "learning_rate": 0.1,
         }
 
-        self.register_message_handler("consensus_request", self._handle_consensus_request)
         self.register_message_handler("analyze_escalation", self._handle_analyze_escalation)
         self.register_message_handler("escalation_alert", self._handle_escalation_alert)
 
@@ -105,34 +103,6 @@ class AlertAnalyzerAgent(BaseAgent):
         return {
             "success": True,
             "message": "Queue prioritization not fully implemented yet",
-        }
-
-    async def _handle_consensus_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        """Handle consensus vote requests from peer agents."""
-        decision_topic = str(payload.get("decision_topic") or "").strip().lower()
-        decision_data = payload.get("decision_data") or {}
-        risk_factors = decision_data.get("risk_factors")
-        if not isinstance(risk_factors, list):
-            risk_factors = []
-
-        is_escalation_path = "escalat" in decision_topic or "intervention" in decision_topic
-        high_risk_signal = bool(risk_factors) or str(decision_data.get("priority", "")).lower() == "high"
-
-        vote = "approve" if is_escalation_path and high_risk_signal else "abstain"
-        confidence = 0.9 if vote == "approve" else 0.5
-        rationale = (
-            "clinical_escalation_signals_detected"
-            if vote == "approve"
-            else "insufficient_escalation_signal_for_strong_vote"
-        )
-
-        return {
-            "agent_id": self.agent_id,
-            "decision_topic": decision_topic or "unknown",
-            "vote": vote,
-            "confidence": confidence,
-            "rationale": rationale,
-            "reviewed_at": now_sao_paulo().isoformat(),
         }
 
     async def _handle_analyze_escalation(self, payload: Dict[str, Any]) -> Dict[str, Any]:

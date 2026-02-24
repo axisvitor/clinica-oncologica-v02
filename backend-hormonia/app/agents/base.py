@@ -2,7 +2,7 @@
 Base Agent class for Hive-Mind system.
 
 Provides core functionality for all agents including communication,
-memory access, consensus participation, and Claude-Flow integration.
+memory access, peer coordination, and Claude-Flow integration.
 """
 
 import asyncio
@@ -120,7 +120,6 @@ class BaseAgent(ABC):
     - Memory system integration
     - Performance metrics
     - Claude-Flow hooks
-    - Consensus participation
     - Error handling and recovery
     """
 
@@ -168,7 +167,6 @@ class BaseAgent(ABC):
 
         # Memory and coordination
         self.memory_store = {}
-        self.consensus_votes = {}
         self.peer_agents = {}
 
         # Logging

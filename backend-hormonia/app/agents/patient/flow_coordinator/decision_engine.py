@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-# Standard library
-import inspect
 import logging
-from typing import Any, Callable, Dict, List
+from typing import Any, Dict, List
 
 # Local
 from .constants import DAILY_FOLLOWUP_END_DAY
@@ -22,7 +20,6 @@ class DecisionEngine:
     Attributes:
         agent_id: Unique agent identifier.
         logger: Logger instance.
-        consensus_threshold: Threshold for consensus decisions.
         intervention_threshold: Threshold for intervention triggers.
         adaptation_threshold: Threshold for content adaptation.
         transition_day_45: Day for phase transition.
@@ -32,14 +29,12 @@ class DecisionEngine:
         self,
         agent_id: str,
         logger: logging.Logger,
-        consensus_threshold: float = 0.7,
         intervention_threshold: float = 0.8,
         adaptation_threshold: float = 0.6,
         transition_day_45: int = DAILY_FOLLOWUP_END_DAY,
     ):
         self.agent_id = agent_id
         self.logger = logger
-        self.consensus_threshold = consensus_threshold
         self.intervention_threshold = intervention_threshold
         self.adaptation_threshold = adaptation_threshold
         self.transition_day_45 = transition_day_45
@@ -111,8 +106,6 @@ class DecisionEngine:
         self,
         context: FlowContext,
         analysis: Dict[str, Any],
-        requires_consensus_fn: Callable,
-        seek_consensus_fn: Callable,
     ) -> FlowDecision:
         """Make intelligent flow decision based on context and analysis."""
         progress_score = analysis["progress_score"]
@@ -123,28 +116,6 @@ class DecisionEngine:
 
         # High risk situations require intervention
         if risk_level == "high":
-            requires_consensus = requires_consensus_fn(
-                "escalate_intervention", context
-            )
-            if inspect.isawaitable(requires_consensus):
-                requires_consensus = await requires_consensus
-            if requires_consensus:
-                consensus_result = await seek_consensus_fn(
-                    "intervention_decision",
-                    {
-                        "patient_id": str(context.patient_id),
-                        "risk_factors": context.risk_factors,
-                        "analysis": analysis,
-                    },
-                )
-
-                if consensus_result["consensus_reached"]:
-                    decision = FlowDecision.ESCALATE_INTERVENTION
-                    self._log_decision_audit(
-                        decision, context, analysis, "consensus_escalation"
-                    )
-                    return decision
-
             decision = FlowDecision.ESCALATE_INTERVENTION
             self._log_decision_audit(decision, context, analysis, "high_risk")
             return decision
@@ -157,32 +128,11 @@ class DecisionEngine:
 
         # Phase transition logic
         if context.current_day == self.transition_day_45:
-            requires_consensus = requires_consensus_fn("advance_phase", context)
-            if inspect.isawaitable(requires_consensus):
-                requires_consensus = await requires_consensus
-            if requires_consensus:
-                consensus_result = await seek_consensus_fn(
-                    "phase_transition",
-                    {
-                        "patient_id": str(context.patient_id),
-                        "from_phase": "daily",
-                        "to_phase": "monthly",
-                        "progress_score": progress_score,
-                    },
-                )
-
-                if consensus_result["consensus_reached"]:
-                    decision = FlowDecision.ADVANCE_PHASE
-                    self._log_decision_audit(
-                        decision, context, analysis, "consensus_phase_transition"
-                    )
-                    return decision
-            else:
-                decision = FlowDecision.ADVANCE_PHASE
-                self._log_decision_audit(
-                    decision, context, analysis, "day_45_phase_transition"
-                )
-                return decision
+            decision = FlowDecision.ADVANCE_PHASE
+            self._log_decision_audit(
+                decision, context, analysis, "day_45_phase_transition"
+            )
+            return decision
 
         # Timing optimization for better engagement
         if progress_score > 0.7 and engagement_score < 0.6:
@@ -252,10 +202,3 @@ class DecisionEngine:
                 "agent_id": self.agent_id,
             },
         )
-
-    def requires_consensus_decision(
-        self, decision_type: str, context: FlowContext
-    ) -> bool:
-        """Check if decision requires consensus from other agents."""
-        # Only clinical escalation decisions require consensus.
-        return decision_type == "escalate_intervention"
