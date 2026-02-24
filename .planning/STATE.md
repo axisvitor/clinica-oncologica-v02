@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** v1.2 AI Framework Migration — Phase 12: Flow Orchestration Replacement
+**Current focus:** v1.2 AI Framework Migration — Phase 13: SDK Migration & Cleanup
 
 ## Current Position
 
-Phase: 12 of 13 (Flow Orchestration Replacement)
-Plan: 3 of 3 in current phase
+Phase: 13 of 13 (SDK Migration & Cleanup)
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-24 - Completed 12-03 LangGraph tombstoning, checkpoint purge script, and LGPD audit logging
+Last activity: 2026-02-24 - Completed 13-01 GeminiClient/PatientSummaryService migration to google-genai SDK
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ████████░░ 75%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 █████████░ 86%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 19 (v1.0: 13, v1.1: 10 — but v1.1 had overlap)
-- Average duration: tracking (latest: 17 min)
+- Total plans completed: 20 (v1.0: 13, v1.1: 10 — but v1.1 had overlap)
+- Average duration: tracking (latest: 11 min)
 - Total execution time: 2 days + active v1.2
 
 **By Phase:**
@@ -47,6 +47,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 12-flow-orchestration-replacement P01 | 15 min | 2 tasks | 13 files |
 | Phase 12-flow-orchestration-replacement P02 | 18 min | 2 tasks | 4 files |
 | Phase 12-flow-orchestration-replacement P03 | 19 min | 2 tasks | 19 files |
+| Phase 13-sdk-migration-cleanup P01 | 11 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 12-flow-orchestration-replacement]: Kept helper and flow behavior identical while replacing all app.ai.langgraph runtime imports with inlined implementations.
 - [Phase 12-flow-orchestration-replacement]: Kept LangGraph imports lazy only inside sequential_message_handler legacy branches so startup remains safe while legacy mode intentionally fails when invoked.
 - [Phase 12-flow-orchestration-replacement]: Used structured CRITICAL lgpd_data_deleted logs as the primary checkpoint purge audit record with best-effort DB AuditService logging as secondary evidence.
+- [Phase 13]: Hard-cut GeminiClient and PatientSummaryService from LangChain to google-genai without feature toggles.
+- [Phase 13]: Preserved retry/rate-limit/circuit-breaker interfaces while swapping only SDK internals.
 
 ### Pending Todos
 
@@ -104,5 +107,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 12-flow-orchestration-replacement-03-PLAN.md
+Stopped at: Completed 13-01-PLAN.md
 Resume file: None
