@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** v1.2 AI Framework Migration — Phase 11: Agent Implementation
+**Current focus:** v1.2 AI Framework Migration — Phase 12: Flow Orchestration Replacement
 
 ## Current Position
 
-Phase: 11 of 13 (Agent Implementation)
-Plan: 3 of 4 in current phase
+Phase: 12 of 13 (Flow Orchestration Replacement)
+Plan: 0 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-24 - Completed 11-03 Humanize/Variation/Empathy agents with guardrail validators and helpers shim
+Last activity: 2026-02-24 - Completed 11-04 GeminiDomainClient AI_FRAMEWORK shim and 50-scenario regression suite
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ███░░░░░░░ 25%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 █████░░░░░ 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 18 (v1.0: 13, v1.1: 10 — but v1.1 had overlap)
-- Average duration: unknown (v1.2 not yet started)
-- Total execution time: 2 days (v1.0 + v1.1)
+- Total plans completed: 19 (v1.0: 13, v1.1: 10 — but v1.1 had overlap)
+- Average duration: tracking (latest: 17 min)
+- Total execution time: 2 days + active v1.2
 
 **By Phase:**
 
@@ -43,6 +43,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 11 P01 | 7 min | 3 tasks | 4 files |
 | Phase 11 P02 | 2 min | 1 tasks | 2 files |
 | Phase 11 P03 | 5 min | 2 tasks | 6 files |
+| Phase 11 P04 | 17 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 11]: Keep guardrails duplicated as per-agent output_validator decorators using ModelRetry for re-ask behavior.
 - [Phase 11]: Place the 88% similarity check after _safe_run in VariationAgent and fallback deterministically instead of validator retry loops.
 - [Phase 11]: Use app.ai.agents.helpers as the only import surface to isolate Phase 12 langgraph tombstoning.
+- [Phase 11]: Keep AI_FRAMEWORK default as legacy to preserve production behavior until explicit opt-in.
+- [Phase 11]: Convert SentimentAgent output to dict in GeminiDomainClient shim for backward-compatible caller signatures.
 
 ### Pending Todos
 
@@ -92,5 +95,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 11-03-PLAN.md
+Stopped at: Completed 11-04-PLAN.md
 Resume file: None
