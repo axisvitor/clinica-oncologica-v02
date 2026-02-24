@@ -60,34 +60,34 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FIX-01 | — | Pending |
-| FIX-02 | — | Pending |
-| FIX-03 | — | Pending |
-| FIX-04 | — | Pending |
-| FIX-05 | — | Pending |
-| FIX-06 | — | Pending |
-| FIX-07 | — | Pending |
-| DEAD-01 | — | Pending |
-| DEAD-02 | — | Pending |
-| DEAD-03 | — | Pending |
-| DEAD-04 | — | Pending |
-| DEAD-05 | — | Pending |
-| SPLIT-01 | — | Pending |
-| SPLIT-02 | — | Pending |
-| SPLIT-03 | — | Pending |
-| SPLIT-04 | — | Pending |
-| SPLIT-05 | — | Pending |
-| SPLIT-06 | — | Pending |
-| SPLIT-07 | — | Pending |
-| SPLIT-08 | — | Pending |
-| SPLIT-09 | — | Pending |
-| SPLIT-10 | — | Pending |
+| FIX-01 | Phase 14 | Pending |
+| FIX-02 | Phase 14 | Pending |
+| FIX-03 | Phase 14 | Pending |
+| FIX-04 | Phase 15 | Pending |
+| FIX-05 | Phase 15 | Pending |
+| FIX-06 | Phase 15 | Pending |
+| FIX-07 | Phase 15 | Pending |
+| DEAD-01 | Phase 16 | Pending |
+| DEAD-02 | Phase 16 | Pending |
+| DEAD-03 | Phase 16 | Pending |
+| DEAD-04 | Phase 16 | Pending |
+| DEAD-05 | Phase 16 | Pending |
+| SPLIT-05 | Phase 17 | Pending |
+| SPLIT-06 | Phase 17 | Pending |
+| SPLIT-07 | Phase 17 | Pending |
+| SPLIT-01 | Phase 18 | Pending |
+| SPLIT-02 | Phase 18 | Pending |
+| SPLIT-03 | Phase 18 | Pending |
+| SPLIT-04 | Phase 18 | Pending |
+| SPLIT-08 | Phase 19 | Pending |
+| SPLIT-09 | Phase 19 | Pending |
+| SPLIT-10 | Phase 19 | Pending |
 
 **Coverage:**
 - v1.3 requirements: 22 total
-- Mapped to phases: 0
-- Unmapped: 22 (pending roadmap creation)
+- Mapped to phases: 22
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-24*
-*Last updated: 2026-02-24 after initial definition*
+*Last updated: 2026-02-24 — traceability mapped to phases 14-19*
