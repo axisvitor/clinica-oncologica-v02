@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 11 of 13 (Agent Implementation)
-Plan: 1 of 4 in current phase
+Plan: 2 of 4 in current phase
 Status: In progress
-Last activity: 2026-02-24 - Completed 11-01 PIISafeAgent base scaffold and CI run-call lint gate
+Last activity: 2026-02-24 - Completed 11-02 SentimentAgent typed output and guardrail validator implementation
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ███░░░░░░░ 25%
 
@@ -41,6 +41,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 10 P03 | 7 min | 2 tasks | 12 files |
 | Phase 10 P04 | 4 min | 2 tasks | 7 files |
 | Phase 11 P01 | 7 min | 3 tasks | 4 files |
+| Phase 11 P02 | 2 min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 10]: Use composer-specific scope annotation explicitly documenting GeminiClient.generate_content() delegation.
 - [Phase 11]: Use PIISafeAgent as the only sanctioned agent.run() entrypoint enforced by CI lint.
 - [Phase 11]: Inject GoogleModel per call from AIDeps to avoid global API key coupling at import time.
+- [Phase 11]: Use PromptedOutput(SentimentResult) with defer_model_check=True so SentimentAgent keeps runtime model injection through AIDeps.
+- [Phase 11]: Raise ModelRetry inside SentimentAgent output_validator for banned pattern/prompt leak violations to trigger pydantic-ai regeneration.
 
 ### Pending Todos
 
@@ -85,5 +88,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 11-01-PLAN.md
+Stopped at: Completed 11-02-PLAN.md
 Resume file: None
