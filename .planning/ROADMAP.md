@@ -174,7 +174,7 @@ Plans:
 | 11. Agent Implementation | v1.2 | 4/4 | Complete | 2026-02-24 |
 | 12. Flow Orchestration Replacement | v1.2 | 3/3 | Complete | 2026-02-24 |
 | 13. SDK Migration & Cleanup | v1.2 | 5/5 | Complete | 2026-02-24 |
-| 14. Flow Control Fixes | 1/3 | In Progress|  | - |
+| 14. Flow Control Fixes | v1.3 | 1/3 | In Progress | - |
 | 15. Data Integrity Fixes | v1.3 | 0/4 | Not started | - |
 | 16. Dead Code Removal | v1.3 | 0/3 | Not started | - |
 | 17. Flow Core Splits | v1.3 | 0/3 | Not started | - |
@@ -183,4 +183,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-24 — v1.3 Flow Health & Cleanup roadmap added (phases 14-19)*
+*Last updated: 2026-02-24 — Phase 14 plan 01 completed (1/3)*
