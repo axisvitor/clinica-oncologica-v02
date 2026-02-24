@@ -72,6 +72,29 @@ class GeminiDomainClient(GeminiClient):
             deps=deps,
         )
 
+    def humanize_flow_message_sync(
+        self,
+        template: str,
+        patient_name: str,
+        patient_context: Dict[str, Any],
+        conversation_history: List[str],
+        personalization_hints: List[str],
+        few_shot_examples: Optional[List[Dict[str, str]]] = None,
+        ai_instructions: Optional[str] = None,
+        strict: bool = False,
+    ) -> str:
+        del few_shot_examples, strict
+        deps = self._build_ai_deps()
+        return HumanizeAgent().humanize_sync(
+            template=template,
+            patient_name=patient_name,
+            patient_context=patient_context,
+            conversation_history=conversation_history,
+            personalization_hints=personalization_hints,
+            ai_instructions=ai_instructions,
+            deps=deps,
+        )
+
     async def generate_varied_question(
         self,
         base_question: str,
@@ -104,6 +127,25 @@ class GeminiDomainClient(GeminiClient):
             deps=deps,
         )
 
+    def generate_varied_question_sync(
+        self,
+        base_question: str,
+        previous_questions: List[str],
+        patient_context: Dict[str, Any],
+        few_shot_examples: Optional[List[Dict[str, str]]] = None,
+        ai_instructions: Optional[str] = None,
+        strict: bool = False,
+    ) -> str:
+        del few_shot_examples, strict
+        deps = self._build_ai_deps()
+        return VariationAgent().vary_sync(
+            base_question=base_question,
+            previous_questions=previous_questions,
+            patient_context=patient_context,
+            ai_instructions=ai_instructions,
+            deps=deps,
+        )
+
     async def analyze_response_sentiment(
         self, response: str, patient_context: Dict[str, Any], strict: bool = False
     ) -> Dict[str, Any]:
@@ -121,6 +163,19 @@ class GeminiDomainClient(GeminiClient):
         deps = self._build_ai_deps()
         context_snapshot = compact_patient_context(patient_context or {})
         result = await SentimentAgent().analyze(
+            response=response,
+            context_snapshot=context_snapshot,
+            deps=deps,
+        )
+        return result.model_dump()
+
+    def analyze_response_sentiment_sync(
+        self, response: str, patient_context: Dict[str, Any], strict: bool = False
+    ) -> Dict[str, Any]:
+        del strict
+        deps = self._build_ai_deps()
+        context_snapshot = compact_patient_context(patient_context or {})
+        result = SentimentAgent().analyze_sync(
             response=response,
             context_snapshot=context_snapshot,
             deps=deps,
@@ -150,6 +205,24 @@ class GeminiDomainClient(GeminiClient):
         """
         deps = self._build_ai_deps()
         return await EmpathyAgent().follow_up(
+            patient_response=patient_response,
+            conversation_history=conversation_history or [],
+            patient_context=patient_context,
+            few_shot_examples=few_shot_examples,
+            deps=deps,
+        )
+
+    def create_empathetic_follow_up_sync(
+        self,
+        patient_response: str,
+        conversation_history: List[str],
+        patient_context: Dict[str, Any],
+        few_shot_examples: Optional[List[Dict[str, str]]] = None,
+        strict: bool = False,
+    ) -> str:
+        del strict
+        deps = self._build_ai_deps()
+        return EmpathyAgent().follow_up_sync(
             patient_response=patient_response,
             conversation_history=conversation_history or [],
             patient_context=patient_context,
