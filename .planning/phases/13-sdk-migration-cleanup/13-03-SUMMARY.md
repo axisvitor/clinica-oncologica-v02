@@ -69,7 +69,7 @@ Each task was committed atomically:
 None - plan executed exactly as written.
 
 ## Issues Encountered
-- None.
+- `gsd-tools state advance-plan` / `state update-progress` could not parse this repository's STATE.md schema, so current-position updates were applied manually while still recording metrics/decisions through available commands.
 
 ## User Setup Required
 
