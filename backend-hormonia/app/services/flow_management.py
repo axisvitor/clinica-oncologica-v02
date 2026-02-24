@@ -269,9 +269,43 @@ class FlowManagementService:
                     f"No active flow found for patient {patient_id}"
                 )
 
-            # Check if already paused
+            # Idempotent re-pause: update auto_resume_at when requested and return success
             if flow_state.state_data and flow_state.state_data.get("paused"):
-                raise FlowStateConflictError("Flow is already paused")
+                flow_state.state_data = flow_state.state_data or {}
+                flow_state.state_data["pause_reason"] = (
+                    reason
+                    or flow_state.state_data.get("pause_reason")
+                    or "Manual pause by healthcare provider"
+                )
+                flow_state.state_data["paused_at"] = now_sao_paulo().isoformat()
+
+                auto_resume_at = flow_state.state_data.get("auto_resume_at")
+                if duration_hours:
+                    resume_at = now_sao_paulo() + timedelta(hours=duration_hours)
+                    flow_state.state_data["auto_resume_at"] = resume_at.isoformat()
+                    auto_resume_at = resume_at.isoformat()
+
+                flow_state.status = "paused"
+                flow_state.last_interaction_at = now_sao_paulo()
+                expected_version = flow_state.version
+                flow_state.version = expected_version + 1
+                self.db.commit()
+
+                logger.info(
+                    "Flow re-paused (idempotent)",
+                    extra={"patient_id": str(patient_id), "flow_id": str(flow_state.id)},
+                )
+
+                return FlowPauseResponse(
+                    success=True,
+                    patient_id=patient_id,
+                    flow_id=flow_state.id,
+                    status="paused",
+                    reason=reason,
+                    paused_at=flow_state.state_data["paused_at"],
+                    auto_resume_at=auto_resume_at,
+                    message="Patient flow already paused; pause refreshed successfully",
+                )
 
             # Update flow state to paused
             flow_state.state_data = flow_state.state_data or {}

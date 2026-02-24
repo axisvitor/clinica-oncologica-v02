@@ -367,8 +367,8 @@ class FlowCore:
             previous_state = {
                 "flow_type": current_flow_type.value,
                 "current_day": flow_state.current_step,
-                "is_paused": flow_state.step_data.get("paused", False)
-                if flow_state.step_data
+                "is_paused": flow_state.state_data.get("paused", False)
+                if flow_state.state_data
                 else False,
             }
 
@@ -478,14 +478,13 @@ class FlowCore:
                 "is_paused": False,
             }
 
-            # Update step data
-            step_data = dict(flow_state.step_data or {})
-            step_data["paused"] = {
-                "timestamp": now_sao_paulo().isoformat(),
-                "reason": reason or "Manual pause",
-                "current_step": flow_state.current_step,
-            }
-            flow_state.step_data = step_data
+            # Update state data
+            state_data = dict(flow_state.state_data or {})
+            state_data["paused"] = True
+            state_data["pause_reason"] = reason or "Manual pause"
+            state_data["paused_at"] = now_sao_paulo().isoformat()
+            state_data["paused_by_step"] = flow_state.current_step
+            flow_state.state_data = state_data
             flow_state.status = "paused"
 
             # Commit with optimistic locking to prevent race conditions
@@ -526,7 +525,7 @@ class FlowCore:
             result = await self.db.execute(
                 select(PatientFlowState).filter(
                     PatientFlowState.patient_id == patient_id,
-                    PatientFlowState.status == "active",
+                    PatientFlowState.status == "paused",
                 )
             )
             flow_state = result.scalar_one_or_none()
@@ -543,16 +542,19 @@ class FlowCore:
                 "is_paused": True,
             }
 
-            # Remove pause data
-            step_data = dict(flow_state.step_data or {})
-            if "paused" in step_data:
-                paused_data = step_data.pop("paused")
-                step_data["resumed"] = {
-                    "timestamp": now_sao_paulo().isoformat(),
-                    "was_paused_at": paused_data.get("timestamp"),
-                    "pause_reason": paused_data.get("reason"),
-                }
-                flow_state.step_data = step_data
+            # Update resume data
+            state_data = dict(flow_state.state_data or {})
+            paused_at = state_data.get("paused_at")
+            pause_reason = state_data.get("pause_reason")
+            state_data["paused"] = False
+            state_data["resumed_at"] = now_sao_paulo().isoformat()
+            state_data.pop("auto_resume_at", None)
+            state_data["resumed"] = {
+                "timestamp": state_data["resumed_at"],
+                "was_paused_at": paused_at,
+                "pause_reason": pause_reason,
+            }
+            flow_state.state_data = state_data
             flow_state.status = "active"
 
             # Commit with optimistic locking to prevent race conditions
@@ -612,7 +614,11 @@ class FlowCore:
                 }
 
             current_day = await self.calculate_patient_day(patient_id)
-            is_paused = flow_state.step_data and "paused" in flow_state.step_data
+            is_paused = (
+                flow_state.state_data.get("paused", False)
+                if flow_state.state_data
+                else False
+            )
 
             return {
                 "status": "active",
