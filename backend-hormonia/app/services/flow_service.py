@@ -28,6 +28,7 @@ from app.schemas.v2.flows import (
     FlowAdvanceV2Response,
     FlowPauseV2Response,
     FlowResumeV2Response,
+    FlowCancelV2Response,
     FlowHistoryV2Response,
     FlowTemplateV2List,
     FlowTemplateV2Response,
@@ -249,6 +250,48 @@ class FlowService(FlowCore):
             paused_duration_hours=resume_result.get("paused_duration_hours", 0.0),
             next_message_at=resume_result.get("next_message_at"),
             message=resume_result.get("message", "Flow resumed successfully"),
+        )
+
+    async def cancel_patient_flow(
+        self, patient_id: UUID, user_id: UUID
+    ) -> FlowCancelV2Response:
+        try:
+            cancel_result = await self.flow_management.cancel_patient_flow(
+                patient_id=patient_id,
+                user_id=user_id,
+            )
+        except (FlowStateNotFoundError, DomainNotFoundError) as e:
+            raise NotFoundError("Flow state", patient_id) from e
+        except (FlowStateConflictError, FlowValidationError, FlowOperationError) as e:
+            raise BusinessRuleError(str(e)) from e
+
+        cancelled_at = cancel_result.get("cancelled_at")
+        if isinstance(cancelled_at, str):
+            try:
+                cancelled_at = datetime.fromisoformat(cancelled_at)
+            except ValueError:
+                cancelled_at = now_sao_paulo()
+        if cancelled_at is None:
+            cancelled_at = now_sao_paulo()
+
+        logger.info(
+            "Flow cancelled via API",
+            extra={
+                "patient_id": str(patient_id),
+                "cancelled_by": str(user_id),
+                "messages_cancelled": cancel_result.get("messages_cancelled", 0),
+                "tasks_revoked": cancel_result.get("tasks_revoked", 0),
+            },
+        )
+
+        return FlowCancelV2Response(
+            success=True,
+            patient_id=str(cancel_result.get("patient_id", patient_id)),
+            flow_id=str(cancel_result.get("flow_id", "")),
+            cancelled_at=cancelled_at,
+            messages_cancelled=cancel_result.get("messages_cancelled", 0),
+            tasks_revoked=cancel_result.get("tasks_revoked", 0),
+            message="Patient flow cancelled successfully",
         )
 
     async def get_patient_flow_history(

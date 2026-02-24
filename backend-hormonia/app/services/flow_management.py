@@ -25,6 +25,7 @@ from app.exceptions import (
     FlowStateConflictError,
 )
 from app.models.flow import FlowKind, FlowTemplateVersion, PatientFlowState
+from app.models.message import Message, MessageDirection, MessageStatus
 from app.repositories.flow import FlowStateRepository
 from app.schemas.flow import (
     FlowStateResponse,
@@ -420,6 +421,96 @@ class FlowManagementService:
         except Exception as e:
             logger.error(f"Failed to resume flow for patient {patient_id}: {e}")
             raise FlowOperationError(f"Failed to resume flow: {str(e)}")
+
+    async def cancel_patient_flow(
+        self,
+        patient_id: UUID,
+        user_id: UUID = None,
+    ) -> dict:
+        """Cancel a patient's flow, cleaning up all pending messages and state."""
+        try:
+            flow_state = self.flow_repo.get_active_flow(patient_id)
+            if not flow_state:
+                raise FlowStateNotFoundError(
+                    f"No active flow found for patient {patient_id}"
+                )
+
+            cancellable_statuses = [MessageStatus.PENDING, MessageStatus.SCHEDULED]
+            if hasattr(MessageStatus, "QUEUED"):
+                cancellable_statuses.append(MessageStatus.QUEUED)
+
+            pending_messages = (
+                self.db.query(Message)
+                .filter(
+                    Message.patient_id == patient_id,
+                    Message.status.in_(cancellable_statuses),
+                    Message.direction == MessageDirection.OUTBOUND,
+                )
+                .all()
+            )
+
+            from celery.result import AsyncResult
+            from app.celery_app import celery_app as celery_instance
+
+            revoked_count = 0
+            for message in pending_messages:
+                message.status = MessageStatus.CANCELLED
+
+                task_id = None
+                if message.message_metadata:
+                    task_id = message.message_metadata.get("celery_task_id")
+                if task_id:
+                    try:
+                        AsyncResult(task_id, app=celery_instance).revoke(terminate=False)
+                        revoked_count += 1
+                    except Exception as exc:
+                        logger.warning(
+                            f"Failed to revoke Celery task for message {message.id}: {exc}"
+                        )
+
+            now = now_sao_paulo()
+            flow_state.status = "cancelled"
+            flow_state.completed_at = now
+            flow_state.last_interaction_at = now
+            flow_state.state_data = flow_state.state_data or {}
+            flow_state.state_data["paused"] = False
+            flow_state.state_data["cancelled"] = True
+            flow_state.state_data["cancelled_at"] = now.isoformat()
+            flow_state.state_data["cancelled_by"] = str(user_id) if user_id else None
+            flow_state.state_data["messages_cancelled"] = len(pending_messages)
+            flow_state.state_data["tasks_revoked"] = revoked_count
+            flow_state.state_data.pop("auto_resume_at", None)
+
+            expected_version = flow_state.version
+            flow_state.version = expected_version + 1
+            self.db.commit()
+
+            logger.info(
+                "Flow cancelled",
+                extra={
+                    "patient_id": str(patient_id),
+                    "flow_id": str(flow_state.id),
+                    "cancelled_by": str(user_id) if user_id else "system",
+                    "messages_cancelled": len(pending_messages),
+                    "tasks_revoked": revoked_count,
+                    "action": "cancel_flow",
+                },
+            )
+
+            return {
+                "flow_id": flow_state.id,
+                "patient_id": patient_id,
+                "status": "cancelled",
+                "cancelled_at": now,
+                "messages_cancelled": len(pending_messages),
+                "tasks_revoked": revoked_count,
+            }
+
+        except (FlowStateNotFoundError, FlowStateConflictError):
+            raise
+        except Exception as e:
+            logger.error(f"Failed to cancel flow for patient {patient_id}: {e}")
+            raise FlowOperationError(f"Failed to cancel flow: {str(e)}")
 
     async def get_patient_flow_history(
         self, patient_id: UUID, skip: int = 0, limit: int = 10
