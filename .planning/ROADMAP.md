@@ -126,7 +126,7 @@ Plans:
 | 9. Observability | v1.1 | 3/3 | Complete | 2026-02-23 |
 | 10. Preparation & Scope | 4/4 | Complete    | 2026-02-24 | - |
 | 11. Agent Implementation | 4/4 | Complete    | 2026-02-24 | - |
-| 12. Flow Orchestration Replacement | 3/3 | Complete   | 2026-02-24 | - |
+| 12. Flow Orchestration Replacement | 3/3 | Complete    | 2026-02-24 | - |
 | 13. SDK Migration & Cleanup | v1.2 | 0/3 | Not started | - |
 
 ---
