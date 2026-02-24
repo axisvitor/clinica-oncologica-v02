@@ -127,7 +127,7 @@ Plans:
 | 10. Preparation & Scope | 4/4 | Complete    | 2026-02-24 | - |
 | 11. Agent Implementation | 4/4 | Complete    | 2026-02-24 | - |
 | 12. Flow Orchestration Replacement | 3/3 | Complete    | 2026-02-24 | - |
-| 13. SDK Migration & Cleanup | 1/3 | In Progress|  | - |
+| 13. SDK Migration & Cleanup | 2/3 | In Progress|  | - |
 
 ---
 *Roadmap created: 2026-02-22*

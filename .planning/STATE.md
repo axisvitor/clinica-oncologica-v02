@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 13 of 13 (SDK Migration & Cleanup)
-Plan: 2 of 3 in current phase
+Plan: 3 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-24 - Completed 13-01 GeminiClient/PatientSummaryService migration to google-genai SDK
+Last activity: 2026-02-24 - Completed 13-03 PIISafeAgent _safe_run_sync Celery bridge + 100-call load validation
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 █████████░ 86%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 93%
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 12-flow-orchestration-replacement P02 | 18 min | 2 tasks | 4 files |
 | Phase 12-flow-orchestration-replacement P03 | 19 min | 2 tasks | 19 files |
 | Phase 13-sdk-migration-cleanup P01 | 11 min | 2 tasks | 3 files |
+| Phase 13-sdk-migration-cleanup P03 | 2 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 12-flow-orchestration-replacement]: Used structured CRITICAL lgpd_data_deleted logs as the primary checkpoint purge audit record with best-effort DB AuditService logging as secondary evidence.
 - [Phase 13]: Hard-cut GeminiClient and PatientSummaryService from LangChain to google-genai without feature toggles.
 - [Phase 13]: Preserved retry/rate-limit/circuit-breaker interfaces while swapping only SDK internals.
+- [Phase 13]: Keep Celery retry/backoff configuration unchanged while adding PIISafeAgent _safe_run_sync loop guard.
+- [Phase 13]: Validate sync and async agent paths separately with mocked deterministic tests to prove Celery loop resilience.
 
 ### Pending Todos
 
@@ -101,11 +104,11 @@ Carried from v1.1 (not in v1.2 scope):
 
 v1.2 risks to watch:
 - PromptedOutput validation against gemini-2.5-flash: MEDIUM confidence; 1-day spike recommended as first Phase 11 task
-- Celery async bridge: agent.run_sync() fix documented but not yet validated in this stack; 100-task load test is acceptance criterion in Phase 13
+- Celery async bridge: _safe_run_sync loop-closure resilience validated with 100-task test in Phase 13 Plan 03; adoption in direct sync Celery call sites remains future work
 - LangGraph checkpoint PHI audit: sample existing keys before purge to determine LGPD documentation obligations
 
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 13-01-PLAN.md
+Stopped at: Completed 13-03-PLAN.md
 Resume file: None

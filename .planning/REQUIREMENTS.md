@@ -36,7 +36,7 @@ Requirements for AI framework migration. Each maps to roadmap phases.
 
 - [x] **SDK-01**: GeminiClient._initialize_model() migrated from ChatGoogleGenerativeAI (langchain-google-genai) to google-genai SDK directly
 - [ ] **SDK-02**: langchain-google-genai package removed from requirements.txt (last LangChain dependency)
-- [ ] **SDK-03**: All Celery tasks calling AI agents use agent.run_sync() (not async_to_sync wrapper) to avoid event loop closure errors
+- [x] **SDK-03**: All Celery tasks calling AI agents use agent.run_sync() (not async_to_sync wrapper) to avoid event loop closure errors
 
 ## v1.3 Requirements (Deferred)
 
@@ -79,7 +79,7 @@ Requirements for AI framework migration. Each maps to roadmap phases.
 | FLOW-05 | Phase 12 | Complete |
 | SDK-01 | Phase 13 | Complete |
 | SDK-02 | Phase 13 | Pending |
-| SDK-03 | Phase 13 | Pending |
+| SDK-03 | Phase 13 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 19 total
