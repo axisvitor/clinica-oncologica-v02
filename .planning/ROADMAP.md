@@ -68,12 +68,12 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
   2. A patient whose pause window has expired is automatically resumed by the Celery Beat job without manual intervention
   3. A cancelled flow clears all pending messages and resets state so no follow-up messages are sent after cancellation
   4. The flow management service exposes a working cancel endpoint that a doctor can call and receive confirmation
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 14-01: Standardize pause detection field across daily processor and flow management
-- [ ] 14-02: Implement auto-resume Celery Beat job with `auto_resume_at` timestamp check
-- [ ] 14-03: Implement cancel flow with pending message cleanup and state reset
+- [ ] 14-01-PLAN.md — Standardize pause detection to state_data.paused across daily processor, FlowCore, and FlowManagementService
+- [ ] 14-02-PLAN.md — Rewrite auto-resume Beat job to check auto_resume_at timestamps instead of blanket 48h heuristic
+- [ ] 14-03-PLAN.md — Implement cancel flow with pending message cleanup, Celery task revocation, and API endpoint
 
 ### Phase 15: Data Integrity Fixes
 **Goal**: Quiz links never crash on missing templates, all phase constants come from one canonical source, cycle calculation is consistent, and failed messages reach the DLQ.
@@ -174,7 +174,7 @@ Plans:
 | 11. Agent Implementation | v1.2 | 4/4 | Complete | 2026-02-24 |
 | 12. Flow Orchestration Replacement | v1.2 | 3/3 | Complete | 2026-02-24 |
 | 13. SDK Migration & Cleanup | v1.2 | 5/5 | Complete | 2026-02-24 |
-| 14. Flow Control Fixes | v1.3 | 0/3 | Not started | - |
+| 14. Flow Control Fixes | v1.3 | 0/3 | Planned | - |
 | 15. Data Integrity Fixes | v1.3 | 0/4 | Not started | - |
 | 16. Dead Code Removal | v1.3 | 0/3 | Not started | - |
 | 17. Flow Core Splits | v1.3 | 0/3 | Not started | - |
