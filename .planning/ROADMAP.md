@@ -40,7 +40,7 @@ Full details: `.planning/milestones/v1.1-ROADMAP.md`
 - [x] **Phase 10: Preparation & Scope** - Audit LangGraph imports, install pydantic-ai, delete consensus (dead code) (completed 2026-02-24)
 - [x] **Phase 11: Agent Implementation** - Implement 4 typed pydantic-ai agents with PIISafeAgent wrapper, guardrails, and shim (completed 2026-02-24)
 - [x] **Phase 12: Flow Orchestration Replacement** - Replace 2 LangGraph graphs with async Python, remove LangGraph packages, purge Redis checkpoints (completed 2026-02-24)
-- [ ] **Phase 13: SDK Migration & Cleanup** - Migrate GeminiClient from ChatGoogleGenerativeAI to google-genai SDK, validate Celery async bridge
+- [x] **Phase 13: SDK Migration & Cleanup** - Migrate GeminiClient from ChatGoogleGenerativeAI to google-genai SDK, validate Celery async bridge (completed 2026-02-24)
 
 ## Phase Details
 
@@ -127,7 +127,7 @@ Plans:
 | 10. Preparation & Scope | 4/4 | Complete    | 2026-02-24 | - |
 | 11. Agent Implementation | 4/4 | Complete    | 2026-02-24 | - |
 | 12. Flow Orchestration Replacement | 3/3 | Complete    | 2026-02-24 | - |
-| 13. SDK Migration & Cleanup | 2/3 | In Progress|  | - |
+| 13. SDK Migration & Cleanup | 3/3 | Complete   | 2026-02-24 | - |
 
 ---
 *Roadmap created: 2026-02-22*

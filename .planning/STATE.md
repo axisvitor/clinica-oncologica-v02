@@ -12,7 +12,7 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 Phase: 13 of 13 (SDK Migration & Cleanup)
 Plan: 3 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-24 - Completed 13-03 PIISafeAgent _safe_run_sync Celery bridge + 100-call load validation
+Last activity: 2026-02-24 - Completed 13-02 LangChain purge, toggle removal, and permanent CI import gate
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 93%
 
@@ -49,6 +49,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 12-flow-orchestration-replacement P03 | 19 min | 2 tasks | 19 files |
 | Phase 13-sdk-migration-cleanup P01 | 11 min | 2 tasks | 3 files |
 | Phase 13-sdk-migration-cleanup P03 | 2 min | 2 tasks | 3 files |
+| Phase 13-sdk-migration-cleanup P02 | 7 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,8 @@ Recent decisions affecting v1.2 work:
 - [Phase 13]: Preserved retry/rate-limit/circuit-breaker interfaces while swapping only SDK internals.
 - [Phase 13]: Keep Celery retry/backoff configuration unchanged while adding PIISafeAgent _safe_run_sync loop guard.
 - [Phase 13]: Validate sync and async agent paths separately with mocked deterministic tests to prove Celery loop resilience.
+- [Phase 13-sdk-migration-cleanup]: Deleted AI_FRAMEWORK and AI_FLOW_FRAMEWORK without deprecation to enforce hard-cut migration behavior.
+- [Phase 13-sdk-migration-cleanup]: Removed SequentialMessageHandler legacy branches and retained only direct flow function execution.
 
 ### Pending Todos
 
@@ -110,5 +113,5 @@ v1.2 risks to watch:
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 13-03-PLAN.md
+Stopped at: Completed 13-02-PLAN.md
 Resume file: None
