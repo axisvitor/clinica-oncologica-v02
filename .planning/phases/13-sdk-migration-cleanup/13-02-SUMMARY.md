@@ -61,6 +61,8 @@ Each task was committed atomically:
 1. **Task 1: Collapse GeminiDomainClient shim and remove feature-flag settings** - `ff17fa93` (feat)
 2. **Task 2: Purge remaining langchain references and add permanent CI test** - `2d7d8db4` (test)
 
+**Plan metadata:** `11b29169` (docs)
+
 ## Files Created/Modified
 - `backend-hormonia/app/ai/client_domain.py` - Removes legacy branching and makes pydantic-ai agent delegation unconditional.
 - `backend-hormonia/app/config/settings/integrations.py` - Deletes `AI_FRAMEWORK` and `AI_FLOW_FRAMEWORK` settings.
