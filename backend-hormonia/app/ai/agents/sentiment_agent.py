@@ -99,7 +99,7 @@ class SentimentAgent(PIISafeAgent):
         context_snapshot: dict,
         deps: AIDeps,
     ) -> SentimentResult:
-        from app.ai.langgraph.prompts import build_sentiment_prompt
+        from app.ai.agents.helpers import build_sentiment_prompt
 
         prompt = build_sentiment_prompt(
             response=response,
