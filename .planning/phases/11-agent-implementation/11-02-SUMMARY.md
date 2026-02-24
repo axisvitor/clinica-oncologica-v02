@@ -66,7 +66,20 @@ Each task was committed atomically:
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+### Auto-fixed Issues
+
+**1. [Rule 3 - Blocking] STATE.md automation parser mismatch during metadata updates**
+- **Found during:** Post-task state update
+- **Issue:** `gsd-tools state advance-plan`, `state update-progress`, and `state record-session` could not parse current STATE.md section labels.
+- **Fix:** Applied successful automated updates where available (`state record-metric`, `state add-decision`, roadmap and requirements updates) and manually updated STATE.md position/session fields.
+- **Files modified:** `.planning/STATE.md`
+- **Verification:** State file reflects plan progression to 11-02 and includes new Phase 11 decisions.
+- **Committed in:** `18bc90f9`
+
+---
+
+**Total deviations:** 1 auto-fixed (1 blocking)
+**Impact on plan:** No scope creep; only execution metadata handling required manual fallback.
 
 ## Authentication Gates
 
@@ -74,7 +87,7 @@ None.
 
 ## Issues Encountered
 
-None.
+- `state advance-plan`/`state update-progress` helpers failed to parse this repository's STATE.md format; metadata update completed with targeted manual edits.
 
 ## User Setup Required
 
