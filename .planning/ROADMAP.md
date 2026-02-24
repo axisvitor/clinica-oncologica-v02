@@ -104,12 +104,12 @@ Plans:
   1. `GeminiClient._initialize_model()` creates a `google.genai.Client` instance directly — no `ChatGoogleGenerativeAI`, no `HumanMessage` from langchain-core anywhere in `client.py`
   2. `langchain-google-genai` is absent from `requirements.txt` and `pip check` passes — confirmed by `grep -r "langchain" requirements.txt` returning zero results
   3. All Celery tasks that call AI agents use `agent.run_sync()` directly — a 100-task sequential load test completes without `RuntimeError: Event loop is closed` errors
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 13-01: GeminiClient._initialize_model() migrated to direct google-genai SDK
-- [ ] 13-02: langchain-google-genai removal + zero-LangChain import verification
-- [ ] 13-03: Celery tasks migrated to agent.run_sync() + 100-task load test validation
+- [ ] 13-01-PLAN.md — GeminiClient + PatientSummaryService migrated to google-genai SDK
+- [ ] 13-02-PLAN.md — Collapse feature-flag shims, purge all langchain references, permanent CI gate
+- [ ] 13-03-PLAN.md — PIISafeAgent._safe_run_sync() Celery bridge + 100-task load test
 
 ## Progress
 
