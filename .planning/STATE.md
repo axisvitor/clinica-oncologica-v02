@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Phase 14 — Flow Control Fixes
+**Current focus:** Phase 15 — Data Integrity Fixes
 
 ## Current Position
 
-Phase: 14 of 19 — v1.3 active (Flow Control Fixes)
-Plan: Complete (3/3) — next 15-01-PLAN.md
-Status: Phase 14 complete
-Last activity: 2026-02-24 — completed 14-03 cancel flow endpoint and cleanup
+Phase: 15 of 19 — v1.3 active (Data Integrity Fixes)
+Plan: In progress (1/3 complete) — remaining 15-01-PLAN.md, 15-03-PLAN.md
+Status: Phase 15 in progress
+Last activity: 2026-02-24 — completed 15-02 graceful quiz template fallback
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██░░░░░░░░ 25%
 
 ## Performance Metrics
 
@@ -32,6 +32,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 14 P01 | 9 min | 2 tasks | 4 files |
 | Phase 14 P02 | 1 min | 2 tasks | 3 files |
 | Phase 14 P03 | 10 min | 2 tasks | 5 files |
+| Phase 15-data-integrity-fixes P02 | 3 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -50,6 +51,8 @@ Recent decisions affecting v1.3:
 - [Phase 14]: resume_paused_flows uses FlowManagementService.resume_patient_flow to keep state_data pause semantics consistent
 - [Phase 14]: Cancel overrides paused state directly and finalizes the current flow instance by setting completed_at.
 - [Phase 14]: Cancellation revokes queued Celery tasks from message metadata and marks pending/scheduled outbound messages as cancelled.
+- [Phase 15-data-integrity-fixes]: Quiz template resolution in trigger flow now fails soft (fallback metadata + warning log) instead of raising.
+- [Phase 15-data-integrity-fixes]: Monthly quiz link integration validates template existence before link creation and returns graceful fallback payload when missing.
 
 ### Pending Todos
 
@@ -66,5 +69,5 @@ Carried tech debt (not v1.3-scoped):
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 14-03-PLAN.md
+Stopped at: Completed 15-02-PLAN.md
 Resume file: None
