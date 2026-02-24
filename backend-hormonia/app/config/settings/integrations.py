@@ -133,6 +133,14 @@ class IntegrationsSettings(BaseAppSettings):
             "Toggle at runtime via environment variable."
         ),
     )
+    AI_FLOW_FRAMEWORK: str = Field(
+        default="legacy",
+        description=(
+            "Flow orchestration framework: 'legacy' uses LangGraph StateGraph, "
+            "'direct' uses direct async Python functions. "
+            "Toggle at runtime via environment variable."
+        ),
+    )
 
     # LangChain Configuration - Direct ENV names
     AI_LANGCHAIN_ENABLE_TRACING_V2: bool = Field(

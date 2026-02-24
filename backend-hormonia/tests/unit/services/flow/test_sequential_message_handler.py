@@ -30,8 +30,8 @@ def mock_db():
     """Create a mock database session."""
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = None
-    db.commit = MagicMock()
-    db.rollback = MagicMock()
+    db.commit = AsyncMock()
+    db.rollback = AsyncMock()
     return db
 
 
@@ -133,6 +133,80 @@ class TestSkipForMissingDayConfig:
         )
         
         assert "day 6" in result["message"].lower()
+
+
+class TestDirectFlowFunctions:
+    @pytest.mark.asyncio
+    async def test_send_day_messages_uses_direct_function_when_flag_enabled(
+        self, handler, mock_patient, monkeypatch
+    ):
+        def _unexpected_graph():
+            raise AssertionError("Legacy flow_message graph path should not run")
+
+        monkeypatch.setattr(
+            "app.config.settings.AI_FLOW_FRAMEWORK", "direct", raising=False
+        )
+        monkeypatch.setattr(
+            "app.services.flow.sequential_message_handler.get_flow_message_graph",
+            _unexpected_graph,
+        )
+
+        mock_direct_call = AsyncMock(return_value={"status": "ok", "mode": "direct"})
+        with patch(
+            "app.services.flow._flow_functions.run_flow_message",
+            new=mock_direct_call,
+        ):
+            result = await handler.send_day_messages(
+                patient_id=mock_patient.id,
+                day_number=3,
+                flow_kind="onboarding",
+            )
+
+        assert result == {"status": "ok", "mode": "direct"}
+        mock_direct_call.assert_awaited_once_with(
+            patient_id=mock_patient.id,
+            day_number=3,
+            flow_kind="onboarding",
+            handler=handler,
+        )
+
+    @pytest.mark.asyncio
+    async def test_handle_response_uses_direct_function_when_flag_enabled(
+        self, handler, mock_patient, monkeypatch
+    ):
+        def _unexpected_graph():
+            raise AssertionError("Legacy flow_response graph path should not run")
+
+        response_context = {
+            "flow_day": 2,
+            "flow_kind": "onboarding",
+            "message_index": 1,
+            "prompt_message_id": str(uuid4()),
+        }
+        monkeypatch.setattr(
+            "app.config.settings.AI_FLOW_FRAMEWORK", "direct", raising=False
+        )
+        monkeypatch.setattr(
+            "app.services.flow.sequential_message_handler.get_flow_response_graph",
+            _unexpected_graph,
+        )
+
+        mock_direct_call = AsyncMock(return_value={"status": "waiting", "mode": "direct"})
+        with patch(
+            "app.services.flow._flow_functions.run_flow_response",
+            new=mock_direct_call,
+        ):
+            result = await handler.handle_response_and_continue(
+                patient_id=mock_patient.id,
+                response_context=response_context,
+            )
+
+        assert result == {"status": "waiting", "mode": "direct"}
+        mock_direct_call.assert_awaited_once_with(
+            patient_id=mock_patient.id,
+            response_context=response_context,
+            handler=handler,
+        )
 
 
 class TestDayChangeWaitingBehavior:

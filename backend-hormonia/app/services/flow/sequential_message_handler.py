@@ -124,6 +124,20 @@ class SequentialMessageHandler:
         Returns:
             Dict with status and messages sent info
         """
+        if self._use_direct_flow_functions():
+            try:
+                from app.services.flow._flow_functions import run_flow_message
+
+                return await run_flow_message(
+                    patient_id=patient_id,
+                    day_number=day_number,
+                    flow_kind=flow_kind,
+                    handler=self,
+                )
+            except Exception as e:
+                logger.exception("Error sending day messages via direct flow function")
+                return {"status": "error", "message": str(e)}
+
         try:
             graph = get_flow_message_graph()
             state = await graph.ainvoke(
@@ -173,6 +187,21 @@ class SequentialMessageHandler:
         Returns:
             Dict with status and next action info
         """
+        if self._use_direct_flow_functions():
+            try:
+                from app.services.flow._flow_functions import run_flow_response
+
+                return await run_flow_response(
+                    patient_id=patient_id,
+                    response_context=response_context,
+                    handler=self,
+                )
+            except Exception as e:
+                logger.exception(
+                    "Error handling response continuation via direct flow function"
+                )
+                return {"status": "error", "message": str(e)}
+
         try:
             graph = get_flow_response_graph()
             graph_state: Dict[str, Any] = {"patient_id": patient_id}
@@ -310,6 +339,11 @@ class SequentialMessageHandler:
 
     def _build_flow_response_thread_id(self, patient_id: UUID) -> str:
         return f"flow_response:{patient_id}"
+
+    def _use_direct_flow_functions(self) -> bool:
+        from app.config import settings
+
+        return getattr(settings, "AI_FLOW_FRAMEWORK", "legacy") == "direct"
 
     async def _send_flow_message(
         self,
