@@ -123,7 +123,7 @@ class EmpathyGenerator(BaseGenerator):
         """
         try:
             from app.ai.client import get_gemini_client
-            from app.ai.langgraph.prompts import build_empathetic_prompt
+            from app.ai.agents.helpers import build_empathetic_prompt
             from app.ai.context_compactor import compact_patient_context
             from app.services.ai.output_profiles import MESSAGE_HUMANIZED
 

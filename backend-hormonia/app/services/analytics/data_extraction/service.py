@@ -425,8 +425,10 @@ class DataExtractionService:
 
             # Check sentiment analyzer (Phase 8 AI-03: direct generate_content call)
             try:
-                from app.ai.langgraph.nodes_ai import _parse_sentiment_analysis
-                from app.ai.langgraph.prompts import build_sentiment_prompt
+                from app.ai.agents.helpers import (
+                    _parse_sentiment_analysis,
+                    build_sentiment_prompt,
+                )
                 from app.ai.context_compactor import compact_patient_context
                 from app.services.ai.output_profiles import JSON_SENTIMENT
                 test_context = PatientContext(

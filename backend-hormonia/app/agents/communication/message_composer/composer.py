@@ -313,8 +313,11 @@ class MessageComposer:
     ) -> str:
         """Compose message using AI instructions from template."""
         try:
-            from app.ai.langgraph.nodes_ai import _coerce_recent_interactions, _replace_patient_name
-            from app.ai.langgraph.prompts import build_humanization_prompt
+            from app.ai.agents.helpers import (
+                _coerce_recent_interactions,
+                _replace_patient_name,
+                build_humanization_prompt,
+            )
 
             patient_name = context.get("patient_name", "")
             recent_interactions = _coerce_recent_interactions(

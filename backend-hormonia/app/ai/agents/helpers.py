@@ -17,5 +17,6 @@ from app.ai.langgraph.nodes_ai import (  # noqa: F401
     _coerce_recent_interactions,
     _extract_recent_questions,
     _is_too_similar_to_recent,
+    _parse_sentiment_analysis,
     _replace_patient_name,
 )

@@ -81,8 +81,11 @@ class GeminiDomainClient(GeminiClient):
                 deps=deps,
             )
 
-        from app.ai.langgraph.nodes_ai import _coerce_recent_interactions, _replace_patient_name
-        from app.ai.langgraph.prompts import build_humanization_prompt
+        from app.ai.agents.helpers import (
+            _coerce_recent_interactions,
+            _replace_patient_name,
+            build_humanization_prompt,
+        )
 
         context = {**(patient_context or {}), "patient_name": patient_name}
         recent_interactions = _coerce_recent_interactions(
@@ -148,14 +151,14 @@ class GeminiDomainClient(GeminiClient):
                 deps=deps,
             )
 
-        from app.ai.langgraph.nodes_ai import (
+        from app.ai.agents.helpers import (
+            _build_non_repetitive_question,
             _coerce_recent_interactions,
             _extract_recent_questions,
             _is_too_similar_to_recent,
-            _build_non_repetitive_question,
             _replace_patient_name,
+            build_question_variation_prompt,
         )
-        from app.ai.langgraph.prompts import build_question_variation_prompt
 
         context = patient_context or {}
         patient_name = context.get("patient_name") or context.get("name") or ""
@@ -210,8 +213,10 @@ class GeminiDomainClient(GeminiClient):
             )
             return result.model_dump()
 
-        from app.ai.langgraph.nodes_ai import _parse_sentiment_analysis
-        from app.ai.langgraph.prompts import build_sentiment_prompt
+        from app.ai.agents.helpers import (
+            _parse_sentiment_analysis,
+            build_sentiment_prompt,
+        )
         from app.ai.context_compactor import compact_patient_context
 
         context_snapshot = compact_patient_context(patient_context or {})
@@ -267,7 +272,7 @@ class GeminiDomainClient(GeminiClient):
                 deps=deps,
             )
 
-        from app.ai.langgraph.prompts import build_empathetic_prompt
+        from app.ai.agents.helpers import build_empathetic_prompt
         from app.ai.context_compactor import compact_patient_context
 
         context_snapshot = compact_patient_context(patient_context or {})

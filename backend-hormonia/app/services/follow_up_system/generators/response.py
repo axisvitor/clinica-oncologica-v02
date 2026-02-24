@@ -110,7 +110,7 @@ class ResponseGenerator(BaseGenerator):
         """
         try:
             from app.ai.client import get_gemini_client
-            from app.ai.langgraph.prompts import build_empathetic_prompt
+            from app.ai.agents.helpers import build_empathetic_prompt
             from app.ai.context_compactor import compact_patient_context
 
             client = get_gemini_client()

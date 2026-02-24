@@ -417,8 +417,11 @@ class EnhancedFlowEngine(FlowCore):
                     )
                 else:
                     # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
-                    from app.ai.langgraph.nodes_ai import _coerce_recent_interactions, _replace_patient_name
-                    from app.ai.langgraph.prompts import build_humanization_prompt
+                    from app.ai.agents.helpers import (
+                        _coerce_recent_interactions,
+                        _replace_patient_name,
+                        build_humanization_prompt,
+                    )
                     recent_interactions = _coerce_recent_interactions(
                         flow_context.to_dict().get("recent_interactions"),
                         fallback_history=conversation_history,
@@ -555,8 +558,10 @@ class EnhancedFlowEngine(FlowCore):
 
             if not isinstance(sentiment_analysis, dict):
                 # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
-                from app.ai.langgraph.nodes_ai import _parse_sentiment_analysis
-                from app.ai.langgraph.prompts import build_sentiment_prompt
+                from app.ai.agents.helpers import (
+                    _parse_sentiment_analysis,
+                    build_sentiment_prompt,
+                )
                 from app.ai.context_compactor import compact_patient_context
                 try:
                     context_snapshot = compact_patient_context(patient_context)
