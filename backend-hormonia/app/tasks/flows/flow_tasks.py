@@ -98,12 +98,25 @@ async def process_daily_flows_async(limit: int = 1000) -> dict[str, Any]:
             "start_time": now_sao_paulo().isoformat(),
         }
 
-        # Filter out paused flows
+        # Filter out paused flows based on state_data as source of truth
+        active_flows_before = active_flows
+        paused_count = len(
+            [
+                flow
+                for flow in active_flows_before
+                if flow.state_data and flow.state_data.get("paused")
+            ]
+        )
         active_flows = [
             flow
-            for flow in active_flows
-            if not (flow.step_data and flow.step_data.get("paused"))
+            for flow in active_flows_before
+            if not (flow.state_data and flow.state_data.get("paused"))
         ]
+        if paused_count:
+            logger.info(
+                "Filtered out %s paused flows from daily processing",
+                paused_count,
+            )
 
         logger.info(
             f"Processing {len(active_flows)} active flows in batches of {FLOW_BATCH_SIZE}"

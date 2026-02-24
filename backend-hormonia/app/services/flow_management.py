@@ -299,7 +299,7 @@ class FlowManagementService:
                 return FlowPauseResponse(
                     success=True,
                     patient_id=patient_id,
-                    flow_id=flow_state.id,
+                    flow_state_id=flow_state.id,
                     status="paused",
                     reason=reason,
                     paused_at=flow_state.state_data["paused_at"],
@@ -340,7 +340,7 @@ class FlowManagementService:
             return FlowPauseResponse(
                 success=True,
                 patient_id=patient_id,
-                flow_id=flow_state.id,
+                flow_state_id=flow_state.id,
                 status="paused",
                 reason=reason,
                 paused_at=flow_state.state_data["paused_at"],
@@ -409,7 +409,7 @@ class FlowManagementService:
             return FlowResumeResponse(
                 success=True,
                 patient_id=patient_id,
-                flow_id=flow_state.id,
+                flow_state_id=flow_state.id,
                 status="active",
                 resumed_at=flow_state.state_data["resumed_at"],
                 message="Patient flow resumed successfully",
