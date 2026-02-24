@@ -10,17 +10,40 @@ Tests cover:
 
 import pytest
 import asyncio
+import sys
+import types
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 from datetime import datetime, timezone
 
+
+if "app.services.unified_whatsapp_service" not in sys.modules:
+    whatsapp_module = types.ModuleType("app.services.unified_whatsapp_service")
+
+    class UnifiedWhatsAppService:  # pragma: no cover - test shim
+        def __init__(self, db):
+            self.db = db
+
+        async def send_message(self, message, flow_context=None):
+            return True
+
+    whatsapp_module.UnifiedWhatsAppService = UnifiedWhatsAppService
+    sys.modules["app.services.unified_whatsapp_service"] = whatsapp_module
+
+if "app.services.enhanced_flow_engine" not in sys.modules:
+    engine_module = types.ModuleType("app.services.enhanced_flow_engine")
+
+    class EnhancedFlowEngine:  # pragma: no cover - test shim
+        def __init__(self, db):
+            self.db = db
+
+        async def generate_flow_message(self, **kwargs):
+            return None
+
+    engine_module.EnhancedFlowEngine = EnhancedFlowEngine
+    sys.modules["app.services.enhanced_flow_engine"] = engine_module
+
 from app.services.flow.sequential_message_handler import SequentialMessageHandler
-from app.ai.langgraph.nodes import (
-    load_flow_context,
-    dispatch_send_mode,
-    load_response_context,
-    dispatch_response_continuation,
-)
 from app.models.flow import PatientFlowState
 from app.models.patient import Patient
 
@@ -66,37 +89,10 @@ def handler(mock_db):
     return handler
 
 
-class _FlowGraphStub:
-    async def ainvoke(self, state, config=None):
-        updates = await load_flow_context(state, config=config)
-        state = {**state, **updates}
-        if state.get("result"):
-            return state
-        updates = await dispatch_send_mode(state, config=config)
-        return {**state, **updates}
-
-
-class _ResponseGraphStub:
-    async def ainvoke(self, state, config=None):
-        updates = await load_response_context(state, config=config)
-        state = {**state, **updates}
-        if state.get("result"):
-            return state
-        updates = await dispatch_response_continuation(state, config=config)
-        return {**state, **updates}
-
-
 @pytest.fixture(autouse=True)
-def mock_langgraph_graphs(monkeypatch):
-    """Stub LangGraph to avoid dependency for unit tests."""
-    monkeypatch.setattr(
-        "app.services.flow.sequential_message_handler.get_flow_message_graph",
-        lambda: _FlowGraphStub(),
-    )
-    monkeypatch.setattr(
-        "app.services.flow.sequential_message_handler.get_flow_response_graph",
-        lambda: _ResponseGraphStub(),
-    )
+def force_direct_flow_framework(monkeypatch):
+    """Run tests against direct flow orchestration path."""
+    monkeypatch.setattr("app.config.settings.AI_FLOW_FRAMEWORK", "direct", raising=False)
 
 
 class TestSkipForMissingDayConfig:
@@ -140,15 +136,8 @@ class TestDirectFlowFunctions:
     async def test_send_day_messages_uses_direct_function_when_flag_enabled(
         self, handler, mock_patient, monkeypatch
     ):
-        def _unexpected_graph():
-            raise AssertionError("Legacy flow_message graph path should not run")
-
         monkeypatch.setattr(
             "app.config.settings.AI_FLOW_FRAMEWORK", "direct", raising=False
-        )
-        monkeypatch.setattr(
-            "app.services.flow.sequential_message_handler.get_flow_message_graph",
-            _unexpected_graph,
         )
 
         mock_direct_call = AsyncMock(return_value={"status": "ok", "mode": "direct"})
@@ -174,9 +163,6 @@ class TestDirectFlowFunctions:
     async def test_handle_response_uses_direct_function_when_flag_enabled(
         self, handler, mock_patient, monkeypatch
     ):
-        def _unexpected_graph():
-            raise AssertionError("Legacy flow_response graph path should not run")
-
         response_context = {
             "flow_day": 2,
             "flow_kind": "onboarding",
@@ -185,10 +171,6 @@ class TestDirectFlowFunctions:
         }
         monkeypatch.setattr(
             "app.config.settings.AI_FLOW_FRAMEWORK", "direct", raising=False
-        )
-        monkeypatch.setattr(
-            "app.services.flow.sequential_message_handler.get_flow_response_graph",
-            _unexpected_graph,
         )
 
         mock_direct_call = AsyncMock(return_value={"status": "waiting", "mode": "direct"})
@@ -389,16 +371,10 @@ class TestResponseContextCorrelation:
     async def test_handle_response_and_continue_forwards_response_context(
         self, handler, mock_patient, monkeypatch
     ):
-        captured_state = {}
-
-        class _CapturingResponseGraph:
-            async def ainvoke(self, state, config=None):
-                captured_state.update(state)
-                return {"result": {"status": "waiting"}}
-
+        mock_direct_call = AsyncMock(return_value={"status": "waiting"})
         monkeypatch.setattr(
-            "app.services.flow.sequential_message_handler.get_flow_response_graph",
-            lambda: _CapturingResponseGraph(),
+            "app.services.flow._flow_functions.run_flow_response",
+            mock_direct_call,
         )
 
         response_context = {
@@ -415,30 +391,30 @@ class TestResponseContextCorrelation:
         )
 
         assert result["status"] == "waiting"
-        assert captured_state["patient_id"] == mock_patient.id
-        assert captured_state["response_context"] == response_context
+        mock_direct_call.assert_awaited_once_with(
+            patient_id=mock_patient.id,
+            response_context=response_context,
+            handler=handler,
+        )
 
     @pytest.mark.asyncio
     async def test_handle_response_and_continue_keeps_backward_compatibility(
         self, handler, mock_patient, monkeypatch
     ):
-        captured_state = {}
-
-        class _CapturingResponseGraph:
-            async def ainvoke(self, state, config=None):
-                captured_state.update(state)
-                return {"result": {"status": "ok"}}
-
+        mock_direct_call = AsyncMock(return_value={"status": "ok"})
         monkeypatch.setattr(
-            "app.services.flow.sequential_message_handler.get_flow_response_graph",
-            lambda: _CapturingResponseGraph(),
+            "app.services.flow._flow_functions.run_flow_response",
+            mock_direct_call,
         )
 
         result = await handler.handle_response_and_continue(mock_patient.id)
 
         assert result["status"] == "ok"
-        assert captured_state["patient_id"] == mock_patient.id
-        assert "response_context" not in captured_state
+        mock_direct_call.assert_awaited_once_with(
+            patient_id=mock_patient.id,
+            response_context=None,
+            handler=handler,
+        )
 
 
 class TestAIPersonalizationHardening:
