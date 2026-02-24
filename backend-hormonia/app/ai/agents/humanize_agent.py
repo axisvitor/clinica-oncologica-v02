@@ -79,3 +79,27 @@ class HumanizeAgent(PIISafeAgent):
             recent_interactions=recent_interactions,
         )
         return await self._safe_run(prompt, deps, operation="humanize")
+
+    def humanize_sync(
+        self,
+        template: str,
+        patient_name: str,
+        patient_context: dict,
+        conversation_history: list,
+        personalization_hints: list,
+        ai_instructions: str | None,
+        deps: AIDeps,
+    ) -> str:
+        del personalization_hints
+        context = {**(patient_context or {}), "patient_name": patient_name}
+        recent_interactions = _coerce_recent_interactions(
+            context.get("recent_interactions"),
+            fallback_history=conversation_history or [],
+        )
+        template_with_name = _replace_patient_name(template, patient_name)
+        prompt = build_humanization_prompt(
+            template=template_with_name,
+            ai_instructions=ai_instructions,
+            recent_interactions=recent_interactions,
+        )
+        return self._safe_run_sync(prompt, deps, operation="humanize")

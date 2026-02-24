@@ -87,3 +87,32 @@ class VariationAgent(PIISafeAgent):
         if _is_too_similar_to_recent(output, recent_questions):
             output = _build_non_repetitive_question(base_question, recent_questions)
         return output
+
+    def vary_sync(
+        self,
+        base_question: str,
+        previous_questions: list,
+        patient_context: dict,
+        ai_instructions: str | None,
+        deps: AIDeps,
+    ) -> str:
+        context = patient_context or {}
+        patient_name = context.get("patient_name") or context.get("name") or ""
+        recent_interactions = _coerce_recent_interactions(
+            context.get("recent_interactions"),
+            fallback_history=previous_questions or [],
+        )
+        recent_questions = _extract_recent_questions(
+            recent_interactions,
+            previous_questions or [],
+        )
+        question_with_name = _replace_patient_name(base_question, patient_name)
+        prompt = build_question_variation_prompt(
+            base_question=question_with_name,
+            ai_instructions=ai_instructions,
+            recent_interactions=recent_interactions,
+        )
+        output = self._safe_run_sync(prompt, deps, operation="variation")
+        if _is_too_similar_to_recent(output, recent_questions):
+            output = _build_non_repetitive_question(base_question, recent_questions)
+        return output

@@ -143,3 +143,17 @@ class SentimentAgent(PIISafeAgent):
             context_snapshot=context_snapshot or {},
         )
         return await self._safe_run(prompt, deps, operation="sentiment")
+
+    def analyze_sync(
+        self,
+        response: str,
+        context_snapshot: dict,
+        deps: AIDeps,
+    ) -> SentimentResult:
+        from app.ai.agents.helpers import build_sentiment_prompt
+
+        prompt = build_sentiment_prompt(
+            response=response,
+            context_snapshot=context_snapshot or {},
+        )
+        return self._safe_run_sync(prompt, deps, operation="sentiment")

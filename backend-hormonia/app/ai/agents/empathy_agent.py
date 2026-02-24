@@ -71,3 +71,22 @@ class EmpathyAgent(PIISafeAgent):
             day_complete=False,
         )
         return await self._safe_run(prompt, deps, operation="empathy")
+
+    def follow_up_sync(
+        self,
+        patient_response: str,
+        conversation_history: list,
+        patient_context: dict,
+        few_shot_examples: list | None,
+        deps: AIDeps,
+    ) -> str:
+        context_snapshot = compact_patient_context(patient_context or {})
+        prompt = build_empathetic_prompt(
+            patient_response=patient_response,
+            conversation_history=conversation_history or [],
+            context_snapshot=context_snapshot,
+            examples=few_shot_examples or [],
+            allow_questions=False,
+            day_complete=False,
+        )
+        return self._safe_run_sync(prompt, deps, operation="empathy")
