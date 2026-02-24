@@ -43,6 +43,11 @@ langchain-core>=1.2.7,<2.0.0  # Core abstractions (NumPy 2.x compatible)
 langchain-google-genai>=2.1.12,<4.0.0  # Google Gemini integration via LangChain
 google-ai-generativelanguage>=0.7.0,<1.0.0  # Gemini API dependency (Python 3.13 compatible)
 langgraph>=1.0.7,<2.0.0  # LangGraph orchestration (Python 3.13 compatible)
+# pydantic-ai-slim: Typed AI agents with Gemini support (v1.2 migration)
+# Pin <2.0.0: V2 planned for April 2026 with breaking API changes
+# [google]: pulls google-genai SDK (unified Google GenAI client)
+# [retries]: uses tenacity (already installed) for HTTP-level retry transport
+pydantic-ai-slim[google,retries]>=1.63.0,<2.0.0
 
 # Google API dependencies - Python 3.13 compatible (fixes pkg_resources deprecation)
 # NOTE: Removed gRPC dependencies to avoid Protobuf 6.x requirement (using HTTP-only OTLP)
