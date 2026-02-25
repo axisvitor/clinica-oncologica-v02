@@ -15,6 +15,15 @@ from app.utils.timezone import now_sao_paulo
 logger = logging.getLogger(__name__)
 
 
+def _compat_now_sao_paulo():
+    try:
+        from app.services import flow_management as legacy_flow_management
+
+        return legacy_flow_management.now_sao_paulo()
+    except Exception:
+        return now_sao_paulo()
+
+
 class FlowManagementPauseResumeMixin:
     async def pause_patient_flow(
         self,
@@ -53,16 +62,16 @@ class FlowManagementPauseResumeMixin:
                     or flow_state.state_data.get("pause_reason")
                     or "Manual pause by healthcare provider"
                 )
-                flow_state.state_data["paused_at"] = now_sao_paulo().isoformat()
+                flow_state.state_data["paused_at"] = _compat_now_sao_paulo().isoformat()
 
                 auto_resume_at = flow_state.state_data.get("auto_resume_at")
                 if duration_hours:
-                    resume_at = now_sao_paulo() + timedelta(hours=duration_hours)
+                    resume_at = _compat_now_sao_paulo() + timedelta(hours=duration_hours)
                     flow_state.state_data["auto_resume_at"] = resume_at.isoformat()
                     auto_resume_at = resume_at.isoformat()
 
                 flow_state.status = "paused"
-                flow_state.last_interaction_at = now_sao_paulo()
+                flow_state.last_interaction_at = _compat_now_sao_paulo()
                 expected_version = flow_state.version
                 flow_state.version = expected_version + 1
                 self.db.commit()
@@ -88,19 +97,19 @@ class FlowManagementPauseResumeMixin:
             flow_state.state_data["pause_reason"] = (
                 reason or "Manual pause by healthcare provider"
             )
-            flow_state.state_data["paused_at"] = now_sao_paulo().isoformat()
+            flow_state.state_data["paused_at"] = _compat_now_sao_paulo().isoformat()
 
             if user_id:
                 flow_state.state_data["paused_by"] = str(user_id)
 
             auto_resume_at = None
             if duration_hours:
-                resume_at = now_sao_paulo() + timedelta(hours=duration_hours)
+                resume_at = _compat_now_sao_paulo() + timedelta(hours=duration_hours)
                 flow_state.state_data["auto_resume_at"] = resume_at.isoformat()
                 auto_resume_at = resume_at.isoformat()
 
             flow_state.status = "paused"
-            flow_state.last_interaction_at = now_sao_paulo()
+            flow_state.last_interaction_at = _compat_now_sao_paulo()
             expected_version = flow_state.version
             flow_state.version = expected_version + 1
             self.db.commit()
@@ -155,7 +164,7 @@ class FlowManagementPauseResumeMixin:
                 raise FlowStateConflictError("Flow is not currently paused")
 
             flow_state.state_data["paused"] = False
-            flow_state.state_data["resumed_at"] = now_sao_paulo().isoformat()
+            flow_state.state_data["resumed_at"] = _compat_now_sao_paulo().isoformat()
 
             if user_id:
                 flow_state.state_data["resumed_by"] = str(user_id)
@@ -163,7 +172,7 @@ class FlowManagementPauseResumeMixin:
             flow_state.state_data.pop("auto_resume_at", None)
 
             flow_state.status = "active"
-            flow_state.last_interaction_at = now_sao_paulo()
+            flow_state.last_interaction_at = _compat_now_sao_paulo()
             expected_version = flow_state.version
             flow_state.version = expected_version + 1
             self.db.commit()
@@ -235,7 +244,7 @@ class FlowManagementPauseResumeMixin:
                             f"Failed to revoke Celery task for message {message.id}: {exc}"
                         )
 
-            now = now_sao_paulo()
+            now = _compat_now_sao_paulo()
             flow_state.status = "cancelled"
             flow_state.completed_at = now
             flow_state.last_interaction_at = now

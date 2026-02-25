@@ -28,8 +28,15 @@ class FlowManagementService(
     ):
         self.flow_repo = flow_repo
         self.db = db
+        engine_class = EnhancedFlowEngine
+        try:
+            from app.services import flow_management as legacy_flow_management
+
+            engine_class = legacy_flow_management.EnhancedFlowEngine
+        except Exception:
+            pass
         self.enhanced_flow_engine = (
-            flow_engine if flow_engine is not None else EnhancedFlowEngine(db)
+            flow_engine if flow_engine is not None else engine_class(db)
         )
 
 
