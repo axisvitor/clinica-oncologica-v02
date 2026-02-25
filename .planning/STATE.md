@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Flow Health & Cleanup
 status: unknown
-last_updated: "2026-02-25T22:24:26.471Z"
+last_updated: "2026-02-25T23:30:09.701Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 19
-  completed_plans: 19
+  total_plans: 20
+  completed_plans: 20
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 17 of 19 — v1.3 active (Flow Core Splits)
-Plan: 17-08 executed (8/8) — audit_logs constraint guard closure evidence captured
-Status: Phase 17 plans complete; audit_logs blocker closed, fail-fast now blocked by patient create endpoint validation mismatch
-Last activity: 2026-02-25 — executed 17-08 valid_event_category guard rollout and captured new fail-fast first-failure evidence
+Plan: 17-09 executed (9/9) — root get_async_db override landed with fresh fail-fast evidence
+Status: Phase 17 plans complete; async-session coroutine/scalars blocker closed, fail-fast still blocked by patient-create saga payload/model mismatch
+Last activity: 2026-02-25 — executed 17-09 root async DB override and recorded distinct patient onboarding saga blocker
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
@@ -61,6 +61,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 17-flow-core-splits P06 | 14 min | 2 tasks | 4 files |
 | Phase 17 P07 | 32 min | 2 tasks | 3 files |
 | Phase 17-flow-core-splits P08 | 17 min | 2 tasks | 4 files |
+| Phase 17-flow-core-splits P09 | 18 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,8 @@ Recent decisions affecting v1.3:
 - [Phase 17]: Notifications fail-fast blocker is closed; next blocker is audit_logs valid_event_category constraint compatibility
 - [Phase 17-flow-core-splits]: Use test-time valid_event_category constraint rewrite to align HIPAA uppercase and production lowercase audit categories without migration changes
 - [Phase 17-flow-core-splits]: Set user_activity fixture event_category to SYSTEM while keeping user_action allowed in broadened constraint guard
+- [Phase 17-flow-core-splits]: Override get_async_db in root client fixture so AsyncSession endpoints run inside test transaction boundaries.
+- [Phase 17-flow-core-splits]: Keep fail-fast rerun evidence even when gate remains red, explicitly separating closed async-session blocker from new saga payload blocker.
 
 ### Pending Todos
 
@@ -129,5 +132,5 @@ Carried tech debt (not v1.3-scoped):
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 17-08-PLAN.md
+Stopped at: Completed 17-flow-core-splits-09-PLAN.md
 Resume file: None
