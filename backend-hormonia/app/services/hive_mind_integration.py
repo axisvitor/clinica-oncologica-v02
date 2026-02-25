@@ -18,6 +18,7 @@ from app.services.enhanced_flow_engine import EnhancedFlowEngine
 from app.services.template_loader_pkg import EnhancedTemplateLoader
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState
+from app.agents.patient.flow_coordinator.constants import resolve_flow_type_and_day
 from app.utils.logging import get_logger
 from app.utils.timezone import now_sao_paulo, SAO_PAULO_TZ
 
@@ -508,16 +509,7 @@ class HiveMindIntegrationService:
                     if current_day <= 0:
                         current_day = 1
 
-                    if current_day <= 15:
-                        flow_kind = "onboarding"
-                        day_in_flow = current_day
-                    elif current_day <= 45:
-                        flow_kind = "daily_follow_up"
-                        day_in_flow = current_day
-                    else:
-                        flow_kind = "quiz_mensal"
-                        day_in_cycle = (current_day - 46) % 30
-                        day_in_flow = day_in_cycle + 1
+                    flow_kind, day_in_flow = resolve_flow_type_and_day(current_day)
 
                     flow_result = await handler.send_day_messages(
                         patient_id=patient.id,

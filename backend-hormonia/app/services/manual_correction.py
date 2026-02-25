@@ -11,6 +11,11 @@ import json
 from redis import Redis
 
 from app.models.flow import PatientFlowState
+from app.agents.patient.flow_coordinator.constants import (
+    ONBOARDING_END_DAY,
+    DAILY_FOLLOWUP_END_DAY,
+    compute_cycle_number,
+)
 from app.repositories.flow import FlowStateRepository
 from app.services.data_corruption import DataCorruptionDetector
 from app.services.enhanced_flow_engine import FlowType
@@ -331,17 +336,15 @@ class ManualCorrectionService:
             ).days + 1
 
             # Determine correct flow type and day
-            if days_since_enrollment <= 15:
+            if days_since_enrollment <= ONBOARDING_END_DAY:
                 new_flow_type = FlowType.ONBOARDING.value
                 new_day = days_since_enrollment
-            elif days_since_enrollment <= 45:
+            elif days_since_enrollment <= DAILY_FOLLOWUP_END_DAY:
                 new_flow_type = FlowType.DAILY_FOLLOW_UP.value
                 new_day = days_since_enrollment
             else:
                 new_flow_type = FlowType.QUIZ_MENSAL.value
-                # Calculate monthly cycle and day
-                monthly_cycle = ((days_since_enrollment - 46) // 30) + 1
-                new_day = ((days_since_enrollment - 46) % 30) + 1
+                monthly_cycle, new_day = compute_cycle_number(days_since_enrollment)
                 flow_state.monthly_cycle = monthly_cycle
 
             # Update flow state
