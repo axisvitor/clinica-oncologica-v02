@@ -119,12 +119,12 @@ Plans:
   2. Each new module has a single clear responsibility (e.g., phase transitions do not live in the same module as template binding)
   3. All existing callers of `_flow_functions`, `flow_core`, and `flow_management` continue to work via re-export shims at the original paths
   4. The full test suite passes after the split with no new failures
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 17-01: Split `_flow_functions.py` into message flow + response flow + orchestration utils
-- [ ] 17-02: Split `flow_core.py` into base operations + phase transitions + template binding
-- [ ] 17-03: Split `flow_management.py` into state management + advancement + pause/resume
+- [x] 17-01-PLAN.md — Split `_flow_functions.py` into focused message/response/orchestration modules with compatibility shim
+- [ ] 17-02-PLAN.md — Split `flow_core.py` into operations, transitions, and template-binding modules with compatibility shim
+- [ ] 17-03-PLAN.md — Split `flow_management.py` into state queries, advancement, and pause/resume modules with compatibility shim
 
 ### Phase 18: Flow Service Splits
 **Goal**: The four oversized flow service files (sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring) are split into focused modules, each under 500 lines.
@@ -180,10 +180,10 @@ Plans:
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
-| 17. Flow Core Splits | v1.3 | 0/3 | Not started | - |
+| 17. Flow Core Splits | 2/3 | In Progress|  | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-25 — Phase 16 in progress (2/3)*
+*Last updated: 2026-02-25 — Phase 17 in progress (1/3)*

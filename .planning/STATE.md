@@ -1,3 +1,16 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: Flow Health & Cleanup
+status: unknown
+last_updated: "2026-02-25T15:47:07.455Z"
+progress:
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 14
+  completed_plans: 13
+---
+
 # Project State
 
 ## Project Reference
@@ -9,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 
 ## Current Position
 
-Phase: 16 of 19 — v1.3 active (Dead Code Removal)
-Plan: 16-03 complete (3/3) — next 17-01-PLAN.md
-Status: Phase 16 complete; Phase 17 pending
-Last activity: 2026-02-25 — completed 16-03 templates/monitoring tombstones + flow export cleanup
+Phase: 17 of 19 — v1.3 active (Flow Core Splits)
+Plan: 17-01 complete (1/3) — next 17-02-PLAN.md
+Status: Phase 17 in progress
+Last activity: 2026-02-25 — completed 17-01 _flow_functions compatibility split + contract tests
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 █████░░░░░ 52%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████░░░░ 57%
 
 ## Performance Metrics
 
@@ -40,6 +53,8 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 16 P01 | 22 min | 2 tasks | 3 files |
 | Phase 16 P02 | 15 min | 2 tasks | 9 files |
 | Phase 16 P03 | 26 min | 2 tasks | 16 files |
+| Phase 17 P01 | 8 min | 2 tasks | 6 files |
+| Phase 17 P02 | 5 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -75,6 +90,10 @@ Recent decisions affecting v1.3:
 - [Phase 16]: Tombstoned analytics test modules with module-level skips and placeholder tests so pytest reports explicit skips.
 - [Phase 16]: Tombstoned flow templates and flow monitoring with ImportError sentinels while preserving migration guidance in-module.
 - [Phase 16]: Guarded FlowTemplateValidator-specific version-standardization tests with skipif so non-template version compatibility checks continue post-tombstone.
+- [Phase 17]: Kept _flow_functions.py as a strict compatibility shim with explicit __all__ to preserve legacy imports.
+- [Phase 17]: Centralized shared state validation, thread-id checks, send-mode parsing, and context mismatch helpers in _flow_orchestration_utils.py.
+- [Phase 17]: FlowCore now composes three responsibility-specific mixins behind app.services.flow.core.service
+- [Phase 17]: Legacy app.services.flow_core remains a re-export shim for FlowCore, exceptions, and block constants
 
 ### Pending Todos
 
@@ -91,5 +110,5 @@ Carried tech debt (not v1.3-scoped):
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 16-03-PLAN.md
+Stopped at: Completed 17-01-PLAN.md
 Resume file: None
