@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Flow Health & Cleanup
 status: unknown
-last_updated: "2026-02-25T17:36:36.837Z"
+last_updated: "2026-02-25T18:47:58.405Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 16
+  completed_plans: 16
 ---
 
 # Project State
@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Phase 17 — Flow Core Splits
+**Current focus:** Phase 18 — Flow Service Splits
 
 ## Current Position
 
 Phase: 17 of 19 — v1.3 active (Flow Core Splits)
-Plan: 17-04 complete (4/4) — phase complete
-Status: Phase 17 complete
-Last activity: 2026-02-25 — completed 17-04 test-schema guard + full-suite blocker refresh
+Plan: 17-05 complete (5/5) — phase complete
+Status: Phase 17 complete (closure update applied)
+Last activity: 2026-02-25 — completed 17-05 AsyncSession idempotency fix and full-suite blocker handoff refresh
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
@@ -57,6 +57,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 17 P02 | 5 min | 2 tasks | 7 files |
 | Phase 17-flow-core-splits P03 | 9 min | 2 tasks | 8 files |
 | Phase 17-flow-core-splits P04 | 5 min | 2 tasks | 3 files |
+| Phase 17 P05 | 9 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,8 @@ Recent decisions affecting v1.3:
 - [Phase 17-flow-core-splits]: Preserved app.services.flow_management shim patch hooks (EnhancedFlowEngine and now_sao_paulo) for lifecycle regression compatibility
 - [Phase 17-flow-core-splits]: Apply non-destructive fixture-time Postgres schema patching (ALTER TABLE ... IF NOT EXISTS) instead of table rebuilds
 - [Phase 17-flow-core-splits]: Treat new AssertionError (422 vs 403) as the next deferred blocker after removing the original UndefinedColumn failure
+- [Phase 17]: Bridge critical-test AsyncSession dependency with a sync-session adapter instead of changing endpoint/session architecture
+- [Phase 17]: Treat the new full-suite first failure as a separate concern after the 422-vs-403 blocker was closed
 
 ### Pending Todos
 
@@ -112,10 +115,10 @@ Carried tech debt (not v1.3-scoped):
 - Physician availability hours model — hardcoded defaults
 - PromptedOutput validation confidence against gemini-2.5-flash is MEDIUM
 - 60+ files >500 lines total; v1.3 addresses 10 of them
-- Full backend suite currently fails in tests/api/critical/test_patient_security_fixes.py::TestPatientSecurityFixes::test_idempotency_rbac_denies_other_doctor with AssertionError (422 != 403); schema-missing-column path is fixed and next blocker is AsyncSession query mismatch in validation path.
+- Full backend suite currently fails first at tests/api/critical/test_patients_list.py::TestPatientList::test_list_patients_empty_or_existing with ResponseValidationError (treatment_phase='onboarding' pattern mismatch); 422-vs-403 idempotency blocker is closed.
 
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 17-flow-core-splits-04-PLAN.md
+Stopped at: Completed 17-05-PLAN.md
 Resume file: None
