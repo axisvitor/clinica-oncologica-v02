@@ -59,7 +59,7 @@ from app.models.user import User, UserRole
 from app.models.patient import Patient
 from app.utils.security import get_password_hash
 from app.main import app
-from app.database import get_db
+from app.database import get_db, get_async_db
 from app.dependencies.auth_dependencies import (
     get_current_user,
     get_current_user_from_session,
@@ -755,12 +755,67 @@ def db_session(test_engine) -> Generator[Session, None, None]:
 def db(db_session: Session):
     yield db_session
 
+
+class SyncToAsyncSessionAdapter:
+    """Async-compatible adapter over sync SQLAlchemy Session for tests.
+
+    Wraps the transactional sync session so that endpoints using
+    ``AsyncSession = Depends(get_async_db)`` receive an object whose
+    ``.execute()`` returns a real ``Result`` (not a coroutine), keeping
+    them inside the test transaction boundary.
+    """
+
+    def __init__(self, sync_session: Session):
+        self._sync_session = sync_session
+
+    def execute(self, statement, *args, **kwargs):
+        result = self._sync_session.execute(statement, *args, **kwargs)
+
+        class _AwaitableResultProxy:
+            def __init__(self, sync_result):
+                self._sync_result = sync_result
+
+            def __getattr__(self, name):
+                return getattr(self._sync_result, name)
+
+            def __await__(self):
+                async def _resolve():
+                    return self._sync_result
+
+                return _resolve().__await__()
+
+        return _AwaitableResultProxy(result)
+
+    async def commit(self):
+        self._sync_session.flush()
+
+    async def rollback(self):
+        return None
+
+    async def close(self):
+        return None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return None
+
+    def __getattr__(self, name):
+        return getattr(self._sync_session, name)
+
+
 @pytest.fixture
 def client(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> AsyncTestClient:
     async def _override_get_db():
         return db_session
 
     app.dependency_overrides[get_db] = _override_get_db
+
+    async def _override_get_async_db():
+        yield SyncToAsyncSessionAdapter(db_session)
+
+    app.dependency_overrides[get_async_db] = _override_get_async_db
 
     # Avoid threadpool-based sync dependency execution in async test client,
     # which can intermittently deadlock under heavy test parallelism.
