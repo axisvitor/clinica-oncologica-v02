@@ -20,6 +20,8 @@ from datetime import date
 from typing import Any, Callable, Optional
 from uuid import UUID
 
+from sqlalchemy import select
+
 from app.exceptions import ValidationError
 from app.models.flow import PatientFlowState
 from app.models.patient import FlowState, Patient
@@ -64,17 +66,19 @@ class PatientSyncService:
         """Shared duplicate-check query path for hashed patient fields."""
         try:
             field_hash = hash_builder(value)
-            query = self.db.query(Patient).filter(
+            # TODO(async-migration): converted from .query() to select() for AsyncSession compat
+            stmt = select(Patient).filter(
                 patient_field == field_hash, Patient.deleted_at.is_(None)
             )
 
             if doctor_id:
-                query = query.filter(Patient.doctor_id == doctor_id)
+                stmt = stmt.filter(Patient.doctor_id == doctor_id)
 
             if exclude_patient_id:
-                query = query.filter(Patient.id != exclude_patient_id)
+                stmt = stmt.filter(Patient.id != exclude_patient_id)
 
-            return query.first()
+            result = self.db.execute(stmt)
+            return result.scalars().first()
         except Exception as e:
             self._logger.error(f"{error_label} duplicate check failed: {e}")
             return None

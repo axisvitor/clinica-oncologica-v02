@@ -22,6 +22,7 @@ from typing import Any, Dict, Optional
 from uuid import UUID
 
 from email_validator import EmailNotValidError, validate_email
+from sqlalchemy import select
 
 from app.config import settings
 from app.exceptions import ValidationError
@@ -201,7 +202,9 @@ class PatientValidationService:
     def _validate_doctor_exists(self, doctor_id: UUID) -> bool:
         """Check if doctor exists."""
         try:
-            doctor = self.db.query(User).filter(User.id == doctor_id).first()
+            # TODO(async-migration): converted from .query() to select() for AsyncSession compat
+            result = self.db.execute(select(User).filter(User.id == doctor_id))
+            doctor = result.scalars().first()
             return doctor is not None and doctor.role in (UserRole.DOCTOR, UserRole.ADMIN)
         except Exception as e:
             self._logger.error(f"Doctor validation failed: {e}")

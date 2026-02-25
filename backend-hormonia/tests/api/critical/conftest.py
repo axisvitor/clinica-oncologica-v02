@@ -164,7 +164,7 @@ def app_modules():
     from app.database import Base
     from app.models.user import User, UserRole
     from app.models.patient import Patient
-    from app.database import get_db
+    from app.database import get_db, get_async_db
     from app.dependencies.auth_dependencies import get_current_user, get_current_user_from_session
     return {
         'Base': Base,
@@ -172,6 +172,7 @@ def app_modules():
         'UserRole': UserRole,
         'Patient': Patient,
         'get_db': get_db,
+        'get_async_db': get_async_db,
         'get_current_user': get_current_user,
         'get_current_user_from_session': get_current_user_from_session,
     }
@@ -293,11 +294,45 @@ def _get_csrf_token(client: TestClient) -> str:
     return ""
 
 
+class SyncToAsyncSessionAdapter:
+    """Async-compatible adapter over sync SQLAlchemy Session for tests."""
+
+    def __init__(self, sync_session: Session):
+        self._sync_session = sync_session
+
+    async def execute(self, statement, *args, **kwargs):
+        return self._sync_session.execute(statement, *args, **kwargs)
+
+    async def commit(self):
+        self._sync_session.flush()
+
+    async def rollback(self):
+        return None
+
+    async def close(self):
+        return None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return None
+
+    def __getattr__(self, name):
+        return getattr(self._sync_session, name)
+
+
 @pytest.fixture
 def client(db_session: Session, app_instance, app_modules) -> TestClient:
     """Create unauthenticated test client with CSRF token."""
     get_db = app_modules['get_db']
+    get_async_db = app_modules['get_async_db']
+
+    async def override_get_async_db():
+        yield SyncToAsyncSessionAdapter(db_session)
+
     app_instance.dependency_overrides[get_db] = lambda: db_session
+    app_instance.dependency_overrides[get_async_db] = override_get_async_db
     with TestClient(app_instance, raise_server_exceptions=False) as test_client:
         # Get CSRF token and set in headers
         csrf_token = _get_csrf_token(test_client)
