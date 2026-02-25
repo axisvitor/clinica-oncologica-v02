@@ -103,7 +103,7 @@ Plans:
   1. Importing from `flow/constants.py`, `flow/template_lookup.py`, `flow/analytics/`, `flow/templates/`, or `flow/monitoring/` raises an ImportError with a clear migration message
   2. No production code path imports from any of the five tombstoned locations (verified by grep/CI check)
   3. The repository is ~4,550 LOC lighter with no functional regression in existing tests
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
 - [x] 16-01-PLAN.md — Tombstone flow/constants.py (208 LOC) and flow/template_lookup.py (18 LOC)
@@ -124,7 +124,8 @@ Plans:
 Plans:
 - [x] 17-01-PLAN.md — Split `_flow_functions.py` into focused message/response/orchestration modules with compatibility shim
 - [x] 17-02-PLAN.md — Split `flow_core.py` into operations, transitions, and template-binding modules with compatibility shim
-- [ ] 17-03-PLAN.md — Split `flow_management.py` into state queries, advancement, and pause/resume modules with compatibility shim
+- [x] 17-03-PLAN.md — Split `flow_management.py` into state queries, advancement, and pause/resume modules with compatibility shim
+- [x] 17-04-PLAN.md — Enforce `patients.messaging_stopped_at` schema guard in test fixtures and refresh full-suite regression evidence
 
 ### Phase 18: Flow Service Splits
 **Goal**: The four oversized flow service files (sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring) are split into focused modules, each under 500 lines.
@@ -180,10 +181,10 @@ Plans:
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
-| 17. Flow Core Splits | 3/3 | Complete   | 2026-02-25 | - |
+| 17. Flow Core Splits | 4/4 | Complete   | 2026-02-25 | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-25 — Phase 17 in progress (2/3)*
+*Last updated: 2026-02-25 — Phase 17 complete (4/4)*
