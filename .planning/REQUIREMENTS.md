@@ -19,8 +19,8 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 
 ### Dead Code Removal
 
-- [ ] **DEAD-01**: `flow/constants.py` tombstoned (208 LOC, 0 external imports)
-- [ ] **DEAD-02**: `flow/template_lookup.py` tombstoned (18 LOC, 0 external imports)
+- [x] **DEAD-01**: `flow/constants.py` tombstoned (208 LOC, 0 external imports)
+- [x] **DEAD-02**: `flow/template_lookup.py` tombstoned (18 LOC, 0 external imports)
 - [ ] **DEAD-03**: `flow/analytics/` package tombstoned (4 files, 2,259 LOC, 0 production callers)
 - [ ] **DEAD-04**: `flow/templates/` package tombstoned (4 files, 1,972 LOC, 0 production callers)
 - [ ] **DEAD-05**: `flow/monitoring/` package tombstoned (2 files, 93 LOC, 0 production callers)
@@ -67,8 +67,8 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 | FIX-05 | Phase 15 | Complete |
 | FIX-06 | Phase 15 | Complete |
 | FIX-07 | Phase 15 | Complete |
-| DEAD-01 | Phase 16 | Pending |
-| DEAD-02 | Phase 16 | Pending |
+| DEAD-01 | Phase 16 | Complete |
+| DEAD-02 | Phase 16 | Complete |
 | DEAD-03 | Phase 16 | Pending |
 | DEAD-04 | Phase 16 | Pending |
 | DEAD-05 | Phase 16 | Pending |

@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 16 of 19 — v1.3 active (Dead Code Removal)
-Plan: Complete (5/5) — next 16-01-PLAN.md
-Status: Phase 15 complete, Phase 16 ready
-Last activity: 2026-02-25 — completed 15-05 canonical service constants/cycle alignment
+Plan: 16-01 complete (1/3) — next 16-02-PLAN.md
+Status: Phase 16 in progress
+Last activity: 2026-02-24 — completed 16-01 flow constants/template lookup tombstones
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ███░░░░░░░ 33%
 
@@ -37,6 +37,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 15 P03 | 7 min | 2 tasks | 4 files |
 | Phase 15-data-integrity-fixes P05 | 5 min | 2 tasks | 3 files |
 | Phase 15-data-integrity-fixes P04 | 19 min | 2 tasks | 3 files |
+| Phase 16 P01 | 22 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -66,6 +67,8 @@ Recent decisions affecting v1.3:
 - [Phase 15-data-integrity-fixes]: ManualCorrectionService monthly reset path now derives cycle/day via canonical compute_cycle_number and shared phase constants.
 - [Phase 15-data-integrity-fixes]: Missing-template fallback now sends a no-link patient WhatsApp message through existing unified messaging infrastructure.
 - [Phase 15-data-integrity-fixes]: Quiz trigger template-missing path now returns success with continue_flow marker to avoid terminal error classification.
+- [Phase 16]: Use Phase 12 ImportError tombstone sentinel pattern for dead flow modules
+- [Phase 16]: Keep pre-existing flow package import interception deferred to avoid widening 16-01 scope
 
 ### Pending Todos
 
@@ -81,6 +84,6 @@ Carried tech debt (not v1.3-scoped):
 
 ## Session Continuity
 
-Last session: 2026-02-25
-Stopped at: Completed 15-05-PLAN.md
+Last session: 2026-02-24
+Stopped at: Completed 16-01-PLAN.md
 Resume file: None
