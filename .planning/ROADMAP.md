@@ -123,7 +123,7 @@ Plans:
 
 Plans:
 - [x] 17-01-PLAN.md — Split `_flow_functions.py` into focused message/response/orchestration modules with compatibility shim
-- [ ] 17-02-PLAN.md — Split `flow_core.py` into operations, transitions, and template-binding modules with compatibility shim
+- [x] 17-02-PLAN.md — Split `flow_core.py` into operations, transitions, and template-binding modules with compatibility shim
 - [ ] 17-03-PLAN.md — Split `flow_management.py` into state queries, advancement, and pause/resume modules with compatibility shim
 
 ### Phase 18: Flow Service Splits
@@ -180,10 +180,10 @@ Plans:
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
-| 17. Flow Core Splits | 2/3 | In Progress|  | - |
+| 17. Flow Core Splits | v1.3 | 2/3 | In Progress | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-25 — Phase 17 in progress (1/3)*
+*Last updated: 2026-02-25 — Phase 17 in progress (2/3)*

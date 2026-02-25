@@ -23,16 +23,16 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 17 of 19 — v1.3 active (Flow Core Splits)
-Plan: 17-01 complete (1/3) — next 17-02-PLAN.md
+Plan: 17-02 complete (2/3) — next 17-03-PLAN.md
 Status: Phase 17 in progress
-Last activity: 2026-02-25 — completed 17-01 _flow_functions compatibility split + contract tests
+Last activity: 2026-02-25 — completed 17-02 flow_core compatibility split + contract tests
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████░░░░ 57%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████░░░░ 62%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 44 (v1.0: 13, v1.1: 10, v1.2: 16, v1.3: 6)
+- Total plans completed: 46 (v1.0: 13, v1.1: 10, v1.2: 16, v1.3: 8)
 - Total execution time: 3 days (v1.0: 1 day, v1.1: 1 day, v1.2: 1 day)
 
 **By Phase:**
@@ -110,5 +110,5 @@ Carried tech debt (not v1.3-scoped):
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 17-01-PLAN.md
+Stopped at: Completed 17-02-PLAN.md
 Resume file: None
