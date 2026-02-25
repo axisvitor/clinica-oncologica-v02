@@ -39,6 +39,101 @@ class MonthlyQuizMessageIntegration:
         self.message_factory = MessageFactory(db)
         self.message_sender = UnifiedWhatsAppService(db=db)
 
+    async def send_template_missing_message(
+        self,
+        patient_id: UUID,
+        delivery_method: DeliveryMethod = DeliveryMethod.WHATSAPP,
+        custom_message: Optional[str] = None,
+        fallback_reason: str = "template_not_found",
+        flow_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Send a no-link fallback message when quiz template is unavailable."""
+        patient = self.db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient:
+            raise NotFoundError(f"Patient with ID {patient_id} not found")
+
+        if delivery_method is not DeliveryMethod.WHATSAPP:
+            return {
+                "delivery_attempted": False,
+                "message_sent": False,
+                "error": f"Delivery method {delivery_method.value} not supported",
+            }
+
+        message_text = custom_message or (
+            "Ola! Seu quiz mensal esta sendo preparado e enviaremos o link em breve. "
+            "Por enquanto, siga cuidando da sua saude e, se precisar, fale com nossa equipe."
+        )
+
+        metadata = {
+            "delivery_method": delivery_method.value,
+            "message_type": "monthly_quiz_template_missing_fallback",
+            "fallback_reason": fallback_reason,
+            "quiz_link_available": False,
+            "template_not_found": True,
+        }
+        if flow_context:
+            metadata["flow_context"] = flow_context
+
+        message = self.message_factory.create_outbound_message(
+            patient_id=patient_id,
+            content=message_text,
+            metadata=metadata,
+        )
+
+        max_retries = 3
+        retry_delay = 2
+        send_result = False
+
+        for attempt in range(max_retries):
+            try:
+                send_result = bool(
+                    await self.message_sender.send_message(
+                        message,
+                        flow_context={
+                            "message_type": "quiz_template_missing_fallback",
+                            "fallback_reason": fallback_reason,
+                        },
+                    )
+                )
+                if send_result:
+                    break
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay * (attempt + 1))
+            except Exception as exc:
+                if attempt == max_retries - 1:
+                    logger.error(
+                        "Failed to send no-link fallback message after %s attempts: %s",
+                        max_retries,
+                        exc,
+                        exc_info=True,
+                        extra={
+                            "patient_id": str(patient_id),
+                            "delivery_method": delivery_method.value,
+                            "fallback_reason": fallback_reason,
+                        },
+                    )
+                    return {
+                        "delivery_attempted": True,
+                        "message_sent": False,
+                        "message_id": str(message.id),
+                        "error": str(exc),
+                    }
+
+                logger.warning(
+                    "No-link fallback send attempt %s/%s failed: %s",
+                    attempt + 1,
+                    max_retries,
+                    exc,
+                )
+                await asyncio.sleep(retry_delay * (attempt + 1))
+
+        return {
+            "delivery_attempted": True,
+            "message_sent": send_result,
+            "message_id": str(message.id),
+            "error": None if send_result else "fallback_delivery_failed",
+        }
+
     async def send_quiz_link(
         self,
         patient_id: UUID,
@@ -71,17 +166,31 @@ class MonthlyQuizMessageIntegration:
         template = template_repo.get(quiz_template_id)
         if not template:
             logger.warning(
-                "Quiz template %s not found for patient %s. Skipping quiz link creation.",
+                "Quiz template %s not found for patient %s. Sending no-link fallback message.",
                 quiz_template_id,
                 patient_id,
             )
+
+            fallback_delivery = await self.send_template_missing_message(
+                patient_id=patient_id,
+                delivery_method=delivery_method,
+                custom_message=custom_message,
+                fallback_reason="template_not_found",
+            )
+
             return {
                 "quiz_session_id": None,
                 "token": None,
                 "link_url": None,
                 "expires_at": None,
-                "message_sent": False,
+                "message_id": fallback_delivery.get("message_id"),
+                "message_sent": fallback_delivery.get("message_sent", False),
+                "delivery_attempted": fallback_delivery.get("delivery_attempted", False),
+                "delivery_error": fallback_delivery.get("error"),
                 "fallback_reason": "template_not_found",
+                "fallback_applied": True,
+                "quiz_link_available": False,
+                "continue_flow": True,
             }
 
         # Create quiz link

@@ -294,18 +294,48 @@ class QuizTriggerService:
                     },
                 )
 
+                quiz_integration = MonthlyQuizMessageIntegration(self.db)
+                fallback_delivery = await quiz_integration.send_template_missing_message(
+                    patient_id=patient_id,
+                    fallback_reason="template_not_found",
+                    flow_context={
+                        "flow_type": flow_state.flow_type,
+                        "monthly_cycle": quiz_info.get("monthly_cycle"),
+                        "trigger_reason": quiz_info.get("trigger_reason"),
+                    },
+                )
+
                 flow_state.state_data = flow_state.state_data or {}
                 flow_state.state_data["quiz_template_missing_fallback"] = True
                 flow_state.state_data["quiz_fallback_at"] = now_sao_paulo().isoformat()
                 flow_state.state_data["quiz_state"] = "skipped_no_template"
+                flow_state.state_data["quiz_fallback_reason"] = "template_not_found"
+                flow_state.state_data["quiz_fallback_message_sent"] = fallback_delivery.get(
+                    "message_sent", False
+                )
+                flow_state.state_data["quiz_fallback_delivery_attempted"] = (
+                    fallback_delivery.get("delivery_attempted", False)
+                )
+                flow_state.state_data["quiz_link_available"] = False
                 self.db.commit()
 
                 return {
-                    "success": False,
+                    "success": True,
                     "patient_id": str(patient_id),
-                    "error": "quiz_template_not_found",
                     "fallback_applied": True,
-                    "message": "Quiz skipped - template not available. Message sent without quiz link.",
+                    "fallback_reason": "quiz_template_missing",
+                    "continue_flow": True,
+                    "quiz_state": "skipped_no_template",
+                    "delivery_attempted": fallback_delivery.get(
+                        "delivery_attempted", False
+                    ),
+                    "message_sent": fallback_delivery.get("message_sent", False),
+                    "delivery_error": fallback_delivery.get("error"),
+                    "quiz_session_id": None,
+                    "link_url": None,
+                    "token": None,
+                    "expires_at": None,
+                    "message": "Quiz template missing; fallback message sent without quiz link.",
                 }
 
             # Determine if patient should receive link-based quiz
