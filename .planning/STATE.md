@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Phase 16 — Dead Code Removal
+**Current focus:** Phase 17 — Flow Core Splits
 
 ## Current Position
 
 Phase: 16 of 19 — v1.3 active (Dead Code Removal)
-Plan: 16-02 complete (2/3) — next 16-03-PLAN.md
-Status: Phase 16 in progress
-Last activity: 2026-02-25 — completed 16-02 flow analytics package/test tombstones
+Plan: 16-03 complete (3/3) — next 17-01-PLAN.md
+Status: Phase 16 complete; Phase 17 pending
+Last activity: 2026-02-25 — completed 16-03 templates/monitoring tombstones + flow export cleanup
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ███░░░░░░░ 33%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 █████░░░░░ 52%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 43 (v1.0: 13, v1.1: 10, v1.2: 16, v1.3: 5)
+- Total plans completed: 44 (v1.0: 13, v1.1: 10, v1.2: 16, v1.3: 6)
 - Total execution time: 3 days (v1.0: 1 day, v1.1: 1 day, v1.2: 1 day)
 
 **By Phase:**
@@ -39,6 +39,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 15-data-integrity-fixes P04 | 19 min | 2 tasks | 3 files |
 | Phase 16 P01 | 22 min | 2 tasks | 3 files |
 | Phase 16 P02 | 15 min | 2 tasks | 9 files |
+| Phase 16 P03 | 26 min | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Recent decisions affecting v1.3:
 - [Phase 16]: Keep pre-existing flow package import interception deferred to avoid widening 16-01 scope
 - [Phase 16]: Kept flow analytics package as ImportError tombstones to preserve migration guidance while removing dead runtime code.
 - [Phase 16]: Tombstoned analytics test modules with module-level skips and placeholder tests so pytest reports explicit skips.
+- [Phase 16]: Tombstoned flow templates and flow monitoring with ImportError sentinels while preserving migration guidance in-module.
+- [Phase 16]: Guarded FlowTemplateValidator-specific version-standardization tests with skipif so non-template version compatibility checks continue post-tombstone.
 
 ### Pending Todos
 
@@ -88,5 +91,5 @@ Carried tech debt (not v1.3-scoped):
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 16-02-PLAN.md
+Stopped at: Completed 16-03-PLAN.md
 Resume file: None

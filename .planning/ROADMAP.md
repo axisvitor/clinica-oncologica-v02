@@ -54,7 +54,7 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
  (completed 2026-02-24)
 - [x] **Phase 15: Data Integrity Fixes** - Fix quiz crash, consolidate constants, align cycle calculation, wire DLQ
  (completed 2026-02-25)
-- [ ] **Phase 16: Dead Code Removal** - Tombstone 5 unused packages/files (~4,550 LOC)
+- [x] **Phase 16: Dead Code Removal** - Tombstone 5 unused packages/files (~4,550 LOC) (completed 2026-02-25)
 - [ ] **Phase 17: Flow Core Splits** - Split _flow_functions, flow_core, flow_management into focused modules
 - [ ] **Phase 18: Flow Service Splits** - Split sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring
 - [ ] **Phase 19: Saga & Integrity Splits** - Split saga orchestrator, saga compensation, and flow_integrity
@@ -108,7 +108,7 @@ Plans:
 Plans:
 - [x] 16-01-PLAN.md — Tombstone flow/constants.py (208 LOC) and flow/template_lookup.py (18 LOC)
 - [x] 16-02-PLAN.md — Tombstone flow/analytics/ package (5 files, 2,259 LOC) and its test files
-- [ ] 16-03-PLAN.md — Tombstone flow/templates/ (4 files, 1,972 LOC) and flow/monitoring/ (2 files, 93 LOC), clean flow/__init__.py
+- [x] 16-03-PLAN.md — Tombstone flow/templates/ (4 files, 1,972 LOC) and flow/monitoring/ (2 files, 93 LOC), clean flow/__init__.py
 
 ### Phase 17: Flow Core Splits
 **Goal**: The three largest core flow files (_flow_functions, flow_core, flow_management) are decomposed into focused modules under 500 lines each, with all imports updated and tests passing.
@@ -179,7 +179,7 @@ Plans:
 | 13. SDK Migration & Cleanup | v1.2 | 5/5 | Complete | 2026-02-24 |
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
-| 16. Dead Code Removal | v1.3 | 2/3 | In Progress | - |
+| 16. Dead Code Removal | 3/3 | Complete   | 2026-02-25 | - |
 | 17. Flow Core Splits | v1.3 | 0/3 | Not started | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |

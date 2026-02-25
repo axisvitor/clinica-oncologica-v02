@@ -22,8 +22,8 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 - [x] **DEAD-01**: `flow/constants.py` tombstoned (208 LOC, 0 external imports)
 - [x] **DEAD-02**: `flow/template_lookup.py` tombstoned (18 LOC, 0 external imports)
 - [x] **DEAD-03**: `flow/analytics/` package tombstoned (4 files, 2,259 LOC, 0 production callers)
-- [ ] **DEAD-04**: `flow/templates/` package tombstoned (4 files, 1,972 LOC, 0 production callers)
-- [ ] **DEAD-05**: `flow/monitoring/` package tombstoned (2 files, 93 LOC, 0 production callers)
+- [x] **DEAD-04**: `flow/templates/` package tombstoned (4 files, 1,972 LOC, 0 production callers)
+- [x] **DEAD-05**: `flow/monitoring/` package tombstoned (2 files, 93 LOC, 0 production callers)
 
 ### File Splits
 
@@ -70,8 +70,8 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 | DEAD-01 | Phase 16 | Complete |
 | DEAD-02 | Phase 16 | Complete |
 | DEAD-03 | Phase 16 | Complete |
-| DEAD-04 | Phase 16 | Pending |
-| DEAD-05 | Phase 16 | Pending |
+| DEAD-04 | Phase 16 | Complete |
+| DEAD-05 | Phase 16 | Complete |
 | SPLIT-05 | Phase 17 | Pending |
 | SPLIT-06 | Phase 17 | Pending |
 | SPLIT-07 | Phase 17 | Pending |
