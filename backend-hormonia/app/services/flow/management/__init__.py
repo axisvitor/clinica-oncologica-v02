@@ -1,11 +1,9 @@
-"""Compatibility shim for flow management split modules."""
-
-from app.services.flow.management.service import (
+from .advancement import (
     FLOW_ADVANCE_BLOCKED_CODE,
     FLOW_ADVANCE_BLOCKED_MESSAGE,
     FLOW_ADVANCE_BLOCKED_REASON,
-    FlowManagementService,
 )
+from .service import FlowManagementService
 
 __all__ = [
     "FLOW_ADVANCE_BLOCKED_CODE",
