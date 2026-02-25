@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Flow Health & Cleanup
 status: unknown
-last_updated: "2026-02-25T15:47:07.455Z"
+last_updated: "2026-02-25T16:11:02.565Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 17 of 19 — v1.3 active (Flow Core Splits)
-Plan: 17-02 complete (2/3) — next 17-03-PLAN.md
-Status: Phase 17 in progress
-Last activity: 2026-02-25 — completed 17-02 flow_core compatibility split + contract tests
+Plan: 17-03 complete (3/3) — phase complete
+Status: Phase 17 complete
+Last activity: 2026-02-25 — completed 17-03 flow_management split + contract verification
 
-Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████░░░░ 62%
+Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 16 P03 | 26 min | 2 tasks | 16 files |
 | Phase 17 P01 | 8 min | 2 tasks | 6 files |
 | Phase 17 P02 | 5 min | 2 tasks | 7 files |
+| Phase 17-flow-core-splits P03 | 9 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,8 @@ Recent decisions affecting v1.3:
 - [Phase 17]: Centralized shared state validation, thread-id checks, send-mode parsing, and context mismatch helpers in _flow_orchestration_utils.py.
 - [Phase 17]: FlowCore now composes three responsibility-specific mixins behind app.services.flow.core.service
 - [Phase 17]: Legacy app.services.flow_core remains a re-export shim for FlowCore, exceptions, and block constants
+- [Phase 17-flow-core-splits]: Composed FlowManagementService through state/advancement/pause-resume mixins under app.services.flow.management.service
+- [Phase 17-flow-core-splits]: Preserved app.services.flow_management shim patch hooks (EnhancedFlowEngine and now_sao_paulo) for lifecycle regression compatibility
 
 ### Pending Todos
 
@@ -106,9 +109,10 @@ Carried tech debt (not v1.3-scoped):
 - Physician availability hours model — hardcoded defaults
 - PromptedOutput validation confidence against gemini-2.5-flash is MEDIUM
 - 60+ files >500 lines total; v1.3 addresses 10 of them
+- Full backend suite currently fails in tests/api/critical/test_patient_security_fixes.py due missing patients.messaging_stopped_at column in local test schema (deferred, out-of-scope for phase 17 split plan).
 
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 17-02-PLAN.md
+Stopped at: Completed 17-03-PLAN.md
 Resume file: None

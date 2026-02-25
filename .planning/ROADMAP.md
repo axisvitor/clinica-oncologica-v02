@@ -55,7 +55,7 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
 - [x] **Phase 15: Data Integrity Fixes** - Fix quiz crash, consolidate constants, align cycle calculation, wire DLQ
  (completed 2026-02-25)
 - [x] **Phase 16: Dead Code Removal** - Tombstone 5 unused packages/files (~4,550 LOC) (completed 2026-02-25)
-- [ ] **Phase 17: Flow Core Splits** - Split _flow_functions, flow_core, flow_management into focused modules
+- [x] **Phase 17: Flow Core Splits** - Split _flow_functions, flow_core, flow_management into focused modules (completed 2026-02-25)
 - [ ] **Phase 18: Flow Service Splits** - Split sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring
 - [ ] **Phase 19: Saga & Integrity Splits** - Split saga orchestrator, saga compensation, and flow_integrity
 
@@ -180,7 +180,7 @@ Plans:
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
-| 17. Flow Core Splits | v1.3 | 2/3 | In Progress | - |
+| 17. Flow Core Splits | 3/3 | Complete   | 2026-02-25 | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
