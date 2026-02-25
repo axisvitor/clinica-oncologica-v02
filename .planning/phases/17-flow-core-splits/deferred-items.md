@@ -68,3 +68,14 @@
 - Error class: `AssertionError` (`422 != 201`)
 - `valid_event_category` blocker status: `CLOSED` (no `CheckViolation` on `audit_logs.valid_event_category`; `tests/api/test_api_contracts.py::TestUserActivityAPIContract::test_user_activity_returns_activity_logs` now passes)
 - Full fail-fast gate status: `NOT GREEN` (new first failure is patient create endpoint validation path, distinct from audit_logs constraint compatibility)
+
+## 2026-02-25 Plan 17-09 Fail-Fast Rerun (post get_async_db override)
+
+- Command: `python3 -m pytest -x --tb=short`
+- Date/Time (UTC): `2026-02-25T23:27:07Z`
+- Result: `FAILED`
+- First failing node: `tests/api/test_patients_endpoints.py::TestPatientCRUDEndpoints::test_create_patient_success`
+- Error class: `AssertionError` (`422 != 201`)
+- Additional failure context: onboarding saga step 1 now fails with `TypeError: 'allergies' is an invalid keyword argument for Patient`, with downstream compensation `IntegrityError` (`psycopg.errors.UniqueViolation` on `patient_onboarding_saga_pkey`).
+- `get_async_db` blocker status: `CLOSED` (patient-create path no longer fails on `'coroutine' object has no attribute 'scalars'`; execution now advances into saga create step).
+- Full fail-fast gate status: `NOT GREEN` (new distinct blocker remains in patient onboarding saga payload/model compatibility, separate from the async-session dependency-override issue).
