@@ -1,18 +1,12 @@
 """
-Shared helpers for flow template lookup operations.
+TOMBSTONED -- Phase 16 (Dead Code Removal)
+
+This module has been decommissioned. The find_step_in_template helper
+had zero production callers and has been removed.
+
+Do not import from this module.
 """
-
-from __future__ import annotations
-
-from typing import Any, Dict, Optional
-
-
-def find_step_in_template(
-    template: Dict[str, Any], step_id: str
-) -> Optional[Dict[str, Any]]:
-    """Return a step dict by `step_id` from a flow template payload."""
-    steps = template.get("steps", [])
-    for step in steps:
-        if step.get("step_id") == step_id:
-            return step
-    return None
+raise ImportError(
+    "app.services.flow.template_lookup has been tombstoned in Phase 16 (Dead Code Removal). "
+    "This helper had zero production callers. If you need step lookup, implement it locally."
+)
