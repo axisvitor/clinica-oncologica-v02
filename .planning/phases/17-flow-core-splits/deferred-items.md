@@ -44,3 +44,17 @@
 - New first failure: `tests/api/test_api_contract_fixes.py::TestNotificationsStructureFix::test_notifications_structure`
 - Error class: `sqlalchemy.exc.ProgrammingError` (`psycopg.errors.UndefinedColumn: notifications.notification_type does not exist`)
 - Scope note: This failure occurs in notifications schema/query contract and is unrelated to the Phase 17-06 `treatment_phase` response validation fix for `/api/v2/patients/`.
+
+## 2026-02-25 Plan 17-07 Fail-Fast Rerun
+
+- Command: `python3 -m pytest -x --tb=short`
+- Date/Time (UTC): `2026-02-25T21:22:07Z`
+- Result: `FAILED` (first blocker moved past notifications into audit log schema)
+- First failing node: `tests/api/test_api_contracts.py::TestUserActivityAPIContract::test_user_activity_returns_activity_logs`
+- Error class: `sqlalchemy.exc.ProgrammingError` (`psycopg.errors.UndefinedColumn: audit_logs.firebase_uid does not exist`)
+- Notification blocker status: `CLOSED` (`tests/api/test_api_contract_fixes.py::TestNotificationsStructureFix::test_notifications_structure` now passes after fixture schema guard patch)
+
+- Follow-up command: `python3 -m pytest tests/api/test_api_contracts.py::TestUserActivityAPIContract::test_user_activity_returns_activity_logs -x --tb=short`
+- Follow-up result: `FAILED`
+- New error class: `sqlalchemy.exc.IntegrityError` (`psycopg.errors.CheckViolation: valid_event_category` for `event_category='user_action'`)
+- Scope note: Fail-fast is still not fully green because audit log legacy constraints now gate progress after the notifications schema issue was removed.

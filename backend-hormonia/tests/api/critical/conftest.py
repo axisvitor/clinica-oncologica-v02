@@ -330,6 +330,186 @@ def _ensure_notifications_type_column(engine):
             )
 
 
+def _ensure_audit_logs_firebase_uid_column(engine):
+    """Ensure Postgres critical-suite schemas include modern audit_logs columns."""
+    if engine.dialect.name != "postgresql":
+        return
+
+    inspector = sa_inspect(engine)
+    if not inspector.has_table("audit_logs"):
+        print("[critical.conftest] audit_logs table missing; skipping firebase_uid guard")
+        return
+
+    audit_columns = {column["name"] for column in inspector.get_columns("audit_logs")}
+    missing_columns = {
+        "event_category",
+        "event_status",
+        "status",
+        "user_email",
+        "user_role",
+        "firebase_uid",
+        "session_id",
+        "session_token_hash",
+        "device_fingerprint",
+        "geolocation",
+        "user_agent",
+        "resource",
+        "action",
+        "resource_type",
+        "resource_id",
+        "resource_identifiers",
+        "operation",
+        "http_method",
+        "endpoint",
+        "event_metadata",
+        "query_params",
+        "request_body_hash",
+        "changes_before",
+        "changes_after",
+        "changed_fields",
+        "description",
+        "message",
+        "error_details",
+        "http_status_code",
+        "error_code",
+        "error_stack_trace",
+        "duration_ms",
+        "checksum",
+        "previous_checksum",
+        "integrity_verified",
+        "reviewed",
+        "reviewed_at",
+        "reviewed_by",
+        "review_notes",
+        "is_anomalous",
+        "anomaly_score",
+        "anomaly_reasons",
+        "alert_generated",
+        "alert_sent_at",
+        "alert_recipients",
+        "retention_period_years",
+        "archive_eligible_at",
+        "archived",
+        "archived_at",
+        "archive_location",
+    } - audit_columns
+
+    if not missing_columns:
+        return
+
+    print("[critical.conftest] Applying schema patch: align audit_logs columns")
+    with engine.begin() as connection:
+        if "event_category" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS event_category VARCHAR(50)"))
+        if "event_status" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS event_status VARCHAR(50)"))
+            connection.execute(text("UPDATE audit_logs SET event_status = 'success' WHERE event_status IS NULL"))
+        if "status" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS status VARCHAR(20)"))
+        if "user_email" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)"))
+        if "user_role" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_role VARCHAR(50)"))
+        if "firebase_uid" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS firebase_uid VARCHAR(255)"))
+        if "session_id" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS session_id VARCHAR(255)"))
+        if "session_token_hash" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS session_token_hash VARCHAR(64)"))
+        if "device_fingerprint" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS device_fingerprint VARCHAR(64)"))
+        if "geolocation" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS geolocation JSONB"))
+        if "user_agent" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT"))
+        if "resource" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource VARCHAR(255)"))
+        if "action" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS action VARCHAR(255)"))
+        if "resource_type" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource_type VARCHAR(50)"))
+        if "resource_id" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource_id UUID"))
+        if "resource_identifiers" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS resource_identifiers JSONB"))
+        if "operation" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS operation VARCHAR(20)"))
+        if "http_method" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS http_method VARCHAR(10)"))
+        if "endpoint" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS endpoint VARCHAR(500)"))
+        if "event_metadata" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS event_metadata JSONB"))
+            connection.execute(text("UPDATE audit_logs SET event_metadata = '{}'::jsonb WHERE event_metadata IS NULL"))
+        if "query_params" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS query_params JSONB"))
+        if "request_body_hash" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS request_body_hash VARCHAR(64)"))
+        if "changes_before" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS changes_before JSONB"))
+        if "changes_after" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS changes_after JSONB"))
+        if "changed_fields" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS changed_fields TEXT[]"))
+        if "description" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS description TEXT"))
+        if "message" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS message TEXT"))
+        if "error_details" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS error_details TEXT"))
+        if "http_status_code" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS http_status_code INTEGER"))
+        if "error_code" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS error_code VARCHAR(50)"))
+        if "error_stack_trace" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS error_stack_trace TEXT"))
+        if "duration_ms" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS duration_ms INTEGER"))
+        if "checksum" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS checksum VARCHAR(64)"))
+        if "previous_checksum" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS previous_checksum VARCHAR(64)"))
+        if "integrity_verified" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS integrity_verified BOOLEAN"))
+        if "reviewed" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS reviewed BOOLEAN"))
+        if "reviewed_at" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ"))
+        if "reviewed_by" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS reviewed_by UUID"))
+        if "review_notes" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS review_notes TEXT"))
+        if "is_anomalous" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS is_anomalous BOOLEAN"))
+        if "anomaly_score" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS anomaly_score NUMERIC(5,2)"))
+        if "anomaly_reasons" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS anomaly_reasons TEXT[]"))
+        if "alert_generated" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS alert_generated BOOLEAN"))
+        if "alert_sent_at" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS alert_sent_at TIMESTAMPTZ"))
+        if "alert_recipients" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS alert_recipients TEXT[]"))
+        if "retention_period_years" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS retention_period_years INTEGER"))
+        if "archive_eligible_at" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS archive_eligible_at TIMESTAMPTZ"))
+        if "archived" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS archived BOOLEAN"))
+        if "archived_at" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ"))
+        if "archive_location" in missing_columns:
+            connection.execute(text("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS archive_location VARCHAR(500)"))
+
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_audit_firebase_time "
+                "ON audit_logs (firebase_uid, created_at)"
+            )
+        )
+
+
 def get_firebase_id_token(email: str, password: str) -> str | None:
     """Get Firebase ID token via REST API (signInWithPassword)."""
     if os.getenv("SKIP_FIREBASE_TOKEN", "").lower() in ("1", "true", "yes"):
@@ -424,6 +604,7 @@ def test_engine(app_modules):
                 conn.execute(text("SELECT 1"))
             _ensure_patients_whatsapp_opt_out_column(engine)
             _ensure_notifications_type_column(engine)
+            _ensure_audit_logs_firebase_uid_column(engine)
         else:
             import tempfile
             db_fd, db_path = tempfile.mkstemp(suffix=".db")
@@ -475,6 +656,7 @@ def test_engine(app_modules):
                 print(f"Warning during create_all: {e}")
             _ensure_patients_whatsapp_opt_out_column(engine)
             _ensure_notifications_type_column(engine)
+            _ensure_audit_logs_firebase_uid_column(engine)
 
         yield engine
     finally:
