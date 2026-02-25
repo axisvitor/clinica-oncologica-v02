@@ -39,7 +39,7 @@ os.environ.setdefault("TESTING", "1")
 os.environ.setdefault("ENCRYPTION_KEY", "32byte-secret-key-for-testing-123")
 os.environ.setdefault("ENCRYPTION_SALT", "test-salt-16bytes")
 
-from sqlalchemy import create_engine, TypeDecorator, Text, Index, ARRAY
+from sqlalchemy import create_engine, TypeDecorator, Text, Index, ARRAY, text, inspect as sa_inspect
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.dialects.postgresql import JSONB, INET, BYTEA, UUID as PGUUID
@@ -211,6 +211,37 @@ def _apply_sqlite_type_fixes():
         table.indexes = set(index_by_name.values())
 
 
+def _ensure_patients_whatsapp_opt_out_column(engine):
+    """Ensure Postgres test schemas include patients.messaging_stopped_at."""
+    if engine.dialect.name != "postgresql":
+        return
+
+    inspector = sa_inspect(engine)
+    if not inspector.has_table("patients"):
+        print("[tests.conftest] patients table missing; skipping messaging_stopped_at guard")
+        return
+
+    patient_columns = {column["name"] for column in inspector.get_columns("patients")}
+    if "messaging_stopped_at" in patient_columns:
+        return
+
+    print("[tests.conftest] Applying schema patch: add patients.messaging_stopped_at")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "ALTER TABLE patients "
+                "ADD COLUMN IF NOT EXISTS messaging_stopped_at TIMESTAMPTZ NULL"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_patients_messaging_stopped "
+                "ON patients (messaging_stopped_at) "
+                "WHERE messaging_stopped_at IS NOT NULL"
+            )
+        )
+
+
 @pytest.fixture(scope="session")
 def test_engine():
     # Detect if we should use Postgres or SQLite
@@ -253,6 +284,8 @@ def test_engine():
         Base.metadata.create_all(bind=engine, checkfirst=True)
     except Exception as e:
         print(f"Warning during create_all: {e}")
+
+    _ensure_patients_whatsapp_opt_out_column(engine)
 
     try:
         yield engine

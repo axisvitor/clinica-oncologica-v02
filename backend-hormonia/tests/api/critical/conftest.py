@@ -23,7 +23,7 @@ os.environ.setdefault("SKIP_FIREBASE_TOKEN", "true")
 
 USE_REAL_AUTH = os.getenv("USE_REAL_AUTH", "").lower() in ("1", "true", "yes")
 
-from sqlalchemy import create_engine, TypeDecorator, Text, text, Index, ARRAY
+from sqlalchemy import create_engine, TypeDecorator, Text, text, Index, ARRAY, inspect as sa_inspect
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool, NullPool
 from sqlalchemy.dialects.postgresql import JSONB, INET, BYTEA
@@ -79,6 +79,37 @@ class INETCompat(TypeDecorator):
         return str(value) if value is not None else value
     def process_result_value(self, value, dialect):
         return value
+
+
+def _ensure_patients_whatsapp_opt_out_column(engine):
+    """Ensure Postgres critical-suite schemas include patients.messaging_stopped_at."""
+    if engine.dialect.name != "postgresql":
+        return
+
+    inspector = sa_inspect(engine)
+    if not inspector.has_table("patients"):
+        print("[critical.conftest] patients table missing; skipping messaging_stopped_at guard")
+        return
+
+    patient_columns = {column["name"] for column in inspector.get_columns("patients")}
+    if "messaging_stopped_at" in patient_columns:
+        return
+
+    print("[critical.conftest] Applying schema patch: add patients.messaging_stopped_at")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "ALTER TABLE patients "
+                "ADD COLUMN IF NOT EXISTS messaging_stopped_at TIMESTAMPTZ NULL"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_patients_messaging_stopped "
+                "ON patients (messaging_stopped_at) "
+                "WHERE messaging_stopped_at IS NOT NULL"
+            )
+        )
 
 
 def get_firebase_id_token(email: str, password: str) -> str | None:
@@ -172,6 +203,7 @@ def test_engine(app_modules):
             engine = create_engine(db_url, pool_pre_ping=True, poolclass=NullPool)
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
+            _ensure_patients_whatsapp_opt_out_column(engine)
         else:
             import tempfile
             db_fd, db_path = tempfile.mkstemp(suffix=".db")
@@ -221,6 +253,7 @@ def test_engine(app_modules):
                 Base.metadata.create_all(bind=engine)
             except Exception as e:
                 print(f"Warning during create_all: {e}")
+            _ensure_patients_whatsapp_opt_out_column(engine)
 
         yield engine
     finally:
