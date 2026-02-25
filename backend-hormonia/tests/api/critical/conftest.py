@@ -510,6 +510,50 @@ def _ensure_audit_logs_firebase_uid_column(engine):
         )
 
 
+def _ensure_audit_logs_event_category_constraint(engine):
+    """Ensure Postgres critical-suite schemas support current audit event categories."""
+    if engine.dialect.name != "postgresql":
+        return
+
+    inspector = sa_inspect(engine)
+    if not inspector.has_table("audit_logs"):
+        print("[critical.conftest] audit_logs table missing; skipping valid_event_category guard")
+        return
+
+    print("[critical.conftest] Applying schema patch: broaden audit_logs valid_event_category constraint")
+
+    constraint_sql = (
+        "ALTER TABLE audit_logs ADD CONSTRAINT valid_event_category CHECK ("
+        "event_category IN ("
+        "'AUTHENTICATION', 'AUTHORIZATION', 'PHI_ACCESS', 'DATA_MODIFICATION', "
+        "'SECURITY', 'SYSTEM', 'ADMIN', 'EXPORT', "
+        "'access', 'security', 'data_change', 'consent', "
+        "'performance', 'business', 'user_action'"
+        ")"
+        ")"
+    )
+
+    with engine.begin() as connection:
+        result = connection.execute(
+            text(
+                "SELECT 1 FROM information_schema.table_constraints "
+                "WHERE constraint_name = 'valid_event_category' "
+                "AND table_name = 'audit_logs'"
+            )
+        )
+        constraint_exists = result.scalar() is not None
+
+        if constraint_exists:
+            connection.execute(
+                text(
+                    "ALTER TABLE audit_logs "
+                    "DROP CONSTRAINT IF EXISTS valid_event_category"
+                )
+            )
+
+        connection.execute(text(constraint_sql))
+
+
 def get_firebase_id_token(email: str, password: str) -> str | None:
     """Get Firebase ID token via REST API (signInWithPassword)."""
     if os.getenv("SKIP_FIREBASE_TOKEN", "").lower() in ("1", "true", "yes"):
@@ -605,6 +649,7 @@ def test_engine(app_modules):
             _ensure_patients_whatsapp_opt_out_column(engine)
             _ensure_notifications_type_column(engine)
             _ensure_audit_logs_firebase_uid_column(engine)
+            _ensure_audit_logs_event_category_constraint(engine)
         else:
             import tempfile
             db_fd, db_path = tempfile.mkstemp(suffix=".db")
@@ -657,6 +702,7 @@ def test_engine(app_modules):
             _ensure_patients_whatsapp_opt_out_column(engine)
             _ensure_notifications_type_column(engine)
             _ensure_audit_logs_firebase_uid_column(engine)
+            _ensure_audit_logs_event_category_constraint(engine)
 
         yield engine
     finally:

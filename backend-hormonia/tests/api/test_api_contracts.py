@@ -90,7 +90,7 @@ def user_activity(db_session: Session, regular_users):
             id=uuid4(),
             user_id=user.id,
             event_type=event_types[i % len(event_types)],
-            event_category="user_action",
+            event_category="SYSTEM",
             severity="info",
             ip_address="127.0.0.1",
             user_agent="TestAgent/1.0",
