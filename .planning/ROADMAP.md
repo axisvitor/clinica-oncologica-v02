@@ -103,12 +103,12 @@ Plans:
   1. Importing from `flow/constants.py`, `flow/template_lookup.py`, `flow/analytics/`, `flow/templates/`, or `flow/monitoring/` raises an ImportError with a clear migration message
   2. No production code path imports from any of the five tombstoned locations (verified by grep/CI check)
   3. The repository is ~4,550 LOC lighter with no functional regression in existing tests
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 16-01: Tombstone `flow/constants.py` and `flow/template_lookup.py`
-- [ ] 16-02: Tombstone `flow/analytics/` package (4 files, 2,259 LOC)
-- [ ] 16-03: Tombstone `flow/templates/` package (4 files, 1,972 LOC) and `flow/monitoring/` package (2 files, 93 LOC)
+- [ ] 16-01-PLAN.md — Tombstone flow/constants.py (208 LOC) and flow/template_lookup.py (18 LOC)
+- [ ] 16-02-PLAN.md — Tombstone flow/analytics/ package (5 files, 2,259 LOC) and its test files
+- [ ] 16-03-PLAN.md — Tombstone flow/templates/ (4 files, 1,972 LOC) and flow/monitoring/ (2 files, 93 LOC), clean flow/__init__.py
 
 ### Phase 17: Flow Core Splits
 **Goal**: The three largest core flow files (_flow_functions, flow_core, flow_management) are decomposed into focused modules under 500 lines each, with all imports updated and tests passing.
