@@ -58,3 +58,13 @@
 - Follow-up result: `FAILED`
 - New error class: `sqlalchemy.exc.IntegrityError` (`psycopg.errors.CheckViolation: valid_event_category` for `event_category='user_action'`)
 - Scope note: Fail-fast is still not fully green because audit log legacy constraints now gate progress after the notifications schema issue was removed.
+
+## 2026-02-25 Plan 17-08 Fail-Fast Rerun
+
+- Command: `python3 -m pytest -x --tb=short`
+- Date/Time (UTC): `2026-02-25T22:19:34Z`
+- Result: `FAILED`
+- First failing node: `tests/api/test_patients_endpoints.py::TestPatientCRUDEndpoints::test_create_patient_success`
+- Error class: `AssertionError` (`422 != 201`)
+- `valid_event_category` blocker status: `CLOSED` (no `CheckViolation` on `audit_logs.valid_event_category`; `tests/api/test_api_contracts.py::TestUserActivityAPIContract::test_user_activity_returns_activity_logs` now passes)
+- Full fail-fast gate status: `NOT GREEN` (new first failure is patient create endpoint validation path, distinct from audit_logs constraint compatibility)
