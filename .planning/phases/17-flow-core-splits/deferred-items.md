@@ -36,3 +36,11 @@
 - New first failure: `tests/api/critical/test_patients_list.py::TestPatientList::test_list_patients_empty_or_existing`
 - Error class: `ResponseValidationError` (HTTP 500 from `string_pattern_mismatch` on `treatment_phase='onboarding'`)
 - Scope note: This new failure is outside Phase 17 split/async-session idempotency changes; it appears in patient list response validation semantics and should be tracked separately from the closed 422-vs-403 issue.
+
+## 2026-02-25 Plan 17-06 Full-Suite Run
+
+- Command: `python3 -m pytest -x --tb=short`
+- Date/Time (UTC): `2026-02-25T16:35:52Z`
+- New first failure: `tests/api/test_api_contract_fixes.py::TestNotificationsStructureFix::test_notifications_structure`
+- Error class: `sqlalchemy.exc.ProgrammingError` (`psycopg.errors.UndefinedColumn: notifications.notification_type does not exist`)
+- Scope note: This failure occurs in notifications schema/query contract and is unrelated to the Phase 17-06 `treatment_phase` response validation fix for `/api/v2/patients/`.
