@@ -1,4 +1,5 @@
 import logging
+from inspect import isawaitable
 from typing import Any, Optional
 from uuid import UUID
 
@@ -20,6 +21,30 @@ logger = logging.getLogger(__name__)
 
 
 class FlowCoreTransitionsMixin:
+    async def _get_flow_state_by_status(
+        self, patient_id: UUID, status: str
+    ) -> Optional[PatientFlowState]:
+        getter_name = {
+            "active": "get_active_flow",
+            "paused": "get_paused_flow",
+        }.get(status)
+
+        if getter_name and hasattr(self.flow_state_repo, getter_name):
+            getter = getattr(self.flow_state_repo, getter_name)
+            repo_result = getter(patient_id)
+            if isawaitable(repo_result):
+                repo_result = await repo_result
+            if repo_result is not None:
+                return repo_result
+
+        result = await self.db.execute(
+            select(PatientFlowState).filter(
+                PatientFlowState.patient_id == patient_id,
+                PatientFlowState.status == status,
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def determine_flow_type(self, patient_id: UUID, current_day: int) -> FlowType:
         if current_day <= 15:
             return FlowType.ONBOARDING
@@ -31,13 +56,7 @@ class FlowCoreTransitionsMixin:
         self, patient_id: UUID, force_day: Optional[int] = None
     ) -> dict[str, Any]:
         try:
-            result = await self.db.execute(
-                select(PatientFlowState).filter(
-                    PatientFlowState.patient_id == patient_id,
-                    PatientFlowState.status == "active",
-                )
-            )
-            flow_state = result.scalar_one_or_none()
+            flow_state = await self._get_flow_state_by_status(patient_id, "active")
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
@@ -135,13 +154,7 @@ class FlowCoreTransitionsMixin:
         self, patient_id: UUID, reason: str = None
     ) -> dict[str, Any]:
         try:
-            result = await self.db.execute(
-                select(PatientFlowState).filter(
-                    PatientFlowState.patient_id == patient_id,
-                    PatientFlowState.status == "active",
-                )
-            )
-            flow_state = result.scalar_one_or_none()
+            flow_state = await self._get_flow_state_by_status(patient_id, "active")
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
@@ -184,13 +197,7 @@ class FlowCoreTransitionsMixin:
 
     async def resume_patient_flow(self, patient_id: UUID) -> dict[str, Any]:
         try:
-            result = await self.db.execute(
-                select(PatientFlowState).filter(
-                    PatientFlowState.patient_id == patient_id,
-                    PatientFlowState.status == "paused",
-                )
-            )
-            flow_state = result.scalar_one_or_none()
+            flow_state = await self._get_flow_state_by_status(patient_id, "paused")
             if not flow_state:
                 raise NotFoundError(f"No active flow for patient {patient_id}")
 
