@@ -1,11 +1,16 @@
 """
-Unit Tests for FlowTemplateRepository - QW-021 Flow Services Consolidation.
+TOMBSTONED -- Phase 16 (Dead Code Removal)
 
-Tests template storage, retrieval, versioning, and cache management for the
-consolidated flow template system.
+Tests for app.services.flow.templates which has been tombstoned.
 """
 
 import pytest
+
+pytest.skip(
+    "app.services.flow.templates tombstoned in Phase 16 (Dead Code Removal)",
+    allow_module_level=True,
+)
+
 from datetime import datetime, timedelta
 
 from app.services.flow.templates.repository import FlowTemplateRepository

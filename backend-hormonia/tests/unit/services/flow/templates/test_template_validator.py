@@ -1,13 +1,15 @@
 """
-Unit Tests for FlowTemplateValidator - QW-021 Flow Services Consolidation.
+TOMBSTONED -- Phase 16 (Dead Code Removal)
 
-Tests template validation including structure, steps, transitions, graph validation,
-and business rules for the consolidated flow template system.
-
-Part 1: Structure and Basic Validation Tests
+Tests for app.services.flow.templates which has been tombstoned.
 """
 
 import pytest
+
+pytest.skip(
+    "app.services.flow.templates tombstoned in Phase 16 (Dead Code Removal)",
+    allow_module_level=True,
+)
 
 from app.services.flow.templates.validator import FlowTemplateValidator
 from app.services.flow.types import (

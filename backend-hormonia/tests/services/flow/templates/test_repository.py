@@ -1,11 +1,16 @@
 """
-Tests for FlowTemplateRepository - CRUD Operations, Versioning, Cache, Import/Export.
+TOMBSTONED -- Phase 16 (Dead Code Removal)
 
-This module tests the repository pattern implementation for flow template
-storage, retrieval, and versioning.
+Tests for app.services.flow.templates which has been tombstoned.
 """
 
 import pytest
+
+pytest.skip(
+    "app.services.flow.templates tombstoned in Phase 16 (Dead Code Removal)",
+    allow_module_level=True,
+)
+
 from typing import Dict, Any, List
 
 from app.services.flow.templates.repository import FlowTemplateRepository

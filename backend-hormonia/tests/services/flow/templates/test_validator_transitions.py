@@ -1,15 +1,16 @@
 """
-Tests for FlowTemplateValidator - Transitions Validation.
+TOMBSTONED -- Phase 16 (Dead Code Removal)
 
-This module tests the transition validation logic including:
-- Transition structure validation
-- From/to step references
-- Transition types
-- Conditional transition requirements
-- Orphaned step detection
+Tests for app.services.flow.templates which has been tombstoned.
 """
 
 import pytest
+
+pytest.skip(
+    "app.services.flow.templates tombstoned in Phase 16 (Dead Code Removal)",
+    allow_module_level=True,
+)
+
 from typing import Dict, Any
 
 from app.services.flow.templates.validator import FlowTemplateValidator

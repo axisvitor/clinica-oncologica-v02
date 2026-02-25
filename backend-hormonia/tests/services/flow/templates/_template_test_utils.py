@@ -1,4 +1,15 @@
-"""Shared helpers for flow template validator tests."""
+"""
+TOMBSTONED -- Phase 16 (Dead Code Removal)
+
+Tests for app.services.flow.templates which has been tombstoned.
+"""
+
+import pytest
+
+pytest.skip(
+    "app.services.flow.templates tombstoned in Phase 16 (Dead Code Removal)",
+    allow_module_level=True,
+)
 
 from app.services.flow.types import (
     FlowTemplate,

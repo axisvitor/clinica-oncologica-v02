@@ -6,12 +6,20 @@ all handle versions consistently using the centralized version utilities.
 """
 
 import pytest
+import importlib
 from unittest.mock import Mock, patch
 
 from app.services.template_loader_pkg import EnhancedTemplateLoader
 from app.services.versioned_template_loader import VersionedTemplateLoader
-from app.services.flow.templates.validator import FlowTemplateValidator
 from app.utils.version_utils import normalize_version, to_int_version
+
+try:
+    FlowTemplateValidator = getattr(
+        importlib.import_module("app.services.flow.templates.validator"),
+        "FlowTemplateValidator",
+    )
+except ImportError:  # Tombstoned in Phase 16
+    FlowTemplateValidator = None
 
 
 class TestEnhancedTemplateLoaderVersioning:
@@ -183,12 +191,17 @@ class TestVersionedTemplateLoaderVersioning:
             assert len(version.split(".")) == 3
 
 
+@pytest.mark.skipif(
+    FlowTemplateValidator is None,
+    reason="app.services.flow.templates tombstoned in Phase 16 (Dead Code Removal)",
+)
 class TestFlowTemplateValidatorVersioning:
     """Test FlowTemplateValidator version handling."""
 
     @pytest.fixture
     def validator(self):
         """Create validator instance."""
+        assert FlowTemplateValidator is not None
         return FlowTemplateValidator()
 
     def test_validates_semantic_version_format(self, validator):

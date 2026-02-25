@@ -1,11 +1,16 @@
 """
-Tests for FlowTemplateManager - Lifecycle, Validation, Activation.
+TOMBSTONED -- Phase 16 (Dead Code Removal)
 
-This module tests the manager service that coordinates template validation,
-storage, and lifecycle management.
+Tests for app.services.flow.templates which has been tombstoned.
 """
 
 import pytest
+
+pytest.skip(
+    "app.services.flow.templates tombstoned in Phase 16 (Dead Code Removal)",
+    allow_module_level=True,
+)
+
 from typing import Dict, Any, List
 from unittest.mock import Mock
 
