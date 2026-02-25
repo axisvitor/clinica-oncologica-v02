@@ -70,7 +70,7 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
   2. A patient whose pause window has expired is automatically resumed by the Celery Beat job without manual intervention
   3. A cancelled flow clears all pending messages and resets state so no follow-up messages are sent after cancellation
   4. The flow management service exposes a working cancel endpoint that a doctor can call and receive confirmation
-**Plans**: 5 plans
+**Plans**: 6 plans
 
 Plans:
 - [x] 14-01-PLAN.md — Standardize pause detection to state_data.paused across daily processor, FlowCore, and FlowManagementService
@@ -127,6 +127,7 @@ Plans:
 - [x] 17-03-PLAN.md — Split `flow_management.py` into state queries, advancement, and pause/resume modules with compatibility shim
 - [x] 17-04-PLAN.md — Enforce `patients.messaging_stopped_at` schema guard in test fixtures and refresh full-suite regression evidence
 - [x] 17-05-PLAN.md — Close idempotency RBAC AsyncSession mismatch (`422` vs `403`) and refresh full-suite closure evidence
+- [x] 17-06-PLAN.md — Fix patient list `treatment_phase` response validation mismatch and align onboarding input/constants
 
 ### Phase 18: Flow Service Splits
 **Goal**: The four oversized flow service files (sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring) are split into focused modules, each under 500 lines.
@@ -182,10 +183,10 @@ Plans:
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
-| 17. Flow Core Splits | 5/5 | Complete   | 2026-02-25 | - |
+| 17. Flow Core Splits | 6/6 | Complete   | 2026-02-25 | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-25 — Phase 17 complete (5/5)*
+*Last updated: 2026-02-25 — Phase 17 complete (6/6)*

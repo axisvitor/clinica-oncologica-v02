@@ -90,4 +90,4 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 
 ---
 *Requirements defined: 2026-02-24*
-*Last updated: 2026-02-24 — traceability mapped to phases 14-19*
+*Last updated: 2026-02-25 — SPLIT-05/06/07 confirmed complete for Phase 17 (17-06 verification closure)*
