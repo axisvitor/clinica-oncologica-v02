@@ -286,6 +286,7 @@ class CPFConstants:
 class TreatmentPhase:
     """Valid treatment phase values."""
 
+    ONBOARDING: Final[str] = "onboarding"
     INITIAL: Final[str] = "initial"
     ADJUSTMENT: Final[str] = "adjustment"
     MAINTENANCE: Final[str] = "maintenance"
@@ -294,6 +295,7 @@ class TreatmentPhase:
     COMPLETED: Final[str] = "completed"
 
     ALL_PHASES: Final[set[str]] = {
+        ONBOARDING,
         INITIAL,
         ADJUSTMENT,
         MAINTENANCE,

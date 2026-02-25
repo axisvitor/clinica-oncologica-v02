@@ -219,7 +219,7 @@ class PatientV2Base(_PatientSharedValidators, BaseModel):
     treatment_phase: Optional[str] = Field(
         None,
         max_length=100,
-        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$"
+        pattern="^(onboarding|initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$"
     )
     timezone: str = Field(
         "America/Sao_Paulo", description="Patient timezone (e.g., America/Sao_Paulo)"
@@ -358,7 +358,7 @@ class PatientV2Update(_PatientSharedValidators, BaseModel):
     treatment_phase: Optional[str] = Field(
         None,
         max_length=100,
-        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$"
+        pattern="^(onboarding|initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$"
     )
     flow_state: Optional[FlowState] = None
 
@@ -419,6 +419,7 @@ class PatientV2Response(PatientV2Base):
     updated_at: datetime
     current_day: Optional[int] = None
     flow_state: Optional[FlowState] = Field(None, description="Patient flow state/status")
+    treatment_phase: Optional[str] = Field(None, max_length=100)
 
     # Optional eager-loaded relationships
     doctor: Optional[DoctorV2Brief] = None

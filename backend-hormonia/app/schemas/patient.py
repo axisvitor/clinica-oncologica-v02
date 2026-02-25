@@ -69,7 +69,7 @@ class PatientBase(BaseModel):
     treatment_phase: Optional[str] = Field(
         None,
         description="Current treatment phase",
-        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$",
+        pattern="^(onboarding|initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$",
     )
     doctor_notes: Optional[str] = Field(
         None, description="Doctor's notes about the patient"
@@ -211,7 +211,8 @@ class PatientUpdate(BaseModel):
     cpf: Optional[str] = Field(None, max_length=11)
     diagnosis: Optional[str] = Field(None, max_length=500)
     treatment_phase: Optional[str] = Field(
-        None, pattern="^(initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$"
+        None,
+        pattern="^(onboarding|initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$",
     )
     doctor_notes: Optional[str] = None
 
