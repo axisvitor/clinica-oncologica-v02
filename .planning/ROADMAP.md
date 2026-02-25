@@ -106,8 +106,8 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 16-01-PLAN.md — Tombstone flow/constants.py (208 LOC) and flow/template_lookup.py (18 LOC)
-- [ ] 16-02-PLAN.md — Tombstone flow/analytics/ package (5 files, 2,259 LOC) and its test files
+- [x] 16-01-PLAN.md — Tombstone flow/constants.py (208 LOC) and flow/template_lookup.py (18 LOC)
+- [x] 16-02-PLAN.md — Tombstone flow/analytics/ package (5 files, 2,259 LOC) and its test files
 - [ ] 16-03-PLAN.md — Tombstone flow/templates/ (4 files, 1,972 LOC) and flow/monitoring/ (2 files, 93 LOC), clean flow/__init__.py
 
 ### Phase 17: Flow Core Splits
@@ -179,11 +179,11 @@ Plans:
 | 13. SDK Migration & Cleanup | v1.2 | 5/5 | Complete | 2026-02-24 |
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
-| 16. Dead Code Removal | 1/3 | In Progress|  | - |
+| 16. Dead Code Removal | v1.3 | 2/3 | In Progress | - |
 | 17. Flow Core Splits | v1.3 | 0/3 | Not started | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-25 — Phase 15 complete (5/5)*
+*Last updated: 2026-02-25 — Phase 16 in progress (2/3)*
