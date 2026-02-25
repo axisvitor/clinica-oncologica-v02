@@ -178,7 +178,7 @@ Plans:
 | 12. Flow Orchestration Replacement | v1.2 | 3/3 | Complete | 2026-02-24 |
 | 13. SDK Migration & Cleanup | v1.2 | 5/5 | Complete | 2026-02-24 |
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
-| 15. Data Integrity Fixes | v1.3 | 5/5 | Complete | 2026-02-25 |
+| 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | v1.3 | 0/3 | Not started | - |
 | 17. Flow Core Splits | v1.3 | 0/3 | Not started | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
