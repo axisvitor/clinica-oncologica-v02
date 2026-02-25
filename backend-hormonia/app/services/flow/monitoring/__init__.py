@@ -1,44 +1,16 @@
 """
-Flow monitoring surface for consolidated analytics services.
+TOMBSTONED -- Phase 16 (Dead Code Removal)
 
-Exports:
-    - FlowMetricsCollector
-    - FlowMonitor
-    - FlowAnalytics
-    - FlowEventBroadcaster
-    - FlowHealthMetrics
-    - HealthStatus
-    - get_flow_analytics
-    - build_dashboard_snapshot
+This package has been decommissioned. It was a pure re-export shim of
+``app.services.flow.analytics`` which has also been tombstoned.
+
+Production flow monitoring uses ``app.services.flow_monitoring`` instead.
+
+Do not import from this package.
 """
 
-from __future__ import annotations
-
-# Re-export from analytics module
-from ..analytics import (
-    FlowAnalytics,
-    FlowEventBroadcaster,
-    FlowMetricsCollector,
-    FlowMonitor,
-    get_flow_analytics,
-    reset_flow_analytics,
+raise ImportError(
+    "app.services.flow.monitoring has been tombstoned in Phase 16 (Dead Code Removal). "
+    "This package had zero production callers. "
+    "Use app.services.flow_monitoring for production monitoring."
 )
-from ..analytics.monitor import FlowHealthMetrics, HealthStatus
-from .dashboard import build_dashboard_snapshot
-
-
-__all__ = [
-    # Main analytics service
-    "FlowAnalytics",
-    "get_flow_analytics",
-    "reset_flow_analytics",
-    # Components
-    "FlowMetricsCollector",
-    "FlowMonitor",
-    "FlowEventBroadcaster",
-    # Health monitoring
-    "FlowHealthMetrics",
-    "HealthStatus",
-    # Dashboard helpers
-    "build_dashboard_snapshot",
-]

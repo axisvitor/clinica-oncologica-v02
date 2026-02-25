@@ -1,47 +1,19 @@
 """
-Flow Templates - Template management for Flow Services (QW-021).
+TOMBSTONED -- Phase 16 (Dead Code Removal)
 
-This module provides template validation, repository access, and lifecycle
-management for flow templates.
+This package has been decommissioned. The FlowTemplateManager,
+FlowTemplateValidator, and FlowTemplateRepository had zero production callers.
 
-Exports:
-    - FlowTemplateManager: Template lifecycle management
-    - FlowTemplateValidator: Template validation
-    - FlowTemplateRepository: Template data access
-    - get_template_manager: Singleton getter for FlowTemplateManager
+Production template management uses:
+  - ``app.services.template_loader_pkg`` for template loading
+  - ``app.services.flow_template`` for full lifecycle CRUD
+
+Do not import from this package.
 """
 
-from .manager import FlowTemplateManager
-from .validator import FlowTemplateValidator
-from .repository import FlowTemplateRepository
-
-# Singleton instance
-_template_manager_instance = None
-
-
-def get_template_manager() -> FlowTemplateManager:
-    """
-    Get or create the global FlowTemplateManager singleton instance.
-
-    Returns:
-        FlowTemplateManager: The singleton instance
-    """
-    global _template_manager_instance
-    if _template_manager_instance is None:
-        _template_manager_instance = FlowTemplateManager()
-    return _template_manager_instance
-
-
-def reset_template_manager():
-    """Reset the global FlowTemplateManager instance (for testing)."""
-    global _template_manager_instance
-    _template_manager_instance = None
-
-
-__all__ = [
-    "FlowTemplateManager",
-    "FlowTemplateValidator",
-    "FlowTemplateRepository",
-    "get_template_manager",
-    "reset_template_manager",
-]
+raise ImportError(
+    "app.services.flow.templates has been tombstoned in Phase 16 (Dead Code Removal). "
+    "This package had zero production callers. "
+    "Use app.services.template_loader_pkg for template loading, "
+    "or app.services.flow_template for lifecycle management."
+)

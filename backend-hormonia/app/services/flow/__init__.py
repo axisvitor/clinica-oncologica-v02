@@ -17,17 +17,6 @@ Public API:
         - get_flow_config(): Global configuration accessor
         - FlowFeatureFlags: Patient-type routing flags for FlowDispatcher
 
-    Analytics:
-        - FlowAnalytics: Main analytics service
-        - FlowMetricsCollector: Metrics collection
-        - FlowEventBroadcaster: Event broadcasting
-        - FlowMonitor: Health monitoring
-
-    Templates:
-        - FlowTemplateManager: Template management
-        - FlowTemplateValidator: Template validation
-        - FlowTemplateRepository: Template storage
-
 Example Usage:
     >>> from app.services.flow import FlowType, FlowFeatureFlags
     >>> from app.services.flow.config import get_flow_config
@@ -79,40 +68,11 @@ from .types import (
     TemplateID,
 )
 
-# Import analytics components
-from .analytics import (
-    FlowAnalytics,
-    FlowMetricsCollector,
-    FlowEventBroadcaster,
-    FlowMonitor,
-    get_flow_analytics,
-)
-
-# Import template components
-from .templates import (
-    FlowTemplateManager,
-    FlowTemplateValidator,
-    FlowTemplateRepository,
-    get_template_manager,
-)
-
-
 # ============================================================================
 # Public Exports
 # ============================================================================
 
 __all__ = [
-    # Analytics
-    "FlowAnalytics",
-    "FlowMetricsCollector",
-    "FlowEventBroadcaster",
-    "FlowMonitor",
-    "get_flow_analytics",
-    # Templates
-    "FlowTemplateManager",
-    "FlowTemplateValidator",
-    "FlowTemplateRepository",
-    "get_template_manager",
     # Configuration
     "FlowConfig",
     "get_flow_config",
