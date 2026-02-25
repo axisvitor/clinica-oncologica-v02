@@ -112,6 +112,224 @@ def _ensure_patients_whatsapp_opt_out_column(engine):
         )
 
 
+def _ensure_notifications_type_column(engine):
+    """Ensure Postgres critical-suite schemas include notifications.notification_type."""
+    if engine.dialect.name != "postgresql":
+        return
+
+    inspector = sa_inspect(engine)
+    if not inspector.has_table("notifications"):
+        print("[critical.conftest] notifications table missing; skipping notification_type guard")
+        return
+
+    notification_columns = {column["name"] for column in inspector.get_columns("notifications")}
+    missing_columns = {
+        "notification_type",
+        "priority",
+        "title",
+        "message",
+        "action_url",
+        "action_label",
+        "notification_metadata",
+        "is_read",
+        "read_at",
+        "is_archived",
+        "archived_at",
+        "expires_at",
+    } - notification_columns
+
+    if not missing_columns:
+        return
+
+    print("[critical.conftest] Applying schema patch: align notifications columns")
+    with engine.begin() as connection:
+        if "notification_type" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS notification_type VARCHAR(50)"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE notifications "
+                    "SET notification_type = 'INFO' "
+                    "WHERE notification_type IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ALTER COLUMN notification_type SET NOT NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_notifications_notification_type "
+                    "ON notifications (notification_type)"
+                )
+            )
+
+        if "priority" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS priority VARCHAR(20)"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE notifications "
+                    "SET priority = 'MEDIUM' "
+                    "WHERE priority IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ALTER COLUMN priority SET NOT NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS idx_notifications_priority "
+                    "ON notifications (priority)"
+                )
+            )
+
+        if "title" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS title VARCHAR(200)"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE notifications "
+                    "SET title = 'Notification' "
+                    "WHERE title IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ALTER COLUMN title SET NOT NULL"
+                )
+            )
+
+        if "message" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS message TEXT"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE notifications "
+                    "SET message = 'Notification message' "
+                    "WHERE message IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ALTER COLUMN message SET NOT NULL"
+                )
+            )
+
+        if "action_url" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS action_url VARCHAR(500)"
+                )
+            )
+
+        if "action_label" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS action_label VARCHAR(100)"
+                )
+            )
+
+        if "notification_metadata" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS notification_metadata JSONB"
+                )
+            )
+
+        if "is_read" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS is_read BOOLEAN"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE notifications "
+                    "SET is_read = FALSE "
+                    "WHERE is_read IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ALTER COLUMN is_read SET NOT NULL"
+                )
+            )
+
+        if "read_at" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ NULL"
+                )
+            )
+
+        if "is_archived" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS is_archived BOOLEAN"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE notifications "
+                    "SET is_archived = FALSE "
+                    "WHERE is_archived IS NULL"
+                )
+            )
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ALTER COLUMN is_archived SET NOT NULL"
+                )
+            )
+
+        if "archived_at" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ NULL"
+                )
+            )
+
+        if "expires_at" in missing_columns:
+            connection.execute(
+                text(
+                    "ALTER TABLE notifications "
+                    "ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ NULL"
+                )
+            )
+
+
 def get_firebase_id_token(email: str, password: str) -> str | None:
     """Get Firebase ID token via REST API (signInWithPassword)."""
     if os.getenv("SKIP_FIREBASE_TOKEN", "").lower() in ("1", "true", "yes"):
@@ -205,6 +423,7 @@ def test_engine(app_modules):
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
             _ensure_patients_whatsapp_opt_out_column(engine)
+            _ensure_notifications_type_column(engine)
         else:
             import tempfile
             db_fd, db_path = tempfile.mkstemp(suffix=".db")
@@ -255,6 +474,7 @@ def test_engine(app_modules):
             except Exception as e:
                 print(f"Warning during create_all: {e}")
             _ensure_patients_whatsapp_opt_out_column(engine)
+            _ensure_notifications_type_column(engine)
 
         yield engine
     finally:
