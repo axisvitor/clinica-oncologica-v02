@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Phase 15 — Data Integrity Fixes
+**Current focus:** Phase 16 — Dead Code Removal
 
 ## Current Position
 
-Phase: 15 of 19 — v1.3 active (Data Integrity Fixes)
-Plan: Complete (3/3) — next 16-01-PLAN.md
-Status: Phase 15 complete
-Last activity: 2026-02-24 — completed 15-03 DLQ wiring and retry monitoring
+Phase: 16 of 19 — v1.3 active (Dead Code Removal)
+Plan: Complete (5/5) — next 16-01-PLAN.md
+Status: Phase 15 complete, Phase 16 ready
+Last activity: 2026-02-25 — completed 15-05 canonical service constants/cycle alignment
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ███░░░░░░░ 33%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 41 (v1.0: 13, v1.1: 10, v1.2: 16, v1.3: 3)
+- Total plans completed: 43 (v1.0: 13, v1.1: 10, v1.2: 16, v1.3: 5)
 - Total execution time: 3 days (v1.0: 1 day, v1.1: 1 day, v1.2: 1 day)
 
 **By Phase:**
@@ -35,6 +35,8 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 15-data-integrity-fixes P02 | 3 min | 2 tasks | 3 files |
 | Phase 15 P01 | 3 min | 2 tasks | 4 files |
 | Phase 15 P03 | 7 min | 2 tasks | 4 files |
+| Phase 15-data-integrity-fixes P05 | 5 min | 2 tasks | 3 files |
+| Phase 15-data-integrity-fixes P04 | 19 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -60,6 +62,10 @@ Recent decisions affecting v1.3:
 - [Phase 15]: TemplateVariableProcessor uses canonical monthly constants imports instead of class-local copies
 - [Phase 15]: Use existing FailureReason enum values (MAX_RETRIES_EXCEEDED/UNKNOWN) to avoid DB enum drift.
 - [Phase 15]: Keep DLQ routing non-fatal so delivery-task failure reporting remains deterministic.
+- [Phase 15-data-integrity-fixes]: HiveMindIntegrationService LangGraph routing now delegates flow/day boundaries to canonical resolve_flow_type_and_day.
+- [Phase 15-data-integrity-fixes]: ManualCorrectionService monthly reset path now derives cycle/day via canonical compute_cycle_number and shared phase constants.
+- [Phase 15-data-integrity-fixes]: Missing-template fallback now sends a no-link patient WhatsApp message through existing unified messaging infrastructure.
+- [Phase 15-data-integrity-fixes]: Quiz trigger template-missing path now returns success with continue_flow marker to avoid terminal error classification.
 
 ### Pending Todos
 
@@ -75,6 +81,6 @@ Carried tech debt (not v1.3-scoped):
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: Completed 15-03-PLAN.md
+Last session: 2026-02-25
+Stopped at: Completed 15-05-PLAN.md
 Resume file: None

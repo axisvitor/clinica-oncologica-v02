@@ -50,8 +50,10 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
 
 **Milestone Goal:** Fix 7 critical functional gaps in patient flow control, remove ~4,550 LOC of dead code from unused packages, and split 10 oversized files (500-1,141 LOC each) into focused modules for long-term maintainability.
 
-- [x] **Phase 14: Flow Control Fixes** - Fix pause detection, auto-resume, and cancel flow end-to-end (completed 2026-02-24)
-- [x] **Phase 15: Data Integrity Fixes** - Fix quiz crash, consolidate constants, align cycle calculation, wire DLQ (completed 2026-02-24)
+- [x] **Phase 14: Flow Control Fixes** - Fix pause detection, auto-resume, and cancel flow end-to-end
+ (completed 2026-02-24)
+- [x] **Phase 15: Data Integrity Fixes** - Fix quiz crash, consolidate constants, align cycle calculation, wire DLQ
+ (completed 2026-02-25)
 - [ ] **Phase 16: Dead Code Removal** - Tombstone 5 unused packages/files (~4,550 LOC)
 - [ ] **Phase 17: Flow Core Splits** - Split _flow_functions, flow_core, flow_management into focused modules
 - [ ] **Phase 18: Flow Service Splits** - Split sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring
@@ -68,7 +70,7 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
   2. A patient whose pause window has expired is automatically resumed by the Celery Beat job without manual intervention
   3. A cancelled flow clears all pending messages and resets state so no follow-up messages are sent after cancellation
   4. The flow management service exposes a working cancel endpoint that a doctor can call and receive confirmation
-**Plans**: 3 plans
+**Plans**: 5 plans
 
 Plans:
 - [x] 14-01-PLAN.md — Standardize pause detection to state_data.paused across daily processor, FlowCore, and FlowManagementService
@@ -84,12 +86,14 @@ Plans:
   2. All flow phase constants resolve to the same values regardless of which module imports them (no divergence between flow_coordinator and sequential_message_handler)
   3. The monthly quiz cycle number computed by flow_coordinator and sequential_message_handler is identical for every input date
   4. A flow message that fails delivery is visible in the DLQ monitoring dashboard and retried automatically
-**Plans**: 3 plans
+**Plans**: 5 plans
 
 Plans:
-- [ ] 15-01-PLAN.md — Consolidate phase constants and cycle calculation to canonical source (FIX-05, FIX-06)
-- [ ] 15-02-PLAN.md — Add graceful fallback for missing quiz templates (FIX-04)
+- [x] 15-01-PLAN.md — Consolidate phase constants and cycle calculation to canonical source (FIX-05, FIX-06)
+- [x] 15-02-PLAN.md — Add graceful fallback for missing quiz templates (FIX-04)
 - [x] 15-03-PLAN.md — Wire failed flow messages to DLQ with retry and monitoring (FIX-07)
+- [x] 15-04-PLAN.md — Close missing-template fallback gap by sending no-link message and returning continue/success semantics (FIX-04, FIX-07)
+- [x] 15-05-PLAN.md — Remove remaining hardcoded phase/cycle arithmetic in production services using canonical helpers (FIX-05, FIX-06)
 
 ### Phase 16: Dead Code Removal
 **Goal**: Five unused code packages and files are tombstoned, reducing the active codebase by ~4,550 LOC and eliminating future confusion about which modules are in use.
@@ -173,8 +177,8 @@ Plans:
 | 11. Agent Implementation | v1.2 | 4/4 | Complete | 2026-02-24 |
 | 12. Flow Orchestration Replacement | v1.2 | 3/3 | Complete | 2026-02-24 |
 | 13. SDK Migration & Cleanup | v1.2 | 5/5 | Complete | 2026-02-24 |
-| 14. Flow Control Fixes | v1.3 | Complete    | 2026-02-24 | 2026-02-24 |
-| 15. Data Integrity Fixes | 3/3 | Complete   | 2026-02-24 | - |
+| 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
+| 15. Data Integrity Fixes | v1.3 | 5/5 | Complete | 2026-02-25 |
 | 16. Dead Code Removal | v1.3 | 0/3 | Not started | - |
 | 17. Flow Core Splits | v1.3 | 0/3 | Not started | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
@@ -182,4 +186,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-24 — Phase 14 complete (3/3)*
+*Last updated: 2026-02-25 — Phase 15 complete (5/5)*
