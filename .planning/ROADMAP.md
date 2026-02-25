@@ -129,6 +129,7 @@ Plans:
 - [x] 17-05-PLAN.md — Close idempotency RBAC AsyncSession mismatch (`422` vs `403`) and refresh full-suite closure evidence
 - [x] 17-06-PLAN.md — Fix patient list `treatment_phase` response validation mismatch and align onboarding input/constants
 - [x] 17-07-PLAN.md — Close notifications `notification_type` schema bootstrap mismatch and refresh fail-fast evidence (new audit_logs constraint blocker deferred)
+- [x] 17-08-PLAN.md — Close audit_logs `valid_event_category` schema mismatch and refresh fail-fast evidence (new patient-create blocker deferred)
 
 ### Phase 18: Flow Service Splits
 **Goal**: The four oversized flow service files (sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring) are split into focused modules, each under 500 lines.
@@ -184,10 +185,10 @@ Plans:
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
-| 17. Flow Core Splits | 7/7 | Complete   | 2026-02-25 | - |
+| 17. Flow Core Splits | 8/8 | Complete   | 2026-02-25 | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-25 — Phase 17 plans complete (7/7), fail-fast blocker deferred to next fix*
+*Last updated: 2026-02-25 — Phase 17 plans complete (8/8), audit_logs blocker closed, patient-create fail-fast blocker deferred to next fix*

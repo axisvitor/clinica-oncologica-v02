@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Flow Health & Cleanup
 status: unknown
-last_updated: "2026-02-25T21:27:04.936Z"
+last_updated: "2026-02-25T22:24:26.471Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 18
-  completed_plans: 18
+  total_plans: 19
+  completed_plans: 19
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 17 of 19 — v1.3 active (Flow Core Splits)
-Plan: 17-07 executed (7/7) — verification evidence refreshed
-Status: Phase 17 plans complete; fail-fast remains blocked by downstream audit_logs constraint mismatch
-Last activity: 2026-02-25 — executed 17-07 notifications schema guard closure and captured new fail-fast blocker evidence
+Plan: 17-08 executed (8/8) — audit_logs constraint guard closure evidence captured
+Status: Phase 17 plans complete; audit_logs blocker closed, fail-fast now blocked by patient create endpoint validation mismatch
+Last activity: 2026-02-25 — executed 17-08 valid_event_category guard rollout and captured new fail-fast first-failure evidence
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
@@ -60,6 +60,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 17 P05 | 9 min | 2 tasks | 4 files |
 | Phase 17-flow-core-splits P06 | 14 min | 2 tasks | 4 files |
 | Phase 17 P07 | 32 min | 2 tasks | 3 files |
+| Phase 17-flow-core-splits P08 | 17 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -109,6 +110,8 @@ Recent decisions affecting v1.3:
 - [Phase 17-flow-core-splits]: Treat unsupported pytest --timeout flag as an execution-environment blocker and rerun with supported fail-fast flags
 - [Phase 17]: Expanded pytest fixture schema guards additively for notifications and audit_logs instead of table rebuilds
 - [Phase 17]: Notifications fail-fast blocker is closed; next blocker is audit_logs valid_event_category constraint compatibility
+- [Phase 17-flow-core-splits]: Use test-time valid_event_category constraint rewrite to align HIPAA uppercase and production lowercase audit categories without migration changes
+- [Phase 17-flow-core-splits]: Set user_activity fixture event_category to SYSTEM while keeping user_action allowed in broadened constraint guard
 
 ### Pending Todos
 
@@ -121,10 +124,10 @@ Carried tech debt (not v1.3-scoped):
 - Physician availability hours model — hardcoded defaults
 - PromptedOutput validation confidence against gemini-2.5-flash is MEDIUM
 - 60+ files >500 lines total; v1.3 addresses 10 of them
-- Full backend suite currently fails first at tests/api/test_api_contracts.py::TestUserActivityAPIContract::test_user_activity_returns_activity_logs with `psycopg.errors.CheckViolation: valid_event_category` in `audit_logs`.
+- Full backend suite currently fails first at tests/api/test_patients_endpoints.py::TestPatientCRUDEndpoints::test_create_patient_success with `AssertionError` (`422 != 201`) in patient create validation flow.
 
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 17-07-PLAN.md
+Stopped at: Completed 17-08-PLAN.md
 Resume file: None
