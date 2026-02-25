@@ -119,7 +119,7 @@ Plans:
   2. Each new module has a single clear responsibility (e.g., phase transitions do not live in the same module as template binding)
   3. All existing callers of `_flow_functions`, `flow_core`, and `flow_management` continue to work via re-export shims at the original paths
   4. The full test suite passes after the split with no new failures
-**Plans**: 5 plans
+**Plans**: 7 plans
 
 Plans:
 - [x] 17-01-PLAN.md — Split `_flow_functions.py` into focused message/response/orchestration modules with compatibility shim
@@ -128,6 +128,7 @@ Plans:
 - [x] 17-04-PLAN.md — Enforce `patients.messaging_stopped_at` schema guard in test fixtures and refresh full-suite regression evidence
 - [x] 17-05-PLAN.md — Close idempotency RBAC AsyncSession mismatch (`422` vs `403`) and refresh full-suite closure evidence
 - [x] 17-06-PLAN.md — Fix patient list `treatment_phase` response validation mismatch and align onboarding input/constants
+- [ ] 17-07-PLAN.md — Close notifications `notification_type` schema bootstrap mismatch and refresh full-suite fail-fast evidence
 
 ### Phase 18: Flow Service Splits
 **Goal**: The four oversized flow service files (sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring) are split into focused modules, each under 500 lines.
