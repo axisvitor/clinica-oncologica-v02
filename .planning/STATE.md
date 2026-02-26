@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 18 of 19 — v1.3 active (Flow Service Splits)
-Plan: 18-02 executed (1/4) — flow_dashboard service split into flow_dashboard_pkg with shim compatibility and contract tests
-Status: Phase 18 in progress; SPLIT-03 completed with shim/factory/enum re-export contract preserved
-Last activity: 2026-02-26 — executed 18-02 flow dashboard split and recorded split-contract evidence
+Plan: 18-01 executed (1/4) — flow_monitoring service split into flow_monitoring_pkg with shim compatibility and contract tests
+Status: Phase 18 in progress; SPLIT-04 completed with monitoring split contract coverage preserved
+Last activity: 2026-02-26 — executed 18-01 flow monitoring split and recorded split-contract evidence
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
@@ -148,5 +148,5 @@ Carried tech debt (not v1.3-scoped):
 - Full fail-fast currently stops at tests/api/v2/test_alerts.py::TestListAlerts::test_list_alerts_basic with `sqlalchemy.exc.ProgrammingError` (`alerts.type` column missing)
 ## Session Continuity
 Last session: 2026-02-26
-Stopped at: Completed 18-02-PLAN.md
+Stopped at: Completed 18-01-PLAN.md
 Resume file: None
