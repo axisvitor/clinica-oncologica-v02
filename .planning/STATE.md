@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Flow Health & Cleanup
 status: unknown
-last_updated: "2026-02-26T14:43:18.197Z"
+last_updated: "2026-02-26T15:06:12.639Z"
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 28
-  completed_plans: 26
+  completed_plans: 27
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 18 of 19 — v1.3 active (Flow Service Splits)
-Plan: 18-01 executed (1/4) — flow_monitoring service split into flow_monitoring_pkg with shim compatibility and contract tests
-Status: Phase 18 in progress; SPLIT-04 completed with monitoring split contract coverage preserved
-Last activity: 2026-02-26 — executed 18-01 flow monitoring split and recorded split-contract evidence
+Plan: 18-03 executed (3/4) — enhanced_flow_engine split into enhanced_flow_engine_pkg with shim compatibility and split contract coverage
+Status: Phase 18 in progress; SPLIT-02, SPLIT-03, and SPLIT-04 completed with compatibility preserved
+Last activity: 2026-02-26 — executed 18-03 enhanced flow engine split and recorded split-contract evidence
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
@@ -68,6 +68,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 17 P13 | 27 min | 2 tasks | 2 files |
 | Phase 18 P02 | 2 min | 2 tasks | 10 files |
 | Phase 18-flow-service-splits P01 | 9 min | 2 tasks | 9 files |
+| Phase 18 P03 | 8 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -133,6 +134,8 @@ Recent decisions affecting v1.3:
 - [Phase 18]: Preserve legacy imports by making flow_dashboard.py a thin named-export shim over flow_dashboard_pkg.
 - [Phase 18-flow-service-splits]: Kept app.services.flow_monitoring as a strict compatibility shim with explicit __all__ and AlertSeverity re-export.
 - [Phase 18-flow-service-splits]: Composed FlowMonitoringService from focused mixins to preserve behavior while isolating metrics, health, alerting, and trends responsibilities.
+- [Phase 18]: Preserved FlowCore inheritance by composing EnhancedFlowEngine in service.py with mixins and FlowCore as base.
+- [Phase 18]: Kept app.services.enhanced_flow_engine as a strict shim re-exporting EnhancedFlowEngine, FlowContext, FlowType, and factory helpers.
 
 ### Pending Todos
 
@@ -148,5 +151,5 @@ Carried tech debt (not v1.3-scoped):
 - Full fail-fast currently stops at tests/api/v2/test_alerts.py::TestListAlerts::test_list_alerts_basic with `sqlalchemy.exc.ProgrammingError` (`alerts.type` column missing)
 ## Session Continuity
 Last session: 2026-02-26
-Stopped at: Completed 18-01-PLAN.md
+Stopped at: Completed 18-03-PLAN.md
 Resume file: None
