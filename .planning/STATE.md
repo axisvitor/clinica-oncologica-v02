@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Flow Health & Cleanup
 status: unknown
-last_updated: "2026-02-26T16:30:56.983Z"
+last_updated: "2026-02-26T16:59:23.129Z"
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 31
-  completed_plans: 29
+  completed_plans: 30
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 19 of 19 — v1.3 active (Saga & Integrity Splits)
-Plan: 1/3 plans completed — 19-01 metrics extraction and split contract coverage done
-Status: In progress — continue with 19-02 compensation split
-Last activity: 2026-02-26 — executed 19-01 (SPLIT-08) with task commits and summary evidence
+Plan: 2/3 plans completed — 19-01 orchestrator split and 19-02 compensation split done
+Status: In progress — continue with 19-03 flow_integrity split
+Last activity: 2026-02-26 — executed 19-02 (SPLIT-09) with atomic task commits and split-contract evidence
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
@@ -71,6 +71,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 18 P03 | 8 min | 2 tasks | 8 files |
 | Phase 18 P04 | 5 min | 2 tasks | 9 files |
 | Phase 19 P01 | 14 min | 2 tasks | 5 files |
+| Phase 19-saga-integrity-splits P02 | 10 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -143,6 +144,8 @@ Recent decisions affecting v1.3:
 - [Phase 19]: Kept all SagaOrchestrator compensation compatibility wrappers in orchestrator.py while removing non-functional verbosity to satisfy the <500 line budget.
 - [Phase 19]: Exported metrics through saga_orchestrator.metrics with ImportError fallback symbols to preserve import stability when prometheus_client is unavailable.
 - [Phase 19]: Deferred pre-existing async MagicMock saga-test regressions to phase-level deferred-items.md as out-of-scope for SPLIT-08 refactor.
+- [Phase 19-saga-integrity-splits]: Kept SagaCompensator in compensation.py and extracted only handler bodies to compensation_handlers.py to preserve direct legacy imports.
+- [Phase 19-saga-integrity-splits]: Compensation private methods now delegate one-way to compensation_handlers functions with explicit self.db/self.redis parameters to prevent circular imports.
 
 ### Pending Todos
 
@@ -158,5 +161,5 @@ Carried tech debt (not v1.3-scoped):
 - Full fail-fast currently stops at tests/api/v2/test_alerts.py::TestListAlerts::test_list_alerts_basic with `sqlalchemy.exc.ProgrammingError` (`alerts.type` column missing)
 ## Session Continuity
 Last session: 2026-02-26
-Stopped at: Completed 19-01-PLAN.md
-Resume file: .planning/phases/19-saga-integrity-splits/19-02-PLAN.md
+Stopped at: Completed 19-02-PLAN.md
+Resume file: .planning/phases/19-saga-integrity-splits/19-03-PLAN.md

@@ -192,7 +192,7 @@ Plans:
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
 | 17. Flow Core Splits | 13/13 | Complete   | 2026-02-26 | - |
 | 18. Flow Service Splits | 4/4 | Complete    | 2026-02-26 | - |
-| 19. Saga & Integrity Splits | 1/3 | In Progress|  | - |
+| 19. Saga & Integrity Splits | 2/3 | In Progress|  | - |
 
 ---
 *Roadmap created: 2026-02-22*

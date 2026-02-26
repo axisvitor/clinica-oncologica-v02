@@ -35,7 +35,7 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 - [x] **SPLIT-06**: `flow_core.py` (882 LOC) split into base operations + phase transitions + template binding
 - [x] **SPLIT-07**: `flow_management.py` (694 LOC) split into state management + advancement + pause/resume
 - [x] **SPLIT-08**: `saga/orchestrator.py` (645 LOC) split into main orchestrator + step executor + metrics
-- [ ] **SPLIT-09**: `saga/compensation.py` (573 LOC) split into compensation chain + step handlers
+- [x] **SPLIT-09**: `saga/compensation.py` (573 LOC) split into compensation chain + step handlers
 - [ ] **SPLIT-10**: `flow_integrity.py` (559 LOC) split into corruption detection + recovery actions
 
 ## Future Requirements
@@ -80,7 +80,7 @@ Requirements for v1.3 Flow Health & Cleanup. Each maps to roadmap phases.
 | SPLIT-03 | Phase 18 | Complete |
 | SPLIT-04 | Phase 18 | Complete |
 | SPLIT-08 | Phase 19 | Complete |
-| SPLIT-09 | Phase 19 | Pending |
+| SPLIT-09 | Phase 19 | Complete |
 | SPLIT-10 | Phase 19 | Pending |
 
 **Coverage:**
