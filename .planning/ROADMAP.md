@@ -119,7 +119,7 @@ Plans:
   2. Each new module has a single clear responsibility (e.g., phase transitions do not live in the same module as template binding)
   3. All existing callers of `_flow_functions`, `flow_core`, and `flow_management` continue to work via re-export shims at the original paths
   4. The full test suite passes after the split with no new failures
-**Plans**: 9 plans
+**Plans**: 10 plans
 
 Plans:
 - [x] 17-01-PLAN.md — Split `_flow_functions.py` into focused message/response/orchestration modules with compatibility shim
@@ -131,6 +131,7 @@ Plans:
 - [x] 17-07-PLAN.md — Close notifications `notification_type` schema bootstrap mismatch and refresh fail-fast evidence (new audit_logs constraint blocker deferred)
 - [x] 17-08-PLAN.md — Close audit_logs `valid_event_category` schema mismatch and refresh fail-fast evidence (new patient-create blocker deferred)
 - [x] 17-09-PLAN.md — Add root `get_async_db` dependency override with sync-session adapter and refresh fail-fast evidence (patient onboarding saga payload blocker deferred)
+- [x] 17-10-PLAN.md — Filter saga patient kwargs to model-supported fields and preserve clinical extras in metadata (new pagination blocker deferred)
 
 ### Phase 18: Flow Service Splits
 **Goal**: The four oversized flow service files (sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring) are split into focused modules, each under 500 lines.
@@ -192,4 +193,4 @@ Plans:
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-25 — Phase 17 plans complete (9/9), async-session blocker closed, patient onboarding saga payload fail-fast blocker deferred to next fix*
+*Last updated: 2026-02-26 — Phase 17 plans complete (10/10), saga payload/model mismatch blocker closed, patient list pagination fail-fast blocker deferred to next fix*
