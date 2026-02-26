@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Flow Health & Cleanup
 status: unknown
-last_updated: "2026-02-26T03:52:34.919Z"
+last_updated: "2026-02-26T04:47:50.777Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 23
-  completed_plans: 23
+  total_plans: 24
+  completed_plans: 24
 ---
 
 # Project State
@@ -23,16 +23,16 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 17 of 19 — v1.3 active (Flow Core Splits)
-Plan: 17-12 executed (12/12) — audit log fixture category aligned and fail-fast rerun evidence refreshed
-Status: Phase 17 plans complete; audit_logs valid_event_category blocker closed, fail-fast now blocked by DLQ patient FK fixture setup
-Last activity: 2026-02-26 — executed 17-12 audit_logs fixture fix and recorded new distinct fail-fast blocker in admin extensions DLQ path
+Plan: 17-13 executed (13/13) — DLQ fixtures now use real patient FK rows and fail-fast evidence refreshed
+Status: Phase 17 plans complete; DLQ patient FK blocker closed, fail-fast now blocked by alerts schema `alerts.type` mismatch
+Last activity: 2026-02-26 — executed 17-13 DLQ fixture FK fix and recorded new distinct fail-fast blocker in alerts path
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 46 (v1.0: 13, v1.1: 10, v1.2: 16, v1.3: 8)
+- Total plans completed: 47 (v1.0: 13, v1.1: 10, v1.2: 16, v1.3: 8)
 - Total execution time: 3 days (v1.0: 1 day, v1.1: 1 day, v1.2: 1 day)
 
 **By Phase:**
@@ -65,6 +65,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 17 P10 | 17 min | 2 tasks | 2 files |
 | Phase 17 P11 | 41 min | 2 tasks | 2 files |
 | Phase 17-flow-core-splits P12 | 16 min | 2 tasks | 2 files |
+| Phase 17 P13 | 27 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -124,6 +125,8 @@ Recent decisions affecting v1.3:
 - [Phase 17]: Scope pagination assertions with a unique search batch tag to avoid shared total-count cache collisions.
 - [Phase 17]: Treat audit_logs valid_event_category constraint failure as the next distinct blocker after closing pagination.
 - [Phase 17-flow-core-splits]: Use uppercase ADMIN in the audit_logs fixture to match valid_event_category without altering migrations or production code.
+- [Phase 17]: Use test_patient fixture-backed IDs for DLQ FailedMessage FK safety
+- [Phase 17]: Track alerts.type UndefinedColumn as next distinct fail-fast blocker after DLQ closure
 
 ### Pending Todos
 
@@ -136,10 +139,10 @@ Carried tech debt (not v1.3-scoped):
 - Physician availability hours model — hardcoded defaults
 - PromptedOutput validation confidence against gemini-2.5-flash is MEDIUM
 - 60+ files >500 lines total; v1.3 addresses 10 of them
-- Full fail-fast currently stops at tests/api/v2/test_admin_extensions.py::TestListDLQItems::test_list_dlq_items_basic with whatsapp_delivery_failures_patient_id_fkey ForeignKeyViolation
+- Full fail-fast currently stops at tests/api/v2/test_alerts.py::TestListAlerts::test_list_alerts_basic with `sqlalchemy.exc.ProgrammingError` (`alerts.type` column missing)
 
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 17-12-PLAN.md
+Stopped at: Completed 17-13-PLAN.md
 Resume file: None
