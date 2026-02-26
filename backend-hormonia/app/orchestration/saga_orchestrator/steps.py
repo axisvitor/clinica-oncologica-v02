@@ -33,6 +33,43 @@ from .query_helpers import metadata_key_equals
 logger = logging.getLogger(__name__)
 
 
+# Valid keyword arguments for Patient(**kwargs) — columns + property setters.
+# Schema-only fields (e.g. allergies, comorbidities) must be filtered out
+# before construction and routed into the patient_data JSONB metadata dict.
+_PATIENT_MODEL_FIELDS = frozenset(
+    {
+        # Columns
+        "doctor_id",
+        "name",
+        "birth_date",
+        "treatment_type",
+        "treatment_start_date",
+        "flow_state",
+        "current_day",
+        "cpf_encrypted",
+        "cpf_hash",
+        "email_encrypted",
+        "email_hash",
+        "phone_encrypted",
+        "phone_hash",
+        "diagnosis",
+        "treatment_phase",
+        "doctor_notes",
+        "patient_data",
+        "idempotency_key",
+        "deleted_at",
+        "messaging_stopped_at",
+        # Property setters (accept values via __init__ -> setattr)
+        "cpf",
+        "email",
+        "phone",
+        "timezone",
+        "doctor_name",
+        "enrollment_date",
+    }
+)
+
+
 class SagaStepExecutor:
     """
     Executor for individual saga steps.
@@ -87,17 +124,39 @@ class SagaStepExecutor:
             patient_dict = patient_data.dict(exclude_unset=True)
             metadata = patient_dict.pop("metadata", {})
 
+            # Separate schema-only clinical fields that are NOT valid
+            # Patient model kwargs (they would cause TypeError).
+            clinical_extras = {}
+            filtered_dict = {}
+            for key, value in patient_dict.items():
+                if key in _PATIENT_MODEL_FIELDS:
+                    filtered_dict[key] = value
+                else:
+                    clinical_extras[key] = value
+
+            # Route clinical extras into metadata under clinical_info key.
+            # Root-level metadata is schema-validated with additionalProperties=false,
+            # so persist these extras within custom_fields.
+            if clinical_extras:
+                if not metadata:
+                    metadata = {}
+                custom_fields = metadata.get("custom_fields")
+                if custom_fields is None or not isinstance(custom_fields, dict):
+                    custom_fields = {}
+                custom_fields["clinical_info"] = clinical_extras
+                metadata["custom_fields"] = custom_fields
+
             # Only set doctor_id if provided
             if doctor_id:
-                patient_dict["doctor_id"] = doctor_id
+                filtered_dict["doctor_id"] = doctor_id
             if metadata:
-                patient_dict["patient_data"] = metadata
+                filtered_dict["patient_data"] = metadata
 
             if idempotency_key:
-                patient_dict["idempotency_key"] = idempotency_key
+                filtered_dict["idempotency_key"] = idempotency_key
 
             # Inlined from PatientRepository.create() for async compat
-            patient = Patient(**patient_dict)
+            patient = Patient(**filtered_dict)
             self.db.add(patient)  # self.db.add() is NOT a coroutine
 
             saga.patient_id = patient.id
