@@ -89,3 +89,21 @@
 - Error class: `AssertionError` (`assert 4 >= 5`)
 - Saga payload/model mismatch blocker status: `CLOSED` (`tests/api/test_patients_endpoints.py::TestPatientCRUDEndpoints::test_create_patient_success` now passes and no `TypeError: 'allergies' is an invalid keyword argument for Patient` appears)
 - Full fail-fast gate status: `NOT GREEN` (new distinct blocker remains in patients list pagination expectations, separate from the closed saga payload issue)
+
+## 2026-02-26 Plan 17-11 Fail-Fast Rerun (post pagination fix)
+
+- Command: `python3 -m pytest tests/unit/services/flow/test_flow_functions_split_contract.py tests/unit/services/test_flow_core_split_contract.py tests/unit/services/test_flow_management_split_contract.py -x --tb=short`
+- Date/Time (UTC): `2026-02-26T02:31:19Z`
+- Result: `PASSED` (`9 passed`)
+
+- Command: `python3 -m pytest tests/api/test_patients_endpoints.py -x --tb=short`
+- Date/Time (UTC): `2026-02-26T02:31:19Z`
+- Result: `PASSED` (`13 passed`)
+
+- Command: `python3 -m pytest -x --tb=short`
+- Date/Time (UTC): `2026-02-26T02:31:19Z`
+- Result: `FAILED`
+- First failing node: `tests/api/v2/test_admin.py::TestAuditLogs::test_get_audit_logs`
+- Error class: `sqlalchemy.exc.IntegrityError` (`psycopg.errors.CheckViolation: valid_event_category`)
+- Patient list pagination blocker status: `CLOSED`
+- Full fail-fast gate status: `NOT GREEN` (new blocker: audit_logs valid_event_category check violation in admin audit log fixture path)

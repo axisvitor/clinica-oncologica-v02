@@ -207,13 +207,14 @@ class TestPatientCRUDEndpoints:
     ):
         """Test patient list with pagination."""
         doctor_id = UUID(patient_data["doctor_id"])
+        batch_tag = f"pagination-{uuid4().hex[:8]}"
 
         # Create patients directly in DB to avoid saga pipeline failures
         # that are irrelevant to pagination behavior
         for i in range(5):
             patient = Patient(
-                name=f"Pagination Patient {i}",
-                email=f"pagination{i}@gmail.com",
+                name=f"{batch_tag}-patient-{i}",
+                email=f"{batch_tag}.{i}@gmail.com",
                 phone=f"+551188888888{i}",
                 doctor_id=doctor_id,
                 treatment_type="Quimioterapia",
@@ -224,7 +225,7 @@ class TestPatientCRUDEndpoints:
 
         # Test pagination
         response = client.get(
-            "/api/v2/patients?skip=0&limit=3",
+            f"/api/v2/patients?skip=0&limit=3&search={batch_tag}",
             headers=authenticated_headers
         )
 
