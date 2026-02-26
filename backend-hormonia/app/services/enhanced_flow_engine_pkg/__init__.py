@@ -1,9 +1,8 @@
-"""Shim -- canonical code lives in enhanced_flow_engine_pkg/. See Phase 18."""
+from app.services.flow.types import FlowType
 
-from app.services.enhanced_flow_engine_pkg import (
+from .context import FlowContext
+from .service import (
     EnhancedFlowEngine,
-    FlowContext,
-    FlowType,
     get_enhanced_flow_engine,
     test_enhanced_flow_engine,
 )
