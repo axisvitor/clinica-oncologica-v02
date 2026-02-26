@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Flow Health & Cleanup
 status: unknown
-last_updated: "2026-02-26T04:47:50.777Z"
+last_updated: "2026-02-26T14:43:18.197Z"
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 4
-  total_plans: 24
-  completed_plans: 24
+  total_plans: 28
+  completed_plans: 26
 ---
 
 # Project State
@@ -22,10 +22,10 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 
 ## Current Position
 
-Phase: 17 of 19 — v1.3 active (Flow Core Splits)
-Plan: 17-13 executed (13/13) — DLQ fixtures now use real patient FK rows and fail-fast evidence refreshed
-Status: Phase 17 plans complete; DLQ patient FK blocker closed, fail-fast now blocked by alerts schema `alerts.type` mismatch
-Last activity: 2026-02-26 — executed 17-13 DLQ fixture FK fix and recorded new distinct fail-fast blocker in alerts path
+Phase: 18 of 19 — v1.3 active (Flow Service Splits)
+Plan: 18-02 executed (1/4) — flow_dashboard service split into flow_dashboard_pkg with shim compatibility and contract tests
+Status: Phase 18 in progress; SPLIT-03 completed with shim/factory/enum re-export contract preserved
+Last activity: 2026-02-26 — executed 18-02 flow dashboard split and recorded split-contract evidence
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
@@ -66,6 +66,8 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 17 P11 | 41 min | 2 tasks | 2 files |
 | Phase 17-flow-core-splits P12 | 16 min | 2 tasks | 2 files |
 | Phase 17 P13 | 27 min | 2 tasks | 2 files |
+| Phase 18 P02 | 2 min | 2 tasks | 10 files |
+| Phase 18-flow-service-splits P01 | 9 min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -127,6 +129,10 @@ Recent decisions affecting v1.3:
 - [Phase 17-flow-core-splits]: Use uppercase ADMIN in the audit_logs fixture to match valid_event_category without altering migrations or production code.
 - [Phase 17]: Use test_patient fixture-backed IDs for DLQ FailedMessage FK safety
 - [Phase 17]: Track alerts.type UndefinedColumn as next distinct fail-fast blocker after DLQ closure
+- [Phase 18]: Keep FlowDashboardService constructor and method signatures unchanged while moving behavior into responsibility-specific mixins.
+- [Phase 18]: Preserve legacy imports by making flow_dashboard.py a thin named-export shim over flow_dashboard_pkg.
+- [Phase 18-flow-service-splits]: Kept app.services.flow_monitoring as a strict compatibility shim with explicit __all__ and AlertSeverity re-export.
+- [Phase 18-flow-service-splits]: Composed FlowMonitoringService from focused mixins to preserve behavior while isolating metrics, health, alerting, and trends responsibilities.
 
 ### Pending Todos
 
@@ -140,9 +146,7 @@ Carried tech debt (not v1.3-scoped):
 - PromptedOutput validation confidence against gemini-2.5-flash is MEDIUM
 - 60+ files >500 lines total; v1.3 addresses 10 of them
 - Full fail-fast currently stops at tests/api/v2/test_alerts.py::TestListAlerts::test_list_alerts_basic with `sqlalchemy.exc.ProgrammingError` (`alerts.type` column missing)
-
 ## Session Continuity
-
 Last session: 2026-02-26
-Stopped at: Completed 17-13-PLAN.md
+Stopped at: Completed 18-02-PLAN.md
 Resume file: None

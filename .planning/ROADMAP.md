@@ -191,7 +191,7 @@ Plans:
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
 | 17. Flow Core Splits | 13/13 | Complete   | 2026-02-26 | - |
-| 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
+| 18. Flow Service Splits | 2/4 | In Progress|  | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
 ---
