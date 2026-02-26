@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Flow Health & Cleanup
 status: unknown
-last_updated: "2026-02-25T23:30:09.701Z"
+last_updated: "2026-02-26T00:43:34.314Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 20
-  completed_plans: 20
+  total_plans: 21
+  completed_plans: 21
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 17 of 19 — v1.3 active (Flow Core Splits)
-Plan: 17-09 executed (9/9) — root get_async_db override landed with fresh fail-fast evidence
-Status: Phase 17 plans complete; async-session coroutine/scalars blocker closed, fail-fast still blocked by patient-create saga payload/model mismatch
-Last activity: 2026-02-25 — executed 17-09 root async DB override and recorded distinct patient onboarding saga blocker
+Plan: 17-10 executed (10/10) — saga payload filter landed with fresh fail-fast evidence
+Status: Phase 17 plans complete; patient-create saga payload/model mismatch blocker closed, fail-fast now blocked by patient list pagination assertion
+Last activity: 2026-02-26 — executed 17-10 saga payload/model filter and recorded new distinct fail-fast blocker
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
@@ -62,6 +62,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 17 P07 | 32 min | 2 tasks | 3 files |
 | Phase 17-flow-core-splits P08 | 17 min | 2 tasks | 4 files |
 | Phase 17-flow-core-splits P09 | 18 min | 2 tasks | 2 files |
+| Phase 17 P10 | 17 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,8 @@ Recent decisions affecting v1.3:
 - [Phase 17-flow-core-splits]: Set user_activity fixture event_category to SYSTEM while keeping user_action allowed in broadened constraint guard
 - [Phase 17-flow-core-splits]: Override get_async_db in root client fixture so AsyncSession endpoints run inside test transaction boundaries.
 - [Phase 17-flow-core-splits]: Keep fail-fast rerun evidence even when gate remains red, explicitly separating closed async-session blocker from new saga payload blocker.
+- [Phase 17]: Use a module-level _PATIENT_MODEL_FIELDS allowlist in saga step_create_patient to pass only model-supported kwargs into Patient().
+- [Phase 17]: Persist schema-only clinical fields as metadata custom_fields.clinical_info so onboarding preserves clinical data without breaking metadata schema validation.
 
 ### Pending Todos
 
@@ -127,10 +130,10 @@ Carried tech debt (not v1.3-scoped):
 - Physician availability hours model — hardcoded defaults
 - PromptedOutput validation confidence against gemini-2.5-flash is MEDIUM
 - 60+ files >500 lines total; v1.3 addresses 10 of them
-- Full backend suite currently fails first at tests/api/test_patients_endpoints.py::TestPatientCRUDEndpoints::test_create_patient_success with `AssertionError` (`422 != 201`) in patient create validation flow.
+- Full backend suite currently fails first at tests/api/test_patients_endpoints.py::TestPatientCRUDEndpoints::test_list_patients_pagination with `AssertionError` (`assert 4 >= 5`) in patient list pagination expectations.
 
 ## Session Continuity
 
-Last session: 2026-02-25
-Stopped at: Completed 17-flow-core-splits-09-PLAN.md
+Last session: 2026-02-26
+Stopped at: Completed 17-10-PLAN.md
 Resume file: None
