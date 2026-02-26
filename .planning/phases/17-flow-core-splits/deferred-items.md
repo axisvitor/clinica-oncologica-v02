@@ -107,3 +107,21 @@
 - Error class: `sqlalchemy.exc.IntegrityError` (`psycopg.errors.CheckViolation: valid_event_category`)
 - Patient list pagination blocker status: `CLOSED`
 - Full fail-fast gate status: `NOT GREEN` (new blocker: audit_logs valid_event_category check violation in admin audit log fixture path)
+
+## 2026-02-26 Plan 17-12 Fail-Fast Rerun (post audit_logs fixture fix)
+
+- Command: `python3 -m pytest tests/unit/services/flow/test_flow_functions_split_contract.py tests/unit/services/test_flow_core_split_contract.py tests/unit/services/test_flow_management_split_contract.py -x --tb=short`
+- Date/Time (UTC): `2026-02-26T03:48:51Z`
+- Result: `PASSED` (`9 passed`)
+
+- Command: `python3 -m pytest tests/api/v2/test_admin.py::TestAuditLogs::test_get_audit_logs -x --tb=short`
+- Date/Time (UTC): `2026-02-26T03:48:51Z`
+- Result: `PASSED` (`1 passed`)
+
+- Command: `python3 -m pytest -x --tb=short`
+- Date/Time (UTC): `2026-02-26T03:48:51Z`
+- Result: `FAILED`
+- First failing node: `tests/api/v2/test_admin_extensions.py::TestListDLQItems::test_list_dlq_items_basic`
+- Error class: `sqlalchemy.exc.IntegrityError` (caused by `psycopg.errors.ForeignKeyViolation` on `whatsapp_delivery_failures_patient_id_fkey`)
+- Audit logs valid_event_category blocker status: `CLOSED`
+- Full fail-fast gate status: `NOT GREEN` (new blocker: DLQ fixture inserts reference missing `patients` row in `whatsapp_delivery_failures` FK path)
