@@ -201,21 +201,26 @@ class TestPatientCRUDEndpoints:
     def test_list_patients_pagination(
         self,
         client: TestClient,
+        db: Session,
         authenticated_headers: dict,
         patient_data: dict
     ):
         """Test patient list with pagination."""
-        # Create multiple patients
+        doctor_id = UUID(patient_data["doctor_id"])
+
+        # Create patients directly in DB to avoid saga pipeline failures
+        # that are irrelevant to pagination behavior
         for i in range(5):
-            data = patient_data.copy()
-            data["email"] = f"patient{i}@gmail.com"
-            data["phone"] = f"+551199999999{i}"
-            data.pop("cpf", None)
-            client.post(
-                "/api/v2/patients",
-                json=data,
-                headers=authenticated_headers
+            patient = Patient(
+                name=f"Pagination Patient {i}",
+                email=f"pagination{i}@gmail.com",
+                phone=f"+551188888888{i}",
+                doctor_id=doctor_id,
+                treatment_type="Quimioterapia",
+                diagnosis="Test diagnosis",
             )
+            db.add(patient)
+        db.flush()
 
         # Test pagination
         response = client.get(
