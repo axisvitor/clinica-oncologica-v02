@@ -77,15 +77,32 @@ def doctor_user(db_session: Session):
 
 
 @pytest.fixture
-def dlq_items(db_session: Session):
+def test_patient(db_session: Session, admin_user: User):
+    """Create a patient for DLQ FK-safe fixture inserts."""
+    from app.models.patient import Patient
+
+    patient = Patient(
+        id=uuid4(),
+        doctor_id=admin_user.id,
+        name="Test DLQ Patient",
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive(),
+    )
+    db_session.add(patient)
+    db_session.commit()
+    db_session.refresh(patient)
+    return patient
+
+
+@pytest.fixture
+def dlq_items(db_session: Session, test_patient):
     """Create multiple DLQ items for testing."""
-    patient_id = uuid4()
     items = []
 
     for i in range(25):
         item = FailedMessage(
             id=uuid4(),
-            patient_id=patient_id,
+            patient_id=test_patient.id,
             phone_number=f"+55119999999{i:02d}",
             message_type="appointment_reminder",
             message_content=f"Test message {i}",
@@ -463,13 +480,13 @@ class TestPurgeDLQItems:
         assert data["dry_run"] is True
         assert "count" in data
 
-    def test_purge_dlq_items_actual(self, client: TestClient, admin_user: User, dlq_items, db_session: Session):
+    def test_purge_dlq_items_actual(self, client: TestClient, admin_user: User, dlq_items, db_session: Session, test_patient):
         """Test actual purge operation."""
         # Create old items with safe statuses
         old_date = now_sao_paulo_naive() - timedelta(days=100)
         old_item = FailedMessage(
             id=uuid4(),
-            patient_id=uuid4(),
+            patient_id=test_patient.id,
             phone_number="+5511999999999",
             message_type="test",
             message_content="old message",
