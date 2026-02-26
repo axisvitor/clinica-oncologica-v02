@@ -9,6 +9,7 @@ Components:
     - metrics: Prometheus counters/histograms and phone-format helper
     - steps: Individual saga step implementations
     - compensation: Rollback/compensation logic
+    - compensation_handlers: Standalone compensation step handlers
     - persistence: Database operations
     - exceptions: Custom exception types
     - types: Type definitions and data structures
@@ -30,6 +31,7 @@ Architecture:
     ├── metrics.py           # Prometheus metrics and helpers
     ├── steps.py             # Step implementations
     ├── compensation.py      # Compensation logic
+    ├── compensation_handlers.py  # Compensation step handlers
     ├── persistence.py       # Database operations
     ├── exceptions.py        # Custom exceptions
     └── types.py             # Type definitions
