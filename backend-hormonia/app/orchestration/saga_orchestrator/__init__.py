@@ -6,6 +6,7 @@ for patient onboarding, split into focused, maintainable components.
 
 Components:
     - orchestrator: Main SagaOrchestrator class
+    - metrics: Prometheus counters/histograms and phone-format helper
     - steps: Individual saga step implementations
     - compensation: Rollback/compensation logic
     - persistence: Database operations
@@ -26,6 +27,7 @@ Architecture:
     app/orchestration/saga_orchestrator/
     ├── __init__.py          # Public API (this file)
     ├── orchestrator.py      # Main orchestrator class
+    ├── metrics.py           # Prometheus metrics and helpers
     ├── steps.py             # Step implementations
     ├── compensation.py      # Compensation logic
     ├── persistence.py       # Database operations
