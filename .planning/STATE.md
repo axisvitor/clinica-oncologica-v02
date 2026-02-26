@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Flow Health & Cleanup
 status: unknown
-last_updated: "2026-02-26T16:59:23.129Z"
+last_updated: "2026-02-26T17:15:32.827Z"
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 31
-  completed_plans: 30
+  completed_plans: 31
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 19 of 19 — v1.3 active (Saga & Integrity Splits)
-Plan: 2/3 plans completed — 19-01 orchestrator split and 19-02 compensation split done
-Status: In progress — continue with 19-03 flow_integrity split
-Last activity: 2026-02-26 — executed 19-02 (SPLIT-09) with atomic task commits and split-contract evidence
+Plan: 3/3 plans completed — 19-01 orchestrator split, 19-02 compensation split, and 19-03 flow_integrity split done
+Status: Complete — Phase 19 completed, ready for milestone transition
+Last activity: 2026-02-26 — executed 19-03 (SPLIT-10) with atomic task commits and split-contract evidence
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
@@ -72,6 +72,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 18 P04 | 5 min | 2 tasks | 9 files |
 | Phase 19 P01 | 14 min | 2 tasks | 5 files |
 | Phase 19-saga-integrity-splits P02 | 10 min | 2 tasks | 4 files |
+| Phase 19 P03 | 7 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -146,6 +147,8 @@ Recent decisions affecting v1.3:
 - [Phase 19]: Deferred pre-existing async MagicMock saga-test regressions to phase-level deferred-items.md as out-of-scope for SPLIT-08 refactor.
 - [Phase 19-saga-integrity-splits]: Kept SagaCompensator in compensation.py and extracted only handler bodies to compensation_handlers.py to preserve direct legacy imports.
 - [Phase 19-saga-integrity-splits]: Compensation private methods now delegate one-way to compensation_handlers functions with explicit self.db/self.redis parameters to prevent circular imports.
+- [Phase 19]: Composed FlowIntegrityService from FlowIntegrityDetectionMixin and FlowIntegrityRecoveryMixin while keeping initialization and repositories in service.py.
+- [Phase 19]: Kept app.services.flow_integrity as a strict shim re-exporting FlowIntegrityService and get_flow_integrity_service for caller compatibility.
 
 ### Pending Todos
 
@@ -161,5 +164,5 @@ Carried tech debt (not v1.3-scoped):
 - Full fail-fast currently stops at tests/api/v2/test_alerts.py::TestListAlerts::test_list_alerts_basic with `sqlalchemy.exc.ProgrammingError` (`alerts.type` column missing)
 ## Session Continuity
 Last session: 2026-02-26
-Stopped at: Completed 19-02-PLAN.md
-Resume file: .planning/phases/19-saga-integrity-splits/19-03-PLAN.md
+Stopped at: Completed 19-03-PLAN.md
+Resume file: None
