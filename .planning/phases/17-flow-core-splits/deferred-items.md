@@ -125,3 +125,21 @@
 - Error class: `sqlalchemy.exc.IntegrityError` (caused by `psycopg.errors.ForeignKeyViolation` on `whatsapp_delivery_failures_patient_id_fkey`)
 - Audit logs valid_event_category blocker status: `CLOSED`
 - Full fail-fast gate status: `NOT GREEN` (new blocker: DLQ fixture inserts reference missing `patients` row in `whatsapp_delivery_failures` FK path)
+
+## 2026-02-26 Plan 17-13 Fail-Fast Rerun (post DLQ patient FK fixture fix)
+
+- Command: `python3 -m pytest tests/unit/services/flow/test_flow_functions_split_contract.py tests/unit/services/test_flow_core_split_contract.py tests/unit/services/test_flow_management_split_contract.py -x --tb=short`
+- Date/Time (UTC): `2026-02-26T04:20:09Z`
+- Result: `PASSED` (`9 passed`)
+
+- Command: `python3 -m pytest tests/api/v2/test_admin_extensions.py::TestListDLQItems::test_list_dlq_items_basic -x --tb=short`
+- Date/Time (UTC): `2026-02-26T04:20:48Z`
+- Result: `PASSED` (`1 passed`)
+
+- Command: `python3 -m pytest -x --tb=short`
+- Date/Time (UTC): `2026-02-26T04:31:44Z`
+- Result: `FAILED`
+- First failing node: `tests/api/v2/test_alerts.py::TestListAlerts::test_list_alerts_basic`
+- Error class: `sqlalchemy.exc.ProgrammingError` (caused by `psycopg.errors.UndefinedColumn: column "type" of relation "alerts" does not exist`)
+- DLQ patient FK blocker status: `CLOSED`
+- Full fail-fast gate status: `NOT GREEN` (new blocker: alerts fixture/model expects `alerts.type` while runtime schema lacks this column)
