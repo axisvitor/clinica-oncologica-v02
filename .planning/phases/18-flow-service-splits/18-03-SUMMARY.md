@@ -89,7 +89,7 @@ None - plan executed exactly as written.
 
 ## Issues Encountered
 
-None.
+- `gsd-tools` could not parse legacy `STATE.md` current-position/session markers for `state advance-plan`, `state update-progress`, and `state record-session`; roadmap and requirements updates succeeded, and state position/session fields were updated manually to reflect 18-03 completion.
 
 ## User Setup Required
 
