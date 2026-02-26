@@ -192,8 +192,8 @@ Plans:
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
 | 17. Flow Core Splits | 13/13 | Complete   | 2026-02-26 | - |
 | 18. Flow Service Splits | 4/4 | Complete    | 2026-02-26 | - |
-| 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
+| 19. Saga & Integrity Splits | 1/3 | In Progress|  | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-26 — Phase 17 plan 17-13 executed; DLQ FK blocker closed and next fail-fast blocker tracked in alerts schema path*
+*Last updated: 2026-02-26 — Phase 19 plan 19-01 executed; metrics split completed and phase progress now 1/3*
