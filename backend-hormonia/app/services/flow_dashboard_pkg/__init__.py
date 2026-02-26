@@ -1,9 +1,6 @@
-"""Shim -- canonical code lives in flow_dashboard_pkg/. See Phase 18."""
-
-from app.services.flow_dashboard_pkg import (
-    DashboardTimeframe,
+from app.services.flow_dashboard_pkg.models import DashboardTimeframe, TrendDirection
+from app.services.flow_dashboard_pkg.service import (
     FlowDashboardService,
-    TrendDirection,
     get_flow_dashboard_service,
 )
 
