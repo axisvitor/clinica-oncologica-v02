@@ -76,3 +76,28 @@
 
 ---
 
+
+## v1.3 Flow Health & Cleanup (Shipped: 2026-02-26)
+
+**Phases completed:** 6 phases, 31 plans, 62 tasks
+
+**Git range:** `3ee3967d..a086cf67` (123 commits)
+**Files changed:** 198 files, +21,525 / -16,053 lines (net +5,472 LOC)
+**Timeline:** 2026-02-24 → 2026-02-26
+
+**Key accomplishments:**
+- Flow control repaired end-to-end: pause semantics standardized on `state_data.paused`, auto-resume now follows `auto_resume_at`, and cancel flow revokes queued work safely (FIX-01..03)
+- Data integrity stabilized: missing quiz templates now fail soft, cycle math/constants unified across services, and failed messages are visible via DLQ retry monitoring (FIX-04..07)
+- Dead code reduced with ImportError tombstones: 5 legacy flow packages/files removed from active runtime paths (~4,550 LOC) while preserving migration guidance (DEAD-01..05)
+- Core flow layer decomposed: `_flow_functions.py`, `flow_core.py`, and `flow_management.py` split into focused modules with compatibility shims for existing imports (SPLIT-05..07)
+- Service and saga layers completed: `sequential_message_handler`, `enhanced_flow_engine`, `flow_dashboard`, `flow_monitoring`, `saga/orchestrator`, `saga/compensation`, and `flow_integrity` split under maintained interfaces (SPLIT-01..04, SPLIT-08..10)
+
+**Known Gaps (deferred):**
+- Milestone archived without `v1.3-MILESTONE-AUDIT.md` (run `/gsd-audit-milestone` post-archive if formal verification record is required)
+- Full AsyncSession migration (42+ remaining methods)
+- Physician availability preferences model
+- PromptedOutput validation confidence for `gemini-2.5-flash`
+
+**Archive:** `.planning/milestones/v1.3-ROADMAP.md`, `.planning/milestones/v1.3-REQUIREMENTS.md`
+
+---

@@ -2,17 +2,34 @@
 
 ## What This Is
 
-Sistema de acompanhamento oncologico via WhatsApp que envia questionarios humanizados aos pacientes entre consultas, permitindo que medicos acompanhem seus pacientes de forma continua. Usa 4 agentes Pydantic AI tipados (sentiment, humanize, variation, empathy) com PII redaction obrigatoria para humanizar templates fixos. Orquestracao de fluxo via funcoes async Python diretas. GeminiClient usa google-genai SDK com circuit breaker, rate limiter, e cache. Hot paths de banco sao async, key rotation LGPD e operacional, e metricas/WebSocket refletem o comportamento real do sistema.
+Sistema de acompanhamento oncologico via WhatsApp que envia questionarios humanizados aos pacientes entre consultas, permitindo que medicos acompanhem seus pacientes de forma continua. O sistema roda com 4 agentes Pydantic AI tipados (sentiment, humanize, variation, empathy), PII redaction obrigatoria, orquestracao de fluxo em funcoes async Python diretas e GeminiClient baseado em `google-genai` com circuit breaker, rate limiter e cache. No v1.3, os fluxos foram estabilizados e os maiores modulos foram quebrados em pacotes menores com shims de compatibilidade.
 
 ## Core Value
 
 Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
 
+## Current State
+
+- **Shipped milestone:** v1.3 Flow Health & Cleanup (2026-02-26), covering phases 14-19 with 31/31 plans complete.
+- **What improved in v1.3:** flow pause/resume/cancel behavior fixed, quiz fallback + cycle consistency corrected, DLQ wiring hardened, dead flow packages tombstoned, and 10 oversized flow/saga/integrity files split with compatibility shims.
+- **Operational posture:** production stack and architecture remain stable (FastAPI + Celery + Postgres + Evolution API + Gemini/Pydantic AI), with stronger maintainability in flow-related modules.
+- **Open debt carried forward:** full AsyncSession migration backlog, physician-hours preference model, residual >500 LOC files outside v1.3 split scope, and alerts fail-fast schema issue (`alerts.type`) tracked for next milestone.
+
+## Next Milestone Goals
+
+- Define and prioritize the next milestone via `/gsd-new-milestone`, starting with a fresh `REQUIREMENTS.md`.
+- Triage backend hardening backlog by impact: AsyncSession migration slices, alerts schema/test stability, and remaining large-file splits.
+- Decide product/technical direction for physician availability preferences and ADK exploration timing.
+- Raise AI output validation confidence for `gemini-2.5-flash` with explicit acceptance gates.
+
+<details>
+<summary>Archive: v1.3 planning context and requirement ledger</summary>
+
 ## Requirements
 
 ### Validated
 
-- ✓ Backend FastAPI com DDD layers (API → Domain → Services → Infrastructure) — existing
+- ✓ Backend FastAPI com DDD layers (API -> Domain -> Services -> Infrastructure) — existing
 - ✓ Celery + Dragonfly (Redis-compatible) como task queue e broker — existing
 - ✓ 38 periodic tasks via Celery Beat — existing
 - ✓ Templates fixos armazenados em banco de dados — existing
@@ -57,15 +74,7 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 
 ### Active
 
-## Current Milestone: v1.3 Flow Health & Cleanup
-
-**Goal:** Refine all patient flows — fix critical functional gaps, remove dead code and duplications, and split oversized files for maintainability.
-
-**Target features:**
-- Fix 7 critical functional gaps (pause mismatch, auto-resume, cancel flow, quiz crash, constant duplication, cycle divergence, DLQ wiring)
-- Remove ~4,550 LOC dead/test-only code from QW-021 package
-- Consolidate duplicated modules (constants, templates, monitoring, event broadcasting)
-- Split 10 oversized flow files (>500 lines each) into focused modules
+- [ ] Definir novos requisitos da proxima milestone em `.planning/REQUIREMENTS.md`
 
 ### Out of Scope
 
@@ -83,13 +92,11 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - v1.0 shipped: seguranca, LGPD, estabilidade, AI reliability, flow consolidation (net -9,314 LOC)
 - v1.1 shipped: async hot paths, LGPD key rotation, AI rationalization, observability (net +4,664 LOC)
 - v1.2 shipped: AI framework migration — LangGraph/LangChain fully removed, 4 Pydantic AI agents, google-genai SDK (net +7,680 LOC)
+- v1.3 shipped: flow health fixes + dead code cleanup + 10 critical file splits (net +5,472 LOC)
 - Codebase brownfield com padroes maduros (DDD, Saga, Circuit Breaker)
 - Python 3.13 + FastAPI + SQLAlchemy (AsyncSession on hot paths, sync elsewhere)
 - AI stack: Pydantic AI agents + google-genai SDK + GeminiClient (cache, rate limit, circuit breaker, PII redaction)
 - Flow system: FlowDispatcher facade routing to direct async Python functions
-- 42+ sync-in-async methods remaining (outside hot paths) — tech debt
-- 60+ arquivos com >500 linhas precisando split
-- 9 tombstoned LangGraph modules remain as ImportError sentinels
 
 ## Constraints
 
@@ -109,18 +116,20 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 | Hot-path-first async migration | Full migration is too large; hot paths cover ~80% throughput | ✓ Good (v1.1) |
 | Dual-session DI in flows router | async_db for FlowCore, sync db for FlowManagementService — avoids MissingGreenlet | ✓ Good (v1.1) |
 | Secrets as env var names (not values) in Celery tasks | Prevents PHI/keys appearing in broker/backend logs | ✓ Good (v1.1) |
-| Hardcoded physician hours (Mon-Fri 08-17) for v1.1 | No preferences model exists yet; functional baseline | ⚠️ Revisit |
+| Hardcoded physician hours (Mon-Fri 08-17) for v1.1 | No preferences model exists yet; functional baseline | ⚠ Revisit |
 | FeatureNotAvailableError for circuit-open | Single exception type for all AI unavailability; existing catch blocks work | ✓ Good (v1.1) |
 | PostgreSQL RULE (not trigger) for audit immutability | RULEs intercept at rewrite layer, cannot be bypassed by superusers | ✓ Good (v1.0) |
-| async_to_sync as sole sync→async bridge | Eliminates asyncio.run() memory leaks; matches 15+ existing task files | ✓ Good (v1.0) |
+| async_to_sync as sole sync->async bridge | Eliminates asyncio.run() memory leaks; matches 15+ existing task files | ✓ Good (v1.0) |
 | Pydantic AI over LangGraph for agents | Type safety, structured output, zero graph overhead for 4 AI operations | ✓ Good (v1.2) |
 | PIISafeAgent as mandatory wrapper | LGPD Art. 46 compliance; CI lint blocks direct .run() calls | ✓ Good (v1.2) |
 | PromptedOutput for SentimentAgent | Gemini cannot use tool-calling + native structured output simultaneously | ✓ Good (v1.2) |
 | Direct async Python over ADK for flow orchestration | 10-15 lines each, identical semantics, zero new dependencies | ✓ Good (v1.2) |
 | Hard-cut GeminiClient to google-genai SDK | Clean migration without feature toggle; preserves all resilience patterns | ✓ Good (v1.2) |
-| Google ADK deferred to v1.3 | Irresolvable OTel cap + Pydantic 2.11+ + 300-400 MB footprint | — Pending |
+| Google ADK deferred to v1.3 | Irresolvable OTel cap + Pydantic 2.11+ + 300-400 MB footprint | ⚠ Revisit |
 | PIISafeAgent run_sync for Celery | Repairs closed/missing event loops; avoids async_to_sync for AI calls | ✓ Good (v1.2) |
 | LangGraph tombstone (not delete) | ImportError sentinels with migration messages for discoverability | ✓ Good (v1.2) |
 
+</details>
+
 ---
-*Last updated: 2026-02-24 after v1.3 milestone start*
+*Last updated: 2026-02-26 after v1.3 milestone completion*
