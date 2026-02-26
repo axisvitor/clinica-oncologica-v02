@@ -109,7 +109,7 @@ def audit_logs(db_session: Session, admin_user: User):
         log = AuditLog(
             id=uuid4(),
             event_type=f"admin_user_{'create' if i % 2 == 0 else 'update'}",
-            event_category="admin",
+            event_category="ADMIN",
             severity="info",
             user_id=admin_user.id,
             ip_address="127.0.0.1",
