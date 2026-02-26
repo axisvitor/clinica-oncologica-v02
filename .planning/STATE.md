@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-24)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Phase 18 — Flow Service Splits
+**Current focus:** Phase 19 — Saga & Integrity Splits
 
 ## Current Position
 
-Phase: 18 of 19 — v1.3 active (Flow Service Splits)
-Plan: 18-04 executed (4/4) — sequential_message_handler split into sequential_message_handler_pkg with shim compatibility, split contracts, and phase-gate evidence
-Status: Phase 18 complete; SPLIT-01, SPLIT-02, SPLIT-03, and SPLIT-04 verified
-Last activity: 2026-02-26 — executed 18-04 sequential handler split and closed Phase 18 split-contract gate
+Phase: 19 of 19 — v1.3 active (Saga & Integrity Splits)
+Plan: Context gathered (0/3 plans created) — phase ready for planning
+Status: Ready for planning with implementation decisions captured in 19-CONTEXT.md
+Last activity: 2026-02-26 — discuss-phase completed and context recorded for saga/integrity split execution
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
@@ -154,5 +154,5 @@ Carried tech debt (not v1.3-scoped):
 - Full fail-fast currently stops at tests/api/v2/test_alerts.py::TestListAlerts::test_list_alerts_basic with `sqlalchemy.exc.ProgrammingError` (`alerts.type` column missing)
 ## Session Continuity
 Last session: 2026-02-26
-Stopped at: Completed 18-04-PLAN.md
-Resume file: None
+Stopped at: Phase 19 context gathered
+Resume file: .planning/phases/19-saga-integrity-splits/19-CONTEXT.md
