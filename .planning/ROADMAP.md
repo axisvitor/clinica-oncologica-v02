@@ -132,6 +132,8 @@ Plans:
 - [x] 17-08-PLAN.md — Close audit_logs `valid_event_category` schema mismatch and refresh fail-fast evidence (new patient-create blocker deferred)
 - [x] 17-09-PLAN.md — Add root `get_async_db` dependency override with sync-session adapter and refresh fail-fast evidence (patient onboarding saga payload blocker deferred)
 - [x] 17-10-PLAN.md — Filter saga patient kwargs to model-supported fields and preserve clinical extras in metadata (new pagination blocker deferred)
+- [x] 17-11-PLAN.md — Stabilize deterministic pagination test setup and refresh fail-fast evidence (new audit_logs constraint blocker deferred)
+- [x] 17-12-PLAN.md — Align admin audit_logs fixture category with DB constraint and refresh fail-fast evidence (new DLQ FK blocker deferred)
 
 ### Phase 18: Flow Service Splits
 **Goal**: The four oversized flow service files (sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring) are split into focused modules, each under 500 lines.
@@ -187,10 +189,10 @@ Plans:
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
-| 17. Flow Core Splits | 11/11 | Complete   | 2026-02-26 | - |
+| 17. Flow Core Splits | 12/12 | Complete   | 2026-02-26 | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-26 — Phase 17 plans complete (11/11), patient list pagination blocker closed, full fail-fast now blocked by audit_logs valid_event_category constraint*
+*Last updated: 2026-02-26 — Phase 17 plans complete (12/12), audit_logs valid_event_category blocker closed, full fail-fast now blocked by admin extensions DLQ patient FK constraint*
