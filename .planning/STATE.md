@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Flow Health & Cleanup
 status: unknown
-last_updated: "2026-02-26T00:43:34.314Z"
+last_updated: "2026-02-26T02:37:09.818Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 21
-  completed_plans: 21
+  total_plans: 22
+  completed_plans: 22
 ---
 
 # Project State
@@ -23,9 +23,9 @@ See: .planning/PROJECT.md (updated 2026-02-24)
 ## Current Position
 
 Phase: 17 of 19 — v1.3 active (Flow Core Splits)
-Plan: 17-10 executed (10/10) — saga payload filter landed with fresh fail-fast evidence
-Status: Phase 17 plans complete; patient-create saga payload/model mismatch blocker closed, fail-fast now blocked by patient list pagination assertion
-Last activity: 2026-02-26 — executed 17-10 saga payload/model filter and recorded new distinct fail-fast blocker
+Plan: 17-11 executed (11/11) — deterministic pagination test fix landed with fresh gate rerun evidence
+Status: Phase 17 plans complete; patient list pagination blocker closed, fail-fast now blocked by audit_logs event category constraint
+Last activity: 2026-02-26 — executed 17-11 pagination stabilization and recorded new distinct fail-fast blocker
 
 Progress: v1.0 ██████████ 100% | v1.1 ██████████ 100% | v1.2 ██████████ 100% | v1.3 ██████████ 100%
 
@@ -63,6 +63,7 @@ Progress: v1.0 ██████████ 100% | v1.1 ███████�
 | Phase 17-flow-core-splits P08 | 17 min | 2 tasks | 4 files |
 | Phase 17-flow-core-splits P09 | 18 min | 2 tasks | 2 files |
 | Phase 17 P10 | 17 min | 2 tasks | 2 files |
+| Phase 17 P11 | 41 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -118,6 +119,9 @@ Recent decisions affecting v1.3:
 - [Phase 17-flow-core-splits]: Keep fail-fast rerun evidence even when gate remains red, explicitly separating closed async-session blocker from new saga payload blocker.
 - [Phase 17]: Use a module-level _PATIENT_MODEL_FIELDS allowlist in saga step_create_patient to pass only model-supported kwargs into Patient().
 - [Phase 17]: Persist schema-only clinical fields as metadata custom_fields.clinical_info so onboarding preserves clinical data without breaking metadata schema validation.
+- [Phase 17]: Use direct DB inserts for pagination setup to isolate list behavior from saga side effects.
+- [Phase 17]: Scope pagination assertions with a unique search batch tag to avoid shared total-count cache collisions.
+- [Phase 17]: Treat audit_logs valid_event_category constraint failure as the next distinct blocker after closing pagination.
 
 ### Pending Todos
 
@@ -130,10 +134,10 @@ Carried tech debt (not v1.3-scoped):
 - Physician availability hours model — hardcoded defaults
 - PromptedOutput validation confidence against gemini-2.5-flash is MEDIUM
 - 60+ files >500 lines total; v1.3 addresses 10 of them
-- Full backend suite currently fails first at tests/api/test_patients_endpoints.py::TestPatientCRUDEndpoints::test_list_patients_pagination with `AssertionError` (`assert 4 >= 5`) in patient list pagination expectations.
+- Full backend suite currently fails first at tests/api/v2/test_admin.py::TestAuditLogs::test_get_audit_logs with `sqlalchemy.exc.IntegrityError` (`psycopg.errors.CheckViolation: valid_event_category`) during audit log fixture insert.
 
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 17-10-PLAN.md
+Stopped at: Completed 17-11-PLAN.md
 Resume file: None

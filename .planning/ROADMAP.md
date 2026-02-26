@@ -187,10 +187,10 @@ Plans:
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
-| 17. Flow Core Splits | 10/10 | Complete   | 2026-02-26 | - |
+| 17. Flow Core Splits | 11/11 | Complete   | 2026-02-26 | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-26 — Phase 17 plans complete (10/10), saga payload/model mismatch blocker closed, patient list pagination fail-fast blocker deferred to next fix*
+*Last updated: 2026-02-26 — Phase 17 plans complete (11/11), patient list pagination blocker closed, full fail-fast now blocked by audit_logs valid_event_category constraint*
