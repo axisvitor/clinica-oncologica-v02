@@ -119,7 +119,7 @@ Plans:
   2. Each new module has a single clear responsibility (e.g., phase transitions do not live in the same module as template binding)
   3. All existing callers of `_flow_functions`, `flow_core`, and `flow_management` continue to work via re-export shims at the original paths
   4. The full test suite passes after the split with no new failures
-**Plans**: 10 plans
+**Plans**: 13 plans
 
 Plans:
 - [x] 17-01-PLAN.md — Split `_flow_functions.py` into focused message/response/orchestration modules with compatibility shim
@@ -134,6 +134,7 @@ Plans:
 - [x] 17-10-PLAN.md — Filter saga patient kwargs to model-supported fields and preserve clinical extras in metadata (new pagination blocker deferred)
 - [x] 17-11-PLAN.md — Stabilize deterministic pagination test setup and refresh fail-fast evidence (new audit_logs constraint blocker deferred)
 - [x] 17-12-PLAN.md — Align admin audit_logs fixture category with DB constraint and refresh fail-fast evidence (new DLQ FK blocker deferred)
+- [ ] 17-13-PLAN.md — Fix DLQ test fixtures to use real Patient row for FK-safe FailedMessage inserts and close fail-fast gate
 
 ### Phase 18: Flow Service Splits
 **Goal**: The four oversized flow service files (sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring) are split into focused modules, each under 500 lines.
@@ -189,10 +190,10 @@ Plans:
 | 14. Flow Control Fixes | v1.3 | 3/3 | Complete | 2026-02-24 |
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
-| 17. Flow Core Splits | 12/12 | Complete   | 2026-02-26 | - |
+| 17. Flow Core Splits | 12/13 | In Progress | 2026-02-26 | - |
 | 18. Flow Service Splits | v1.3 | 0/4 | Not started | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-02-26 — Phase 17 plans complete (12/12), audit_logs valid_event_category blocker closed, full fail-fast now blocked by admin extensions DLQ patient FK constraint*
+*Last updated: 2026-02-26 — Phase 17 gap closure plan 17-13 created for DLQ patient FK fixture fix (13th plan, wave 12)*
