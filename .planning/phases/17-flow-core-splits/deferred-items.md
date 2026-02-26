@@ -79,3 +79,13 @@
 - Additional failure context: onboarding saga step 1 now fails with `TypeError: 'allergies' is an invalid keyword argument for Patient`, with downstream compensation `IntegrityError` (`psycopg.errors.UniqueViolation` on `patient_onboarding_saga_pkey`).
 - `get_async_db` blocker status: `CLOSED` (patient-create path no longer fails on `'coroutine' object has no attribute 'scalars'`; execution now advances into saga create step).
 - Full fail-fast gate status: `NOT GREEN` (new distinct blocker remains in patient onboarding saga payload/model compatibility, separate from the async-session dependency-override issue).
+
+## 2026-02-26 Plan 17-10 Fail-Fast Rerun (post saga payload filter)
+
+- Command: `python3 -m pytest -x --tb=short`
+- Date/Time (UTC): `2026-02-26T00:39:59Z`
+- Result: `FAILED`
+- First failing node: `tests/api/test_patients_endpoints.py::TestPatientCRUDEndpoints::test_list_patients_pagination`
+- Error class: `AssertionError` (`assert 4 >= 5`)
+- Saga payload/model mismatch blocker status: `CLOSED` (`tests/api/test_patients_endpoints.py::TestPatientCRUDEndpoints::test_create_patient_success` now passes and no `TypeError: 'allergies' is an invalid keyword argument for Patient` appears)
+- Full fail-fast gate status: `NOT GREEN` (new distinct blocker remains in patients list pagination expectations, separate from the closed saga payload issue)
