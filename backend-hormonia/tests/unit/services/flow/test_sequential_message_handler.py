@@ -46,6 +46,14 @@ if "app.services.enhanced_flow_engine" not in sys.modules:
 from app.services.flow.sequential_message_handler import SequentialMessageHandler
 from app.models.flow import PatientFlowState
 from app.models.patient import Patient
+from app.config import settings as app_settings
+
+
+def _force_direct_framework(monkeypatch) -> None:
+    if hasattr(app_settings, "AI_FLOW_FRAMEWORK"):
+        monkeypatch.setattr(app_settings, "AI_FLOW_FRAMEWORK", "direct", raising=False)
+    else:
+        monkeypatch.setenv("AI_FLOW_FRAMEWORK", "direct")
 
 
 @pytest.fixture
@@ -92,7 +100,7 @@ def handler(mock_db):
 @pytest.fixture(autouse=True)
 def force_direct_flow_framework(monkeypatch):
     """Run tests against direct flow orchestration path."""
-    monkeypatch.setattr("app.config.settings.AI_FLOW_FRAMEWORK", "direct", raising=False)
+    _force_direct_framework(monkeypatch)
 
 
 class TestSkipForMissingDayConfig:
@@ -136,9 +144,7 @@ class TestDirectFlowFunctions:
     async def test_send_day_messages_uses_direct_function_when_flag_enabled(
         self, handler, mock_patient, monkeypatch
     ):
-        monkeypatch.setattr(
-            "app.config.settings.AI_FLOW_FRAMEWORK", "direct", raising=False
-        )
+        _force_direct_framework(monkeypatch)
 
         mock_direct_call = AsyncMock(return_value={"status": "ok", "mode": "direct"})
         with patch(
@@ -169,9 +175,7 @@ class TestDirectFlowFunctions:
             "message_index": 1,
             "prompt_message_id": str(uuid4()),
         }
-        monkeypatch.setattr(
-            "app.config.settings.AI_FLOW_FRAMEWORK", "direct", raising=False
-        )
+        _force_direct_framework(monkeypatch)
 
         mock_direct_call = AsyncMock(return_value={"status": "waiting", "mode": "direct"})
         with patch(
