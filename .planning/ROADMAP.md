@@ -56,7 +56,7 @@ Full details: `.planning/milestones/v1.2-ROADMAP.md`
  (completed 2026-02-25)
 - [x] **Phase 16: Dead Code Removal** - Tombstone 5 unused packages/files (~4,550 LOC) (completed 2026-02-25)
 - [x] **Phase 17: Flow Core Splits** - Split _flow_functions, flow_core, flow_management into focused modules (completed 2026-02-25)
-- [ ] **Phase 18: Flow Service Splits** - Split sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring
+- [x] **Phase 18: Flow Service Splits** - Split sequential_message_handler, enhanced_flow_engine, flow_dashboard, flow_monitoring (completed 2026-02-26)
 - [ ] **Phase 19: Saga & Integrity Splits** - Split saga orchestrator, saga compensation, and flow_integrity
 
 ## Phase Details
@@ -191,7 +191,7 @@ Plans:
 | 15. Data Integrity Fixes | v1.3 | Complete    | 2026-02-25 | 2026-02-25 |
 | 16. Dead Code Removal | 3/3 | Complete    | 2026-02-25 | - |
 | 17. Flow Core Splits | 13/13 | Complete   | 2026-02-26 | - |
-| 18. Flow Service Splits | 3/4 | In Progress|  | - |
+| 18. Flow Service Splits | 4/4 | Complete   | 2026-02-26 | - |
 | 19. Saga & Integrity Splits | v1.3 | 0/3 | Not started | - |
 
 ---
