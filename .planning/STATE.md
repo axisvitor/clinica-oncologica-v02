@@ -1,20 +1,20 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: none
+milestone: v1.6
+milestone_name: WuzAPI Migration
 current_phase: none
 current_phase_name: none
 current_plan: none
-status: milestone_complete
-stopped_at: v1.5 milestone archived
-last_updated: "2026-03-01T23:00:00.000Z"
+status: defining_requirements
+stopped_at: null
+last_updated: "2026-03-01T23:30:00.000Z"
 last_activity: 2026-03-01
 progress:
-  total_phases: 32
-  completed_phases: 32
-  total_plans: 138
-  completed_plans: 138
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -24,16 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Planning next milestone
+**Current focus:** v1.6 WuzAPI Migration — defining requirements
 
 ## Current Position
 
-**Current Phase:** None (between milestones)
-**Status:** Milestone v1.5 complete — ready for `/gsd:new-milestone`
-**Last Activity:** 2026-03-01
-**Last Activity Description:** v1.5 Saga Orchestrator Deep Dive archived
-
-**Progress:** [██████████] 100% (6 milestones shipped)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-01 — Milestone v1.6 started
 
 ## Performance Metrics
 
@@ -45,7 +43,8 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 | v1.3 Flow Health & Cleanup | 6 | 31 | 2 days (2026-02-24 → 2026-02-26) |
 | v1.4 AsyncSession & Test Stability | 9 | 54 | 3 days (2026-02-26 → 2026-02-28) |
 | v1.5 Saga Orchestrator Deep Dive | 4 | 14 | 2 days (2026-02-28 → 2026-03-01) |
-| **Cumulative** | **32 phases** | **138 plans** | **8 days** |
+| v1.6 WuzAPI Migration | — | — | Started 2026-03-01 |
+| **Cumulative (shipped)** | **32 phases** | **138 plans** | **8 days** |
 
 ## Accumulated Context
 
@@ -67,5 +66,5 @@ None.
 ## Session Continuity
 
 **Last session:** 2026-03-01
-**Stopped At:** v1.5 milestone archived
-**Resume File:** None — use `/gsd:new-milestone` to start next milestone
+**Stopped At:** Milestone v1.6 requirements definition
+**Resume File:** None — defining requirements

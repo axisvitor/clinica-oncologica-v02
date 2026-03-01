@@ -49,7 +49,21 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 
 ### Active
 
-(No active milestone — use `/gsd:new-milestone` to start next)
+## Current Milestone: v1.6 WuzAPI Migration
+
+**Goal:** Replace Evolution API with WuzAPI as the WhatsApp provider — hard cut, no dual-provider hacks.
+
+**Target features:**
+- WuzAPIClient replacing EvolutionAPIClient (httpx async, whatsmeow-backed)
+- Webhook handlers rewritten for WuzAPI payload format (Message, ReadReceipt events)
+- Phone format adaptation (raw number → number@s.whatsapp.net)
+- Auth model update (apikey header → Token/Authorization header)
+- HMAC validation update (SHA-256 via x-hmac-signature)
+- Session management (instance model → session model)
+- UnifiedWhatsAppService adapter wired to WuzAPI
+- Environment variables migrated
+- Evolution API code tombstoned (both legacy and canonical stacks)
+- Tests updated for WuzAPI contracts
 
 ### Out of Scope
 
@@ -72,6 +86,7 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - v1.3 shipped: flow health fixes + dead code cleanup + 10 critical file splits (net +5,472 LOC)
 - v1.4 shipped: full AsyncSession migration — all API routers async, dual-mode services, test stability (net +20,503 LOC)
 - v1.5 shipped: saga orchestrator deep dive — audit, flow trace, compensation integrity, 40+ tests (net +7,166 LOC)
+- v1.6 in progress: WuzAPI migration — replacing Evolution API with WuzAPI (Go + whatsmeow)
 - Codebase: ~296k LOC Python (brownfield, mature patterns: DDD, Saga, Circuit Breaker)
 - Python 3.13 + FastAPI + SQLAlchemy (AsyncSession on all API paths, sync on Celery workers)
 - AI stack: Pydantic AI agents + google-genai SDK + GeminiClient (cache, rate limit, circuit breaker, PII redaction)
@@ -85,7 +100,7 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - **Compliance**: LGPD obrigatorio (dados de pacientes oncologicos sao sensiveis)
 - **Deploy**: Railway (API + Workers) + Firebase Hosting (frontends)
 - **Database**: PostgreSQL (AWS RDS) — manter, nao migrar
-- **WhatsApp**: Evolution API — manter integraçao existente
+- **WhatsApp**: WuzAPI (Go + whatsmeow) — migrating from Evolution API in v1.6
 - **Session Model**: API routes use AsyncSession; Celery tasks use sync Session
 
 ## Key Decisions
@@ -111,5 +126,7 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 | Google ADK deferred | Irresolvable OTel cap + Pydantic 2.11+ + 300-400 MB footprint | ⚠ Revisit |
 | Hardcoded physician hours (Mon-Fri 08-17) | No preferences model exists yet; functional baseline | ⚠ Revisit |
 
+| WuzAPI over Evolution API | Evolution API unstable (disconnections, bad perf, messy code); WuzAPI uses whatsmeow (direct WebSocket, Go, low footprint) | — Pending |
+
 ---
-*Last updated: 2026-03-01 after v1.5 milestone*
+*Last updated: 2026-03-01 after v1.6 milestone start*
