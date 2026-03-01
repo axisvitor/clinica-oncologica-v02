@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { RefreshCw } from 'lucide-react'
 import { InstanceCard } from '../components/InstanceCard'
 import { useWhatsAppInstances } from '../hooks/useWhatsAppInstances'
+import type { WhatsAppInstance } from '../types'
 
 interface InstancesTabProps {
   selectedInstance: string
@@ -80,7 +81,7 @@ export function InstancesTab({ selectedInstance, onSelectInstance }: InstancesTa
             </CardContent>
           </Card>
         ) : (
-          instances.map((instance) => (
+          instances.map((instance: WhatsAppInstance) => (
             <InstanceCard
               key={instance.name}
               instance={instance}

@@ -3,52 +3,66 @@ import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AuthProvider } from '@/contexts/AuthContext'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { AuthProvider, safeLocalStorage } from '@/app/providers/AuthContext'
 import { LoginPage } from '@/pages/LoginPage'
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
+import { LoginPage } from '@/pages/LoginPage'
+import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 
 // Mock Dashboard component
 const MockDashboard = () => <div data-testid="dashboard">Dashboard</div>
 
 // Mock dependencies
-const mockFirebaseAuth = {
-  onAuthStateChange: vi.fn(),
+const mockFirebaseAuth = vi.hoisted(() => ({
+  onAuthStateChanged: vi.fn(),
   onIdTokenChanged: vi.fn(),
   getCurrentUser: vi.fn(),
-  signInWithPassword: vi.fn(),
   signOut: vi.fn(),
   setPersistence: vi.fn(),
   isConfigured: vi.fn().mockReturnValue(true)
-}
+}))
 
-const mockApiClient = {
+const mockApiClient = vi.hoisted(() => ({
   setAuthToken: vi.fn(),
+  clearAuthToken: vi.fn(),
   fetchCsrfToken: vi.fn(),
   auth: {
     me: vi.fn(),
-    createSession: vi.fn()
+    checkAuth: vi.fn()
+  },
+  dashboard: {
+    getMain: vi.fn().mockResolvedValue({})
   },
   getBaseURL: vi.fn().mockReturnValue('https://api.example.com'),
   getCsrfToken: vi.fn().mockReturnValue('csrf-token')
-}
+}))
 
-const mockWsManager = {
-  connect: vi.fn(),
+const mockWsManager = vi.hoisted(() => ({
+  connect: vi.fn().mockResolvedValue(undefined),
   disconnect: vi.fn(),
   updateToken: vi.fn()
-}
+}))
 
-const mockFirebaseAuthService = {
+const mockFirebaseAuthService = vi.hoisted(() => ({
   loginUser: vi.fn(),
   logoutUser: vi.fn(),
-  logoutAllDevices: vi.fn()
-}
+  logoutAllDevices: vi.fn(),
+  setSessionId: vi.fn(),
+  clearSessionId: vi.fn()
+}))
 
-const mockToast = vi.fn()
+const mockToast = vi.hoisted(() => vi.fn())
+const mockUseAuthSubmit = vi.hoisted(() =>
+  vi.fn().mockReturnValue({
+    isSubmitting: false,
+    error: null,
+    handleSubmit: vi.fn(async () => undefined)
+  })
+)
 
 // Mock modules
-vi.mock('@/lib/firebase-client', () => ({
-  firebaseAuth: mockFirebaseAuth
+vi.mock('@/lib/firebase-lazy', () => ({
+  firebaseAuthLazy: mockFirebaseAuth
 }))
 
 vi.mock('@/lib/api-client', () => ({
@@ -84,12 +98,21 @@ vi.mock('@/lib/config-initializer', () => ({
 }))
 
 vi.mock('@/hooks/use-auth-submit', () => ({
-  useAuthSubmit: vi.fn().mockReturnValue({
-    isSubmitting: false,
-    error: null,
-    handleSubmit: vi.fn((fn) => fn)
-  })
+  useAuthSubmit: mockUseAuthSubmit
 }))
+
+const createAuthSubmitState = (
+  overrides: Partial<{
+    isSubmitting: boolean
+    error: string | null
+    handleSubmit: (fn: unknown) => unknown
+  }> = {}
+) => ({
+  isSubmitting: false,
+  error: null,
+  handleSubmit: vi.fn(async () => undefined),
+  ...overrides
+})
 
 const mockUser = {
   id: 'user-id',
@@ -98,7 +121,7 @@ const mockUser = {
   role: 'admin',
   is_active: true,
   permissions: ['read:patients', 'write:patients'],
-  created_at: '2023-01-01T00:00:00Z'
+  created_at: '2023-01-01T00:00:00-03:00'
 }
 
 const mockFirebaseUser = {
@@ -162,9 +185,13 @@ describe('Auth Flow Integration Tests', () => {
   beforeEach(() => {
     user = userEvent.setup()
     vi.clearAllMocks()
+    vi.spyOn(safeLocalStorage, 'setItem')
+    vi.spyOn(safeLocalStorage, 'removeItem')
+    authStateChangeCallback = undefined
+    tokenChangeCallback = undefined
 
     // Setup Firebase auth state change mock
-    mockFirebaseAuth.onAuthStateChange.mockImplementation((callback) => {
+    mockFirebaseAuth.onAuthStateChanged.mockImplementation((callback) => {
       authStateChangeCallback = callback
       return vi.fn() // unsubscribe function
     })
@@ -177,11 +204,69 @@ describe('Auth Flow Integration Tests', () => {
 
     mockApiClient.fetchCsrfToken.mockResolvedValue(undefined)
     mockApiClient.auth.me.mockResolvedValue({ data: mockUser })
+    mockApiClient.auth.checkAuth.mockResolvedValue({ authenticated: false })
+    mockApiClient.dashboard.getMain.mockResolvedValue({})
+    mockFirebaseAuth.signOut.mockResolvedValue({ error: null })
+    mockFirebaseAuth.getCurrentUser.mockResolvedValue(mockFirebaseUser)
+    mockFirebaseUser.getIdToken.mockResolvedValue('firebase-token')
+    mockFirebaseAuthService.loginUser.mockResolvedValue({
+      user: mockUser,
+      session_id: 'session-123'
+    })
+    mockUseAuthSubmit.mockImplementation(({ onSubmit }) =>
+      createAuthSubmitState({
+        handleSubmit: vi.fn((data) => onSubmit(data))
+      })
+    )
   })
 
   afterEach(() => {
     vi.clearAllMocks()
   })
+
+  const waitForAuthListener = async () => {
+    await waitFor(() => {
+      expect(authStateChangeCallback).toBeDefined()
+    })
+  }
+
+  const triggerAuthState = async (firebaseUser: typeof mockFirebaseUser | null) => {
+    await waitForAuthListener()
+    await act(async () => {
+      await authStateChangeCallback(firebaseUser)
+    })
+  }
+
+  const triggerTokenChange = async (firebaseUser: typeof mockFirebaseUser) => {
+    await waitFor(() => {
+      expect(tokenChangeCallback).toBeDefined()
+    })
+    await act(async () => {
+      await tokenChangeCallback(firebaseUser)
+    })
+  }
+
+  const renderApp = async (
+    initialRoute: string = '/',
+    firebaseUser?: typeof mockFirebaseUser | null
+  ) => {
+    render(<TestApp initialRoute={initialRoute} />)
+    if (firebaseUser !== undefined) {
+      await triggerAuthState(firebaseUser)
+    }
+  }
+
+  const waitForLoginPage = async () => {
+    await waitFor(() => {
+      expect(screen.getByText(/entrar na sua conta/i)).toBeInTheDocument()
+    })
+  }
+
+  const waitForDashboard = async () => {
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard')).toBeInTheDocument()
+    })
+  }
 
   describe('Complete Login Flow', () => {
     it('should complete full login flow from login page to dashboard', async () => {
@@ -192,14 +277,12 @@ describe('Auth Flow Integration Tests', () => {
 
       mockFirebaseAuth.getCurrentUser.mockResolvedValue(mockFirebaseUser)
 
-      render(<TestApp initialRoute="/login" />)
-
-      // Verify we're on login page
-      expect(screen.getByRole('heading', { name: /entrar na sua conta/i })).toBeInTheDocument()
+      await renderApp('/login', null)
+      await waitForLoginPage()
 
       // Fill and submit login form
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/senha/i)
+      const passwordInput = screen.getByLabelText(/^senha$/i)
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       await user.type(emailInput, 'test@example.com')
@@ -211,18 +294,12 @@ describe('Auth Flow Integration Tests', () => {
         expect(mockFirebaseAuthService.loginUser).toHaveBeenCalledWith('test@example.com', 'password123')
       })
 
-      // Simulate Firebase auth state change
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
-
       // Should redirect to dashboard
-      await waitFor(() => {
-        expect(screen.getByTestId('dashboard')).toBeInTheDocument()
-      })
+      await waitForDashboard()
 
       // Verify WebSocket connection
       expect(mockWsManager.connect).toHaveBeenCalledWith('firebase-token')
+      expect(safeLocalStorage.setItem).toHaveBeenCalledWith('session_id', 'session-123')
     })
 
     it('should handle login with remember me option', async () => {
@@ -233,10 +310,11 @@ describe('Auth Flow Integration Tests', () => {
 
       mockFirebaseAuth.getCurrentUser.mockResolvedValue(mockFirebaseUser)
 
-      render(<TestApp initialRoute="/login" />)
+      await renderApp('/login', null)
+      await waitForLoginPage()
 
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/senha/i)
+      const passwordInput = screen.getByLabelText(/^senha$/i)
       const rememberMeCheckbox = screen.getByRole('checkbox', { name: /manter-me conectado/i })
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
@@ -251,58 +329,30 @@ describe('Auth Flow Integration Tests', () => {
     })
 
     it('should handle login errors and display error message', async () => {
-      const useAuthSubmitMock = vi.mocked(require('@/hooks/use-auth-submit').useAuthSubmit)
-      useAuthSubmitMock.mockReturnValue({
-        isSubmitting: false,
-        error: 'Invalid credentials',
-        handleSubmit: vi.fn((fn) => fn)
-      })
+      mockUseAuthSubmit.mockReturnValue(createAuthSubmitState({ error: 'Invalid credentials' }))
 
-      render(<TestApp initialRoute="/login" />)
+      await renderApp('/login', null)
+      await waitForLoginPage()
 
       expect(screen.getByText('Invalid credentials')).toBeInTheDocument()
       expect(screen.getByRole('alert')).toBeInTheDocument()
     })
 
     it('should redirect authenticated users away from login page', async () => {
-      render(<TestApp initialRoute="/login" />)
-
-      // Simulate user already authenticated
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
-
-      await waitFor(() => {
-        expect(screen.getByTestId('dashboard')).toBeInTheDocument()
-      })
+      await renderApp('/login', mockFirebaseUser)
+      await waitForDashboard()
     })
   })
 
   describe('Protected Route Access', () => {
     it('should redirect unauthenticated users to login page', async () => {
-      render(<TestApp initialRoute="/dashboard" />)
-
-      // Simulate no authenticated user
-      await act(async () => {
-        await authStateChangeCallback(null)
-      })
-
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /entrar na sua conta/i })).toBeInTheDocument()
-      })
+      await renderApp('/dashboard', null)
+      await waitForLoginPage()
     })
 
     it('should allow authenticated users to access protected routes', async () => {
-      render(<TestApp initialRoute="/dashboard" />)
-
-      // Simulate authenticated user
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
-
-      await waitFor(() => {
-        expect(screen.getByTestId('dashboard')).toBeInTheDocument()
-      })
+      await renderApp('/dashboard', mockFirebaseUser)
+      await waitForDashboard()
     })
 
     it('should preserve intended route after login', async () => {
@@ -312,58 +362,33 @@ describe('Auth Flow Integration Tests', () => {
       })
 
       // Start at protected route (should redirect to login)
-      render(<TestApp initialRoute="/dashboard" />)
-
-      // Should be redirected to login
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /entrar na sua conta/i })).toBeInTheDocument()
-      })
+      await renderApp('/dashboard', null)
+      await waitForLoginPage()
 
       // Complete login
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/senha/i)
+      const passwordInput = screen.getByLabelText(/^senha$/i)
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       await user.type(emailInput, 'test@example.com')
       await user.type(passwordInput, 'password123')
       await user.click(submitButton)
 
-      // Simulate successful auth
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
-
       // Should be redirected back to intended route
-      await waitFor(() => {
-        expect(screen.getByTestId('dashboard')).toBeInTheDocument()
-      })
+      await waitForDashboard()
     })
   })
 
   describe('Session Management', () => {
     it('should handle session expiration gracefully', async () => {
-      // Start with authenticated user
-      render(<TestApp initialRoute="/dashboard" />)
-
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
-
-      await waitFor(() => {
-        expect(screen.getByTestId('dashboard')).toBeInTheDocument()
-      })
+      await renderApp('/dashboard', mockFirebaseUser)
+      await waitForDashboard()
 
       // Simulate session expiration (backend validation failure)
       mockApiClient.auth.me.mockRejectedValue(new Error('Session expired'))
 
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
-
-      // Should redirect to login and show toast
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /entrar na sua conta/i })).toBeInTheDocument()
-      })
+      await triggerAuthState(mockFirebaseUser)
+      await waitForLoginPage()
 
       expect(mockToast).toHaveBeenCalledWith({
         title: 'Sessão expirada',
@@ -373,28 +398,17 @@ describe('Auth Flow Integration Tests', () => {
     })
 
     it('should handle token refresh seamlessly', async () => {
-      render(<TestApp initialRoute="/dashboard" />)
-
-      // Start with authenticated user
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
-
-      await waitFor(() => {
-        expect(screen.getByTestId('dashboard')).toBeInTheDocument()
-      })
+      await renderApp('/dashboard', mockFirebaseUser)
+      await waitForDashboard()
 
       // Simulate token refresh
       const newToken = 'refreshed-firebase-token'
       mockFirebaseUser.getIdToken.mockResolvedValue(newToken)
 
-      await act(async () => {
-        await tokenChangeCallback(mockFirebaseUser)
-      })
+      await triggerTokenChange(mockFirebaseUser)
 
       // Should update WebSocket and API client with new token
       expect(mockWsManager.updateToken).toHaveBeenCalledWith(newToken)
-      expect(mockApiClient.setAuthToken).toHaveBeenCalledWith(newToken)
 
       // User should remain on dashboard
       expect(screen.getByTestId('dashboard')).toBeInTheDocument()
@@ -403,60 +417,35 @@ describe('Auth Flow Integration Tests', () => {
 
   describe('Logout Flow', () => {
     it('should complete logout flow and redirect to login', async () => {
-      render(<TestApp initialRoute="/dashboard" />)
-
-      // Start with authenticated user
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
-
-      await waitFor(() => {
-        expect(screen.getByTestId('dashboard')).toBeInTheDocument()
-      })
+      await renderApp('/dashboard', mockFirebaseUser)
+      await waitForDashboard()
 
       // Simulate logout
-      await act(async () => {
-        await authStateChangeCallback(null)
-      })
-
-      // Should redirect to login
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /entrar na sua conta/i })).toBeInTheDocument()
-      })
+      await triggerAuthState(null)
+      await waitForLoginPage()
 
       // Should disconnect WebSocket
       expect(mockWsManager.disconnect).toHaveBeenCalled()
+      expect(safeLocalStorage.removeItem).toHaveBeenCalledWith('session_id')
     })
   })
 
   describe('Error Recovery', () => {
     it('should handle temporary network failures gracefully', async () => {
-      render(<TestApp initialRoute="/login" />)
+      mockUseAuthSubmit.mockImplementation(({ onSubmit }) =>
+        createAuthSubmitState({
+          error: 'Network error',
+          handleSubmit: vi.fn((data) => onSubmit(data))
+        })
+      )
 
-      // First login attempt fails
-      const useAuthSubmitMock = vi.mocked(require('@/hooks/use-auth-submit').useAuthSubmit)
-      useAuthSubmitMock.mockReturnValue({
-        isSubmitting: false,
-        error: 'Network error',
-        handleSubmit: vi.fn((fn) => fn)
-      })
+      await renderApp('/login', null)
+      await waitForLoginPage()
 
       expect(screen.getByText('Network error')).toBeInTheDocument()
 
-      // Second attempt succeeds
-      useAuthSubmitMock.mockReturnValue({
-        isSubmitting: false,
-        error: null,
-        handleSubmit: vi.fn((fn) => fn)
-      })
-
-      mockFirebaseAuthService.loginUser.mockResolvedValue({
-        user: mockUser,
-        session_id: 'session-123'
-      })
-
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/senha/i)
+      const passwordInput = screen.getByLabelText(/^senha$/i)
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       await user.clear(emailInput)
@@ -465,29 +454,13 @@ describe('Auth Flow Integration Tests', () => {
       await user.type(passwordInput, 'password123')
       await user.click(submitButton)
 
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
-
-      await waitFor(() => {
-        expect(screen.getByTestId('dashboard')).toBeInTheDocument()
-      })
+      await waitForDashboard()
     })
 
     it('should handle backend unavailability gracefully', async () => {
-      render(<TestApp initialRoute="/dashboard" />)
-
-      // Backend validation fails
       mockApiClient.auth.me.mockRejectedValue(new Error('Backend unavailable'))
-
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
-
-      // Should sign out and redirect to login
-      await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /entrar na sua conta/i })).toBeInTheDocument()
-      })
+      await renderApp('/dashboard', mockFirebaseUser)
+      await waitForLoginPage()
 
       expect(mockToast).toHaveBeenCalledWith({
         title: 'Sessão expirada',
@@ -502,28 +475,23 @@ describe('Auth Flow Integration Tests', () => {
       render(<TestApp />)
 
       // Should show loading initially
-      expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
+      expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
 
       // Complete auth check
-      await act(async () => {
-        await authStateChangeCallback(null)
-      })
+      await triggerAuthState(null)
+      await waitForLoginPage()
 
       // Should no longer show loading
       await waitFor(() => {
-        expect(screen.queryByTestId('loading-spinner')).not.toBeInTheDocument()
+        expect(screen.queryByRole('status', { name: /loading/i })).not.toBeInTheDocument()
       })
     })
 
     it('should show submitting state during login', async () => {
-      const useAuthSubmitMock = vi.mocked(require('@/hooks/use-auth-submit').useAuthSubmit)
-      useAuthSubmitMock.mockReturnValue({
-        isSubmitting: true,
-        error: null,
-        handleSubmit: vi.fn((fn) => fn)
-      })
+      mockUseAuthSubmit.mockReturnValue(createAuthSubmitState({ isSubmitting: true }))
 
-      render(<TestApp initialRoute="/login" />)
+      await renderApp('/login', null)
+      await waitForLoginPage()
 
       const submitButton = screen.getByRole('button', { name: /entrando.../i })
       expect(submitButton).toBeDisabled()
@@ -533,44 +501,25 @@ describe('Auth Flow Integration Tests', () => {
 
   describe('WebSocket Integration', () => {
     it('should connect WebSocket on successful authentication', async () => {
-      render(<TestApp />)
-
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
+      await renderApp('/', mockFirebaseUser)
 
       expect(mockWsManager.connect).toHaveBeenCalledWith('firebase-token')
     })
 
     it('should disconnect WebSocket on logout', async () => {
-      render(<TestApp />)
-
-      // First authenticate
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
-
-      // Then logout
-      await act(async () => {
-        await authStateChangeCallback(null)
-      })
+      await renderApp('/', mockFirebaseUser)
+      await triggerAuthState(null)
 
       expect(mockWsManager.disconnect).toHaveBeenCalled()
     })
 
     it('should update WebSocket token on refresh', async () => {
-      render(<TestApp />)
-
-      await act(async () => {
-        await authStateChangeCallback(mockFirebaseUser)
-      })
+      await renderApp('/', mockFirebaseUser)
 
       const newToken = 'new-token'
       mockFirebaseUser.getIdToken.mockResolvedValue(newToken)
 
-      await act(async () => {
-        await tokenChangeCallback(mockFirebaseUser)
-      })
+      await triggerTokenChange(mockFirebaseUser)
 
       expect(mockWsManager.updateToken).toHaveBeenCalledWith(newToken)
     })
@@ -585,16 +534,18 @@ describe('Auth Flow Integration Tests', () => {
       })
     })
 
-    it('should refresh CSRF token before and after login', async () => {
+    it('should allow login after CSRF initialization', async () => {
       mockFirebaseAuthService.loginUser.mockResolvedValue({
         user: mockUser,
         session_id: 'session-123'
       })
+      mockFirebaseAuth.getCurrentUser.mockResolvedValue(mockFirebaseUser)
 
-      render(<TestApp initialRoute="/login" />)
+      await renderApp('/login', null)
+      await waitForLoginPage()
 
       const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/senha/i)
+      const passwordInput = screen.getByLabelText(/^senha$/i)
       const submitButton = screen.getByRole('button', { name: /entrar/i })
 
       await user.type(emailInput, 'test@example.com')
@@ -602,8 +553,10 @@ describe('Auth Flow Integration Tests', () => {
       await user.click(submitButton)
 
       await waitFor(() => {
-        expect(mockApiClient.fetchCsrfToken).toHaveBeenCalled()
+        expect(mockFirebaseAuthService.loginUser).toHaveBeenCalledWith('test@example.com', 'password123')
       })
+
+      expect(mockApiClient.fetchCsrfToken).toHaveBeenCalled()
     })
   })
 })

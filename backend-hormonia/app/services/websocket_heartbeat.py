@@ -17,6 +17,7 @@ from typing import Dict, Optional, Callable, Any, Awaitable
 from dataclasses import dataclass, field
 from enum import Enum
 from uuid import uuid4
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ class HeartbeatMetrics:
     min_latency: float = float("inf")
     max_latency: float = 0.0
     latency_samples: list = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=now_sao_paulo_naive)
 
     def add_latency_sample(self, latency: float) -> None:
         """Add a latency sample and update statistics."""
@@ -252,7 +253,7 @@ class WebSocketHeartbeatManager:
             "type": "ping",
             "data": {
                 "ping_id": ping_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "server_time": timestamp,
             },
         }
@@ -264,7 +265,7 @@ class WebSocketHeartbeatManager:
             # Track ping
             self.pending_pings[connection_id][ping_id] = timestamp
             metrics.ping_count += 1
-            metrics.last_ping_sent = datetime.now(timezone.utc)
+            metrics.last_ping_sent = now_sao_paulo()
             self.total_pings_sent += 1
 
             # Schedule timeout check
@@ -312,7 +313,7 @@ class WebSocketHeartbeatManager:
 
         # Update metrics
         metrics.pong_count += 1
-        metrics.last_pong_received = datetime.now(timezone.utc)
+        metrics.last_pong_received = now_sao_paulo()
         metrics.missed_pings = 0  # Reset missed pings counter
         metrics.add_latency_sample(latency)
         metrics.update_status(self.max_missed_pings, self.warning_threshold)

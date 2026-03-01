@@ -40,16 +40,6 @@ class TestFlowsAdvanceAPI:
         # Assert
         assert response.status_code == 401
 
-    @pytest.mark.skip(reason="Flow model doesn't exist - uses PatientFlowState")
-    def test_advance_flow_success(self, authenticated_client, db_session):
-        """
-        Test successful flow advancement.
-
-        Verifies 200 response and flow state update.
-        """
-        # TODO: Refactor to use PatientFlowState model
-        pass
-
     def test_advance_flow_invalid_id_returns_404(self, authenticated_client):
         """
         Test that invalid flow ID returns 404.
@@ -67,58 +57,6 @@ class TestFlowsAdvanceAPI:
         # Assert
         assert response.status_code == 404
 
-    @pytest.mark.skip(reason="Flow model doesn't exist - uses PatientFlowState")
-    def test_advance_flow_validates_current_state(
-        self,
-        authenticated_client,
-        db_session
-    ):
-        """
-        Test that flow advancement validates current state.
-
-        Verifies flows cannot be advanced from terminal states.
-        """
-        # TODO: Refactor to use PatientFlowState model
-        pass
-
-    @pytest.mark.skip(reason="Flow model doesn't exist - uses PatientFlowState")
-    def test_advance_flow_unauthorized_user(
-        self,
-        authenticated_client,
-        db_session
-    ):
-        """
-        Test that users can only advance their own flows.
-
-        Verifies authorization check.
-        """
-        # TODO: Refactor to use PatientFlowState model
-        pass
-
-    @pytest.mark.skip(reason="Flow model doesn't exist - uses PatientFlowState")
-    def test_advance_flow_returns_updated_state(
-        self,
-        authenticated_client,
-        db_session
-    ):
-        """
-        Test that response includes updated flow state.
-
-        Verifies complete flow data is returned.
-        """
-        # TODO: Refactor to use PatientFlowState model
-        pass
-
-    @pytest.mark.skip(reason="Flow model doesn't exist - uses PatientFlowState")
-    def test_advance_flow_with_payload(self, authenticated_client, db_session):
-        """
-        Test flow advancement with optional payload.
-
-        Verifies additional data can be sent with advancement.
-        """
-        # TODO: Refactor to use PatientFlowState model
-        pass
-
     def test_advance_flow_malformed_uuid_returns_422(self, authenticated_client):
         """
         Test that malformed UUID returns validation error.
@@ -135,27 +73,3 @@ class TestFlowsAdvanceAPI:
 
         # Assert
         assert response.status_code == 422
-
-    @pytest.mark.skip(reason="Flow model doesn't exist - uses PatientFlowState")
-    def test_advance_flow_updates_timestamp(
-        self,
-        authenticated_client,
-        db_session
-    ):
-        """
-        Test that flow advancement updates timestamp.
-
-        Verifies updated_at field is modified.
-        """
-        # TODO: Refactor to use PatientFlowState model
-        pass
-
-    @pytest.mark.skip(reason="Flow model doesn't exist - uses PatientFlowState")
-    def test_advance_flow_increments_step(self, authenticated_client, db_session):
-        """
-        Test that flow advancement increments current step.
-
-        Verifies flow progression tracking.
-        """
-        # TODO: Refactor to use PatientFlowState model
-        pass

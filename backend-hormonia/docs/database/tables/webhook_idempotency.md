@@ -10,7 +10,7 @@
 | **received_at** | `TIMESTAMP` | ❌ | `CURRENT_TIMESTAMP` |  |  |
 | **processed_at** | `TIMESTAMP` | ✅ | - |  |  |
 | **expires_at** | `TIMESTAMP` | ❌ | - |  |  |
-| **status** | `VARCHAR(20)` | ❌ | - |  |  |
+| **status** | `ENUM(webhook_idempotency_status)` | ❌ | - |  |  |
 | **retry_count** | `INTEGER` | ❌ | - |  |  |
 | **payload** | `JSONB` | ✅ | - |  |  |
 | **response_data** | `JSONB` | ✅ | - |  |  |

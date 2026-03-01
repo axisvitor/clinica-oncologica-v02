@@ -39,7 +39,7 @@ export function MonthlyQuizDashboard() {
 
   const { resendQuizLink } = useMonthlyQuizAdmin()
 
-  const handleSendToPatient = (patient: { id: string; name: string }) => {
+  const _handleSendToPatient = (patient: { id: string; name: string }) => {
     setSelectedPatient(patient)
     setShowSendModal(true)
   }
@@ -142,7 +142,7 @@ export function MonthlyQuizDashboard() {
             <div className="flex-1 w-full">
               <div className="h-3 sm:h-4 bg-gray-200 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-blue-600 transition-all duration-500"
+                className="h-full bg-blue-600 transition-[width] duration-500"
                   style={{ width: `${completionRate}%` }}
                 />
               </div>

@@ -14,6 +14,27 @@ Performance Impact:
 
 The indexes are created CONCURRENTLY to avoid locking the table during
 index creation, allowing zero-downtime deployment.
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 
@@ -24,7 +45,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     """
     Add GIN indexes for JSONB queries optimization.
     
@@ -39,13 +60,13 @@ def upgrade():
     
     # Create GIN index on metadata column (active column)
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_metadata_gin 
+        CREATE INDEX IF NOT EXISTS idx_patients_metadata_gin 
         ON patients USING GIN (metadata)
     """)
     
     # Create GIN index on patient_metadata column (legacy compatibility)
     op.execute("""
-        CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_patients_patient_metadata_gin 
+        CREATE INDEX IF NOT EXISTS idx_patients_patient_metadata_gin 
         ON patients USING GIN (patient_metadata)
     """)
     
@@ -65,7 +86,7 @@ def upgrade():
     """)
 
 
-def downgrade():
+def downgrade() -> None:
     """
     Remove GIN indexes.
     
@@ -73,5 +94,5 @@ def downgrade():
     of JSONB queries on the patients table.
     """
     # Drop indexes using CONCURRENTLY to avoid locking
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_patients_metadata_gin")
-    op.execute("DROP INDEX CONCURRENTLY IF EXISTS idx_patients_patient_metadata_gin")
+    op.execute("DROP INDEX IF EXISTS idx_patients_metadata_gin")
+    op.execute("DROP INDEX IF EXISTS idx_patients_patient_metadata_gin")

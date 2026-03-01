@@ -369,7 +369,7 @@ export function AuditLogViewer({
 
     const csvContent = [
       ['Data/Hora', 'Usuário', 'Ação', 'Recurso', 'Severidade', 'IP', 'Detalhes'],
-      ...auditLogs.items.map(log => [
+      ...auditLogs.items.map((log: AuditLogEntry) => [
         formatFullTime(log.timestamp),
         log.user_email,
         getActionDescription(log),
@@ -378,7 +378,7 @@ export function AuditLogViewer({
         log.ip_address,
         JSON.stringify(log.details)
       ])
-    ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
+    ].map((row: Array<string | number>) => row.map((cell: string | number) => `"${cell}"`).join(',')).join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
@@ -390,7 +390,7 @@ export function AuditLogViewer({
   const stats = useMemo(() => {
     if (!auditLogs?.items) return { total: 0, high: 0, medium: 0, low: 0 }
 
-    return auditLogs.items.reduce((acc, log) => {
+    return auditLogs.items.reduce((acc: { total: number; high: number; medium: number; low: number }, log: AuditLogEntry) => {
       const severity = getSeverityLevel(log.action)
       acc.total++
       acc[severity as 'high' | 'medium' | 'low']++

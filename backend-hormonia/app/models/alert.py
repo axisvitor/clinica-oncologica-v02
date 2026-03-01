@@ -13,8 +13,13 @@ import uuid
 from app.models.base import BaseModel
 
 
-class AlertSeverity(enum.Enum):
-    """Alert severity levels."""
+class AlertSeverity(str, enum.Enum):
+    """Alert severity levels.
+
+    Canonical definition for LOW/MEDIUM/HIGH/CRITICAL severity.
+    Used by: models, schemas, flow_monitoring, enhanced_monitoring.
+    Import from here to avoid duplication.
+    """
 
     LOW = "low"
     MEDIUM = "medium"
@@ -36,9 +41,9 @@ class Alert(BaseModel):
     """System alerts for patient monitoring.
 
     This model maps to the existing database schema:
-    - alert_type maps to 'type' column
-    - description maps to 'message' column
-    - status maps to 'acknowledged' boolean
+    - alert_type column (no override needed - matches DB)
+    - description column (no override needed - matches DB)
+    - acknowledged boolean tracks acknowledgment status
     - quiz_session_id stored in 'data' JSONB field
     """
 
@@ -50,9 +55,9 @@ class Alert(BaseModel):
     )
 
     # Alert details - mapped to existing DB columns
-    alert_type = Column("type", String(100), nullable=False)  # Maps to 'type' column
+    alert_type = Column(String(100), nullable=False)
     severity = Column(Enum(AlertSeverity), nullable=False)
-    description = Column("message", Text, nullable=False)  # Maps to 'message' column
+    description = Column(Text, nullable=False)
     data = Column(JSONB, nullable=True, default=dict)
 
     # Acknowledgment tracking - maps to existing boolean field

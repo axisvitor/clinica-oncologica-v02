@@ -9,6 +9,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from pythonjsonlogger import jsonlogger
+from app.utils.timezone import now_sao_paulo
 
 
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
@@ -24,7 +25,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         super().add_fields(log_record, record, message_dict)
 
         # Add timestamp
-        log_record["timestamp"] = datetime.now(timezone.utc).isoformat()
+        log_record["timestamp"] = now_sao_paulo().isoformat()
 
         # Add log level
         log_record["level"] = record.levelname

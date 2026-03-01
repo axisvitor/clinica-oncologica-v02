@@ -62,7 +62,7 @@ const mockActivityData: AdminUserActivity[] = [
       browser: 'Chrome 120.0',
       location: 'São Paulo, BR'
     },
-    timestamp: '2024-01-15T14:30:00Z',
+    timestamp: '2024-01-15T14:30:00-03:00',
     ip_address: '192.168.1.100',
     user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     session_id: 'sess1'
@@ -78,7 +78,7 @@ const mockActivityData: AdminUserActivity[] = [
       reason: 'Forgot password',
       ip: '192.168.1.101'
     },
-    timestamp: '2024-01-15T14:25:00Z',
+    timestamp: '2024-01-15T14:25:00-03:00',
     ip_address: '192.168.1.101',
     user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
     session_id: 'sess2'
@@ -94,7 +94,7 @@ const mockActivityData: AdminUserActivity[] = [
       view_type: 'medical_history',
       duration: 120
     },
-    timestamp: '2024-01-15T14:20:00Z',
+    timestamp: '2024-01-15T14:20:00-03:00',
     ip_address: '192.168.1.100',
     user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
     session_id: 'sess1'
@@ -110,7 +110,7 @@ const mockActivityData: AdminUserActivity[] = [
       attempt_number: 3,
       ip: '203.0.113.45'
     },
-    timestamp: '2024-01-15T14:15:00Z',
+    timestamp: '2024-01-15T14:15:00-03:00',
     ip_address: '203.0.113.45',
     user_agent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
     session_id: 'failed_sess'
@@ -126,7 +126,7 @@ const mockActivityData: AdminUserActivity[] = [
       old_value: '30',
       new_value: '60'
     },
-    timestamp: '2024-01-15T14:10:00Z',
+    timestamp: '2024-01-15T14:10:00-03:00',
     ip_address: '192.168.1.101',
     user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
     session_id: 'sess2'

@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from app.core.executors import get_io_executor
 
 from app.models.failed_message import FailedMessage, FailureReason
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +85,8 @@ class DLQMessageProcessor:
                 f"Error reprocessing message {failed_message.message_id}: {e}",
                 exc_info=True,
             )
-            failed_message.metadata["last_reprocess_error"] = str(e)
-            failed_message.metadata["last_reprocess_at"] = datetime.now(timezone.utc).isoformat()
+            failed_message.dlq_data["last_reprocess_error"] = str(e)
+            failed_message.dlq_data["last_reprocess_at"] = now_sao_paulo().isoformat()
             return False
 
     def _infer_and_process(
@@ -103,15 +104,19 @@ class DLQMessageProcessor:
     def _reprocess_whatsapp(
         self, failed_message: FailedMessage, payload: Dict[str, Any]
     ) -> bool:
-        """Reprocess WhatsApp message via WhatsApp Unified Service."""
+        """Reprocess WhatsApp message via UnifiedWhatsAppService."""
         try:
             from app.services.unified_whatsapp_service import (
-                get_whatsapp_service,
+                create_unified_whatsapp_service,
+            )
+            from app.models.message import (
+                Message,
                 MessageType,
+                MessageStatus,
+                MessageDirection,
                 MessagePriority,
             )
-
-            whatsapp_service = get_whatsapp_service()
+            from app.database import SessionLocal
 
             phone_number = payload.get("phone_number") or payload.get("phone")
             content = payload.get("content", {})
@@ -139,28 +144,43 @@ class DLQMessageProcessor:
                 else MessagePriority.NORMAL
             )
 
-            # Send message asynchronously
-            async def send_async():
-                return await whatsapp_service.send_message(
-                    phone_number=phone_number,
-                    message_type=message_type,
-                    content=content,
+            # Build a Message object for the unified service
+            db = SessionLocal()
+            try:
+                message = Message(
+                    direction=MessageDirection.OUTBOUND,
+                    type=message_type,
+                    content=content if isinstance(content, str) else str(content),
+                    status=MessageStatus.PENDING,
                     priority=priority,
-                    metadata={
+                    message_metadata={
                         "dlq_retry": True,
                         "retry_count": failed_message.retry_count,
                         "original_message_id": str(failed_message.message_id),
+                        "phone_number": phone_number,
                     },
                 )
+                db.add(message)
+                db.commit()
+                db.refresh(message)
 
-            result = self._run_async(send_async)
+                whatsapp_service = create_unified_whatsapp_service(db=db)
 
-            if result and result.get("status") in ["sent", "queued", "success"]:
-                logger.info(f"WhatsApp message {failed_message.message_id} reprocessed")
-                return True
+                async def send_async():
+                    return await whatsapp_service.send_message(message)
 
-            logger.warning(f"WhatsApp reprocess failed: {result}")
-            return False
+                result = self._run_async(send_async)
+
+                if result:
+                    logger.info(
+                        f"WhatsApp message {failed_message.message_id} reprocessed"
+                    )
+                    return True
+
+                logger.warning(f"WhatsApp reprocess failed: {result}")
+                return False
+            finally:
+                db.close()
 
         except ImportError as e:
             logger.error(f"WhatsApp service not available: {e}")

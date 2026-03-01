@@ -243,7 +243,7 @@ mcp__flow-nexus__neural_cluster_init({
   "status": "initializing",
   "topology": "mesh",
   "max_nodes": 100,
-  "created_at": "2025-10-19T10:30:00Z"
+  "created_at": "2025-10-19T10:30:00-03:00"
 }
 ```
 
@@ -399,7 +399,7 @@ mcp__flow-nexus__neural_list_models({
       "name": "Custom Classifier v1",
       "architecture": "feedforward",
       "accuracy": 0.92,
-      "created_at": "2025-10-15T14:20:00Z",
+      "created_at": "2025-10-15T14:20:00-03:00",
       "status": "trained"
     },
     {
@@ -407,7 +407,7 @@ mcp__flow-nexus__neural_list_models({
       "name": "LSTM Forecaster",
       "architecture": "lstm",
       "mse": 0.0045,
-      "created_at": "2025-10-18T09:15:00Z",
+      "created_at": "2025-10-18T09:15:00-03:00",
       "status": "training"
     }
   ]
@@ -431,7 +431,7 @@ mcp__flow-nexus__neural_training_status({
   "current_epoch": 67,
   "total_epochs": 100,
   "current_loss": 0.234,
-  "estimated_completion": "2025-10-19T12:45:00Z"
+  "estimated_completion": "2025-10-19T12:45:00-03:00"
 }
 ```
 
@@ -456,7 +456,7 @@ mcp__flow-nexus__neural_performance_benchmark({
     "accuracy": 0.92,
     "f1_score": 0.89
   },
-  "timestamp": "2025-10-19T11:00:00Z"
+  "timestamp": "2025-10-19T11:00:00-03:00"
 }
 ```
 

@@ -7,8 +7,6 @@ access control, and serialization.
 """
 
 from typing import Optional, Tuple
-import re
-from uuid import UUID
 from fastapi import Cookie, Header, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -16,6 +14,19 @@ from app.models.user import User, UserRole
 from app.models.patient import FlowState
 from app.database import get_db
 from app.dependencies.auth_dependencies import get_redis_cache
+from app.api.v2.patients_shared_helpers import (
+    ensure_uuid_sync,
+    extract_user_context_sync,
+    get_current_user_simple_shared,
+    is_admin_sync,
+    normalize_cpf_sync,
+    normalize_phone_sync,
+    validate_and_format_phone_sync,
+)
+
+
+def _get_user_by_firebase_uid(db: Session, firebase_uid: str) -> Optional[User]:
+    return db.query(User).filter(User.firebase_uid == firebase_uid).first()
 
 
 async def _get_current_user_simple(
@@ -25,92 +36,29 @@ async def _get_current_user_simple(
     redis_cache=Depends(get_redis_cache),
 ):
     """Simplified session validation without ServiceProvider."""
-    final_session_id = session_cookie_id or x_session_id
-    if not final_session_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
-        )
+    async def _fetch_user(firebase_uid: str) -> Optional[User]:
+        # Preserve previous synchronous DB query behavior in this module.
+        return _get_user_by_firebase_uid(db, firebase_uid)
 
-    session_data = await redis_cache.get_session(final_session_id)
-    if not session_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
-        )
-
-    firebase_uid = session_data.get("firebase_uid")
-    if not firebase_uid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
-        )
-
-    # Get user from cache or DB
-    user_data = await redis_cache.get_user_by_uid(firebase_uid)
-    if not user_data:
-        # Query DB directly
-        user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-            )
-        user_data = {
-            "id": str(user.id),
-            "firebase_uid": user.firebase_uid,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
-            "is_active": user.is_active,
-        }
-        await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
-
-    if not user_data.get("is_active", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
-        )
-
-    return user_data
+    return await get_current_user_simple_shared(
+        session_cookie_id=session_cookie_id,
+        x_session_id=x_session_id,
+        redis_cache=redis_cache,
+        fetch_user_by_uid=_fetch_user,
+    )
 
 
 def _extract_user_context(current_user) -> Tuple[Optional[UserRole], Optional[str]]:
     """Return (role, user_id as str) from current_user (model or dict)."""
-    role = None
-    user_id = None
-
-    if isinstance(current_user, dict):
-        role = current_user.get("role")
-        user_id = current_user.get("id")
-    else:
-        user_id = getattr(current_user, "id", None)
-        role = getattr(current_user, "role", None)
-
-    if isinstance(role, UserRole):
-        role_enum = role
-    elif isinstance(role, str):
-        try:
-            role_enum = UserRole(role.lower())
-        except ValueError:
-            role_enum = None
-    else:
-        role_enum = None
-
-    if user_id is not None:
-        user_id = str(user_id)
-
-    return role_enum, user_id
+    return extract_user_context_sync(current_user)
 
 
 def _is_admin(current_user) -> bool:
-    role_enum, _ = _extract_user_context(current_user)
-    return role_enum == UserRole.ADMIN
+    return is_admin_sync(current_user)
 
 
 def _ensure_uuid(value: Optional[str]):
-    if value is None:
-        return None
-    try:
-        return UUID(str(value))
-    except (TypeError, ValueError):
-        return None
+    return ensure_uuid_sync(value)
 
 
 def _ensure_patient_access(current_user, patient_doctor_id):
@@ -137,32 +85,23 @@ def _normalize_cpf(cpf: Optional[str]) -> Optional[str]:
     Returns:
         CPF with only digits (max 11 chars) or None
     """
-    if not cpf:
-        return None
-    # Remove all non-digit characters
-    normalized = re.sub(r"[^0-9]", "", cpf)
-    # Limit to 11 digits (CPF max length)
-    return normalized[:11] if normalized else None
+    return normalize_cpf_sync(cpf)
 
 
 def _normalize_phone(phone: Optional[str]) -> Optional[str]:
     """
-    Normalize phone by removing non-digit characters.
+    Normalize phone number to E.164 format.
 
-    DEPRECATED: Use app.utils.phone_validator.normalize_phone() instead.
+    DEPRECATED: Use app.schemas.validators.phone.normalize_phone() instead.
     This function is kept for backward compatibility.
 
     Args:
         phone: Phone string with optional formatting
 
     Returns:
-        Phone with only digits or None
+        Phone in E.164 format or None
     """
-    if not phone:
-        return None
-    # Remove all non-digit characters (spaces, parentheses, dashes)
-    normalized = re.sub(r"[^0-9+]", "", phone)
-    return normalized if normalized else None
+    return normalize_phone_sync(phone)
 
 
 def _validate_and_format_phone(phone: str, strict: bool = True) -> str:
@@ -179,30 +118,13 @@ def _validate_and_format_phone(phone: str, strict: bool = True) -> str:
     Raises:
         HTTPException: If phone is invalid and strict=True
     """
-    from app.utils.phone_validator import (
-        validate_and_format_phone,
-        PhoneValidationError,
+    return validate_and_format_phone_sync(
+        phone=phone,
+        strict=strict,
+        invalid_phone_detail="Invalid phone number",
+        include_validation_error=True,
+        phone_validation_error_detail="Invalid phone number format",
     )
-
-    try:
-        is_valid, formatted, error = validate_and_format_phone(
-            phone, default_region="BR", strict=False
-        )
-
-        if not is_valid:
-            if strict:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid phone number: {error}",
-                )
-            return None
-
-        return formatted
-
-    except PhoneValidationError:
-        if strict:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid phone number format")
-        return None
 
 
 def _serialize_patient(patient) -> Optional[dict]:
@@ -257,7 +179,7 @@ def _serialize_patient_with_includes(
         if "doctor" in include and getattr(patient, "doctor", None):
             patient_dict["doctor"] = {
                 "id": str(patient.doctor.id),
-                "name": patient.doctor.name,
+                "name": patient.doctor.full_name,
                 "email": patient.doctor.email,
             }
 

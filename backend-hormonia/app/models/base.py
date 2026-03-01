@@ -19,7 +19,6 @@ class BaseModel(Base):
         primary_key=True,
         default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
-        index=True,
     )
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

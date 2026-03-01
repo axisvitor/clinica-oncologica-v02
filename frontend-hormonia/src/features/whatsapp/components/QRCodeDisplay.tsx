@@ -13,6 +13,8 @@ export function QRCodeDisplay({ qrCode }: QRCodeDisplayProps) {
         <img
           src={`data:image/png;base64,${qrCode}`}
           alt="QR Code"
+          width={192}
+          height={192}
           className="w-48 h-48 mx-auto"
         />
       </div>

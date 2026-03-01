@@ -10,10 +10,11 @@ import json
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.v2.system import SystemHealthResponse
 from app.dependencies.auth_dependencies import get_current_user_from_session
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 
@@ -23,6 +24,7 @@ from .helpers.health_checker import (
 )
 from .helpers.auth import is_admin
 from .helpers.redis_helper import get_redis_client
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -53,7 +55,7 @@ CACHE_TTL_HEALTH = 30  # 30 seconds (real-time monitoring)
 async def get_system_health(
     request: Request,
     current_user=Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Get comprehensive system health status with Redis caching.
@@ -125,7 +127,7 @@ async def get_system_health(
 
         health_response = {
             "status": overall_status,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "components": components_dict,
             "overall_score": overall_score,
             "degraded_components": degraded_components,
@@ -159,7 +161,7 @@ async def get_system_health(
             content={
                 "status": "unhealthy",
                 "error": "Health check failed",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "overall_score": 0.0,
                 "components": {},
                 "degraded_components": [],

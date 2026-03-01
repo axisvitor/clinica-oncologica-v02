@@ -54,7 +54,7 @@ curl http://localhost:8000/health/detailed | jq '.database.pool'
 ### Connection Pool (Production)
 ```bash
 DATABASE_POOL_SIZE=20
-DATABASE_MAX_OVERFLOW=40
+DATABASE_POOL_MAX_OVERFLOW=40
 DATABASE_POOL_TIMEOUT=30
 DATABASE_POOL_RECYCLE=3600
 ```
@@ -132,7 +132,7 @@ curl http://localhost:8000/health/detailed
 
 # Increase pool size
 export DATABASE_POOL_SIZE=30
-export DATABASE_MAX_OVERFLOW=60
+export DATABASE_POOL_MAX_OVERFLOW=60
 ```
 
 ### Async Compliance Failures

@@ -6,7 +6,8 @@ Provides common utilities for message generation.
 import logging
 from typing import List
 
-from app.services.analytics.data_extraction import ConcernLevel, MedicalConcernType
+from app.services.ai import ConcernLevel
+from app.services.analytics.data_extraction import MedicalConcernType
 
 logger = logging.getLogger(__name__)
 

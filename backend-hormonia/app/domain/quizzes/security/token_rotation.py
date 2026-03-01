@@ -22,6 +22,7 @@ from sqlalchemy import and_
 
 from app.models.quiz import QuizSession
 from app.exceptions import NotFoundError, ValidationError
+from app.utils.timezone import now_sao_paulo
 
 
 # ============================================================================
@@ -92,7 +93,7 @@ def _validate_token_with_grace_period(
                 )
 
                 # Calculate time since invalidation
-                time_since_invalidation = datetime.now(timezone.utc) - invalidated_at
+                time_since_invalidation = now_sao_paulo() - invalidated_at
 
                 if time_since_invalidation < grace_period:
                     # Token is within grace period - allow but log warning
@@ -173,24 +174,57 @@ async def submit_quiz_response_with_rotation(
     payload = self._verify_token(submit_data.token)
     patient_id = UUID(payload["patient_id"])
     quiz_template_id = UUID(payload["quiz_template_id"])
+    token_hash = hashlib.sha256(submit_data.token.encode()).hexdigest()
 
-    # Find session by patient and template
-    hashlib.sha256(submit_data.token.encode()).hexdigest()
-    sessions = (
-        self.db.query(QuizSession)
-        .filter(
-            and_(
-                QuizSession.patient_id == patient_id,
-                QuizSession.quiz_template_id == quiz_template_id,
+    # Find session by token/session binding (avoid picking unrelated historical sessions)
+    session = None
+    session_id_str = payload.get("session_id")
+    if session_id_str:
+        try:
+            session_id = UUID(session_id_str)
+            session = (
+                self.db.query(QuizSession)
+                .filter(
+                    and_(
+                        QuizSession.id == session_id,
+                        QuizSession.patient_id == patient_id,
+                        QuizSession.quiz_template_id == quiz_template_id,
+                    )
+                )
+                .first()
             )
+        except (ValueError, TypeError):
+            session = None
+
+    if not session:
+        # Cross-dialect fallback: avoid JSONB-specific operators while matching
+        # the expected token binding behavior.
+        candidates = (
+            self.db.query(QuizSession)
+            .filter(
+                and_(
+                    QuizSession.patient_id == patient_id,
+                    QuizSession.quiz_template_id == quiz_template_id,
+                )
+            )
+            .all()
         )
-        .all()
-    )
+        session = next(
+            (
+                item
+                for item in candidates
+                if isinstance(item.session_metadata, dict)
+                and token_hash
+                in {
+                    item.session_metadata.get("token_hash"),
+                    item.session_metadata.get("previous_token_hash"),
+                }
+            ),
+            None,
+        )
 
-    if not sessions:
-        raise NotFoundError("Quiz session not found")
-
-    session = sessions[0]
+    if not session:
+        raise NotFoundError("Quiz session not found for this token")
 
     # ========================================
     # TOKEN VALIDATION WITH GRACE PERIOD
@@ -302,7 +336,7 @@ async def submit_quiz_response_with_rotation(
         response_type=QuestionType(question.get("type", "open_text")),
         response_value=encrypted_response_value,
         response_metadata=response_metadata,
-        responded_at=datetime.now(timezone.utc),
+        responded_at=now_sao_paulo(),
     )
 
     response = await self.quiz_response_service.create_response(response_create)
@@ -330,11 +364,11 @@ async def submit_quiz_response_with_rotation(
 
             # Store previous token hash for grace period
             metadata["previous_token_hash"] = metadata.get("token_hash")
-            metadata["previous_token_invalidated_at"] = datetime.now(timezone.utc).isoformat()
+            metadata["previous_token_invalidated_at"] = now_sao_paulo().isoformat()
 
             # Update to new token
             metadata["token_hash"] = new_token_hash
-            metadata["token_rotated_at"] = datetime.now(timezone.utc).isoformat()
+            metadata["token_rotated_at"] = now_sao_paulo().isoformat()
             metadata["rotation_count"] = rotation_count + 1
 
             session.session_metadata = metadata
@@ -398,7 +432,7 @@ async def submit_quiz_response_with_rotation(
     session.current_question_index += 1
     if session.current_question_index >= len(template.questions):
         session.status = "completed"
-        session.completed_at = datetime.now(timezone.utc)
+        session.completed_at = now_sao_paulo()
 
     self.db.commit()
 

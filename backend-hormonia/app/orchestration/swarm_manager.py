@@ -6,6 +6,7 @@ across the distributed agent network.
 """
 
 import asyncio
+import threading
 from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -22,6 +23,7 @@ from app.monitoring.agent_health_monitor import (
     SystemHealthMonitor,
     get_system_health_monitor,
 )
+from app.utils.timezone import now_sao_paulo
 
 
 class SwarmStatus(Enum):
@@ -64,7 +66,7 @@ class SwarmTask:
 
     def __post_init__(self):
         if self.created_at is None:
-            self.created_at = datetime.now(timezone.utc)
+            self.created_at = now_sao_paulo()
 
 
 @dataclass
@@ -77,6 +79,8 @@ class AgentHealth:
     response_time: float
     success_rate: float
     active_tasks: int
+    tasks_completed: int
+    tasks_failed: int
     error_count: int
     uptime: timedelta
 
@@ -84,7 +88,7 @@ class AgentHealth:
         self, max_response_time: float = 5.0, min_success_rate: float = 0.8
     ) -> bool:
         """Check if agent is healthy based on metrics."""
-        time_since_heartbeat = (datetime.now(timezone.utc) - self.last_heartbeat).total_seconds()
+        time_since_heartbeat = (now_sao_paulo() - self.last_heartbeat).total_seconds()
 
         return (
             self.status == AgentStatus.ACTIVE
@@ -107,15 +111,14 @@ class SwarmManager:
     - Integration with Claude-Flow hooks
     """
 
-    def __init__(self, db_session: Session):
+    def __init__(self):
         """Initialize SwarmManager."""
-        self.db_session = db_session
         self.logger = get_logger("swarm_manager")
 
         # Swarm state
         self.status = SwarmStatus.INITIALIZING
         self.swarm_id = str(uuid4())
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = now_sao_paulo()
 
         # Health monitoring
         self.health_monitor: Optional[SystemHealthMonitor] = None
@@ -134,14 +137,15 @@ class SwarmManager:
         self.message_bus: Dict[str, asyncio.Queue] = defaultdict(asyncio.Queue)
 
         # Configuration
-        self.max_agents = settings.get("SWARM_MAX_AGENTS", 50)
-        self.task_timeout = settings.get("SWARM_TASK_TIMEOUT", 300)  # 5 minutes
-        self.health_check_interval = settings.get(
-            "SWARM_HEALTH_CHECK_INTERVAL", 30
+        self.max_agents = getattr(settings, "SWARM_MAX_AGENTS", 50)
+        self.task_timeout = getattr(settings, "SWARM_TASK_TIMEOUT", 300)  # 5 minutes
+        self.health_check_interval = getattr(
+            settings, "SWARM_HEALTH_CHECK_INTERVAL", 30
         )  # 30 seconds
 
         # Background tasks
         self.background_tasks: List[asyncio.Task] = []
+        self._start_lock = asyncio.Lock()
 
         # Hooks and callbacks
         self.event_callbacks: Dict[str, List[Callable]] = defaultdict(list)
@@ -150,57 +154,73 @@ class SwarmManager:
 
     async def start(self):
         """Start the swarm manager and background processes."""
-        try:
-            self.logger.info("Starting SwarmManager")
+        async with self._start_lock:
+            active_tasks = [task for task in self.background_tasks if not task.done()]
+            if self.status == SwarmStatus.ACTIVE and active_tasks:
+                self.logger.debug("SwarmManager start skipped (already active)")
+                return
 
-            # Initialize health monitoring
-            self.health_monitor = await get_system_health_monitor()
+            try:
+                self.logger.info("Starting SwarmManager")
 
-            # Start background tasks with proper error handling
-            self.background_tasks = [
-                self._create_background_task(self._task_processor(), "task_processor"),
-                self._create_background_task(self._health_monitor(), "health_monitor"),
-                self._create_background_task(self._message_router(), "message_router"),
-                self._create_background_task(
-                    self._metrics_collector(), "metrics_collector"
-                ),
-            ]
+                # Initialize health monitoring
+                self.health_monitor = await get_system_health_monitor()
 
-            self.status = SwarmStatus.ACTIVE
-            await self._emit_event("swarm_started", {"swarm_id": self.swarm_id})
+                # Keep only active tasks and create missing workers (idempotent start)
+                self.background_tasks = active_tasks
+                if not self.background_tasks:
+                    self.background_tasks = [
+                        self._create_background_task(
+                            self._task_processor(), "task_processor"
+                        ),
+                        self._create_background_task(
+                            self._health_monitor(), "health_monitor"
+                        ),
+                        self._create_background_task(
+                            self._message_router(), "message_router"
+                        ),
+                        self._create_background_task(
+                            self._metrics_collector(), "metrics_collector"
+                        ),
+                    ]
 
-            self.logger.info("SwarmManager started successfully")
+                self.status = SwarmStatus.ACTIVE
+                await self._emit_event("swarm_started", {"swarm_id": self.swarm_id})
 
-        except Exception as e:
-            self.status = SwarmStatus.CRITICAL
-            self.logger.error(f"Failed to start SwarmManager: {e}")
-            raise
+                self.logger.info("SwarmManager started successfully")
+
+            except Exception as e:
+                self.status = SwarmStatus.CRITICAL
+                self.logger.error(f"Failed to start SwarmManager: {e}")
+                raise
 
     async def stop(self):
         """Gracefully stop the swarm manager."""
-        try:
-            self.logger.info("Stopping SwarmManager")
-            self.status = SwarmStatus.SHUTDOWN
+        async with self._start_lock:
+            try:
+                self.logger.info("Stopping SwarmManager")
+                self.status = SwarmStatus.SHUTDOWN
 
-            # Stop all agents
-            for agent in self.agents.values():
-                try:
-                    await agent.stop()
-                except Exception as e:
-                    self.logger.error(f"Error stopping agent {agent.agent_id}: {e}")
+                # Stop all agents
+                for agent in self.agents.values():
+                    try:
+                        await agent.stop()
+                    except Exception as e:
+                        self.logger.error(f"Error stopping agent {agent.agent_id}: {e}")
 
-            # Cancel background tasks
-            for task in self.background_tasks:
-                task.cancel()
+                # Cancel background tasks
+                for task in self.background_tasks:
+                    task.cancel()
 
-            # Wait for tasks to complete
-            await asyncio.gather(*self.background_tasks, return_exceptions=True)
+                # Wait for tasks to complete
+                await asyncio.gather(*self.background_tasks, return_exceptions=True)
+                self.background_tasks = []
 
-            await self._emit_event("swarm_stopped", {"swarm_id": self.swarm_id})
-            self.logger.info("SwarmManager stopped successfully")
+                await self._emit_event("swarm_stopped", {"swarm_id": self.swarm_id})
+                self.logger.info("SwarmManager stopped successfully")
 
-        except Exception as e:
-            self.logger.error(f"Error stopping SwarmManager: {e}")
+            except Exception as e:
+                self.logger.error(f"Error stopping SwarmManager: {e}")
 
     # Agent Management
     async def register_agent(self, agent: BaseAgent) -> bool:
@@ -231,10 +251,12 @@ class SwarmManager:
             self.agent_health[agent.agent_id] = AgentHealth(
                 agent_id=agent.agent_id,
                 status=agent.status,
-                last_heartbeat=datetime.now(timezone.utc),
+                last_heartbeat=now_sao_paulo(),
                 response_time=0.0,
                 success_rate=1.0,
                 active_tasks=0,
+                tasks_completed=0,
+                tasks_failed=0,
                 error_count=0,
                 uptime=timedelta(),
             )
@@ -300,7 +322,7 @@ class SwarmManager:
     async def agent_heartbeat(self, agent_id: str):
         """Record heartbeat from agent."""
         if agent_id in self.agent_health:
-            self.agent_health[agent_id].last_heartbeat = datetime.now(timezone.utc)
+            self.agent_health[agent_id].last_heartbeat = now_sao_paulo()
 
     # Task Management
     async def submit_task(
@@ -419,7 +441,7 @@ class SwarmManager:
             message_type=message_type,
             payload=payload,
             priority=priority,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
         await self.route_message(message)
@@ -517,7 +539,7 @@ class SwarmManager:
             # Update task status
             task.status = TaskStatus.ASSIGNED
             task.assigned_agent = agent_id
-            task.assigned_at = datetime.now(timezone.utc)
+            task.assigned_at = now_sao_paulo()
 
             # Send task to agent
             await self.send_message_to_agent(
@@ -526,7 +548,7 @@ class SwarmManager:
                 {
                     "task_id": task.task_id,
                     "task_data": {
-                        "type": task.task_type,
+                        "task_type": task.task_type,
                         "payload": task.payload,
                         "priority": task.priority.value,
                     },
@@ -647,13 +669,7 @@ class SwarmManager:
 
         async def safe_wrapper():
             try:
-                result = await coro
-                # Notify task completion for health tracking
-                if name in self.agent_health:
-                    agent_health = self.agent_health.get(name)
-                    if agent_health and agent_health.active_tasks > 0:
-                        agent_health.active_tasks -= 1
-                return result
+                return await coro
             except asyncio.CancelledError:
                 self.logger.info(f"Background task {name} cancelled")
                 raise
@@ -686,8 +702,8 @@ class SwarmManager:
                                 agent_id=agent_id,
                                 response_time_ms=health.response_time
                                 * 1000,  # Convert to ms
-                                tasks_completed=health.active_tasks,
-                                tasks_failed=health.error_count,
+                                tasks_completed=health.tasks_completed,
+                                tasks_failed=health.tasks_failed,
                                 cpu_usage=0.0,  # Would be collected from agent
                                 memory_usage=0.0,  # Would be collected from agent
                             )
@@ -816,7 +832,7 @@ class SwarmManager:
             task.status = TaskStatus.COMPLETED
             task.result = result
 
-        task.completed_at = datetime.now(timezone.utc)
+        task.completed_at = now_sao_paulo()
 
         # Decrement agent active tasks
         if task.assigned_agent and task.assigned_agent in self.agent_health:
@@ -827,13 +843,15 @@ class SwarmManager:
             # Update success rate
             if error:
                 health.error_count += 1
+                health.tasks_failed += 1
             else:
-                # Calculate new success rate (simplified)
-                total_tasks = health.active_tasks + 1  # The just completed task
-                successful_tasks = total_tasks - health.error_count
-                health.success_rate = (
-                    successful_tasks / total_tasks if total_tasks > 0 else 1.0
-                )
+                health.tasks_completed += 1
+
+            total_finished_tasks = health.tasks_completed + health.tasks_failed
+            if total_finished_tasks > 0:
+                health.success_rate = health.tasks_completed / total_finished_tasks
+            else:
+                health.success_rate = 1.0
 
         # Emit completion event
         event_type = "task_failed" if error else "task_completed"
@@ -855,28 +873,31 @@ class SwarmManager:
 
 # Global swarm manager instance
 _swarm_manager: Optional[SwarmManager] = None
+_swarm_manager_lock = threading.Lock()
+
+
+async def _ensure_swarm_manager_started() -> SwarmManager:
+    global _swarm_manager
+
+    if _swarm_manager is None:
+        with _swarm_manager_lock:
+            if _swarm_manager is None:
+                _swarm_manager = SwarmManager()
+
+    manager = _swarm_manager
+    if manager is None:
+        raise RuntimeError("Failed to initialize SwarmManager")
+
+    await manager.start()
+    return manager
 
 
 async def get_swarm_manager() -> SwarmManager:
     """Get global swarm manager instance."""
-    global _swarm_manager
-
-    if _swarm_manager is None:
-        from app.database import get_db
-
-        db = next(get_db())
-        _swarm_manager = SwarmManager(db)
-        await _swarm_manager.start()
-
-    return _swarm_manager
+    return await _ensure_swarm_manager_started()
 
 
-async def initialize_swarm_manager(db_session: Session) -> SwarmManager:
-    """Initialize swarm manager with specific database session."""
-    global _swarm_manager
-
-    if _swarm_manager is None:
-        _swarm_manager = SwarmManager(db_session)
-        await _swarm_manager.start()
-
-    return _swarm_manager
+async def initialize_swarm_manager(db_session: Session | None = None) -> SwarmManager:
+    """Initialize swarm manager with optional database session (unused)."""
+    _ = db_session
+    return await _ensure_swarm_manager_started()

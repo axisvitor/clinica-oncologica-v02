@@ -1,16 +1,15 @@
 """
-Unified WhatsApp Service - Consolidates Legacy and New WhatsApp Pipelines
+Unified WhatsApp Service - Consolidates Direct API and Queue WhatsApp Pipelines
 
 This service unifies two previously separate WhatsApp messaging pipelines:
-1. Legacy: MessageSender using Evolution client directly
-2. New: WhatsAppMessageService with queue management
+1. Direct API: MessageSender using Evolution client directly
+2. Queue: WhatsAppMessageService with queue management
 
 Key Benefits:
 - Single point of entry for all WhatsApp messaging
 - Consistent error handling and retry logic
 - Unified metrics collection
 - Consolidated queue management
-- Backward compatibility with existing code
 """
 
 import asyncio
@@ -19,11 +18,11 @@ import logging
 from typing import Any, Optional, Callable, Dict
 from uuid import UUID
 from datetime import datetime, timezone
-from enum import Enum
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
 
+from app.database import get_async_session_factory
 from app.integrations.whatsapp.services.evolution_client import EvolutionAPIClient
 from app.integrations.whatsapp.services.message_service import (
     MessageQueue,
@@ -34,7 +33,7 @@ from app.integrations.whatsapp.models.message import (
     MessageStatus as WhatsAppMessageStatus,
     MessageType as WhatsAppMessageType,
 )
-from app.models.message import Message, MessageType
+from app.models.message import Message, MessageType, MessageStatus
 from app.models.patient import Patient
 
 # MessageService for marking messages as failed
@@ -44,20 +43,18 @@ from app.schemas.websocket import WebSocketEventType
 from app.exceptions import ExternalServiceError
 from app.config import settings
 # Use Redis-backed circuit breaker for cross-worker consistency
-from app.core.redis_circuit_breaker import RedisCircuitBreaker as CircuitBreaker
+from app.core.redis_circuit_breaker import (
+    RedisCircuitBreaker as CircuitBreaker,
+    CircuitOpenError,
+)
 from app.core.tracing import get_tracer
 from app.domain.analytics.quiz import get_quiz_metrics_collector
+from app.integrations.whatsapp.metrics import whatsapp_metrics
+from app.utils.timezone import now_sao_paulo
+from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
 
 logger = logging.getLogger(__name__)
-
-
-class MessagingMode(Enum):
-    """Messaging mode configuration."""
-
-    LEGACY = "legacy"  # Direct Evolution API calls
-    QUEUE = "queue"  # Queue-based processing
-    HYBRID = "hybrid"  # Auto-select based on message type
 
 
 class UnifiedWhatsAppService:
@@ -70,14 +67,13 @@ class UnifiedWhatsAppService:
     - Centralized metrics collection
     - Queue management for reliability
     - Flow-specific message handling
-    - Backward compatibility
     """
 
     def __init__(
         self,
         db: Any,
         redis_url: Optional[str] = None,
-        default_instance_name: str = "default",
+        default_instance_name: Optional[str] = None,
     ):
         """
         Initialize unified WhatsApp service.
@@ -85,29 +81,44 @@ class UnifiedWhatsAppService:
         Args:
             db: Database session (sync or async)
             redis_url: Redis URL for queue management
-            default_instance_name: Default Evolution instance name (can be overridden per message)
+            default_instance_name: Default Evolution instance name (falls back to settings)
         """
         self.db = db
+        resolved_redis_url = redis_url
+        resolved_instance_name = default_instance_name
 
-        # WA-002 FIX: Detect AsyncSession properly without accessing non-existent sync_session
-        self._is_async = isinstance(db, AsyncSession)
+        configured_instance_name = (
+            resolved_instance_name
+            or getattr(settings, "WHATSAPP_EVOLUTION_INSTANCE_NAME", None)
+        )
+        if not isinstance(configured_instance_name, str):
+            configured_instance_name = None
+        resolved_instance_name = (
+            (configured_instance_name or "default").strip() or "default"
+        )
+
+        # WA-002 FIX: support AsyncSession and async-like mocked sessions in tests.
+        execute_method = getattr(db, "execute", None)
+        self._is_async = isinstance(db, AsyncSession) or asyncio.iscoroutinefunction(
+            execute_method
+        )
         self._db_sync = None
 
         if self._is_async:
             logger.info(
-                "UnifiedWhatsAppService initialized with AsyncSession",
-                extra={"session_type": "async", "instance": default_instance_name},
+                "UnifiedWhatsAppService initialized with async-compatible session",
+                extra={"session_type": "async", "instance": resolved_instance_name},
             )
         else:
             # Sync session - use directly
             self._db_sync = db
             logger.info(
                 "UnifiedWhatsAppService initialized with sync Session",
-                extra={"session_type": "sync", "instance": default_instance_name},
+                extra={"session_type": "sync", "instance": resolved_instance_name},
             )
 
-        self.redis_url = redis_url or settings.REDIS_URL
-        self.default_instance_name = default_instance_name
+        self.redis_url = resolved_redis_url or settings.REDIS_URL
+        self.default_instance_name = resolved_instance_name
 
         self.flow_message_callbacks: Dict[str, Callable] = {}
 
@@ -177,10 +188,18 @@ class UnifiedWhatsAppService:
             "messages_failed": 0,
             "queue_processed": 0,
             "retries_attempted": 0,
-            "last_reset": datetime.now(timezone.utc),
+            "last_reset": now_sao_paulo(),
         }
 
-        logger.info("Unified WhatsApp Service initialized in Queue Mode")
+        env_name = str(getattr(settings, "APP_ENVIRONMENT", "development")).lower()
+        self._messaging_mode = "queue" if env_name == "production" else "direct"
+        logger.info(
+            "Unified WhatsApp Service initialized",
+            extra={
+                "messaging_mode": self._messaging_mode,
+                "environment": env_name,
+            },
+        )
 
     async def _get_queue_client(self) -> EvolutionAPIClient:
         """Get queue-based Evolution client."""
@@ -188,8 +207,8 @@ class UnifiedWhatsAppService:
             if not settings.WHATSAPP_EVOLUTION_API_URL:
                 raise ExternalServiceError("Evolution API not configured")
 
-            # Use mock client for development
-            if settings.WHATSAPP_EVOLUTION_API_URL.startswith("http://localhost:8080"):
+            # Use mock client only when explicitly enabled.
+            if getattr(settings, "WHATSAPP_EVOLUTION_USE_MOCK", False):
                 from app.integrations.whatsapp.services.mock_evolution import (
                     MockEvolutionAPIClient,
                 )
@@ -198,12 +217,18 @@ class UnifiedWhatsAppService:
                     base_url=settings.WHATSAPP_EVOLUTION_API_URL,
                     api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
                     global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL,
+                    timeout_seconds=getattr(
+                        settings, "WHATSAPP_EVOLUTION_TIMEOUT_SECONDS", 30
+                    ),
                 )
             else:
                 self._queue_client = EvolutionAPIClient(
                     base_url=settings.WHATSAPP_EVOLUTION_API_URL,
                     api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
                     global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL,
+                    timeout_seconds=getattr(
+                        settings, "WHATSAPP_EVOLUTION_TIMEOUT_SECONDS", 30
+                    ),
                 )
 
             await self._queue_client.connect()
@@ -212,7 +237,7 @@ class UnifiedWhatsAppService:
     async def _get_queue_service(self) -> WhatsAppMessageService:
         """Get queue-based message service."""
         if not self._queue_service:
-            if isinstance(self.db, AsyncSession):
+            if self._is_async:
                 evolution_client = await self._get_queue_client()
                 self._queue_service = WhatsAppMessageService(
                     evolution_client,
@@ -223,6 +248,19 @@ class UnifiedWhatsAppService:
             else:
                 raise ValueError("Queue service requires AsyncSession")
         return self._queue_service
+
+    async def _execute_async_db(self, statement):
+        """Execute statement against async-compatible DB sessions."""
+        result = self.db.execute(statement)
+        if asyncio.iscoroutine(result):
+            return await result
+        return result
+
+    async def _commit_async_db(self):
+        """Commit changes against async-compatible DB sessions."""
+        result = self.db.commit()
+        if asyncio.iscoroutine(result):
+            await result
 
     def register_flow_callback(self, callback_type: str, callback: Callable):
         """Register callback for flow message events."""
@@ -264,31 +302,112 @@ class UnifiedWhatsAppService:
 
         Returns:
             True if message was queued successfully
+            
+        Raises:
+            ExternalServiceError: If sending fails (for Celery retry handling)
         """
+        force_send = bool(kwargs.get("force_send"))
+        if not force_send and message.status in {
+            MessageStatus.SCHEDULED,
+            MessageStatus.SENDING,
+            MessageStatus.SENT,
+            MessageStatus.DELIVERED,
+            MessageStatus.READ,
+        }:
+            logger.info(
+                "Skipping send for message with terminal/non-sendable status",
+                extra={
+                    "message_id": str(message.id),
+                    "status": message.status.value,
+                    "force_send": force_send,
+                },
+            )
+            return True
+
+        # LGPD Art. 18 — Opt-out guard (last-resort safety net).
+        # Refuse to send if the patient has revoked messaging consent.
+        # This check fires even if the Celery task scheduler failed to filter
+        # the patient earlier.  We load the patient lazily only when needed
+        # to avoid adding latency to the common (non-opted-out) path.
         try:
-            send_start = datetime.now(timezone.utc)
-            kwargs.get("flow_context")
+            patient_for_guard = await self._ensure_patient_loaded(message)
+            if patient_for_guard is not None and patient_for_guard.messaging_stopped_at is not None:
+                logger.warning(
+                    "Skipping message to opted-out patient %s (messaging_stopped_at=%s)",
+                    message.patient_id,
+                    patient_for_guard.messaging_stopped_at.isoformat(),
+                    extra={
+                        "message_id": str(message.id),
+                        "patient_id": str(message.patient_id),
+                        "messaging_stopped_at": patient_for_guard.messaging_stopped_at.isoformat(),
+                    },
+                )
+                return False
+        except Exception as guard_err:
+            # Guard failure must never block legitimate sends — log and continue.
+            logger.error(
+                "Opt-out guard check failed for message %s (proceeding with send): %s",
+                message.id,
+                guard_err,
+            )
 
-            # Track metrics
-            self.metrics["messages_sent"] += 1
+        if not self._is_async:
+            # Sync sessions cannot use the queue service directly; rehydrate via async session.
+            try:
+                async_factory = get_async_session_factory()
+            except Exception as factory_err:
+                raise ExternalServiceError(
+                    f"Async session factory unavailable for queue send: {factory_err}"
+                ) from factory_err
 
-            # Add unified metadata
-            self._add_unified_metadata(message, **kwargs)
+            async with async_factory() as async_session:
+                from sqlalchemy import select
 
-            # Route to queue pipeline
-            success = await self._send_via_queue(message, **kwargs)
+                result = await async_session.execute(
+                    select(Message).where(Message.id == message.id)
+                )
+                async_message = result.scalar_one_or_none()
+                if not async_message:
+                    raise ExternalServiceError(
+                        f"Message {message.id} not found in async session"
+                    )
+
+                async_service = UnifiedWhatsAppService(
+                    async_session,
+                    redis_url=self.redis_url,
+                    default_instance_name=self.default_instance_name,
+                )
+                try:
+                    return await async_service.send_message(async_message, **kwargs)
+                finally:
+                    await async_service.shutdown()
+
+        send_start = now_sao_paulo()
+        kwargs.get("flow_context")
+
+        # Track metrics
+        self.metrics["messages_sent"] += 1
+
+        # Add unified metadata
+        self._add_unified_metadata(message, **kwargs)
+
+        try:
+            if self._messaging_mode == "direct":
+                success = await self._send_via_direct_api(message, **kwargs)
+            else:
+                success = await self._send_via_queue(message, **kwargs)
+            
             if success:
                 self.metrics["queue_processed"] += 1
 
-            # Record send latency metric for quiz messages
-            if success:
+                # Record send latency metric for quiz messages
                 try:
                     metadata = message.message_metadata or {}
                     template_type = metadata.get("template_type", "unknown")
                     quiz_template_id = metadata.get("quiz_template_id")
 
                     if quiz_template_id and template_type.startswith("quiz_"):
-                        latency = (datetime.now(timezone.utc) - send_start).total_seconds()
+                        latency = (now_sao_paulo() - send_start).total_seconds()
                         metrics = await get_quiz_metrics_collector()
                         await metrics.record_send_latency(
                             template_id=UUID(quiz_template_id),
@@ -298,20 +417,22 @@ class UnifiedWhatsAppService:
                 except Exception as e:
                     logger.debug(f"Failed to record send latency metric: {e}")
 
-            # Execute unified callbacks
-            if success:
+                # Execute success callbacks
                 await self._execute_success_callbacks(message, **kwargs)
-            else:
-                await self._execute_failure_callbacks(message, **kwargs)
-                self.metrics["messages_failed"] += 1
 
             return success
 
+        except ExternalServiceError:
+            # Propagate ExternalServiceError for upstream handling
+            self.metrics["messages_failed"] += 1
+            await self._execute_failure_callbacks(message, **kwargs)
+            raise
         except Exception as e:
             logger.error(f"Unified message send failed for {message.id}: {e}")
             self.metrics["messages_failed"] += 1
             await self._execute_failure_callbacks(message, str(e), **kwargs)
-            return False
+            # Wrap in ExternalServiceError for consistent retry handling
+            raise ExternalServiceError(f"Message send failed: {e}") from e
 
     def _add_unified_metadata(self, message: Message, **kwargs):
         """Add unified metadata to message."""
@@ -322,10 +443,10 @@ class UnifiedWhatsAppService:
             {
                 "unified_service": {
                     "version": "2.0.0",
-                    "mode": "queue",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "mode": self._messaging_mode,
+                    "timestamp": now_sao_paulo().isoformat(),
                 },
-                "requires_queue": True,
+                "requires_queue": self._messaging_mode == "queue",
             }
         )
 
@@ -336,7 +457,7 @@ class UnifiedWhatsAppService:
 
             # Set retry policy based on flow context
             flow_type = flow_context.get("flow_type", "default")
-            if flow_type in ["initial_15_days", "days_16_45"]:
+            if flow_type in ["onboarding", "daily_follow_up"]:
                 message.message_metadata["retry_policy"] = "flow_message"
             elif flow_context.get("urgent", False):
                 message.message_metadata["retry_policy"] = "urgent"
@@ -352,64 +473,125 @@ class UnifiedWhatsAppService:
         Send message via queue pipeline with circuit breaker protection.
 
         WA-004: Circuit breaker protects against Evolution API failures
+        
+        Note: This method does NOT mark messages as FAILED on transient failures.
+        The Celery task is responsible for marking FAILED only after exhausting retries.
         """
-        # WA-004 FIX: Check circuit breaker before processing
-        if not self._evolution_breaker.can_execute():
-            logger.warning(
-                "Evolution API circuit breaker OPEN - skipping message send",
-                extra={
-                    "message_id": message.id,
-                    "breaker_state": self._evolution_breaker.get_state().value,
-                },
-            )
-            await self._mark_message_failed(
-                message,
-                {
-                    "error": "Circuit breaker open",
-                    "message": "Evolution API temporarily unavailable",
-                },
-            )
-            return False
-
         try:
-            # Convert legacy message to queue format
+            # Convert message to queue format
             queue_request = await self._convert_to_queue_request(message)
 
             # Get queue service
             queue_service = await self._get_queue_service()
 
-            # Send via queue
-            response = await queue_service.send_message(queue_request)
+            async def _send_request():
+                return await queue_service.send_message(queue_request)
 
-            # WA-004: Record success in circuit breaker
-            self._evolution_breaker.record_success()
+            # Send via queue with Redis-backed circuit breaker
+            response = await self._evolution_breaker.call(_send_request)
 
             if response.status == WhatsAppMessageStatus.PENDING:
                 logger.info(f"Message {message.id} queued successfully")
                 return True
             else:
-                logger.error(
-                    f"Queue send failed for message {message.id}: {response.message}"
+                # Do NOT mark as failed - let Celery retry handle it
+                logger.warning(
+                    f"Queue send returned non-pending status for message {message.id}: {response.message}"
                 )
-                await self._mark_message_failed(
-                    message, {"error": f"Queue send failed: {response.message}"}
+                raise ExternalServiceError(
+                    f"Queue send failed: {response.message}"
                 )
-                return False
 
+        except CircuitOpenError as exc:
+            breaker_state = await self._evolution_breaker.get_state_async()
+            logger.warning(
+                "Evolution API circuit breaker OPEN - skipping message send",
+                extra={
+                    "message_id": str(message.id),
+                    "breaker_state": breaker_state.value,
+                },
+            )
+            raise ExternalServiceError(
+                f"Circuit breaker open for Evolution API (state: {breaker_state.value})"
+            ) from exc
+        except ExternalServiceError as exc:
+            logger.error(f"Queue send failed for message {message.id}: {exc}")
+            raise
         except Exception as e:
             logger.error(f"Queue send failed for message {message.id}: {e}")
+            # Do NOT mark as failed - propagate error for Celery retry
+            raise ExternalServiceError(f"Queue send failed: {e}") from e
 
-            # WA-004: Record failure in circuit breaker
-            self._evolution_breaker.record_failure()
+    async def _send_via_direct_api(self, message: Message, **kwargs) -> bool:
+        """Send message directly via Evolution API (no queue)."""
+        try:
+            metadata = message.message_metadata or {}
+            instance_name = metadata.get("instance_name", self.default_instance_name)
+            if not instance_name:
+                raise ExternalServiceError("instance_name is required for direct send")
 
-            await self._mark_message_failed(
-                message, {"error": "Queue send failed", "message": str(e)}
+            patient = await self._ensure_patient_loaded(message)
+            if not patient or not patient.phone_decrypted:
+                raise ExternalServiceError(
+                    f"Patient {message.patient_id} has no phone number"
+                )
+
+            phone = normalize_phone(
+                patient.phone_decrypted, mode=PhoneValidationMode.BR_TO_E164
             )
-            return False
+            if not phone:
+                raise ExternalServiceError(
+                    f"Patient {message.patient_id} has invalid phone number"
+                )
+            if phone.startswith("+"):
+                phone = phone[1:]
+
+            evolution_client = await self._get_queue_client()
+
+            if message.type == MessageType.TEXT or not message.type:
+                response = await evolution_client.send_text_message(
+                    instance_name, phone, message.content or ""
+                )
+            else:
+                response = await evolution_client.send_media_message(
+                    instance_name,
+                    phone,
+                    media_url=message.content or "",
+                    media_type=message.type,
+                )
+
+            message.status = MessageStatus.SENT
+            message.whatsapp_id = getattr(response, "external_id", None) or getattr(
+                response, "id", None
+            )
+            message.sent_at = now_sao_paulo()
+
+            if self._is_async:
+                await self._commit_async_db()
+            elif self._db_sync:
+                self._db_sync.commit()
+
+            return True
+        except Exception as exc:
+            logger.error(f"Direct send failed for message {message.id}: {exc}")
+            try:
+                message.status = MessageStatus.FAILED
+                message.message_metadata = {
+                    **(message.message_metadata or {}),
+                    "error": str(exc),
+                }
+                if self._is_async:
+                    await self._commit_async_db()
+                elif self._db_sync:
+                    self._db_sync.commit()
+            except Exception:
+                # Best-effort status update; preserve original error
+                pass
+            raise ExternalServiceError(f"Direct send failed: {exc}") from exc
 
     async def _convert_to_queue_request(self, message: Message) -> MessageRequest:
         """
-        Convert legacy message to queue request format with proper validation.
+        Convert message to queue request format with proper validation.
 
         Raises:
             ValueError: If instance_name, patient, or phone is missing
@@ -430,7 +612,7 @@ class UnifiedWhatsAppService:
         if not patient.phone_decrypted:
             raise ValueError(f"Patient {message.patient_id} has no phone number")
 
-        # Map legacy message types to queue types
+        # Map message types to queue types
         type_mapping = {
             MessageType.TEXT: WhatsAppMessageType.TEXT,
             MessageType.MEDIA: WhatsAppMessageType.IMAGE,  # Default to image
@@ -483,7 +665,7 @@ class UnifiedWhatsAppService:
         # Add unified error metadata
         unified_error = {
             "unified_service_error": True,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "pipeline": "queue",
             **error_info,
         }
@@ -493,7 +675,7 @@ class UnifiedWhatsAppService:
 
         if self.message_service is not None:
             await self.message_service.mark_as_failed_async(message.id, error_message)
-        elif isinstance(self.db, AsyncSession):
+        elif self._is_async:
             # Use existing async session
             try:
                 from app.models.message import Message as MessageModel, MessageStatus
@@ -502,13 +684,13 @@ class UnifiedWhatsAppService:
                     .where(MessageModel.id == message.id)
                     .values(
                         status=MessageStatus.FAILED,
-                        failed_at=datetime.now(timezone.utc),
+                        failed_at=now_sao_paulo(),
                         error_message=error_message,
-                        updated_at=datetime.now(timezone.utc),
+                        updated_at=now_sao_paulo(),
                     )
                 )
-                await self.db.execute(stmt)
-                await self.db.commit()
+                await self._execute_async_db(stmt)
+                await self._commit_async_db()
                 
                 logger.info(
                     f"Message {message.id} marked as failed via async update",
@@ -522,7 +704,7 @@ class UnifiedWhatsAppService:
         else:
             # Direct database update when message_service not available and using sync db
             try:
-                from app.core.database import get_scoped_session
+                from app.database import get_scoped_session
                 from app.models.message import Message as MessageModel, MessageStatus
 
                 with get_scoped_session() as session:
@@ -531,9 +713,9 @@ class UnifiedWhatsAppService:
                         .where(MessageModel.id == message.id)
                         .values(
                             status=MessageStatus.FAILED,
-                            failed_at=datetime.now(timezone.utc),
+                            failed_at=now_sao_paulo(),
                             error_message=error_message,
-                            updated_at=datetime.now(timezone.utc),
+                            updated_at=now_sao_paulo(),
                         )
                     )
                     session.execute(stmt)
@@ -560,16 +742,23 @@ class UnifiedWhatsAppService:
     ):
         """Publish unified WebSocket events."""
         if ws_events_module.websocket_events:
-            await ws_events_module.websocket_events.publish_message_event(
-            event_type=event_type,
-            message_id=message.id,
-            patient_id=message.patient_id,
-            direction=message.direction.value,
-            message_type=message.type.value,
-            content=message.content,
-            status=message.status.value,
-            **kwargs,
-        )
+            metadata = kwargs.pop("metadata", None)
+            if kwargs:
+                metadata = {**(metadata or {}), **kwargs}
+
+            await ws_events_module.websocket_events.broadcast_message_event(
+                event_type=event_type,
+                message_data={
+                    "message_id": message.id,
+                    "patient_id": message.patient_id,
+                    "direction": message.direction.value,
+                    "type": message.type.value,
+                    "content": message.content,
+                    "status": message.status.value,
+                    "whatsapp_id": message.whatsapp_id,
+                    "metadata": metadata,
+                },
+            )
 
     async def _execute_success_callbacks(self, message: Message, **kwargs):
         """Execute success callbacks for flow messages."""
@@ -593,21 +782,6 @@ class UnifiedWhatsAppService:
             except Exception as e:
                 logger.error(f"Failure callback error: {e}")
 
-    async def send_flow_message(
-        self, message: Message, flow_context: Optional[Dict[str, Any]] = None
-    ) -> bool:
-        """
-        Send a flow-specific message with enhanced tracking.
-
-        Args:
-            message: Message object to send
-            flow_context: Flow-specific context data
-
-        Returns:
-            True if message was sent successfully
-        """
-        return await self.send_message(message, flow_context=flow_context)
-
     # NOTE: retry_failed_messages() removed - use Celery task retry_failed_messages_task instead
     # See: app/tasks/messaging.py and beat_schedule["retry-failed-messages"]
 
@@ -626,7 +800,7 @@ class UnifiedWhatsAppService:
             logger.warning(f"Could not get queue stats: {e}")
 
         # Calculate uptime
-        uptime = (datetime.now(timezone.utc) - self.metrics["last_reset"]).total_seconds()
+        uptime = (now_sao_paulo() - self.metrics["last_reset"]).total_seconds()
 
         return {
             "unified_metrics": {
@@ -642,9 +816,9 @@ class UnifiedWhatsAppService:
                 "uptime_seconds": uptime,
             },
             "queue_metrics": queue_stats,
-            "messaging_mode": "queue",
+            "messaging_mode": self._messaging_mode,
             "retry_policies": list(self.retry_policies.keys()),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
 
     async def process_queue_messages(self, max_messages: int = 100) -> Dict[str, Any]:
@@ -668,7 +842,7 @@ class UnifiedWhatsAppService:
         return {
             "queue_processing_started": True,
             "max_messages": max_messages,
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": now_sao_paulo().isoformat(),
         }
 
     async def health_check(self) -> Dict[str, Any]:
@@ -678,40 +852,86 @@ class UnifiedWhatsAppService:
         Returns:
             Health status information
         """
-        health = {
+        health: Dict[str, Any] = {
             "service": "unified_whatsapp",
             "status": "healthy",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "components": {},
         }
+
+        def _set_component_status(name: str, status: str, details: Any = None) -> None:
+            payload = {"status": status}
+            if details is not None:
+                payload["details"] = details
+            health["components"][name] = payload
+
+            if status == "unhealthy":
+                health["status"] = "unhealthy"
+            elif status == "degraded" and health["status"] != "unhealthy":
+                health["status"] = "degraded"
 
         # Check queue client
         try:
             await self._get_queue_client()
-            health["components"]["queue_client"] = "healthy"
+            _set_component_status("queue_client", "healthy")
         except Exception as e:
-            health["components"]["queue_client"] = f"unhealthy: {str(e)}"
-            health["status"] = "degraded"
+            _set_component_status("queue_client", "unhealthy", str(e))
 
         # Check queue connection
         try:
             await self.message_queue.connect()
-            health["components"]["message_queue"] = "healthy"
+            _set_component_status("message_queue", "healthy")
         except Exception as e:
-            health["components"]["message_queue"] = f"unhealthy: {str(e)}"
-            health["status"] = "degraded"
+            _set_component_status("message_queue", "unhealthy", str(e))
+
+        # Check Evolution API instance health
+        try:
+            evolution_client = await self._get_queue_client()
+            instance_health = await evolution_client.health_check(
+                self.default_instance_name
+            )
+            instance_status = (
+                "healthy" if instance_health.get("is_connected") else "degraded"
+            )
+            _set_component_status("evolution_instance", instance_status, instance_health)
+        except Exception as e:
+            _set_component_status("evolution_instance", "unhealthy", str(e))
+
+        # Circuit breaker stats
+        try:
+            breaker_stats = await self._evolution_breaker.get_stats_async()
+            breaker_state = breaker_stats.get("state", "unknown")
+            breaker_status = (
+                "healthy"
+                if breaker_state == "closed"
+                else "degraded"
+                if breaker_state in ("open", "half_open")
+                else "unhealthy"
+            )
+            _set_component_status("circuit_breaker", breaker_status, breaker_stats)
+            whatsapp_metrics.set_circuit_breaker_state(
+                self.default_instance_name, "evolution_api", breaker_state
+            )
+        except Exception as e:
+            _set_component_status("circuit_breaker", "unhealthy", str(e))
 
         return health
 
     async def shutdown(self):
         """Gracefully shutdown the unified service."""
         try:
-            if self._queue_service:
+            if self._queue_service or self.message_queue:
                 await self.message_queue.disconnect()
 
             if self._queue_client:
-                # Assuming disconnect method exists
-                pass
+                disconnect_fn = getattr(self._queue_client, "disconnect", None)
+                if callable(disconnect_fn):
+                    disconnect_result = disconnect_fn()
+                    if asyncio.iscoroutine(disconnect_result):
+                        await disconnect_result
+                self._queue_client = None
+
+            self._queue_service = None
 
             logger.info("Unified WhatsApp Service shutdown completed")
         except Exception as e:
@@ -721,7 +941,6 @@ class UnifiedWhatsAppService:
 # Factory function for creating unified service instances
 def create_unified_whatsapp_service(
     db: Any,
-    messaging_mode: MessagingMode = MessagingMode.HYBRID,
     redis_url: Optional[str] = None,
 ) -> UnifiedWhatsAppService:
     """
@@ -729,12 +948,15 @@ def create_unified_whatsapp_service(
 
     Args:
         db: Database session
-        messaging_mode: Messaging mode configuration
         redis_url: Redis URL for queue management
 
     Returns:
         Configured UnifiedWhatsAppService instance
     """
-    return UnifiedWhatsAppService(
-        db=db, messaging_mode=messaging_mode, redis_url=redis_url
-    )
+    return UnifiedWhatsAppService(db=db, redis_url=redis_url)
+
+
+__all__ = [
+    "UnifiedWhatsAppService",
+    "create_unified_whatsapp_service",
+]

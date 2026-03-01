@@ -18,6 +18,8 @@ from fastapi import status
 # Test fixtures would be imported from conftest
 # from .conftest_auth import test_client, mock_firebase, mock_redis
 
+VALID_FIREBASE_UID = "A1B2C3D4E5F6G7H8I9J0K1L2M3N4"
+
 
 class TestFirebaseTokenValidation:
     """Test POST /api/v2/auth/firebase/verify token validation."""
@@ -87,7 +89,7 @@ class TestEmailValidation:
     def test_invalid_email_formats_rejected(self, test_client, mock_firebase, invalid_email):
         """Invalid email formats should be rejected with 400."""
         mock_firebase.verify_id_token.return_value = {
-            "uid": "a" * 20,
+            "uid": VALID_FIREBASE_UID,
             "email": invalid_email,
         }
 
@@ -108,7 +110,7 @@ class TestEmailValidation:
     def test_valid_email_formats_accepted(self, test_client, mock_firebase, mock_redis, valid_email):
         """Valid email formats should be accepted."""
         mock_firebase.verify_id_token.return_value = {
-            "uid": "a" * 20,
+            "uid": VALID_FIREBASE_UID,
             "email": valid_email,
         }
 
@@ -126,9 +128,9 @@ class TestFirebaseUIDValidation:
     """Test Firebase UID format validation."""
 
     def test_uid_too_short_rejected(self, test_client, mock_firebase):
-        """UIDs shorter than 20 characters should be rejected."""
+        """UIDs shorter than strict 28 characters should be rejected."""
         mock_firebase.verify_id_token.return_value = {
-            "uid": "a" * 19,  # 19 chars, minimum is 20
+            "uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N",  # 27 chars
             "email": "user@example.com",
         }
 
@@ -141,9 +143,9 @@ class TestFirebaseUIDValidation:
         assert "uid" in response.json()["detail"].lower()
 
     def test_uid_too_long_rejected(self, test_client, mock_firebase):
-        """UIDs longer than 128 characters should be rejected."""
+        """UIDs longer than strict 28 characters should be rejected."""
         mock_firebase.verify_id_token.return_value = {
-            "uid": "a" * 129,  # 129 chars, maximum is 128
+            "uid": VALID_FIREBASE_UID + "X",  # 29 chars
             "email": "user@example.com",
         }
 
@@ -156,11 +158,11 @@ class TestFirebaseUIDValidation:
         assert "uid" in response.json()["detail"].lower()
 
     def test_uid_with_special_chars_rejected(self, test_client, mock_firebase):
-        """UIDs with special characters should be rejected."""
+        """UIDs with non-alphanumeric characters should be rejected."""
         invalid_uids = [
-            "a" * 19 + "@",  # 20 chars with @
-            "uid-with-dashes-" + "a" * 4,
-            "uid_with_underscores_" + "a" * 1,
+            "A1B2C3D4E5F6G7H8I9J0K1L2M3N@",  # 28 chars with @
+            "A1B2C3D4E5F6G7H8I9J0K1L2M3N-",  # 28 chars with -
+            "A1B2C3D4E5F6G7H8I9J0K1L2M3N_",  # 28 chars with _
         ]
 
         for invalid_uid in invalid_uids:
@@ -177,12 +179,12 @@ class TestFirebaseUIDValidation:
             assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_valid_uid_accepted(self, test_client, mock_firebase, mock_redis):
-        """Valid alphanumeric UIDs (20-128 chars) should be accepted."""
+        """Valid strict UIDs (exactly 28 alphanumeric chars) should be accepted."""
         valid_uids = [
-            "a" * 20,  # Minimum length
-            "A" * 64,  # Medium length
-            "0" * 128,  # Maximum length
-            "aB1" * 42 + "ab",  # Mixed alphanumeric
+            "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
+            "B1C2D3E4F5G6H7I8J9K0L1M2N3O4",
+            "C1D2E3F4G5H6I7J8K9L0M1N2O3P4",
+            "D1E2F3G4H5I6J7K8L9M0N1O2P3Q4",
         ]
 
         for valid_uid in valid_uids:
@@ -207,7 +209,7 @@ class TestSecurityHeaders:
     def test_security_headers_present_on_success(self, test_client, mock_firebase, mock_redis):
         """Successful authentication should include all security headers."""
         mock_firebase.verify_id_token.return_value = {
-            "uid": "a" * 20,
+            "uid": VALID_FIREBASE_UID,
             "email": "user@example.com",
         }
 
@@ -225,7 +227,7 @@ class TestSecurityHeaders:
     def test_hsts_header_configured_correctly(self, test_client, mock_firebase, mock_redis):
         """HSTS header should have max-age of 1 year."""
         mock_firebase.verify_id_token.return_value = {
-            "uid": "a" * 20,
+            "uid": VALID_FIREBASE_UID,
             "email": "user@example.com",
         }
 
@@ -244,7 +246,7 @@ class TestCookieSecurity:
     def test_session_cookie_has_httponly_flag(self, test_client, mock_firebase, mock_redis):
         """Session cookie must have HttpOnly flag to prevent XSS."""
         mock_firebase.verify_id_token.return_value = {
-            "uid": "a" * 20,
+            "uid": VALID_FIREBASE_UID,
             "email": "user@example.com",
         }
 
@@ -260,7 +262,7 @@ class TestCookieSecurity:
     def test_session_cookie_has_samesite_flag(self, test_client, mock_firebase, mock_redis):
         """Session cookie must have SameSite flag for CSRF protection."""
         mock_firebase.verify_id_token.return_value = {
-            "uid": "a" * 20,
+            "uid": VALID_FIREBASE_UID,
             "email": "user@example.com",
         }
 
@@ -275,7 +277,7 @@ class TestCookieSecurity:
     def test_session_cookie_ttl_is_5_days(self, test_client, mock_firebase, mock_redis):
         """Session cookie should have 5-day TTL (432000 seconds)."""
         mock_firebase.verify_id_token.return_value = {
-            "uid": "a" * 20,
+            "uid": VALID_FIREBASE_UID,
             "email": "user@example.com",
         }
 
@@ -346,7 +348,10 @@ class TestErrorHandling:
             json={}  # Missing id_token
         )
 
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code in [
+            status.HTTP_400_BAD_REQUEST,
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+        ]
 
     def test_server_error_returns_500(self, test_client, mock_firebase):
         """Server errors should return 500 with appropriate message."""

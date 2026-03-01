@@ -102,7 +102,7 @@ except Exception as e:
 **Issue 2: Commit Without Exception Handling**
 ```python
 # app/api/v2/routers/patients/integrity.py (Line 162)
-patient.deleted_at = datetime.now(timezone.utc)
+patient.deleted_at = now_sao_paulo()
 db.commit()  # ⚠️ No try/except, rollback missing
 ```
 
@@ -129,7 +129,7 @@ async def archive_patient(patient_id: str, db: Session, ...):
 ```python
 try:
     # Perform database operations
-    patient.deleted_at = datetime.now(timezone.utc)
+    patient.deleted_at = now_sao_paulo()
     db.flush()  # Validate before commit
 
     db.commit()
@@ -333,7 +333,7 @@ class ErrorResponse(BaseModel):
     error_code: str
     message: str
     details: Optional[Dict[str, Any]] = None
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: now_sao_paulo())
 
 # Use consistently
 raise HTTPException(
@@ -833,6 +833,6 @@ The patient CRUD implementation is **production-ready with critical fixes**. The
 
 ---
 
-**Report Generated:** 2025-12-23T22:36:00Z
+**Report Generated:** 2025-12-23T22:36:00-03:00
 **Review ID:** patient-crud-review-20251223
 **Next Review:** After critical fixes implemented

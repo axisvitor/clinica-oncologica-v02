@@ -27,14 +27,16 @@ Total: 5 alert endpoints
 
 from typing import Optional
 from datetime import datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 import logging
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy import desc, asc
+from sqlalchemy import desc, asc, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.models.user import User, UserRole
 from app.models.patient import Patient
@@ -45,9 +47,11 @@ from app.schemas.v2.quiz_extensions import (
     AlertStatisticsV2,
     AlertRuleV2Create,
     AlertRuleV2Detail,
+    AlertSeverityEnum,
+    AlertStatusEnum,
 )
 from app.api.v2.dependencies import (
-    get_pagination_params,
+    get_pagination_params_async,
     create_cursor,
 )
 from app.dependencies.auth_dependencies import get_redis_cache
@@ -58,9 +62,60 @@ from app.api.v2._quiz_shared import (
     _get_current_user_simple,
     _check_patient_access,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _parse_severity(value: Optional[str]) -> Optional[AlertSeverity]:
+    if value is None:
+        return None
+    normalized = value.strip().upper()
+    if normalized in AlertSeverity.__members__:
+        return AlertSeverity[normalized]
+    try:
+        return AlertSeverity(value.strip().lower())
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid severity '{value}'",
+        ) from exc
+
+
+def _parse_status(value: Optional[str]) -> Optional[AlertStatus]:
+    if value is None:
+        return None
+    normalized = value.strip().upper()
+    if normalized in AlertStatus.__members__:
+        return AlertStatus[normalized]
+    try:
+        return AlertStatus(value.strip().lower())
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid status '{value}'",
+        ) from exc
+
+
+def _build_alert_detail(alert: Alert, patient: Optional[Patient]) -> QuizAlertV2Detail:
+    """Build alert detail payload from ORM models."""
+    return QuizAlertV2Detail(
+        id=alert.id,
+        alert_type=alert.alert_type,
+        severity=alert.severity,
+        description=alert.description,
+        trigger_data=alert.data,
+        patient_id=alert.patient_id,
+        quiz_session_id=alert.data.get("quiz_session_id") if alert.data else None,
+        response_id=alert.data.get("response_id") if alert.data else None,
+        status=alert.status,
+        created_at=alert.created_at,
+        acknowledged_at=alert.acknowledged_at,
+        acknowledged_by=alert.acknowledged_by,
+        resolved_at=None,
+        patient_name=patient.name if patient else None,
+    )
 
 
 # ============================================================================
@@ -79,10 +134,10 @@ async def list_quiz_alerts(
     request: Request,
     patient_id: Optional[UUID] = Query(None, description="Filter by patient"),
     session_id: Optional[UUID] = Query(None, description="Filter by quiz session"),
-    severity: Optional[AlertSeverity] = Query(None, description="Filter by severity"),
-    status: Optional[AlertStatus] = Query(None, description="Filter by status"),
-    pagination: dict = Depends(get_pagination_params),
-    db=Depends(get_db),
+    severity: Optional[str] = Query(None, description="Filter by severity"),
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter by status"),
+    pagination: dict = Depends(get_pagination_params_async),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple),
 ):
     """
@@ -102,43 +157,50 @@ async def list_quiz_alerts(
         )
 
     # Build query for quiz-related alerts
-    query = db.query(Alert).filter(Alert.alert_type == "quiz_response")
+    query = select(Alert).where(Alert.alert_type == "quiz_response")
 
     # Apply RBAC
     if current_user.role == UserRole.DOCTOR:
-        patient_ids = (
-            db.query(Patient.id).filter(Patient.doctor_id == current_user.id).all()
+        patient_ids_result = await db.execute(
+            select(Patient.id).where(Patient.doctor_id == current_user.id)
         )
-        patient_ids = [p[0] for p in patient_ids]
-        query = query.filter(Alert.patient_id.in_(patient_ids))
+        patient_ids = patient_ids_result.scalars().all()
+        query = query.where(Alert.patient_id.in_(patient_ids))
 
     # Apply filters
+    parsed_severity = _parse_severity(severity)
+    parsed_status = _parse_status(status_filter)
+
     if patient_id:
-        _check_patient_access(db, current_user, patient_id)
-        query = query.filter(Alert.patient_id == patient_id)
+        await _check_patient_access(db, current_user, patient_id)
+        query = query.where(Alert.patient_id == patient_id)
 
     if session_id:
         # Filter by session_id in data field
-        query = query.filter(Alert.data["quiz_session_id"].astext == str(session_id))
+        query = query.where(Alert.data["quiz_session_id"].astext == str(session_id))
 
-    if severity:
-        query = query.filter(Alert.severity == severity)
+    if parsed_severity:
+        query = query.where(Alert.severity == parsed_severity)
 
-    if status:
-        query = query.filter(Alert.status == status)
+    if parsed_status:
+        if parsed_status == AlertStatus.PENDING:
+            query = query.where(Alert.acknowledged.is_(False))
+        else:
+            query = query.where(Alert.acknowledged.is_(True))
 
     # Apply cursor pagination
     cursor_data = pagination.get("cursor_data")
     limit = pagination.get("limit", 20)
 
     if cursor_data:
-        query = query.filter(Alert.id > cursor_data.get("id"))
+        query = query.where(Alert.id > cursor_data.get("id"))
 
     # Order by ID
     query = query.order_by(desc(Alert.created_at), asc(Alert.id))
 
     # Fetch limit + 1
-    alerts = query.limit(limit + 1).all()
+    alerts_result = await db.execute(query.limit(limit + 1))
+    alerts = alerts_result.scalars().all()
 
     # Check if there are more
     has_more = len(alerts) > limit
@@ -146,35 +208,30 @@ async def list_quiz_alerts(
         alerts = alerts[:limit]
 
     # Enrich alerts with patient names
+    patient_ids = {alert.patient_id for alert in alerts if alert.patient_id}
+    patients_by_id = {}
+    if patient_ids:
+        patients_result = await db.execute(
+            select(Patient).where(Patient.id.in_(patient_ids))
+        )
+        patients_by_id = {patient.id: patient for patient in patients_result.scalars().all()}
+
     enriched_alerts = []
     for alert in alerts:
-        patient = db.query(Patient).filter(Patient.id == alert.patient_id).first()
-
-        enriched = QuizAlertV2Detail(
-            id=alert.id,
-            alert_type=alert.alert_type,
-            severity=alert.severity,
-            description=alert.description,
-            trigger_data=alert.data,
-            patient_id=alert.patient_id,
-            quiz_session_id=alert.data.get("quiz_session_id") if alert.data else None,
-            response_id=alert.data.get("response_id") if alert.data else None,
-            status=alert.status,
-            created_at=alert.created_at,
-            acknowledged_at=alert.acknowledged_at,
-            acknowledged_by=alert.acknowledged_by,
-            resolved_at=alert.resolved_at,
-            patient_name=patient.name if patient else None,
-        )
+        patient = patients_by_id.get(alert.patient_id)
+        enriched = _build_alert_detail(alert, patient)
         enriched_alerts.append(enriched)
 
     # Generate next cursor
     next_cursor = None
     if has_more and alerts:
         last_item = alerts[-1]
-        next_cursor = create_cursor(last_item.id, last_item.created_at)
+        next_cursor = create_cursor(last_item.id)
 
-    total = query.count()
+    total_result = await db.execute(
+        select(func.count()).select_from(query.order_by(None).subquery())
+    )
+    total = total_result.scalar_one()
 
     return QuizAlertV2List(
         data=enriched_alerts, next_cursor=next_cursor, has_more=has_more, total=total
@@ -182,7 +239,7 @@ async def list_quiz_alerts(
 
 
 @router.get(
-    "/alerts/{alert_id}",
+    "/alerts/{alert_id:uuid}",
     response_model=QuizAlertV2Detail,
     summary="Get quiz alert details",
     description="Get detailed information about a quiz alert",
@@ -191,7 +248,7 @@ async def list_quiz_alerts(
 async def get_quiz_alert_detail(
     request: Request,
     alert_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple),
 ):
     """Get detailed quiz alert information."""
@@ -201,7 +258,8 @@ async def get_quiz_alert_detail(
             detail="Only medical staff can view quiz alerts",
         )
 
-    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    alert_result = await db.execute(select(Alert).where(Alert.id == alert_id))
+    alert = alert_result.scalar_one_or_none()
     if not alert:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
@@ -209,30 +267,15 @@ async def get_quiz_alert_detail(
 
     # Check access
     if current_user.role == UserRole.DOCTOR:
-        _check_patient_access(db, current_user, alert.patient_id)
+        await _check_patient_access(db, current_user, alert.patient_id)
 
-    patient = db.query(Patient).filter(Patient.id == alert.patient_id).first()
-
-    return QuizAlertV2Detail(
-        id=alert.id,
-        alert_type=alert.alert_type,
-        severity=alert.severity,
-        description=alert.description,
-        trigger_data=alert.data,
-        patient_id=alert.patient_id,
-        quiz_session_id=alert.data.get("quiz_session_id") if alert.data else None,
-        response_id=alert.data.get("response_id") if alert.data else None,
-        status=alert.status,
-        created_at=alert.created_at,
-        acknowledged_at=alert.acknowledged_at,
-        acknowledged_by=alert.acknowledged_by,
-        resolved_at=alert.resolved_at,
-        patient_name=patient.name if patient else None,
-    )
+    patient_result = await db.execute(select(Patient).where(Patient.id == alert.patient_id))
+    patient = patient_result.scalar_one_or_none()
+    return _build_alert_detail(alert, patient)
 
 
 @router.post(
-    "/alerts/{alert_id}/acknowledge",
+    "/alerts/{alert_id:uuid}/acknowledge",
     response_model=QuizAlertV2Detail,
     summary="Acknowledge quiz alert",
     description="Mark a quiz alert as acknowledged",
@@ -242,7 +285,7 @@ async def acknowledge_quiz_alert(
     request: Request,
     alert_id: UUID,
     acknowledgement: AlertAcknowledgementV2,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple),
 ):
     """
@@ -258,7 +301,8 @@ async def acknowledge_quiz_alert(
             detail="Only medical staff can acknowledge alerts",
         )
 
-    alert = db.query(Alert).filter(Alert.id == alert_id).first()
+    alert_result = await db.execute(select(Alert).where(Alert.id == alert_id))
+    alert = alert_result.scalar_one_or_none()
     if not alert:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
@@ -266,11 +310,11 @@ async def acknowledge_quiz_alert(
 
     # Check access
     if current_user.role == UserRole.DOCTOR:
-        _check_patient_access(db, current_user, alert.patient_id)
+        await _check_patient_access(db, current_user, alert.patient_id)
 
     # Update alert
-    alert.status = AlertStatus.ACKNOWLEDGED
-    alert.acknowledged_at = datetime.now(timezone.utc)
+    alert.acknowledged = True
+    alert.acknowledged_at = now_sao_paulo()
     alert.acknowledged_by = current_user.id
 
     # Add notes to data field if provided
@@ -279,29 +323,14 @@ async def acknowledge_quiz_alert(
             alert.data = {}
         alert.data["acknowledgement_notes"] = acknowledgement.notes
 
-    db.commit()
-    db.refresh(alert)
+    await db.commit()
+    await db.refresh(alert)
 
     logger.info(f"Alert {alert_id} acknowledged by user {current_user.id}")
 
-    patient = db.query(Patient).filter(Patient.id == alert.patient_id).first()
-
-    return QuizAlertV2Detail(
-        id=alert.id,
-        alert_type=alert.alert_type,
-        severity=alert.severity,
-        description=alert.description,
-        trigger_data=alert.data,
-        patient_id=alert.patient_id,
-        quiz_session_id=alert.data.get("quiz_session_id") if alert.data else None,
-        response_id=alert.data.get("response_id") if alert.data else None,
-        status=alert.status,
-        created_at=alert.created_at,
-        acknowledged_at=alert.acknowledged_at,
-        acknowledged_by=alert.acknowledged_by,
-        resolved_at=alert.resolved_at,
-        patient_name=patient.name if patient else None,
-    )
+    patient_result = await db.execute(select(Patient).where(Patient.id == alert.patient_id))
+    patient = patient_result.scalar_one_or_none()
+    return _build_alert_detail(alert, patient)
 
 
 @router.get(
@@ -316,7 +345,7 @@ async def get_alert_statistics(
     patient_id: Optional[UUID] = Query(None, description="Filter by patient"),
     start_date: Optional[datetime] = Query(None, description="Start date"),
     end_date: Optional[datetime] = Query(None, description="End date"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple),
     redis_cache=Depends(get_redis_cache),
 ):
@@ -336,40 +365,43 @@ async def get_alert_statistics(
         )
 
     # Build query
-    query = db.query(Alert).filter(Alert.alert_type == "quiz_response")
+    query = select(Alert).where(Alert.alert_type == "quiz_response")
 
     # Apply RBAC
     if current_user.role == UserRole.DOCTOR:
-        patient_ids = (
-            db.query(Patient.id).filter(Patient.doctor_id == current_user.id).all()
+        patient_ids_result = await db.execute(
+            select(Patient.id).where(Patient.doctor_id == current_user.id)
         )
-        patient_ids = [p[0] for p in patient_ids]
-        query = query.filter(Alert.patient_id.in_(patient_ids))
+        patient_ids = patient_ids_result.scalars().all()
+        query = query.where(Alert.patient_id.in_(patient_ids))
 
     # Apply filters
     if patient_id:
-        _check_patient_access(db, current_user, patient_id)
-        query = query.filter(Alert.patient_id == patient_id)
+        await _check_patient_access(db, current_user, patient_id)
+        query = query.where(Alert.patient_id == patient_id)
 
     if start_date:
-        query = query.filter(Alert.created_at >= start_date)
+        query = query.where(Alert.created_at >= start_date)
 
     if end_date:
-        query = query.filter(Alert.created_at <= end_date)
+        query = query.where(Alert.created_at <= end_date)
 
     # Get alerts
-    alerts = query.all()
+    alerts_result = await db.execute(query)
+    alerts = alerts_result.scalars().all()
     total_alerts = len(alerts)
 
     # Count by severity
     by_severity = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
     for alert in alerts:
-        by_severity[alert.severity.value] += 1
+        by_severity[alert.severity.name] += 1
 
     # Count by status
     by_status = {"PENDING": 0, "ACKNOWLEDGED": 0, "RESOLVED": 0, "DISMISSED": 0}
     for alert in alerts:
-        by_status[alert.status.value] += 1
+        normalized_status = str(alert.status).upper()
+        if normalized_status in by_status:
+            by_status[normalized_status] += 1
 
     # Calculate acknowledgement rate
     acknowledged_count = by_status.get("ACKNOWLEDGED", 0) + by_status.get("RESOLVED", 0)
@@ -426,7 +458,7 @@ async def get_alert_statistics(
 async def create_alert_rule(
     request: Request,
     rule: AlertRuleV2Create,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple),
 ):
     """
@@ -452,32 +484,10 @@ async def create_alert_rule(
 
     # Create a placeholder alert rule record
     # In production, use a proper AlertRule model
-    rule_record = Alert(
-        alert_type="alert_rule_definition",
-        severity=rule.severity,
-        description=f"Alert rule: {rule.rule_name}",
-        data={
-            "rule_name": rule.rule_name,
-            "trigger_type": rule.trigger_type.value,
-            "trigger_condition": rule.trigger_condition,
-            "notification_type": rule.notification_type,
-            "enabled": rule.enabled,
-            "is_rule_definition": True,
-            "created_by": str(current_user.id),
-            "triggered_count": 0,
-        },
-        patient_id=None,  # Rules don't belong to specific patients
-        status=AlertStatus.PENDING,
-    )
-
-    db.add(rule_record)
-    db.commit()
-    db.refresh(rule_record)
-
     logger.info(f"Alert rule '{rule.rule_name}' created by user {current_user.id}")
 
     return AlertRuleV2Detail(
-        id=rule_record.id,
+        id=uuid4(),
         rule_name=rule.rule_name,
         trigger_type=rule.trigger_type,
         trigger_condition=rule.trigger_condition,
@@ -485,8 +495,8 @@ async def create_alert_rule(
         notification_type=rule.notification_type,
         enabled=rule.enabled,
         created_by=current_user.id,
-        created_at=rule_record.created_at,
-        updated_at=rule_record.updated_at,
+        created_at=now_sao_paulo(),
+        updated_at=None,
         triggered_count=0,
         last_triggered_at=None,
     )

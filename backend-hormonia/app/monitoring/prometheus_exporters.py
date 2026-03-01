@@ -16,6 +16,7 @@ from fastapi import APIRouter, Response
 from typing import Dict, Any
 import logging
 import time
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +217,27 @@ fallback_activation_frequency = Gauge(
     "fallback_activation_frequency_percent",
     "Fallback activation frequency percentage",
     ["reason", "month"],
+    registry=registry,
+)
+
+# Firebase Admin SDK metrics
+firebase_admin_sdk_duration_seconds = Histogram(
+    "firebase_admin_sdk_duration_seconds",
+    "Duration of Firebase Admin SDK calls",
+    registry=registry,
+    buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 15.0],
+)
+
+firebase_admin_sdk_timeout_total = Counter(
+    "firebase_admin_sdk_timeout_total",
+    "Total Firebase Admin SDK timeouts",
+    registry=registry,
+)
+
+firebase_admin_sdk_error_total = Counter(
+    "firebase_admin_sdk_error_total",
+    "Total Firebase Admin SDK errors",
+    ["error_type"],
     registry=registry,
 )
 
@@ -438,7 +460,7 @@ class MetricsExporter:
             if month is None:
                 from datetime import datetime, timezone
 
-                month = datetime.now(timezone.utc).strftime("%Y-%m")
+                month = now_sao_paulo().strftime("%Y-%m")
             quiz_completion_rate.labels(quiz_type=quiz_type, month=month).set(rate)
         except Exception as e:
             logger.error(f"Error updating quiz completion rate: {e}")
@@ -452,7 +474,7 @@ class MetricsExporter:
             if month is None:
                 from datetime import datetime, timezone
 
-                month = datetime.now(timezone.utc).strftime("%Y-%m")
+                month = now_sao_paulo().strftime("%Y-%m")
             token_expiry_rate.labels(quiz_type=quiz_type, month=month).set(rate)
         except Exception as e:
             logger.error(f"Error updating token expiry rate: {e}")
@@ -466,12 +488,36 @@ class MetricsExporter:
             if month is None:
                 from datetime import datetime, timezone
 
-                month = datetime.now(timezone.utc).strftime("%Y-%m")
+                month = now_sao_paulo().strftime("%Y-%m")
             fallback_activation_frequency.labels(reason=reason, month=month).set(
                 frequency
             )
         except Exception as e:
             logger.error(f"Error updating fallback activation frequency: {e}")
+
+    @staticmethod
+    def record_firebase_admin_sdk_call(duration: float):
+        """Record Firebase Admin SDK call duration."""
+        try:
+            firebase_admin_sdk_duration_seconds.observe(duration)
+        except Exception as e:
+            logger.error(f"Error recording Firebase Admin SDK duration: {e}")
+
+    @staticmethod
+    def record_firebase_admin_sdk_timeout():
+        """Record Firebase Admin SDK timeout."""
+        try:
+            firebase_admin_sdk_timeout_total.inc()
+        except Exception as e:
+            logger.error(f"Error recording Firebase Admin SDK timeout: {e}")
+
+    @staticmethod
+    def record_firebase_admin_sdk_error(error_type: str):
+        """Record Firebase Admin SDK error."""
+        try:
+            firebase_admin_sdk_error_total.labels(error_type=error_type).inc()
+        except Exception as e:
+            logger.error(f"Error recording Firebase Admin SDK error: {e}")
 
 
 # FastAPI router for metrics endpoint

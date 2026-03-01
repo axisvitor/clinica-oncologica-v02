@@ -19,6 +19,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+class _SafeFormatDict(dict):
+    """Keep unresolved placeholders untouched during string formatting."""
+
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
+
 # Setup i18n library
 i18n.set("filename_format", "{locale}.{format}")
 i18n.set("file_format", "json")
@@ -131,6 +138,18 @@ def t(key: str, **kwargs) -> str:
             logger.warning(
                 f"Missing translation for key: {key} (locale: {get_current_locale()})"
             )
+
+        # python-i18n may not interpolate `{var}` placeholders in some paths.
+        # Apply a safe format pass so locale files can use `{cpf}` style tokens.
+        if kwargs and isinstance(translated, str):
+            try:
+                translated = translated.format_map(_SafeFormatDict(kwargs))
+            except Exception as format_error:
+                logger.debug(
+                    "Translation interpolation failed for key '%s': %s",
+                    key,
+                    format_error,
+                )
 
         return translated
     except Exception as e:

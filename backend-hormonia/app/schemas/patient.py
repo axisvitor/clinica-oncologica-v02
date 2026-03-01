@@ -1,52 +1,50 @@
 from typing import Optional, Dict, Any
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from uuid import UUID
 import re
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from app.models.patient import FlowState
+from app.schemas.validators.cpf import (
+    is_valid_cpf,
+    normalize_cpf as normalize_cpf_value,
+    sanitize_persisted_cpf,
+)
+from app.schemas.validators.birth_date import validate_birth_date_min_age
 
 
 def validate_cpf(cpf: str) -> bool:
-    """Validate Brazilian CPF number with check digits."""
-    if not cpf:
-        return True  # CPF is optional
+    """
+    Compatibility wrapper for CPF validation.
 
-    # Remove non-digits
-    cpf_clean = re.sub(r"\D", "", cpf)
+    Canonical implementation lives in ``app.schemas.validators.cpf``.
+    """
+    return is_valid_cpf(cpf, allow_none=True)
 
-    # Check length
-    if len(cpf_clean) != 11:
-        return False
 
-    # Check for known invalid patterns
-    if cpf_clean in [
-        "00000000000",
-        "11111111111",
-        "22222222222",
-        "33333333333",
-        "44444444444",
-        "55555555555",
-        "66666666666",
-        "77777777777",
-        "88888888888",
-        "99999999999",
-    ]:
-        return False
+def _normalize_phone_to_e164(
+    phone: Optional[str], *, allow_none: bool, preserve_falsy: bool = False
+) -> Optional[str]:
+    """Normalize phone using canonical BR-to-E.164 validator."""
+    if preserve_falsy and not phone:
+        return phone
 
-    # Calculate first check digit
-    sum1 = sum(int(cpf_clean[i]) * (10 - i) for i in range(9))
-    digit1 = 11 - (sum1 % 11)
-    digit1 = 0 if digit1 >= 10 else digit1
+    from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
-    # Calculate second check digit
-    sum2 = sum(int(cpf_clean[i]) * (11 - i) for i in range(10))
-    digit2 = 11 - (sum2 % 11)
-    digit2 = 0 if digit2 >= 10 else digit2
+    return normalize_phone(
+        phone, mode=PhoneValidationMode.BR_TO_E164, allow_none=allow_none
+    )
 
-    # Validate check digits
-    return int(cpf_clean[9]) == digit1 and int(cpf_clean[10]) == digit2
+
+def _validate_and_normalize_cpf(value: Optional[str]) -> Optional[str]:
+    """Validate CPF and return normalized digits-only value."""
+    if not value:
+        return value
+
+    if not validate_cpf(value):
+        raise ValueError("Invalid CPF number")
+    return normalize_cpf_value(value, allow_none=False)
 
 
 class PatientBase(BaseModel):
@@ -71,7 +69,7 @@ class PatientBase(BaseModel):
     treatment_phase: Optional[str] = Field(
         None,
         description="Current treatment phase",
-        pattern="^(initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$",
+        pattern="^(onboarding|initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$",
     )
     doctor_notes: Optional[str] = Field(
         None, description="Doctor's notes about the patient"
@@ -116,31 +114,25 @@ class PatientBase(BaseModel):
     @classmethod
     def validate_phone(cls, v):
         """
-        Validate phone number in E.164 format.
+        Validate phone number and normalize to E.164 format.
 
-        This validator enforces strict E.164 format for v1 API compatibility.
-        Phone must start with + followed by country code and digits.
+        This validator accepts Brazilian formats for compatibility and
+        normalizes to E.164 for storage and duplicate checks.
 
         Examples:
             - Valid: "+5511987654321"
-            - Invalid: "11987654321" (missing country code)
+            - Valid: "11987654321"
+            - Valid: "(11) 98765-4321"
 
         See: app/schemas/validators/phone.py for implementation details
         """
-        from app.schemas.validators.phone import validate_phone_e164
-
-        return validate_phone_e164(v, allow_none=False)
+        return _normalize_phone_to_e164(v, allow_none=False)
 
     @field_validator("emergency_contact_phone")
     @classmethod
     def validate_emergency_phone(cls, v):
-        """Validate emergency contact phone in E.164 format."""
-        if not v:
-            return v
-
-        from app.schemas.validators.phone import validate_phone_e164
-
-        return validate_phone_e164(v, allow_none=True)
+        """Validate emergency contact phone and normalize to E.164."""
+        return _normalize_phone_to_e164(v, allow_none=True, preserve_falsy=True)
 
     @field_validator("birth_date")
     @classmethod
@@ -153,36 +145,7 @@ class PatientBase(BaseModel):
         Raises:
             ValueError: If patient is under 18 or over 120 years old
         """
-        if v is None:
-            return v
-
-        today = date.today()
-
-        # Calculate minimum allowed birth date (18 years ago)
-        # Using 365.25 to account for leap years
-        min_date = today - timedelta(days=int(18 * 365.25))
-
-        if v > min_date:
-            age_years = (today - v).days / 365.25
-            raise ValueError(
-                f"Patient must be at least 18 years old. "
-                f"Birth date {v.isoformat()} indicates age of {age_years:.1f} years."
-            )
-
-        # Also validate not impossibly old (120 years)
-        max_date = today - timedelta(days=int(120 * 365.25))
-        if v < max_date:
-            age_years = (today - v).days / 365.25
-            raise ValueError(
-                f"Birth date {v.isoformat()} seems invalid "
-                f"(indicates age of {age_years:.1f} years, over 120 years old)."
-            )
-
-        # Validate not in the future
-        if v > today:
-            raise ValueError(f"Birth date {v.isoformat()} cannot be in the future.")
-
-        return v
+        return validate_birth_date_min_age(v)
 
     @field_validator("treatment_phase", mode="before")
     @classmethod
@@ -196,12 +159,7 @@ class PatientBase(BaseModel):
     @classmethod
     def validate_cpf_number(cls, v):
         """Validate Brazilian CPF format and check digits."""
-        if v and not validate_cpf(v):
-            raise ValueError("Invalid CPF number")
-        # Clean CPF to store only digits
-        if v:
-            v = re.sub(r"\D", "", v)
-        return v
+        return _validate_and_normalize_cpf(v)
 
 
 class PatientCreate(PatientBase):
@@ -237,7 +195,6 @@ class PatientCreate(PatientBase):
             # Re-raise as ValueError for Pydantic
             raise ValueError(f"Invalid metadata schema: {str(e)}")
 
-
 class PatientUpdate(BaseModel):
     """Schema for updating a patient"""
 
@@ -254,7 +211,8 @@ class PatientUpdate(BaseModel):
     cpf: Optional[str] = Field(None, max_length=11)
     diagnosis: Optional[str] = Field(None, max_length=500)
     treatment_phase: Optional[str] = Field(
-        None, pattern="^(initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$"
+        None,
+        pattern="^(onboarding|initial|adjustment|maintenance|monitoring|followup|completed|inicial|ajuste|manutenção|monitoramento|acompanhamento|concluído)$",
     )
     doctor_notes: Optional[str] = None
 
@@ -282,24 +240,14 @@ class PatientUpdate(BaseModel):
     @field_validator("emergency_contact_phone")
     @classmethod
     def validate_emergency_phone(cls, v):
-        """Validate emergency contact phone in E.164 format."""
-        if not v:
-            return v
-
-        from app.schemas.validators.phone import validate_phone_e164
-
-        return validate_phone_e164(v, allow_none=True)
+        """Validate emergency contact phone and normalize to E.164."""
+        return _normalize_phone_to_e164(v, allow_none=True, preserve_falsy=True)
 
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v):
-        """Validate phone number in E.164 format."""
-        if not v:
-            return v
-
-        from app.schemas.validators.phone import validate_phone_e164
-
-        return validate_phone_e164(v, allow_none=True)
+        """Validate phone number and normalize to E.164 format."""
+        return _normalize_phone_to_e164(v, allow_none=True, preserve_falsy=True)
 
     @field_validator("birth_date")
     @classmethod
@@ -309,42 +257,13 @@ class PatientUpdate(BaseModel):
 
         Reference: LOW-004 - birth_date Minimum Age Validation
         """
-        if v is None:
-            return v
-
-        today = date.today()
-        min_date = today - timedelta(days=int(18 * 365.25))
-
-        if v > min_date:
-            age_years = (today - v).days / 365.25
-            raise ValueError(
-                f"Patient must be at least 18 years old. "
-                f"Birth date {v.isoformat()} indicates age of {age_years:.1f} years."
-            )
-
-        max_date = today - timedelta(days=int(120 * 365.25))
-        if v < max_date:
-            age_years = (today - v).days / 365.25
-            raise ValueError(
-                f"Birth date {v.isoformat()} seems invalid "
-                f"(indicates age of {age_years:.1f} years, over 120 years old)."
-            )
-
-        if v > today:
-            raise ValueError(f"Birth date {v.isoformat()} cannot be in the future.")
-
-        return v
+        return validate_birth_date_min_age(v)
 
     @field_validator("cpf")
     @classmethod
     def validate_cpf_number(cls, v):
         """Validate Brazilian CPF format and check digits."""
-        if v and not validate_cpf(v):
-            raise ValueError("Invalid CPF number")
-        # Clean CPF to store only digits
-        if v:
-            v = re.sub(r"\D", "", v)
-        return v
+        return _validate_and_normalize_cpf(v)
 
     @field_validator("metadata")
     @classmethod
@@ -381,6 +300,17 @@ class PatientResponse(PatientBase):
     patient_data: Optional[Dict[str, Any]] = Field(
         None, serialization_alias="metadata", description="Additional patient metadata"
     )
+
+    @field_validator("cpf", mode="before")
+    @classmethod
+    def sanitize_invalid_cpf(cls, value):
+        """
+        Prevent response serialization failures for invalid persisted CPF values.
+
+        Invalid persisted CPF values are converted to None in API output instead of
+        triggering a 500 response validation error.
+        """
+        return sanitize_persisted_cpf(value)
 
     @field_validator("created_at", "updated_at", mode="before")
     @classmethod

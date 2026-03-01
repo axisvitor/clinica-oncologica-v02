@@ -5,6 +5,27 @@ Revises: 001_add_idempotency_key
 Create Date: 2025-01-15 10:00:00.000000
 
 Sprint 1 - Transação Distribuída no Cadastro
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from alembic import op

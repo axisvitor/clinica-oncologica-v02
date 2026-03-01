@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, text, case, extract
+from sqlalchemy import and_, func, case, extract
 
 from app.models.patient import Patient
 from app.models.alert import Alert, AlertSeverity
@@ -18,6 +18,7 @@ from app.models.flow import PatientFlowState as PatientFlow
 from app.models.enums import FlowState
 from app.schemas.v2.dashboard import TimeRangeEnum
 from app.utils.query_cache import get_query_cache
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,7 @@ class DashboardService:
         custom_end: Optional[datetime] = None,
     ) -> Tuple[datetime, datetime]:
         """Calculate start and end dates based on time range enum."""
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         today = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
         if time_range == TimeRangeEnum.TODAY:
@@ -184,7 +185,7 @@ class DashboardService:
                 .filter(
                     Patient.id.in_(patient_ids),
                     Alert.severity.in_([AlertSeverity.CRITICAL, AlertSeverity.HIGH]),
-                    not Alert.acknowledged,
+                    Alert.acknowledged == False,  # noqa: E712
                 )
                 .distinct()
                 .count()
@@ -454,81 +455,79 @@ class DashboardService:
             logger.warning(f"Cache GET failed in get_recent_activity: {e}")
 
         # Execute query
-        activities = []
-
-        params = {"limit": limit // 3}
-        patient_filter = ""
-
+        activities: List[Dict[str, Any]] = []
+        item_limit = max(1, limit // 3)
+        cutoff = now_sao_paulo() - timedelta(hours=24)
+        validated_ids = None
         if patient_ids:
-            validated_ids = self.validate_patient_ids(patient_ids)
-            patient_filter = "AND m.patient_id = ANY(:patient_ids)"
-            params["patient_ids"] = validated_ids
+            validated_ids = [UUID(pid) for pid in self.validate_patient_ids(patient_ids)]
 
-        # Recent messages
-        message_query_sql = f"""
-            SELECT
-                'message_sent' as type,
-                CONCAT('Mensagem enviada para ', p.name) as description,
-                p.name as entity_name,
-                m.created_at as timestamp,
-                m.id::text as reference_id
-            FROM messages m
-            JOIN patients p ON m.patient_id = p.id
-            WHERE m.created_at >= NOW() - INTERVAL '24 hours'
-            {patient_filter}
-            ORDER BY m.created_at DESC
-            LIMIT :limit
-        """
-
-        message_results = self.db.execute(text(message_query_sql), params).fetchall()
-        for row in message_results:
-            activities.append(
-                {
-                    "id": f"msg_{row.reference_id}",
-                    "type": row.type,
-                    "description": row.description,
-                    "entity_name": row.entity_name,
-                    "timestamp": row.timestamp.isoformat() if row.timestamp else None,
-                }
+        try:
+            # Recent messages
+            message_query = (
+                self.db.query(
+                    Message.id.label("reference_id"),
+                    Message.created_at.label("timestamp"),
+                    Patient.name.label("entity_name"),
+                )
+                .join(Patient, Message.patient_id == Patient.id)
+                .filter(Message.created_at >= cutoff)
             )
+            if validated_ids:
+                message_query = message_query.filter(
+                    Message.patient_id.in_(validated_ids)
+                )
 
-        # Recent alerts
-        alert_patient_filter = (
-            patient_filter.replace("m.patient_id", "a.patient_id")
-            if patient_filter
-            else ""
-        )
-
-        alert_params = {"limit": limit // 3}
-        if patient_ids:
-            alert_params["patient_ids"] = params["patient_ids"]
-
-        alert_query_sql = f"""
-            SELECT
-                'alert_created' as type,
-                CONCAT('Alerta: ', a.message) as description,
-                p.name as entity_name,
-                a.created_at as timestamp,
-                a.id::text as reference_id
-            FROM alerts a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.created_at >= NOW() - INTERVAL '24 hours'
-            {alert_patient_filter}
-            ORDER BY a.created_at DESC
-            LIMIT :limit
-        """
-
-        alert_results = self.db.execute(text(alert_query_sql), alert_params).fetchall()
-        for row in alert_results:
-            activities.append(
-                {
-                    "id": f"alert_{row.reference_id}",
-                    "type": row.type,
-                    "description": row.description,
-                    "entity_name": row.entity_name,
-                    "timestamp": row.timestamp.isoformat() if row.timestamp else None,
-                }
+            message_results = (
+                message_query.order_by(Message.created_at.desc())
+                .limit(item_limit)
+                .all()
             )
+            for row in message_results:
+                activities.append(
+                    {
+                        "id": f"msg_{row.reference_id}",
+                        "type": "message_sent",
+                        "description": f"Mensagem enviada para {row.entity_name}",
+                        "entity_name": row.entity_name,
+                        "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+                    }
+                )
+
+            # Recent alerts
+            alert_query = (
+                self.db.query(
+                    Alert.id.label("reference_id"),
+                    Alert.created_at.label("timestamp"),
+                    Alert.description.label("alert_description"),
+                    Patient.name.label("entity_name"),
+                )
+                .join(Patient, Alert.patient_id == Patient.id)
+                .filter(Alert.created_at >= cutoff)
+            )
+            if validated_ids:
+                alert_query = alert_query.filter(Alert.patient_id.in_(validated_ids))
+
+            alert_results = (
+                alert_query.order_by(Alert.created_at.desc())
+                .limit(item_limit)
+                .all()
+            )
+            for row in alert_results:
+                activities.append(
+                    {
+                        "id": f"alert_{row.reference_id}",
+                        "type": "alert_created",
+                        "description": f"Alerta: {row.alert_description}",
+                        "entity_name": row.entity_name,
+                        "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+                    }
+                )
+        except Exception as e:
+            # Be resilient in dashboard widgets when DB dialect differences
+            # or optional tables/features are unavailable.
+            logger.warning(f"Failed to build recent activity feed: {e}")
+            activities = []
 
         activities.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
         result = activities[:limit]
@@ -545,53 +544,56 @@ class DashboardService:
         self, patient_ids: Optional[List[UUID]] = None, days: int = 7
     ) -> List[Dict[str, Any]]:
         """Get engagement chart data (messages sent vs responses)."""
-        start_date = datetime.now(timezone.utc).date() - timedelta(days=days - 1)
-
-        params = {"start_date": start_date}
-        patient_filter = ""
-
+        start_date = now_sao_paulo().date() - timedelta(days=days - 1)
+        validated_ids = None
         if patient_ids:
-            validated_ids = self.validate_patient_ids(patient_ids)
-            patient_filter = "AND patient_id = ANY(:patient_ids)"
-            params["patient_ids"] = validated_ids
+            validated_ids = [UUID(pid) for pid in self.validate_patient_ids(patient_ids)]
+        daily_map: Dict[Any, Dict[str, int]] = {}
 
-        query_sql = f"""
-            WITH date_series AS (
-                SELECT generate_series(
-                    :start_date::date,
-                    CURRENT_DATE,
-                    '1 day'::interval
-                )::date AS date
-            ),
-            daily_messages AS (
-                SELECT DATE(created_at) as date,
-                   COUNT(CASE WHEN direction = 'outbound' THEN 1 END) as messages_sent,
-                   COUNT(CASE WHEN direction = 'inbound' THEN 1 END) as responses_received
-                FROM messages
-                WHERE DATE(created_at) >= :start_date
-                {patient_filter}
-                GROUP BY DATE(created_at)
+        try:
+            query = self.db.query(
+                func.date(Message.created_at).label("date"),
+                func.count(
+                    case((Message.direction == MessageDirection.OUTBOUND, 1))
+                ).label("messages_sent"),
+                func.count(
+                    case((Message.direction == MessageDirection.INBOUND, 1))
+                ).label("responses_received"),
+            ).filter(func.date(Message.created_at) >= start_date)
+
+            if validated_ids:
+                query = query.filter(Message.patient_id.in_(validated_ids))
+
+            rows = query.group_by(func.date(Message.created_at)).all()
+            for row in rows:
+                row_date = row.date
+                if isinstance(row_date, str):
+                    row_date = datetime.fromisoformat(row_date).date()
+                daily_map[row_date] = {
+                    "messages_sent": int(row.messages_sent or 0),
+                    "responses_received": int(row.responses_received or 0),
+                }
+        except Exception as e:
+            logger.warning(f"Failed to build engagement chart data: {e}")
+
+        result: List[Dict[str, Any]] = []
+        for offset in range(days):
+            day = start_date + timedelta(days=offset)
+            metrics = daily_map.get(day, {"messages_sent": 0, "responses_received": 0})
+            messages_sent = metrics["messages_sent"]
+            responses_received = metrics["responses_received"]
+            response_rate = (
+                round((responses_received / messages_sent) * 100, 1)
+                if messages_sent > 0
+                else 0
             )
-            SELECT ds.date,
-               COALESCE(dm.messages_sent, 0) as messages_sent,
-               COALESCE(dm.responses_received, 0) as responses_received,
-               CASE
-                   WHEN COALESCE(dm.messages_sent, 0) = 0 THEN 0
-                   ELSE ROUND((COALESCE(dm.responses_received, 0)::float / dm.messages_sent) * 100, 1)
-               END as response_rate
-            FROM date_series ds
-            LEFT JOIN daily_messages dm ON ds.date = dm.date
-            ORDER BY ds.date
-        """
+            result.append(
+                {
+                    "date": day.strftime("%Y-%m-%d"),
+                    "messages_sent": messages_sent,
+                    "responses_received": responses_received,
+                    "response_rate": response_rate,
+                }
+            )
 
-        results = self.db.execute(text(query_sql), params).fetchall()
-
-        return [
-            {
-                "date": row.date.strftime("%Y-%m-%d"),
-                "messages_sent": row.messages_sent,
-                "responses_received": row.responses_received,
-                "response_rate": row.response_rate,
-            }
-            for row in results
-        ]
+        return result

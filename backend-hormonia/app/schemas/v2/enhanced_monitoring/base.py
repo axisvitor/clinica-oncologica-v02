@@ -5,19 +5,12 @@ Common fields, enums, and base classes.
 
 from enum import Enum
 
+from app.models.alert import AlertSeverity  # noqa: F401 - canonical definition
+
 
 # ============================================================================
 # ENUMS
 # ============================================================================
-
-
-class AlertSeverity(str, Enum):
-    """Alert severity levels."""
-
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
 
 
 class MetricType(str, Enum):

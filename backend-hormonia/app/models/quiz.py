@@ -20,6 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, validates
 from datetime import datetime, timedelta
+import json
 
 from app.models.base import BaseModel
 
@@ -216,8 +217,16 @@ class QuizSession(BaseModel):
 
     def set_expiration_date(self, hours: int = 48) -> None:
         """Set expiration date based on started_at time."""
-        if self.started_at and not self.expiration_date:
-            self.expiration_date = self.started_at + timedelta(hours=hours)
+        if not self.started_at:
+            return
+
+        target_expiration = self.started_at + timedelta(hours=hours)
+        default_expiration = self.started_at + timedelta(hours=48)
+
+        # Keep explicit custom expiration dates, but allow overriding the
+        # default 48h value when caller requests a different window.
+        if self.expiration_date is None or self.expiration_date == default_expiration:
+            self.expiration_date = target_expiration
 
 
 # Partial unique index ensures at most one started session per patient and template.
@@ -357,9 +366,36 @@ class QuizResponse(BaseModel):
 
     @validates("response_value")
     def validate_response_value(self, key, response_value):
-        if not response_value or len(str(response_value).strip()) < 1:
+        if response_value is None:
             raise ValueError("Response value cannot be empty")
-        return str(response_value).strip()
+
+        if isinstance(response_value, str):
+            normalized = response_value.strip()
+            if not normalized:
+                raise ValueError("Response value cannot be empty")
+            return normalized
+
+        if isinstance(response_value, (list, tuple, set)):
+            if len(response_value) == 0:
+                raise ValueError("Response value cannot be empty")
+            # JSONB does not support tuple/set natively.
+            return list(response_value)
+
+        if isinstance(response_value, dict):
+            if len(response_value) == 0:
+                raise ValueError("Response value cannot be empty")
+            return response_value
+
+        if isinstance(response_value, (bool, int, float)):
+            return response_value
+
+        # Final guardrail for non-standard objects.
+        try:
+            json.dumps(response_value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Response value must be JSON-serializable") from exc
+
+        return response_value
 
     def __repr__(self):
         return f"<QuizResponse(patient_id='{self.patient_id}', question_id='{self.question_id}')>"

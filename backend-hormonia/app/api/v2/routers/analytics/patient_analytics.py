@@ -7,13 +7,15 @@ from typing import Optional, Dict
 from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.quiz import QuizSession
 from app.models.patient import Patient
 from app.models.user import UserRole
 from app.dependencies.auth_dependencies import get_current_user_from_session
-from app.dependencies.service_dependencies import get_flow_analytics_service
+from app.dependencies.flow_services import get_async_flow_analytics_service
 from app.schemas.v2.analytics import PatientEngagement
 from app.services.analytics import FlowAnalyticsService, RiskLevel
 from app.utils.logging import get_logger
@@ -25,6 +27,7 @@ from .base import (
     get_cached_result,
     set_cached_result,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -37,7 +40,8 @@ router = APIRouter()
     description="Get patient engagement statistics and distribution (ADMIN/DOCTOR only)",
 )
 async def get_patient_engagement(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
+    analytics_service: FlowAnalyticsService = Depends(get_async_flow_analytics_service),
     current_user=Depends(get_current_user_from_session),
 ):
     """
@@ -49,8 +53,6 @@ async def get_patient_engagement(
     - Patients with 6+ quizzes
     - Average quizzes per patient
     """
-    from sqlalchemy import func
-
     role, user_uuid = get_role_and_user(current_user)
 
     # Check cache first
@@ -64,14 +66,16 @@ async def get_patient_engagement(
         return cached_result
 
     # Get quiz counts per patient
-    patient_query = db.query(
-        Patient.id, func.count(QuizSession.id).label("quiz_count")
-    ).outerjoin(QuizSession, Patient.id == QuizSession.patient_id)
+    stmt = (
+        select(Patient.id, func.count(QuizSession.id).label("quiz_count"))
+        .outerjoin(QuizSession, Patient.id == QuizSession.patient_id)
+    )
 
     if role != UserRole.ADMIN and user_uuid:
-        patient_query = patient_query.filter(Patient.doctor_id == user_uuid)
+        stmt = stmt.where(Patient.doctor_id == user_uuid)
 
-    patient_quiz_counts = patient_query.group_by(Patient.id).all()
+    stmt = stmt.group_by(Patient.id)
+    patient_quiz_counts = (await db.execute(stmt)).all()
 
     # Categorize patients
     no_quizzes = sum(1 for _, count in patient_quiz_counts if count == 0)
@@ -110,8 +114,8 @@ async def get_risk_assessment(
         7, ge=1, le=90, description="Days to look back for engagement data"
     ),
     current_user=Depends(get_current_user_from_session),
-    analytics_service: FlowAnalyticsService = Depends(get_flow_analytics_service),
-    db=Depends(get_db),
+    analytics_service: FlowAnalyticsService = Depends(get_async_flow_analytics_service),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Analyze patient interactions to surface at-risk patients along with context.
@@ -143,10 +147,10 @@ async def get_risk_assessment(
     patient_ids = [risk.patient_id for risk in limited_patients]
     patient_lookup: Dict[UUID, Patient] = {}
     if patient_ids:
-        db_patients = (
-            db.query(Patient.id, Patient.name).filter(Patient.id.in_(patient_ids)).all()
+        result = await db.execute(
+            select(Patient.id, Patient.name).where(Patient.id.in_(patient_ids))
         )
-        patient_lookup = {row.id: row for row in db_patients}
+        patient_lookup = {row.id: row for row in result.all()}
 
     serialized = [
         serialize_patient_risk(patient, patient_lookup) for patient in limited_patients
@@ -157,6 +161,6 @@ async def get_risk_assessment(
         "risk_level_filter": risk_level.value if risk_level else "all",
         "risk_assessments": serialized,
         "total_patients": len(serialized),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": now_sao_paulo().isoformat(),
         "lookback_days": lookback_days,
     }

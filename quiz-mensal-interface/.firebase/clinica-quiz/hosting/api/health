@@ -1,0 +1,1 @@
+{"status":"healthy","timestamp":"2026-01-30T11:12:35.225Z","uptime":8.98975772,"environment":"production","version":"1.0.0","service":"quiz-mensal-interface","dependencies":{"backend_api":{"status":"healthy","url":"https://clinica-api-217549452180.us-central1.run.app/api/v2"}}}

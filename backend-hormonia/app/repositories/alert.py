@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.alert import Alert, AlertSeverity, AlertStatus
 from app.repositories.base import BaseRepository
 from app.exceptions import ValidationError, DatabaseError
+from app.utils.timezone import now_sao_paulo
 
 
 class AlertRepository(BaseRepository[Alert]):
@@ -25,6 +26,33 @@ class AlertRepository(BaseRepository[Alert]):
 
     def __init__(self, db: Session):
         super().__init__(db, Alert)
+
+    def _bulk_update_acknowledged(
+        self,
+        *,
+        alert_ids: List[UUID],
+        acknowledged: bool,
+        acknowledged_by: Optional[UUID] = None,
+    ) -> int:
+        """Apply a bulk acknowledged-status update with shared persistence logic."""
+        if not alert_ids:
+            raise ValidationError("Alert IDs list cannot be empty")
+
+        update_data = {
+            "acknowledged": acknowledged,
+            "updated_at": now_sao_paulo(),
+        }
+        if acknowledged_by and acknowledged:
+            update_data["acknowledged_by"] = acknowledged_by
+            update_data["acknowledged_at"] = now_sao_paulo()
+
+        result = (
+            self.db.query(Alert)
+            .filter(Alert.id.in_(alert_ids))
+            .update(update_data, synchronize_session=False)
+        )
+        self.db.commit()
+        return result
 
     def get_by_patient(
         self, patient_id: UUID, skip: int = 0, limit: int = 100, eager_load: bool = True
@@ -80,7 +108,9 @@ class AlertRepository(BaseRepository[Alert]):
 
         query = (
             self.db.query(Alert)
-            .filter(not Alert.acknowledged)  # Use boolean field instead of status enum
+            .filter(
+                Alert.acknowledged.is_(False)
+            )  # Use boolean field instead of status enum
             .order_by(Alert.created_at.desc(), Alert.id)
         )
 
@@ -153,7 +183,9 @@ class AlertRepository(BaseRepository[Alert]):
             .filter(
                 and_(
                     Alert.severity == AlertSeverity.CRITICAL,
-                    not Alert.acknowledged,  # Use boolean field instead of status enum
+                    Alert.acknowledged.is_(
+                        False
+                    ),  # Use boolean field instead of status enum
                 )
             )
             .order_by(Alert.created_at.desc(), Alert.id)
@@ -224,7 +256,7 @@ class AlertRepository(BaseRepository[Alert]):
             raise ValidationError("Hours cannot exceed 8760 (1 year)")
 
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+            cutoff_time = now_sao_paulo() - timedelta(hours=hours)
             return (
                 self.db.query(Alert)
                 .filter(
@@ -255,7 +287,7 @@ class AlertRepository(BaseRepository[Alert]):
         """
         return (
             self.db.query(Alert)
-            .filter(not Alert.acknowledged)  # Active = not acknowledged
+            .filter(Alert.acknowledged.is_(False))  # Active = not acknowledged
             .order_by(Alert.created_at.desc(), Alert.id)
             .offset(skip)
             .limit(limit)
@@ -282,7 +314,7 @@ class AlertRepository(BaseRepository[Alert]):
         Returns:
             Integer count of alerts with acknowledged=false
         """
-        return self.db.query(Alert).filter(not Alert.acknowledged).count()
+        return self.db.query(Alert).filter(Alert.acknowledged.is_(False)).count()
 
     def get_alerts_by_patient_and_status(
         self, patient_id: UUID, status: AlertStatus, skip: int = 0, limit: int = 100
@@ -379,26 +411,11 @@ class AlertRepository(BaseRepository[Alert]):
             raise ValidationError("Alert IDs list cannot be empty")
 
         try:
-            # Map status enum to acknowledged boolean
-            acknowledged = new_status == AlertStatus.ACKNOWLEDGED
-
-            update_data = {
-                "acknowledged": acknowledged,
-                "updated_at": datetime.now(timezone.utc),
-            }
-
-            if acknowledged_by and acknowledged:
-                update_data["acknowledged_by"] = acknowledged_by
-                update_data["acknowledged_at"] = datetime.now(timezone.utc)
-
-            result = (
-                self.db.query(Alert)
-                .filter(Alert.id.in_(alert_ids))
-                .update(update_data, synchronize_session=False)
+            return self._bulk_update_acknowledged(
+                alert_ids=alert_ids,
+                acknowledged=(new_status == AlertStatus.ACKNOWLEDGED),
+                acknowledged_by=acknowledged_by,
             )
-
-            self.db.commit()
-            return result
         except Exception as e:
             self.db.rollback()
             raise DatabaseError(f"Failed to bulk update alert status: {str(e)}")
@@ -421,7 +438,7 @@ class AlertRepository(BaseRepository[Alert]):
             raise ValidationError("Days old must be positive")
 
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+            cutoff_date = now_sao_paulo() - timedelta(days=days_old)
 
             # Note: Using acknowledged field since status is virtual property
             result = (
@@ -507,7 +524,9 @@ class AlertRepository(BaseRepository[Alert]):
 
         query = (
             self.db.query(Alert)
-            .filter(not Alert.acknowledged)  # Use boolean field instead of status enum
+            .filter(
+                Alert.acknowledged.is_(False)
+            )  # Use boolean field instead of status enum
             .order_by(Alert.created_at.desc(), Alert.id)
         )
 
@@ -523,7 +542,7 @@ class AlertRepository(BaseRepository[Alert]):
         Returns:
             Integer count of alerts with acknowledged=false
         """
-        return self.db.query(Alert).filter(not Alert.acknowledged).count()
+        return self.db.query(Alert).filter(Alert.acknowledged.is_(False)).count()
 
     def update_get_active_alerts(self, skip: int = 0, limit: int = 100) -> List[Alert]:
         """
@@ -539,7 +558,7 @@ class AlertRepository(BaseRepository[Alert]):
         """
         return (
             self.db.query(Alert)
-            .filter(not Alert.acknowledged)
+            .filter(Alert.acknowledged.is_(False))
             .order_by(Alert.created_at.desc(), Alert.id)
             .offset(skip)
             .limit(limit)
@@ -603,26 +622,11 @@ class AlertRepository(BaseRepository[Alert]):
             raise ValidationError("Alert IDs list cannot be empty")
 
         try:
-            # Map status to acknowledged boolean
-            acknowledged = new_status == "acknowledged"
-
-            update_data = {
-                "acknowledged": acknowledged,
-                "updated_at": datetime.now(timezone.utc),
-            }
-
-            if acknowledged_by and acknowledged:
-                update_data["acknowledged_by"] = acknowledged_by
-                update_data["acknowledged_at"] = datetime.now(timezone.utc)
-
-            result = (
-                self.db.query(Alert)
-                .filter(Alert.id.in_(alert_ids))
-                .update(update_data, synchronize_session=False)
+            return self._bulk_update_acknowledged(
+                alert_ids=alert_ids,
+                acknowledged=(new_status == "acknowledged"),
+                acknowledged_by=acknowledged_by,
             )
-
-            self.db.commit()
-            return result
         except Exception as e:
             self.db.rollback()
             raise DatabaseError(f"Failed to bulk update alert status: {str(e)}")

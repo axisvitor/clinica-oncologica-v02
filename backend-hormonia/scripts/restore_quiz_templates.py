@@ -8,6 +8,7 @@ import uuid
 import yaml
 from datetime import datetime, timezone
 
+from app.utils.timezone import now_sao_paulo
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine, text
@@ -43,7 +44,7 @@ def main():
             {'name': name, 'version': version}
         ).fetchone()
         
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         questions_json = json.dumps(template_data.get('questions', []))
         metadata = template_data.get('metadata', {})
         

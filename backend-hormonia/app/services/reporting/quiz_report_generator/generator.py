@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
 from app.models.report import Report, ReportType, ReportStatus
@@ -19,6 +19,7 @@ from app.schemas.websocket import WebSocketEventType
 from app.services.reporting.quiz_report_generator.processor import QuizResponseProcessor
 from app.services.reporting.quiz_report_generator.renderer import ReportRenderer
 from app.services.reporting.quiz_report_generator.models import QuizAnalysisResult
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class QuizReportGenerator:
                 content=report_content,
                 pdf_data=pdf_data,
                 status=ReportStatus.COMPLETED,
-                generated_at=datetime.now(timezone.utc),
+                generated_at=now_sao_paulo(),
                 metadata={
                     "quiz_session_id": str(session_id),
                     "analysis_timestamp": analysis_result.analysis_timestamp.isoformat(),
@@ -91,12 +92,15 @@ class QuizReportGenerator:
 
             # Publish WebSocket event
             if websocket_events is not None:  # type: ignore[union-attr]
-                await websocket_events.publish_report_event(  # type: ignore[union-attr,attr-defined]
-                    event_type=WebSocketEventType.REPORT_GENERATED,  # type: ignore[attr-defined]
-                    patient_id=analysis_result.patient_id,
-                    report_id=created_report.id,  # type: ignore[arg-type]
-                    report_type=ReportType.QUIZ_ANALYSIS.value,
-                    title=created_report.title,
+                await websocket_events.broadcast_report_event(  # type: ignore[union-attr,attr-defined]
+                    event_type=WebSocketEventType.REPORT_GENERATION_COMPLETED,
+                    report_data={
+                        "report_id": created_report.id,  # type: ignore[arg-type]
+                        "patient_id": analysis_result.patient_id,
+                        "report_type": ReportType.QUIZ_ANALYSIS.value,
+                        "status": ReportStatus.COMPLETED.value,
+                        "metadata": {"title": created_report.title},
+                    },
                 )
 
             # Notify healthcare providers if concerns identified
@@ -134,13 +138,19 @@ class QuizReportGenerator:
 
             # Publish notification event
             if websocket_events is not None:  # type: ignore[union-attr]
-                await websocket_events.publish_alert_event(  # type: ignore[union-attr,attr-defined]
+                alert_message = notification_data["summary"]
+                alert_data = {
+                    "alert_id": uuid4(),
+                    "patient_id": analysis_result.patient_id,
+                    "alert_type": "quiz_concerns",
+                    "severity": priority,
+                    "title": alert_message,
+                    "description": alert_message,
+                    "metadata": notification_data,
+                }
+                await websocket_events.broadcast_alert_event(  # type: ignore[union-attr,attr-defined]
                     event_type=WebSocketEventType.ALERT_CREATED,  # type: ignore[attr-defined]
-                    patient_id=analysis_result.patient_id,
-                    alert_type="quiz_concerns",
-                    priority=priority,
-                    message=notification_data["summary"],
-                    metadata=notification_data,
+                    alert_data=alert_data,
                 )
 
             logger.info(

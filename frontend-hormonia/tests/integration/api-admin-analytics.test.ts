@@ -9,11 +9,25 @@
  * - Risk assessments
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { apiClient, ApiError } from '@/lib/api-client'
 
 const mockFetch = vi.fn()
 global.fetch = mockFetch
+
+const setCsrfToken = (token: string | null) => {
+  const apiClientAny = apiClient as any
+  apiClientAny.csrfToken = token
+  apiClientAny.csrfTokenPromise = null
+}
+
+beforeEach(() => {
+  setCsrfToken('csrf-token')
+})
+
+afterEach(() => {
+  setCsrfToken(null)
+})
 
 describe('API Connection Tests - Admin Operations', () => {
   beforeEach(() => {
@@ -32,7 +46,7 @@ describe('API Connection Tests - Admin Operations', () => {
             role: 'admin',
             is_active: true,
             permissions: ['user:read', 'user:write'],
-            created_at: '2024-01-01T00:00:00Z'
+            created_at: '2024-01-01T00:00:00-03:00'
           }
         ],
         total: 1
@@ -63,7 +77,7 @@ describe('API Connection Tests - Admin Operations', () => {
         role: 'admin',
         is_active: true,
         permissions: ['user:read', 'user:write'],
-        created_at: '2024-01-01T00:00:00Z'
+        created_at: '2024-01-01T00:00:00-03:00'
       }
 
       mockFetch.mockResolvedValueOnce({
@@ -95,7 +109,7 @@ describe('API Connection Tests - Admin Operations', () => {
         ...userData,
         is_active: true,
         permissions: [],
-        created_at: '2024-01-15T00:00:00Z'
+        created_at: '2024-01-15T00:00:00-03:00'
       }
 
       mockFetch.mockResolvedValueOnce({
@@ -130,8 +144,8 @@ describe('API Connection Tests - Admin Operations', () => {
         role: 'admin',
         is_active: false,
         permissions: ['user:read'],
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-15T00:00:00Z'
+        created_at: '2024-01-01T00:00:00-03:00',
+        updated_at: '2024-01-15T00:00:00-03:00'
       }
 
       mockFetch.mockResolvedValueOnce({
@@ -255,7 +269,7 @@ describe('API Connection Tests - Admin Operations', () => {
             id: 'activity-1',
             user_id: 'admin-1',
             action: 'login',
-            timestamp: '2024-01-15T10:00:00Z',
+            timestamp: '2024-01-15T10:00:00-03:00',
             details: {
               ip: '192.168.1.1',
               user_agent: 'Mozilla/5.0'
@@ -310,7 +324,7 @@ describe('API Connection Tests - Admin Operations', () => {
         database: 'ok',
         redis: 'ok',
         celery: 'ok',
-        timestamp: '2024-01-15T10:00:00Z'
+        timestamp: '2024-01-15T10:00:00-03:00'
       }
 
       mockFetch.mockResolvedValueOnce({
@@ -427,11 +441,12 @@ describe('API Connection Tests - Analytics', () => {
       mockFetch.mockImplementation(() => {
         callCount++
         const responses = [mockOverview, mockStatus, mockTrend, mockEngagement]
+        const response = responses[callCount - 1]
         return Promise.resolve({
           ok: true,
           status: 200,
           headers: new Map([['content-type', 'application/json']]),
-          json: async () => responses[callCount - 1]
+          json: async () => response
         })
       })
 
@@ -499,7 +514,7 @@ describe('API Connection Tests - Analytics', () => {
             count: 150
           }
         ],
-        last_updated: '2024-01-15T00:00:00Z'
+        last_updated: '2024-01-15T00:00:00-03:00'
       }
 
       mockFetch.mockResolvedValueOnce({
@@ -527,12 +542,12 @@ describe('API Connection Tests - Analytics', () => {
             name: 'High Risk Patient',
             risk_level: 'high' as const,
             risk_factors: ['Missed 3 quizzes', 'No response in 30 days'],
-            last_response: '2023-12-01T00:00:00Z',
+            last_response: '2023-12-01T00:00:00-03:00',
             recommended_actions: ['Contact immediately', 'Schedule consultation']
           }
         ],
         total_patients: 1,
-        generated_at: '2024-01-15T00:00:00Z',
+        generated_at: '2024-01-15T00:00:00-03:00',
         lookback_days: 30
       }
 
@@ -557,6 +572,10 @@ describe('API Connection Tests - Analytics', () => {
 
   describe('Analytics Error Handling', () => {
     it('should handle analytics endpoint errors', async () => {
+      const apiClientAny = apiClient as any
+      const originalShouldRetry = apiClientAny.shouldRetry
+      apiClientAny.shouldRetry = () => false
+
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -572,6 +591,8 @@ describe('API Connection Tests - Analytics', () => {
       } catch (error) {
         expect(error).toBeInstanceOf(ApiError)
         expect((error as ApiError).status).toBe(500)
+      } finally {
+        apiClientAny.shouldRetry = originalShouldRetry
       }
     })
 
@@ -612,7 +633,7 @@ describe('API Connection Tests - Messages & Flows', () => {
             content: 'Test message',
             type: 'text',
             status: 'sent',
-            created_at: '2024-01-15T10:00:00Z'
+            created_at: '2024-01-15T10:00:00-03:00'
           }
         ],
         total: 1,
@@ -643,7 +664,7 @@ describe('API Connection Tests - Messages & Flows', () => {
         id: 'msg-new',
         ...messageData,
         status: 'sent',
-        created_at: '2024-01-15T10:00:00Z'
+        created_at: '2024-01-15T10:00:00-03:00'
       }
 
       mockFetch.mockResolvedValueOnce({
@@ -693,7 +714,7 @@ describe('API Connection Tests - Messages & Flows', () => {
             name: 'Onboarding Flow',
             description: 'Welcome flow for new patients',
             is_active: true,
-            created_at: '2024-01-01T00:00:00Z'
+            created_at: '2024-01-01T00:00:00-03:00'
           }
         ],
         total: 1
@@ -706,10 +727,10 @@ describe('API Connection Tests - Messages & Flows', () => {
         json: async () => mockTemplates
       })
 
-      const result = await apiClient.flows.list()
+      const result = await apiClient.flows.getTemplates()
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/v2/flows/templates',
+        'http://localhost:8000/api/v2/templates/flows',
         expect.any(Object)
       )
       expect(result.items).toHaveLength(1)
@@ -721,7 +742,7 @@ describe('API Connection Tests - Messages & Flows', () => {
         template_id: 'template-1',
         current_day: 5,
         status: 'active',
-        started_at: '2024-01-10T00:00:00Z'
+        started_at: '2024-01-10T00:00:00-03:00'
       }
 
       mockFetch.mockResolvedValueOnce({

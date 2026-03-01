@@ -13,8 +13,10 @@
 Added `validate_required_environment_variables()` validator that runs after model initialization:
 
 - **Production Requirements**: Validates all security-critical variables:
+  - `SECURITY_SECRET_KEY` - Main application secret
   - `SECURITY_CSRF_SECRET_KEY` - CSRF token generation
   - `ENCRYPTION_KEY_CURRENT` - Field-level encryption for PHI/PII
+  - `PHI_ENCRYPTION_KEY` - AES-GCM encryption for PHI
   - `HASH_SALT` - Searchable hash generation
   - Firebase credentials (if Firebase is in use)
 
@@ -37,9 +39,17 @@ Enhanced environment variable documentation:
 # Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"
 SECURITY_CSRF_SECRET_KEY=REPLACE_WITH_CSRF_SECRET_KEY
 
+# REQUIRED in production - Main Application Secret
+# Generate with: python -c "import secrets; print(secrets.token_urlsafe(64))"
+SECURITY_SECRET_KEY=REPLACE_WITH_MAIN_SECRET
+
 # REQUIRED in production - Field-level Encryption Key for PHI/PII
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ENCRYPTION_KEY_CURRENT=REPLACE_WITH_ENCRYPTION_KEY
+
+# REQUIRED in production - PHI Encryption Key (AES-GCM)
+# Generate with: python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"
+PHI_ENCRYPTION_KEY=REPLACE_WITH_PHI_ENCRYPTION_KEY
 
 # REQUIRED in production - Hash Salt for Searchable Encrypted Fields
 # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
@@ -91,6 +101,8 @@ Check APP_ENVIRONMENT
 Production                              Development
   ↓                                       ↓
 ✓ SECURITY_CSRF_SECRET_KEY           ✓ Firebase (if in use)
+✓ SECURITY_SECRET_KEY
+✓ PHI_ENCRYPTION_KEY
 ✓ ENCRYPTION_KEY_CURRENT              Skip encryption keys
 ✓ HASH_SALT
 ✓ Firebase (if in use)
@@ -112,11 +124,20 @@ When validation fails in production:
 
 The following environment variables are missing:
 
-1. SECURITY_CSRF_SECRET_KEY - Required for CSRF token generation
+1. SECURITY_SECRET_KEY - Required for main application security
+  Generate with: python -c 'import secrets; print(secrets.token_urlsafe(64))'
+
+2. SECURITY_CSRF_SECRET_KEY - Required for CSRF token generation
   Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'
 
-2. ENCRYPTION_KEY_CURRENT - Required for field-level encryption (PHI/PII)
+3. ENCRYPTION_KEY_CURRENT - Required for field-level encryption (PHI/PII)
   Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+
+4. PHI_ENCRYPTION_KEY - Required for AES-GCM encryption
+  Generate with: python -c 'import os, base64; print(base64.b64encode(os.urandom(32)).decode())'
+
+5. HASH_SALT - Required for searchable hash generation
+  Generate with: python -c 'import secrets; print(secrets.token_hex(32))'
 
 3. HASH_SALT - Required for searchable hash generation
   Generate with: python -c 'import secrets; print(secrets.token_hex(32))'

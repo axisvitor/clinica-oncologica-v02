@@ -6,6 +6,7 @@ Business logic for performance monitoring and optimization.
 import json
 import hashlib
 import time
+import inspect
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime, timezone
 
@@ -24,8 +25,9 @@ from app.schemas.v2.performance import (
     PerformanceStatus,
     HealthStatus,
 )
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -41,6 +43,20 @@ class PerformanceService:
 
     def __init__(self, db: Any):
         self.db = db
+
+    async def _resolve(self, maybe_awaitable: Any) -> Any:
+        if inspect.isawaitable(maybe_awaitable):
+            return await maybe_awaitable
+        return maybe_awaitable
+
+    async def _execute(self, statement):
+        return await self._resolve(self.db.execute(statement))
+
+    async def _commit(self) -> None:
+        commit = getattr(self.db, "commit", None)
+        if commit is None:
+            return
+        await self._resolve(commit())
 
     async def _get_cached_result(self, cache_key: str) -> Optional[Dict[str, Any]]:
         """Get cached result from Redis."""
@@ -311,7 +327,7 @@ class PerformanceService:
             status=perf_status,
             components=components,
             recommendations=recommendations,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
         await self._set_cached_result(cache_key, result, CACHE_TTL_STATS)
@@ -341,7 +357,7 @@ class PerformanceService:
         )
 
         try:
-            result = self.db.execute(
+            result = await self._execute(
                 text("SELECT count(*) FROM pg_stat_activity WHERE state = 'active'")
             )
             active_connections = result.scalar() or 0
@@ -349,7 +365,7 @@ class PerformanceService:
             active_connections = pool_status_dict.get("checked_out", 0)
 
         try:
-            result = self.db.execute(
+            result = await self._execute(
                 text("SELECT count(*) FROM pg_locks WHERE granted = true")
             )
             locks_count = result.scalar() or 0
@@ -371,7 +387,7 @@ class PerformanceService:
             active_connections=active_connections,
             locks_count=locks_count,
             response_time_ms=round(response_time, 2),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             issues=issues,
         )
 
@@ -395,8 +411,8 @@ class PerformanceService:
             vacuum_cmd += f" {request.table_name}"
 
         try:
-            self.db.commit()
-            self.db.execute(text(vacuum_cmd))
+            await self._commit()
+            await self._execute(text(vacuum_cmd))
             duration = (time.time() - start_time) * 1000
 
             return VacuumResponse(

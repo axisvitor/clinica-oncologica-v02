@@ -4,13 +4,15 @@ Clinical alerts with cursor pagination and caching.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List, Dict, Any
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime
 import logging
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.alert import Alert, AlertSeverity
 from app.models.user import UserRole
 from app.models.patient import Patient
@@ -22,9 +24,9 @@ from app.schemas.v2.alerts import (
     AlertV2Acknowledge,
 )
 from app.api.v2.dependencies import (
-    get_pagination_params,
-    get_field_selection,
-    get_eager_load_params,
+    get_pagination_params_async,
+    get_field_selection_async,
+    get_eager_load_params_async,
     create_cursor,
     apply_field_selection,
 )
@@ -32,7 +34,9 @@ from app.dependencies.auth_dependencies import (
     get_generic_cache,
     get_current_user_from_session
 )
+from app.utils.auth_helpers import extract_user_role as _extract_user_role
 from app.utils.rate_limiter import limiter
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -45,17 +49,6 @@ CACHE_TTL_SINGLE = 300  # 5 minutes for single alert
 # Standard dependencies imported from auth_dependencies
 
 
-def _extract_user_role(current_user: Dict[str, Any]) -> UserRole:
-    """Extract UserRole enum from user data."""
-    role_str = current_user.get("role", "").lower()
-    try:
-        return UserRole(role_str)
-    except ValueError:
-        # FIXED: Invalid role - default to DOCTOR instead of removed PATIENT role
-        # Only ADMIN and DOCTOR roles exist in the system
-        return UserRole.DOCTOR
-
-
 def _check_physician_or_admin(current_user: Dict[str, Any]) -> None:
     """Ensure user is a physician or admin."""
     role = _extract_user_role(current_user)
@@ -66,8 +59,8 @@ def _check_physician_or_admin(current_user: Dict[str, Any]) -> None:
         )
 
 
-def _check_patient_access(
-    current_user: Dict[str, Any], patient_id: UUID, db: Any
+async def _check_patient_access(
+    current_user: Dict[str, Any], patient_id: UUID, db: AsyncSession
 ) -> None:
     """
     Ensure user has access to patient data.
@@ -82,7 +75,8 @@ def _check_patient_access(
         return  # Admins have full access
 
     if role == UserRole.DOCTOR:
-        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        result = await db.execute(select(Patient).where(Patient.id == patient_id))
+        patient = result.scalar_one_or_none()
         if not patient:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
@@ -134,23 +128,39 @@ def _serialize_alert(
             "email": alert.acknowledged_by_user.email,
         }
 
-    return apply_field_selection(data, fields) if fields else data
+    if not fields:
+        return data
+
+    # Keep response-model-required fields even when sparse fieldsets are requested.
+    required_fields = {
+        "id",
+        "patient_id",
+        "alert_type",
+        "severity",
+        "description",
+        "status",
+        "acknowledged",
+        "created_at",
+        "updated_at",
+    }
+    selected_fields = list(set(fields) | required_fields)
+    return apply_field_selection(data, selected_fields)
 
 
 @router.get("", response_model=AlertV2List)
 @limiter.limit("50/minute")
 async def list_alerts(
     request: Request,
-    pagination: Dict = Depends(get_pagination_params),
-    fields: Optional[List[str]] = Depends(get_field_selection),
-    include: Optional[List[str]] = Depends(get_eager_load_params),
+    pagination: Dict = Depends(get_pagination_params_async),
+    fields: Optional[List[str]] = Depends(get_field_selection_async),
+    include: Optional[List[str]] = Depends(get_eager_load_params_async),
     severity: Optional[AlertSeverity] = Query(None, description="Filter by severity"),
-    status: Optional[str] = Query(
-        None, description="Filter by status (pending/acknowledged)"
+    alert_status: Optional[str] = Query(
+        None, alias="status", description="Filter by status (pending/acknowledged)"
     ),
     patient_id: Optional[UUID] = Query(None, description="Filter by patient ID"),
     alert_type: Optional[str] = Query(None, description="Filter by alert type"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_generic_cache),
     current_user: Dict = Depends(get_current_user_from_session),
 ) -> AlertV2List:
@@ -178,7 +188,7 @@ async def list_alerts(
             f"cursor:{cursor_data.get('id') if cursor_data else 'start'}",
             f"limit:{limit}",
             f"severity:{severity.value if severity else 'all'}",
-            f"status:{status if status else 'all'}",
+            f"status:{alert_status if alert_status else 'all'}",
             f"patient:{patient_id if patient_id else 'all'}",
             f"type:{alert_type if alert_type else 'all'}",
         ]
@@ -191,51 +201,52 @@ async def list_alerts(
             return AlertV2List(**cached_data)
 
         # Build query with eager loading
-        query = db.query(Alert)
+        stmt = select(Alert)
 
         if include and "patient" in include:
-            query = query.options(joinedload(Alert.patient))
+            stmt = stmt.options(joinedload(Alert.patient))
         if include and "acknowledged_by_user" in include:
-            query = query.options(joinedload(Alert.acknowledged_by_user))
+            stmt = stmt.options(joinedload(Alert.acknowledged_by_user))
 
         # Apply filters
         if severity:
-            query = query.filter(Alert.severity == severity)
+            stmt = stmt.where(Alert.severity == severity)
 
-        if status:
-            if status.lower() == "pending":
-                query = query.filter(not Alert.acknowledged)
-            elif status.lower() == "acknowledged":
-                query = query.filter(Alert.acknowledged)
+        if alert_status:
+            if alert_status.lower() == "pending":
+                stmt = stmt.where(Alert.acknowledged.is_(False))
+            elif alert_status.lower() == "acknowledged":
+                stmt = stmt.where(Alert.acknowledged)
 
         if patient_id:
-            _check_patient_access(current_user, patient_id, db)
-            query = query.filter(Alert.patient_id == patient_id)
+            await _check_patient_access(current_user, patient_id, db)
+            stmt = stmt.where(Alert.patient_id == patient_id)
         else:
             # Filter by user access
             role = _extract_user_role(current_user)
             user_id = UUID(current_user.get("id"))
 
             if role == UserRole.DOCTOR:
-                patient_ids = (
-                    db.query(Patient.id).filter(Patient.doctor_id == user_id).all()
+                patient_result = await db.execute(
+                    select(Patient.id).where(Patient.doctor_id == user_id)
                 )
-                patient_ids = [p[0] for p in patient_ids]
-                query = query.filter(Alert.patient_id.in_(patient_ids))
+                patient_ids = patient_result.scalars().all()
+                stmt = stmt.where(Alert.patient_id.in_(patient_ids))
             # FIXED: Removed UserRole.PATIENT check - only ADMIN and DOCTOR roles exist
 
         if alert_type:
-            query = query.filter(Alert.alert_type == alert_type)
+            stmt = stmt.where(Alert.alert_type == alert_type)
 
         # Apply cursor pagination
         if cursor_data and "id" in cursor_data:
-            query = query.filter(Alert.id > cursor_data["id"])
+            stmt = stmt.where(Alert.id > cursor_data["id"])
 
         # Order by ID for consistent pagination
-        query = query.order_by(Alert.id.asc())
+        stmt = stmt.order_by(Alert.id.asc())
 
         # Fetch limit + 1 to check if there are more results
-        alerts = query.limit(limit + 1).all()
+        result = await db.execute(stmt.limit(limit + 1))
+        alerts = result.scalars().all()
 
         has_more = len(alerts) > limit
         if has_more:
@@ -257,7 +268,7 @@ async def list_alerts(
         )
 
         # Cache the result
-        await redis_cache.set(cache_key, result.dict(), ttl=CACHE_TTL_LIST)
+        await redis_cache.set(cache_key, result.model_dump(mode="json"), ttl=CACHE_TTL_LIST)
 
         return result
 
@@ -276,7 +287,7 @@ async def list_alerts(
 async def create_alert(
     alert_data: AlertV2Create,
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_generic_cache),
     current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict[str, Any]:
@@ -296,10 +307,13 @@ async def create_alert(
         _check_physician_or_admin(current_user)
 
         # Check access to patient
-        _check_patient_access(current_user, alert_data.patient_id, db)
+        await _check_patient_access(current_user, alert_data.patient_id, db)
 
         # Verify patient exists
-        patient = db.query(Patient).filter(Patient.id == alert_data.patient_id).first()
+        patient_result = await db.execute(
+            select(Patient).where(Patient.id == alert_data.patient_id)
+        )
+        patient = patient_result.scalar_one_or_none()
         if not patient:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
@@ -316,8 +330,8 @@ async def create_alert(
         )
 
         db.add(alert)
-        db.commit()
-        db.refresh(alert)
+        await db.commit()
+        await db.refresh(alert)
 
         # Invalidate caches
         await redis_cache.delete_pattern("alerts:v2:list:*")
@@ -333,7 +347,7 @@ async def create_alert(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error creating alert: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -345,7 +359,7 @@ async def create_alert(
 @router.get("/summary", summary="Get alerts summary by severity")
 async def get_alerts_summary(
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_generic_cache),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
@@ -358,27 +372,24 @@ async def get_alerts_summary(
     - medium
     - low
     """
-    from sqlalchemy import func
-
     _check_physician_or_admin(current_user)
     user_id = current_user.get("id")
     role = _extract_user_role(current_user)
 
     try:
         # Query alert counts by severity for unread alerts
-        query = db.query(
+        stmt = select(
             Alert.severity,
-            func.count(Alert.id).label("count")
-        ).filter(Alert.acknowledged == False)
+            func.count(Alert.id).label("count"),
+        ).where(Alert.acknowledged.is_(False))
 
         # Filter by doctor if not admin
         if role != UserRole.ADMIN:
-            patient_ids = db.query(Patient.id).filter(
-                Patient.doctor_id == UUID(str(user_id))
-            ).subquery()
-            query = query.filter(Alert.patient_id.in_(patient_ids))
+            patient_ids = select(Patient.id).where(Patient.doctor_id == UUID(str(user_id)))
+            stmt = stmt.where(Alert.patient_id.in_(patient_ids))
 
-        results = query.group_by(Alert.severity).all()
+        result = await db.execute(stmt.group_by(Alert.severity))
+        results = result.all()
 
         # Build severity counts
         severity_counts = {
@@ -389,8 +400,19 @@ async def get_alerts_summary(
         }
 
         for severity, count in results:
-            if severity and severity.lower() in severity_counts:
-                severity_counts[severity.lower()] = count
+            if severity is None:
+                continue
+
+            if isinstance(severity, AlertSeverity):
+                severity_key = severity.value
+            else:
+                severity_key = str(severity)
+                if severity_key.startswith("AlertSeverity."):
+                    severity_key = severity_key.split(".", 1)[1]
+
+            severity_key = severity_key.lower()
+            if severity_key in severity_counts:
+                severity_counts[severity_key] = int(count or 0)
 
         total_unread = sum(severity_counts.values())
 
@@ -414,9 +436,9 @@ async def get_alerts_summary(
 async def get_alert(
     alert_id: UUID,
     request: Request,
-    fields: Optional[List[str]] = Depends(get_field_selection),
-    include: Optional[List[str]] = Depends(get_eager_load_params),
-    db=Depends(get_db),
+    fields: Optional[List[str]] = Depends(get_field_selection_async),
+    include: Optional[List[str]] = Depends(get_eager_load_params_async),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_generic_cache),
     current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict[str, Any]:
@@ -440,14 +462,15 @@ async def get_alert(
             return cached_data
 
         # Build query with eager loading
-        query = db.query(Alert).filter(Alert.id == alert_id)
+        stmt = select(Alert).where(Alert.id == alert_id)
 
         if include and "patient" in include:
-            query = query.options(joinedload(Alert.patient))
+            stmt = stmt.options(joinedload(Alert.patient))
         if include and "acknowledged_by_user" in include:
-            query = query.options(joinedload(Alert.acknowledged_by_user))
+            stmt = stmt.options(joinedload(Alert.acknowledged_by_user))
 
-        alert = query.first()
+        result = await db.execute(stmt)
+        alert = result.scalar_one_or_none()
 
         if not alert:
             raise HTTPException(
@@ -455,7 +478,7 @@ async def get_alert(
             )
 
         # Check access
-        _check_patient_access(current_user, alert.patient_id, db)
+        await _check_patient_access(current_user, alert.patient_id, db)
 
         # Serialize
         data = _serialize_alert(alert, fields)
@@ -481,7 +504,7 @@ async def update_alert(
     alert_id: UUID,
     alert_data: AlertV2Update,
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_generic_cache),
     current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict[str, Any]:
@@ -501,23 +524,24 @@ async def update_alert(
         _check_physician_or_admin(current_user)
 
         # Get alert
-        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+        result = await db.execute(select(Alert).where(Alert.id == alert_id))
+        alert = result.scalar_one_or_none()
         if not alert:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
             )
 
         # Check access
-        _check_patient_access(current_user, alert.patient_id, db)
+        await _check_patient_access(current_user, alert.patient_id, db)
 
         # Update only provided fields
-        update_data = alert_data.dict(exclude_unset=True)
+        update_data = alert_data.model_dump(exclude_unset=True)
 
         for field, value in update_data.items():
             setattr(alert, field, value)
 
-        db.commit()
-        db.refresh(alert)
+        await db.commit()
+        await db.refresh(alert)
 
         # Invalidate caches
         await redis_cache.delete(f"alerts:v2:single:{alert_id}:*")
@@ -531,7 +555,7 @@ async def update_alert(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error updating alert {alert_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -544,7 +568,7 @@ async def update_alert(
 async def delete_alert(
     alert_id: UUID,
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_generic_cache),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
@@ -564,18 +588,19 @@ async def delete_alert(
         _check_physician_or_admin(current_user)
 
         # Get alert
-        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+        result = await db.execute(select(Alert).where(Alert.id == alert_id))
+        alert = result.scalar_one_or_none()
         if not alert:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
             )
 
         # Check access
-        _check_patient_access(current_user, alert.patient_id, db)
+        await _check_patient_access(current_user, alert.patient_id, db)
 
         # Delete alert
-        db.delete(alert)
-        db.commit()
+        await db.delete(alert)
+        await db.commit()
 
         # Invalidate caches
         await redis_cache.delete_pattern(f"alerts:v2:single:{alert_id}:*")
@@ -589,7 +614,7 @@ async def delete_alert(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error deleting alert {alert_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -603,7 +628,7 @@ async def mark_alert_read(
     alert_id: UUID,
     acknowledge_data: AlertV2Acknowledge,
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_generic_cache),
     current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict[str, Any]:
@@ -623,14 +648,15 @@ async def mark_alert_read(
         _check_physician_or_admin(current_user)
 
         # Get alert
-        alert = db.query(Alert).filter(Alert.id == alert_id).first()
+        result = await db.execute(select(Alert).where(Alert.id == alert_id))
+        alert = result.scalar_one_or_none()
         if not alert:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found"
             )
 
         # Check access
-        _check_patient_access(current_user, alert.patient_id, db)
+        await _check_patient_access(current_user, alert.patient_id, db)
 
         # Check if already acknowledged
         if alert.acknowledged:
@@ -643,7 +669,7 @@ async def mark_alert_read(
         user_id = UUID(current_user.get("id"))
         alert.acknowledged = True
         alert.acknowledged_by = user_id
-        alert.acknowledged_at = datetime.now(timezone.utc)
+        alert.acknowledged_at = now_sao_paulo()
 
         # Add notes if provided
         if acknowledge_data.notes:
@@ -651,8 +677,8 @@ async def mark_alert_read(
                 alert.data = {}
             alert.data["acknowledgment_notes"] = acknowledge_data.notes
 
-        db.commit()
-        db.refresh(alert)
+        await db.commit()
+        await db.refresh(alert)
 
         # Invalidate caches
         await redis_cache.delete(f"alerts:v2:single:{alert_id}:*")
@@ -666,7 +692,7 @@ async def mark_alert_read(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error marking alert as read {alert_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -681,7 +707,7 @@ async def mark_all_alerts_read(
     patient_id: Optional[UUID] = Query(
         None, description="Optional: Mark all alerts for specific patient"
     ),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_generic_cache),
     current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict[str, Any]:
@@ -702,27 +728,28 @@ async def mark_all_alerts_read(
         _check_physician_or_admin(current_user)
 
         # Build query for unread alerts
-        query = db.query(Alert).filter(not Alert.acknowledged)
+        stmt = select(Alert).where(Alert.acknowledged == False)
 
         # Apply patient filter if provided
         if patient_id:
-            _check_patient_access(current_user, patient_id, db)
-            query = query.filter(Alert.patient_id == patient_id)
+            await _check_patient_access(current_user, patient_id, db)
+            stmt = stmt.where(Alert.patient_id == patient_id)
         else:
             # Filter by user access
             role = _extract_user_role(current_user)
             user_id = UUID(current_user.get("id"))
 
             if role == UserRole.DOCTOR:
-                patient_ids = (
-                    db.query(Patient.id).filter(Patient.doctor_id == user_id).all()
+                patient_result = await db.execute(
+                    select(Patient.id).where(Patient.doctor_id == user_id)
                 )
-                patient_ids = [p[0] for p in patient_ids]
-                query = query.filter(Alert.patient_id.in_(patient_ids))
+                patient_ids = patient_result.scalars().all()
+                stmt = stmt.where(Alert.patient_id.in_(patient_ids))
             # FIXED: Removed UserRole.PATIENT check - only ADMIN and DOCTOR roles exist
 
         # Get all unread alerts
-        unread_alerts = query.all()
+        unread_result = await db.execute(stmt)
+        unread_alerts = unread_result.scalars().all()
 
         if not unread_alerts:
             return {
@@ -733,7 +760,7 @@ async def mark_all_alerts_read(
 
         # Mark all as read
         user_id = UUID(current_user.get("id"))
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         count = 0
 
         for alert in unread_alerts:
@@ -742,7 +769,7 @@ async def mark_all_alerts_read(
             alert.acknowledged_at = now
             count += 1
 
-        db.commit()
+        await db.commit()
 
         # Invalidate caches
         await redis_cache.delete_pattern("alerts:v2:list:*")
@@ -763,13 +790,9 @@ async def mark_all_alerts_read(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error marking all alerts as read: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to mark all alerts as read",
         )
-
-
-
-

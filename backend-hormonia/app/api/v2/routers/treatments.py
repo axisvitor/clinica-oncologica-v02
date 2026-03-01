@@ -5,10 +5,12 @@ import logging
 import json
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
-from sqlalchemy.orm import joinedload
 from sqlalchemy import and_, func, or_
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from app.models.treatment import Treatment, TreatmentStatus, TreatmentType
 from app.models.patient import Patient
 from app.models.user import UserRole
@@ -29,7 +31,7 @@ from app.api.v2.patients_utils import (
     _extract_user_context,
     _ensure_uuid,
 )
-from app.api.v2.utils.auth_helpers import is_admin
+from app.utils.auth_helpers import is_admin
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_redis_cache,
@@ -39,13 +41,8 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _is_admin(current_user) -> bool:
-    """Check if current user is admin."""
-    return is_admin(current_user)
-
-
 def _ensure_treatment_access(current_user, doctor_id):
-    if _is_admin(current_user):
+    if is_admin(current_user):
         return
     _, user_id = _extract_user_context(current_user)
     user_uuid = _ensure_uuid(user_id)
@@ -98,7 +95,7 @@ class TreatmentStatsResponse(BaseModel):
 
 @router.get("", response_model=TreatmentV2List, summary="List treatments")
 async def list_treatments(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
     pagination=Depends(get_pagination_params),
@@ -124,14 +121,14 @@ async def list_treatments(
     except Exception as e:
         logger.debug(f"Cache read failed (non-critical): {e}")
 
-    query = db.query(Treatment)
+    stmt = select(Treatment)
     if include:
         if "patient" in include:
-            query = query.options(joinedload(Treatment.patient))
+            stmt = stmt.options(selectinload(Treatment.patient))
         if "doctor" in include:
-            query = query.options(joinedload(Treatment.doctor))
+            stmt = stmt.options(selectinload(Treatment.doctor))
         if "medications" in include:
-            query = query.options(joinedload(Treatment.medications))
+            stmt = stmt.options(selectinload(Treatment.medications))
 
     filters = [Treatment.is_active]
     role_enum, user_id = _extract_user_context(current_user)
@@ -144,7 +141,7 @@ async def list_treatments(
 
     if cursor_data and "id" in cursor_data:
         cid = UUID(cursor_data["id"])
-        cdate = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cdate = datetime.fromisoformat(cursor_data["created_at"])
         filters.append(
             or_(
                 Treatment.created_at < cdate,
@@ -153,7 +150,7 @@ async def list_treatments(
         )
 
     if search:
-        query = query.join(Patient)
+        stmt = stmt.join(Patient)
         filters.append(Patient.name.ilike(f"%{search}%"))
 
     if patient_id:
@@ -189,17 +186,17 @@ async def list_treatments(
     if start_date_to:
         filters.append(Treatment.start_date <= start_date_to)
 
-    query = query.filter(and_(*filters))
+    stmt = stmt.where(and_(*filters))
 
     total = None
     if not cursor_data:
-        tq = db.query(func.count(Treatment.id))
-        if filters:
-            tq = tq.filter(and_(*filters))
-        total = tq.scalar()
+        count_stmt = select(func.count(Treatment.id)).where(and_(*filters))
+        total_result = await db.execute(count_stmt)
+        total = total_result.scalar()
 
-    query = query.order_by(Treatment.created_at.desc(), Treatment.id)
-    treatments = query.limit(limit + 1).all()
+    stmt = stmt.order_by(Treatment.created_at.desc(), Treatment.id)
+    treatments_result = await db.execute(stmt.limit(limit + 1))
+    treatments = list(treatments_result.scalars().all())
 
     has_more = len(treatments) > limit
     if has_more:
@@ -256,34 +253,42 @@ async def list_treatments(
 @router.get("/statistics", response_model=TreatmentStatsResponse)
 async def get_treatment_statistics(
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
 ):
     role_enum, user_id = _extract_user_context(current_user)
     current_user_uuid = _ensure_uuid(user_id)
 
-    base_query = db.query(Treatment).filter(Treatment.is_active)
+    base_filters = [Treatment.is_active]
     if role_enum != UserRole.ADMIN:
         if not current_user_uuid:
             raise HTTPException(status_code=403)
-        base_query = base_query.filter(Treatment.doctor_id == current_user_uuid)
+        base_filters.append(Treatment.doctor_id == current_user_uuid)
 
-    total = base_query.count()
-    active = base_query.filter(Treatment.status == TreatmentStatus.ACTIVE).count()
-    completed = base_query.filter(Treatment.status == TreatmentStatus.COMPLETED).count()
-    planned = base_query.filter(Treatment.status == TreatmentStatus.PLANNED).count()
+    async def _count(extra_filter=None):
+        f = list(base_filters)
+        if extra_filter is not None:
+            f.append(extra_filter)
+        res = await db.execute(
+            select(func.count(Treatment.id)).where(and_(*f))
+        )
+        return res.scalar() or 0
+
+    total = await _count()
+    active = await _count(Treatment.status == TreatmentStatus.ACTIVE)
+    completed = await _count(Treatment.status == TreatmentStatus.COMPLETED)
+    planned = await _count(Treatment.status == TreatmentStatus.PLANNED)
 
     rate = round((completed / total) * 100, 2) if total > 0 else 0.0
 
-    by_status = {
-        s.value: base_query.filter(Treatment.status == s).count()
-        for s in TreatmentStatus
-    }
-    by_type = {
-        t.value: base_query.filter(Treatment.treatment_type == t).count()
-        for t in TreatmentType
-    }
+    by_status = {}
+    for s in TreatmentStatus:
+        by_status[s.value] = await _count(Treatment.status == s)
+
+    by_type = {}
+    for t in TreatmentType:
+        by_type[t.value] = await _count(Treatment.treatment_type == t)
 
     return {
         "total_treatments": total,
@@ -299,7 +304,7 @@ async def get_treatment_statistics(
 @router.get("/{treatment_id}", response_model=TreatmentV2Response)
 async def get_treatment(
     treatment_id: str,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
     fields: Optional[List[str]] = Depends(get_field_selection),
@@ -310,16 +315,17 @@ async def get_treatment(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid treatment_id UUID")
 
-    query = db.query(Treatment)
+    get_stmt = select(Treatment).where(Treatment.id == tid, Treatment.is_active)
     if include:
         if "patient" in include:
-            query = query.options(joinedload(Treatment.patient))
+            get_stmt = get_stmt.options(selectinload(Treatment.patient))
         if "doctor" in include:
-            query = query.options(joinedload(Treatment.doctor))
+            get_stmt = get_stmt.options(selectinload(Treatment.doctor))
         if "medications" in include:
-            query = query.options(joinedload(Treatment.medications))
+            get_stmt = get_stmt.options(selectinload(Treatment.medications))
 
-    treatment = query.filter(Treatment.id == tid, Treatment.is_active).first()
+    treatment_get_result = await db.execute(get_stmt)
+    treatment = treatment_get_result.scalar_one_or_none()
     if not treatment:
         raise HTTPException(status_code=404)
     _ensure_treatment_access(current_user, treatment.doctor_id)
@@ -335,7 +341,7 @@ async def get_treatment(
 @router.post("", response_model=TreatmentV2Response, status_code=201)
 async def create_treatment(
     treatment_data: TreatmentV2Create,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(_get_current_user_simple),
     redis_cache=Depends(get_redis_cache),
 ):
@@ -345,14 +351,9 @@ async def create_treatment(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid UUID")
 
-    from app.services.treatment_service import TreatmentService
-    from app.repositories.treatment import TreatmentRepository
-
-    repo = TreatmentRepository(db)
-    service = TreatmentService(db, repo)
-
     # Verify Patient (Service could do this if we move it)
-    patient = db.query(Patient).get(pid)
+    create_patient_result = await db.execute(select(Patient).where(Patient.id == pid))
+    patient = create_patient_result.scalar_one_or_none()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
@@ -366,12 +367,24 @@ async def create_treatment(
             raise HTTPException(status_code=403, detail="Permissions")
 
     try:
-        # Note: Service logic for create might need refactoring to accept proper args
-        # My service implementation assumes TreatmentV2Create and doctor_id
-        # We should pass patient validation logic to service eventually.
-        new_treatment = service.create_treatment(treatment_data, did)
+        create_data = treatment_data.model_dump(exclude={"treatment_type", "status"})
+        create_data["patient_id"] = pid
+        create_data["doctor_id"] = did
+        create_data["treatment_type"] = TreatmentType(treatment_data.treatment_type.lower())
+        if treatment_data.status:
+            create_data["status"] = TreatmentStatus(treatment_data.status.lower())
+        else:
+            create_data["status"] = TreatmentStatus.PLANNED
+
+        new_treatment = Treatment(**create_data)
+        db.add(new_treatment)
+        await db.commit()
+        await db.refresh(new_treatment)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error creating treatment: {e}", exc_info=True)
+        await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create treatment")
 
     try:
@@ -386,7 +399,7 @@ async def create_treatment(
 async def update_treatment(
     treatment_id: str,
     treatment_data: TreatmentV2Update,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
 ):
@@ -395,21 +408,34 @@ async def update_treatment(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid treatment_id UUID")
 
-    from app.services.treatment_service import TreatmentService
-    from app.repositories.treatment import TreatmentRepository
-
-    repo = TreatmentRepository(db)
-    service = TreatmentService(db, repo)
-
-    t = repo.get_by_id(tid)
+    treatment_result = await db.execute(select(Treatment).where(Treatment.id == tid))
+    t = treatment_result.scalar_one_or_none()
     if not t or not t.is_active:
         raise HTTPException(status_code=404)
     _ensure_treatment_access(current_user, t.doctor_id)
 
     try:
-        updated = service.update_treatment(tid, treatment_data)
+        update_data = treatment_data.model_dump(exclude_unset=True)
+        if "doctor_id" in update_data and update_data["doctor_id"]:
+            update_data["doctor_id"] = UUID(update_data["doctor_id"])
+        if "treatment_type" in update_data:
+            update_data["treatment_type"] = TreatmentType(
+                update_data["treatment_type"].lower()
+            )
+        if "status" in update_data:
+            update_data["status"] = TreatmentStatus(update_data["status"].lower())
+
+        for key, value in update_data.items():
+            setattr(t, key, value)
+
+        await db.commit()
+        await db.refresh(t)
+        updated = t
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Error updating treatment: {e}", exc_info=True)
+        await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update treatment")
 
     try:
@@ -422,7 +448,7 @@ async def update_treatment(
 @router.delete("/{treatment_id}", status_code=204)
 async def delete_treatment(
     treatment_id: str,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
 ):
@@ -431,19 +457,19 @@ async def delete_treatment(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid treatment_id UUID")
 
-    from app.services.treatment_service import TreatmentService
-    from app.repositories.treatment import TreatmentRepository
-
-    repo = TreatmentRepository(db)
-    service = TreatmentService(db, repo)
-
-    t = repo.get_by_id(tid)
+    treatment_result = await db.execute(select(Treatment).where(Treatment.id == tid))
+    t = treatment_result.scalar_one_or_none()
     if not t:
         raise HTTPException(status_code=404)
     _ensure_treatment_access(current_user, t.doctor_id)
 
-    success = service.delete_treatment(tid)
-    if not success:
+    try:
+        t.is_active = False
+        t.status = TreatmentStatus.CANCELLED
+        await db.commit()
+    except Exception as e:
+        logger.error(f"Error deleting treatment: {e}", exc_info=True)
+        await db.rollback()
         raise HTTPException(status_code=500)
 
     return None
@@ -452,7 +478,7 @@ async def delete_treatment(
 @router.patch("/{treatment_id}/activate", response_model=TreatmentV2Response)
 async def activate_treatment(
     treatment_id: str,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     try:
@@ -460,16 +486,20 @@ async def activate_treatment(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid treatment_id UUID")
 
-    from app.services.treatment_service import TreatmentService
-    from app.repositories.treatment import TreatmentRepository
-
-    repo = TreatmentRepository(db)
-    service = TreatmentService(db, repo)
-
-    t = repo.get_by_id(tid)
-    if not t:
+    treatment_result = await db.execute(select(Treatment).where(Treatment.id == tid))
+    t = treatment_result.scalar_one_or_none()
+    if not t or not t.is_active:
         raise HTTPException(status_code=404)
     _ensure_treatment_access(current_user, t.doctor_id)
 
-    updated = service.activate_treatment(tid)
+    try:
+        t.status = TreatmentStatus.ACTIVE
+        await db.commit()
+        await db.refresh(t)
+        updated = t
+    except Exception as e:
+        logger.error(f"Error activating treatment: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to activate treatment")
+
     return _serialize_treatment(updated)

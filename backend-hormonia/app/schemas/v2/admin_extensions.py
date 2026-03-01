@@ -84,15 +84,15 @@ class DLQItemResponse(BaseModel):
                 "error_code": "TIMEOUT",
                 "retry_count": 2,
                 "max_retries": 5,
-                "next_retry_at": "2025-01-17T16:00:00Z",
-                "last_retry_at": "2025-01-17T15:00:00Z",
+                "next_retry_at": "2025-01-17T16:00:00-03:00",
+                "last_retry_at": "2025-01-17T15:00:00-03:00",
                 "status": "retry_scheduled",
                 "resolved_at": None,
                 "dlq_metadata": {"category": "transient", "source": "whatsapp"},
                 "reviewed_by": None,
                 "original_message_id": "770e8400-e29b-41d4-a716-446655440000",
-                "created_at": "2025-01-17T14:00:00Z",
-                "updated_at": "2025-01-17T15:00:00Z",
+                "created_at": "2025-01-17T14:00:00-03:00",
+                "updated_at": "2025-01-17T15:00:00-03:00",
             }
         },
     )
@@ -130,7 +130,6 @@ class DLQBulkRetryRequest(BaseModel):
     dlq_ids: List[UUID] = Field(
         ...,
         min_length=1,
-        max_length=50,
         description="List of DLQ item IDs to retry (max 50)",
     )
 
@@ -262,7 +261,7 @@ class DLQPurgeResponse(BaseModel):
                 "message": "Would delete 45 DLQ items",
                 "count": 45,
                 "days": 90,
-                "cutoff_date": "2024-10-17T00:00:00Z",
+                "cutoff_date": "2024-10-17T00:00:00-03:00",
                 "dry_run": True,
             }
         }
@@ -356,8 +355,8 @@ class AuditLogResponse(BaseModel):
                 "event_metadata": {"device": "desktop", "browser": "Chrome"},
                 "message": "User logged in successfully",
                 "error_details": None,
-                "created_at": "2025-01-17T14:00:00Z",
-                "updated_at": "2025-01-17T14:00:00Z",
+                "created_at": "2025-01-17T14:00:00-03:00",
+                "updated_at": "2025-01-17T14:00:00-03:00",
             }
         },
     )
@@ -521,7 +520,7 @@ class AdminExtensionHealthResponse(BaseModel):
                     "status": "healthy",
                     "connection_pool": "available",
                 },
-                "timestamp": "2025-01-17T15:00:00Z",
+                "timestamp": "2025-01-17T15:00:00-03:00",
             }
         }
     )
@@ -552,8 +551,8 @@ class DLQFilterRequest(BaseModel):
                 "error_category": "transient",
                 "patient_id": "660e8400-e29b-41d4-a716-446655440000",
                 "error_code": "TIMEOUT",
-                "date_from": "2025-01-01T00:00:00Z",
-                "date_to": "2025-01-31T23:59:59Z",
+                "date_from": "2025-01-01T00:00:00-03:00",
+                "date_to": "2025-01-31T23:59:59-03:00",
                 "search": "network",
             }
         }
@@ -579,8 +578,8 @@ class AuditLogFilterRequest(BaseModel):
                 "event_status": "success",
                 "user_email": "doctor@example.com",
                 "ip_address": "192.168.1.100",
-                "date_from": "2025-01-01T00:00:00Z",
-                "date_to": "2025-01-31T23:59:59Z",
+                "date_from": "2025-01-01T00:00:00-03:00",
+                "date_to": "2025-01-31T23:59:59-03:00",
                 "search": "admin",
             }
         }

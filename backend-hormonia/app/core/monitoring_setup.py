@@ -11,6 +11,7 @@ Centralizes monitoring initialization including:
 
 from fastapi import FastAPI
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -106,7 +107,6 @@ def _setup_basic_health_check(app: FastAPI) -> None:
         Returns basic application status and uptime.
         """
         import time
-        from datetime import datetime, timezone
 
         # Get start time from app state if available
         start_time = getattr(app.state, "start_time", time.time())
@@ -114,7 +114,7 @@ def _setup_basic_health_check(app: FastAPI) -> None:
 
         return {
             "status": "healthy",
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "timestamp": now_sao_paulo().isoformat(),
             "uptime_seconds": round(uptime, 2),
             "service": "hormonia-backend",
             "version": "1.0.0",

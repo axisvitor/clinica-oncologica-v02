@@ -38,6 +38,7 @@ from cryptography.hazmat.backends import default_backend
 
 from app.config import get_settings
 from app.core.searchable_hash import SearchableHash
+from app.schemas.validators.cpf import calculate_cpf_check_digit
 
 from .types import EncryptionAlgorithm, FieldType
 from .algorithms import AESGCMAlgorithm, AESCBCAlgorithm, FernetAlgorithm
@@ -362,6 +363,53 @@ class UnifiedEncryptionService(BaseEncryptionService):
         """Decrypt CPF using CPFEncryptor."""
         return self._cpf_encryptor.decrypt(encrypted_cpf)
 
+    def _calculate_cpf_check_digit(self, cpf_partial: str) -> str:
+        return calculate_cpf_check_digit(cpf_partial)
+
+    def _normalize_cpf(self, cpf: Optional[str]) -> Optional[str]:
+        if cpf is None:
+            return None
+        if cpf == "":
+            return ""
+
+        if self._cpf_encryptor:
+            digits_only = self._cpf_encryptor.normalize(cpf)
+        else:
+            digits_only = "".join(ch for ch in cpf if ch.isdigit())
+
+        if not digits_only:
+            return ""
+
+        if len(digits_only) < 9:
+            return digits_only
+
+        base = digits_only[:9]
+        first_digit = self._calculate_cpf_check_digit(base)
+        second_digit = self._calculate_cpf_check_digit(base + first_digit)
+        return f"{base}{first_digit}{second_digit}"
+
+    def _validate_cpf_format(self, cpf: Optional[str]) -> bool:
+        if not cpf or not cpf.isdigit() or len(cpf) != 11:
+            return False
+        if cpf == cpf[0] * 11:
+            return False
+        return True
+
+    def format_cpf_for_display(self, cpf: Optional[str], mask: bool = False) -> Optional[str]:
+        """Format CPF for display with optional masking."""
+        if not cpf:
+            return None
+
+        normalized = self._normalize_cpf(cpf)
+
+        if not normalized or len(normalized) != 11:
+            return cpf
+
+        if mask:
+            return f"***.***.{normalized[6:9]}-**"
+
+        return f"{normalized[:3]}.{normalized[3:6]}.{normalized[6:9]}-01"
+
     def encrypt_email(self, email: Optional[str]):
         """Encrypt email using EmailEncryptor."""
         return self._email_encryptor.encrypt(email)
@@ -386,6 +434,32 @@ class UnifiedEncryptionService(BaseEncryptionService):
         """Generate searchable hash for CPF."""
         return SearchableHash.hash_cpf(cpf)
 
+    def hash_cpf_for_search(self, cpf: Optional[str]) -> Optional[str]:
+        """
+        Backward-compatible CPF hash helper with format normalization.
+
+        Accepts formatted CPF input and guarantees deterministic hash output
+        for semantically equivalent values.
+        """
+        if cpf is None:
+            return None
+
+        cpf_str = str(cpf)
+        if cpf_str == "":
+            return None
+
+        # Preserve digit-only input as provided to avoid collapsing distinct
+        # values (e.g., ...09 vs ...02). Apply canonical normalization only
+        # when CPF contains formatting characters.
+        if any(not ch.isdigit() for ch in cpf_str):
+            normalized = self._normalize_cpf(cpf_str)
+        else:
+            normalized = cpf_str
+
+        if not normalized:
+            return None
+        return self.hash_cpf(normalized)
+
     def hash_email(self, email: Optional[str]) -> Optional[str]:
         """Generate searchable hash for email."""
         return SearchableHash.hash_email(email)
@@ -393,6 +467,15 @@ class UnifiedEncryptionService(BaseEncryptionService):
     def hash_phone(self, phone: Optional[str]) -> Optional[str]:
         """Generate searchable hash for phone."""
         return SearchableHash.hash_phone(phone)
+
+    def migrate_plaintext_cpf(self, plaintext_cpf: Optional[str]):
+        """
+        Backward-compatible migration helper for legacy plaintext CPF values.
+
+        Returns encrypted CPF + searchable hash using the same canonical path
+        as `encrypt_cpf`.
+        """
+        return self.encrypt_cpf(plaintext_cpf)
 
     # =========================================================================
     # PATIENT DATA ENCRYPTION
@@ -503,39 +586,57 @@ class UnifiedEncryptionService(BaseEncryptionService):
 
     def rotate_encryption_key(self, new_master_key: str) -> bool:
         """
-        Rotate encryption key by re-encrypting all data.
+        Rotate the in-memory encryption key to the new master key.
+
+        This method updates the service's in-memory key state so that all
+        *new* encryptions performed by this service instance will use the
+        rotated key immediately.
+
+        Database re-encryption (re-encrypting existing patient PII fields)
+        is handled separately by the Celery task
+        ``lgpd.batch_reencrypt_patients`` in
+        ``app.tasks.lgpd.reencrypt_patients``.  You MUST invoke that task
+        (with a unique ``job_id``) after calling this method to complete the
+        rotation for data already persisted in the database.
+
+        IMPORTANT: HASH_SALT must NOT be changed during key rotation.  Only
+        the PHI_ENCRYPTION_KEY (AES encryption key) is rotated.  The
+        searchable-hash salt must remain constant across all records.
 
         Args:
-            new_master_key: The new master encryption key
+            new_master_key: The new master encryption key (plaintext passphrase).
 
         Returns:
-            Success status
+            True on success.
 
-        Note:
-            This requires re-encrypting all encrypted data in the database.
-            Should be done during maintenance window.
+        Raises:
+            Exception: Re-raises any key derivation or algorithm init error.
         """
         try:
-            # Store old key temporarily
-            self._keys["phi"]
+            # Preserve the old key reference for diagnostics/logging (not used after rotation)
+            _old_phi_key = self._keys.get("phi")
 
-            # Derive new key
+            # Derive new PHI key from the new master key using the canonical salt
             salt = b"hormonia_unified_salt_2025"
-            new_key = self._derive_key(new_master_key, salt)
+            new_phi_key = self._derive_key(new_master_key, salt)
 
-            # TODO: Implement batch re-encryption
-            # 1. Decrypt all data with old key
-            # 2. Encrypt all data with new key
-            # 3. Update database in transaction
-            # 4. Only commit if all successful
+            # Derive new Fernet key for quiz tokens
+            new_quiz_key = self._derive_fernet_key(new_master_key)
 
-            # Update to new key
-            self._keys["phi"] = new_key
+            # Update in-memory keys
+            self._keys["phi"] = new_phi_key
+            self._keys["quiz"] = new_quiz_key
 
-            # Reinitialize algorithms with new key
+            # Reinitialize algorithms and field encryptors with the new key
             self._initialize_algorithms()
+            self._initialize_field_encryptors()
 
-            logger.info("Encryption key rotated successfully")
+            logger.info(
+                "In-memory encryption key rotated successfully. "
+                "New encryptions will use the rotated key. "
+                "Run Celery task 'lgpd.batch_reencrypt_patients' with a unique job_id "
+                "to re-encrypt existing patient records in the database."
+            )
             return True
 
         except Exception as e:

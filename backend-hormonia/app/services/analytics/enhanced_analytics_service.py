@@ -3,14 +3,13 @@ Enhanced Analytics Service
 Business logic for advanced analytics, predictive modeling, and custom metrics.
 """
 
-import json
-import hashlib
 from datetime import datetime, timedelta, timezone
+import inspect
 from typing import Optional, Dict, Any, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import func, and_, case
+from sqlalchemy import func, and_, case, select, distinct
 
 from app.models.quiz import QuizSession
 from app.models.patient import Patient, FlowState
@@ -21,8 +20,9 @@ from app.schemas.v2.enhanced_analytics import (
     CohortFilter,
     FunnelStage,
 )
-from app.core.redis_unified import get_async_redis
+from app.services.cache.json_cache_mixin import RedisJsonCacheMixin
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -32,46 +32,27 @@ AGGREGATED_CACHE_TTL = 1800
 HISTORICAL_CACHE_TTL = 7200
 
 
-class EnhancedAnalyticsService:
+class EnhancedAnalyticsService(RedisJsonCacheMixin):
     """Service for enhanced analytics operations."""
+
+    _cache_namespace = "enhanced_analytics"
 
     def __init__(self, db: Any):
         self.db = db
+        self._logger = logger
 
-    async def _get_cached_result(self, cache_key: str) -> Optional[Dict[str, Any]]:
-        try:
-            redis_client = await get_async_redis()
-            if redis_client is None:
-                return None
-            cached = await redis_client.get(cache_key)
-            if cached:
-                return json.loads(cached)
-            return None
-        except Exception as e:
-            logger.warning(f"Cache read failed: {e}")
-            return None
+    async def _resolve(self, maybe_awaitable: Any) -> Any:
+        if inspect.isawaitable(maybe_awaitable):
+            return await maybe_awaitable
+        return maybe_awaitable
 
-    async def _set_cached_result(self, cache_key: str, data: Any, ttl: int) -> None:
-        try:
-            redis_client = await get_async_redis()
-            if redis_client is None:
-                return
+    async def _execute(self, statement):
+        return await self._resolve(self.db.execute(statement))
 
-            if hasattr(data, "dict"):
-                serialized = json.dumps(data.dict(), default=str)
-            elif hasattr(data, "model_dump"):
-                serialized = json.dumps(data.model_dump(), default=str)
-            else:
-                serialized = json.dumps(data, default=str)
-
-            await redis_client.setex(cache_key, ttl, serialized)
-        except Exception as e:
-            logger.warning(f"Cache write failed: {e}")
-
-    def _get_cache_key(self, endpoint: str, **params) -> str:
-        param_str = json.dumps(params, sort_keys=True, default=str)
-        param_hash = hashlib.md5(param_str.encode()).hexdigest()
-        return f"enhanced_analytics:v2:{endpoint}:{param_hash}"
+    async def _scalar(self, statement, default: Any = 0):
+        result = await self._execute(statement)
+        value = result.scalar()
+        return default if value is None else value
 
     def _parse_date_range(
         self,
@@ -79,7 +60,7 @@ class EnhancedAnalyticsService:
         start_date: Optional[datetime],
         end_date: Optional[datetime],
     ) -> Tuple[datetime, datetime]:
-        end = end_date or datetime.now(timezone.utc)
+        end = end_date or now_sao_paulo()
         if time_range == TimeRange.CUSTOM:
             if not start_date:
                 raise HTTPException(
@@ -119,40 +100,47 @@ class EnhancedAnalyticsService:
 
         start_date, end_date = self._parse_date_range(time_range, None, None)
 
-        patient_base_query = self.db.query(Patient)
+        patient_scope = [Patient.flow_state != FlowState.CANCELLED]
         if role != UserRole.ADMIN and user_uuid:
-            patient_base_query = patient_base_query.filter(
-                Patient.doctor_id == user_uuid
-            )
+            patient_scope.append(Patient.doctor_id == user_uuid)
 
-        total_patients = patient_base_query.filter(
-            Patient.flow_state != FlowState.CANCELLED
-        ).count()
-        active_patients = (
-            patient_base_query.filter(Patient.flow_state != FlowState.CANCELLED)
+        total_patients = await self._scalar(
+            select(func.count(Patient.id)).where(*patient_scope),
+            default=0,
+        )
+        active_patients = await self._scalar(
+            select(func.count(distinct(Patient.id)))
+            .select_from(Patient)
             .join(QuizSession, Patient.id == QuizSession.patient_id)
-            .filter(QuizSession.created_at >= start_date)
-            .distinct()
-            .count()
+            .where(*patient_scope)
+            .where(QuizSession.created_at >= start_date),
+            default=0,
         )
-        new_patients = patient_base_query.filter(
-            Patient.created_at >= start_date, Patient.created_at <= end_date
-        ).count()
+        new_patients = await self._scalar(
+            select(func.count(Patient.id)).where(
+                *(patient_scope + [Patient.created_at >= start_date, Patient.created_at <= end_date])
+            ),
+            default=0,
+        )
 
-        quiz_query = self.db.query(QuizSession).join(
-            Patient, Patient.id == QuizSession.patient_id
-        )
+        quiz_scope = [QuizSession.created_at >= start_date, QuizSession.created_at <= end_date]
         if role != UserRole.ADMIN and user_uuid:
-            quiz_query = quiz_query.filter(Patient.doctor_id == user_uuid)
+            quiz_scope.append(Patient.doctor_id == user_uuid)
 
-        total_quizzes = quiz_query.filter(
-            QuizSession.created_at >= start_date, QuizSession.created_at <= end_date
-        ).count()
-        completed_quizzes = quiz_query.filter(
-            QuizSession.created_at >= start_date,
-            QuizSession.created_at <= end_date,
-            QuizSession.status == "completed",
-        ).count()
+        total_quizzes = await self._scalar(
+            select(func.count(QuizSession.id))
+            .select_from(QuizSession)
+            .join(Patient, Patient.id == QuizSession.patient_id)
+            .where(*quiz_scope),
+            default=0,
+        )
+        completed_quizzes = await self._scalar(
+            select(func.count(QuizSession.id))
+            .select_from(QuizSession)
+            .join(Patient, Patient.id == QuizSession.patient_id)
+            .where(*(quiz_scope + [QuizSession.status == "completed"])),
+            default=0,
+        )
         completion_rate = (
             (completed_quizzes / total_quizzes * 100) if total_quizzes > 0 else 0
         )
@@ -162,50 +150,56 @@ class EnhancedAnalyticsService:
             else 0
         )
 
-        high_risk = (
-            patient_base_query.filter(Patient.flow_state == FlowState.ACTIVE)
+        high_risk_candidates = (
+            select(Patient.id)
+            .select_from(Patient)
             .outerjoin(QuizSession, Patient.id == QuizSession.patient_id)
+            .where(*(patient_scope + [Patient.flow_state == FlowState.ACTIVE]))
             .group_by(Patient.id)
             .having(func.count(QuizSession.id) == 0)
-            .count()
+            .subquery()
+        )
+        high_risk = await self._scalar(
+            select(func.count()).select_from(high_risk_candidates),
+            default=0,
         )
 
-        avg_response_time = (
-            self.db.query(
+        avg_response_hours = await self._scalar(
+            select(
                 func.avg(
-                    func.extract(
-                        "epoch", QuizSession.updated_at - QuizSession.created_at
-                    )
+                    func.extract("epoch", QuizSession.updated_at - QuizSession.created_at)
                     / 3600
                 )
             )
+            .select_from(QuizSession)
             .join(Patient, Patient.id == QuizSession.patient_id)
-            .filter(
-                QuizSession.status == "completed", QuizSession.created_at >= start_date
-            )
+            .where(QuizSession.status == "completed", QuizSession.created_at >= start_date)
+            .where(*( [Patient.doctor_id == user_uuid] if role != UserRole.ADMIN and user_uuid else [] )),
+            default=0,
         )
-        if role != UserRole.ADMIN and user_uuid:
-            avg_response_time = avg_response_time.filter(Patient.doctor_id == user_uuid)
-        avg_response_hours = avg_response_time.scalar() or 0
 
-        treatment_dist = self.db.query(
-            Patient.treatment_type, func.count(Patient.id).label("count")
-        )
-        if role != UserRole.ADMIN and user_uuid:
-            treatment_dist = treatment_dist.filter(Patient.doctor_id == user_uuid)
-        treatment_dist = (
-            treatment_dist.filter(Patient.created_at >= start_date)
+        treatment_result = await self._execute(
+            select(Patient.treatment_type, func.count(Patient.id).label("count"))
+            .where(
+                *(
+                    [Patient.created_at >= start_date]
+                    + ([Patient.doctor_id == user_uuid] if role != UserRole.ADMIN and user_uuid else [])
+                )
+            )
             .group_by(Patient.treatment_type)
-            .all()
         )
+        treatment_dist = treatment_result.all()
         treatment_distribution = {
             (t or "Unknown"): count for t, count in treatment_dist
         }
 
         prev_start = start_date - (end_date - start_date)
-        prev_patients = patient_base_query.filter(
-            Patient.created_at >= prev_start, Patient.created_at < start_date
-        ).count()
+        prev_patients = await self._scalar(
+            select(func.count(Patient.id)).where(
+                *(patient_scope + [Patient.created_at >= prev_start, Patient.created_at < start_date])
+            ),
+            default=0,
+        )
         patient_trend = (
             ((new_patients - prev_patients) / prev_patients * 100)
             if prev_patients > 0
@@ -236,7 +230,7 @@ class EnhancedAnalyticsService:
             },
             "treatment_distribution": treatment_distribution,
             "alerts": {"critical": 0, "warning": 0, "info": 0},
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
         await self._set_cached_result(cache_key, result, REALTIME_CACHE_TTL)
         return result
@@ -270,64 +264,68 @@ class EnhancedAnalyticsService:
             return cached
 
         start_date, end_date = self._parse_date_range(time_range, None, None)
-        base_query = self.db.query(Patient)
+        patient_conditions = []
         if role != UserRole.ADMIN and user_uuid:
-            base_query = base_query.filter(Patient.doctor_id == user_uuid)
-
+            patient_conditions.append(Patient.doctor_id == user_uuid)
         if treatment_type:
-            base_query = base_query.filter(Patient.treatment_type == treatment_type)
+            patient_conditions.append(Patient.treatment_type == treatment_type)
+        if cursor:
+            try:
+                patient_conditions.append(Patient.id > UUID(cursor))
+            except ValueError as e:
+                logger.warning(f"Invalid cursor UUID: {cursor}, error: {e}")
+
         if cohort_filter == CohortFilter.NEW_PATIENTS:
-            base_query = base_query.filter(
-                Patient.created_at >= start_date, Patient.created_at <= end_date
+            cohort_stmt = select(Patient).where(
+                *(patient_conditions + [Patient.created_at >= start_date, Patient.created_at <= end_date])
             )
         elif cohort_filter == CohortFilter.ACTIVE:
-            base_query = base_query.filter(Patient.flow_state == FlowState.ACTIVE)
+            cohort_stmt = select(Patient).where(
+                *(patient_conditions + [Patient.flow_state == FlowState.ACTIVE])
+            )
         elif cohort_filter == CohortFilter.HIGH_ENGAGEMENT:
-            base_query = (
-                base_query.join(QuizSession, Patient.id == QuizSession.patient_id)
+            cohort_stmt = (
+                select(Patient)
+                .join(QuizSession, Patient.id == QuizSession.patient_id)
+                .where(*patient_conditions)
                 .group_by(Patient.id)
                 .having(func.count(QuizSession.id) >= 6)
             )
         elif cohort_filter == CohortFilter.LOW_ENGAGEMENT:
-            base_query = (
-                base_query.outerjoin(QuizSession, Patient.id == QuizSession.patient_id)
+            cohort_stmt = (
+                select(Patient)
+                .outerjoin(QuizSession, Patient.id == QuizSession.patient_id)
+                .where(*patient_conditions)
                 .group_by(Patient.id)
-                .having(
-                    and_(
-                        func.count(QuizSession.id) >= 1, func.count(QuizSession.id) <= 5
-                    )
-                )
+                .having(and_(func.count(QuizSession.id) >= 1, func.count(QuizSession.id) <= 5))
             )
+        else:
+            cohort_stmt = select(Patient).where(*patient_conditions)
 
-        if cursor:
-            try:
-                base_query = base_query.filter(Patient.id > UUID(cursor))
-            except ValueError as e:
-                logger.warning(f"Invalid cursor UUID: {cursor}, error: {e}")
-
-        total_count = base_query.count()
-        cohort_patients = base_query.order_by(Patient.id).limit(limit).all()
+        cohort_subquery = cohort_stmt.subquery()
+        total_count = await self._scalar(select(func.count()).select_from(cohort_subquery), default=0)
+        cohort_result = await self._execute(cohort_stmt.order_by(Patient.id).limit(limit))
+        cohort_patients = cohort_result.scalars().all()
         cohort_size = len(cohort_patients)
         patient_ids = [p.id for p in cohort_patients]
 
         avg_quizzes, completion_rate = 0, 0
         if patient_ids:
-            avg_quizzes = (
-                self.db.query(func.avg(func.count(QuizSession.id)))
-                .join(Patient, Patient.id == QuizSession.patient_id)
-                .filter(Patient.id.in_(patient_ids))
-                .group_by(Patient.id)
-                .scalar()
-                or 0
+            quiz_counts_subquery = (
+                select(func.count(QuizSession.id).label("quiz_count"))
+                .where(QuizSession.patient_id.in_(patient_ids))
+                .group_by(QuizSession.patient_id)
+                .subquery()
             )
-            completion_rate = (
-                self.db.query(
-                    func.avg(case((QuizSession.status == "completed", 1.0), else_=0.0))
-                )
-                .join(Patient, Patient.id == QuizSession.patient_id)
-                .filter(Patient.id.in_(patient_ids))
-                .scalar()
-                or 0
+            avg_quizzes = await self._scalar(
+                select(func.avg(quiz_counts_subquery.c.quiz_count)),
+                default=0,
+            )
+            completion_rate = await self._scalar(
+                select(func.avg(case((QuizSession.status == "completed", 1.0), else_=0.0))).where(
+                    QuizSession.patient_id.in_(patient_ids)
+                ),
+                default=0,
             )
 
         treatment_breakdown = {}
@@ -360,7 +358,7 @@ class EnhancedAnalyticsService:
                 "next_cursor": next_cursor,
                 "has_more": len(cohort_patients) >= limit,
             },
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
         await self._set_cached_result(cache_key, result, AGGREGATED_CACHE_TTL)
         return result
@@ -384,43 +382,57 @@ class EnhancedAnalyticsService:
             return cached
 
         start_date, end_date = self._parse_date_range(time_range, None, None)
-        base_query = self.db.query(Patient.id).filter(
-            Patient.flow_state != FlowState.CANCELLED
-        )
+        base_conditions = [Patient.flow_state != FlowState.CANCELLED]
         if role != UserRole.ADMIN and user_uuid:
-            base_query = base_query.filter(Patient.doctor_id == user_uuid)
+            base_conditions.append(Patient.doctor_id == user_uuid)
         if treatment_type:
-            base_query = base_query.filter(Patient.treatment_type == treatment_type)
+            base_conditions.append(Patient.treatment_type == treatment_type)
 
-        enrolled_count = base_query.filter(
-            Patient.created_at >= start_date, Patient.created_at <= end_date
-        ).count()
-        first_quiz_sent = (
-            base_query.filter(Patient.created_at >= start_date)
-            .join(QuizSession, Patient.id == QuizSession.patient_id)
-            .distinct()
-            .count()
+        enrolled_count = await self._scalar(
+            select(func.count(Patient.id)).where(
+                *(base_conditions + [Patient.created_at >= start_date, Patient.created_at <= end_date])
+            ),
+            default=0,
         )
-        first_quiz_completed = (
-            base_query.filter(Patient.created_at >= start_date)
+        first_quiz_sent = await self._scalar(
+            select(func.count(distinct(Patient.id)))
+            .select_from(Patient)
             .join(QuizSession, Patient.id == QuizSession.patient_id)
-            .filter(QuizSession.status == "completed")
-            .distinct()
-            .count()
+            .where(*(base_conditions + [Patient.created_at >= start_date])),
+            default=0,
         )
-        consistent_engagement = (
-            base_query.filter(Patient.created_at >= start_date)
+        first_quiz_completed = await self._scalar(
+            select(func.count(distinct(Patient.id)))
+            .select_from(Patient)
             .join(QuizSession, Patient.id == QuizSession.patient_id)
+            .where(*(base_conditions + [Patient.created_at >= start_date, QuizSession.status == "completed"])),
+            default=0,
+        )
+
+        consistent_subquery = (
+            select(Patient.id)
+            .join(QuizSession, Patient.id == QuizSession.patient_id)
+            .where(*(base_conditions + [Patient.created_at >= start_date]))
             .group_by(Patient.id)
             .having(func.count(QuizSession.id) >= 3)
-            .count()
+            .subquery()
         )
-        high_engagement = (
-            base_query.filter(Patient.created_at >= start_date)
+        consistent_engagement = await self._scalar(
+            select(func.count()).select_from(consistent_subquery),
+            default=0,
+        )
+
+        high_subquery = (
+            select(Patient.id)
             .join(QuizSession, Patient.id == QuizSession.patient_id)
+            .where(*(base_conditions + [Patient.created_at >= start_date]))
             .group_by(Patient.id)
             .having(func.count(QuizSession.id) >= 6)
-            .count()
+            .subquery()
+        )
+        high_engagement = await self._scalar(
+            select(func.count()).select_from(high_subquery),
+            default=0,
         )
 
         stages = [
@@ -518,7 +530,7 @@ class EnhancedAnalyticsService:
             "overall_conversion": round(overall_conversion, 2),
             "total_enrolled": enrolled_count,
             "total_converted": high_engagement,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
         await self._set_cached_result(cache_key, result, AGGREGATED_CACHE_TTL)
         return result
@@ -545,36 +557,44 @@ class EnhancedAnalyticsService:
 
         # Background logic here usually, simplified for synchronous execution
         lookback_days = 90
-        end_date = datetime.now(timezone.utc)
+        end_date = now_sao_paulo()
         start_date = end_date - timedelta(days=lookback_days)
         historical_data = []
+        dialect_name = getattr(getattr(self.db, "bind", None), "dialect", None)
+        dialect_name = getattr(dialect_name, "name", "")
+
+        def _day_bucket(column):
+            if dialect_name == "sqlite":
+                return func.date(column)
+            return func.date_trunc("day", column)
 
         if metric_type == MetricType.PATIENTS:
-            query = self.db.query(
-                func.date_trunc("day", Patient.created_at).label("date"),
+            bucket_expr = _day_bucket(Patient.created_at)
+            stmt = select(
+                bucket_expr.label("date"),
                 func.count(Patient.id).label("value"),
-            ).filter(Patient.created_at >= start_date, Patient.created_at <= end_date)
+            ).where(Patient.created_at >= start_date, Patient.created_at <= end_date)
             if role != UserRole.ADMIN and user_uuid:
-                query = query.filter(Patient.doctor_id == user_uuid)
-            results = query.group_by(func.date_trunc("day", Patient.created_at)).all()
+                stmt = stmt.where(Patient.doctor_id == user_uuid)
+            results = (await self._execute(stmt.group_by(bucket_expr))).all()
             historical_data = [{"date": r.date, "value": r.value} for r in results]
         elif metric_type == MetricType.QUIZ:
-            query = (
-                self.db.query(
-                    func.date_trunc("day", QuizSession.created_at).label("date"),
+            bucket_expr = _day_bucket(QuizSession.created_at)
+            stmt = (
+                select(
+                    bucket_expr.label("date"),
                     func.count(QuizSession.id).label("value"),
                 )
+                .select_from(QuizSession)
                 .join(Patient, Patient.id == QuizSession.patient_id)
-                .filter(
+                .where(
                     QuizSession.created_at >= start_date,
                     QuizSession.created_at <= end_date,
                 )
             )
             if role != UserRole.ADMIN and user_uuid:
-                query = query.filter(Patient.doctor_id == user_uuid)
-            results = query.group_by(
-                func.date_trunc("day", QuizSession.created_at)
-            ).all()
+                stmt = stmt.where(Patient.doctor_id == user_uuid)
+            results = (await self._execute(stmt.group_by(bucket_expr))).all()
             historical_data = [{"date": r.date, "value": r.value} for r in results]
 
         predictions = []
@@ -616,7 +636,7 @@ class EnhancedAnalyticsService:
             "predictions": filtered_predictions,
             "trend_direction": trend,
             "model_accuracy": 0.85,
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
             "notes": "Predictions based on linear regression",
         }
         await self._set_cached_result(cache_key, result, HISTORICAL_CACHE_TTL)
@@ -625,29 +645,27 @@ class EnhancedAnalyticsService:
     async def get_realtime_stream(
         self, role: UserRole, user_uuid: Optional[UUID]
     ) -> Dict[str, Any]:
-        active_sessions_query = self.db.query(
-            func.count(func.distinct(QuizSession.patient_id))
-        ).filter(
+        active_stmt = select(func.count(distinct(QuizSession.patient_id))).where(
             QuizSession.status == "started",
-            QuizSession.created_at >= datetime.now(timezone.utc) - timedelta(hours=24),
+            QuizSession.created_at >= now_sao_paulo() - timedelta(hours=24),
         )
         if role != UserRole.ADMIN and user_uuid:
-            active_sessions_query = active_sessions_query.join(
-                Patient, Patient.id == QuizSession.patient_id
-            ).filter(Patient.doctor_id == user_uuid)
-        active_count = active_sessions_query.scalar() or 0
+            active_stmt = active_stmt.join(Patient, Patient.id == QuizSession.patient_id).where(
+                Patient.doctor_id == user_uuid
+            )
+        active_count = await self._scalar(active_stmt, default=0)
 
-        recent_quizzes_query = self.db.query(func.count(QuizSession.id)).filter(
-            QuizSession.created_at >= datetime.now(timezone.utc) - timedelta(hours=1)
+        recent_stmt = select(func.count(QuizSession.id)).where(
+            QuizSession.created_at >= now_sao_paulo() - timedelta(hours=1)
         )
         if role != UserRole.ADMIN and user_uuid:
-            recent_quizzes_query = recent_quizzes_query.join(
-                Patient, Patient.id == QuizSession.patient_id
-            ).filter(Patient.doctor_id == user_uuid)
-        recent_count = recent_quizzes_query.scalar() or 0
+            recent_stmt = recent_stmt.join(Patient, Patient.id == QuizSession.patient_id).where(
+                Patient.doctor_id == user_uuid
+            )
+        recent_count = await self._scalar(recent_stmt, default=0)
 
         return {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "active_sessions": active_count,
             "recent_activity_1h": recent_count,
             "system_health": {
@@ -682,24 +700,20 @@ class EnhancedAnalyticsService:
         if cached:
             return cached
 
-        current_query = self.db.query(func.count(Patient.id))
+        current_filters = [Patient.created_at >= current_start, Patient.created_at <= current_end]
+        compare_filters = [Patient.created_at >= compare_start, Patient.created_at <= compare_end]
         if role != UserRole.ADMIN and user_uuid:
-            current_query = current_query.filter(Patient.doctor_id == user_uuid)
-        current_value = (
-            current_query.filter(
-                Patient.created_at >= current_start, Patient.created_at <= current_end
-            ).scalar()
-            or 0
+            current_filters.append(Patient.doctor_id == user_uuid)
+            compare_filters.append(Patient.doctor_id == user_uuid)
+
+        current_value = await self._scalar(
+            select(func.count(Patient.id)).where(*current_filters),
+            default=0,
         )
 
-        compare_query = self.db.query(func.count(Patient.id))
-        if role != UserRole.ADMIN and user_uuid:
-            compare_query = compare_query.filter(Patient.doctor_id == user_uuid)
-        compare_value = (
-            compare_query.filter(
-                Patient.created_at >= compare_start, Patient.created_at <= compare_end
-            ).scalar()
-            or 0
+        compare_value = await self._scalar(
+            select(func.count(Patient.id)).where(*compare_filters),
+            default=0,
         )
 
         absolute_change = current_value - compare_value
@@ -728,7 +742,7 @@ class EnhancedAnalyticsService:
                 if absolute_change < 0
                 else "stable",
             },
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
         }
         await self._set_cached_result(cache_key, result, AGGREGATED_CACHE_TTL)
         return result

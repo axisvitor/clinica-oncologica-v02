@@ -6,14 +6,88 @@ along with context managers and utility functions for cache operations.
 """
 
 import functools
+import json
 from typing import Callable, Optional, Union, List
 from datetime import timedelta
 from contextlib import asynccontextmanager
+
+from starlette.requests import Request
 
 from app.utils.logging import get_logger
 from .cache_manager import get_unified_cache_manager, CacheConfig
 
 logger = get_logger(__name__)
+
+
+def _stable_cache_component(value):
+    """Convert values to stable, JSON-serializable cache key components."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+
+    if isinstance(value, Request):
+        return {"path": value.url.path, "query": value.url.query}
+
+    if isinstance(value, (list, tuple, set)):
+        return [_stable_cache_component(item) for item in value]
+
+    if isinstance(value, dict):
+        return {
+            str(key): _stable_cache_component(val)
+            for key, val in sorted(value.items(), key=lambda item: str(item[0]))
+        }
+
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        try:
+            return {
+                "type": value.__class__.__name__,
+                "data": _stable_cache_component(model_dump()),
+            }
+        except Exception:
+            pass
+
+    identity = {"type": value.__class__.__name__}
+    for attr in ("id", "uuid", "user_id", "email", "role"):
+        if hasattr(value, attr):
+            try:
+                identity[attr] = str(getattr(value, attr))
+            except Exception:
+                continue
+    if len(identity) > 1:
+        return identity
+
+    # Fallback avoids memory-address based repr() in key generation.
+    return {"type": value.__class__.__name__}
+
+
+def _build_cache_key_parts(func_name: str, args: tuple, kwargs: dict) -> List[str]:
+    request_obj = None
+    for arg in args:
+        if isinstance(arg, Request):
+            request_obj = arg
+            break
+    if request_obj is None:
+        for value in kwargs.values():
+            if isinstance(value, Request):
+                request_obj = value
+                break
+
+    key_payload = {
+        "func": func_name,
+        "args": [_stable_cache_component(arg) for arg in args if not isinstance(arg, Request)],
+        "kwargs": {
+            key: _stable_cache_component(value)
+            for key, value in sorted(kwargs.items())
+            if not isinstance(value, Request)
+        },
+    }
+    if request_obj is not None:
+        key_payload["request"] = {
+            "path": request_obj.url.path,
+            "query": request_obj.url.query,
+        }
+
+    return [json.dumps(key_payload, sort_keys=True, default=str)]
 
 
 def cache(
@@ -45,6 +119,7 @@ def cache(
 
             # Generate cache key from function name and arguments
             func_name = key_prefix or func.__name__
+            key_parts = _build_cache_key_parts(func_name, args, kwargs)
 
             # If cache_type is not registered, register it with defaults
             if cache_type not in manager._cache_configs:
@@ -57,7 +132,7 @@ def cache(
                 manager.register_cache_config(cache_type, config)
 
             # Try to get from cache
-            cached_result = manager.get(cache_type, None, None, *args, **kwargs)
+            cached_result = manager.get(cache_type, key_parts, None)
             if cached_result is not None:
                 logger.debug(f"Cache HIT for function: {func_name}")
                 return cached_result
@@ -68,7 +143,7 @@ def cache(
 
             # Store in cache
             if result is not None:
-                manager.set(cache_type, result, None, ttl, *args, **kwargs)
+                manager.set(cache_type, result, key_parts, ttl)
                 logger.debug(f"Cached result for function: {func_name}")
 
             return result
@@ -107,6 +182,7 @@ def async_cache(
 
             # Generate cache key from function name and arguments
             func_name = key_prefix or func.__name__
+            key_parts = _build_cache_key_parts(func_name, args, kwargs)
 
             # If cache_type is not registered, register it with defaults
             if cache_type not in manager._cache_configs:
@@ -119,9 +195,7 @@ def async_cache(
                 manager.register_cache_config(cache_type, config)
 
             # Try to get from cache
-            cached_result = await manager.get_async(
-                cache_type, None, None, *args, **kwargs
-            )
+            cached_result = await manager.get_async(cache_type, key_parts, None)
             if cached_result is not None:
                 logger.debug(f"Cache HIT for async function: {func_name}")
                 return cached_result
@@ -132,7 +206,7 @@ def async_cache(
 
             # Store in cache
             if result is not None:
-                await manager.set_async(cache_type, result, None, ttl, *args, **kwargs)
+                await manager.set_async(cache_type, result, key_parts, ttl)
                 logger.debug(f"Cached result for async function: {func_name}")
 
             return result
@@ -214,7 +288,28 @@ def cache_response(
 
             # Generate cache key from function name and arguments
             func_name = key_prefix or func.__name__
-            key_parts = [func_name, str(hash(str(args) + str(sorted(kwargs.items()))))]
+            request_obj = None
+            for arg in args:
+                if isinstance(arg, Request):
+                    request_obj = arg
+                    break
+            if request_obj is None:
+                for value in kwargs.values():
+                    if isinstance(value, Request):
+                        request_obj = value
+                        break
+
+            if request_obj is not None:
+                key_parts = [
+                    func_name,
+                    request_obj.url.path,
+                    request_obj.url.query,
+                ]
+            else:
+                key_parts = [
+                    func_name,
+                    str(hash(str(args) + str(sorted(kwargs.items())))),
+                ]
 
             # Try to get from cache
             cached_result = await cache_manager.get_async(cache_type, key_parts)

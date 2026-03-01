@@ -517,9 +517,9 @@ Missing runtime environment validation
 
 8. **Fix RDS Connection Pool** (30 mins)
    ```python
-   # In app/core/database_config.py
-   DB_POOL_SIZE = 10          # Down from 200
-   DB_MAX_OVERFLOW = 20       # Total max: 30 (within RDS limits)
+   # In app/config/settings/database.py
+   DATABASE_POOL_SIZE = 10          # Down from 200
+   DATABASE_POOL_MAX_OVERFLOW = 20  # Total max: 30 (within RDS limits)
    ```
 
 ---

@@ -4,7 +4,6 @@ Centralizes message creation patterns to eliminate code duplication.
 """
 
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timezone
 from uuid import UUID
 from enum import Enum
 
@@ -12,6 +11,10 @@ from sqlalchemy.orm import Session
 
 from app.models.message import Message, MessageDirection, MessageType, MessageStatus
 from app.utils.template_sanitizer import get_template_sanitizer
+from app.utils.timezone import now_sao_paulo
+from app.domain.messaging.core.monthly_quiz_payload import (
+    build_monthly_quiz_reminder_payload,
+)
 
 
 class MessageTemplate(Enum):
@@ -101,18 +104,29 @@ class MessageFactory:
         Returns:
             Created Message object (saved to DB)
         """
-        msg_metadata = metadata or {}
+        msg_metadata = dict(metadata or {})
         if template_type:
             msg_metadata["template_type"] = template_type.value
+
+        # Accept compatibility kwargs without leaking invalid model fields.
+        legacy_metadata = kwargs.pop("metadata", None)
+        if isinstance(legacy_metadata, dict):
+            msg_metadata.update(legacy_metadata)
+
+        explicit_metadata = kwargs.pop("message_metadata", None)
+        if isinstance(explicit_metadata, dict):
+            msg_metadata.update(explicit_metadata)
+        kwargs.pop("message_type", None)
+        message_type_value = kwargs.pop("type", message_type)
 
         message = Message(
             patient_id=patient_id,
             content=content,
-            message_type=message_type,
+            type=message_type_value,
             direction=MessageDirection.OUTBOUND,
             status=MessageStatus.PENDING,
-            metadata=msg_metadata,
-            created_at=datetime.now(timezone.utc),
+            message_metadata=msg_metadata,
+            created_at=now_sao_paulo(),
             **kwargs,
         )
 
@@ -189,22 +203,16 @@ class MessageFactory:
         Returns:
             Created Message object
         """
-        # Sanitize user input before template rendering
-        safe_context = self.sanitizer.sanitize_template_context({
-            "patient_name": patient_name,
-            "link": link_url,
-            "hours_remaining": hours_remaining
-        })
-        content = self.monthly_quiz_templates["reminder"].format(**safe_context)
-
-        metadata = {
-            "quiz_session_id": quiz_session_id,
-            "link_url": link_url,
-            "hours_remaining": hours_remaining,
-            "message_type": "monthly_quiz_reminder",
-            "template_type": MessageTemplate.MONTHLY_QUIZ_LINK_REMINDER.value,
-            "delivery_method": delivery_method,
-        }
+        content, metadata = build_monthly_quiz_reminder_payload(
+            sanitize_context=self.sanitizer.sanitize_template_context,
+            templates=self.monthly_quiz_templates,
+            patient_name=patient_name,
+            link=link_url,
+            quiz_session_id=quiz_session_id,
+            hours_remaining=hours_remaining,
+            delivery_method=delivery_method,
+            link_metadata_key="link_url",
+        )
 
         return self.create_outbound_message(
             patient_id=patient_id,

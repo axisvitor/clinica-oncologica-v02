@@ -30,7 +30,7 @@ export function PhysicianExportDialog({
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            O relatório incluirá todos os pacientes filtrados, insights e recomendações de IA.
+            O relatório incluirá todos os pacientes filtrados e indicadores de risco.
           </p>
           <div className="flex gap-3">
             <Button

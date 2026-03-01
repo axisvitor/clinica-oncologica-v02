@@ -74,7 +74,7 @@ export function useConfiguredQuery<TData, TError>(
     refetchOnWindowFocus: queryOptions.refetchOnWindowFocus ?? false,
     refetchOnReconnect: queryOptions.refetchOnReconnect ?? true,
     retry: queryOptions.retry ?? 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 }
 
@@ -123,7 +123,7 @@ export function useDedupeAwareQueryFn<TData>({
         return cacheEntry.data;
       }
 
-      const result = await executableFn(...args);
+      const result = (await executableFn(...args)) as TData;
       dedupeCacheRef.current[queryKeyString] = {
         timestamp: now,
         data: result,

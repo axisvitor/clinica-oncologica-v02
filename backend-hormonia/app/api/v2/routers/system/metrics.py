@@ -13,38 +13,27 @@ import sys
 import json
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.v2.system import (
     SystemInfoResponse,
     SystemMetrics,
 )
 from app.dependencies.auth_dependencies import get_current_user_from_session
-from app.core.redis_client import get_async_redis_client
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.config import settings
-from app.database import get_db
-from app.api.v2.utils.auth_helpers import is_admin as _is_admin
+from app.core.database.async_engine import get_async_db
+from app.utils.auth_helpers import is_admin as _is_admin
+from app.utils.timezone import now_sao_paulo
+from .helpers.auth import get_redis_client as _get_redis_client
 
 router = APIRouter(tags=["system-metrics"])
 logger = get_logger(__name__)
 
 # Redis cache TTLs
 CACHE_TTL_INFO = 600  # 10 minutes (moderate)
-
-
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-
-async def _get_redis_client():
-    """Get async Redis client for caching."""
-    try:
-        return await get_async_redis_client()
-    except Exception as e:
-        logger.warning(f"Failed to get Redis client: {e}")
-        return None
 
 
 # ============================================================================
@@ -74,7 +63,7 @@ async def _get_redis_client():
 async def get_system_metrics(
     request: Request,
     current_user=Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Get system-level performance metrics.
@@ -129,9 +118,7 @@ async def get_system_metrics(
         # Application metrics - active sessions count
         active_sessions = 0
         try:
-            from sqlalchemy import text
-
-            result = db.execute(
+            result = await db.execute(
                 text("SELECT COUNT(*) FROM sessions WHERE expires_at > NOW()")
             )
             active_sessions = result.scalar() or 0
@@ -160,7 +147,7 @@ async def get_system_metrics(
                 logger.debug(f"Redis info retrieval failed: {e}")
 
         return SystemMetrics(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             cpu_percent=cpu_percent,
             cpu_count=cpu_count,
             memory_total_mb=memory_total_mb,

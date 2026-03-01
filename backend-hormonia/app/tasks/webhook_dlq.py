@@ -1,7 +1,7 @@
 """
-Celery tasks for Webhook Dead Letter Queue (DLQ) processing.
+Webhook Dead Letter Queue (DLQ) processing tasks.
 
-Implements MEDIUM-005: Celery tasks for DLQ processing with exponential backoff.
+Implements MEDIUM-005: Background tasks for DLQ processing with exponential backoff.
 
 Tasks:
 - process_webhook_dlq: Process DLQ events every minute
@@ -9,25 +9,45 @@ Tasks:
 - monitor_dlq_health: Monitor DLQ metrics every 5 minutes
 """
 
-import asyncio
 import logging
 from typing import Any, Dict
 
-from celery import shared_task
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
-from app.database import get_db
+from app.database import get_scoped_session
+from app.task_queue import task_queue as celery_app
 from app.utils.async_helpers import run_async
 from app.services.webhook_dlq import get_webhook_dlq
 from app.config.settings.tasks import (
     QUIZ_DLQ_BATCH_SIZE,
+    WEBHOOK_DLQ_PROCESSING_TIMEOUT,
 )
+from app.utils.timezone import now_sao_paulo, to_sao_paulo
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(
-    name="webhooks.process_dlq",
+def _retry_or_raise(task, exc: Exception, task_name: str) -> None:
+    """Retry while attempts remain; otherwise propagate the original exception."""
+    current_retries = getattr(task.request, "retries", 0)
+    max_retries = task.max_retries if task.max_retries is not None else 0
+
+    if current_retries < max_retries:
+        logger.warning(
+            "%s failed, retrying (%s/%s): %s",
+            task_name,
+            current_retries + 1,
+            max_retries,
+            exc,
+        )
+        raise task.retry(exc=exc)
+
+    logger.error("%s failed after %s retries", task_name, max_retries, exc_info=True)
+    raise exc
+
+
+@celery_app.task(
+    name="app.tasks.webhook_dlq.process_webhook_dlq",
     bind=True,
     max_retries=3,
     default_retry_delay=60,
@@ -50,29 +70,29 @@ def process_webhook_dlq(self, batch_size: int = QUIZ_DLQ_BATCH_SIZE) -> Dict[str
     Returns:
         Dictionary with processing statistics
     """
-    start_time = datetime.now(timezone.utc)
+    start_time = now_sao_paulo()
 
     try:
         logger.info(f"Starting DLQ processing (batch_size={batch_size})")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             # Get DLQ service
             dlq_service = get_webhook_dlq(db)
 
             # Process DLQ using run_async for efficient event loop reuse
-            processed_count = run_async(dlq_service.process_dlq(batch_size=batch_size))
+            processed_count = run_async(
+                dlq_service.process_dlq(batch_size=batch_size),
+                timeout=WEBHOOK_DLQ_PROCESSING_TIMEOUT,
+            )
 
-            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            execution_time = (now_sao_paulo() - start_time).total_seconds() * 1000
 
             result = {
                 "success": True,
                 "processed_count": processed_count,
                 "batch_size": batch_size,
                 "execution_time_ms": int(execution_time),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
             logger.info(
@@ -81,26 +101,20 @@ def process_webhook_dlq(self, batch_size: int = QUIZ_DLQ_BATCH_SIZE) -> Dict[str
 
             return result
 
-        finally:
-            db.close()
-
     except Exception as e:
-        execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        execution_time = (now_sao_paulo() - start_time).total_seconds() * 1000
 
-        logger.error(f"DLQ processing failed: {e}", exc_info=True)
-
-        # Return error result
-        return {
-            "success": False,
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "execution_time_ms": int(execution_time),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
+        logger.error(
+            "DLQ processing failed after %.2fms: %s",
+            execution_time,
+            e,
+            exc_info=True,
+        )
+        raise
 
 
-@shared_task(
-    name="webhooks.cleanup_old_dlq_events",
+@celery_app.task(
+    name="app.tasks.webhook_dlq.cleanup_old_dlq_events",
     bind=True,
     max_retries=2,
     default_retry_delay=300,
@@ -112,7 +126,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
     Runs daily to prevent DLQ from growing indefinitely.
     Events are auto-expired via Redis TTL, but this provides additional cleanup.
 
-    Schedule: Daily at 03:00 UTC
+    Schedule: Daily at 03:00 Sao Paulo
 
     Args:
         days_old: Remove events older than this many days (default: 7)
@@ -120,35 +134,35 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
     Returns:
         Dictionary with cleanup statistics
     """
-    start_time = datetime.now(timezone.utc)
+    start_time = now_sao_paulo()
 
     try:
         logger.info(f"Starting DLQ cleanup (days_old={days_old})")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             # Get DLQ service
             dlq_service = get_webhook_dlq(db)
 
             # Async cleanup using run_async for efficient event loop reuse
             async def _run_cleanup():
                 # Get Redis client
-                from app.core.redis_unified import get_async_redis
+                from app.core.redis_manager import (
+                    get_async_redis_client as get_async_redis,
+                )
 
                 redis_client = await get_async_redis()
 
-                # Get all DLQ keys
+                # Stream DLQ keys using SCAN instead of KEYS
                 pattern = f"{dlq_service.DLQ_KEY_PREFIX}:*"
-                dlq_keys = await redis_client.keys(pattern)
 
                 cleaned = 0
-                cutoff = datetime.now(timezone.utc) - timedelta(days=days_old)
+                cutoff = now_sao_paulo() - timedelta(days=days_old)
 
-                for dlq_key in dlq_keys:
+                async for dlq_key in redis_client.scan_iter(match=pattern):
                     # Get all events in queue
                     events = await redis_client.lrange(dlq_key, 0, -1)
+                    events_to_remove = []
+                    queue_changed = False
 
                     for event_json in events:
                         try:
@@ -158,21 +172,28 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
 
                             # Check if event is too old
                             event_timestamp = datetime.fromisoformat(event["timestamp"])
+                            event_timestamp = to_sao_paulo(event_timestamp)
 
                             if event_timestamp < cutoff:
-                                # Remove old event
-                                await redis_client.lrem(dlq_key, 1, event_json)
                                 cleaned += 1
+                                queue_changed = True
+                                events_to_remove.append(event_json)
+                                continue
 
-                        except (json.JSONDecodeError, KeyError) as e:
+                        except (json.JSONDecodeError, KeyError, ValueError) as e:
                             logger.warning(f"Invalid event in DLQ, removing: {e}")
-                            await redis_client.lrem(dlq_key, 1, event_json)
                             cleaned += 1
+                            queue_changed = True
+                            events_to_remove.append(event_json)
+
+                    if queue_changed:
+                        for event_json in events_to_remove:
+                            await redis_client.lrem(dlq_key, 1, event_json)
                 return cleaned, cutoff
 
             cleaned_count, cutoff_date = run_async(_run_cleanup())
 
-            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            execution_time = (now_sao_paulo() - start_time).total_seconds() * 1000
 
             result = {
                 "success": True,
@@ -180,7 +201,7 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
                 "days_old": days_old,
                 "cutoff_date": cutoff_date.isoformat(),
                 "execution_time_ms": int(execution_time),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
             logger.info(
@@ -189,25 +210,21 @@ def cleanup_old_dlq_events(self, days_old: int = 7) -> Dict[str, Any]:
 
             return result
 
-        finally:
-            db.close()
-
     except Exception as e:
-        execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        execution_time = (now_sao_paulo() - start_time).total_seconds() * 1000
 
-        logger.error(f"DLQ cleanup failed: {e}", exc_info=True)
+        logger.error(
+            "DLQ cleanup failed after %.2fms: %s",
+            execution_time,
+            e,
+            exc_info=True,
+        )
+        _retry_or_raise(self, e, task_name="DLQ cleanup")
+        raise
 
-        return {
-            "success": False,
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "execution_time_ms": int(execution_time),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
 
-
-@shared_task(
-    name="webhooks.monitor_dlq_health",
+@celery_app.task(
+    name="app.tasks.webhook_dlq.monitor_dlq_health",
     bind=True,
 )
 def monitor_dlq_health(self) -> Dict[str, Any]:
@@ -225,23 +242,19 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
     Returns:
         Dictionary with health metrics
     """
-    start_time = datetime.now(timezone.utc)
+    start_time = now_sao_paulo()
 
     try:
         logger.info("Starting DLQ health monitoring")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             # Get DLQ service
             dlq_service = get_webhook_dlq(db)
 
-            # Async stats logic
-            async def _run_stats():
-                return await dlq_service.get_dlq_stats()
-
-            stats = asyncio.run(_run_stats())
+            stats = run_async(
+                dlq_service.get_dlq_stats(),
+                timeout=WEBHOOK_DLQ_PROCESSING_TIMEOUT,
+            )
 
             # Check for alerts
             alerts = []
@@ -274,7 +287,7 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
                             }
                         )
 
-            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            execution_time = (now_sao_paulo() - start_time).total_seconds() * 1000
 
             result = {
                 "success": True,
@@ -282,7 +295,7 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
                 "alerts": alerts,
                 "alert_count": len(alerts),
                 "execution_time_ms": int(execution_time),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
             # Log alerts
@@ -296,21 +309,16 @@ def monitor_dlq_health(self) -> Dict[str, Any]:
 
             return result
 
-        finally:
-            db.close()
-
     except Exception as e:
-        execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        execution_time = (now_sao_paulo() - start_time).total_seconds() * 1000
 
-        logger.error(f"DLQ health monitoring failed: {e}", exc_info=True)
-
-        return {
-            "success": False,
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "execution_time_ms": int(execution_time),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
+        logger.error(
+            "DLQ health monitoring failed after %.2fms: %s",
+            execution_time,
+            e,
+            exc_info=True,
+        )
+        raise
 
 
 # Export all tasks

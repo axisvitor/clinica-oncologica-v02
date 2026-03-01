@@ -9,7 +9,10 @@ import json
 import logging
 from typing import Optional, Dict, Any
 
-from app.core.redis_unified import get_sync_redis, get_async_redis
+from app.core.redis_manager import (
+    get_sync_redis_client as get_sync_redis,
+    get_async_redis_client as get_async_redis,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -225,13 +228,19 @@ def check_password_change_rate_limit(
         window_seconds: Time window in seconds
 
     Returns:
-        True if allowed, False if rate limit exceeded
+        True if allowed, False if rate limit exceeded or backend check fails
     """
     try:
         redis_client = get_sync_redis()
         if not redis_client:
-            # If Redis unavailable, allow operation (fail open)
-            return True
+            logger.error(
+                (
+                    "Password change rate-limit backend unavailable; "
+                    "denying operation (fail-closed)"
+                ),
+                extra={"firebase_uid": firebase_uid},
+            )
+            return False
 
         key = _get_password_attempt_key(firebase_uid)
 
@@ -251,9 +260,16 @@ def check_password_change_rate_limit(
 
         return True
     except Exception as e:
-        logger.error(f"Error checking password rate limit for {firebase_uid}: {e}")
-        # Fail open on error
-        return True
+        logger.error(
+            (
+                "Error checking password rate limit for %s: %s; "
+                "denying operation (fail-closed)"
+            ),
+            firebase_uid,
+            e,
+            exc_info=True,
+        )
+        return False
 
 
 def reset_password_change_rate_limit(firebase_uid: str) -> bool:

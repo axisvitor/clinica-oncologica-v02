@@ -72,7 +72,7 @@ describe('PatientTimeline', () => {
         {
           id: '1',
           type: 'diagnosis',
-          date: '2024-01-15T10:30:00Z',
+          date: '2024-01-15T10:30:00-03:00',
           description: 'Diagnóstico',
         },
       ],

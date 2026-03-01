@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
-import { User } from '@/hooks/auth/types'
 import { createWrapperWithProviders, mockUser } from '../../test-utils'
 
 // Mock dependencies
 const mockFirebaseAuth = {
-  onAuthStateChange: vi.fn(),
+  onAuthStateChanged: vi.fn(),
   onIdTokenChanged: vi.fn(),
   getCurrentUser: vi.fn(),
   signInWithPassword: vi.fn(),
@@ -17,10 +16,15 @@ const mockFirebaseAuth = {
 
 const mockApiClient = {
   setAuthToken: vi.fn(),
+  clearAuthToken: vi.fn(),
   fetchCsrfToken: vi.fn(),
   auth: {
     me: vi.fn(),
-    createSession: vi.fn()
+    createSession: vi.fn(),
+    checkAuth: vi.fn()
+  },
+  dashboard: {
+    getMain: vi.fn()
   },
   getBaseURL: vi.fn().mockReturnValue('https://api.example.com'),
   getCsrfToken: vi.fn().mockReturnValue('csrf-token')
@@ -35,7 +39,9 @@ const mockWsManager = {
 const mockFirebaseAuthService = {
   loginUser: vi.fn(),
   logoutUser: vi.fn(),
-  logoutAllDevices: vi.fn()
+  logoutAllDevices: vi.fn(),
+  setSessionId: vi.fn(),
+  clearSessionId: vi.fn()
 }
 
 const mockMockAuthService = {
@@ -50,8 +56,8 @@ const mockMockAuthService = {
 const mockToast = vi.fn()
 
 // Mock modules
-vi.mock('@/lib/firebase-client', () => ({
-  firebaseAuth: mockFirebaseAuth
+vi.mock('@/lib/firebase-lazy', () => ({
+  firebaseAuthLazy: mockFirebaseAuth
 }))
 
 vi.mock('@/lib/api-client', () => ({
@@ -90,7 +96,7 @@ describe('AuthContext - Comprehensive Tests', () => {
     vi.clearAllMocks()
 
     // Setup Firebase auth state change mock
-    mockFirebaseAuth.onAuthStateChange.mockImplementation((callback) => {
+    mockFirebaseAuth.onAuthStateChanged.mockImplementation((callback) => {
       authStateChangeCallback = callback
       return vi.fn() // unsubscribe function
     })
@@ -103,6 +109,8 @@ describe('AuthContext - Comprehensive Tests', () => {
 
     mockApiClient.fetchCsrfToken.mockResolvedValue(undefined)
     mockApiClient.auth.me.mockResolvedValue({ data: mockUser })
+    mockApiClient.auth.checkAuth.mockResolvedValue({ authenticated: false })
+    mockApiClient.dashboard.getMain.mockResolvedValue({})
   })
 
   afterEach(() => {
@@ -171,10 +179,9 @@ describe('AuthContext - Comprehensive Tests', () => {
         expect(result.current.isLoading).toBe(false)
         expect(result.current.isAuthenticated).toBe(true)
         expect(result.current.user).toEqual(mockUser)
-        expect(result.current.session?.access_token).toBe('firebase-token')
+        expect(result.current.session?.websocketToken).toBe('firebase-token')
       })
 
-      expect(mockApiClient.setAuthToken).toHaveBeenCalledWith('firebase-token')
       expect(mockWsManager.connect).toHaveBeenCalledWith('firebase-token')
     })
 
@@ -246,7 +253,6 @@ describe('AuthContext - Comprehensive Tests', () => {
       })
 
       expect(mockWsManager.updateToken).toHaveBeenCalledWith(newToken)
-      expect(mockApiClient.setAuthToken).toHaveBeenCalledWith(newToken)
     })
   })
 
@@ -502,7 +508,6 @@ describe('AuthContext - Comprehensive Tests', () => {
       })
 
       expect(mockFirebaseUser.getIdToken).toHaveBeenCalledWith(true)
-      expect(mockApiClient.setAuthToken).toHaveBeenCalledWith(newToken)
     })
 
     it('should handle token refresh errors', async () => {
@@ -602,7 +607,7 @@ describe('AuthContext - Comprehensive Tests', () => {
       const unsubscribeAuth = vi.fn()
       const unsubscribeToken = vi.fn()
 
-      mockFirebaseAuth.onAuthStateChange.mockReturnValue(unsubscribeAuth)
+      mockFirebaseAuth.onAuthStateChanged.mockReturnValue(unsubscribeAuth)
       mockFirebaseAuth.onIdTokenChanged.mockReturnValue(unsubscribeToken)
 
       const wrapper = ({ children }: { children: React.ReactNode }) => (

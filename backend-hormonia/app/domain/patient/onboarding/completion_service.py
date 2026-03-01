@@ -27,9 +27,10 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 # Local application imports
-from app.infrastructure.cache import get_unified_cache_manager as get_cache_manager
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
+from app.core.executors import get_io_executor
+from app.domain.patient.onboarding.cache_helpers import invalidate_patient_list_cache
 
 if TYPE_CHECKING:
     from app.domain.patient.onboarding.notification_service import NotificationService
@@ -274,6 +275,21 @@ class CompletionService:
                 await self.flow_service.initialize_default_flow(
                     patient, current_user_id
                 )
+                try:
+                    from app.models.enums import FlowState
+
+                    current_state = (
+                        patient.flow_state.value
+                        if hasattr(patient.flow_state, "value")
+                        else patient.flow_state
+                    )
+                    if current_state == FlowState.ONBOARDING.value:
+                        await self.flow_service.activate_patient(patient.id)
+                except Exception as e:
+                    self._logger.warning(
+                        "Failed to activate patient after flow initialization",
+                        extra={"patient_id": str(patient.id), "error": str(e)},
+                    )
                 self._logger.info(
                     "Initialized flow for existing patient",
                     extra={"patient_id": str(patient.id)}
@@ -291,6 +307,21 @@ class CompletionService:
                 "Flow already initialized for patient",
                 extra={"patient_id": str(patient.id)}
             )
+            try:
+                from app.models.enums import FlowState
+
+                current_state = (
+                    patient.flow_state.value
+                    if hasattr(patient.flow_state, "value")
+                    else patient.flow_state
+                )
+                if current_state == FlowState.ONBOARDING.value:
+                    await self.flow_service.activate_patient(patient.id)
+            except Exception as e:
+                self._logger.warning(
+                    "Failed to activate patient with existing flow",
+                    extra={"patient_id": str(patient.id), "error": str(e)},
+                )
             return False
 
     async def _invalidate_cache(self, doctor_id: UUID) -> None:
@@ -300,14 +331,7 @@ class CompletionService:
         Args:
             doctor_id: Doctor ID for cache invalidation.
         """
-        cache_manager = get_cache_manager()
-        cache_manager.invalidate_pattern(
-            f"patient_list:*:{doctor_id}*", namespace="cache"
-        )
-        self._logger.debug(
-            "Invalidated patient list cache",
-            extra={"doctor_id": str(doctor_id)}
-        )
+        invalidate_patient_list_cache(self._logger, doctor_id)
 
     def shutdown(self, wait: bool = True) -> None:
         """

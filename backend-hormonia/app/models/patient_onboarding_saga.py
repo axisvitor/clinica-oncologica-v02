@@ -20,11 +20,13 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ENUM as PG_ENUM
+from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import relationship
 import uuid
 
 from app.models.base import BaseModel
 from app.models.enums import SagaStatus
+from app.utils.timezone import now_sao_paulo
 
 if TYPE_CHECKING:
     pass
@@ -90,9 +92,9 @@ class PatientOnboardingSaga(BaseModel):
 
     # Data
     patient_data = Column(JSONB, nullable=False)
-    execution_log = Column(JSONB, nullable=False, default=list)
+    execution_log = Column(MutableList.as_mutable(JSONB), nullable=False, default=list)
     step_data = Column(
-        JSONB,
+        MutableDict.as_mutable(JSONB),
         nullable=True,
         default=dict,
         doc="Stores compensation tracking data for idempotency (FIX P1-008)"
@@ -104,7 +106,7 @@ class PatientOnboardingSaga(BaseModel):
 
     # Timestamps
     started_at = Column(
-        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), nullable=False, default=lambda: now_sao_paulo()
     )
     completed_at = Column(DateTime(timezone=True), nullable=True)
     failed_at = Column(DateTime(timezone=True), nullable=True)
@@ -151,7 +153,7 @@ class PatientOnboardingSaga(BaseModel):
             "step": step,
             "action": action,
             "status": status,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         if message:
@@ -197,7 +199,7 @@ class PatientOnboardingSaga(BaseModel):
         if not self.started_at:
             return None
 
-        end_time = self.completed_at or self.failed_at or datetime.now(timezone.utc)
+        end_time = self.completed_at or self.failed_at or now_sao_paulo()
         return (end_time - self.started_at).total_seconds()
 
     def is_completed(self) -> bool:

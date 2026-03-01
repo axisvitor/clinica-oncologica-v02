@@ -153,10 +153,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     <>
       {/* Mobile overlay */}
       {isOpen && (
-        <div
+        <button
+          type="button"
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={onClose}
-          aria-hidden="true"
+          aria-label="Fechar menu"
         />
       )}
 
@@ -174,6 +175,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <img
             src="/images/logo_system.svg"
             alt="Neoplasias Litoral Logo"
+            width={2430}
+            height={1150}
             className="h-14 w-auto"
           />
           <div className="flex-1 flex justify-end">

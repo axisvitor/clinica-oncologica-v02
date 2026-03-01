@@ -9,17 +9,17 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import or_, select, func, delete as sql_delete
+from sqlalchemy.orm import joinedload
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.user import User
-from app.models.failed_message import FailedMessage
-from app.services.dlq_service import DLQService
+from app.models.failed_message import FailedMessage, DLQStatus
 from app.services.audit import AuditService
 from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import cache_response, invalidate_cache
-from app.dependencies import get_request_context, RequestContext
+from app.utils.request_context import get_request_context, RequestContext
 from app.schemas.v2.admin_extensions import (
     DLQItemResponse,
     DLQItemListResponse,
@@ -38,13 +38,19 @@ from app.api.v2.dependencies import (
 from .constants import CACHE_TTL_DLQ_ITEMS, CACHE_TTL_DLQ_STATS
 from .dependencies import get_admin_user, log_admin_extension_action
 from .utils import serialize_dlq_item
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+async def _fetch_dlq_item(db: AsyncSession, dlq_id: UUID) -> FailedMessage | None:
+    result = await db.execute(select(FailedMessage).where(FailedMessage.id == dlq_id))
+    return result.scalar_one_or_none()
+
+
 @router.get(
-    "/",
+    "",
     response_model=DLQItemListResponse,
     summary="List DLQ Items",
     description="Retrieve paginated list of Dead Letter Queue items with cursor-based pagination and filters.",
@@ -58,11 +64,13 @@ async def list_dlq_items(
     fields: Optional[str] = Query(
         None, description="Comma-separated fields to include"
     ),
-    status: Optional[str] = Query(None, description="Filter by status"),
+    status_filter: Optional[str] = Query(
+        None, alias="status", description="Filter by status"
+    ),
     error_code: Optional[str] = Query(None, description="Filter by error code"),
     patient_id: Optional[UUID] = Query(None, description="Filter by patient"),
     search: Optional[str] = Query(None, description="Search in error messages"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -86,28 +94,29 @@ async def list_dlq_items(
         # Parse field selection
         field_list = get_field_selection(fields) if fields else None
 
-        # Build base query with eager loading
-        query = db.query(FailedMessage).options(
-            joinedload(FailedMessage.patient), joinedload(FailedMessage.reviewer)
+        # Build base query with relationship loading
+        stmt = select(FailedMessage).options(
+            joinedload(FailedMessage.patient),
+            joinedload(FailedMessage.reviewer),
         )
 
         # Apply cursor pagination
         if cursor_data:
-            query = query.filter(FailedMessage.id > cursor_data.get("id", 0))
+            stmt = stmt.where(FailedMessage.id > cursor_data.get("id", 0))
 
         # Apply filters
-        if status:
-            query = query.filter(FailedMessage.status == status)
+        if status_filter:
+            stmt = stmt.where(FailedMessage.status == status_filter)
 
         if error_code:
-            query = query.filter(FailedMessage.error_code == error_code)
+            stmt = stmt.where(FailedMessage.error_code == error_code)
 
         if patient_id:
-            query = query.filter(FailedMessage.patient_id == patient_id)
+            stmt = stmt.where(FailedMessage.patient_id == patient_id)
 
         if search:
             search_pattern = f"%{search}%"
-            query = query.filter(
+            stmt = stmt.where(
                 or_(
                     FailedMessage.error_message.ilike(search_pattern),
                     FailedMessage.message_type.ilike(search_pattern),
@@ -115,10 +124,12 @@ async def list_dlq_items(
             )
 
         # Order by ID for consistent cursor pagination
-        query = query.order_by(FailedMessage.id)
+        stmt = stmt.order_by(FailedMessage.id)
 
         # Fetch limit + 1 to check if there's more
-        items = query.limit(limit + 1).all()
+        stmt = stmt.limit(limit + 1)
+        items_result = await db.execute(stmt)
+        items = list(items_result.scalars().unique().all())
 
         # Check if there are more results
         has_more = len(items) > limit
@@ -143,7 +154,7 @@ async def list_dlq_items(
             additional_data={
                 "count": len(items),
                 "filters": {
-                    "status": status,
+                    "status": status_filter,
                     "patient_id": str(patient_id) if patient_id else None,
                 },
             },
@@ -156,6 +167,8 @@ async def list_dlq_items(
             "total": None,  # Cursor pagination doesn't include total for performance
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error listing DLQ items: {e}")
         raise HTTPException(
@@ -165,7 +178,7 @@ async def list_dlq_items(
 
 
 @router.get(
-    "/{dlq_id}",
+    "/{dlq_id:uuid}",
     response_model=DLQItemResponse,
     summary="Get DLQ Item",
     description="Retrieve detailed information about a specific DLQ item. Cached for 2 minutes.",
@@ -176,7 +189,7 @@ async def get_dlq_item(
     fields: Optional[str] = Query(
         None, description="Comma-separated fields to include"
     ),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -186,7 +199,7 @@ async def get_dlq_item(
     Includes:
     - Full error details
     - Retry history
-    - Patient information (via eager loading)
+    - Patient information
     - Metadata
 
     Args:
@@ -197,17 +210,17 @@ async def get_dlq_item(
         Detailed DLQ item information
     """
     try:
-        # Query with eager loading
-        item = (
-            db.query(FailedMessage)
+        # Query with eager-loaded relationships
+        result = await db.execute(
+            select(FailedMessage)
             .options(
                 joinedload(FailedMessage.patient),
                 joinedload(FailedMessage.reviewer),
                 joinedload(FailedMessage.original_message),
             )
-            .filter(FailedMessage.id == dlq_id)
-            .first()
+            .where(FailedMessage.id == dlq_id)
         )
+        item = result.scalar_one_or_none()
 
         if not item:
             raise HTTPException(
@@ -240,7 +253,7 @@ async def get_dlq_item(
 
 
 @router.post(
-    "/{dlq_id}/retry",
+    "/{dlq_id:uuid}/retry",
     response_model=DLQRetryResponse,
     summary="Retry DLQ Item",
     description="Manually retry a failed operation from the DLQ.",
@@ -249,7 +262,7 @@ async def get_dlq_item(
 async def retry_dlq_item(
     request: Request,
     dlq_id: UUID,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -266,10 +279,24 @@ async def retry_dlq_item(
         Retry operation result
     """
     try:
-        dlq_service = DLQService(db)
-
-        # Attempt retry
-        success, error_message = dlq_service.retry_message(dlq_id, manual=True)
+        item = await _fetch_dlq_item(db, dlq_id)
+        if not item:
+            success = False
+            error_message = "Message not found in DLQ"
+        elif item.retry_count >= item.max_retries:
+            item.status = DLQStatus.MAX_RETRIES_EXCEEDED
+            await db.commit()
+            success = False
+            error_message = "Max retries exceeded"
+        else:
+            item.retry_count += 1
+            item.last_retry_at = now_sao_paulo()
+            item.status = DLQStatus.RETRYING
+            item.dlq_data["manual_retry"] = True
+            item.dlq_data["manual_retry_at"] = now_sao_paulo().isoformat()
+            await db.commit()
+            success = True
+            error_message = None
 
         # Invalidate cache
         invalidate_cache(f"admin_ext:dlq:item:{dlq_id}")
@@ -321,7 +348,7 @@ async def retry_dlq_item(
 async def bulk_retry_dlq_items(
     request: Request,
     bulk_data: DLQBulkRetryRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -343,7 +370,6 @@ async def bulk_retry_dlq_items(
                 detail="Maximum 50 DLQ items per bulk retry",
             )
 
-        dlq_service = DLQService(db)
         successful = 0
         failed = 0
         errors = []
@@ -351,7 +377,25 @@ async def bulk_retry_dlq_items(
         # Process each item
         for dlq_id in bulk_data.dlq_ids:
             try:
-                success, error_message = dlq_service.retry_message(dlq_id, manual=True)
+                item = await _fetch_dlq_item(db, dlq_id)
+
+                if not item:
+                    success = False
+                    error_message = "Message not found in DLQ"
+                elif item.retry_count >= item.max_retries:
+                    item.status = DLQStatus.MAX_RETRIES_EXCEEDED
+                    await db.commit()
+                    success = False
+                    error_message = "Max retries exceeded"
+                else:
+                    item.retry_count += 1
+                    item.last_retry_at = now_sao_paulo()
+                    item.status = DLQStatus.RETRYING
+                    item.dlq_data["manual_retry"] = True
+                    item.dlq_data["manual_retry_at"] = now_sao_paulo().isoformat()
+                    await db.commit()
+                    success = True
+                    error_message = None
 
                 if success:
                     successful += 1
@@ -405,7 +449,7 @@ async def bulk_retry_dlq_items(
 
 
 @router.delete(
-    "/{dlq_id}",
+    "/{dlq_id:uuid}",
     response_model=DLQRetryResponse,
     summary="Delete DLQ Item",
     description="Mark DLQ item as resolved/discarded (soft delete).",
@@ -415,7 +459,7 @@ async def delete_dlq_item(
     request: Request,
     dlq_id: UUID,
     reason: str = Query(..., description="Reason for deletion"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -433,10 +477,15 @@ async def delete_dlq_item(
         Deletion confirmation
     """
     try:
-        dlq_service = DLQService(db)
+        item = await _fetch_dlq_item(db, dlq_id)
+        success = item is not None
 
-        # Discard message
-        success = dlq_service.discard_message(dlq_id, reason)
+        if item:
+            item.status = DLQStatus.DISCARDED
+            item.resolved_at = now_sao_paulo()
+            item.dlq_data["discard_reason"] = reason
+            item.dlq_data["discarded_at"] = now_sao_paulo().isoformat()
+            await db.commit()
 
         if not success:
             raise HTTPException(
@@ -478,14 +527,14 @@ async def delete_dlq_item(
 
 
 @router.get(
-    "/stats/",
+    "/stats",
     response_model=DLQStatsResponse,
     summary="Get DLQ Statistics",
     description="Get comprehensive DLQ statistics. Cached for 10 minutes.",
 )
 @cache_response(ttl=CACHE_TTL_DLQ_STATS, key_prefix="admin_ext:dlq:stats")
 async def get_dlq_statistics(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -503,8 +552,92 @@ async def get_dlq_statistics(
         DLQ statistics summary
     """
     try:
-        dlq_service = DLQService(db)
-        stats = dlq_service.get_stats()
+        total_result = await db.execute(select(func.count(FailedMessage.id)))
+        total = total_result.scalar() or 0
+
+        pending_result = await db.execute(
+            select(func.count(FailedMessage.id)).where(
+                FailedMessage.status == DLQStatus.PENDING_REVIEW
+            )
+        )
+        pending = pending_result.scalar() or 0
+
+        retry_scheduled_result = await db.execute(
+            select(func.count(FailedMessage.id)).where(
+                FailedMessage.status == DLQStatus.RETRY_SCHEDULED
+            )
+        )
+        retry_scheduled = retry_scheduled_result.scalar() or 0
+
+        retrying_result = await db.execute(
+            select(func.count(FailedMessage.id)).where(
+                FailedMessage.status == DLQStatus.RETRYING
+            )
+        )
+        retrying = retrying_result.scalar() or 0
+
+        resolved_result = await db.execute(
+            select(func.count(FailedMessage.id)).where(
+                FailedMessage.status == DLQStatus.RESOLVED
+            )
+        )
+        resolved = resolved_result.scalar() or 0
+
+        discarded_result = await db.execute(
+            select(func.count(FailedMessage.id)).where(
+                FailedMessage.status == DLQStatus.DISCARDED
+            )
+        )
+        discarded = discarded_result.scalar() or 0
+
+        max_retries_result = await db.execute(
+            select(func.count(FailedMessage.id)).where(
+                FailedMessage.status == DLQStatus.MAX_RETRIES_EXCEEDED
+            )
+        )
+        max_retries_exceeded = max_retries_result.scalar() or 0
+
+        yesterday = now_sao_paulo() - timedelta(days=1)
+        recent_result = await db.execute(
+            select(FailedMessage).where(FailedMessage.created_at >= yesterday)
+        )
+        recent_messages = recent_result.scalars().all()
+
+        transient_errors_24h = sum(
+            1
+            for msg in recent_messages
+            if msg.dlq_data.get("error_category") == "transient"
+        )
+        permanent_errors_24h = sum(
+            1
+            for msg in recent_messages
+            if msg.dlq_data.get("error_category") == "permanent"
+        )
+        unknown_errors_24h = sum(
+            1 for msg in recent_messages if msg.dlq_data.get("error_category") == "unknown"
+        )
+
+        total_retries_result = await db.execute(
+            select(func.count(FailedMessage.id)).where(FailedMessage.retry_count > 0)
+        )
+        total_retries = total_retries_result.scalar() or 0
+        retry_success_rate = (resolved / total_retries * 100) if total_retries > 0 else 0
+
+        stats = {
+            "total": total,
+            "pending": pending,
+            "retry_scheduled": retry_scheduled,
+            "retrying": retrying,
+            "resolved": resolved,
+            "discarded": discarded,
+            "max_retries_exceeded": max_retries_exceeded,
+            "transient_errors_24h": transient_errors_24h,
+            "permanent_errors_24h": permanent_errors_24h,
+            "unknown_errors_24h": unknown_errors_24h,
+            "retry_success_rate": round(retry_success_rate, 2),
+            "top_errors": [],
+            "by_module": {},
+        }
 
         # Log action
         audit_service = AuditService(db)
@@ -523,7 +656,7 @@ async def get_dlq_statistics(
 
 
 @router.delete(
-    "/purge/",
+    "/purge",
     response_model=DLQPurgeResponse,
     summary="Purge Old DLQ Items",
     description="Purge DLQ items older than specified days (default: 90 days).",
@@ -535,7 +668,7 @@ async def purge_old_dlq_items(
         90, ge=30, le=365, description="Delete items older than this many days"
     ),
     dry_run: bool = Query(False, description="Preview without deleting"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -554,21 +687,29 @@ async def purge_old_dlq_items(
         Purge operation results
     """
     try:
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_date = now_sao_paulo() - timedelta(days=days)
 
-        # Query old items (only safe statuses)
+        # Safe statuses for purge
         safe_statuses = ["resolved", "discarded", "max_retries_exceeded"]
-        query = db.query(FailedMessage).filter(
-            FailedMessage.created_at < cutoff_date,
-            FailedMessage.status.in_(safe_statuses),
-        )
 
-        count = query.count()
+        # Count items matching criteria
+        count_result = await db.execute(
+            select(func.count(FailedMessage.id)).where(
+                FailedMessage.created_at < cutoff_date,
+                FailedMessage.status.in_(safe_statuses),
+            )
+        )
+        count = count_result.scalar() or 0
 
         if not dry_run and count > 0:
-            # Delete items
-            query.delete(synchronize_session=False)
-            db.commit()
+            # Delete items using async execute
+            await db.execute(
+                sql_delete(FailedMessage).where(
+                    FailedMessage.created_at < cutoff_date,
+                    FailedMessage.status.in_(safe_statuses),
+                )
+            )
+            await db.commit()
 
             # Invalidate caches
             invalidate_cache("admin_ext:dlq:list")
@@ -604,7 +745,7 @@ async def purge_old_dlq_items(
 
     except Exception as e:
         logger.error(f"Error purging DLQ items: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error purging DLQ items",

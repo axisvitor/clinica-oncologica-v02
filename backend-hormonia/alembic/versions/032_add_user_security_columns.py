@@ -10,6 +10,27 @@ This migration adds security columns to the users table:
 - locked_until: Timestamp when lockout expires
 - force_change_password: Require password change on next login
 - last_password_change: Track password changes for security policies
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa

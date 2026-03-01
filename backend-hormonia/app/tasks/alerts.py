@@ -11,14 +11,37 @@ Tasks for:
 import logging
 from typing import Dict, Any
 from uuid import UUID
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
+
+from asgiref.sync import async_to_sync
 
 
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
 from app.tasks.base import BaseTask, get_db_session
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
+
+
+_ALERT_METADATA_REDACTED_FIELDS = {
+    "patient_name",
+    "patient_email",
+    "patient_phone",
+    "patient_document",
+    "cpf",
+}
+
+
+def _sanitize_alert_metadata(alert_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop high-risk PII fields before storing arbitrary task metadata."""
+    if not isinstance(alert_data, dict):
+        return {}
+    return {
+        key: value
+        for key, value in alert_data.items()
+        if key not in _ALERT_METADATA_REDACTED_FIELDS
+    }
 
 
 # ============================================================================
@@ -48,16 +71,21 @@ def check_patient_alerts(self) -> Dict[str, Any]:
         - alerts_triggered: Number of alerts triggered
         - execution_time: Task execution time
     """
-    start_time = datetime.now(timezone.utc)
+    start_time = now_sao_paulo()
     alerts_checked = 0
     alerts_triggered = 0
 
     try:
         with get_db_session() as db:
-            from app.services.alerts import AlertManager
+            from app.services.alerts import get_alert_manager, initialize_alert_system
             from app.repositories.patient import PatientRepository
 
-            alert_manager = AlertManager()
+            alert_manager = get_alert_manager()
+            if not getattr(alert_manager, "rule_engine", None):
+                alert_manager = initialize_alert_system()
+            evaluate_alerts_sync = async_to_sync(
+                alert_manager.evaluate_patient_alerts
+            )
             patient_repo = PatientRepository(db)
 
             # Get patients with active monitoring
@@ -68,7 +96,7 @@ def check_patient_alerts(self) -> Dict[str, Any]:
                 try:
                     # Evaluate alert rules for patient
                     context = _build_patient_context(db, patient.id)
-                    triggered = alert_manager.evaluate_patient_alerts(
+                    triggered = evaluate_alerts_sync(
                         patient_id=patient.id, context=context
                     )
                     alerts_triggered += len(triggered) if triggered else 0
@@ -78,7 +106,7 @@ def check_patient_alerts(self) -> Dict[str, Any]:
                     )
                     continue
 
-            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+            execution_time = (now_sao_paulo() - start_time).total_seconds()
 
             logger.info(
                 f"Alert check completed: checked={alerts_checked}, "
@@ -93,13 +121,14 @@ def check_patient_alerts(self) -> Dict[str, Any]:
             }
 
     except Exception as e:
-        logger.error(f"Check patient alerts failed: {e}", exc_info=True)
-        return {
-            "success": False,
-            "error": str(e),
-            "alerts_checked": alerts_checked,
-            "alerts_triggered": alerts_triggered,
-        }
+        logger.error(
+            "Check patient alerts failed after checked=%s triggered=%s: %s",
+            alerts_checked,
+            alerts_triggered,
+            e,
+            exc_info=True,
+        )
+        raise
 
 
 @celery_app.task(
@@ -145,10 +174,29 @@ def process_alert_notification(self, alert_data: Dict[str, Any]) -> Dict[str, An
     Returns:
         Dict with notification result
     """
+    patient_id = None
+    alert_type = "unknown"
+    priority = "unknown"
+
     try:
         patient_id = alert_data.get("patient_id")
-        patient_name = alert_data.get("patient_name", "Unknown")
         doctor_id = alert_data.get("doctor_id")
+        patient_uuid = None
+        doctor_uuid = None
+
+        if patient_id:
+            try:
+                patient_uuid = UUID(str(patient_id))
+            except ValueError:
+                logger.warning("Invalid patient_id in alert payload", extra={"patient_id": patient_id})
+                return {"success": False, "error": "invalid_patient_id"}
+
+        if doctor_id:
+            try:
+                doctor_uuid = UUID(str(doctor_id))
+            except ValueError:
+                logger.warning("Invalid doctor_id in alert payload", extra={"doctor_id": doctor_id})
+                return {"success": False, "error": "invalid_doctor_id"}
 
         priority = alert_data.get("priority") or alert_data.get(
             "escalation_level", "medium"
@@ -157,9 +205,10 @@ def process_alert_notification(self, alert_data: Dict[str, Any]) -> Dict[str, An
             "concern_type", "general"
         )
         message = alert_data.get("message") or alert_data.get("description", "")
+        metadata = _sanitize_alert_metadata(alert_data)
 
         logger.info(
-            f"Processing alert notification for patient {patient_name} ({patient_id}): "
+            f"Processing alert notification for patient_id={patient_id}: "
             f"type={alert_type}, priority={priority}"
         )
 
@@ -171,14 +220,14 @@ def process_alert_notification(self, alert_data: Dict[str, Any]) -> Dict[str, An
 
             alert = alert_repo.create(
                 {
-                    "patient_id": UUID(patient_id) if patient_id else None,
-                    "doctor_id": UUID(doctor_id) if doctor_id else None,
+                    "patient_id": patient_uuid,
+                    "doctor_id": doctor_uuid,
                     "alert_type": alert_type,
                     "severity": priority,
                     "message": message,
-                    "metadata": alert_data,
+                    "metadata": metadata,
                     "status": "pending",
-                    "created_at": datetime.now(timezone.utc),
+                    "created_at": now_sao_paulo(),
                 }
             )
 
@@ -189,11 +238,10 @@ def process_alert_notification(self, alert_data: Dict[str, Any]) -> Dict[str, An
             notification_data = {
                 "alert_id": str(alert.id) if hasattr(alert, "id") else None,
                 "patient_id": patient_id,
-                "patient_name": patient_name,
                 "alert_type": alert_type,
                 "priority": priority,
                 "message": message,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
             # Send to doctor's dashboard if doctor_id exists
@@ -218,8 +266,15 @@ def process_alert_notification(self, alert_data: Dict[str, Any]) -> Dict[str, An
             }
 
     except Exception as e:
-        logger.error(f"Process alert notification failed: {e}", exc_info=True)
-        return {"success": False, "error": str(e)}
+        logger.error(
+            "Process alert notification failed for patient_id=%s alert_type=%s priority=%s: %s",
+            patient_id,
+            alert_type,
+            priority,
+            e,
+            exc_info=True,
+        )
+        raise
 
 
 # ============================================================================
@@ -248,6 +303,12 @@ def process_alert_escalation(
         Dict with escalation result
     """
     try:
+        alert_uuid = UUID(alert_id)
+    except ValueError:
+        logger.warning("Invalid alert_id for escalation", extra={"alert_id": alert_id})
+        return {"success": False, "error": "invalid_alert_id", "alert_id": alert_id}
+
+    try:
         logger.info(
             f"Processing escalation for alert {alert_id} to level {escalation_level}"
         )
@@ -256,17 +317,17 @@ def process_alert_escalation(
             from app.repositories.alert import AlertRepository
 
             alert_repo = AlertRepository(db)
-            alert = alert_repo.get(UUID(alert_id))
+            alert = alert_repo.get(alert_uuid)
 
             if not alert:
                 return {"success": False, "error": f"Alert {alert_id} not found"}
 
             # Update alert escalation
             alert_repo.update(
-                UUID(alert_id),
+                alert_uuid,
                 {
                     "severity": escalation_level,
-                    "escalated_at": datetime.now(timezone.utc),
+                    "escalated_at": now_sao_paulo(),
                     "status": "escalated",
                 },
             )
@@ -280,7 +341,7 @@ def process_alert_escalation(
                 data={
                     "alert_id": alert_id,
                     "escalation_level": escalation_level,
-                    "escalated_at": datetime.now(timezone.utc).isoformat(),
+                    "escalated_at": now_sao_paulo().isoformat(),
                 },
                 target_role="admin",
             )
@@ -292,8 +353,15 @@ def process_alert_escalation(
             }
 
     except Exception as e:
-        logger.error(f"Process alert escalation failed: {e}", exc_info=True)
-        return {"success": False, "error": str(e)}
+        logger.error(
+            "Process alert escalation failed for alert_id=%s level=%s: %s",
+            alert_id,
+            escalation_level,
+            e,
+            exc_info=True,
+        )
+        self.handle_retry(e, alert_id=alert_id, escalation_level=escalation_level)
+        raise
 
 
 @celery_app.task(
@@ -319,7 +387,7 @@ def periodic_escalation_check(self) -> Dict[str, Any]:
 
             # Find pending alerts older than threshold
             threshold_minutes = 30
-            threshold_time = datetime.now(timezone.utc) - timedelta(minutes=threshold_minutes)
+            threshold_time = now_sao_paulo() - timedelta(minutes=threshold_minutes)
 
             pending_alerts = alert_repo.get_pending_alerts_before(threshold_time)
 
@@ -337,8 +405,14 @@ def periodic_escalation_check(self) -> Dict[str, Any]:
             return {"success": True, "alerts_escalated": escalated_count}
 
     except Exception as e:
-        logger.error(f"Periodic escalation check failed: {e}", exc_info=True)
-        return {"success": False, "error": str(e), "alerts_escalated": escalated_count}
+        logger.error(
+            "Periodic escalation check failed after queueing=%s alerts: %s",
+            escalated_count,
+            e,
+            exc_info=True,
+        )
+        self.handle_retry(e, alerts_escalated=escalated_count)
+        raise
 
 
 # ============================================================================
@@ -368,7 +442,7 @@ def cleanup_resolved_alerts(self, days_old: int = 30) -> Dict[str, Any]:
 
             alert_repo = AlertRepository(db)
 
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+            cutoff_date = now_sao_paulo() - timedelta(days=days_old)
             cleaned_count = alert_repo.archive_resolved_before(cutoff_date)
 
             logger.info(
@@ -408,7 +482,7 @@ def generate_alert_metrics(self, time_range_hours: int = 24) -> Dict[str, Any]:
 
             alert_repo = AlertRepository(db)
 
-            since = datetime.now(timezone.utc) - timedelta(hours=time_range_hours)
+            since = now_sao_paulo() - timedelta(hours=time_range_hours)
 
             metrics = {
                 "total_alerts": alert_repo.count_since(since),
@@ -419,7 +493,7 @@ def generate_alert_metrics(self, time_range_hours: int = 24) -> Dict[str, Any]:
                 "alerts_by_type": alert_repo.count_by_type_since(since),
                 "alerts_by_severity": alert_repo.count_by_severity_since(since),
                 "time_range_hours": time_range_hours,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": now_sao_paulo().isoformat(),
             }
 
             logger.info(
@@ -451,7 +525,7 @@ def _build_patient_context(db, patient_id: UUID) -> Dict[str, Any]:
     """
     try:
         from app.repositories.message import MessageRepository
-        from app.repositories.quiz_response import QuizResponseRepository
+        from app.repositories.quiz import QuizResponseRepository
 
         message_repo = MessageRepository(db)
         quiz_repo = QuizResponseRepository(db)
@@ -484,14 +558,14 @@ def _build_patient_context(db, patient_id: UUID) -> Dict[str, Any]:
                 }
                 for q in (recent_quizzes or [])
             ],
-            "evaluation_time": datetime.now(timezone.utc).isoformat(),
+            "evaluation_time": now_sao_paulo().isoformat(),
         }
 
     except Exception as e:
         logger.warning(f"Failed to build patient context: {e}")
         return {
             "patient_id": str(patient_id),
-            "evaluation_time": datetime.now(timezone.utc).isoformat(),
+            "evaluation_time": now_sao_paulo().isoformat(),
             "error": str(e),
         }
 

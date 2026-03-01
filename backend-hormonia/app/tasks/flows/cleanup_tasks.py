@@ -8,15 +8,16 @@ archiving completed flows, and maintaining the database.
 import json
 import logging
 from typing import Any
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 
-from app.celery_app import celery_app
-from app.database import get_db
+from app.task_queue import task_queue as celery_app
+from app.database import get_scoped_session
 from app.repositories.flow import FlowStateRepository
 from app.models.flow import PatientFlowState
 from app.models.message import Message, MessageStatus
 
 from .base import FlowTaskBase
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +43,8 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
     try:
         logger.info(f"Starting cleanup of flow data older than {days_old} days")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_old)
+        with get_scoped_session() as db:
+            cutoff_date = now_sao_paulo() - timedelta(days=days_old)
 
             # Initialize repositories
             FlowStateRepository(db)
@@ -56,7 +54,7 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
                 "old_messages_cleaned": 0,
                 "analytics_cleaned": 0,
                 "cutoff_date": cutoff_date.isoformat(),
-                "start_time": datetime.now(timezone.utc).isoformat(),
+                "start_time": now_sao_paulo().isoformat(),
             }
 
             # Clean up completed flows older than threshold
@@ -78,27 +76,19 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
                     "final_state": flow.state_data,
                 }
 
-                # Store in Redis for historical reference using synchronous client
+                # Store in Redis for historical reference via centralized RedisManager
                 try:
-                    import redis
-                    from app.config import settings
-
-                    redis_client = redis.from_url(
-                        settings.REDIS_URL,
-                        decode_responses=True,
-                        socket_connect_timeout=5,
-                        socket_timeout=5,
-                    )
-
+                    from app.core.redis_manager import get_cache_redis_manager
                     from app.config.settings.tasks import ARCHIVE_RETENTION_DAYS
+
+                    manager = get_cache_redis_manager()
+                    redis_client = manager.get_sync_client()
 
                     redis_client.setex(
                         f"archived_flow:{flow.id}",
                         86400 * ARCHIVE_RETENTION_DAYS,
                         json.dumps(archive_data),
                     )
-
-                    redis_client.close()
 
                 except Exception as redis_error:
                     logger.warning(
@@ -131,13 +121,10 @@ def cleanup_old_flow_data(self, days_old: int = 90) -> dict[str, Any]:
             # Commit cleanup
             db.commit()
 
-            results["end_time"] = datetime.now(timezone.utc).isoformat()
+            results["end_time"] = now_sao_paulo().isoformat()
 
             logger.info(f"Flow data cleanup completed: {results}")
             return results
-
-        finally:
-            db.close()
 
     except Exception as e:
         logger.error(f"Flow data cleanup failed: {e}")

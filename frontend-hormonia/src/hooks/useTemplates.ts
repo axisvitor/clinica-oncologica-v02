@@ -56,6 +56,7 @@ export interface FlowTemplateCreate {
   flow_kind_id?: string;
   kind_key?: string;
   display_name: string;
+  template_name?: string;
   description?: string;
   version_number?: number;
   steps: FlowTemplateStep[] | Record<string, FlowTemplateStep>; // Array (preferred) or dict (legacy)
@@ -88,6 +89,20 @@ export interface FlowTemplate {
   published_at?: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface FlowTemplateVersionList {
+  data: FlowTemplate[];
+  kind_key?: string;
+  total: number;
+}
+
+export interface TemplateVersionCompareResult {
+  version1: FlowTemplate;
+  version2: FlowTemplate;
+  diff: string;
+  changes: string[];
+  total_changes: number;
 }
 
 export interface QuizQuestionOption {
@@ -179,7 +194,11 @@ export function useTemplates() {
   const createFlowTemplate = useCallback(async (data: FlowTemplateCreate): Promise<FlowTemplate | null> => {
     setLoading(true);
     try {
-      const response = await apiClient.post<FlowTemplate>('/api/v2/templates/flows', data);
+      const payload = {
+        ...data,
+        template_name: data.template_name || data.display_name,
+      };
+      const response = await apiClient.post<FlowTemplate>('/api/v2/templates/flows', payload);
 
       toast({
         title: 'Template criado',
@@ -302,6 +321,120 @@ export function useTemplates() {
         variant: 'destructive',
       });
       return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  const listFlowTemplateVersions = useCallback(async (
+    templateId: string
+  ): Promise<FlowTemplateVersionList | null> => {
+    setLoading(true);
+    try {
+      const response = await apiClient.get<FlowTemplateVersionList>(
+        `/api/v2/templates/flows/${templateId}/versions`
+      );
+      return response;
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Erro ao listar versões'
+        : 'Erro ao listar versões';
+      toast({
+        title: 'Erro ao listar versões',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  const compareFlowTemplateVersions = useCallback(async (
+    templateId: string,
+    compareWithId: string
+  ): Promise<TemplateVersionCompareResult | null> => {
+    setLoading(true);
+    try {
+      const response = await apiClient.post<TemplateVersionCompareResult>(
+        `/api/v2/templates/flows/${templateId}/versions/compare`,
+        undefined,
+        { compare_with_id: compareWithId }
+      );
+      return response;
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Erro ao comparar versões'
+        : 'Erro ao comparar versões';
+      toast({
+        title: 'Erro ao comparar versões',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  const rollbackFlowTemplateVersion = useCallback(async (
+    templateId: string,
+    reason?: string,
+    setAsActive?: boolean
+  ): Promise<FlowTemplate | null> => {
+    setLoading(true);
+    try {
+      const response = await apiClient.post<FlowTemplate>(
+        `/api/v2/templates/flows/${templateId}/rollback`,
+        { reason, set_as_active: setAsActive }
+      );
+      toast({
+        title: 'Rollback realizado',
+        description: 'Nova versão criada a partir do rollback',
+      });
+      return response;
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Erro no rollback'
+        : 'Erro no rollback';
+      toast({
+        title: 'Erro no rollback',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  const publishFlowTemplateVersion = useCallback(async (
+    templateId: string,
+    setAsActive?: boolean
+  ): Promise<FlowTemplate | null> => {
+    setLoading(true);
+    try {
+      const queryParams = setAsActive === undefined ? undefined : { set_as_active: setAsActive };
+      const response = await apiClient.post<FlowTemplate>(
+        `/api/v2/templates/flows/${templateId}/publish`,
+        undefined,
+        queryParams
+      );
+      toast({
+        title: 'Versão publicada',
+        description: setAsActive ? 'Versão definida como ativa' : 'Versão publicada',
+      });
+      return response;
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error
+        ? ((error.response as { data?: { detail?: string } })?.data?.detail) || 'Erro ao publicar versão'
+        : 'Erro ao publicar versão';
+      toast({
+        title: 'Erro ao publicar',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      return null;
     } finally {
       setLoading(false);
     }
@@ -447,6 +580,10 @@ export function useTemplates() {
     getFlowTemplate,
     updateFlowTemplate,
     deleteFlowTemplate,
+    listFlowTemplateVersions,
+    compareFlowTemplateVersions,
+    rollbackFlowTemplateVersion,
+    publishFlowTemplateVersion,
     // Quiz templates
     createQuizTemplate,
     listQuizTemplates,

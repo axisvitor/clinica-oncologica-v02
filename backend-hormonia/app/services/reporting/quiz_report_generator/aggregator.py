@@ -13,7 +13,7 @@ import json
 
 from app.models.quiz import QuizSession, QuizResponse
 from app.repositories.quiz import QuizSessionRepository, QuizResponseRepository
-from app.integrations.gemini_client import get_gemini_client
+from app.ai.client import get_gemini_client
 from app.services.reporting.quiz_report_generator.models import (
     QuizMetrics,
     ResponseTrend,

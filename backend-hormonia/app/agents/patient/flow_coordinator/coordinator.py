@@ -1,9 +1,9 @@
-"""Flow Coordinator Agent - Main coordinator class."""
-
 from __future__ import annotations
 
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
+"""Flow Coordinator Agent - Main coordinator class."""
+
 # Standard library
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -11,13 +11,17 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 # Local
-from app.agents.base import BaseAgent
-from app.domain.messaging.delivery import MessageSender
-from app.models.message import Message, MessageDirection, MessageStatus, MessageType
-from app.services.enhanced_flow_engine import get_enhanced_flow_engine
-from app.services.template_loader import EnhancedTemplateLoader
+from app.agents.base import BaseAgent, MessagePriority
+from app.agents.registry import ALERT_ANALYZER_ID, FLOW_COORDINATOR_ID
+from app.services.template_loader_pkg import EnhancedTemplateLoader
+from app.utils.timezone import now_sao_paulo
 
-from .consensus_manager import ConsensusManager
+from .constants import (
+    DEFAULT_DAILY_FLOW_HOURS,
+    DEFAULT_QUIZ_TRIGGER_DAY,
+    normalize_flow_day,
+    resolve_flow_type_and_day,
+)
 from .decision_engine import DecisionEngine
 from .message_generator import MessageGenerator
 from .models import FlowContext, FlowDecision
@@ -29,13 +33,12 @@ class FlowCoordinatorAgent(BaseAgent):
     """
     Coordinates patient treatment flow progression.
 
-    Manages state transitions, consensus building, and
+    Manages state transitions and
     message generation for patient treatment flows.
 
     Key responsibilities:
     - Analyze patient progress through treatment phases.
     - Make decisions on flow progression and timing.
-    - Coordinate with other agents for consensus on critical decisions.
     - Adapt flows based on patient responses and patterns.
     - Manage transitions between different flow types.
 
@@ -44,8 +47,15 @@ class FlowCoordinatorAgent(BaseAgent):
         decision_engine: Makes flow decisions.
         message_generator: Generates and personalizes messages.
         transition_handler: Handles phase transitions.
-        consensus_manager: Manages agent consensus.
     """
+
+    VALID_TASK_TYPES = {
+        "process_daily_flow",
+        "evaluate_flow_transition",
+        "optimize_message_timing",
+        "adapt_flow_content",
+        "coordinate_intervention",
+    }
 
     def __init__(
         self,
@@ -55,7 +65,7 @@ class FlowCoordinatorAgent(BaseAgent):
     ):
         """Initialize FlowCoordinatorAgent."""
         super().__init__(
-            agent_id=f"flow_coordinator_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            agent_id=FLOW_COORDINATOR_ID,
             agent_type="patient",
             specialization="flow_coordinator",
             db_session=db_session,
@@ -71,13 +81,7 @@ class FlowCoordinatorAgent(BaseAgent):
         self.transition_handler = TransitionHandler(
             db_session, self.agent_id, self.logger
         )
-        self.consensus_manager = ConsensusManager(
-            self.agent_id, self.logger, self.send_message
-        )
-
-        # Service dependencies
-        self.flow_engine = None  # Initialized during start
-        self.message_sender = MessageSender(db_session)
+        # Service dependencies (LangGraph handles flow sending)
 
         # Agent capabilities
         self.capabilities = [
@@ -86,19 +90,15 @@ class FlowCoordinatorAgent(BaseAgent):
             "timing_optimization",
             "phase_transition",
             "patient_adaptation",
-            "consensus_participation",
         ]
 
         # Flow timing parameters
-        self.daily_flow_hours = [8, 14, 20]  # Default message times
-        self.quiz_trigger_day = 15  # Day of month to trigger quiz
+        self.daily_flow_hours = DEFAULT_DAILY_FLOW_HOURS  # Default message times
+        self.quiz_trigger_day = DEFAULT_QUIZ_TRIGGER_DAY  # Day of month to trigger quiz (monthly cycle)
 
     async def _initialize(self):
         """Initialize agent-specific resources."""
         try:
-            # Initialize dependencies
-            self.flow_engine = await get_enhanced_flow_engine()
-
             # Initialize state manager
             await self.state_manager.initialize_knowledge_graph()
 
@@ -122,19 +122,10 @@ class FlowCoordinatorAgent(BaseAgent):
 
     async def validate_task(self, task_data: Dict[str, Any]) -> bool:
         """Validate if agent can handle the task."""
-        task_type = task_data.get("type", "")
+        task_type = task_data.get("task_type", "")
         required_fields = task_data.get("payload", {})
 
-        # Check task type compatibility
-        compatible_tasks = [
-            "process_daily_flow",
-            "evaluate_flow_transition",
-            "optimize_message_timing",
-            "adapt_flow_content",
-            "coordinate_intervention",
-        ]
-
-        if task_type not in compatible_tasks:
+        if task_type not in self.VALID_TASK_TYPES:
             return False
 
         # Check required fields
@@ -151,7 +142,7 @@ class FlowCoordinatorAgent(BaseAgent):
 
     async def process_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """Process assigned task."""
-        task_type = task_data.get("type")
+        task_type = task_data.get("task_type")
         payload = task_data.get("payload", {})
 
         self.logger.info(f"Processing task: {task_type}")
@@ -192,8 +183,6 @@ class FlowCoordinatorAgent(BaseAgent):
         decision = await self.decision_engine.make_flow_decision(
             context,
             analysis,
-            self.decision_engine.requires_consensus_decision,
-            self.consensus_manager.seek_agent_consensus,
         )
 
         # Execute decision
@@ -239,7 +228,7 @@ class FlowCoordinatorAgent(BaseAgent):
 
             elif decision == FlowDecision.ESCALATE_INTERVENTION:
                 # Escalate for medical intervention
-                await self.consensus_manager.escalate_intervention(context)
+                await self._send_escalation_alert(context)
                 execution_result["actions_taken"].append("escalated_intervention")
 
             elif decision == FlowDecision.PAUSE_FLOW:
@@ -264,59 +253,37 @@ class FlowCoordinatorAgent(BaseAgent):
     async def _process_normal_flow(self, context: FlowContext) -> Dict[str, Any]:
         """Process normal daily flow messages."""
         messages_sent = 0
+        flow_result: Optional[Dict[str, Any]] = None
 
         try:
-            # Determine appropriate message for current day
-            message_content = await self.message_generator.generate_daily_message(
-                context
+            current_day = normalize_flow_day(context.current_day)
+
+            flow_kind, day_in_flow = resolve_flow_type_and_day(current_day)
+
+            from app.services.flow.sequential_message_handler import (
+                SequentialMessageHandler,
             )
 
-            if message_content:
-                # Create and send message
-                message = Message(
-                    patient_id=context.patient_id,
-                    direction=MessageDirection.OUTBOUND,
-                    type=MessageType.TEXT,
-                    content=message_content["content"],
-                    message_metadata={
-                        "flow_day": context.current_day,
-                        "generated_by": self.agent_id,
-                        "personalization_level": message_content.get(
-                            "personalization_level", "standard"
-                        ),
-                        "flow_decision": "continue_current",
-                    },
-                    status=MessageStatus.PENDING,
-                    scheduled_for=datetime.now(timezone.utc),
-                )
+            # Note: FlowCoordinatorAgent receives db_session from the agent framework
+            # (sync Session via SessionLocal). SequentialMessageHandler now expects
+            # AsyncSession for the FastAPI hot-path. This Hive-Mind agent path should
+            # be migrated to AsyncSession in a follow-up task.
+            handler = SequentialMessageHandler(self.db_session)
+            flow_result = await handler.send_day_messages(
+                patient_id=context.patient_id,
+                day_number=day_in_flow,
+                flow_kind=flow_kind,
+            )
 
-                # Save and send
-                self.db_session.add(message)
-                self.db_session.commit()
-
-                success = await self.message_sender.send_message(message)
-                if success:
+            messages_sent = flow_result.get("sent_count", 0) if flow_result else 0
+            if messages_sent == 0 and flow_result:
+                if flow_result.get("status") in {"waiting", "ok", "complete"}:
                     messages_sent = 1
-
-                    # Update flow state
-                    if context.flow_state:
-                        if not context.flow_state.state_data:
-                            context.flow_state.state_data = {}
-
-                        context.flow_state.state_data.update(
-                            {
-                                "last_message_sent": datetime.now(timezone.utc).isoformat(),
-                                "current_day": context.current_day,
-                                "decision_agent": self.agent_id,
-                            }
-                        )
-
-                        self.db_session.commit()
 
         except Exception as e:
             self.logger.error(f"Error processing normal flow: {e}")
 
-        return {"messages_sent": messages_sent}
+        return {"messages_sent": messages_sent, "flow_result": flow_result}
 
     async def _evaluate_flow_transition(
         self, payload: Dict[str, Any]
@@ -391,7 +358,7 @@ class FlowCoordinatorAgent(BaseAgent):
 
         # Coordinate based on intervention type
         if intervention_type == "escalation":
-            await self.consensus_manager.escalate_intervention(context)
+            await self._send_escalation_alert(context)
         elif intervention_type == "pause":
             await self.transition_handler.pause_flow(context)
         elif intervention_type == "resume":
@@ -403,6 +370,26 @@ class FlowCoordinatorAgent(BaseAgent):
             "intervention_type": intervention_type,
             "coordinated": True,
         }
+
+    async def _send_escalation_alert(self, context: FlowContext) -> None:
+        """Send escalation alert directly to AlertAnalyzerAgent."""
+        await self.send_message(
+            ALERT_ANALYZER_ID,
+            "escalation_alert",
+            {
+                "patient_id": str(context.patient_id),
+                "risk_factors": context.risk_factors,
+                "escalated_by": self.agent_id,
+                "escalated_at": now_sao_paulo().isoformat(),
+                "priority": "high",
+                "recommended_actions": [
+                    "schedule_medical_consultation",
+                    "increase_monitoring_frequency",
+                    "review_treatment_plan",
+                ],
+            },
+            MessagePriority.CRITICAL,
+        )
 
     # Template management methods
     def get_loaded_templates(self) -> Dict[str, str]:

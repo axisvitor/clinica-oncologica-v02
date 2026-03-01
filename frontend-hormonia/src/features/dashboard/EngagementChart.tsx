@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react'
+import { LineChart } from '@/components/ui/charts/LazyRechartsComponents'
 import {
-  LineChart,
   Line,
   XAxis,
   YAxis,
@@ -8,7 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend
-} from '@/components/ui/charts/LazyRechartsComponents'
+} from '@/components/ui/charts/RechartsPrimitives'
 import { ChartSkeleton } from '@/components/ui/chart-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 

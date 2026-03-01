@@ -6,12 +6,18 @@
 import { useForm, UseFormReturn } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import React, { useRef, useEffect } from 'react'
+import { useRef, useEffect } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { useToast } from '@/components/ui/use-toast'
 import { apiClient } from '@/lib/api-client'
 import { getErrorMessage } from '@/lib/utils/type-guards'
 import type { Patient } from '@/types/api'
+import type { PaginatedApiResponse } from '@/hooks/types'
+import {
+  getPatientsFromCache,
+  setPatientsInCache,
+  type PatientListCacheBase,
+} from '../../patient-cache-utils'
 import {
   createPatientSchema,
   updatePatientSchema,
@@ -32,6 +38,7 @@ interface UsePatientFormReturn {
   onSubmit: (data: CreatePatientFormData | UpdatePatientFormData) => void
   isPending: boolean
   reset: () => void
+  resetIdempotencyKey: () => void
 }
 
 /**
@@ -51,6 +58,9 @@ export function usePatientForm({
   // Idempotency key for preventing duplicate patient creation
   // QW-004: Reset after successful creation for next patient
   const idempotencyKeyRef = useRef<string>(uuidv4())
+  const resetIdempotencyKey = () => {
+    idempotencyKeyRef.current = uuidv4()
+  }
 
   // Configuração do form baseada no modo
   const form = useForm<CreatePatientFormData | UpdatePatientFormData>({
@@ -71,6 +81,56 @@ export function usePatientForm({
       timezone: 'America/Sao_Paulo'
     }
   })
+
+  type PatientListCache = PaginatedApiResponse<Patient> & PatientListCacheBase & {
+    items?: Patient[]
+    limit?: number
+  }
+
+  const shouldInsertPatientInCache = (params: Record<string, unknown> | undefined, patient: Patient) => {
+    if (!params) return true
+    if (params['cursor']) return false
+    const search = params['search']
+    if (typeof search === 'string' && search.trim() !== '') {
+      return false
+    }
+    const statusFilter = params['status']
+    if (statusFilter && patient.status && statusFilter !== patient.status) {
+      return false
+    }
+    const treatmentFilter = params['treatment_type']
+    if (treatmentFilter && patient.treatment_type && treatmentFilter !== patient.treatment_type) {
+      return false
+    }
+    return true
+  }
+
+  const updatePatientsCacheAfterCreate = (newPatient: Patient) => {
+    const cachedQueries = queryClient.getQueriesData<PatientListCache>({ queryKey: ['patients'] })
+    cachedQueries.forEach(([key, cache]) => {
+      if (!cache) return
+      const currentPatients = getPatientsFromCache(cache)
+
+      const keyParts = Array.isArray(key) ? key : []
+      const params = (keyParts[1] ?? undefined) as Record<string, unknown> | undefined
+      const page = typeof keyParts[2] === 'number' ? keyParts[2] : cache.page
+
+      if (page && page !== 1) return
+      if (!shouldInsertPatientInCache(params, newPatient)) return
+      if (currentPatients.some((patient) => patient.id === newPatient.id)) return
+
+      const limit = Number(
+        params?.['limit'] ?? params?.['size'] ?? cache.size ?? cache.limit ?? 0
+      )
+      const nextPatients = [newPatient, ...currentPatients]
+      const trimmed = limit > 0 ? nextPatients.slice(0, limit) : nextPatients
+      const nextTotal = typeof cache.total === 'number' ? cache.total + 1 : cache.total
+
+      queryClient.setQueryData(key, setPatientsInCache(cache, trimmed, nextTotal))
+    })
+
+    queryClient.setQueryData(['patient', newPatient.id], newPatient)
+  }
 
   // Mutation para criação
   const createMutation = useMutation({
@@ -107,11 +167,13 @@ export function usePatientForm({
         }
       )
     },
-    onSuccess: () => {
+    onSuccess: (createdPatient) => {
       // QW-004: Reset idempotency key for next patient creation
-      idempotencyKeyRef.current = uuidv4()
+      resetIdempotencyKey()
 
-      queryClient.invalidateQueries({ queryKey: ['patients'] })
+      updatePatientsCacheAfterCreate(createdPatient)
+      // Keep active page responsive with cache update and only refresh inactive lists.
+      queryClient.invalidateQueries({ queryKey: ['patients'], refetchType: 'inactive' })
       toast({
         title: 'Paciente criado com sucesso',
         description: 'O novo paciente foi adicionado e o fluxo de onboarding foi iniciado via WhatsApp.',
@@ -199,7 +261,8 @@ export function usePatientForm({
     form,
     onSubmit,
     isPending: mutation.isPending,
-    reset: form.reset
+    reset: form.reset,
+    resetIdempotencyKey
   }
 }
 

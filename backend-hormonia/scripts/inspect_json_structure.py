@@ -1,20 +1,20 @@
 import sys
 import os
 sys.path.append(os.getcwd())
-from app.core.database import SessionLocal
+from app.database import SessionLocal
 from sqlalchemy import text
 import json
 
 def inspect_raw_structure():
     db = SessionLocal()
     try:
-        print('=== Raw JSON Structure for initial_15_days ===\n')
+        print('=== Raw JSON Structure for onboarding ===\n')
         
         query = text("""
             SELECT ftv.steps
             FROM flow_template_versions ftv 
             JOIN flow_kinds fk ON ftv.flow_kind_id = fk.id 
-            WHERE fk.kind_key = 'initial_15_days' AND ftv.is_active = true
+            WHERE fk.kind_key = 'onboarding' AND ftv.is_active = true
             ORDER BY ftv.version_number DESC
             LIMIT 1
         """)

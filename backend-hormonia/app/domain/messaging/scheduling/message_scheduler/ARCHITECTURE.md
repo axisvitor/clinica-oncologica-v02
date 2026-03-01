@@ -1,5 +1,12 @@
 # MessageScheduler Package Architecture
 
+## Canonical Import Entry Point
+
+Use `app.domain.messaging.scheduling` as the stable import gateway for
+`MessageScheduler` and related types. The
+`core.message_service.scheduler` module is kept only as a legacy compatibility
+surface.
+
 ## Component Diagram
 
 ```
@@ -55,7 +62,7 @@ MessageScheduler.schedule_message()
     │    └──► TimezoneHandler.calculate_optimal_delivery_time()
     │         ├──► Get patient timezone
     │         ├──► Apply scheduling window
-    │         └──► Convert to UTC
+    │         └──► Normalize to Sao Paulo timezone
     │
     ├──► Create Message Record (database)
     │

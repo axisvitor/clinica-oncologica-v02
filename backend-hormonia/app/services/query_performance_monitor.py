@@ -6,7 +6,7 @@ Tracks slow queries, provides optimization suggestions, and monitors database pe
 import logging
 import time
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, asdict
 from functools import wraps
@@ -16,8 +16,9 @@ import json
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
-from app.core.redis_unified import get_sync_redis
+from app.core.redis_manager import get_sync_redis_client as get_sync_redis
 from app.core.monitoring_logging import monitoring_logger
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ class QueryPerformanceMonitor:
         self.redis_client = get_sync_redis()
         self._query_cache: Dict[str, SlowQuery] = {}
         self._metrics = QueryMetrics()
-        self._start_time = datetime.now(timezone.utc)
+        self._start_time = now_sao_paulo()
 
         # Register SQLAlchemy event listeners
         self._register_event_listeners()
@@ -140,13 +141,13 @@ class QueryPerformanceMonitor:
                 slow_query.max_duration_ms = max(
                     slow_query.max_duration_ms, duration_ms
                 )
-                slow_query.timestamp = datetime.now(timezone.utc)
+                slow_query.timestamp = now_sao_paulo()
             else:
                 slow_query = SlowQuery(
                     query_hash=query_hash,
                     query_text=self._normalize_query(query),
                     duration_ms=duration_ms,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=now_sao_paulo(),
                     parameters=clean_params,
                     optimization_suggestions=self._generate_optimization_suggestions(
                         query
@@ -228,7 +229,7 @@ class QueryPerformanceMonitor:
         """
         try:
             # Update queries per second
-            elapsed_seconds = (datetime.now(timezone.utc) - self._start_time).total_seconds()
+            elapsed_seconds = (now_sao_paulo() - self._start_time).total_seconds()
             if elapsed_seconds > 0:
                 self._metrics.queries_per_second = (
                     self._metrics.total_queries / elapsed_seconds
@@ -255,7 +256,7 @@ class QueryPerformanceMonitor:
             metrics = self.get_performance_metrics()
 
             # Filter queries by time period
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+            cutoff_time = now_sao_paulo() - timedelta(hours=hours_back)
             recent_queries = [q for q in slow_queries if q.timestamp >= cutoff_time]
 
             # Analyze patterns
@@ -270,7 +271,7 @@ class QueryPerformanceMonitor:
                 "recommendations": self._generate_performance_recommendations(
                     recent_queries
                 ),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
@@ -405,7 +406,7 @@ class QueryPerformanceMonitor:
         """Retrieve stored slow queries from Redis."""
         try:
             pattern = f"{self.REDIS_KEY_PREFIX}:slow_queries:*"
-            keys = self.redis_client.keys(pattern)
+            keys = list(self.redis_client.scan_iter(match=pattern, count=100))
 
             stored_queries = {}
             for key in keys:

@@ -21,6 +21,7 @@ from app.repositories.quiz import QuizResponseRepository
 from app.repositories.alert import AlertRepository
 from app.schemas.report import PatientAnalytics, SystemAnalytics
 from app.utils.db_retry import with_db_retry
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -122,7 +123,7 @@ class DataAggregator:
                 "alert_data": alert_data,
                 "treatment_data": treatment_data,
                 # Generated timestamp
-                "generated_at": datetime.now(timezone.utc),
+                "generated_at": now_sao_paulo(),
             }
 
             logger.info(f"Successfully aggregated data for patient {patient_id}")

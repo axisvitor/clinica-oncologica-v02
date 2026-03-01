@@ -8,7 +8,7 @@ Consolidated from: app/services/message_scheduler.py
 
 from typing import List, Optional, Any, Dict, Tuple
 from uuid import UUID
-from datetime import datetime, timedelta, time, timezone
+from datetime import datetime, timedelta, time
 import logging
 import pytz
 
@@ -22,6 +22,7 @@ from app.exceptions import NotFoundError
 
 from .config import SchedulingWindow, MessageSchedulerConfig
 from .service import MessageService
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ class MessageScheduler:
             min_delay_minutes: Minimum delay in minutes
 
         Returns:
-            Next send datetime (UTC)
+            Next send datetime (Sao Paulo)
         """
         try:
             # Get patient timezone
@@ -106,8 +107,8 @@ class MessageScheduler:
             patient_tz = pytz.timezone(patient_tz_str)
 
             # Get current time in patient timezone
-            now_utc = datetime.now(timezone.utc)
-            now_patient = now_utc.replace(tzinfo=pytz.utc).astimezone(patient_tz)
+            now_local = now_sao_paulo()
+            now_patient = now_local.astimezone(patient_tz)
 
             # Get window times
             start_time, end_time = self._get_scheduling_window_times(window)
@@ -139,20 +140,17 @@ class MessageScheduler:
                         microsecond=0,
                     )
 
-            # Convert back to UTC
-            send_time_utc = send_time_patient.astimezone(pytz.utc).replace(tzinfo=None)
-
             logger.info(
                 f"Calculated send time for patient {patient.id}: "
-                f"{send_time_utc} UTC ({send_time_patient} {patient_tz_str})"
+                f"{send_time_patient} {patient_tz_str}"
             )
 
-            return send_time_utc
+            return send_time_patient
 
         except Exception as e:
             logger.error(f"Error calculating send time: {e}", exc_info=True)
             # Fallback: send in 30 minutes
-            fallback_time = datetime.now(timezone.utc) + timedelta(
+            fallback_time = now_sao_paulo() + timedelta(
                 minutes=self.config.FALLBACK_DELAY_MINUTES
             )
             logger.warning(f"Using fallback send time: {fallback_time}")
@@ -213,7 +211,7 @@ class MessageScheduler:
         Returns:
             List of due Message objects
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         return self.message_service.get_scheduled_messages(now, limit=limit)
 
     def reschedule_message(

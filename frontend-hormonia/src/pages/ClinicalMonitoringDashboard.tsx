@@ -7,12 +7,9 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { LineChart, PieChart, RadarChart } from '@/components/ui/charts/LazyRechartsComponents';
 import {
-  LineChart,
   Line,
-  BarChart,
-  Bar,
-  PieChart,
   Pie,
   Cell,
   XAxis,
@@ -21,13 +18,11 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  RadarChart,
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-} from '@/components/ui/charts/LazyRechartsComponents';
-import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
+} from '@/components/ui/charts/RechartsPrimitives';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -41,68 +36,17 @@ import {
   MessageSquare,
   TrendingUp,
   TrendingDown,
-  Users,
   Brain,
   ClipboardCheck,
-  Calendar,
   RefreshCw,
 } from 'lucide-react';
 import { useWebSocket } from '@/hooks/useWebSocket';
-import { format, subDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { createLogger } from '../lib/logger';
 import { useClinicalMetrics } from '@/hooks/api/useClinicalMetrics';
 import { useRiskPatients } from '@/hooks/api/useRiskPatients';
+import type { PatientRisk } from '@/hooks/api/useRiskPatients';
 import { useAdherenceData } from '@/hooks/api/useAdherenceData';
 import { useQueryClient } from '@tanstack/react-query';
 
-const logger = createLogger('ClinicalMonitoringDashboard');
-
-// Tipos para métricas clínicas
-interface ClinicalMetrics {
-  patientEngagement: number;
-  quizCompletion: number;
-  messageResponseRate: number;
-  averageSentiment: number;
-  riskPatients: number;
-  totalPatients: number;
-  activeFlows: number;
-  completedFlows: number;
-}
-
-// Tipos para mensagens WebSocket
-interface ClinicalWebSocketMessage {
-  type: 'metrics_update' | 'risk_alert';
-  data: {
-    metrics?: ClinicalMetrics;
-    alert?: any;
-  };
-  timestamp: string;
-}
-
-// Tipos para respostas da API
-interface ApiResponse<T> {
-  data: T;
-  message?: string;
-  timestamp: string;
-}
-
-interface PatientRisk {
-  id: string;
-  name: string;
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
-  lastInteraction: string;
-  sentiment: number;
-  adherence: number;
-  alerts: string[];
-}
-
-interface TreatmentAdherence {
-  day: string;
-  adherence: number;
-  responses: number;
-  sentiment: number;
-}
 
 const ClinicalMonitoringDashboard: React.FC = () => {
   const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
@@ -164,13 +108,6 @@ const ClinicalMonitoringDashboard: React.FC = () => {
     { name: 'Positivo', value: 45, color: '#10b981' },
     { name: 'Neutro', value: 35, color: '#6b7280' },
     { name: 'Negativo', value: 20, color: '#ef4444' },
-  ];
-
-  const riskDistribution = [
-    { name: 'Baixo', value: riskPatients.filter(p => p.riskLevel === 'low').length },
-    { name: 'Médio', value: riskPatients.filter(p => p.riskLevel === 'medium').length },
-    { name: 'Alto', value: riskPatients.filter(p => p.riskLevel === 'high').length },
-    { name: 'Crítico', value: riskPatients.filter(p => p.riskLevel === 'critical').length },
   ];
 
   const getRiskColor = (level: string) => {
@@ -442,7 +379,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {riskPatients.map((patient) => (
+                {riskPatients.map((patient: PatientRisk) => (
                   <Alert key={patient.id} variant={patient.riskLevel === 'critical' ? 'destructive' : 'default'}>
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle className="flex justify-between">
@@ -460,7 +397,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                           <div className="mt-2">
                             <p className="font-medium">Alertas:</p>
                             <ul className="list-disc list-inside">
-                              {patient.alerts.map((alert, i) => (
+                              {patient.alerts.map((alert: string, i: number) => (
                                 <li key={i}>{alert}</li>
                               ))}
                             </ul>

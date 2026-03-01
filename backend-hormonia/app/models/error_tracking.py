@@ -6,8 +6,10 @@ from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from datetime import datetime, timezone
+import hashlib
 
 from app.models.base import BaseModel
+from app.utils.timezone import now_sao_paulo
 
 
 class ErrorLog(BaseModel):
@@ -52,7 +54,7 @@ class ErrorLog(BaseModel):
     def increment_count(self):
         """Increment the error count and update last_seen timestamp."""
         self.count += 1
-        self.last_seen = datetime.now(timezone.utc)
+        self.last_seen = now_sao_paulo()
 
     def mark_resolved(self):
         """Mark this error as resolved."""
@@ -61,4 +63,7 @@ class ErrorLog(BaseModel):
     @classmethod
     def create_error_key(cls, error_type: str, error_message: str) -> str:
         """Create a unique key for error deduplication."""
-        return f"{error_type}:{hash(error_message)}"
+        stable_hash = hashlib.sha256(
+            f"{error_type}:{error_message}".encode("utf-8")
+        ).hexdigest()
+        return f"{error_type}:{stable_hash}"

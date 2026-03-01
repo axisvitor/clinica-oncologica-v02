@@ -1,14 +1,20 @@
 """
-Unit Tests for FlowTemplateRepository - QW-021 Flow Services Consolidation.
+TOMBSTONED -- Phase 16 (Dead Code Removal)
 
-Tests template storage, retrieval, versioning, and cache management for the
-consolidated flow template system.
+Tests for app.services.flow.templates which has been tombstoned.
 """
 
 import pytest
+
+pytest.skip(
+    "app.services.flow.templates tombstoned in Phase 16 (Dead Code Removal)",
+    allow_module_level=True,
+)
+
 from datetime import datetime, timedelta
 
 from app.services.flow.templates.repository import FlowTemplateRepository
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.services.flow.types import (
     FlowTemplate,
     FlowType,
@@ -26,7 +32,7 @@ def sample_template():
     """Create sample template for testing."""
     return FlowTemplate(
         template_id="test_template_001",
-        flow_type=FlowType.DAILY_CHECKIN,
+        flow_type=FlowType.DAILY_FOLLOW_UP,
         version="1.0.0",
         name="Test Template",
         description="Sample template for testing",
@@ -47,7 +53,7 @@ def another_template():
     """Create another template for testing."""
     return FlowTemplate(
         template_id="test_template_002",
-        flow_type=FlowType.MONTHLY_QUIZ,
+        flow_type=FlowType.QUIZ_MENSAL,
         version="1.0.0",
         name="Another Template",
         description="Another sample template",
@@ -315,19 +321,19 @@ class TestListTemplates:
         """Test templates are sorted by created_at."""
         template1 = FlowTemplate(
             template_id="t1",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="T1",
             description="First",
             steps=[{"step_id": "s1", "type": "message", "name": "S1"}],
-            created_at=datetime.utcnow() - timedelta(hours=2),
+            created_at=now_sao_paulo_naive() - timedelta(hours=2),
         )
         template2 = FlowTemplate(
             template_id="t2",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="T2",
             description="Second",
             steps=[{"step_id": "s1", "type": "message", "name": "S1"}],
-            created_at=datetime.utcnow() - timedelta(hours=1),
+            created_at=now_sao_paulo_naive() - timedelta(hours=1),
         )
 
         repository.create(template1)
@@ -346,10 +352,10 @@ class TestListByType:
         repository.create(sample_template)
         repository.create(another_template)
 
-        daily_templates = repository.list_by_type(FlowType.DAILY_CHECKIN)
+        daily_templates = repository.list_by_type(FlowType.DAILY_FOLLOW_UP)
 
         assert len(daily_templates) == 1
-        assert daily_templates[0].flow_type == FlowType.DAILY_CHECKIN
+        assert daily_templates[0].flow_type == FlowType.DAILY_FOLLOW_UP
 
     def test_list_by_type_empty(self, repository):
         """Test listing by type when none exist."""
@@ -362,7 +368,7 @@ class TestListByType:
         sample_template.is_active = False
         repository.create(sample_template)
 
-        templates = repository.list_by_type(FlowType.DAILY_CHECKIN)
+        templates = repository.list_by_type(FlowType.DAILY_FOLLOW_UP)
 
         assert len(templates) == 0
 
@@ -370,7 +376,7 @@ class TestListByType:
         """Test getting active template for type."""
         repository.create(sample_template)
 
-        active = repository.get_active_template_for_type(FlowType.DAILY_CHECKIN)
+        active = repository.get_active_template_for_type(FlowType.DAILY_FOLLOW_UP)
 
         assert active is not None
         assert active.template_id == sample_template.template_id
@@ -512,12 +518,12 @@ class TestBulkOperations:
 
         assert len(created) == 2
 
-    def test_bulk_create_with_duplicate(self, repository, sample_template):
+    def test_bulk_create_with_duplicate(self, repository, sample_template, another_template):
         """Test bulk create handles duplicates gracefully."""
         repository.create(sample_template)
 
         # Try to bulk create including existing template
-        templates = [sample_template, another_template()]
+        templates = [sample_template, another_template]
 
         created = repository.bulk_create(templates)
 
@@ -528,14 +534,14 @@ class TestBulkOperations:
         """Test bulk updating templates."""
         t1 = FlowTemplate(
             template_id="t1",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="T1",
             description="First",
             steps=[{"step_id": "s1", "type": "message", "name": "S1"}],
         )
         t2 = FlowTemplate(
             template_id="t2",
-            flow_type=FlowType.DAILY_CHECKIN,
+            flow_type=FlowType.DAILY_FOLLOW_UP,
             name="T2",
             description="Second",
             steps=[{"step_id": "s1", "type": "message", "name": "S1"}],
@@ -594,7 +600,7 @@ class TestImportExport:
         templates_data = [
             {
                 "template_id": "t1",
-                "flow_type": "daily_checkin",
+                "flow_type": "daily_follow_up",
                 "version": "1.0.0",
                 "name": "T1",
                 "description": "First",
@@ -602,7 +608,7 @@ class TestImportExport:
             },
             {
                 "template_id": "t2",
-                "flow_type": "monthly_quiz",
+                "flow_type": "quiz_mensal",
                 "version": "1.0.0",
                 "name": "T2",
                 "description": "Second",
@@ -648,7 +654,7 @@ class TestStatistics:
         stats = repository.get_stats()
 
         assert "templates_by_type" in stats
-        assert FlowType.DAILY_CHECKIN.value in stats["templates_by_type"]
+        assert FlowType.DAILY_FOLLOW_UP.value in stats["templates_by_type"]
 
 
 class TestEdgeCases:
@@ -658,13 +664,13 @@ class TestEdgeCases:
         """Test updating template with different flow type."""
         repository.create(sample_template)
 
-        sample_template.flow_type = FlowType.MONTHLY_QUIZ
+        sample_template.flow_type = FlowType.QUIZ_MENSAL
         repository.update(sample_template)
 
         # Should be indexed under new type
         assert (
             sample_template.template_id
-            in repository._templates_by_type[FlowType.MONTHLY_QUIZ]
+            in repository._templates_by_type[FlowType.QUIZ_MENSAL]
         )
 
     def test_cache_disabled(self, repository, sample_template):

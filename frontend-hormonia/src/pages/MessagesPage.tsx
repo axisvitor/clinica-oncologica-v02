@@ -1,11 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { Search, Send, Phone, Clock, MessageSquare, CheckCheck, User as User2 } from 'lucide-react'
+import { Search, Phone, MessageSquare, User as User2 } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -108,7 +107,7 @@ export function MessagesPage() {
 
   const filteredPatients = useMemo(() => {
     if (!patientsData?.items) return []
-    return patientsData.items.filter((patient) =>
+    return patientsData.items.filter((patient: Patient) =>
       (patient.name || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
       patient.phone?.includes(debouncedSearch)
     )
@@ -158,7 +157,7 @@ export function MessagesPage() {
                 </div>
               ) : (
                 <div className="space-y-1 p-2">
-                  {filteredPatients.map((patient) => (
+                  {filteredPatients.map((patient: Patient) => (
                     <div
                       key={patient.id}
                       className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${selectedPatient?.id === patient.id

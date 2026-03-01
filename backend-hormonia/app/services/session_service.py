@@ -23,6 +23,7 @@ Performance:
 """
 
 import logging
+import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, List
@@ -34,6 +35,7 @@ AnyService = Any
 
 from app.config import settings
 from app.models.user import User, UserRole
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -154,10 +156,12 @@ class SessionService:
 
         # Cache user object (Layer 2 cache)
         user_dict = self._user_to_dict(user)
-        firebase_cache.cache_user(firebase_uid, user_dict)
+        await firebase_cache.cache_user_data(
+            firebase_uid, user_dict, ttl=firebase_cache.user_ttl
+        )
 
         # Calculate expiration
-        expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl)
+        expires_at = now_sao_paulo() + timedelta(seconds=ttl)
 
         logger.info(f"✅ Session created: {session_id[:8]}... for {email}")
 
@@ -280,7 +284,9 @@ class SessionService:
             return []
 
         try:
-            sessions = firebase_cache.list_user_sessions(firebase_uid)
+            sessions = await asyncio.to_thread(
+                firebase_cache.list_user_sessions, firebase_uid
+            )
             return sessions
         except Exception as e:
             logger.error(f"List sessions error: {str(e)}", exc_info=True)
@@ -302,7 +308,7 @@ class SessionService:
             return 0
 
         try:
-            stats = firebase_cache.get_cache_stats()
+            stats = await asyncio.to_thread(firebase_cache.get_cache_stats)
             logger.info(
                 f"Session cleanup check - Active sessions: {stats.get('active_sessions', 0)}"
             )

@@ -204,7 +204,7 @@ def create_password_reset_token(email: str, ...) -> str:
     ✅ Expiration configurável (default: 24h)
     ✅ Algoritmo: HS256
     """
-    expire = datetime.utcnow() + expires_delta
+    expire = now_sao_paulo() + expires_delta
     payload = {"sub": email, "exp": expire}
     return jwt.encode(payload, secret_key or settings.SECURITY_SECRET_KEY, algorithm)
 ```
@@ -276,19 +276,22 @@ response.set_cookie(
 ```bash
 # ❌ PROBLEMA: Chaves placeholder não validadas em runtime
 SECURITY_SECRET_KEY=CHANGE_THIS_TO_A_SECURE_RANDOM_VALUE
-AUTH_JWT_SECRET_KEY=CHANGE_THIS_TO_A_DIFFERENT_SECURE_VALUE
-SECURITY_ENCRYPTION_KEY=CHANGE_THIS_TO_ANOTHER_SECURE_VALUE
+SECURITY_CSRF_SECRET_KEY=CHANGE_THIS_TO_A_SECURE_RANDOM_VALUE
+ENCRYPTION_KEY_CURRENT=CHANGE_THIS_TO_FERNET_ENCRYPTION_KEY
+PHI_ENCRYPTION_KEY=CHANGE_THIS_TO_BASE64_KEY
+HASH_SALT=CHANGE_THIS_TO_HEX_SALT
 ```
 
 **Impacto:**
 - Se usuário não trocar as chaves, aplicação fica vulnerável
 - JWT tokens podem ser forjados
+- CSRF pode ser burlado com chaves fracas
 - Dados criptografados ficam desprotegidos
 
 **Validação Parcial Existente:**
 ```python
 # app/config/settings/security.py (linhas 266-273)
-for field in ["SECURITY_SECRET_KEY", "AUTH_JWT_SECRET_KEY", ...]:
+for field in ["SECURITY_SECRET_KEY", "SECURITY_CSRF_SECRET_KEY", "ENCRYPTION_KEY_CURRENT", "PHI_ENCRYPTION_KEY", "HASH_SALT"]:
     if field in data:
         v = data[field]
         if v and ("CHANGE_THIS" in v.upper() or "YOUR_" in v.upper()):
@@ -651,8 +654,10 @@ def validate_production_config(self):
             errors.append("RATE_LIMIT_ENABLE_SERVICE must be True in production")
 
         # Validar encryption keys
-        if not self.SECURITY_ENCRYPTION_KEY:
-            errors.append("SECURITY_ENCRYPTION_KEY must be set for PHI encryption")
+        if not os.getenv("ENCRYPTION_KEY_CURRENT"):
+            errors.append("ENCRYPTION_KEY_CURRENT must be set for field encryption")
+        if not os.getenv("PHI_ENCRYPTION_KEY"):
+            errors.append("PHI_ENCRYPTION_KEY must be set for PHI encryption")
 
         # Validar Firebase se em uso
         try:

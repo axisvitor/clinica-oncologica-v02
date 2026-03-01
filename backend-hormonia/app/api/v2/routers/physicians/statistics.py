@@ -6,9 +6,9 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.schemas.v2.physicians import PhysicianStatistics
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 async def get_physician_statistics(
     request: Request,
     physician_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     use_cache: bool = True,
 ):
@@ -57,10 +57,12 @@ async def get_physician_statistics(
         )
 
     # Validate access
-    validate_physician_access(physician_uuid, current_user, db, allow_patient_view=True)
+    await validate_physician_access(physician_uuid, current_user, db, allow_patient_view=True)
 
     # Calculate statistics
     stats_service = PhysicianStatisticsService(db)
-    statistics = stats_service.calculate_statistics(physician_uuid, use_cache=use_cache)
+    statistics = await stats_service.calculate_statistics(
+        physician_uuid, use_cache=use_cache
+    )
 
     return statistics

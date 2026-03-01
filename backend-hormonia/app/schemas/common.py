@@ -6,6 +6,7 @@ from typing import Optional, Any
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+from app.utils.timezone import now_sao_paulo_naive
 
 
 class PaginationParams(BaseModel):
@@ -47,7 +48,7 @@ class ErrorResponse(BaseModel):
         None, description="Additional error details"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Error timestamp"
+        default_factory=now_sao_paulo_naive, description="Error timestamp"
     )
 
 
@@ -60,7 +61,7 @@ class ValidationErrorResponse(BaseModel):
         ..., description="Field-specific validation errors"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Error timestamp"
+        default_factory=now_sao_paulo_naive, description="Error timestamp"
     )
 
 
@@ -72,7 +73,7 @@ class NotFoundErrorResponse(BaseModel):
     resource_type: str = Field(..., description="Type of resource not found")
     resource_id: Optional[str] = Field(None, description="ID of resource not found")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Error timestamp"
+        default_factory=now_sao_paulo_naive, description="Error timestamp"
     )
 
 
@@ -84,7 +85,7 @@ class UnauthorizedErrorResponse(BaseModel):
         "Authentication required", description="Human readable error message"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Error timestamp"
+        default_factory=now_sao_paulo_naive, description="Error timestamp"
     )
 
 
@@ -99,7 +100,7 @@ class ForbiddenErrorResponse(BaseModel):
         None, description="Required permissions"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Error timestamp"
+        default_factory=now_sao_paulo_naive, description="Error timestamp"
     )
 
 
@@ -112,7 +113,7 @@ class ConflictErrorResponse(BaseModel):
         None, description="Conflicting resource identifier"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Error timestamp"
+        default_factory=now_sao_paulo_naive, description="Error timestamp"
     )
 
 
@@ -126,7 +127,7 @@ class RateLimitErrorResponse(BaseModel):
     retry_after: int = Field(..., description="Seconds to wait before retrying")
     limit: int = Field(..., description="Rate limit threshold")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Error timestamp"
+        default_factory=now_sao_paulo_naive, description="Error timestamp"
     )
 
 
@@ -144,7 +145,7 @@ class ServiceUnavailableErrorResponse(BaseModel):
         False, description="Whether service is in maintenance mode"
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Error timestamp"
+        default_factory=now_sao_paulo_naive, description="Error timestamp"
     )
 
 
@@ -155,7 +156,7 @@ class SuccessResponse(BaseModel):
     message: str = Field(..., description="Success message")
     data: Optional[dict[str, Any]] = Field(None, description="Response data")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Response timestamp"
+        default_factory=now_sao_paulo_naive, description="Response timestamp"
     )
 
 
@@ -164,7 +165,7 @@ class HealthCheckResponse(BaseModel):
 
     status: str = Field(..., description="Service status")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Check timestamp"
+        default_factory=now_sao_paulo_naive, description="Check timestamp"
     )
     version: Optional[str] = Field(None, description="Application version")
     dependencies: Optional[dict[str, str]] = Field(

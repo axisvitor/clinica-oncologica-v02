@@ -7,7 +7,8 @@ All components work together to make intelligent decisions about patient treatme
 
 from __future__ import annotations
 
-from app.agents.patient.flow_coordinator.consensus_manager import ConsensusManager
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
+
 from app.agents.patient.flow_coordinator.coordinator import FlowCoordinatorAgent
 from app.agents.patient.flow_coordinator.decision_engine import DecisionEngine
 from app.agents.patient.flow_coordinator.message_generator import MessageGenerator
@@ -16,7 +17,6 @@ from app.agents.patient.flow_coordinator.state_manager import StateManager
 from app.agents.patient.flow_coordinator.transition_handler import TransitionHandler
 
 __all__ = [
-    "ConsensusManager",
     "DecisionEngine",
     "FlowContext",
     "FlowCoordinatorAgent",

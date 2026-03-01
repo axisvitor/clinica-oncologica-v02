@@ -53,7 +53,6 @@ export function useChartDimensions(minWidth = 50, minHeight = 50): {
         // This prevents Recharts from rendering before the container has valid dimensions
         let rafId1: number;
         let rafId2: number;
-        let timerId: ReturnType<typeof setTimeout>;
 
         const measureDimensions = () => {
             rafId1 = requestAnimationFrame(() => {
@@ -64,7 +63,7 @@ export function useChartDimensions(minWidth = 50, minHeight = 50): {
         };
 
         // Initial measurement after mount with small delay
-        timerId = setTimeout(measureDimensions, 10);
+        const timerId = setTimeout(measureDimensions, 10);
 
         // ResizeObserver for subsequent changes
         const resizeObserver = new ResizeObserver(() => {

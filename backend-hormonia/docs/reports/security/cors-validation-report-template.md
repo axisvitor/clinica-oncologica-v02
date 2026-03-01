@@ -2,7 +2,7 @@
 
 **Report ID:** `CORS-VAL-[YYYY-MM-DD]-[SEQUENCE]`
 **Date:** [YYYY-MM-DD]
-**Time:** [HH:MM:SS UTC]
+**Time:** [HH:MM:SS Sao Paulo]
 **Environment:** [Local / Staging / Production]
 **Validated By:** [Name / Automation]
 **Report Version:** 1.0

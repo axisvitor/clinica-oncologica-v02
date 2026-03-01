@@ -214,9 +214,17 @@ export interface ConversationResponse {
 // ============================================================================
 
 export enum FlowType {
+  ONBOARDING = 'onboarding',
+  DAILY_FOLLOW_UP = 'daily_follow_up',
+  QUIZ_MENSAL = 'quiz_mensal',
+  CUSTOM = 'custom',
+  // Legacy keys for backward compatibility
   INITIAL_15_DAYS = 'initial_15_days',
   DAYS_16_45 = 'days_16_45',
-  MONTHLY_RECURRING = 'monthly_recurring'
+  MONTHLY_RECURRING = 'monthly_recurring',
+  MONTHLY_QUIZ = 'monthly_quiz',
+  DAILY_CHECKIN = 'daily_checkin',
+  DAILY_ENGAGEMENT = 'daily_engagement'
 }
 
 export enum ResponseType {
@@ -360,11 +368,31 @@ export interface DailyMetric {
   responses_received: number;
   new_enrollments: number;
   completions: number;
+  active_flows?: number;
+}
+
+export interface TemplateCompletionRate {
+  template_id: string;
+  template_name: string;
+  kind_key: string;
+  version_number: number;
+  total: number;
+  completed: number;
+  completion_rate: number;
+}
+
+export interface TemplateDurationMetric {
+  template_id: string;
+  template_name: string;
+  kind_key: string;
+  version_number: number;
+  average_duration_days: number;
 }
 
 export interface FlowAnalytics {
   total_flows: number;
   active_flows: number;
+  paused_flows?: number;
   completed_flows: number;
   completion_rate: number;
   average_duration_days: number;
@@ -375,6 +403,12 @@ export interface FlowAnalytics {
   average_response_time?: number;
   flows_by_type?: Record<string, number>;
   daily_metrics?: DailyMetric[];
+  status_distribution?: Record<string, number>;
+  new_patients_7d?: number;
+  avg_response_time_minutes?: number;
+  weekly_trend?: Array<Record<string, unknown>>;
+  template_completion_rates?: TemplateCompletionRate[];
+  template_duration_days?: TemplateDurationMetric[];
 }
 
 // ============================================================================
@@ -641,6 +675,40 @@ export interface AIChatResponse {
   metadata?: Record<string, unknown>;
 }
 
+export interface HumanizeRequest {
+  message: string;
+  patient_id?: string;
+  message_type?: 'welcome' | 'check_in' | 'reminder' | 'support' | 'education' | 'general';
+  tone?: 'empathetic' | 'professional' | 'encouraging' | 'caring' | 'neutral';
+  max_length?: number;
+  use_cache?: boolean;
+}
+
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  estimated_cost_usd?: number;
+  model?: string;
+}
+
+export interface CacheInfo {
+  hit: boolean;
+  key: string;
+  ttl_seconds: number;
+  cached_at?: string;
+}
+
+export interface HumanizeResponse {
+  original_message: string;
+  humanized_message: string;
+  personalization_notes: string[];
+  readability_score: number;
+  tone_analysis: Record<string, number>;
+  cache_info?: CacheInfo;
+  token_usage?: TokenUsage;
+}
+
 export interface AIHealthResponse {
   status: string;
   services: Record<string, string>;
@@ -652,13 +720,12 @@ export interface AIHealthResponse {
 
 export interface AIAnalysisRequest {
   data: unknown;
-  analysis_type: string;
+  analysis_type: 'sentiment' | 'risk' | 'response';
 }
 
 export interface AIAnalysisResponse {
-  analysis: Record<string, unknown>;
-  insights: string[];
-  recommendations?: string[];
+  type: 'sentiment' | 'risk' | 'response';
+  result: Record<string, unknown>;
 }
 
 export interface AIGenerateResponseRequest {
@@ -674,7 +741,10 @@ export interface AIGenerateResponseResponse {
 }
 
 export interface SentimentAnalysisRequest {
-  text: string;
+  message: string;
+  patient_id?: string;
+  include_medical_concerns?: boolean;
+  include_urgency?: boolean;
 }
 
 export interface SentimentAnalysisResponse {
@@ -699,25 +769,39 @@ export interface AIInsight {
 
 export interface AIInsights {
   patient_id: string;
-  insights: AIInsight[];
-  summary?: string;
-  risk_level?: 'low' | 'medium' | 'high' | 'critical';
-  risk_factors?: string[];
-  sentiment_score?: number;
-  filter?: (predicate: (insight: any) => boolean) => any[]; // For array-like behavior
+  overall_status: string;
+  risk_level: 'low' | 'medium' | 'high' | 'critical';
+  sentiment_trends: TrendData[];
+  adherence_score: number;
+  key_insights: string[];
+  alerts: Record<string, unknown>[];
+  engagement_metrics: Record<string, unknown>;
+  last_contact?: string;
+  token_usage?: TokenUsage;
+  cache_info?: CacheInfo;
+  generated_at: string;
+}
+
+export interface AIRecommendation {
+  type: string;
+  priority: 'low' | 'medium' | 'high';
+  description: string;
+  rationale: string;
 }
 
 export interface AIRecommendations {
   patient_id: string;
-  recommendations: Array<{
-    type: string;
-    priority: 'low' | 'medium' | 'high';
-    description: string;
-    rationale: string;
-  }>;
-  // Array-like properties for direct array access
-  length?: number;
-  slice?: (start?: number, end?: number) => any[];
+  recommendations: AIRecommendation[];
+  generated_at?: string;
+}
+
+export interface TrendData {
+  metric: string;
+  direction: 'improving' | 'declining' | 'stable';
+  change_percentage: number;
+  current_value?: number;
+  previous_value?: number;
+  data_points: Record<string, unknown>[];
 }
 
 // ============================================================================
@@ -904,7 +988,7 @@ export interface Task {
     message?: string;
     eta_seconds?: number;
   };
-  result?: any;
+  result?: unknown;
   error?: string;
   traceback?: string;
   retry_count: number;

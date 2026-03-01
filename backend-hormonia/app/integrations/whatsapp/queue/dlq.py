@@ -1,12 +1,22 @@
 """
 Dead Letter Queue (DLQ) handler for failed WhatsApp messages.
 Routes failed messages to DLQ storage for manual review and retry.
+
+This is a **WhatsApp-specific** DLQ specialization that adds:
+- Patient validation before routing
+- Original message status updates
+- Admin review/approve workflow
+- Re-queue with scheduling integration
+- WhatsApp-specific analytics
+
+For the canonical (general-purpose) DLQ, see ``app.services.dlq.DLQService``.
+Shared types are imported from ``app.services.dlq.base``.
 """
 
 import logging
 from typing import Dict, Any, Optional, List
 from uuid import UUID
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -15,6 +25,7 @@ from app.models.message import Message, MessageStatus
 from app.models.patient import Patient
 from app.repositories.base import BaseRepository
 from app.exceptions import NotFoundError, ValidationError
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -22,14 +33,22 @@ logger = logging.getLogger(__name__)
 
 class DLQHandler:
     """
-    Dead Letter Queue handler for failed message management.
+    Dead Letter Queue handler for failed WhatsApp message management.
+
+    This is a WhatsApp-specific specialization of the DLQ pattern.
+    It extends the base concept with patient validation, message status
+    tracking, and an admin review/approve workflow.
 
     Responsibilities:
-    - Route failed messages to DLQ storage
-    - Categorize failure reasons
+    - Route failed messages to DLQ storage (FailedMessage model)
+    - Categorize failure reasons via FailureReason enum
     - Track retry attempts
-    - Enable manual review and re-queue
+    - Enable manual review and re-queue with scheduling
     - Provide DLQ analytics and monitoring
+
+    See Also:
+        ``app.services.dlq.DLQService`` - canonical general-purpose DLQ
+        ``app.services.webhook_dlq.WebhookDLQ`` - Redis-backed webhook DLQ
     """
 
     def __init__(self, db: Session):
@@ -89,19 +108,24 @@ class DLQHandler:
                 logger.error(f"Patient {patient_id} not found for DLQ routing")
                 raise NotFoundError(f"Patient {patient_id} not found")
 
-            # Create DLQ entry
+            # Create DLQ entry using actual model fields
             failed_message = FailedMessage(
                 original_message_id=message_id,
                 patient_id=patient_id,
-                content=content,
-                whatsapp_phone=whatsapp_phone,
-                failure_reason=failure_reason,
-                failure_details=failure_details or {},
+                message_content=content,
+                phone_number=whatsapp_phone,
+                message_type="text",  # Default type
+                error_message=failure_details.get("error", str(failure_reason.value)),
+                error_code=failure_reason.value,
                 retry_count=retry_count,
-                last_retry_at=datetime.now(timezone.utc) if retry_count > 0 else None,
-                failed_at=datetime.now(timezone.utc),
-                dlq_status=DLQStatus.PENDING_REVIEW,
-                dlq_metadata=metadata or {},
+                last_retry_at=now_sao_paulo() if retry_count > 0 else None,
+                status=DLQStatus.PENDING_REVIEW.value,
+                dlq_metadata={
+                    **(metadata or {}),
+                    "failure_reason": failure_reason.value,
+                    "failure_details": failure_details,
+                    "routed_at": now_sao_paulo().isoformat(),
+                },
             )
 
             self.db.add(failed_message)
@@ -134,7 +158,7 @@ class DLQHandler:
                 if not message.message_metadata:
                     message.message_metadata = {}
                 message.message_metadata["dlq_routed_at"] = (
-                    datetime.now(timezone.utc).isoformat()
+                    now_sao_paulo().isoformat()
                 )
                 self.db.commit()
         except Exception as e:
@@ -159,14 +183,15 @@ class DLQHandler:
         """
         try:
             query = self.db.query(FailedMessage).filter(
-                FailedMessage.dlq_status == DLQStatus.PENDING_REVIEW
+                FailedMessage.status == DLQStatus.PENDING_REVIEW.value
             )
 
             if failure_reason:
-                query = query.filter(FailedMessage.failure_reason == failure_reason)
+                # Filter by error_code which stores the failure reason value
+                query = query.filter(FailedMessage.error_code == failure_reason.value)
 
             messages = (
-                query.order_by(FailedMessage.failed_at.desc())
+                query.order_by(FailedMessage.created_at.desc())
                 .limit(limit)
                 .offset(offset)
                 .all()
@@ -209,15 +234,24 @@ class DLQHandler:
             if not failed_message:
                 raise NotFoundError(f"Failed message {dlq_id} not found in DLQ")
 
-            if failed_message.dlq_status not in [
-                DLQStatus.PENDING_REVIEW,
-                DLQStatus.UNDER_REVIEW,
+            if failed_message.status not in [
+                DLQStatus.PENDING_REVIEW.value,
+                DLQStatus.UNDER_REVIEW.value,
             ]:
                 raise ValidationError(
-                    f"Message {dlq_id} has status {failed_message.dlq_status.value}, cannot review"
+                    f"Message {dlq_id} has status {failed_message.status}, cannot review"
                 )
 
-            failed_message.mark_reviewed(reviewer_id, notes, approve_retry)
+            # Update status inline (model doesn't have mark_reviewed method)
+            failed_message.status = DLQStatus.RESOLVED.value if approve_retry else DLQStatus.DISCARDED.value
+            failed_message.reviewed_by = reviewer_id
+            failed_message.resolved_at = now_sao_paulo()
+            failed_message.dlq_metadata = {
+                **(failed_message.dlq_metadata or {}),
+                "review_notes": notes,
+                "reviewed_at": now_sao_paulo().isoformat(),
+                "approve_retry": approve_retry,
+            }
             self.db.commit()
             self.db.refresh(failed_message)
 
@@ -255,9 +289,11 @@ class DLQHandler:
             if not failed_message:
                 raise NotFoundError(f"Failed message {dlq_id} not found in DLQ")
 
-            if not failed_message.can_requeue():
+            # Check if can requeue (inline logic, model doesn't have this method)
+            requeue_count = (failed_message.dlq_metadata or {}).get("requeue_count", 0)
+            if failed_message.status not in [DLQStatus.PENDING_REVIEW.value, DLQStatus.RESOLVED.value]:
                 raise ValidationError(
-                    f"Message {dlq_id} cannot be re-queued (status: {failed_message.dlq_status.value})"
+                    f"Message {dlq_id} cannot be re-queued (status: {failed_message.status})"
                 )
 
             # Create new message for retry
@@ -268,14 +304,14 @@ class DLQHandler:
                 patient_id=failed_message.patient_id,
                 direction=MessageDirection.OUTBOUND,
                 type=MessageType.TEXT,
-                content=failed_message.content,
+                content=failed_message.message_content,
                 status=MessageStatus.PENDING,
                 message_metadata={
                     "dlq_retry": True,
                     "dlq_entry_id": str(failed_message.id),
-                    "original_failure_reason": failed_message.failure_reason.value,
-                    "requeue_count": failed_message.requeue_count + 1,
-                    "requeued_at": datetime.now(timezone.utc).isoformat(),
+                    "original_failure_reason": failed_message.error_code,
+                    "requeue_count": requeue_count + 1,
+                    "requeued_at": now_sao_paulo().isoformat(),
                 },
             )
 
@@ -288,17 +324,23 @@ class DLQHandler:
 
             if immediate:
                 # Schedule for immediate delivery (1 minute from now)
-                send_time = datetime.now(timezone.utc) + timedelta(minutes=1)
+                send_time = now_sao_paulo() + timedelta(minutes=1)
             else:
                 # Schedule for next business hours
-                send_time = datetime.now(timezone.utc) + timedelta(hours=1)
+                send_time = now_sao_paulo() + timedelta(hours=1)
 
             await scheduler.schedule_existing_message(
                 message_id=retry_message.id, send_time=send_time, priority="high"
             )
 
-            # Update DLQ entry
-            failed_message.mark_requeued()
+            # Update DLQ entry inline (model doesn't have mark_requeued method)
+            failed_message.status = DLQStatus.RESOLVED.value
+            failed_message.dlq_metadata = {
+                **(failed_message.dlq_metadata or {}),
+                "requeue_count": requeue_count + 1,
+                "requeued_at": now_sao_paulo().isoformat(),
+                "new_message_id": str(retry_message.id),
+            }
             self.db.commit()
 
             logger.info(
@@ -311,7 +353,7 @@ class DLQHandler:
                 "new_message_id": str(retry_message.id),
                 "scheduled_for": send_time.isoformat(),
                 "immediate": immediate,
-                "requeue_count": failed_message.requeue_count,
+                "requeue_count": requeue_count + 1,
             }
 
         except Exception as e:
@@ -330,12 +372,12 @@ class DLQHandler:
             DLQ metrics including failure reasons, counts, trends
         """
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=days_back)
+            cutoff_date = now_sao_paulo() - timedelta(days=days_back)
 
             # Get all DLQ entries in period
             entries = (
                 self.db.query(FailedMessage)
-                .filter(FailedMessage.failed_at >= cutoff_date)
+                .filter(FailedMessage.created_at >= cutoff_date)
                 .all()
             )
 
@@ -357,17 +399,18 @@ class DLQHandler:
             requeued_count = 0
 
             for entry in entries:
-                # Failure reasons
-                reason = entry.failure_reason.value
+                # Get failure reason from error_code field
+                reason = entry.error_code or "unknown"
                 failure_by_reason[reason] = failure_by_reason.get(reason, 0) + 1
 
                 # Status distribution
-                status = entry.dlq_status.value
+                status = entry.status
                 status_distribution[status] = status_distribution.get(status, 0) + 1
 
                 # Retry stats
                 total_retries += entry.retry_count
-                if entry.requeue_count > 0:
+                requeue_count_meta = (entry.dlq_metadata or {}).get("requeue_count", 0)
+                if requeue_count_meta > 0:
                     requeued_count += 1
 
             avg_retry_count = (
@@ -384,7 +427,7 @@ class DLQHandler:
                 "avg_retry_count": round(avg_retry_count, 2),
                 "requeue_rate": round(requeue_rate, 2),
                 "period_days": days_back,
-                "analysis_date": datetime.now(timezone.utc).isoformat(),
+                "analysis_date": now_sao_paulo().isoformat(),
             }
 
         except Exception as e:
@@ -410,19 +453,19 @@ class DLQHandler:
             List of critical failed messages
         """
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+            cutoff_time = now_sao_paulo() - timedelta(hours=hours_back)
 
             critical_failures = (
                 self.db.query(FailedMessage)
                 .filter(
                     and_(
-                        FailedMessage.failed_at >= cutoff_time,
+                        FailedMessage.created_at >= cutoff_time,
                         FailedMessage.retry_count >= 3,
-                        FailedMessage.dlq_status == DLQStatus.PENDING_REVIEW,
+                        FailedMessage.status == DLQStatus.PENDING_REVIEW.value,
                     )
                 )
                 .order_by(
-                    FailedMessage.retry_count.desc(), FailedMessage.failed_at.desc()
+                    FailedMessage.retry_count.desc(), FailedMessage.created_at.desc()
                 )
                 .limit(limit)
                 .all()

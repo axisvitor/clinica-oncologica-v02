@@ -7,6 +7,7 @@ from app.repositories.medication import MedicationRepository
 from app.models.medication import Medication
 from app.schemas.v2.medication import MedicationV2Create, MedicationV2Update
 from app.utils.db_retry import with_db_retry
+from app.utils.timezone import now_sao_paulo
 
 
 class MedicationService:
@@ -65,6 +66,6 @@ class MedicationService:
             return False
 
         medication.is_active = False
-        medication.deleted_at = datetime.now(timezone.utc)
+        medication.deleted_at = now_sao_paulo()
         self.db.commit()
         return True

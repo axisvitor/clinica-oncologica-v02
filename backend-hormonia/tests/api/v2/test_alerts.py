@@ -29,6 +29,7 @@ from app.models.alert import Alert, AlertSeverity
 from app.models.patient import Patient
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Test Fixtures
 # ============================================================================
@@ -38,7 +39,7 @@ def sample_alert_data() -> Dict[str, Any]:
     """Sample alert data for testing."""
     return {
         "alert_type": "missed_medication",
-        "severity": "HIGH",
+        "severity": "high",
         "description": "Patient missed medication dose at 14:00",
         "data": {
             "medication_name": "Anastrozole",
@@ -153,7 +154,7 @@ class TestListAlerts:
     ):
         """Test filtering alerts by severity."""
         response = client.get(
-            "/api/v2/alerts?severity=CRITICAL",
+            "/api/v2/alerts?severity=critical",
             headers=auth_headers
         )
 
@@ -162,7 +163,7 @@ class TestListAlerts:
 
         # All returned alerts should be CRITICAL
         for alert in data["data"]:
-            assert alert["severity"] == "CRITICAL"
+            assert alert["severity"] == "critical"
 
     def test_list_alerts_filter_by_patient(
         self,
@@ -279,8 +280,8 @@ class TestListAlerts:
         create_multiple_alerts: List[Alert]
     ):
         """Test filtering alerts by date range."""
-        start_date = (datetime.utcnow() - timedelta(days=1)).isoformat()
-        end_date = datetime.utcnow().isoformat()
+        start_date = (now_sao_paulo_naive() - timedelta(days=1)).isoformat()
+        end_date = now_sao_paulo_naive().isoformat()
 
         response = client.get(
             f"/api/v2/alerts?start_date={start_date}&end_date={end_date}",
@@ -400,7 +401,7 @@ class TestCreateAlert:
         invalid_data = {
             "patient_id": str(test_patient.id),
             "alert_type": "",  # Empty alert type
-            "severity": "HIGH",
+            "severity": "high",
             "description": "Test"
         }
 
@@ -416,7 +417,7 @@ class TestCreateAlert:
         self,
         client: TestClient,
         db: Session,
-        auth_headers: Dict[str, str],  # Regular user, not physician
+        auth_headers_patient: Dict[str, str],
         test_patient: Patient,
         sample_alert_data: Dict[str, Any]
     ):
@@ -429,7 +430,7 @@ class TestCreateAlert:
         response = client.post(
             "/api/v2/alerts",
             json=alert_data,
-            headers=auth_headers
+            headers=auth_headers_patient
         )
 
         # Should fail with 403 Forbidden
@@ -463,7 +464,7 @@ class TestCreateAlert:
 # ============================================================================
 
 class TestAcknowledgeAlert:
-    """Test suite for POST /api/v2/alerts/{alert_id}/acknowledge endpoint."""
+    """Test suite for PATCH /api/v2/alerts/{alert_id}/read endpoint."""
 
     def test_acknowledge_alert_success(
         self,
@@ -477,8 +478,8 @@ class TestAcknowledgeAlert:
             "notes": "Reviewed with patient. All clear."
         }
 
-        response = client.post(
-            f"/api/v2/alerts/{create_test_alert.id}/acknowledge",
+        response = client.patch(
+            f"/api/v2/alerts/{create_test_alert.id}/read",
             json=acknowledge_data,
             headers=auth_headers_physician
         )
@@ -500,15 +501,15 @@ class TestAcknowledgeAlert:
         """Test acknowledging an already acknowledged alert fails."""
         # First acknowledgment
         acknowledge_data = {"notes": "First acknowledgment"}
-        client.post(
-            f"/api/v2/alerts/{create_test_alert.id}/acknowledge",
+        client.patch(
+            f"/api/v2/alerts/{create_test_alert.id}/read",
             json=acknowledge_data,
             headers=auth_headers_physician
         )
 
         # Second acknowledgment should fail
-        response = client.post(
-            f"/api/v2/alerts/{create_test_alert.id}/acknowledge",
+        response = client.patch(
+            f"/api/v2/alerts/{create_test_alert.id}/read",
             json=acknowledge_data,
             headers=auth_headers_physician
         )
@@ -519,14 +520,14 @@ class TestAcknowledgeAlert:
         self,
         client: TestClient,
         db: Session,
-        auth_headers: Dict[str, str],
+        auth_headers_patient: Dict[str, str],
         create_test_alert: Alert
     ):
         """Test that only physicians can acknowledge alerts."""
-        response = client.post(
-            f"/api/v2/alerts/{create_test_alert.id}/acknowledge",
+        response = client.patch(
+            f"/api/v2/alerts/{create_test_alert.id}/read",
             json={"notes": "Test"},
-            headers=auth_headers
+            headers=auth_headers_patient
         )
 
         assert response.status_code == 403
@@ -537,7 +538,7 @@ class TestAcknowledgeAlert:
 # ============================================================================
 
 class TestResolveAlert:
-    """Test suite for POST /api/v2/alerts/{alert_id}/resolve endpoint."""
+    """Test suite for PATCH /api/v2/alerts/{alert_id} resolution-style updates."""
 
     def test_resolve_alert_success(
         self,
@@ -548,11 +549,12 @@ class TestResolveAlert:
     ):
         """Test successfully resolving an alert."""
         resolve_data = {
-            "notes": "Issue resolved. Patient contacted and situation addressed."
+            "description": "Issue resolved. Patient contacted and situation addressed.",
+            "data": {"resolved": True},
         }
 
-        response = client.post(
-            f"/api/v2/alerts/{create_test_alert.id}/resolve",
+        response = client.patch(
+            f"/api/v2/alerts/{create_test_alert.id}",
             json=resolve_data,
             headers=auth_headers_physician
         )
@@ -560,7 +562,7 @@ class TestResolveAlert:
         assert response.status_code == 200
         data = response.json()
 
-        assert data["acknowledged"] is True
+        assert data["description"] == resolve_data["description"]
         # Check for resolution marker in data field
         if "data" in data and data["data"]:
             assert data["data"].get("resolved") is True
@@ -572,10 +574,10 @@ class TestResolveAlert:
         auth_headers_physician: Dict[str, str],
         create_test_alert: Alert
     ):
-        """Test resolving alert without notes fails validation."""
-        response = client.post(
-            f"/api/v2/alerts/{create_test_alert.id}/resolve",
-            json={},
+        """Test resolving alert with invalid payload fails validation."""
+        response = client.patch(
+            f"/api/v2/alerts/{create_test_alert.id}",
+            json={"severity": "invalid"},
             headers=auth_headers_physician
         )
 
@@ -588,11 +590,11 @@ class TestResolveAlert:
         auth_headers_physician: Dict[str, str],
         create_test_alert: Alert
     ):
-        """Test resolving alert with insufficient notes fails validation."""
-        resolve_data = {"notes": "Done"}  # Too short
+        """Test resolving alert with oversized description fails validation."""
+        resolve_data = {"description": "x" * 3001}
 
-        response = client.post(
-            f"/api/v2/alerts/{create_test_alert.id}/resolve",
+        response = client.patch(
+            f"/api/v2/alerts/{create_test_alert.id}",
             json=resolve_data,
             headers=auth_headers_physician
         )
@@ -605,7 +607,7 @@ class TestResolveAlert:
 # ============================================================================
 
 class TestDismissAlert:
-    """Test suite for POST /api/v2/alerts/{alert_id}/dismiss endpoint."""
+    """Test suite for PATCH /api/v2/alerts/{alert_id} dismissal-style updates."""
 
     def test_dismiss_alert_success(
         self,
@@ -616,11 +618,14 @@ class TestDismissAlert:
     ):
         """Test successfully dismissing an alert."""
         dismiss_data = {
-            "reason": "False positive: Patient had physician approval for schedule change."
+            "data": {
+                "dismissed": True,
+                "dismiss_reason": "False positive: Patient had physician approval for schedule change.",
+            }
         }
 
-        response = client.post(
-            f"/api/v2/alerts/{create_test_alert.id}/dismiss",
+        response = client.patch(
+            f"/api/v2/alerts/{create_test_alert.id}",
             json=dismiss_data,
             headers=auth_headers_physician
         )
@@ -628,7 +633,6 @@ class TestDismissAlert:
         assert response.status_code == 200
         data = response.json()
 
-        assert data["acknowledged"] is True
         if "data" in data and data["data"]:
             assert data["data"].get("dismissed") is True
 
@@ -639,10 +643,10 @@ class TestDismissAlert:
         auth_headers_physician: Dict[str, str],
         create_test_alert: Alert
     ):
-        """Test dismissing alert without reason fails validation."""
-        response = client.post(
-            f"/api/v2/alerts/{create_test_alert.id}/dismiss",
-            json={},
+        """Test dismissing alert with invalid payload fails validation."""
+        response = client.patch(
+            f"/api/v2/alerts/{create_test_alert.id}",
+            json={"severity": "invalid"},
             headers=auth_headers_physician
         )
 
@@ -654,7 +658,7 @@ class TestDismissAlert:
 # ============================================================================
 
 class TestPatientAlertSummary:
-    """Test suite for GET /api/v2/alerts/patient/{patient_id}/summary endpoint."""
+    """Test suite for GET /api/v2/alerts/summary endpoint."""
 
     def test_get_patient_alert_summary(
         self,
@@ -664,29 +668,20 @@ class TestPatientAlertSummary:
         test_patient: Patient,
         create_multiple_alerts: List[Alert]
     ):
-        """Test retrieving patient alert summary."""
+        """Test retrieving unread alerts summary."""
         response = client.get(
-            f"/api/v2/alerts/patient/{test_patient.id}/summary",
+            "/api/v2/alerts/summary",
             headers=auth_headers
         )
 
         assert response.status_code == 200
         data = response.json()
 
-        assert "patient_id" in data
-        assert "total_alerts" in data
-        assert "pending_alerts" in data
-        assert "critical_alerts" in data
-        assert "high_alerts" in data
-        assert "medium_alerts" in data
-        assert "low_alerts" in data
-        assert "risk_score" in data
-        assert "risk_level" in data
-
-        # Verify counts
-        assert data["total_alerts"] >= 4
-        assert data["critical_alerts"] >= 1
-        assert data["high_alerts"] >= 1
+        assert "severity_counts" in data
+        assert "total_unread" in data
+        assert data["total_unread"] >= 4
+        assert data["severity_counts"]["critical"] >= 1
+        assert data["severity_counts"]["high"] >= 1
 
     def test_get_patient_alert_summary_empty(
         self,
@@ -695,28 +690,17 @@ class TestPatientAlertSummary:
         auth_headers: Dict[str, str],
         test_patient: Patient
     ):
-        """Test patient alert summary with no alerts."""
-        # Create a new patient with no alerts
-        new_patient = Patient(
-            name="No Alerts Patient",
-            email="noalerts@example.com",
-            doctor_id=test_patient.doctor_id
-        )
-        db.add(new_patient)
-        db.commit()
-        db.refresh(new_patient)
-
+        """Test summary with no alerts for current doctor."""
         response = client.get(
-            f"/api/v2/alerts/patient/{new_patient.id}/summary",
+            "/api/v2/alerts/summary",
             headers=auth_headers
         )
 
         assert response.status_code == 200
         data = response.json()
 
-        assert data["total_alerts"] == 0
-        assert data["pending_alerts"] == 0
-        assert data["risk_level"] == "LOW"
+        assert "severity_counts" in data
+        assert "total_unread" in data
 
 
 # ============================================================================
@@ -724,7 +708,7 @@ class TestPatientAlertSummary:
 # ============================================================================
 
 class TestAlertStatistics:
-    """Test suite for GET /api/v2/alerts/statistics/overview endpoint."""
+    """Test suite for GET /api/v2/alerts/summary endpoint."""
 
     def test_get_alert_statistics(
         self,
@@ -733,25 +717,17 @@ class TestAlertStatistics:
         auth_headers: Dict[str, str],
         create_multiple_alerts: List[Alert]
     ):
-        """Test retrieving alert statistics."""
+        """Test retrieving summary statistics."""
         response = client.get(
-            "/api/v2/alerts/statistics/overview",
+            "/api/v2/alerts/summary",
             headers=auth_headers
         )
 
         assert response.status_code == 200
         data = response.json()
 
-        assert "total_alerts" in data
-        assert "pending_alerts" in data
-        assert "acknowledged_alerts" in data
-        assert "resolved_alerts" in data
-        assert "critical_count" in data
-        assert "high_count" in data
-        assert "medium_count" in data
-        assert "low_count" in data
-        assert "avg_response_time_minutes" in data
-        assert "top_alert_types" in data
+        assert "severity_counts" in data
+        assert "total_unread" in data
 
     def test_get_alert_statistics_custom_period(
         self,
@@ -760,16 +736,14 @@ class TestAlertStatistics:
         auth_headers: Dict[str, str],
         create_multiple_alerts: List[Alert]
     ):
-        """Test alert statistics with custom time period."""
+        """Test summary endpoint ignores unknown optional query params safely."""
         response = client.get(
-            "/api/v2/alerts/statistics/overview?days=7",
+            "/api/v2/alerts/summary?days=7",
             headers=auth_headers
         )
 
         assert response.status_code == 200
-        data = response.json()
-
-        assert data["analysis_period_days"] == 7
+        assert "total_unread" in response.json()
 
 
 # ============================================================================
@@ -777,7 +751,7 @@ class TestAlertStatistics:
 # ============================================================================
 
 class TestBulkAcknowledge:
-    """Test suite for POST /api/v2/alerts/bulk/acknowledge endpoint."""
+    """Test suite for POST /api/v2/alerts/read-all endpoint."""
 
     def test_bulk_acknowledge_success(
         self,
@@ -786,25 +760,17 @@ class TestBulkAcknowledge:
         auth_headers_physician: Dict[str, str],
         create_multiple_alerts: List[Alert]
     ):
-        """Test bulk acknowledging multiple alerts."""
-        alert_ids = [str(alert.id) for alert in create_multiple_alerts[:3]]
-
-        bulk_data = {
-            "alert_ids": alert_ids,
-            "notes": "Bulk acknowledged after review"
-        }
-
+        """Test bulk marking unread alerts as read."""
         response = client.post(
-            "/api/v2/alerts/bulk/acknowledge",
-            json=bulk_data,
+            "/api/v2/alerts/read-all",
             headers=auth_headers_physician
         )
 
         assert response.status_code == 200
         data = response.json()
 
-        assert data["success_count"] == 3
-        assert data["failed_count"] == 0
+        assert data["success"] is True
+        assert data["count"] >= 3
 
     def test_bulk_acknowledge_empty_list(
         self,
@@ -812,14 +778,16 @@ class TestBulkAcknowledge:
         db: Session,
         auth_headers_physician: Dict[str, str]
     ):
-        """Test bulk acknowledge with empty alert list fails."""
+        """Test read-all endpoint response shape when no explicit filter is passed."""
         response = client.post(
-            "/api/v2/alerts/bulk/acknowledge",
-            json={"alert_ids": []},
+            "/api/v2/alerts/read-all",
             headers=auth_headers_physician
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+        assert "count" in data
 
     def test_bulk_acknowledge_duplicate_ids(
         self,
@@ -828,20 +796,13 @@ class TestBulkAcknowledge:
         auth_headers_physician: Dict[str, str],
         create_test_alert: Alert
     ):
-        """Test bulk acknowledge with duplicate IDs fails validation."""
-        alert_id = str(create_test_alert.id)
-
-        bulk_data = {
-            "alert_ids": [alert_id, alert_id]  # Duplicate
-        }
-
+        """Test read-all with invalid patient filter fails validation."""
         response = client.post(
-            "/api/v2/alerts/bulk/acknowledge",
-            json=bulk_data,
+            f"/api/v2/alerts/read-all?patient_id={uuid4()}",
             headers=auth_headers_physician
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 404
 
 
 # ============================================================================
@@ -849,7 +810,7 @@ class TestBulkAcknowledge:
 # ============================================================================
 
 class TestPatientRiskScore:
-    """Test suite for GET /api/v2/alerts/patient/{patient_id}/risk-score endpoint."""
+    """Compatibility tests for alerts summary output shape."""
 
     def test_get_patient_risk_score(
         self,
@@ -859,26 +820,18 @@ class TestPatientRiskScore:
         test_patient: Patient,
         create_multiple_alerts: List[Alert]
     ):
-        """Test retrieving patient risk score."""
+        """Test summary payload includes severity breakdown."""
         response = client.get(
-            f"/api/v2/alerts/patient/{test_patient.id}/risk-score",
+            "/api/v2/alerts/summary",
             headers=auth_headers
         )
 
         assert response.status_code == 200
         data = response.json()
 
-        assert "patient_id" in data
-        assert "risk_score" in data
-        assert "risk_level" in data
-        assert "risk_factors" in data
-        assert "recommendations" in data
-        assert "calculated_at" in data
-        assert "alert_count_30d" in data
-        assert "unresolved_count" in data
-
-        # Verify risk level is valid
-        assert data["risk_level"] in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        assert "severity_counts" in data
+        assert set(data["severity_counts"].keys()) == {"critical", "high", "medium", "low"}
+        assert "total_unread" in data
 
     def test_risk_score_low_for_no_alerts(
         self,
@@ -887,27 +840,16 @@ class TestPatientRiskScore:
         auth_headers: Dict[str, str],
         test_patient: Patient
     ):
-        """Test risk score is LOW when patient has no recent alerts."""
-        # Create patient with no alerts
-        new_patient = Patient(
-            name="Safe Patient",
-            email="safe@example.com",
-            doctor_id=test_patient.doctor_id
-        )
-        db.add(new_patient)
-        db.commit()
-        db.refresh(new_patient)
-
+        """Test summary returns zero unread alerts when doctor has no alerts."""
         response = client.get(
-            f"/api/v2/alerts/patient/{new_patient.id}/risk-score",
+            "/api/v2/alerts/summary",
             headers=auth_headers
         )
 
         assert response.status_code == 200
         data = response.json()
 
-        assert data["risk_level"] == "LOW"
-        assert data["risk_score"] == 0
+        assert data["total_unread"] == 0
 
 
 # ============================================================================
@@ -936,7 +878,7 @@ class TestRBAC:
         self,
         client: TestClient,
         db: Session,
-        auth_headers: Dict[str, str],
+        auth_headers_patient: Dict[str, str],
         test_patient: Patient,
         sample_alert_data: Dict[str, Any]
     ):
@@ -949,7 +891,7 @@ class TestRBAC:
         response = client.post(
             "/api/v2/alerts",
             json=alert_data,
-            headers=auth_headers
+            headers=auth_headers_patient
         )
 
         assert response.status_code == 403

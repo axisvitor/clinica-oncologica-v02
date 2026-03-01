@@ -15,8 +15,9 @@ import time
 import json
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.schemas.v2.system import (
     ComponentListResponse,
     ComponentInfo,
@@ -24,31 +25,18 @@ from app.schemas.v2.system import (
     ComponentRestartResponse,
 )
 from app.dependencies.auth_dependencies import get_current_user_from_session
-from app.core.redis_client import get_async_redis_client
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.config import settings
-from app.api.v2.utils.auth_helpers import is_admin as _is_admin
+from app.utils.auth_helpers import is_admin as _is_admin
+from app.utils.timezone import now_sao_paulo
+from .helpers.auth import get_redis_client as _get_redis_client
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 # Redis cache TTL for components
 CACHE_TTL_COMPONENTS = 120  # 2 minutes (near real-time)
-
-
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-
-async def _get_redis_client():
-    """Get async Redis client for caching."""
-    try:
-        return await get_async_redis_client()
-    except Exception as e:
-        logger.warning(f"Failed to get Redis client: {e}")
-        return None
 
 
 # ============================================================================
@@ -72,7 +60,7 @@ async def _get_redis_client():
 async def list_components(
     request: Request,
     current_user=Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """List all system components with status."""
     # Check admin privileges
@@ -184,7 +172,7 @@ async def restart_component(
     request: Request,
     restart_request: ComponentRestartRequest,
     current_user=Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Restart a specific system component.
@@ -208,13 +196,13 @@ async def restart_component(
     try:
         if component == "redis":
             # Restart Redis connections
-            from app.utils.cache import reset_redis_connections
+            from app.core.redis_manager import cleanup_redis_connections
 
             if restart_request.graceful:
                 # Graceful: drain connections first
                 logger.info("Draining Redis connections...")
                 # Placeholder for actual drain logic
-            reset_redis_connections()
+            await cleanup_redis_connections()
             current_status = "running"
 
         elif component == "cache":
@@ -257,7 +245,7 @@ async def restart_component(
         return ComponentRestartResponse(
             component=component,
             status="success",
-            restarted_at=datetime.now(timezone.utc),
+            restarted_at=now_sao_paulo(),
             duration_ms=duration_ms,
             previous_status=previous_status,
             current_status=current_status,
@@ -270,7 +258,7 @@ async def restart_component(
         return ComponentRestartResponse(
             component=component,
             status="failed",
-            restarted_at=datetime.now(timezone.utc),
+            restarted_at=now_sao_paulo(),
             duration_ms=duration_ms,
             previous_status=previous_status,
             current_status="error",

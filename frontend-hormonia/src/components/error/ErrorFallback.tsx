@@ -77,18 +77,18 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
             </p>
 
             <div className="space-y-3">
-              <button
-                onClick={onReset}
-                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
-              >
+            <button
+              onClick={onReset}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition-colors"
+            >
                 <RefreshCw className="h-5 w-5" />
                 <span>Recarregar Sistema</span>
               </button>
 
-              <button
-                onClick={handleGoHome}
-                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
-              >
+            <button
+              onClick={handleGoHome}
+              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 transition-colors"
+            >
                 <Home className="h-5 w-5" />
                 <span>Ir para Início</span>
               </button>
@@ -187,7 +187,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
             {canRetry && (
               <button
                 onClick={onRetry}
-                className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors"
               >
                 <RefreshCw className="h-5 w-5" />
                 <span>Tentar Novamente ({retryCount}/{maxRetries})</span>
@@ -196,7 +196,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
 
             <button
               onClick={onReset}
-              className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+              className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 transition-colors"
             >
               <RefreshCw className="h-5 w-5" />
               <span>Recarregar Página</span>
@@ -205,7 +205,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
             {level === 'page' && (
               <button
                 onClick={handleGoHome}
-                className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 transition-colors"
               >
                 <Home className="h-5 w-5" />
                 <span>Ir para Início</span>

@@ -11,6 +11,7 @@ from typing import Dict, Any
 
 from app.models.user import User
 from app.models.patient import Patient
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ class AdminStatsService:
 
             # Active users (users with recent activity - last 24 hours)
             # Since we don't have last_login field, we'll use last_firebase_sync as proxy
-            yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+            yesterday = now_sao_paulo() - timedelta(days=1)
             active_now = (
                 self.db.query(User)
                 .filter(User.firebase_last_sign_in >= yesterday)
@@ -164,5 +165,5 @@ class AdminStatsService:
             "system": self.get_system_metrics(),
             "users": self.get_user_metrics(),
             "database": self.get_database_metrics(),
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "timestamp": now_sao_paulo().isoformat(),
         }

@@ -173,6 +173,13 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     description: 'Enable AI analytics features'
   },
 
+  VITE_AI_SUMMARY_ENABLED: {
+    required: false,
+    type: 'boolean',
+    allowedValues: ['true', 'false'],
+    description: 'Enable AI patient summary features'
+  },
+
   VITE_AI_INSIGHTS_ENABLED: {
     required: false,
     type: 'boolean',
@@ -280,25 +287,26 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
 /**
  * Validates a single environment variable
  */
-function validateField(key: string, value: any, rule: ValidationRule): {
+function validateField(key: string, value: string | undefined, rule: ValidationRule): {
   errors: ValidationError[]
   warnings: ValidationWarning[]
 } {
   const errors: ValidationError[] = []
   const warnings: ValidationWarning[] = []
+  let normalizedValue = value
 
   // Clean value: remove quotes and trim (Vite preserves quotes from .env)
-  if (value && typeof value === 'string') {
-    const originalValue = value
-    value = value.replace(/^["']|["']$/g, '').trim()
+  if (normalizedValue && typeof normalizedValue === 'string') {
+    const originalValue = normalizedValue
+    normalizedValue = normalizedValue.replace(/^["']|["']$/g, '').trim()
 
-    if (originalValue !== value && import.meta.env.DEV) {
+    if (originalValue !== normalizedValue && import.meta.env.DEV) {
       logger.warn(`${key}: Removed quotes from value (found in .env file)`)
     }
   }
 
   // Check if required field is missing
-  if (rule.required && (!value || value.trim() === '')) {
+  if (rule.required && (!normalizedValue || normalizedValue.trim() === '')) {
     errors.push({
       field: key,
       message: `Required environment variable is missing`,
@@ -309,7 +317,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
   }
 
   // Skip further validation if field is optional and empty
-  if (!value || value.trim() === '') {
+  if (!normalizedValue || normalizedValue.trim() === '') {
     return { errors, warnings }
   }
 
@@ -317,7 +325,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
   if (rule.type) {
     switch (rule.type) {
       case 'number':
-        if (isNaN(Number(value))) {
+        if (isNaN(Number(normalizedValue))) {
           errors.push({
             field: key,
             message: `Must be a valid number`,
@@ -328,7 +336,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
         break
 
       case 'boolean':
-        if (!['true', 'false'].includes(value.toLowerCase())) {
+        if (!['true', 'false'].includes(normalizedValue.toLowerCase())) {
           errors.push({
             field: key,
             message: `Must be 'true' or 'false'`,
@@ -340,7 +348,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
 
       case 'url':
         try {
-          const url = new URL(value)
+          const url = new URL(normalizedValue)
           if (!['http:', 'https:', 'ws:', 'wss:'].includes(url.protocol)) {
             errors.push({
               field: key,
@@ -360,7 +368,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
 
       case 'email': {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(value)) {
+        if (!emailRegex.test(normalizedValue)) {
           errors.push({
             field: key,
             message: `Must be a valid email address`,
@@ -373,7 +381,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
   }
 
   // Format validation
-  if (rule.format && !rule.format.test(value)) {
+  if (rule.format && !rule.format.test(normalizedValue)) {
     errors.push({
       field: key,
       message: `Does not match required format`,
@@ -383,7 +391,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
   }
 
   // Length validation
-  if (rule.minLength && value.length < rule.minLength) {
+  if (rule.minLength && normalizedValue.length < rule.minLength) {
     errors.push({
       field: key,
       message: `Must be at least ${rule.minLength} characters long`,
@@ -391,7 +399,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
     })
   }
 
-  if (rule.maxLength && value.length > rule.maxLength) {
+  if (rule.maxLength && normalizedValue.length > rule.maxLength) {
     errors.push({
       field: key,
       message: `Must not exceed ${rule.maxLength} characters`,
@@ -400,7 +408,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
   }
 
   // Allowed values validation
-  if (rule.allowedValues && !rule.allowedValues.includes(value)) {
+  if (rule.allowedValues && !rule.allowedValues.includes(normalizedValue)) {
     errors.push({
       field: key,
       message: `Must be one of: ${rule.allowedValues.join(', ')}`,
@@ -410,7 +418,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
 
   // Custom validation
   if (rule.validator) {
-    const result = rule.validator(value)
+    const result = rule.validator(normalizedValue)
     if (result !== true) {
       if (typeof result === 'string') {
         warnings.push({
@@ -431,7 +439,7 @@ function validateField(key: string, value: any, rule: ValidationRule): {
   // Security checks
   if (rule.security?.shouldNotBeHardcoded) {
     // Check if this appears to be a hardcoded value (very basic check)
-    if (value.length > 20 && !value.includes('$') && !value.includes('{')) {
+    if (normalizedValue.length > 20 && !normalizedValue.includes('$') && !normalizedValue.includes('{')) {
       warnings.push({
         field: key,
         message: `Appears to be hardcoded. Consider using environment variables.`,

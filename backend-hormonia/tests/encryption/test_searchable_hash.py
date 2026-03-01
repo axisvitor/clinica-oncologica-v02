@@ -80,7 +80,7 @@ class TestSearchableHash:
     def test_hash_cpf_formatting_normalized(self, setup_salt):
         """Test that CPF formatting is normalized."""
         hash1 = SearchableHash.hash_cpf("12345678909")
-        hash2 = SearchableHash.hash_cpf("123.456.789-01")
+        hash2 = SearchableHash.hash_cpf("123.456.789-09")
         assert hash1 == hash2
 
     def test_hash_cpf_none_returns_none(self, setup_salt):

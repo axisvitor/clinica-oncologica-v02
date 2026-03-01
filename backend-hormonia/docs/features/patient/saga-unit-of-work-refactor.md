@@ -1,3 +1,7 @@
+# Saga Orchestrator> [!WARNING]
+> COMPONENT DEPRECATED: The `app/orchestration/saga_orchestrator.py` file analyzed here has been archived.
+> The active implementation is now in the `app/orchestration/saga_orchestrator/` package.
+
 # Saga Orchestrator - Unit of Work Pattern Refactor
 
 ## Summary
@@ -55,7 +59,7 @@ self.db.commit()
 # Before: Commit error state in same transaction
 saga.status = SagaStatus.FAILED
 saga.error_message = str(e)
-saga.failed_at = datetime.now(timezone.utc)
+saga.failed_at = now_sao_paulo()
 self.db.commit()
 
 # After: Rollback + separate commit for error state
@@ -64,7 +68,7 @@ self.db.rollback()
 
 saga.status = SagaStatus.FAILED
 saga.error_message = str(e)
-saga.failed_at = datetime.now(timezone.utc)
+saga.failed_at = now_sao_paulo()
 # Commit the failure state separately
 self.db.commit()
 ```
@@ -127,12 +131,12 @@ except Exception:
 ```python
 # Before (success path)
 saga.status = SagaStatus.COMPLETED
-saga.completed_at = datetime.now(timezone.utc)
+saga.completed_at = now_sao_paulo()
 self.db.commit()
 
 # After (success path)
 saga.status = SagaStatus.COMPLETED
-saga.completed_at = datetime.now(timezone.utc)
+saga.completed_at = now_sao_paulo()
 # UNIT OF WORK: Single commit at the end for entire resume transaction
 self.db.commit()
 ```

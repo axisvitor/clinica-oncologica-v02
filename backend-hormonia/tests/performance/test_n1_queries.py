@@ -12,6 +12,7 @@ from sqlalchemy.engine import Engine
 from typing import List
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 class QueryCounter:
     """Helper class to count and track database queries."""
 
@@ -71,7 +72,7 @@ class TestPatientRepositoryN1:
         initial_count = query_counter.count()
         for patient in patients[:10]:  # Test first 10
             if patient.doctor:
-                _ = patient.doctor.name
+                _ = patient.doctor.full_name
             _ = list(patient.quiz_sessions)
             _ = list(patient.flow_states)
 
@@ -108,13 +109,13 @@ class TestQuizRepositoryN1:
 
     def test_get_by_patient_no_n1(self, db_session, query_counter, test_patient):
         """Verify get_by_patient doesn't have N+1 queries."""
-        from app.repositories.quiz import QuizRepository
+        from app.repositories.quiz import QuizSessionRepository
 
-        repo = QuizRepository(db_session)
+        repo = QuizSessionRepository(db_session)
         query_counter.reset()
 
         # Load quiz sessions
-        sessions = repo.sessions.get_by_patient(test_patient.id, limit=100, eager_load=True)
+        sessions = repo.get_patient_sessions(test_patient.id, limit=100, eager_load=True)
 
         # Should be < 5 queries (1 base + 2-3 eager loads)
         query_count = query_counter.count()
@@ -136,7 +137,7 @@ class TestQuizRepositoryN1:
         query_counter.reset()
 
         # Load active sessions with responses
-        sessions = repo.sessions.get_active_sessions(eager_load=True)
+        sessions = repo.get_active_sessions(eager_load=True)
 
         # Should be < 5 queries
         query_count = query_counter.count()
@@ -174,7 +175,7 @@ class TestFlowRepositoryN1:
         for flow_state in flow_states[:10]:
             _ = flow_state.patient.name
             if flow_state.patient.doctor:
-                _ = flow_state.patient.doctor.name
+                _ = flow_state.patient.doctor.full_name
             _ = flow_state.template_version.version
             if flow_state.template_version.kind:
                 _ = flow_state.template_version.kind.flow_type
@@ -200,7 +201,7 @@ class TestFlowRepositoryN1:
         for flow_state in flow_states[:10]:
             _ = flow_state.patient.name
             if flow_state.patient.doctor:
-                _ = flow_state.patient.doctor.name
+                _ = flow_state.patient.doctor.full_name
             _ = flow_state.template_version.version
 
         assert query_counter.count() == initial_count, "N+1 queries detected"
@@ -228,7 +229,7 @@ class TestMedicationRepositoryN1:
         for medication in medications[:10]:
             _ = medication.patient.name
             if medication.prescribed_by:
-                _ = medication.prescribed_by.name
+                _ = medication.prescribed_by.full_name
             if medication.treatment:
                 _ = medication.treatment.treatment_type
 
@@ -253,7 +254,7 @@ class TestMedicationRepositoryN1:
         for medication in medications[:10]:
             _ = medication.patient.name
             if medication.prescribed_by:
-                _ = medication.prescribed_by.name
+                _ = medication.prescribed_by.full_name
 
         assert query_counter.count() == initial_count, "N+1 queries detected"
 
@@ -278,18 +279,18 @@ class TestAnalyticsServiceN1:
     @pytest.mark.asyncio
     async def test_calculate_engagement_metrics_no_n1(self, db_session, query_counter):
         """Verify engagement metrics calculation doesn't have N+1 queries."""
-        from app.services.flow_analytics import FlowAnalyticsService
+        from app.services.analytics.flow_analytics import FlowAnalyticsService
         from datetime import datetime, timedelta
 
         service = FlowAnalyticsService(db_session)
         query_counter.reset()
 
         # Calculate metrics for last 30 days
-        end_date = datetime.utcnow()
+        end_date = now_sao_paulo_naive()
         start_date = end_date - timedelta(days=30)
 
         metrics = await service.calculate_engagement_metrics(
-            flow_type="monthly_quiz",
+            flow_type="quiz_mensal",
             date_range=(start_date, end_date)
         )
 
@@ -300,14 +301,14 @@ class TestAnalyticsServiceN1:
     @pytest.mark.asyncio
     async def test_identify_at_risk_patients_no_n1(self, db_session, query_counter):
         """Verify at-risk patient identification."""
-        from app.services.flow_analytics import FlowAnalyticsService
+        from app.services.analytics.flow_analytics import FlowAnalyticsService
 
         service = FlowAnalyticsService(db_session)
         query_counter.reset()
 
         # Identify at-risk patients
         at_risk = await service.identify_at_risk_patients(
-            flow_type="monthly_quiz",
+            flow_type="quiz_mensal",
             lookback_days=7
         )
 
@@ -319,7 +320,7 @@ class TestAnalyticsServiceN1:
 class TestPerformanceBenchmarks:
     """Performance benchmarks for query optimization."""
 
-    def test_100_patients_performance(self, db_session, query_counter, benchmark):
+    def test_100_patients_performance(self, db_session, query_counter):
         """Benchmark loading 100 patients with relationships."""
         from app.repositories.patient import PatientRepository
 
@@ -331,25 +332,24 @@ class TestPerformanceBenchmarks:
             # Access relationships
             for patient in patients[:10]:
                 if patient.doctor:
-                    _ = patient.doctor.name
+                    _ = patient.doctor.full_name
             return patients
 
-        # Run benchmark
-        result = benchmark(load_patients)
+        load_patients()
 
         # Verify performance
         query_count = query_counter.count()
         assert query_count < 10, f"Performance regression: {query_count} queries"
 
-    def test_100_quiz_sessions_performance(self, db_session, query_counter, benchmark, test_patient):
+    def test_100_quiz_sessions_performance(self, db_session, query_counter, test_patient):
         """Benchmark loading 100 quiz sessions."""
-        from app.repositories.quiz import QuizRepository
+        from app.repositories.quiz import QuizSessionRepository
 
-        repo = QuizRepository(db_session)
+        repo = QuizSessionRepository(db_session)
 
         def load_sessions():
             query_counter.reset()
-            sessions = repo.sessions.get_patient_sessions(
+            sessions = repo.get_patient_sessions(
                 test_patient.id,
                 limit=100,
                 eager_load=True
@@ -361,7 +361,7 @@ class TestPerformanceBenchmarks:
                 _ = list(session.responses)
             return sessions
 
-        result = benchmark(load_sessions)
+        load_sessions()
 
         query_count = query_counter.count()
         assert query_count < 5, f"Performance regression: {query_count} queries"
@@ -378,7 +378,7 @@ def test_doctor(db_session):
 
     doctor = User(
         email="test.doctor@example.com",
-        name="Dr. Test",
+        full_name="Dr. Test",
         role="doctor"
     )
     db_session.add(doctor)

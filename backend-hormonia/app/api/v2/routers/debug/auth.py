@@ -13,8 +13,10 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.user import User
 from app.utils.rate_limiter import limiter
 from app.schemas.v2.debug import (
@@ -31,9 +33,11 @@ from app.schemas.v2.debug import (
 
 from .common import (
     check_debug_enabled,
+    require_debug_enabled,
     get_admin_user,
     log_debug_operation,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -46,6 +50,7 @@ logger = logging.getLogger(__name__)
 
 @router.post(
     "/token",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Decode and validate JWT token",
     description="""
@@ -64,7 +69,7 @@ async def debug_token_decode(
     request: Request,
     token: str,
     admin_user: User = Depends(get_admin_user),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Decode and validate JWT token with sensitive data masking.
@@ -170,13 +175,14 @@ async def debug_token_decode(
         success=token_info.valid or not token_info.error,
         data=token_info.dict(),
         audit_logged=True,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=now_sao_paulo(),
         warning="JWT decoding not yet implemented",
     )
 
 
 @router.post(
     "/test-login",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Test login flow",
     description="""
@@ -196,7 +202,7 @@ async def test_login_flow(
     request: Request,
     login_request: LoginTestRequest,
     admin_user: User = Depends(get_admin_user),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Test login flow with step-by-step diagnostics.
@@ -209,7 +215,8 @@ async def test_login_flow(
 
     try:
         # Step 1: User lookup
-        user = db.query(User).filter(User.email == login_request.email).first()
+        result = await db.execute(select(User).where(User.email == login_request.email))
+        user = result.scalar_one_or_none()
         user_found = user is not None
         steps_completed.append("user_lookup")
 
@@ -268,7 +275,7 @@ async def test_login_flow(
             success=True,
             data=result.dict(),
             audit_logged=True,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
     except Exception as e:
@@ -281,6 +288,7 @@ async def test_login_flow(
 
 @router.post(
     "/permissions",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Test permission checks",
     description="""
@@ -299,7 +307,7 @@ async def test_permissions(
     request: Request,
     perm_request: PermissionTestRequest,
     admin_user: User = Depends(get_admin_user),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Test permission checking for user.
@@ -313,7 +321,8 @@ async def test_permissions(
         from uuid import UUID
 
         user_uuid = UUID(perm_request.user_id)
-        user = db.query(User).filter(User.id == user_uuid).first()
+        result = await db.execute(select(User).where(User.id == user_uuid))
+        user = result.scalar_one_or_none()
 
         if not user:
             raise HTTPException(
@@ -365,7 +374,7 @@ async def test_permissions(
             success=True,
             data=result.dict(),
             audit_logged=True,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
     except HTTPException:
@@ -380,6 +389,7 @@ async def test_permissions(
 
 @router.post(
     "/simulate",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Simulate user authentication",
     description="""
@@ -396,7 +406,7 @@ async def simulate_authentication(
     request: Request,
     sim_request: AuthSimulationRequest,
     admin_user: User = Depends(get_admin_user),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Simulate user authentication for testing.
@@ -410,7 +420,8 @@ async def simulate_authentication(
         from uuid import UUID
 
         user_uuid = UUID(sim_request.user_id)
-        user = db.query(User).filter(User.id == user_uuid).first()
+        result = await db.execute(select(User).where(User.id == user_uuid))
+        user = result.scalar_one_or_none()
 
         if not user:
             raise HTTPException(
@@ -420,7 +431,7 @@ async def simulate_authentication(
         # Create temporary debug session
         if sim_request.simulate_session:
             session_id = f"debug_sess_{uuid4().hex[:12]}"
-            expires_at = datetime.now(timezone.utc) + timedelta(
+            expires_at = now_sao_paulo() + timedelta(
                 minutes=sim_request.duration_minutes
             )
 
@@ -471,7 +482,7 @@ async def simulate_authentication(
             success=True,
             data=result.dict(),
             audit_logged=True,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             warning="Debug session created - temporary use only",
         )
 

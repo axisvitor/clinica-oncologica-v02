@@ -9,6 +9,11 @@
 
 Successfully implemented comprehensive i18n system for error messages with Portuguese (pt-BR) and English (en-US) support using industry-standard libraries and patterns.
 
+> Status update (2026-02-10): `app/middleware/i18n_middleware.py` was removed
+> in tombstone cleanup. Locale resolution remains available via
+> `app/config/i18n.py` helpers and should be applied per-request through
+> dependencies/hooks in active endpoints.
+
 ## What Was Implemented
 
 ### 1. Core i18n Infrastructure
@@ -62,13 +67,12 @@ Categories:
 #### English (`app/locales/en-US.json`) - 150+ strings
 Complete 1:1 translation of all Portuguese strings.
 
-### 3. i18n Middleware (`app/middleware/i18n_middleware.py`)
+### 3. Request Locale Resolution (`app/config/i18n.py`)
 
-**Functionality:**
+**Functionality (current):**
 - Automatic locale detection per request
-- Sets locale before endpoint execution
-- Adds `Content-Language` header to responses
-- Stores locale in `request.state.locale`
+- Locale activation via `set_locale(...)`
+- Translation via `t(...)` using the active locale
 
 **Priority order:**
 1. Query parameter: `?lang=en-US`
@@ -300,21 +304,15 @@ Content-Language: en-US
 pip install babel>=2.14.0 python-i18n>=0.3.9 pydantic-i18n>=0.4.0
 ```
 
-### 2. Add Middleware to FastAPI App
+### 2. Apply Locale from Request Context
 
 ```python
-from app.middleware.i18n_middleware import I18nMiddleware
+from fastapi import Request
+from app.config.i18n import get_locale_from_request, set_locale
 
-app = FastAPI()
-app.add_middleware(I18nMiddleware)
-```
-
-Or use functional middleware:
-
-```python
-from app.middleware.i18n_middleware import i18n_middleware
-
-app.middleware("http")(i18n_middleware)
+def apply_request_locale(request: Request) -> None:
+    locale = get_locale_from_request(request)
+    set_locale(locale)
 ```
 
 ### 3. Update Existing Endpoints
@@ -406,7 +404,7 @@ curl -H "Accept-Language: en-US" http://localhost:8000/api/v2/patients/invalid-u
 1. ✅ `app/config/i18n.py` - i18n configuration
 2. ✅ `app/locales/pt-BR.json` - Portuguese translations (150+ strings)
 3. ✅ `app/locales/en-US.json` - English translations (150+ strings)
-4. ✅ `app/middleware/i18n_middleware.py` - Middleware
+4. ✅ `app/config/i18n.py` - Locale resolution helpers
 5. ✅ `app/exceptions/i18n_exceptions.py` - Exception classes (30+)
 6. ✅ `app/utils/pydantic_i18n.py` - Pydantic utilities
 7. ✅ `scripts/extract_translatable_strings.py` - Extraction script
@@ -418,11 +416,11 @@ curl -H "Accept-Language: en-US" http://localhost:8000/api/v2/patients/invalid-u
 
 ### Immediate (High Priority)
 
-1. **Add Middleware to Main Application**
+1. **Apply Locale in Request Lifecycle**
    ```python
-   # In app/main.py or equivalent
-   from app.middleware.i18n_middleware import I18nMiddleware
-   app.add_middleware(I18nMiddleware)
+   # Before translating messages in endpoint/dependency:
+   from app.config.i18n import get_locale_from_request, set_locale
+   set_locale(get_locale_from_request(request))
    ```
 
 2. **Migrate Critical Endpoints**

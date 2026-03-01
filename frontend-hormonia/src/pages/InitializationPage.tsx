@@ -32,17 +32,6 @@ export function InitializationPage() {
     }, 3000)
   }
 
-  const handleInitializationError = (error: string) => {
-    logger.error('System initialization failed:', error)
-
-    toast({
-      title: 'Erro na Inicialização',
-      description: error,
-      variant: 'destructive',
-      duration: 5000
-    })
-  }
-
   if (isCompleted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50">

@@ -2,7 +2,7 @@
   "summary": {
     "total_circular_deps": 6,
     "total_stdlib_false_positives": 30,
-    "total_already_installed": 9,
+    "total_already_installed": 7,
     "total_truly_missing": 5,
     "total_import_style_issues": 0
   },
@@ -68,13 +68,11 @@
       "websockets": "WebSocket library (add websockets>=12.0,<13.0.0 if using WS)",
       "yaml": "YAML parser (add pyyaml>=6.0.1,<7.0.0 if reading YAML configs)"
     },
-    "false_positives": "{'inspect', 'hmac', 'statistics', 'difflib', 'zoneinfo', 'types', 'zipfile', 'decimal', 'atexit', 'tarfile', 'html', 'urllib', 'subprocess', 'zlib', 'socket', 'shutil', 'platform', 'mimetypes', 'gzip', 'queue', 'signal', 'concurrent', 'base64', 'smtplib', 'contextvars', 'csv', 'weakref', 'ssl', 'threading', 'importlib'}",
+    "false_positives": "{'inspect', 'importlib', 'smtplib', 'zoneinfo', 'signal', 'queue', 'ssl', 'atexit', 'zlib', 'contextvars', 'csv', 'gzip', 'threading', 'shutil', 'base64', 'urllib', 'subprocess', 'types', 'difflib', 'socket', 'statistics', 'zipfile', 'hmac', 'decimal', 'platform', 'tarfile', 'mimetypes', 'html', 'concurrent', 'weakref'}",
     "import_style_issues": [],
     "type_checking_issues": [],
     "already_installed": {
       "email_validator": "email-validator (already in requirements.txt)",
-      "langchain_core": "langchain-core (already in requirements.txt)",
-      "langchain_google_genai": "langchain-google-genai (already in requirements.txt)",
       "pyclamd": "python-clamd (commented out - incompatible with Python 3.12+)",
       "pythonjsonlogger": "python-json-logger (already in requirements.txt)",
       "sentry_sdk": "sentry-sdk (already in requirements.txt)",

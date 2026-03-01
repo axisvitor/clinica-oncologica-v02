@@ -15,7 +15,6 @@
 | **is_public** | `BOOLEAN` | ❌ | `false` |  |  |
 | **virus_scanned** | `BOOLEAN` | ❌ | `false` |  |  |
 | **virus_clean** | `BOOLEAN` | ✅ | - |  |  |
-| **deleted_at** | `TIMESTAMP` | ✅ | - |  |  |
 | **id** | `UUID` | ❌ | `gen_random_uuid()` | 🔑 |  |
 | **created_at** | `TIMESTAMP` | ❌ | `now()` |  |  |
 | **updated_at** | `TIMESTAMP` | ❌ | `now()` |  |  |
@@ -28,5 +27,4 @@
 | ix_uploads_id | ❌ | `id` |
 | ix_uploads_storage_path | ❌ | `storage_path` |
 | ix_uploads_user_id | ❌ | `user_id` |
-| ix_uploads_user_quota | ❌ | `user_id, file_size` |
 | uploads_storage_path_key | ✅ | `storage_path` |

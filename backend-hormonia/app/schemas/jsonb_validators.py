@@ -9,6 +9,13 @@ from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from enum import Enum
 
+from app.schemas.validators.cpf import (
+    format_cpf,
+    has_valid_cpf_characters,
+    is_valid_cpf,
+    normalize_cpf as normalize_cpf_value,
+)
+
 
 class TreatmentPhase(str, Enum):
     """Valid treatment phases."""
@@ -84,37 +91,17 @@ class PatientMetadataValidator(BaseModel):
         if v is None:
             return v
 
-        # Remove non-digits
-        cpf_digits = re.sub(r"\D", "", v)
+        if not has_valid_cpf_characters(v):
+            raise ValueError("CPF must contain only digits, dots, and dashes")
 
-        # Check length
+        cpf_digits = normalize_cpf_value(v, allow_none=False)
         if len(cpf_digits) != 11:
             raise ValueError("CPF must have 11 digits")
 
-        # Check for invalid patterns (all same digits)
-        if len(set(cpf_digits)) == 1:
-            raise ValueError("Invalid CPF: all digits are the same")
+        if not is_valid_cpf(cpf_digits, allow_none=False):
+            raise ValueError("Invalid CPF check digits")
 
-        # CPF validation algorithm
-        def calculate_digit(cpf_partial, weights):
-            total = sum(
-                int(digit) * weight for digit, weight in zip(cpf_partial, weights)
-            )
-            remainder = total % 11
-            return "0" if remainder < 2 else str(11 - remainder)
-
-        # Validate first check digit
-        first_digit = calculate_digit(cpf_digits[:9], range(10, 1, -1))
-        if cpf_digits[9] != first_digit:
-            raise ValueError("Invalid CPF: first check digit")
-
-        # Validate second check digit
-        second_digit = calculate_digit(cpf_digits[:10], range(11, 1, -1))
-        if cpf_digits[10] != second_digit:
-            raise ValueError("Invalid CPF: second check digit")
-
-        # Return formatted CPF
-        return f"{cpf_digits[:3]}.{cpf_digits[3:6]}.{cpf_digits[6:9]}-{cpf_digits[9:]}"
+        return format_cpf(cpf_digits)
 
     @field_validator("diagnosis")
     @classmethod

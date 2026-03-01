@@ -8,11 +8,13 @@ from typing import (
     Type,
     TypeVar,
     TYPE_CHECKING,
+    Union,
 )
 from uuid import UUID
 import logging
 
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import DBAPIError, StatementError
 
 from app.models.base import BaseModel
 
@@ -36,32 +38,38 @@ class BaseRepository(Generic[ModelType]):
     @property
     def _redis_pool(self):
         """
-        Get or create a Redis connection pool for cache invalidation.
+        Get the sync Redis client from the centralized RedisManager for
+        cache invalidation.
 
-        This property ensures connection reuse across multiple cache operations,
-        preventing connection exhaustion under high load.
+        Uses ``get_cache_redis_manager()`` instead of creating a standalone
+        ``ConnectionPool``.  The returned object is a ``redis.Redis`` client
+        (not a raw pool), but callers only use it for ``ping()``,
+        ``scan_iter()``, and ``delete()`` which work identically.
 
         Returns:
-            redis.ConnectionPool: Shared connection pool instance
+            Sentinel value so that ``_invalidate_caches_for_model`` knows the
+            manager is available.  The actual client is obtained inside that
+            method.
         """
-        if not hasattr(self, '_redis_pool_instance'):
-            import redis
-            from app.config import settings
+        # Return a sentinel; the real client is obtained in
+        # _invalidate_caches_for_model via get_cache_redis_manager().
+        return True
 
-            self._redis_pool_instance = redis.ConnectionPool.from_url(
-                settings.REDIS_URL,
-                max_connections=10,
-                decode_responses=True,
-                socket_connect_timeout=2,
-                socket_timeout=2,
-            )
-        return self._redis_pool_instance
+    def get_by_id(self, id: Union[UUID, str]) -> Optional[ModelType]:
+        """Get record by ID with strict UUID normalization."""
+        candidate_id: Union[UUID, str] = id
+        if isinstance(id, str):
+            try:
+                candidate_id = UUID(id)
+            except (ValueError, TypeError, AttributeError):
+                candidate_id = id
 
-    def get_by_id(self, id: UUID) -> Optional[ModelType]:
-        """Get record by ID"""
-        return self.db.query(self.model).filter(self.model.id == id).first()
+        try:
+            return self.db.query(self.model).filter(self.model.id == candidate_id).first()
+        except (DBAPIError, StatementError, TypeError, ValueError):
+            return None
 
-    def get(self, id: UUID) -> Optional[ModelType]:
+    def get(self, id: Union[UUID, str]) -> Optional[ModelType]:
         """Get record by ID (alias for get_by_id)"""
         return self.get_by_id(id)
 
@@ -235,27 +243,23 @@ class BaseRepository(Generic[ModelType]):
         - Quiz: Invalidate quiz:ID tag
         - Report: Invalidate report:ID tag
 
-        This method uses a shared connection pool to avoid connection exhaustion
-        and ensures proper connection cleanup in all code paths.
+        Uses the centralized ``RedisManager`` (cache DB) instead of creating
+        a standalone ``ConnectionPool``.  The sync client is pooled and
+        managed by RedisManager, so no manual close is required.
 
         Args:
             db_obj: Model instance that was mutated
         """
-        redis_client = None
         try:
-            # Lazy imports to avoid circular dependencies
-            import redis
+            from app.core.redis_manager import get_cache_redis_manager
 
             model_name = self.model.__name__.lower()
 
-            # Use connection pool to avoid connection exhaustion
             try:
-                redis_client = redis.Redis(connection_pool=self._redis_pool)
-
-                # Test connection
+                manager = get_cache_redis_manager()
+                redis_client = manager.get_sync_client()
                 redis_client.ping()
-
-            except (redis.ConnectionError, redis.TimeoutError) as e:
+            except Exception as e:
                 logger.warning(
                     f"Redis connection failed, cache invalidation skipped: {e}"
                 )
@@ -327,10 +331,3 @@ class BaseRepository(Generic[ModelType]):
                 f"Cache invalidation failed for {self.model.__name__}: {e}",
                 exc_info=True,
             )
-        finally:
-            # Ensure connection is always closed to return it to the pool
-            if redis_client is not None:
-                try:
-                    redis_client.close()
-                except Exception as e:
-                    logger.debug(f"Error closing Redis connection: {e}")

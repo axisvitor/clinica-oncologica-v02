@@ -58,7 +58,8 @@ async def test_patient_registration(db_session, doctor_id: UUID):
     print("="*60)
     
     # Create test patient data
-    test_phone = f"+5511999{uuid4().hex[:6]}"
+    test_phone_suffix = str(uuid4().int % 1000000).zfill(6)
+    test_phone = f"+5511999{test_phone_suffix}"
     patient_data = PatientCreate(
         name=f"Debug Test Patient {uuid4().hex[:8]}",
         phone=test_phone,
@@ -125,7 +126,7 @@ async def test_patient_registration(db_session, doctor_id: UUID):
             if patient:
                 print("\n✅ Patient created successfully!")
                 print(f"   ID: {patient.id}")
-                print(f"   Name: {patient.full_name}")
+                print(f"   Name: {patient.name}")
                 print(f"   Phone: {patient.phone}")
                 print(f"   Status: {patient.status}")
                 print(f"\n📊 WhatsApp Messages Sent: {mock_whatsapp.messages_sent}")
@@ -159,7 +160,7 @@ async def test_daily_flows(db_session, patient_id: UUID):
         print(f"\n❌ Patient {patient_id} not found")
         return
     
-    print(f"\n📋 Processing flows for: {patient.full_name}")
+    print(f"\n📋 Processing flows for: {patient.name}")
     
     # Check flow state
     flow_state = db_session.query(FlowState).filter(

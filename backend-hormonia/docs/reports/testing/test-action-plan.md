@@ -255,7 +255,7 @@ class TestKeyRotation:
                 event_type="KEY_ROTATION",
                 old_version=1,
                 new_version=2,
-                timestamp=pytest.approx(datetime.utcnow(), abs=timedelta(seconds=1))
+                timestamp=pytest.approx(now_sao_paulo(), abs=timedelta(seconds=1))
             )
 
     def test_automatic_key_rotation_schedule(self, key_manager):
@@ -264,13 +264,13 @@ class TestKeyRotation:
         key_manager.set_rotation_policy(days=90)
 
         # Mock key age
-        key_manager.current_key_created_at = datetime.utcnow() - timedelta(days=91)
+        key_manager.current_key_created_at = now_sao_paulo() - timedelta(days=91)
 
         # Should trigger rotation
         assert key_manager.should_rotate() is True
 
         # Recent key should not rotate
-        key_manager.current_key_created_at = datetime.utcnow() - timedelta(days=30)
+        key_manager.current_key_created_at = now_sao_paulo() - timedelta(days=30)
         assert key_manager.should_rotate() is False
 
     def test_old_key_retention_policy(self, key_manager):
@@ -302,7 +302,7 @@ class TestKeyRotation:
         assert key_manager.get_key_status(version=1) == "PENDING_DELETION"
 
         # After grace period (30 days), key should be deleted
-        with freeze_time(datetime.utcnow() + timedelta(days=31)):
+        with freeze_time(now_sao_paulo() + timedelta(days=31)):
             key_manager.cleanup_old_keys()
             assert key_manager.get_key(version=1) is None
 ```

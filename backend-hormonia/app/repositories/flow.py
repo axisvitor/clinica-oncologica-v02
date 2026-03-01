@@ -1,11 +1,15 @@
 from typing import List, Optional
 from uuid import UUID
+from datetime import datetime
 
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from app.models.flow import PatientFlowState, FlowTemplateVersion, FlowKind
+from app.models.flow_analytics import FlowMessage
 from app.models.patient import Patient
 from app.repositories.base import BaseRepository
+from app.utils.timezone import now_sao_paulo
 
 
 class FlowStateRepository(BaseRepository[PatientFlowState]):
@@ -58,13 +62,78 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
         return query.offset(skip).limit(limit).all()
 
     def get_active_flow(self, patient_id: UUID) -> Optional[PatientFlowState]:
-        """Get active flow for a patient (not completed)"""
+        """Get active flow for a specific patient (if not deleted)"""
         return (
             self.db.query(PatientFlowState)
-            .filter(PatientFlowState.patient_id == patient_id)
-            .filter(PatientFlowState.completed_at.is_(None))
+            .join(Patient)
+            .filter(
+                PatientFlowState.patient_id == patient_id,
+                PatientFlowState.completed_at.is_(None),
+                Patient.deleted_at.is_(None)
+            )
             .order_by(PatientFlowState.started_at.desc())
             .first()
+        )
+
+    def get_flow_state(self, patient_id: UUID) -> Optional[PatientFlowState]:
+        """Get current flow state for a patient (alias for active flow)."""
+        return self.get_active_flow(patient_id)
+
+    def update_flow_state(
+        self, patient_id: UUID, state_data: dict
+    ) -> Optional[PatientFlowState]:
+        """Update flow state fields for a patient."""
+        flow_state = self.get_active_flow(patient_id)
+        if not flow_state:
+            return None
+
+        for key in (
+            "current_step",
+            "status",
+            "step_data",
+            "flow_metadata",
+            "next_scheduled_at",
+            "last_interaction_at",
+            "completed_at",
+        ):
+            if key in state_data:
+                setattr(flow_state, key, state_data[key])
+
+        self.db.add(flow_state)
+        self.db.commit()
+        self.db.refresh(flow_state)
+        return flow_state
+
+    def pause_patient_flow(
+        self, patient_id: UUID, reason: str
+    ) -> Optional[PatientFlowState]:
+        """Pause active flow for patient and record reason."""
+        flow_state = self.get_active_flow(patient_id)
+        if not flow_state:
+            return None
+
+        flow_state.status = "paused"
+        metadata = dict(flow_state.flow_metadata or {})
+        metadata["pause_reason"] = reason
+        metadata["paused_at"] = now_sao_paulo().isoformat()
+        flow_state.flow_metadata = metadata
+
+        self.db.add(flow_state)
+        self.db.commit()
+        self.db.refresh(flow_state)
+        return flow_state
+
+    def get_patient_flow_messages(self, patient_id: UUID) -> List[FlowMessage]:
+        """Get template messages for the patient's active flow version."""
+        flow_state = self.get_active_flow(patient_id)
+        if not flow_state:
+            return []
+
+        return (
+            self.db.query(FlowMessage)
+            .filter(FlowMessage.flow_template_version_id == flow_state.flow_template_version_id)
+            .order_by(FlowMessage.step_number.asc())
+            .all()
         )
 
     def get_by_template_version(
@@ -73,7 +142,7 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
         """Get flow states by template version ID"""
         return (
             self.db.query(PatientFlowState)
-            .filter(PatientFlowState.template_version_id == template_version_id)
+            .filter(PatientFlowState.flow_template_version_id == template_version_id)
             .order_by(PatientFlowState.started_at.desc())
             .offset(skip)
             .limit(limit)
@@ -99,12 +168,16 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
         return self.get_active_flow(patient_id)
 
     def get_active_flows(
-        self, limit: int = 1000, eager_load: bool = True
+        self,
+        limit: int = 1000,
+        eager_load: bool = True,
+        due_before: Optional[datetime] = None,
     ) -> List[PatientFlowState]:
         """
-        Get all active flows with eager loading.
+        Get all active flows for non-deleted patients.
 
         PERFORMANCE OPTIMIZATION: Eager loading enabled by default with nested relationships.
+        SAFETY: Automatically filters out patients that have been soft-deleted.
 
         Relationships loaded when eager_load=True:
         - patient: Patient information (joinedload - 1:1)
@@ -123,12 +196,66 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
 
         query = (
             self.db.query(PatientFlowState)
-            .filter(PatientFlowState.completed_at.is_(None))
-            .order_by(PatientFlowState.started_at.desc())
+            .join(Patient)  # Join to filter by patient status
+            .filter(
+                PatientFlowState.completed_at.is_(None),
+                Patient.deleted_at.is_(None)  # Exclude deleted patients
+            )
+            # FAIR ORDERING: Prevent starvation by processing oldest flows first
+            # 1. next_scheduled_at (oldest due first, nulls = never scheduled = highest priority)
+            # 2. last_interaction_at (those not interacted with recently)
+            # 3. started_at (oldest flows first as fallback for consistent ordering)
+            # 4. id (deterministic tie-breaker for identical timestamps)
+            .order_by(
+                PatientFlowState.next_scheduled_at.asc().nullsfirst(),
+                PatientFlowState.last_interaction_at.asc().nullsfirst(),
+                PatientFlowState.started_at.asc(),
+                PatientFlowState.id.asc()
+            )
         )
+
+        if due_before is not None:
+            query = query.filter(
+                or_(
+                    PatientFlowState.next_scheduled_at.is_(None),
+                    PatientFlowState.next_scheduled_at <= due_before,
+                )
+            )
 
         if eager_load:
             # PERFORMANCE: Nested eager loading prevents N+1 queries for related entities
+            query = query.options(
+                joinedload(PatientFlowState.patient).joinedload(Patient.doctor),
+                joinedload(PatientFlowState.template_version).joinedload(
+                    FlowTemplateVersion.kind
+                ),
+            )
+
+        return query.limit(limit).all()
+
+    def get_flows_by_type(
+        self, flow_type: str, limit: int = 100, eager_load: bool = True
+    ) -> List[PatientFlowState]:
+        """Get active flows by flow type (FlowKind.kind_key)."""
+        from sqlalchemy.orm import joinedload
+
+        query = (
+            self.db.query(PatientFlowState)
+            .join(Patient)
+            .join(
+                FlowTemplateVersion,
+                PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
+            )
+            .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+            .filter(
+                FlowKind.kind_key == flow_type,
+                PatientFlowState.completed_at.is_(None),
+                Patient.deleted_at.is_(None),
+            )
+            .order_by(PatientFlowState.started_at.asc(), PatientFlowState.id.asc())
+        )
+
+        if eager_load:
             query = query.options(
                 joinedload(PatientFlowState.patient).joinedload(Patient.doctor),
                 joinedload(PatientFlowState.template_version).joinedload(
@@ -142,20 +269,20 @@ class FlowStateRepository(BaseRepository[PatientFlowState]):
         self, flow_type: str, target_day: int, limit: int = 100
     ) -> List[PatientFlowState]:
         """Get flows by flow_type via template_version that are on a specific day"""
-        from datetime import datetime, timezone
+        from app.utils.timezone import today_sao_paulo
         from sqlalchemy import func, cast, Integer
 
         # Calculate flows that should be on target_day today
-        today = datetime.now(timezone.utc).date()
+        today = today_sao_paulo()
 
         return (
             self.db.query(PatientFlowState)
             .join(
                 FlowTemplateVersion,
-                PatientFlowState.template_version_id == FlowTemplateVersion.id,
+                PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
             )
-            .join(FlowKind, FlowTemplateVersion.kind_id == FlowKind.id)
-            .filter(FlowKind.flow_type == flow_type)
+            .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+            .filter(FlowKind.kind_key == flow_type)
             .filter(PatientFlowState.completed_at.is_(None))
             .filter(
                 cast(

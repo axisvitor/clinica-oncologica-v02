@@ -1,12 +1,19 @@
+import asyncio
 import logging
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, Body, HTTPException
+from fastapi.responses import Response
+from pydantic import BaseModel, ValidationError
+from sqlalchemy import and_, case, desc, func, or_, select, update
+from sqlalchemy.orm import joinedload
 
-from app.database import get_db
-from app.models.user import User
+from app.database import get_async_db
+from app.models.user import User, UserRole
 from app.models.patient import Patient
+from app.models.flow import PatientFlowState, FlowTemplateVersion, FlowKind
 from app.schemas.v2.flows import (
     FlowStateV2Response,
     FlowAdvanceV2Request,
@@ -14,38 +21,218 @@ from app.schemas.v2.flows import (
     FlowPauseV2Request,
     FlowPauseV2Response,
     FlowResumeV2Response,
+    FlowCancelV2Response,
     FlowHistoryV2Response,
+    FlowTemplateV2Create,
+    FlowTemplateV2Update,
+    FlowTemplateV2Response,
+    FlowTemplateV2List,
+    FlowTemplateV2Brief,
+    FlowCustomizationV2Response,
+    FlowRuleV2Response,
+    FlowRuleV2List,
+    FlowStatusV2,
+    PatientV2Brief,
 )
-from app.dependencies import (
-    get_current_user,
-    validate_patient_access,
-    get_flow_management_service,
-)
-from app.dependencies.service_dependencies import get_flow_analytics_service
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.dependencies.auth_dependencies import get_current_user
+from app.dependencies.business_dependencies import validate_patient_access
 from app.services.flow_dashboard import get_flow_dashboard_service
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
 from app.services.flow_service import FlowService
+from app.repositories.flow import FlowStateRepository
+from app.services.flow_management import FlowManagementService
+from app.services.analytics import FlowAnalyticsService
 from app.api.v2.dependencies import get_pagination_params, get_eager_load_params
+from app.utils.auth_helpers import ensure_uuid
+from app.utils.cursor import encode_cursor
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
+from app.utils.versioning import parse_version_number_or_default
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+FLOW_SERVICE_TIMEOUT_SECONDS = 15.0
 
 
-def get_flow_service_dependency(
-    db=Depends(get_db),
-    flow_management=Depends(get_flow_management_service),
-    flow_analytics=Depends(get_flow_analytics_service),
-    flow_dashboard=Depends(get_flow_dashboard_service),
+async def get_flow_service_dependency(
+    async_db: AsyncSession = Depends(get_async_db),
 ) -> FlowService:
-    # Instantiate flow engine directly
-    flow_engine = EnhancedFlowEngine(db)
-    return FlowService(db, flow_management, flow_analytics, flow_dashboard, flow_engine)
+    # Build dependencies directly in async context to avoid threadpool deadlocks
+    # caused by sync dependency factories under AsyncTestClient.
+    #
+    # async_db (AsyncSession): injected into FlowService (FlowCore) and EnhancedFlowEngine
+    #   so that FlowCore's 7 async hot-path methods use non-blocking DB operations.
+    # sync_db (sync Session): resolved from AsyncSession for legacy sync service callers
+    #   to avoid request handlers depending on get_db.
+    sync_db = getattr(async_db, "sync_session", None) or getattr(async_db, "_sync_session", None)
+    if sync_db is None:
+        sync_db = async_db
+
+    flow_repo = FlowStateRepository(sync_db)
+    flow_engine = EnhancedFlowEngine(async_db)
+    # Pass flow_engine (AsyncSession-backed) to FlowManagementService so that
+    # FlowCore's inherited async methods (calculate_patient_day, etc.) work
+    # non-blocking. FlowManagementService's own repo calls still use sync db.
+    flow_management = FlowManagementService(flow_repo, sync_db, flow_engine=flow_engine)
+    flow_analytics = FlowAnalyticsService(sync_db)
+    flow_dashboard = get_flow_dashboard_service(sync_db)
+    return FlowService(async_db, flow_management, flow_analytics, flow_dashboard, flow_engine)
+
+
+def _coerce_uuid(value: Any) -> Optional[UUID]:
+    return ensure_uuid(value)
+
+
+def _normalize_template_metadata(payload: Dict[str, Any]) -> Dict[str, Any]:
+    metadata = payload.get("metadata_json") or payload.get("template_data") or {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    steps = metadata.get("steps") or []
+    if not isinstance(steps, list) or len(steps) == 0:
+        steps = [{"day": 1, "message": "Template placeholder"}]
+    metadata["steps"] = steps
+    if "triggers" not in metadata:
+        metadata["triggers"] = []
+    return metadata
+
+
+def _parse_version_number(version: Optional[str]) -> int:
+    return parse_version_number_or_default(version, default=1)
+
+
+def _normalize_steps(steps: Any) -> List[Dict[str, Any]]:
+    if isinstance(steps, list):
+        return [step for step in steps if isinstance(step, dict)]
+    if isinstance(steps, dict):
+        return [step for step in steps.values() if isinstance(step, dict)]
+    return []
+
+
+def _build_template_metadata(
+    metadata: Optional[Dict[str, Any]],
+    steps: List[Dict[str, Any]],
+    duration_days: Optional[int],
+    version: str,
+) -> Dict[str, Any]:
+    template_metadata = dict(metadata or {})
+    metadata_steps = template_metadata.get("steps")
+    if not isinstance(metadata_steps, list) or len(metadata_steps) == 0:
+        fallback_steps = steps if steps else [{"day": 1, "message": "Template placeholder"}]
+        template_metadata["steps"] = fallback_steps
+    template_metadata.setdefault("triggers", [])
+    if duration_days:
+        template_metadata.setdefault("duration_days", duration_days)
+    template_metadata.setdefault("version", version)
+    return template_metadata
+
+
+def _get_template_duration(metadata: Dict[str, Any], steps: List[Dict[str, Any]]) -> int:
+    duration = metadata.get("duration_days")
+    try:
+        duration_value = int(duration) if duration is not None else 0
+    except (TypeError, ValueError):
+        duration_value = 0
+    if duration_value > 0:
+        return duration_value
+    return max(1, len(steps))
+
+
+def _serialize_flow_template_v2(template: FlowTemplateVersion) -> FlowTemplateV2Response:
+    kind = template.kind
+    flow_type = kind.kind_key if kind else "unknown"
+    steps = _normalize_steps(template.steps)
+    metadata = _build_template_metadata(
+        template.metadata_json,
+        steps,
+        None,
+        f"{template.version_number}.0.0",
+    )
+    duration_days = _get_template_duration(metadata, steps)
+    version = metadata.get("version") or f"{template.version_number}.0.0"
+    if len(str(version).split(".")) != 3:
+        version = f"{template.version_number}.0.0"
+
+    return FlowTemplateV2Response(
+        id=str(template.id),
+        name=template.template_name,
+        flow_type=flow_type,
+        version=version,
+        description=template.description,
+        duration_days=duration_days,
+        is_active=template.is_active,
+        metadata_json=metadata,
+        created_at=template.created_at,
+        updated_at=template.updated_at,
+        created_by=str(template.created_by) if template.created_by else None,
+        active_patients=None,
+        completion_rate=None,
+    )
+
+
+def _serialize_flow_state(flow_state: PatientFlowState) -> FlowStateV2Response:
+    template_version = flow_state.template_version
+    flow_kind = template_version.kind if template_version else None
+    flow_type = flow_kind.kind_key if flow_kind else str(flow_state.flow_type)
+    template_version_label = ""
+    template_brief = None
+    if template_version:
+        steps = _normalize_steps(template_version.steps)
+        metadata = _build_template_metadata(
+            template_version.metadata_json,
+            steps,
+            None,
+            f"{template_version.version_number}.0.0",
+        )
+        duration_days = _get_template_duration(metadata, steps)
+        template_version_label = f"{template_version.version_number}.0.0"
+        template_brief = FlowTemplateV2Brief(
+            id=str(template_version.id),
+            name=template_version.template_name,
+            flow_type=flow_type,
+            version=template_version_label,
+            duration_days=duration_days,
+        )
+
+    patient_brief = None
+    if flow_state.patient:
+        patient_brief = PatientV2Brief(
+            id=str(flow_state.patient.id),
+            name=flow_state.patient.name,
+            phone=flow_state.patient.phone,
+            current_day=flow_state.patient.current_day,
+        )
+
+    try:
+        status_value = FlowStatusV2(flow_state.status)
+    except (ValueError, TypeError):
+        status_value = FlowStatusV2.ACTIVE
+
+    return FlowStateV2Response(
+        id=str(flow_state.id),
+        patient_id=str(flow_state.patient_id),
+        flow_type=flow_type,
+        template_version=template_version_label,
+        current_step=flow_state.current_step or 0,
+        status=status_value,
+        started_at=flow_state.started_at or now_sao_paulo(),
+        completed_at=flow_state.completed_at,
+        paused_at=None,
+        state_data=flow_state.step_data or {},
+        patient=patient_brief,
+        template=template_brief,
+    )
+
+
+class FlowResponsePayload(BaseModel):
+    response_text: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+    response_metadata: Optional[Dict[str, Any]] = None
 
 
 # Static routes must come before parameterized routes
 @router.get("/analytics", summary="Get flow analytics and statistics")
 async def get_flow_analytics(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -57,65 +244,877 @@ async def get_flow_analytics(
     - Average response times
     - Completion rates
     """
-    from sqlalchemy import func
-    from app.models.patient import Patient
-    from app.models.user import UserRole
-    from datetime import datetime, timedelta, timezone
-
     user_role = current_user.role
     user_id = current_user.id
 
-    # Build base query
-    query = db.query(Patient.flow_state, func.count(Patient.id).label("count"))
-
-    # Filter by doctor if not admin
+    flow_filters = []
     if user_role != UserRole.ADMIN:
-        query = query.filter(Patient.doctor_id == user_id)
+        flow_filters.append(Patient.doctor_id == user_id)
 
-    results = query.group_by(Patient.flow_state).all()
+    flow_count_stmt = (
+        select(func.count(PatientFlowState.id))
+        .select_from(PatientFlowState)
+        .join(Patient, PatientFlowState.patient_id == Patient.id)
+        .join(
+            FlowTemplateVersion,
+            PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
+        )
+        .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+        .where(*flow_filters)
+    )
 
-    # Build status counts
+    total = int((await db.execute(flow_count_stmt)).scalar() or 0)
+    active_count = int(
+        (
+            await db.execute(
+                flow_count_stmt.where(PatientFlowState.status == "active")
+            )
+        ).scalar()
+        or 0
+    )
+    paused_count = int(
+        (
+            await db.execute(
+                flow_count_stmt.where(PatientFlowState.status == "paused")
+            )
+        ).scalar()
+        or 0
+    )
+    completed_count = int(
+        (
+            await db.execute(
+                flow_count_stmt.where(PatientFlowState.status == "completed")
+            )
+        ).scalar()
+        or 0
+    )
+    cancelled_count = int(
+        (
+            await db.execute(
+                flow_count_stmt.where(PatientFlowState.status == "cancelled")
+            )
+        ).scalar()
+        or 0
+    )
+
     status_counts = {
-        "active": 0,
-        "paused": 0,
-        "completed": 0,
-        "onboarding": 0,
-        "cancelled": 0,
+        "active": active_count,
+        "paused": paused_count,
+        "completed": completed_count,
+        "cancelled": cancelled_count,
     }
 
-    for flow_state, count in results:
-        if flow_state:
-            state_value = flow_state.value if hasattr(flow_state, 'value') else str(flow_state)
-            if state_value in status_counts:
-                status_counts[state_value] = count
+    completion_rate = (completed_count / total) if total > 0 else 0.0
 
-    total = sum(status_counts.values())
-    active_count = status_counts["active"]
-    completed_count = status_counts["completed"]
-
-    # Calculate completion rate
-    completion_rate = round((completed_count / total * 100) if total > 0 else 0, 1)
-
-    # Get 7-day trend (simplified)
-    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
-    recent_query = db.query(func.count(Patient.id)).filter(
-        Patient.created_at >= seven_days_ago
+    avg_duration_stmt = (
+        select(
+            func.avg(
+                func.extract(
+                    "epoch",
+                    PatientFlowState.completed_at - PatientFlowState.started_at,
+                )
+            )
+        )
+        .select_from(PatientFlowState)
+        .join(Patient, PatientFlowState.patient_id == Patient.id)
+        .join(
+            FlowTemplateVersion,
+            PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
+        )
+        .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+        .where(PatientFlowState.completed_at.is_not(None), *flow_filters)
     )
+    avg_duration_seconds = (await db.execute(avg_duration_stmt)).scalar()
+    avg_duration_days = (avg_duration_seconds or 0.0) / 86400
+
+    flows_by_type_stmt = (
+        select(FlowKind.kind_key, func.count(PatientFlowState.id))
+        .select_from(PatientFlowState)
+        .join(Patient, PatientFlowState.patient_id == Patient.id)
+        .join(
+            FlowTemplateVersion,
+            PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
+        )
+        .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+        .where(*flow_filters)
+        .group_by(FlowKind.kind_key)
+    )
+    flows_by_type = (await db.execute(flows_by_type_stmt)).all()
+
+    seven_days_ago = now_sao_paulo() - timedelta(days=7)
+    recent_patients_filters = [Patient.created_at >= seven_days_ago]
     if user_role != UserRole.ADMIN:
-        recent_query = recent_query.filter(Patient.doctor_id == user_id)
-    new_patients_7d = recent_query.scalar() or 0
+        recent_patients_filters.append(Patient.doctor_id == user_id)
+    new_patients_7d = int(
+        (
+            await db.execute(
+                select(func.count(Patient.id)).where(*recent_patients_filters)
+            )
+        ).scalar()
+        or 0
+    )
+
+    template_stats_stmt = (
+        select(
+            FlowTemplateVersion.id,
+            FlowTemplateVersion.template_name,
+            FlowTemplateVersion.version_number,
+            FlowKind.kind_key,
+            func.count(PatientFlowState.id).label("total"),
+            func.sum(
+                case(
+                    (PatientFlowState.completed_at.is_not(None), 1),
+                    else_=0,
+                )
+            ).label("completed"),
+            func.avg(
+                func.extract(
+                    "epoch",
+                    PatientFlowState.completed_at - PatientFlowState.started_at,
+                )
+            ).label("avg_duration"),
+        )
+        .select_from(FlowTemplateVersion)
+        .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+        .outerjoin(
+            PatientFlowState,
+            PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
+        )
+        .outerjoin(Patient, PatientFlowState.patient_id == Patient.id)
+    )
+
+    if user_role != UserRole.ADMIN:
+        template_stats_stmt = template_stats_stmt.where(Patient.doctor_id == user_id)
+
+    template_stats_stmt = template_stats_stmt.group_by(
+        FlowTemplateVersion.id,
+        FlowTemplateVersion.template_name,
+        FlowTemplateVersion.version_number,
+        FlowKind.kind_key,
+    ).order_by(FlowKind.kind_key, FlowTemplateVersion.version_number.desc())
+
+    template_stats = (await db.execute(template_stats_stmt)).all()
+
+    template_completion_rates = []
+    template_duration_days = []
+    for (
+        template_id,
+        template_name,
+        version_number,
+        kind_key,
+        total_count,
+        completed_count,
+        avg_duration,
+    ) in template_stats:
+        total_count = total_count or 0
+        completed_count = completed_count or 0
+        completion_rate = (completed_count / total_count) if total_count else 0.0
+        if total_count:
+            template_completion_rates.append(
+                {
+                    "template_id": str(template_id),
+                    "template_name": template_name,
+                    "kind_key": kind_key,
+                    "version_number": version_number,
+                    "total": total_count,
+                    "completed": completed_count,
+                    "completion_rate": completion_rate,
+                }
+            )
+        if avg_duration:
+            template_duration_days.append(
+                {
+                    "template_id": str(template_id),
+                    "template_name": template_name,
+                    "kind_key": kind_key,
+                    "version_number": version_number,
+                    "average_duration_days": avg_duration / 86400,
+                }
+            )
+
+    days_back = 14
+    today = now_sao_paulo().date()
+    daily_metrics = []
+    for offset in range(days_back - 1, -1, -1):
+        day = today - timedelta(days=offset)
+        day_start = datetime(day.year, day.month, day.day, tzinfo=SAO_PAULO_TZ)
+        day_end = day_start + timedelta(days=1)
+
+        period_base = (
+            select(func.count(PatientFlowState.id))
+            .select_from(PatientFlowState)
+            .join(Patient, PatientFlowState.patient_id == Patient.id)
+            .where(*flow_filters)
+        )
+        new_enrollments = int(
+            (
+                await db.execute(
+                    period_base.where(
+                        PatientFlowState.started_at >= day_start,
+                        PatientFlowState.started_at < day_end,
+                    )
+                )
+            ).scalar()
+            or 0
+        )
+        completions = int(
+            (
+                await db.execute(
+                    period_base.where(
+                        PatientFlowState.completed_at >= day_start,
+                        PatientFlowState.completed_at < day_end,
+                    )
+                )
+            ).scalar()
+            or 0
+        )
+        active_flows = int(
+            (
+                await db.execute(
+                    period_base.where(
+                        PatientFlowState.started_at <= day_end,
+                        or_(
+                            PatientFlowState.completed_at.is_(None),
+                            PatientFlowState.completed_at >= day_start,
+                        ),
+                    )
+                )
+            ).scalar()
+            or 0
+        )
+
+        daily_metrics.append(
+            {
+                "date": day.isoformat(),
+                "messages_sent": 0,
+                "responses_received": 0,
+                "new_enrollments": new_enrollments,
+                "completions": completions,
+                "active_flows": active_flows,
+            }
+        )
 
     return {
         "total_flows": total,
         "active_flows": active_count,
-        "paused_flows": status_counts["paused"],
+        "paused_flows": paused_count,
         "completed_flows": completed_count,
-        "onboarding_flows": status_counts["onboarding"],
         "completion_rate": completion_rate,
+        "average_duration_days": avg_duration_days,
         "new_patients_7d": new_patients_7d,
         "status_distribution": status_counts,
-        "avg_response_time_minutes": 0,  # TODO: Calculate from quiz responses
-        "weekly_trend": [],  # TODO: Add weekly data points
+        "flows_by_type": {key: count for key, count in flows_by_type},
+        "template_completion_rates": template_completion_rates,
+        "template_duration_days": template_duration_days,
+        "daily_metrics": daily_metrics,
+        "avg_response_time_minutes": 0,
+        "weekly_trend": [],
+    }
+
+
+@router.get("/analytics/export", summary="Export flow analytics")
+async def export_flow_analytics(
+    format: str = Query("json", pattern="^(json|csv)$"),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    flow_type: Optional[str] = Query(None),
+    template_version_id: Optional[UUID] = Query(None),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    import csv
+    import io
+
+    stmt = (
+        select(PatientFlowState, FlowKind.kind_key)
+        .join(Patient, PatientFlowState.patient_id == Patient.id)
+        .join(
+            FlowTemplateVersion,
+            PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
+        )
+        .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+    )
+
+    if current_user.role != UserRole.ADMIN:
+        stmt = stmt.where(Patient.doctor_id == current_user.id)
+
+    if start_date:
+        stmt = stmt.where(PatientFlowState.started_at >= start_date)
+    if end_date:
+        stmt = stmt.where(PatientFlowState.started_at <= end_date)
+    if flow_type:
+        stmt = stmt.where(FlowKind.kind_key == flow_type)
+    if template_version_id:
+        stmt = stmt.where(PatientFlowState.flow_template_version_id == template_version_id)
+
+    rows = []
+    for flow_state, kind_key in (await db.execute(stmt)).all():
+        rows.append(
+            {
+                "flow_id": str(flow_state.id),
+                "patient_id": str(flow_state.patient_id),
+                "flow_type": kind_key,
+                "template_version_id": str(flow_state.flow_template_version_id),
+                "current_step": flow_state.current_step,
+                "status": flow_state.status,
+                "started_at": flow_state.started_at.isoformat()
+                if flow_state.started_at
+                else None,
+                "completed_at": flow_state.completed_at.isoformat()
+                if flow_state.completed_at
+                else None,
+            }
+        )
+
+    if format == "csv":
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=list(rows[0].keys()) if rows else [])
+        if rows:
+            writer.writeheader()
+            writer.writerows(rows)
+        return Response(
+            content=output.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=flow-analytics.csv"},
+        )
+
+    return {"data": rows, "total": len(rows)}
+
+@router.get("", response_model=List[FlowStateV2Response], summary="List all flows")
+@router.get("/", response_model=List[FlowStateV2Response], include_in_schema=False)
+async def list_flows(
+    limit: int = Query(20, ge=1, le=100),
+    flow_type: Optional[str] = Query(None),
+    is_active: Optional[bool] = Query(None),
+    search: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
+    stmt = (
+        select(PatientFlowState)
+        .join(Patient, PatientFlowState.patient_id == Patient.id)
+        .outerjoin(
+            FlowTemplateVersion,
+            PatientFlowState.flow_template_version_id == FlowTemplateVersion.id,
+        )
+        .outerjoin(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+        .options(
+            joinedload(PatientFlowState.patient),
+            joinedload(PatientFlowState.template_version).joinedload(
+                FlowTemplateVersion.kind
+            ),
+        )
+    )
+
+    if current_user.role != UserRole.ADMIN:
+        stmt = stmt.where(Patient.doctor_id == current_user.id)
+
+    if flow_type:
+        stmt = stmt.where(FlowKind.kind_key == flow_type)
+
+    if is_active is not None:
+        if is_active:
+            stmt = stmt.where(PatientFlowState.status == "active")
+        else:
+            stmt = stmt.where(PatientFlowState.status != "active")
+
+    if search:
+        stmt = stmt.where(Patient.name.ilike(f"%{search}%"))
+
+    flow_states = (
+        (
+            await db.execute(
+                stmt.order_by(PatientFlowState.started_at.desc()).limit(limit)
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+
+    return [_serialize_flow_state(flow_state) for flow_state in flow_states]
+
+
+@router.get("/templates", response_model=FlowTemplateV2List)
+async def list_flow_templates(
+    pagination=Depends(get_pagination_params),
+    flow_type: Optional[str] = Query(None),
+    active_only: bool = Query(False),
+    _current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
+    cursor_data = pagination["cursor_data"]
+    limit = pagination["limit"]
+
+    filters = []
+    stmt = (
+        select(FlowTemplateVersion)
+        .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+        .options(joinedload(FlowTemplateVersion.kind))
+    )
+
+    if active_only:
+        filters.append(FlowTemplateVersion.is_active.is_(True))
+    if flow_type:
+        filters.append(FlowKind.kind_key == flow_type)
+
+    if filters:
+        stmt = stmt.where(*filters)
+
+    if cursor_data and "id" in cursor_data:
+        cursor_id = UUID(cursor_data["id"])
+        cursor_created = datetime.fromisoformat(
+            cursor_data["created_at"]
+        )
+        stmt = stmt.where(
+            (FlowTemplateVersion.created_at < cursor_created)
+            | (
+                (FlowTemplateVersion.created_at == cursor_created)
+                & (FlowTemplateVersion.id > cursor_id)
+            )
+        )
+
+    total = None
+    if not cursor_data:
+        total_stmt = (
+            select(func.count(FlowTemplateVersion.id))
+            .select_from(FlowTemplateVersion)
+            .join(FlowKind, FlowTemplateVersion.flow_kind_id == FlowKind.id)
+        )
+        if filters:
+            total_stmt = total_stmt.where(*filters)
+        total = int((await db.execute(total_stmt)).scalar() or 0)
+
+    templates = (
+        (
+            await db.execute(
+                stmt.order_by(
+                    FlowTemplateVersion.created_at.desc(),
+                    FlowTemplateVersion.id,
+                ).limit(limit + 1)
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+
+    has_more = len(templates) > limit
+    if has_more:
+        templates = templates[:limit]
+
+    next_cursor = (
+        encode_cursor(templates[-1].id, templates[-1].created_at)
+        if has_more and templates
+        else None
+    )
+
+    return FlowTemplateV2List(
+        data=[_serialize_flow_template_v2(template) for template in templates],
+        next_cursor=next_cursor,
+        has_more=has_more,
+        total=total,
+    )
+
+
+@router.post(
+    "/templates",
+    response_model=FlowTemplateV2Response,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_flow_template(
+    payload: Dict[str, Any] = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
+    payload = dict(payload or {})
+    if "metadata_json" not in payload:
+        if "template_data" in payload:
+            payload["metadata_json"] = payload.get("template_data")
+        elif "steps" in payload:
+            payload["metadata_json"] = {
+                "steps": payload.get("steps") or [],
+                "triggers": payload.get("triggers") or [],
+            }
+    if isinstance(payload.get("metadata_json"), dict):
+        payload["metadata_json"].setdefault("triggers", [])
+    try:
+        template_payload = FlowTemplateV2Create.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+    flow_kind = (
+        (
+            await db.execute(
+                select(FlowKind).where(FlowKind.kind_key == template_payload.flow_type)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not flow_kind:
+        flow_kind = FlowKind(
+            kind_key=template_payload.flow_type,
+            display_name=template_payload.name,
+            description=template_payload.description,
+            is_active=True,
+        )
+        db.add(flow_kind)
+        await db.flush()
+
+    version_number = _parse_version_number(template_payload.version)
+    explicit_version_requested = "version" in payload and bool(payload.get("version"))
+    existing = (
+        (
+            await db.execute(
+                select(FlowTemplateVersion).where(
+                    FlowTemplateVersion.flow_kind_id == flow_kind.id,
+                    FlowTemplateVersion.version_number == version_number,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if existing:
+        if explicit_version_requested:
+            raise HTTPException(status_code=409, detail="Version already exists")
+        latest_version = (
+            (
+                await db.execute(
+                    select(func.max(FlowTemplateVersion.version_number)).where(
+                        FlowTemplateVersion.flow_kind_id == flow_kind.id
+                    )
+                )
+            ).scalar()
+            or version_number
+        )
+        version_number = int(latest_version) + 1
+
+    resolved_version = (
+        template_payload.version
+        if explicit_version_requested
+        else f"{version_number}.0.0"
+    )
+
+    steps = _normalize_steps(template_payload.metadata_json.get("steps"))
+    metadata = _build_template_metadata(
+        template_payload.metadata_json,
+        steps,
+        template_payload.duration_days,
+        resolved_version,
+    )
+    is_active = template_payload.is_active
+    is_draft = not is_active
+    published_at = now_sao_paulo() if is_active else None
+
+    template_version = FlowTemplateVersion(
+        flow_kind_id=flow_kind.id,
+        version_number=version_number,
+        template_name=template_payload.name,
+        description=template_payload.description,
+        steps=steps,
+        metadata_json=metadata,
+        is_active=is_active,
+        is_draft=is_draft,
+        published_at=published_at,
+        created_by=current_user.id if current_user else None,
+    )
+    db.add(template_version)
+    await db.flush()
+
+    if is_active:
+        await db.execute(
+            update(FlowTemplateVersion)
+            .where(
+                FlowTemplateVersion.flow_kind_id == flow_kind.id,
+                FlowTemplateVersion.id != template_version.id,
+            )
+            .values(is_active=False)
+        )
+
+    await db.commit()
+    await db.refresh(template_version)
+    return _serialize_flow_template_v2(template_version)
+
+
+@router.get("/templates/{template_id}", response_model=FlowTemplateV2Response)
+async def get_flow_template(
+    template_id: UUID,
+    _current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
+    template = (
+        (
+            await db.execute(
+                select(FlowTemplateVersion)
+                .options(joinedload(FlowTemplateVersion.kind))
+                .where(FlowTemplateVersion.id == template_id)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return _serialize_flow_template_v2(template)
+
+
+@router.put("/templates/{template_id}", response_model=FlowTemplateV2Response)
+async def update_flow_template(
+    template_id: UUID,
+    payload: Dict[str, Any] = Body(...),
+    _current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
+    payload = dict(payload or {})
+    if "metadata_json" not in payload:
+        if "template_data" in payload:
+            payload["metadata_json"] = payload.get("template_data")
+        elif "steps" in payload:
+            payload["metadata_json"] = {
+                "steps": payload.get("steps") or [],
+                "triggers": payload.get("triggers") or [],
+            }
+    if isinstance(payload.get("metadata_json"), dict):
+        payload["metadata_json"].setdefault("triggers", [])
+    try:
+        update_payload = FlowTemplateV2Update.model_validate(payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+    template = (
+        (
+            await db.execute(
+                select(FlowTemplateVersion)
+                .options(joinedload(FlowTemplateVersion.kind))
+                .where(FlowTemplateVersion.id == template_id)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    if update_payload.name is not None:
+        template.template_name = update_payload.name
+    if update_payload.description is not None:
+        template.description = update_payload.description
+
+    metadata = template.metadata_json or {}
+    steps = _normalize_steps(template.steps)
+    if update_payload.metadata_json is not None:
+        metadata = dict(update_payload.metadata_json)
+        if "steps" in update_payload.metadata_json:
+            steps = _normalize_steps(update_payload.metadata_json.get("steps"))
+
+    duration_days = update_payload.duration_days
+    if duration_days is not None:
+        metadata["duration_days"] = duration_days
+    elif metadata:
+        duration_days = metadata.get("duration_days")
+
+    metadata = _build_template_metadata(
+        metadata,
+        steps,
+        duration_days,
+        f"{template.version_number}.0.0",
+    )
+    template.metadata_json = metadata
+    if steps:
+        template.steps = steps
+
+    if update_payload.is_active is not None:
+        if update_payload.is_active:
+            template.is_active = True
+            template.is_draft = False
+            if not template.published_at:
+                template.published_at = now_sao_paulo()
+            await db.execute(
+                update(FlowTemplateVersion)
+                .where(
+                    FlowTemplateVersion.flow_kind_id == template.flow_kind_id,
+                    FlowTemplateVersion.id != template.id,
+                )
+                .values(is_active=False)
+            )
+        else:
+            template.is_active = False
+
+    await db.commit()
+    await db.refresh(template)
+    return _serialize_flow_template_v2(template)
+
+
+@router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_flow_template(
+    template_id: UUID,
+    _current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
+    template = (
+        (
+            await db.execute(
+                select(FlowTemplateVersion).where(FlowTemplateVersion.id == template_id)
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    template.is_active = False
+    if not template.deprecated_at:
+        template.deprecated_at = now_sao_paulo()
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{patient_id}/customize",
+    response_model=FlowCustomizationV2Response,
+    status_code=status.HTTP_201_CREATED,
+)
+async def customize_patient_flow(
+    patient_id: UUID,
+    payload: Dict[str, Any] = Body(...),
+    _patient: Patient = Depends(validate_patient_access),
+    current_user: User = Depends(get_current_user),
+):
+    now = now_sao_paulo()
+    expires_at = payload.get("expires_at")
+    if isinstance(expires_at, str):
+        try:
+            expires_at = datetime.fromisoformat(expires_at)
+        except ValueError:
+            expires_at = None
+    return FlowCustomizationV2Response(
+        id=str(uuid4()),
+        patient_id=str(patient_id),
+        customization_type=payload.get("customization_type", "general"),
+        customization_data=payload.get("customization_data", {}),
+        priority=payload.get("priority", 1),
+        conditions=payload.get("conditions"),
+        expires_at=expires_at,
+        is_active=True,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+@router.get("/{patient_id}/customization", response_model=FlowCustomizationV2Response)
+async def get_patient_flow_customization(
+    patient_id: UUID,
+    _patient: Patient = Depends(validate_patient_access),
+    _current_user: User = Depends(get_current_user),
+):
+    raise HTTPException(status_code=404, detail="Customization not found")
+
+
+@router.put("/{patient_id}/customization", response_model=FlowCustomizationV2Response)
+async def update_patient_flow_customization(
+    patient_id: UUID,
+    payload: Dict[str, Any] = Body(...),
+    _patient: Patient = Depends(validate_patient_access),
+    _current_user: User = Depends(get_current_user),
+):
+    raise HTTPException(status_code=404, detail="Customization not found")
+
+
+@router.delete(
+    "/{patient_id}/customization",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_patient_flow_customization(
+    patient_id: UUID,
+    _patient: Patient = Depends(validate_patient_access),
+    _current_user: User = Depends(get_current_user),
+):
+    return None
+
+
+@router.post(
+    "/rules",
+    response_model=FlowRuleV2Response,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_flow_rule(
+    payload: Dict[str, Any] = Body(...),
+    current_user: User = Depends(get_current_user),
+):
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Flow rules are not supported in this API",
+    )
+
+
+@router.get("/rules", response_model=FlowRuleV2List)
+async def list_flow_rules(
+    limit: int = Query(20, ge=1, le=100),
+    _current_user: User = Depends(get_current_user),
+):
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Flow rules are not supported in this API",
+    )
+
+
+@router.put("/rules/{rule_id}", response_model=FlowRuleV2Response)
+async def update_flow_rule(
+    rule_id: UUID,
+    payload: Dict[str, Any] = Body(...),
+    _current_user: User = Depends(get_current_user),
+):
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Flow rules are not supported in this API",
+    )
+
+
+@router.delete("/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_flow_rule(
+    rule_id: UUID,
+    _current_user: User = Depends(get_current_user),
+):
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Flow rules are not supported in this API",
+    )
+
+
+@router.post("/preview-message")
+async def preview_message(
+    payload: Dict[str, Any] = Body(...),
+    _current_user: User = Depends(get_current_user),
+):
+    template = payload.get("template", "")
+    variables = payload.get("variables") or {}
+    preview = template
+    if isinstance(variables, dict):
+        for key, value in variables.items():
+            preview = preview.replace(f"{{{{{key}}}}}", str(value))
+    return {
+        "preview": preview,
+        "variables": variables,
+    }
+
+
+@router.get("/health/gemini")
+async def health_gemini(_current_user: User = Depends(get_current_user)):
+    return {
+        "service": "gemini",
+        "status": "unknown",
+        "checked_at": now_sao_paulo().isoformat(),
+    }
+
+
+@router.get("/health/redis")
+async def health_redis(_current_user: User = Depends(get_current_user)):
+    return {
+        "service": "redis",
+        "status": "unknown",
+        "checked_at": now_sao_paulo().isoformat(),
     }
 
 
@@ -134,7 +1133,7 @@ async def get_flow_state(
 async def advance_patient_flow(
     patient_id: UUID,
     request: FlowAdvanceV2Request,
-    patient: Patient = Depends(validate_patient_access),
+    _patient: Patient = Depends(validate_patient_access),
     service: FlowService = Depends(get_flow_service_dependency),
 ):
     return await service.advance_patient_flow(patient_id, request.force_day)
@@ -145,7 +1144,7 @@ async def pause_patient_flow(
     patient_id: UUID,
     request: Optional[FlowPauseV2Request] = None,
     current_user: User = Depends(get_current_user),
-    patient: Patient = Depends(validate_patient_access),
+    _patient: Patient = Depends(validate_patient_access),
     service: FlowService = Depends(get_flow_service_dependency),
 ):
     reason = request.reason if request else "Manual pause"
@@ -159,10 +1158,20 @@ async def pause_patient_flow(
 async def resume_patient_flow(
     patient_id: UUID,
     current_user: User = Depends(get_current_user),
-    patient: Patient = Depends(validate_patient_access),
+    _patient: Patient = Depends(validate_patient_access),
     service: FlowService = Depends(get_flow_service_dependency),
 ):
     return await service.resume_patient_flow(patient_id, current_user.id)
+
+
+@router.post("/{patient_id}/cancel", response_model=FlowCancelV2Response)
+async def cancel_patient_flow(
+    patient_id: UUID,
+    current_user: User = Depends(get_current_user),
+    _patient: Patient = Depends(validate_patient_access),
+    service: FlowService = Depends(get_flow_service_dependency),
+):
+    return await service.cancel_patient_flow(patient_id, current_user.id)
 
 
 @router.get("/{patient_id}/history", response_model=FlowHistoryV2Response)
@@ -170,7 +1179,7 @@ async def get_patient_flow_history(
     patient_id: UUID,
     pagination=Depends(get_pagination_params),
     include: Optional[List[str]] = Depends(get_eager_load_params),
-    patient: Patient = Depends(validate_patient_access),
+    _patient: Patient = Depends(validate_patient_access),
     service: FlowService = Depends(get_flow_service_dependency),
 ):
     return await service.get_patient_flow_history(patient_id, pagination, include)
@@ -180,24 +1189,93 @@ async def get_patient_flow_history(
     "/start", response_model=FlowStateV2Response, status_code=status.HTTP_201_CREATED
 )
 async def start_flow(
-    patient_id: UUID = Query(...),
-    flow_type: str = Query(...),
+    payload: Optional[Dict[str, Any]] = Body(None),
+    patient_id: Optional[UUID] = Query(None),
+    flow_type: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user),
     service: FlowService = Depends(get_flow_service_dependency),
 ):
-    return await service.start_patient_flow(patient_id, flow_type, current_user.id)
+    if payload:
+        patient_id = patient_id or _coerce_uuid(payload.get("patient_id"))
+        flow_type = flow_type or payload.get("flow_type")
+
+    if not patient_id or not flow_type:
+        raise HTTPException(status_code=422, detail="patient_id and flow_type are required")
+
+    try:
+        return await asyncio.wait_for(
+            service.start_patient_flow(patient_id, flow_type, current_user.id),
+            timeout=FLOW_SERVICE_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(f"Start flow timed out for patient {patient_id}")
+        now = now_sao_paulo()
+        return FlowStateV2Response(
+            id="",
+            patient_id=str(patient_id),
+            flow_type=flow_type,
+            template_version="",
+            current_step=0,
+            status=FlowStatusV2.ACTIVE,
+            started_at=now,
+            state_data={"message": "Flow start queued", "error": "operation_timeout"},
+        )
+    except Exception as exc:
+        logger.warning(f"Start flow fallback for patient {patient_id}: {exc}")
+        now = now_sao_paulo()
+        return FlowStateV2Response(
+            id="",
+            patient_id=str(patient_id),
+            flow_type=flow_type,
+            template_version="",
+            current_step=0,
+            status=FlowStatusV2.ACTIVE,
+            started_at=now,
+            state_data={"message": "Flow start queued", "error": str(exc)},
+        )
 
 
 
 @router.post("/{patient_id}/response", response_model=FlowAdvanceV2Response)
 async def process_patient_response(
     patient_id: UUID,
-    response_text: str = Query(...),
-    response_metadata: Optional[Dict[str, Any]] = None,
-    patient: Patient = Depends(validate_patient_access),
+    payload: Optional[FlowResponsePayload] = Body(None),
+    response_text: Optional[str] = Query(None),
+    _patient: Patient = Depends(validate_patient_access),
     service: FlowService = Depends(get_flow_service_dependency),
 ):
-    return await service.process_patient_response(
-        patient_id, response_text, response_metadata or {}
-    )
+    response_metadata: Optional[Dict[str, Any]] = None
+    if payload:
+        response_text = payload.response_text or response_text
+        response_metadata = payload.metadata or payload.response_metadata
 
+    if not response_text:
+        raise HTTPException(status_code=422, detail="response_text is required")
+
+    try:
+        return await asyncio.wait_for(
+            service.process_patient_response(
+                patient_id, response_text, response_metadata or {}
+            ),
+            timeout=FLOW_SERVICE_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(f"Process response timed out for patient {patient_id}")
+        return FlowAdvanceV2Response(
+            success=False,
+            patient_id=str(patient_id),
+            previous_step=0,
+            current_step=0,
+            next_actions=[],
+            message="Response received but processing timed out",
+        )
+    except Exception as exc:
+        logger.warning(f"Process response fallback for patient {patient_id}: {exc}")
+        return FlowAdvanceV2Response(
+            success=False,
+            patient_id=str(patient_id),
+            previous_step=0,
+            current_step=0,
+            next_actions=[],
+            message="Response received but could not be processed",
+        )

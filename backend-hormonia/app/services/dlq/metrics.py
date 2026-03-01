@@ -22,6 +22,7 @@ from app.monitoring.dlq_metrics import (
     initialize_dlq_metrics,
 )
 from .base import RetryConfig
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +162,7 @@ class DLQMetricsCollector:
             )
 
             if oldest:
-                age_seconds = (datetime.now(timezone.utc) - oldest.created_at).total_seconds()
+                age_seconds = (now_sao_paulo() - oldest.created_at).total_seconds()
                 update_oldest_message_age(
                     category=oldest.failure_reason.value,
                     age_seconds=age_seconds,

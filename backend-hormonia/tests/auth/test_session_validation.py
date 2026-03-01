@@ -17,9 +17,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 from uuid import uuid4
 
+from app.main import app
 from app.models.user import UserRole
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # =============================================================================
 # FIXTURES - Firebase and Redis Mocking
 # =============================================================================
@@ -35,13 +37,13 @@ def mock_firebase_auth():
 
     # Default successful verification
     mock.verify_token.return_value = {
-        "uid": "firebase-uid-123",
+        "uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
         "email": "test@example.com",
         "name": "Test User",
         "email_verified": True,
         "custom_claims": {"role": "doctor"},
-        "auth_time": int(datetime.utcnow().timestamp()),
-        "exp": int((datetime.utcnow() + timedelta(hours=1)).timestamp())
+        "auth_time": int(now_sao_paulo_naive().timestamp()),
+        "exp": int((now_sao_paulo_naive() + timedelta(hours=1)).timestamp())
     }
 
     return mock
@@ -93,6 +95,15 @@ def mock_redis_manager(mock_firebase_cache):
 class TestSessionValidation:
     """Test session validation error handling and security."""
 
+    @pytest.fixture(autouse=True)
+    def patch_firebase_cache(self, mock_firebase_cache):
+        """
+        Patch FirebaseRedisCache for ALL tests in this class to prevent pollution.
+        This ensures we always use the Mock and loop/state issues don't revert to Real Class.
+        """
+        with patch('app.routers.auth_session.FirebaseRedisCache', return_value=mock_firebase_cache):
+            yield
+
     def test_session_validation_with_valid_token(
         self,
         client: TestClient,
@@ -110,15 +121,15 @@ class TestSessionValidation:
         """
         # Setup: Mock session and user data
         mock_firebase_cache.get_session.return_value = {
-            "firebase_uid": "firebase-uid-123",
-            "user_id": "user-uuid-123",
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
+            "user_id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4",
             "email": "test@example.com",
             "role": "doctor"
         }
 
         mock_firebase_cache.get_cached_user.return_value = {
-            "id": "user-uuid-123",
-            "firebase_uid": "firebase-uid-123",
+            "id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4",
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
             "email": "test@example.com",
             "full_name": "Test User",
             "role": "doctor",
@@ -205,14 +216,16 @@ class TestSessionValidation:
         for invalid_id in invalid_ids:
             mock_firebase_cache.get_session.return_value = None
 
+
             with patch('app.routers.auth_session.get_redis_manager') as mock_manager:
                 mock_manager.return_value.get_compatible_client.return_value = MagicMock()
 
-                with patch('app.routers.auth_session.FirebaseRedisCache', return_value=mock_firebase_cache):
-                    response = client.get(
-                        "/session/validate",
-                        headers={"X-Session-ID": invalid_id}
-                    )
+                # Mock is already applied by autouse fixture
+                response = client.get(
+                    "/session/validate",
+                    headers={"X-Session-ID": invalid_id}
+                )
+
 
             # Should return 200 with valid=False, not 500 error
             assert response.status_code == 200, f"Failed for invalid_id: {invalid_id}"
@@ -259,10 +272,10 @@ class TestSessionValidation:
         # Setup: Session exists but then gets revoked
         mock_firebase_cache.get_session.return_value = None  # Revoked
 
-        with patch('app.routers.auth_session.get_redis_manager') as mock_manager:
+        with patch('app.core.redis_manager.get_redis_manager') as mock_manager:
             mock_manager.return_value.get_compatible_client.return_value = MagicMock()
 
-            with patch('app.routers.auth_session.FirebaseRedisCache', return_value=mock_firebase_cache):
+            with patch('app.core.redis_manager.FirebaseRedisCache', return_value=mock_firebase_cache):
                 response = client.get(
                     "/session/validate",
                     headers={"X-Session-ID": valid_session_id}
@@ -289,8 +302,8 @@ class TestSessionValidation:
         """
         # Setup: Session exists but user cache miss
         mock_firebase_cache.get_session.return_value = {
-            "firebase_uid": "firebase-uid-123",
-            "user_id": "user-uuid-123"
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
+            "user_id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4"
         }
 
         # First call: cache miss
@@ -300,7 +313,7 @@ class TestSessionValidation:
         from app.models.user import User
         user = User(
             id=uuid4(),
-            firebase_uid="firebase-uid-123",
+            firebase_uid="A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
             email="test@example.com",
             full_name="Test User",
             role=UserRole.DOCTOR,
@@ -343,13 +356,13 @@ class TestSessionValidation:
 
         # Setup: Valid session
         mock_firebase_cache.get_session.return_value = {
-            "firebase_uid": "firebase-uid-123",
-            "user_id": "user-uuid-123"
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
+            "user_id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4"
         }
 
         mock_firebase_cache.get_cached_user.return_value = {
-            "id": "user-uuid-123",
-            "firebase_uid": "firebase-uid-123",
+            "id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4",
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
             "email": "test@example.com",
             "full_name": "Test User",
             "role": "doctor",
@@ -360,11 +373,11 @@ class TestSessionValidation:
             with patch('app.routers.auth_session.get_redis_manager') as mock_manager:
                 mock_manager.return_value.get_compatible_client.return_value = MagicMock()
 
-                with patch('app.routers.auth_session.FirebaseRedisCache', return_value=mock_firebase_cache):
-                    return client.get(
-                        "/session/validate",
-                        headers={"X-Session-ID": valid_session_id}
-                    )
+                # Mock is already applied by autouse fixture
+                return client.get(
+                    "/session/validate",
+                    headers={"X-Session-ID": valid_session_id}
+                )
 
         # Execute 10 concurrent requests
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
@@ -397,8 +410,8 @@ class TestSessionValidation:
         """
         # Setup: Valid session
         mock_firebase_cache.get_session.return_value = {
-            "user_id": "user-uuid-123",
-            "firebase_uid": "firebase-uid-123"
+            "user_id": "user-uB1C2D3E4F5G6H7I8J9K0L1M2N3O4",
+            "firebase_uid": "A1B2C3D4E5F6G7H8I9J0K1L2M3N4"
         }
 
         mock_firebase_cache.invalidate_session.return_value = True
@@ -407,7 +420,7 @@ class TestSessionValidation:
         from app.models.user import User
         user = User(
             id=uuid4(),
-            firebase_uid="firebase-uid-123",
+            firebase_uid="A1B2C3D4E5F6G7H8I9J0K1L2M3N4",
             email="test@example.com",
             full_name="Test User",
             role=UserRole.DOCTOR,
@@ -416,15 +429,27 @@ class TestSessionValidation:
         db_session.add(user)
         db_session.commit()
 
-        with patch('app.routers.auth_session.get_redis_manager') as mock_manager:
-            mock_manager.return_value.get_compatible_client.return_value = MagicMock()
+        # Bypass CSRF
+        from app.middleware.csrf import validate_csrf_token
+        app.dependency_overrides[validate_csrf_token] = lambda: True
 
-            with patch('app.routers.auth_session.FirebaseRedisCache', return_value=mock_firebase_cache):
+        try:
+            with patch('app.routers.auth_session.get_redis_manager') as mock_manager:
+                mock_manager.return_value.get_compatible_client.return_value = MagicMock()
+    
                 with patch('app.routers.auth_session.AuditLogService'):
+                    csrf_response = client.get("/api/v2/auth/csrf-token")
+                    csrf_token = csrf_response.json().get("csrf_token")
                     response = client.delete(
                         "/session/logout",
-                        headers={"X-Session-ID": valid_session_id}
+                        headers={
+                            "X-Session-ID": valid_session_id,
+                            "X-CSRF-Token": csrf_token,
+                        },
                     )
+        finally:
+             if validate_csrf_token in app.dependency_overrides:
+                del app.dependency_overrides[validate_csrf_token]
 
         # Assertions
         assert response.status_code == 200
@@ -463,13 +488,13 @@ class TestAdvancedSessionSecurity:
         header_session = "header-session-id"
 
         mock_firebase_cache.get_session.return_value = {
-            "firebase_uid": "uid-123",
+            "firebase_uid": "B1C2D3E4F5G6H7I8J9K0L1M2N3O4",
             "user_id": "user-123"
         }
 
         mock_firebase_cache.get_cached_user.return_value = {
             "id": "user-123",
-            "firebase_uid": "uid-123",
+            "firebase_uid": "B1C2D3E4F5G6H7I8J9K0L1M2N3O4",
             "email": "test@example.com",
             "role": "doctor",
             "is_active": True
@@ -478,13 +503,13 @@ class TestAdvancedSessionSecurity:
         with patch('app.routers.auth_session.get_redis_manager') as mock_manager:
             mock_manager.return_value.get_compatible_client.return_value = MagicMock()
 
-            with patch('app.routers.auth_session.FirebaseRedisCache', return_value=mock_firebase_cache):
-                # Note: TestClient doesn't support cookies in headers directly
-                # This tests the header fallback instead
-                response = client.get(
-                    "/session/validate",
-                    headers={"X-Session-ID": header_session}
-                )
+            # Mock is already applied by autouse fixture
+            # Note: TestClient doesn't support cookies in headers directly
+            # This tests the header fallback instead
+            response = client.get(
+                "/session/validate",
+                headers={"X-Session-ID": header_session}
+            )
 
         assert response.status_code == 200
         # In production, cookie would take priority via FastAPI's Cookie() dependency
@@ -502,7 +527,7 @@ class TestAdvancedSessionSecurity:
         SECURITY: Prevents disabled accounts from accessing system.
         """
         mock_firebase_cache.get_session.return_value = {
-            "firebase_uid": "uid-123",
+            "firebase_uid": "B1C2D3E4F5G6H7I8J9K0L1M2N3O4",
             "user_id": "user-123"
         }
 
@@ -510,7 +535,7 @@ class TestAdvancedSessionSecurity:
         from app.models.user import User
         user = User(
             id=uuid4(),
-            firebase_uid="uid-123",
+            firebase_uid="B1C2D3E4F5G6H7I8J9K0L1M2N3O4",
             email="inactive@example.com",
             full_name="Inactive User",
             role=UserRole.DOCTOR,
@@ -620,11 +645,11 @@ class TestAdvancedSessionSecurity:
             with patch('app.routers.auth_session.get_redis_manager') as mock_manager:
                 mock_manager.return_value.get_compatible_client.return_value = MagicMock()
 
-                with patch('app.routers.auth_session.FirebaseRedisCache', return_value=mock_firebase_cache):
-                    response = client.get(
-                        "/session/validate",
-                        headers={"X-Session-ID": edge_case}
-                    )
+                # Mock is already applied by autouse fixture
+                response = client.get(
+                    "/session/validate",
+                    headers={"X-Session-ID": edge_case}
+                )
 
             # All edge cases should return valid=False, not error
             assert response.status_code == 200

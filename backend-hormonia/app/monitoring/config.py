@@ -266,6 +266,7 @@ class MonitoringConfig(BaseModel):
     def from_env(cls) -> "MonitoringConfig":
         """Create configuration from environment variables."""
         config = cls()
+        from app.config import settings
 
         # Override with environment variables
         if os.getenv("MONITORING_ENABLED"):
@@ -319,6 +320,10 @@ class MonitoringConfig(BaseModel):
         if os.getenv("MONITORING_REDIS_PASSWORD"):
             config.redis.password = os.getenv("MONITORING_REDIS_PASSWORD")
 
+        # Dragonfly/Redis cluster only supports DB 0.
+        if getattr(settings, "REDIS_ENABLE_CLUSTER_MODE", False):
+            config.redis.db = 0
+
         return config
 
     def get_redis_url(self) -> str:
@@ -328,6 +333,14 @@ class MonitoringConfig(BaseModel):
 
         # First priority: Use REDIS_URL environment variable if available (from settings)
         redis_url = settings.REDIS_URL
+        cluster_mode = getattr(settings, "REDIS_ENABLE_CLUSTER_MODE", False)
+
+        if cluster_mode and redis_url:
+            parsed = urlparse(redis_url)
+            cluster_path = "/0"
+            new_parsed = parsed._replace(path=cluster_path)
+            return urlunparse(new_parsed)
+
         if redis_url and not redis_url.startswith("redis://localhost"):
             # Parse URL to safely replace database number
             parsed = urlparse(redis_url)
@@ -347,7 +360,8 @@ class MonitoringConfig(BaseModel):
 
         # Fallback: Construct URL from individual components for local development
         auth = f":{self.redis.password}@" if self.redis.password else ""
-        return f"redis://{auth}{self.redis.host}:{self.redis.port}/{self.redis.db}"
+        db_index = 0 if cluster_mode else self.redis.db
+        return f"redis://{auth}{self.redis.host}:{self.redis.port}/{db_index}"
 
     def is_feature_enabled(self, component: str, feature: str) -> bool:
         """Check if a specific feature is enabled."""

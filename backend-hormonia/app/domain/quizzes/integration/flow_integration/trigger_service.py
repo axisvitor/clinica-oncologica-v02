@@ -15,7 +15,7 @@ from app.models.quiz import QuizTemplate
 from app.models.flow import PatientFlowState
 from app.services.quiz import QuizTemplateService, QuizSessionService
 from app.services.enhanced_flow_engine import FlowType
-from app.domain.messaging.delivery import MessageSender
+from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSender
 from app.domain.messaging.core import MessageFactory
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
@@ -34,6 +34,8 @@ from app.core.monthly_quiz_config import (
 )
 from app.services.monthly_quiz_message_integration import MonthlyQuizMessageIntegration
 from app.schemas.monthly_quiz import DeliveryMethod
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
+from app.agents.patient.flow_coordinator.constants import DAILY_FOLLOWUP_END_DAY
 
 from .enums import QuizFlowState
 
@@ -49,7 +51,7 @@ class QuizTriggerService:
         self.quiz_session_service = QuizSessionService(db)
         self.flow_repo = FlowStateRepository(db)
         self.patient_repo = PatientRepository(db)
-        self.message_sender = MessageSender(db)
+        self.message_sender = IdempotentMessageSender(db)
         self.message_factory = MessageFactory(db)
 
     async def check_and_trigger_monthly_quizzes(
@@ -71,7 +73,7 @@ class QuizTriggerService:
 
             # Get patients in monthly recurring flow
             monthly_flows = self.flow_repo.get_flows_by_type(
-                flow_type=FlowType.MONTHLY_RECURRING.value, limit=limit
+                flow_type=FlowType.QUIZ_MENSAL.value, limit=limit
             )
 
             results = {
@@ -149,13 +151,19 @@ class QuizTriggerService:
 
             # Calculate days since enrollment
             enrollment_date = patient.enrollment_date or patient.created_at
-            days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
+            if isinstance(enrollment_date, datetime):
+                if enrollment_date.tzinfo is None:
+                    enrollment_date = enrollment_date.replace(tzinfo=SAO_PAULO_TZ)
+                enrollment_local_date = enrollment_date.astimezone(SAO_PAULO_TZ).date()
+            else:
+                enrollment_local_date = enrollment_date
+            days_since_enrollment = (now_sao_paulo().date() - enrollment_local_date).days
 
             # Use centralized quiz trigger policy
             from app.domain.quizzes.quiz_trigger_policy import QuizTriggerPolicy
 
             # Get flow type from flow state
-            flow_type = flow_state.flow_type if flow_state else "monthly_recurring"
+            flow_type = flow_state.flow_type if flow_state else "quiz_mensal"
 
             # Calculate monthly cycle using centralized logic
             monthly_cycle, days_in_current_cycle = QuizTriggerPolicy.calculate_monthly_cycle(
@@ -163,7 +171,7 @@ class QuizTriggerService:
             )
 
             # Check if patient is in monthly phase and it's quiz day
-            if days_since_enrollment < 45:
+            if days_since_enrollment < DAILY_FOLLOWUP_END_DAY:
                 return False, {"reason": "Patient not yet in monthly phase"}
 
             # Check using centralized policy
@@ -175,9 +183,10 @@ class QuizTriggerService:
                 }
 
             # Check if quiz already completed this month
+            quiz_template_name = get_monthly_quiz_config().MONTHLY_QUIZ_DEFAULT_TEMPLATE
             quiz_info = {
                 "monthly_cycle": monthly_cycle,
-                "template_name": f"monthly_checkup_cycle_{monthly_cycle}",
+                "template_name": quiz_template_name,
                 "trigger_reason": f"Monthly quiz day {QuizTriggerPolicy.MONTHLY_QUIZ_DAY} of cycle {monthly_cycle}",
             }
 
@@ -242,6 +251,12 @@ class QuizTriggerService:
             logger.error(f"Error getting current month quiz session: {e}")
             return None
 
+    async def get_current_month_quiz_session(
+        self, patient_id: UUID, monthly_cycle: int
+    ) -> Optional[QuizSessionResponse]:
+        """Public wrapper for retrieving current-cycle quiz session."""
+        return await self._get_current_month_quiz_session(patient_id, monthly_cycle)
+
     async def _trigger_patient_quiz(
         self, flow_state: PatientFlowState, quiz_info: dict[str, Any]
     ) -> dict[str, Any]:
@@ -264,6 +279,64 @@ class QuizTriggerService:
 
             # Get or create monthly quiz template
             template = await self._get_or_create_monthly_template(quiz_info)
+
+            if template is None:
+                logger.warning(
+                    "Quiz template not found for patient %s, flow_type=%s, cycle=%s. "
+                    "Sending message without quiz link.",
+                    patient_id,
+                    flow_state.flow_type,
+                    quiz_info.get("monthly_cycle"),
+                    extra={
+                        "patient_id": str(patient_id),
+                        "flow_context": quiz_info,
+                        "fallback_reason": "quiz_template_missing",
+                    },
+                )
+
+                quiz_integration = MonthlyQuizMessageIntegration(self.db)
+                fallback_delivery = await quiz_integration.send_template_missing_message(
+                    patient_id=patient_id,
+                    fallback_reason="template_not_found",
+                    flow_context={
+                        "flow_type": flow_state.flow_type,
+                        "monthly_cycle": quiz_info.get("monthly_cycle"),
+                        "trigger_reason": quiz_info.get("trigger_reason"),
+                    },
+                )
+
+                flow_state.state_data = flow_state.state_data or {}
+                flow_state.state_data["quiz_template_missing_fallback"] = True
+                flow_state.state_data["quiz_fallback_at"] = now_sao_paulo().isoformat()
+                flow_state.state_data["quiz_state"] = "skipped_no_template"
+                flow_state.state_data["quiz_fallback_reason"] = "template_not_found"
+                flow_state.state_data["quiz_fallback_message_sent"] = fallback_delivery.get(
+                    "message_sent", False
+                )
+                flow_state.state_data["quiz_fallback_delivery_attempted"] = (
+                    fallback_delivery.get("delivery_attempted", False)
+                )
+                flow_state.state_data["quiz_link_available"] = False
+                self.db.commit()
+
+                return {
+                    "success": True,
+                    "patient_id": str(patient_id),
+                    "fallback_applied": True,
+                    "fallback_reason": "quiz_template_missing",
+                    "continue_flow": True,
+                    "quiz_state": "skipped_no_template",
+                    "delivery_attempted": fallback_delivery.get(
+                        "delivery_attempted", False
+                    ),
+                    "message_sent": fallback_delivery.get("message_sent", False),
+                    "delivery_error": fallback_delivery.get("error"),
+                    "quiz_session_id": None,
+                    "link_url": None,
+                    "token": None,
+                    "expires_at": None,
+                    "message": "Quiz template missing; fallback message sent without quiz link.",
+                }
 
             # Determine if patient should receive link-based quiz
             use_link = should_use_link_based_quiz(str(patient_id))
@@ -294,23 +367,30 @@ class QuizTriggerService:
             logger.error(f"Error triggering patient quiz: {e}")
             return {"success": False, "error": str(e)}
 
+    async def trigger_patient_quiz(
+        self, flow_state: PatientFlowState, quiz_info: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Public wrapper to trigger quiz for a patient flow state."""
+        return await self._trigger_patient_quiz(flow_state, quiz_info)
+
     async def _get_or_create_monthly_template(
         self, quiz_info: dict[str, Any]
-    ) -> QuizTemplate:
+    ) -> Optional[QuizTemplate]:
         """Get or create monthly quiz template."""
         try:
-            template_name = quiz_info["template_name"]
+            template_name = quiz_info.get("template_name") or get_monthly_quiz_config().MONTHLY_QUIZ_DEFAULT_TEMPLATE
+            preferred_name = get_monthly_quiz_config().MONTHLY_QUIZ_DEFAULT_TEMPLATE
 
-            # Try to get existing template
-            try:
-                template_response = self.quiz_template_service.get_template_by_name(
-                    template_name
-                )
-                return self.quiz_template_service.template_repository.get(
-                    template_response.id
-                )
-            except NotFoundError:
-                pass
+            # Prefer configured template name (single monthly template)
+            template = self.quiz_template_service.get_template_by_name(preferred_name)
+            if template:
+                return template
+
+            # Fall back to requested name (if different) before creating a new template
+            if template_name and template_name != preferred_name:
+                template = self.quiz_template_service.get_template_by_name(template_name)
+                if template:
+                    return template
 
             # Create new monthly template
             questions = [
@@ -379,19 +459,27 @@ class QuizTriggerService:
             ]
 
             template_data = QuizTemplateCreate(
-                name=template_name, version="1.0", questions=questions, is_active=True
+                name=preferred_name or template_name,
+                version="1.0",
+                questions=questions,
+                is_active=True,
             )
 
-            template_response = self.quiz_template_service.create_template(
-                template_data
-            )
-            return self.quiz_template_service.template_repository.get(
+            template_response = self.quiz_template_service.create_template(template_data)
+            created_template = self.quiz_template_service.repository.get(
                 template_response.id
             )
+            if not created_template:
+                logger.warning(
+                    "Failed to resolve created quiz template for name %s", preferred_name
+                )
+                return None
+
+            return created_template
 
         except Exception as e:
             logger.error(f"Error getting/creating monthly template: {e}")
-            raise
+            return None
 
     async def _send_quiz_introduction_message(
         self, patient_id: UUID, session: Any, template: QuizTemplate
@@ -472,17 +560,32 @@ class QuizTriggerService:
                 send_immediately=True,
             )
 
+            session_id = result.get("quiz_session_id")
+            if session_id:
+                from app.models.quiz import QuizSession
+
+                session = (
+                    self.db.query(QuizSession)
+                    .filter(QuizSession.id == UUID(session_id))
+                    .first()
+                )
+                if session:
+                    metadata = session.session_metadata or {}
+                    metadata["monthly_cycle"] = quiz_info.get("monthly_cycle")
+                    session.session_metadata = metadata
+                    self.db.commit()
+
             # Update flow state with link metadata
             flow_state.state_data = flow_state.state_data or {}
             flow_state.state_data["quiz_session_id"] = result["quiz_session_id"]
             flow_state.state_data["quiz_state"] = QuizFlowState.AWAITING_RESPONSE.value
-            flow_state.state_data["quiz_started_at"] = datetime.now(timezone.utc).isoformat()
+            flow_state.state_data["quiz_started_at"] = now_sao_paulo().isoformat()
             flow_state.state_data["quiz_delivery_method"] = "link"
             flow_state.state_data["quiz_link_token"] = result["token"]
             flow_state.state_data["quiz_link_expires_at"] = result["expires_at"]
             flow_state.state_data["monthly_cycle"] = quiz_info["monthly_cycle"]
             flow_state.state_data["quiz_link_created_at"] = (
-                datetime.now(timezone.utc).isoformat()
+                now_sao_paulo().isoformat()
             )
             flow_state.state_data["quiz_link_access_count"] = 0
 
@@ -549,14 +652,14 @@ class QuizTriggerService:
                 patient_id=patient_id, quiz_template_id=template.id
             )
 
-            session = await self.quiz_session_service.start_quiz_session(session_data)
+            session = self.quiz_session_service.start_quiz_session(session_data)
 
             # FIX: Session metadata was created but NEVER assigned to session
             # Bug: Dict was created on line 538-544 but not stored in session.session_metadata
             session_metadata = {
                 "monthly_cycle": quiz_info["monthly_cycle"],
                 "triggered_by": "flow_system",
-                "trigger_date": datetime.now(timezone.utc).isoformat(),
+                "trigger_date": now_sao_paulo().isoformat(),
                 "flow_state_id": str(flow_state.id),
                 "delivery_method": "whatsapp_conversational",
             }
@@ -568,7 +671,7 @@ class QuizTriggerService:
             flow_state.state_data = flow_state.state_data or {}
             flow_state.state_data["quiz_session_id"] = str(session.id)
             flow_state.state_data["quiz_state"] = QuizFlowState.IN_PROGRESS.value
-            flow_state.state_data["quiz_started_at"] = datetime.now(timezone.utc).isoformat()
+            flow_state.state_data["quiz_started_at"] = now_sao_paulo().isoformat()
             flow_state.state_data["quiz_delivery_method"] = "whatsapp_conversational"
             flow_state.state_data["monthly_cycle"] = quiz_info["monthly_cycle"]
 
@@ -605,7 +708,7 @@ class QuizTriggerService:
             expires_at: Link expiration datetime
         """
         try:
-            from app.tasks.quiz_flow import send_quiz_link_reminder_task
+            from app.tasks.quiz_flow.trigger_tasks import send_quiz_link_reminder_task
 
             get_monthly_quiz_config()
 
@@ -617,7 +720,7 @@ class QuizTriggerService:
             reminder_2_time = expires_at - timedelta(hours=6)
 
             # Schedule reminders using Celery
-            if reminder_1_time > datetime.now(timezone.utc):
+            if reminder_1_time > now_sao_paulo():
                 task_1 = send_quiz_link_reminder_task.apply_async(
                     args=[str(quiz_session_id), 24], eta=reminder_1_time
                 )
@@ -625,7 +728,7 @@ class QuizTriggerService:
                     f"Scheduled first reminder for quiz {quiz_session_id} at {reminder_1_time} (task: {task_1.id})"
                 )
 
-            if reminder_2_time > datetime.now(timezone.utc):
+            if reminder_2_time > now_sao_paulo():
                 task_2 = send_quiz_link_reminder_task.apply_async(
                     args=[str(quiz_session_id), 6], eta=reminder_2_time
                 )
@@ -639,12 +742,12 @@ class QuizTriggerService:
                 session_metadata = session.session_metadata or {}
                 session_metadata["reminders_scheduled"] = {
                     "first_reminder": reminder_1_time.isoformat()
-                    if reminder_1_time > datetime.now(timezone.utc)
+                    if reminder_1_time > now_sao_paulo()
                     else None,
                     "second_reminder": reminder_2_time.isoformat()
-                    if reminder_2_time > datetime.now(timezone.utc)
+                    if reminder_2_time > now_sao_paulo()
                     else None,
-                    "scheduled_at": datetime.now(timezone.utc).isoformat(),
+                    "scheduled_at": now_sao_paulo().isoformat(),
                 }
                 session.session_metadata = session_metadata
                 self.db.commit()
@@ -725,7 +828,7 @@ class QuizTriggerService:
                 flow_state.state_data["quiz_fallback_triggered"] = True
                 flow_state.state_data["quiz_fallback_reason"] = error_reason
                 flow_state.state_data["quiz_fallback_at"] = (
-                    datetime.now(timezone.utc).isoformat()
+                    now_sao_paulo().isoformat()
                 )
                 self.db.commit()
 

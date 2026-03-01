@@ -19,6 +19,7 @@ from app.schemas.v2.upload import (
     UploadOptionsRequest,
 )
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -70,7 +71,7 @@ async def process_image(
     Returns:
         ProcessingInfo with results
     """
-    start_time = datetime.now(timezone.utc)
+    start_time = now_sao_paulo()
     processing_info = ProcessingInfo(
         status=ProcessingStatus.PROCESSING,
         virus_scan_clean=None,
@@ -137,7 +138,7 @@ async def process_image(
         processing_info.status = ProcessingStatus.FAILED
 
     # Calculate processing time
-    end_time = datetime.now(timezone.utc)
+    end_time = now_sao_paulo()
     processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
     processing_info.processing_time_ms = processing_time_ms
 

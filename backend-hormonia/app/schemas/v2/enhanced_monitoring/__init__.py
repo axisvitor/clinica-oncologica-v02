@@ -12,7 +12,7 @@ This package provides modular schemas for:
 - Dashboard and exports
 """
 
-# Re-export all schemas for backward compatibility
+# Re-export consolidated schemas from package submodules
 
 # Base enums
 from .base import (

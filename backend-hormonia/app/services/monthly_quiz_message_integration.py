@@ -8,6 +8,7 @@ Updated to use UnifiedWhatsAppService for improved reliability and performance.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, timezone
@@ -15,11 +16,15 @@ from datetime import datetime, timezone
 
 from app.domain.messaging.core import MessageFactory, MessageTemplate
 from app.services.quiz.quiz_service import MonthlyQuizService
-from app.domain.messaging.delivery import MessageSender  # For backward compatibility
-from app.services.unified_whatsapp_service import UnifiedWhatsAppService, MessagingMode
+from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.schemas.monthly_quiz import MonthlyQuizLinkCreate, DeliveryMethod
 from app.models.patient import Patient
 from app.exceptions import NotFoundError
+from app.repositories.quiz import QuizTemplateRepository
+from app.utils.timezone import now_sao_paulo
+
+
+logger = logging.getLogger(__name__)
 
 
 class MonthlyQuizMessageIntegration:
@@ -28,20 +33,106 @@ class MonthlyQuizMessageIntegration:
     Coordinates MonthlyQuizService with MessageFactory using UnifiedWhatsAppService.
     """
 
-    def __init__(self, db: Any, use_unified_service: bool = True):
+    def __init__(self, db: Any):
         self.db = db
         self.monthly_quiz_service = MonthlyQuizService(db)
         self.message_factory = MessageFactory(db)
+        self.message_sender = UnifiedWhatsAppService(db=db)
 
-        # Use unified service by default for better reliability
-        if use_unified_service:
-            self.message_sender = UnifiedWhatsAppService(
-                db=db,
-                messaging_mode=MessagingMode.HYBRID,  # Hybrid mode for quiz messages
-            )
-        else:
-            # Fallback to legacy MessageSender for backward compatibility
-            self.message_sender = MessageSender(db)
+    async def send_template_missing_message(
+        self,
+        patient_id: UUID,
+        delivery_method: DeliveryMethod = DeliveryMethod.WHATSAPP,
+        custom_message: Optional[str] = None,
+        fallback_reason: str = "template_not_found",
+        flow_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Send a no-link fallback message when quiz template is unavailable."""
+        patient = self.db.query(Patient).filter(Patient.id == patient_id).first()
+        if not patient:
+            raise NotFoundError(f"Patient with ID {patient_id} not found")
+
+        if delivery_method is not DeliveryMethod.WHATSAPP:
+            return {
+                "delivery_attempted": False,
+                "message_sent": False,
+                "error": f"Delivery method {delivery_method.value} not supported",
+            }
+
+        message_text = custom_message or (
+            "Ola! Seu quiz mensal esta sendo preparado e enviaremos o link em breve. "
+            "Por enquanto, siga cuidando da sua saude e, se precisar, fale com nossa equipe."
+        )
+
+        metadata = {
+            "delivery_method": delivery_method.value,
+            "message_type": "monthly_quiz_template_missing_fallback",
+            "fallback_reason": fallback_reason,
+            "quiz_link_available": False,
+            "template_not_found": True,
+        }
+        if flow_context:
+            metadata["flow_context"] = flow_context
+
+        message = self.message_factory.create_outbound_message(
+            patient_id=patient_id,
+            content=message_text,
+            metadata=metadata,
+        )
+
+        max_retries = 3
+        retry_delay = 2
+        send_result = False
+
+        for attempt in range(max_retries):
+            try:
+                send_result = bool(
+                    await self.message_sender.send_message(
+                        message,
+                        flow_context={
+                            "message_type": "quiz_template_missing_fallback",
+                            "fallback_reason": fallback_reason,
+                        },
+                    )
+                )
+                if send_result:
+                    break
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay * (attempt + 1))
+            except Exception as exc:
+                if attempt == max_retries - 1:
+                    logger.error(
+                        "Failed to send no-link fallback message after %s attempts: %s",
+                        max_retries,
+                        exc,
+                        exc_info=True,
+                        extra={
+                            "patient_id": str(patient_id),
+                            "delivery_method": delivery_method.value,
+                            "fallback_reason": fallback_reason,
+                        },
+                    )
+                    return {
+                        "delivery_attempted": True,
+                        "message_sent": False,
+                        "message_id": str(message.id),
+                        "error": str(exc),
+                    }
+
+                logger.warning(
+                    "No-link fallback send attempt %s/%s failed: %s",
+                    attempt + 1,
+                    max_retries,
+                    exc,
+                )
+                await asyncio.sleep(retry_delay * (attempt + 1))
+
+        return {
+            "delivery_attempted": True,
+            "message_sent": send_result,
+            "message_id": str(message.id),
+            "error": None if send_result else "fallback_delivery_failed",
+        }
 
     async def send_quiz_link(
         self,
@@ -70,6 +161,37 @@ class MonthlyQuizMessageIntegration:
         patient = self.db.query(Patient).filter(Patient.id == patient_id).first()
         if not patient:
             raise NotFoundError(f"Patient with ID {patient_id} not found")
+
+        template_repo = QuizTemplateRepository(self.db)
+        template = template_repo.get(quiz_template_id)
+        if not template:
+            logger.warning(
+                "Quiz template %s not found for patient %s. Sending no-link fallback message.",
+                quiz_template_id,
+                patient_id,
+            )
+
+            fallback_delivery = await self.send_template_missing_message(
+                patient_id=patient_id,
+                delivery_method=delivery_method,
+                custom_message=custom_message,
+                fallback_reason="template_not_found",
+            )
+
+            return {
+                "quiz_session_id": None,
+                "token": None,
+                "link_url": None,
+                "expires_at": None,
+                "message_id": fallback_delivery.get("message_id"),
+                "message_sent": fallback_delivery.get("message_sent", False),
+                "delivery_attempted": fallback_delivery.get("delivery_attempted", False),
+                "delivery_error": fallback_delivery.get("error"),
+                "fallback_reason": "template_not_found",
+                "fallback_applied": True,
+                "quiz_link_available": False,
+                "continue_flow": True,
+            }
 
         # Create quiz link
         link_data = MonthlyQuizLinkCreate(
@@ -110,14 +232,10 @@ class MonthlyQuizMessageIntegration:
 
             for attempt in range(max_retries):
                 try:
-                    if hasattr(self.message_sender, "send_flow_message"):
-                        # Use flow message method if available (UnifiedWhatsAppService or MessageSender)
-                        send_result = await self.message_sender.send_flow_message(
-                            message, quiz_context
-                        )
-                    else:
-                        # Fallback to regular send_message
-                        send_result = await self.message_sender.send_message(message)
+                    send_result = await self.message_sender.send_message(
+                        message,
+                        flow_context=quiz_context,
+                    )
 
                     if send_result:
                         break
@@ -127,14 +245,10 @@ class MonthlyQuizMessageIntegration:
                         await asyncio.sleep(retry_delay * (attempt + 1))
 
                 except Exception as e:
-                    # FIX: Replace print() with proper logger for production visibility
-                    import logging
-                    _logger = logging.getLogger(__name__)
-
                     if attempt == max_retries - 1:
                         # Log error on final attempt but don't crash the whole flow,
                         # just return the result as is (likely None or False)
-                        _logger.error(
+                        logger.error(
                             f"Failed to send quiz link after {max_retries} attempts: {e}",
                             exc_info=True,
                             extra={
@@ -144,7 +258,7 @@ class MonthlyQuizMessageIntegration:
                             }
                         )
                     else:
-                        _logger.warning(
+                        logger.warning(
                             f"Quiz link send attempt {attempt + 1}/{max_retries} failed: {e}, retrying..."
                         )
                         await asyncio.sleep(retry_delay * (attempt + 1))
@@ -239,7 +353,7 @@ class MonthlyQuizMessageIntegration:
 
         # Calculate hours remaining
         hours_remaining = int(
-            (quiz_link.expires_at - datetime.now(timezone.utc)).total_seconds() / 3600
+            (quiz_link.expires_at - now_sao_paulo()).total_seconds() / 3600
         )
 
         if hours_remaining > hours_before_expiry:
@@ -261,7 +375,7 @@ class MonthlyQuizMessageIntegration:
             link_url = link_data.link_url
             # Recalculate hours remaining with new expiry time
             hours_remaining = int(
-                (link_data.expires_at - datetime.now(timezone.utc)).total_seconds() / 3600
+                (link_data.expires_at - now_sao_paulo()).total_seconds() / 3600
             )
         except Exception as e:
             # If regeneration fails, return error

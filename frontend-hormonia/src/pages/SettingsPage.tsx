@@ -49,7 +49,7 @@ export function SettingsPage() {
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={handleSaveAll}>
-          <Save className="mr-2 h-4 w-4" />
+          <Save className="mr-2 h-4 w-4" aria-hidden="true" />
           Salvar Tudo
         </Button>
       </div>

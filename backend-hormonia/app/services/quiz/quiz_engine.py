@@ -18,7 +18,9 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 # Third-party imports
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
 
 # Local application imports
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
@@ -289,11 +291,39 @@ class QuizReportGenerator:
             return {}
 
         score_data = self.scorer.calculate_session_score(session, session.template)
+        template = getattr(session, "quiz_template", None) or getattr(session, "template", None)
 
         return {
             "session_id": str(session_id),
             "patient_id": str(session.patient_id),
-            "template_name": session.template.name,
+            "template_name": template.name if template else None,
+            "score_data": score_data,
+            "completed_at": session.completed_at.isoformat()
+            if session.completed_at
+            else None,
+            "status": session.status,
+        }
+
+    async def generate_session_report_async(self, session_id: UUID) -> Dict[str, Any]:
+        """Generate report with AsyncSession-safe DB access."""
+        stmt = (
+            select(QuizSession)
+            .where(QuizSession.id == session_id)
+            .options(
+                joinedload(QuizSession.quiz_template),
+                selectinload(QuizSession.responses),
+            )
+        )
+        session = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not session:
+            return {}
+
+        template = getattr(session, "quiz_template", None) or getattr(session, "template", None)
+        score_data = self.scorer.calculate_session_score(session, template)
+        return {
+            "session_id": str(session_id),
+            "patient_id": str(session.patient_id),
+            "template_name": template.name if template else None,
             "score_data": score_data,
             "completed_at": session.completed_at.isoformat()
             if session.completed_at

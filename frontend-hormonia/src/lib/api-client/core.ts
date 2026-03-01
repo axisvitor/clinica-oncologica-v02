@@ -188,11 +188,12 @@ export class ApiClientCore {
    * Set authentication token
    */
   setAuthToken(token: string | null): void {
-    logger.debug("[ApiClient] Setting auth token:", {
-      hasToken: !!token,
-      tokenLength: token?.length,
-    });
     this.authToken = token;
+    if (token !== null) {
+      logger.log("Auth token configured (Authorization + X-Session-ID headers)");
+    } else {
+      logger.log("Auth token cleared");
+    }
   }
 
   /**
@@ -209,6 +210,18 @@ export class ApiClientCore {
    */
   getAuthToken(): string | null {
     return this.authToken;
+  }
+
+  /**
+   * Build auth headers for direct fetch calls
+   */
+  getSessionHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (this.authToken) {
+      headers["Authorization"] = `Bearer ${this.authToken}`;
+      headers["X-Session-ID"] = this.authToken;
+    }
+    return headers;
   }
 
   /**
@@ -256,7 +269,7 @@ export class ApiClientCore {
       } catch (error) {
         // Log but don't throw - CSRF failure should not block app initialization
         if (error instanceof Error && error.name === 'AbortError') {
-          logger.warn("[ApiClient] CSRF token fetch timed out (5s)");
+          logger.warn("[ApiClient] CSRF token fetch timed out (30s)");
         } else {
           logger.warn("[ApiClient] Error fetching CSRF token (non-critical):", error);
         }
@@ -309,6 +322,32 @@ export class ApiClientCore {
   }
 
   /**
+   * Detect CSRF validation errors in API responses
+   */
+  private isCsrfError(data: unknown): boolean {
+    if (!data || typeof data !== "object") {
+      return false;
+    }
+
+    const record = data as Record<string, unknown>;
+    const errorValue = record["error"];
+    const errorCode = typeof errorValue === "string" ? errorValue : undefined;
+    const errorMessage =
+      typeof errorValue === "object" && errorValue !== null && "message" in errorValue
+        ? String((errorValue as { message?: unknown }).message || "")
+        : undefined;
+    const detail = typeof record["detail"] === "string" ? record["detail"] : undefined;
+    const message = typeof record["message"] === "string" ? record["message"] : undefined;
+
+    const combined = [errorCode, errorMessage, detail, message]
+      .filter((value): value is string => typeof value === "string" && value.length > 0)
+      .join(" ")
+      .toLowerCase();
+
+    return combined.includes("csrf");
+  }
+
+  /**
    * Check if error should be retried
    */
   private shouldRetry(error: unknown, attempt: number): boolean {
@@ -349,13 +388,15 @@ export class ApiClientCore {
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      ...((fetchOptions.headers as Record<string, string>) || {}),
     };
 
     // Add auth token
-    if (this.authToken) {
+    if (this.authToken !== null) {
       headers["Authorization"] = `Bearer ${this.authToken}`;
+      headers["X-Session-ID"] = this.authToken;
     }
+
+    Object.assign(headers, (fetchOptions.headers as Record<string, string>) || {});
 
     // Add CSRF token for state-changing methods
     const method = (fetchOptions.method || "GET").toUpperCase();
@@ -387,6 +428,12 @@ export class ApiClientCore {
         const errorData = await response.json().catch(() => ({
           detail: response.statusText,
         }));
+
+        if (response.status === 403 && this.isCsrfError(errorData) && retries < 1) {
+          logger.warn("[ApiClient] CSRF validation failed, refreshing token and retrying request...");
+          await this.fetchCsrfToken();
+          return this.request(endpoint, { ...options, retries: retries + 1 });
+        }
 
         const error = new ApiError(
           response.status,

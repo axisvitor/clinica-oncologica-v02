@@ -10,6 +10,15 @@ from typing import Dict, Any
 IS_RAILWAY = os.getenv('RAILWAY_ENVIRONMENT') is not None
 IS_PRODUCTION = os.getenv('ENVIRONMENT') == 'production'
 
+
+def _is_truthy(value: str | None) -> bool:
+    """Parse common truthy environment values."""
+    return bool(value and value.strip().lower() in {"1", "true", "yes", "on"})
+
+
+# Prefer canonical REDIS_ENABLE_SSL, fallback to legacy REDIS_SSL for compatibility.
+REDIS_SSL_ENABLED = _is_truthy(os.getenv('REDIS_ENABLE_SSL')) or _is_truthy(os.getenv('REDIS_SSL'))
+
 # Production database configuration
 DATABASE_CONFIG = {
     'pool_size': 20,
@@ -31,7 +40,7 @@ DATABASE_CONFIG = {
 
 # Redis configuration for production
 REDIS_CONFIG = {
-    'socket_timeout': 5,
+    'socket_timeout': 10,
     'socket_connect_timeout': 5,
     'socket_keepalive': True,
     'socket_keepalive_options': {},
@@ -39,7 +48,7 @@ REDIS_CONFIG = {
     'retry_on_timeout': True,
     'health_check_interval': 30,
     'decode_responses': True,
-    'ssl_cert_reqs': 'none' if os.getenv('REDIS_SSL') != 'true' else 'required'
+    'ssl_cert_reqs': 'required' if REDIS_SSL_ENABLED else 'none'
 }
 
 # Gunicorn configuration
@@ -127,7 +136,7 @@ CELERY_CONFIG = {
     'task_serializer': 'json',
     'result_serializer': 'json',
     'accept_content': ['json'],
-    'timezone': 'UTC',
+    'timezone': 'America/Sao_Paulo',
     'enable_utc': True,
     'task_track_started': True,
     'task_time_limit': 30 * 60,  # 30 minutes

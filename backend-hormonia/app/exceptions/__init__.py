@@ -15,6 +15,8 @@ Design:
 from fastapi import HTTPException, status
 from typing import Any, Dict, Optional
 
+from app.core.exceptions import ExternalServiceError as CoreExternalServiceError
+
 
 # -------------------------
 # Base exception hierarchy
@@ -82,10 +84,8 @@ class ConflictError(HormoniaException):
     pass
 
 
-class ExternalServiceError(HormoniaException):
-    """Raised when external service integration fails."""
-
-    pass
+# Canonical implementation lives in app.core.exceptions.
+ExternalServiceError = CoreExternalServiceError
 
 
 class DatabaseError(HormoniaException):

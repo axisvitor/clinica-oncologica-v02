@@ -10,10 +10,11 @@ import logging
 from typing import Optional
 from datetime import datetime, timezone
 from uuid import UUID
-from weakref import WeakValueDictionary
 
 from ..models import ConversationContext
+from app.services.ai import ConcernLevel
 from app.services.response_processor import StructuredResponse
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,8 @@ class ContextManager:
     """Manages conversation context for patient continuity."""
 
     # Class-level lock registry to prevent concurrent updates per patient
-    # Using WeakValueDictionary to auto-cleanup unused locks
-    _patient_locks: WeakValueDictionary = WeakValueDictionary()
+    # Use a strong-reference dict to avoid WeakValueDictionary evicting active locks.
+    _patient_locks: dict[str, asyncio.Lock] = {}
     _locks_lock: asyncio.Lock = asyncio.Lock()
 
     def __init__(self, redis_store, in_memory_contexts: dict):
@@ -85,6 +86,8 @@ class ContextManager:
                         ),
                         "concern_level": structured_response.concern_level.value,
                         "medical_concerns": structured_response.medical_concerns,
+                        "severity_score": structured_response.severity_score,
+                        "requires_attention": structured_response.requires_attention,
                     }
                 )
 
@@ -96,8 +99,15 @@ class ContextManager:
                     "sentiment"
                 )
 
-                # Update current topic based on response category
-                context.current_topic = structured_response.response_category.value
+                # Update current topic based on response category or flow context
+                response_category = getattr(structured_response, "response_category", None)
+                if response_category and hasattr(response_category, "value"):
+                    context.current_topic = response_category.value
+                else:
+                    flow_context = structured_response.extracted_data.get("flow_context", {})
+                    question_context = flow_context.get("question_context")
+                    if question_context:
+                        context.current_topic = question_context
 
                 # Update medical context
                 if structured_response.medical_concerns:
@@ -107,17 +117,44 @@ class ContextManager:
                     context.medical_context["last_concern_time"] = (
                         structured_response.timestamp.isoformat()
                     )
+                context.medical_context["last_concern_level"] = (
+                    structured_response.concern_level.value
+                )
+                context.medical_context["severity_score"] = structured_response.severity_score
+                context.medical_context["requires_attention"] = (
+                    structured_response.requires_attention
+                )
+                flags = context.medical_context.get("flags", {})
+                flags["high_risk"] = structured_response.concern_level in [
+                    ConcernLevel.HIGH,
+                    ConcernLevel.CRITICAL,
+                ]
+                flags["needs_attention"] = structured_response.requires_attention
+                context.medical_context["flags"] = flags
+
+                flow_context = structured_response.extracted_data.get("flow_context", {})
+                if flow_context.get("current_flow_day") is not None:
+                    context.medical_context["current_flow_day"] = flow_context.get(
+                        "current_flow_day"
+                    )
+                if flow_context.get("current_step") is not None:
+                    context.medical_context["current_step"] = flow_context.get(
+                        "current_step"
+                    )
+                if flow_context.get("flow_type") is not None:
+                    context.medical_context["flow_type"] = flow_context.get("flow_type")
 
                 # Update preferences from extracted data
-                if structured_response.patient_preferences:
-                    for pref in structured_response.patient_preferences:
+                patient_preferences = getattr(structured_response, "patient_preferences", None)
+                if patient_preferences:
+                    for pref in patient_preferences:
                         context.preferences[pref.preference_type] = {
                             "value": pref.value,
                             "confidence": pref.confidence,
                             "updated_at": pref.extracted_at.isoformat(),
                         }
 
-                context.last_updated = datetime.now(timezone.utc)
+                context.last_updated = now_sao_paulo()
 
                 # Store in Redis (with fallback to in-memory)
                 await self._store_context(context)
@@ -217,7 +254,7 @@ class ContextManager:
 
                 # Add to conversation history
                 history_entry = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": now_sao_paulo().isoformat(),
                     "message_id": str(message_id),
                     "content": content[:500],  # Limit to 500 chars
                     "direction": direction,
@@ -237,7 +274,7 @@ class ContextManager:
                 if intent:
                     context.current_topic = intent
 
-                context.last_updated = datetime.now(timezone.utc)
+                context.last_updated = now_sao_paulo()
 
                 # Store in Redis (with fallback to in-memory)
                 await self._store_context(context)

@@ -7,10 +7,10 @@
 | **id** | `UUID` | ❌ | `gen_random_uuid()` | 🔑 |  |
 | **patient_id** | `UUID` | ❌ | - |  | ➡️ [patients]( patients.md ).id |
 | **type** | `VARCHAR(100)` | ❌ | - |  |  |
-| **severity** | `VARCHAR(8)` | ❌ | - |  |  |
+| **severity** | `ENUM(alertseverity)` | ❌ | - |  |  |
 | **message** | `TEXT` | ❌ | - |  |  |
-| **data** | `JSONB` | ✅ | `'{}'::jsonb` |  |  |
-| **acknowledged** | `BOOLEAN` | ❌ | `false` |  |  |
+| **data** | `JSONB` | ✅ | - |  |  |
+| **acknowledged** | `BOOLEAN` | ❌ | - |  |  |
 | **acknowledged_by** | `UUID` | ✅ | - |  | ➡️ [users]( users.md ).id |
 | **acknowledged_at** | `TIMESTAMP` | ✅ | - |  |  |
 | **created_at** | `TIMESTAMP` | ❌ | `now()` |  |  |
@@ -20,11 +20,6 @@
 
 | Name | Unique | Columns |
 | :--- | :--- | :--- |
-| idx_alerts_acknowledged | ❌ | `acknowledged` |
-| idx_alerts_acknowledged_by | ❌ | `acknowledged_by` |
-| idx_alerts_patient_acknowledged | ❌ | `patient_id, acknowledged` |
-| idx_alerts_patient_created | ❌ | `patient_id, created_at` |
-| idx_alerts_patient_id | ❌ | `patient_id` |
-| idx_alerts_severity | ❌ | `severity` |
-| idx_alerts_type | ❌ | `type` |
-| ix_alerts_cursor_pagination | ❌ | `created_at, id` |
+| ix_alerts_acknowledged_by | ❌ | `acknowledged_by` |
+| ix_alerts_id | ❌ | `id` |
+| ix_alerts_patient_id | ❌ | `patient_id` |

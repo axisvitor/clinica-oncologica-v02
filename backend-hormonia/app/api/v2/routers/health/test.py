@@ -10,10 +10,9 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.dependencies.auth_dependencies import get_admin_user
+from app.core.database.async_engine import get_async_db
 from app.models.user import User
 from app.schemas.v2.health import (
     HealthTestRequest,
@@ -23,6 +22,8 @@ from app.schemas.v2.health import (
 from .database_health import check_database_health
 from .service_health import check_redis_health, check_worker_health
 from .storage_external import check_storage_health
+from .compat import call_health_attr, get_admin_user_compat
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -32,8 +33,8 @@ router = APIRouter()
 @router.post("/test", response_model=HealthTestResponse)
 async def manual_health_test(
     request_data: HealthTestRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_admin_user_compat),
 ) -> HealthTestResponse:
     """
     Manual health test trigger (Admin only).
@@ -55,16 +56,24 @@ async def manual_health_test(
 
     # Run requested tests
     if "database" in components_to_test:
-        results["database"] = (await check_database_health(db)).model_dump()
+        results["database"] = (
+            await call_health_attr("check_database_health", check_database_health, db)
+        ).model_dump()
 
     if "redis" in components_to_test:
-        results["redis"] = (await check_redis_health()).model_dump()
+        results["redis"] = (
+            await call_health_attr("check_redis_health", check_redis_health)
+        ).model_dump()
 
     if "workers" in components_to_test:
-        results["workers"] = (await check_worker_health(db)).model_dump()
+        results["workers"] = (
+            await call_health_attr("check_worker_health", check_worker_health, db)
+        ).model_dump()
 
     if "storage" in components_to_test:
-        results["storage"] = (await check_storage_health()).model_dump()
+        results["storage"] = (
+            await call_health_attr("check_storage_health", check_storage_health)
+        ).model_dump()
 
     # Determine overall test status
     all_healthy = all(result.get("status") == "healthy" for result in results.values())
@@ -74,7 +83,7 @@ async def manual_health_test(
 
     return HealthTestResponse(
         test_id=test_id,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=now_sao_paulo(),
         status=test_status,
         components_tested=components_to_test,
         results=results,

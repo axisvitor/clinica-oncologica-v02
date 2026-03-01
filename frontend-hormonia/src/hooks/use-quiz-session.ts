@@ -100,7 +100,7 @@ function saveSessionTokenToCookie(token: string, expiresAt?: string): void {
  */
 function clearSessionTokenFromCookie(): void {
   try {
-    document.cookie = `${SESSION_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`;
+    document.cookie = `${SESSION_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Strict`;
     logger.debug('[useQuizSession] Session token cleared from cookie');
   } catch (error) {
     logger.warn('[useQuizSession] Error clearing session cookie:', error);
@@ -191,6 +191,28 @@ export function useQuizSession(options: UseQuizSessionOptions = {}): UseQuizSess
   const hasInitialized = useRef<boolean>(false);
   const isMounted = useRef<boolean>(true);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const resolveApiError = useCallback((err: unknown): QuizApiError => (
+    err instanceof QuizApiError
+      ? err
+      : new QuizApiError(0, 'Unknown Error', err)
+  ), []);
+
+  const reportMutationError = useCallback((message: string, err: unknown): QuizApiError | null => {
+    if (!isMounted.current) return null;
+
+    logger.error(message, err);
+    const apiError = resolveApiError(err);
+    setError(apiError);
+    onError?.(apiError);
+    return apiError;
+  }, [onError, resolveApiError]);
+
+  const finishSubmitting = useCallback(() => {
+    if (isMounted.current) {
+      setSubmitting(false);
+    }
+  }, []);
 
   /**
    * Fetch session from backend
@@ -332,27 +354,14 @@ export function useQuizSession(options: UseQuizSessionOptions = {}): UseQuizSess
       logger.log('[useQuizSession] Response submitted successfully');
 
     } catch (err) {
-      if (!isMounted.current) return;
-
-      logger.error('[useQuizSession] Error submitting response:', err);
-
-      const apiError = err instanceof QuizApiError
-        ? err
-        : new QuizApiError(0, 'Unknown Error', err);
-
-      setError(apiError);
-
-      if (onError) {
-        onError(apiError);
+      const apiError = reportMutationError('[useQuizSession] Error submitting response:', err);
+      if (apiError) {
+        throw apiError;
       }
-
-      throw apiError;
     } finally {
-      if (isMounted.current) {
-        setSubmitting(false);
-      }
+      finishSubmitting();
     }
-  }, [sessionToken, session, onError]);
+  }, [sessionToken, session, reportMutationError, finishSubmitting]);
 
   /**
    * Complete quiz session
@@ -385,27 +394,14 @@ export function useQuizSession(options: UseQuizSessionOptions = {}): UseQuizSess
       clearSessionTokenFromCookie();
 
     } catch (err) {
-      if (!isMounted.current) return;
-
-      logger.error('[useQuizSession] Error completing session:', err);
-
-      const apiError = err instanceof QuizApiError
-        ? err
-        : new QuizApiError(0, 'Unknown Error', err);
-
-      setError(apiError);
-
-      if (onError) {
-        onError(apiError);
+      const apiError = reportMutationError('[useQuizSession] Error completing session:', err);
+      if (apiError) {
+        throw apiError;
       }
-
-      throw apiError;
     } finally {
-      if (isMounted.current) {
-        setSubmitting(false);
-      }
+      finishSubmitting();
     }
-  }, [sessionToken, session, onError]);
+  }, [sessionToken, session, reportMutationError, finishSubmitting]);
 
   /**
    * Refresh session data

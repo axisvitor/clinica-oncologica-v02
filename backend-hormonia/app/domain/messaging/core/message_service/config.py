@@ -1,5 +1,5 @@
 """
-Message Service Configuration - Enums and Constants (QW-022).
+Message Service Configuration - Canonical Enums and Constants (QW-022).
 
 This module contains configuration classes, enums, and constants
 used throughout the message service package.
@@ -38,7 +38,7 @@ class SchedulingWindow(Enum):
 
 
 class MessageSchedulerConfig:
-    """Configuration constants for MessageScheduler."""
+    """Canonical scheduler constants shared across messaging modules."""
 
     # Scheduling windows (start_time, end_time)
     SCHEDULING_WINDOWS = {
@@ -60,3 +60,9 @@ class MessageSchedulerConfig:
     # Retry configuration
     MAX_TASK_RETRIES = 3
     RETRY_DELAY_SECONDS = 60
+    MAX_DELIVERY_RETRIES = 3
+    RETRY_INITIAL_DELAY_MINUTES = 5
+    RETRY_BACKOFF_BASE = 2
+
+
+__all__ = ["MessageTemplate", "SchedulingWindow", "MessageSchedulerConfig"]

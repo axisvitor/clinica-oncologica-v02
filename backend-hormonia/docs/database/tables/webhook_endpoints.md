@@ -4,10 +4,10 @@
 
 | Name | Type | Nullable | Default | PK | FK |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **id** | `UUID` | ❌ | - | 🔑 |  |
+| **id** | `UUID` | ❌ | `gen_random_uuid()` | 🔑 |  |
 | **url** | `VARCHAR(2048)` | ❌ | - |  |  |
 | **description** | `VARCHAR(500)` | ✅ | - |  |  |
-| **status** | `VARCHAR(20)` | ❌ | - |  |  |
+| **status** | `ENUM(webhook_endpoint_status)` | ❌ | - |  |  |
 | **secret** | `VARCHAR(255)` | ✅ | - |  |  |
 | **events** | `JSONB` | ❌ | - |  |  |
 | **headers** | `JSONB` | ✅ | - |  |  |

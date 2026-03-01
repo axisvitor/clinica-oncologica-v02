@@ -7,6 +7,7 @@ and error categorization for intelligent retry.
 QW-004: Enhanced with atomic retry counter support.
 """
 
+import asyncio
 import logging
 from typing import Optional, Tuple
 
@@ -17,6 +18,7 @@ from redis.asyncio import Redis
 from app.models.failed_message import FailedMessage, DLQStatus
 from .base import ErrorCategory, RetryConfig
 from .atomic_retry import AtomicRetryCounter, AtomicRetryScheduler
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +102,7 @@ class DLQRetryHandler:
             return False
 
         # Check error category
-        error_category = failed_message.metadata.get(
+        error_category = failed_message.dlq_data.get(
             "error_category", ErrorCategory.UNKNOWN.value
         )
 
@@ -148,10 +150,10 @@ class DLQRetryHandler:
 
         # Calculate delay
         delay_seconds = self.get_retry_delay(failed_message.retry_count)
-        next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+        next_retry_at = now_sao_paulo() + timedelta(seconds=delay_seconds)
 
         # Update message metadata
-        failed_message.metadata["next_retry_at"] = next_retry_at.isoformat()
+        failed_message.dlq_data["next_retry_at"] = next_retry_at.isoformat()
         failed_message.status = DLQStatus.RETRY_SCHEDULED
         self.db.commit()
 
@@ -176,30 +178,69 @@ class DLQRetryHandler:
         if failed_message.status != DLQStatus.RETRY_SCHEDULED:
             return False
 
-        next_retry_str = failed_message.metadata.get("next_retry_at")
+        next_retry_str = failed_message.dlq_data.get("next_retry_at")
         if not next_retry_str:
             return False
 
         try:
             next_retry = datetime.fromisoformat(next_retry_str)
-            return datetime.now(timezone.utc) >= next_retry
+            return now_sao_paulo() >= next_retry
         except (ValueError, TypeError) as e:
             logger.error(f"Invalid next_retry_at format: {e}")
             return False
 
     def mark_retry_started(self, failed_message: FailedMessage) -> None:
         """
-        Mark message as being retried (LEGACY - non-atomic).
+        Mark message as being retried (non-atomic path).
 
         Args:
             failed_message: Message being retried
 
-        DEPRECATED: Use mark_retry_started_atomic for distributed safety.
+        Prefer mark_retry_started_atomic for distributed safety.
         """
+        self._mark_retry_started_non_atomic(failed_message)
+
+    def _mark_retry_started_non_atomic(self, failed_message: FailedMessage) -> None:
+        """Legacy non-atomic retry start flow."""
         failed_message.retry_count += 1
         failed_message.status = DLQStatus.RETRYING
-        failed_message.last_retry_at = datetime.now(timezone.utc)
+        failed_message.last_retry_at = now_sao_paulo()
         self.db.commit()
+
+    def start_retry_prefer_atomic(self, failed_message: FailedMessage) -> Tuple[bool, int]:
+        """
+        Start retry preferring the atomic path, with synchronous compatibility.
+
+        Returns:
+            Tuple of (can_retry, retry_count)
+        """
+        if not self._atomic_counter:
+            self._mark_retry_started_non_atomic(failed_message)
+            return True, failed_message.retry_count
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop in this thread: safe to run coroutine synchronously.
+            pass
+        else:
+            logger.warning(
+                "Running event loop detected for %s; using non-atomic retry start fallback",
+                failed_message.message_id,
+            )
+            self._mark_retry_started_non_atomic(failed_message)
+            return True, failed_message.retry_count
+
+        try:
+            return asyncio.run(self.mark_retry_started_atomic(failed_message))
+        except Exception as exc:
+            logger.warning(
+                "Atomic retry start unavailable for %s; falling back to non-atomic path: %s",
+                failed_message.message_id,
+                exc,
+            )
+            self._mark_retry_started_non_atomic(failed_message)
+            return True, failed_message.retry_count
 
     async def mark_retry_started_atomic(
         self, failed_message: FailedMessage
@@ -216,8 +257,8 @@ class DLQRetryHandler:
             Tuple of (can_retry, new_count)
         """
         if not self._atomic_counter:
-            # Fallback to legacy if no Redis
-            self.mark_retry_started(failed_message)
+            # Fallback to non-atomic flow if no Redis
+            self._mark_retry_started_non_atomic(failed_message)
             return True, failed_message.retry_count
 
         # Atomic increment
@@ -235,7 +276,7 @@ class DLQRetryHandler:
         # Update database (non-blocking, for consistency)
         failed_message.retry_count = new_count
         failed_message.status = DLQStatus.RETRYING
-        failed_message.last_retry_at = datetime.now(timezone.utc)
+        failed_message.last_retry_at = now_sao_paulo()
         self.db.commit()
 
         return True, new_count
@@ -257,7 +298,7 @@ class DLQRetryHandler:
         """
         if not self._atomic_counter:
             # Fallback without atomic support
-            self.mark_retry_started(failed_message)
+            self._mark_retry_started_non_atomic(failed_message)
             return True, failed_message.retry_count, None
 
         return await self._atomic_counter.atomic_try_process(
@@ -272,7 +313,7 @@ class DLQRetryHandler:
             failed_message: Successfully processed message
         """
         failed_message.status = DLQStatus.RESOLVED
-        failed_message.resolved_at = datetime.now(timezone.utc)
+        failed_message.resolved_at = now_sao_paulo()
         self.db.commit()
 
     def mark_retry_failed(
@@ -291,11 +332,11 @@ class DLQRetryHandler:
         # Try to schedule next retry
         if not self.schedule_retry(failed_message):
             # Cannot retry anymore
-            error_category = failed_message.metadata.get("error_category")
+            error_category = failed_message.dlq_data.get("error_category")
 
             if error_category == ErrorCategory.PERMANENT.value:
                 # Permanent error - mark as pending for manual intervention
-                failed_message.status = DLQStatus.PENDING
+                failed_message.status = DLQStatus.PENDING_REVIEW
             else:
                 # Max retries exceeded
                 failed_message.status = DLQStatus.MAX_RETRIES_EXCEEDED

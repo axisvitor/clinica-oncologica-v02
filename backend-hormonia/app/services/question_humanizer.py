@@ -9,13 +9,17 @@ from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from uuid import UUID
-from app.services.ai import PatientContext, get_ai_service
-from app.core.redis_unified import get_async_redis
+from typing import TYPE_CHECKING
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.models.patient import Patient
 from app.repositories.patient import PatientRepository
 from app.database import SessionLocal
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from app.services.ai import PatientContext
 
 
 class QuestionHumanizer:
@@ -44,7 +48,7 @@ class QuestionHumanizer:
 
     # Question types safe for humanization
     SAFE_QUESTION_TYPES = [
-        "daily_checkin",
+        "daily_follow_up",
         "mood_assessment",
         "symptom_tracking",
         "comfort_level",
@@ -58,7 +62,7 @@ class QuestionHumanizer:
 
     # Intent patterns for variety
     INTENT_PATTERNS = {
-        "daily_checkin": [
+        "daily_follow_up": [
             "greeting_morning",
             "greeting_afternoon",
             "greeting_evening",
@@ -82,6 +86,8 @@ class QuestionHumanizer:
     }
 
     def __init__(self):
+        from app.services.ai import get_ai_service
+
         self.ai_service = get_ai_service()
         self._redis_client = None  # Will be initialized async
         self.history_window_hours = 72  # Track last 3 days
@@ -113,16 +119,20 @@ class QuestionHumanizer:
         Returns:
             Humanized question or original if not safe/appropriate
         """
+        normalized_question_type = self._normalize_question_type(question_type)
+
         # 1. Safety check - never humanize critical questions
-        if question_type in self.CRITICAL_QUESTION_TYPES:
-            logger.info(f"Critical question type '{question_type}' - keeping original")
+        if normalized_question_type in self.CRITICAL_QUESTION_TYPES:
+            logger.info(
+                f"Critical question type '{normalized_question_type}' - keeping original"
+            )
             await self._log_telemetry(patient.id, question, question, "critical_bypass")
             return question
 
         # 2. Check if question type is safe for humanization
-        if question_type not in self.SAFE_QUESTION_TYPES:
+        if normalized_question_type not in self.SAFE_QUESTION_TYPES:
             logger.info(
-                f"Unknown question type '{question_type}' - keeping original for safety"
+                f"Unknown question type '{normalized_question_type}' - keeping original for safety"
             )
             await self._log_telemetry(patient.id, question, question, "unknown_type")
             return question
@@ -131,12 +141,12 @@ class QuestionHumanizer:
         recent_questions = await self._get_recent_questions(patient.id)
 
         # 4. Select intent pattern for variety
-        intent = self._select_intent_pattern(question_type, recent_questions)
+        intent = self._select_intent_pattern(normalized_question_type, recent_questions)
 
         # 5. Build enriched context
         humanization_context = self._build_humanization_context(
             patient=patient,
-            question_type=question_type,
+            question_type=normalized_question_type,
             intent=intent,
             recent_questions=recent_questions,
             additional_context=context,
@@ -145,6 +155,8 @@ class QuestionHumanizer:
         try:
             # 6. Generate humanized version with anti-repetition prompt
             # Build PatientContext for AIHumanizer
+            from app.services.ai import PatientContext
+
             patient_context = PatientContext(
                 patient_id=str(patient.id),
                 name=patient.name,
@@ -159,8 +171,8 @@ class QuestionHumanizer:
             response = await self.ai_service.humanize_message(
                 template_message=question,
                 patient_context=patient_context,
-                message_type=question_type
-                if question_type in self.SAFE_QUESTION_TYPES
+                message_type=normalized_question_type
+                if normalized_question_type in self.SAFE_QUESTION_TYPES
                 else "general",
             )
 
@@ -176,11 +188,13 @@ class QuestionHumanizer:
                 logger.info(
                     "Humanized question too similar to recent ones - using fallback variation"
                 )
-                humanized = self._generate_fallback_variation(question, intent)
+                humanized = self._generate_fallback_variation(
+                    question, intent, recent_questions
+                )
 
             # 8. Store in history and telemetry with intent pattern
             await self._store_question_history(
-                patient.id, humanized, question_type, intent
+                patient.id, humanized, normalized_question_type, intent
             )
             await self._log_telemetry(
                 patient.id, question, humanized, "success", {"intent_pattern": intent}
@@ -193,7 +207,7 @@ class QuestionHumanizer:
             await self._log_telemetry(
                 patient.id, question, question, f"error: {str(e)}"
             )
-            return question  # Safe fallback
+            raise
 
     async def humanize_quiz_question(
         self,
@@ -239,7 +253,7 @@ class QuestionHumanizer:
 
         except Exception as e:
             logger.error(f"Quiz question humanization failed: {e}")
-            return question
+            raise
 
     async def _get_recent_questions(self, patient_id: str) -> List[Dict[str, Any]]:
         """Get recently sent questions from Redis cache with intent patterns."""
@@ -252,7 +266,7 @@ class QuestionHumanizer:
                 history = json.loads(data)
                 # Filter by time window
                 cutoff = (
-                    datetime.now(timezone.utc) - timedelta(hours=self.history_window_hours)
+                    now_sao_paulo() - timedelta(hours=self.history_window_hours)
                 ).isoformat()
                 recent = [q for q in history if q.get("timestamp", "") > cutoff]
                 return recent[-10:]  # Return last 10 questions with metadata
@@ -285,7 +299,7 @@ class QuestionHumanizer:
                     "text": question,
                     "type": question_type,
                     "intent": intent_pattern or "default",  # Store intent pattern NAME
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": now_sao_paulo().isoformat(),
                     "hash": hashlib.md5(question.encode()).hexdigest(),
                 }
             )
@@ -316,7 +330,7 @@ class QuestionHumanizer:
         recent_intents = [
             q.get("intent", "default")
             for q in recent_questions
-            if q.get("type") == question_type
+            if self._normalize_question_type(q.get("type")) == question_type
         ]
 
         # Take last N intents (N = number of available patterns)
@@ -427,16 +441,52 @@ class QuestionHumanizer:
 
         return False
 
-    def _generate_fallback_variation(self, original: str, intent: str) -> str:
-        """Generate simple variation when AI fails."""
+    def _generate_fallback_variation(
+        self,
+        original: str,
+        intent: str,
+        recent_questions: Optional[List[Dict[str, Any]]] = None,
+    ) -> str:
+        """Generate deterministic fallback variation while avoiding recent duplicates."""
         variations = {
-            "greeting_morning": f"Bom dia! {original}",
-            "greeting_afternoon": f"Boa tarde! {original}",
-            "greeting_evening": f"Boa noite! {original}",
-            "casual_checkin": f"Oi! {original}",
-            "warm_inquiry": f"Olá, querido(a)! {original}",
+            "greeting_morning": [
+                "Bom dia! {question}",
+                "Bom dia! Gostaria de saber: {question}",
+            ],
+            "greeting_afternoon": [
+                "Boa tarde! {question}",
+                "Boa tarde! Queria te perguntar: {question}",
+            ],
+            "greeting_evening": [
+                "Boa noite! {question}",
+                "Boa noite! Queria saber: {question}",
+            ],
+            "casual_checkin": [
+                "Oi! {question}",
+                "Oi, tudo bem? {question}",
+            ],
+            "warm_inquiry": [
+                "Olá, querido(a)! {question}",
+                "Olá! Com carinho, queria saber: {question}",
+            ],
         }
-        return variations.get(intent, original)
+        templates = variations.get(intent, ["{question}"])
+        candidates = [template.format(question=original) for template in templates]
+
+        if recent_questions:
+            recent_texts = {
+                (q.get("text", "") if isinstance(q, dict) else str(q)).strip()
+                for q in recent_questions
+            }
+            for candidate in candidates:
+                if candidate not in recent_texts:
+                    return candidate
+
+        return candidates[0]
+
+    def _normalize_question_type(self, question_type: Optional[str]) -> str:
+        """Normalize and sanitize question-type labels."""
+        return str(question_type or "").strip().lower()
 
     def _get_time_of_day(self) -> str:
         """Get current time of day for context."""
@@ -476,7 +526,7 @@ class QuestionHumanizer:
             cache_key = str(patient_uuid)
             if cache_key in self._patient_cache:
                 cached_patient, cached_at = self._patient_cache[cache_key]
-                cache_age = (datetime.now(timezone.utc) - cached_at).total_seconds()
+                cache_age = (now_sao_paulo() - cached_at).total_seconds()
 
                 if cache_age < self._cache_ttl_seconds:
                     logger.debug(
@@ -498,12 +548,12 @@ class QuestionHumanizer:
                         f"Patient {patient_id} fetched from database successfully"
                     )
                     # Cache the result
-                    self._patient_cache[cache_key] = (patient, datetime.now(timezone.utc))
+                    self._patient_cache[cache_key] = (patient, now_sao_paulo())
                     return patient
                 else:
                     logger.warning(f"Patient {patient_id} not found in database")
                     # Cache the negative result to avoid repeated queries
-                    self._patient_cache[cache_key] = (None, datetime.now(timezone.utc))
+                    self._patient_cache[cache_key] = (None, now_sao_paulo())
                     return None
 
             finally:
@@ -541,8 +591,8 @@ class QuestionHumanizer:
         try:
             redis_client = await self._get_redis_client()
             telemetry = {
-                "patient_id": patient_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "patient_id": str(patient_id),
+                "timestamp": now_sao_paulo().isoformat(),
                 "original_length": len(original),
                 "result_length": len(result),
                 "changed": original != result,
@@ -554,7 +604,7 @@ class QuestionHumanizer:
                 telemetry.update(metadata)
 
             # Store in Redis for monitoring
-            key = f"telemetry:humanization:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
+            key = f"telemetry:humanization:{now_sao_paulo().strftime('%Y%m%d')}"
             await redis_client.rpush(key, json.dumps(telemetry))
 
             # Expire after 30 days

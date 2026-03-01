@@ -12,9 +12,9 @@ class SagaLogEntry(TypedDict):
     """Log entry structure for saga execution tracking."""
 
     step: int
-    operation: str
+    action: str
     status: str
-    error: Optional[str]
+    message: Optional[str]
     timestamp: str
 
 
@@ -48,6 +48,8 @@ class FailedSagaSummary(TypedDict):
 
 class CompensationResult(TypedDict):
     """Result of a compensation step execution."""
+
+    # Note: defined but not yet used in production code
 
     step: int
     step_name: str

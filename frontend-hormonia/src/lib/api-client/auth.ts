@@ -104,17 +104,26 @@ export function createAuthApi(client: ApiClientCore) {
   }
 
   const fetchSession = async (): Promise<SessionValidationResponse & { session_id?: string }> => {
-    // CRITICAL: Use direct fetch WITHOUT Authorization header
-    // The verify-session endpoint uses session cookies, NOT Bearer tokens
-    // Sending Firebase JWT as Bearer token causes 401 since backend expects session_id (UUID)
+    // UPDATED: Include session_id in Authorization header if available
+    // while still supporting cookie-based fallback.
     const baseURL = client.getBaseURL()
+    
+    // Prepare headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    
+    // Add auth token if available (session_id)
+    const token = client.getAuthToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+      headers['X-Session-ID'] = token
+    }
+
     const response = await fetch(`${baseURL}/api/v2/auth/verify-session`, {
       method: 'GET',
       credentials: 'include', // Include session cookie
-      headers: {
-        'Content-Type': 'application/json',
-        // NO Authorization header - rely on session cookie only
-      },
+      headers,
     })
 
     if (!response.ok) {

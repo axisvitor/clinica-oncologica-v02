@@ -15,7 +15,8 @@ import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_redis_cache,
@@ -33,6 +34,7 @@ from app.api.v2.dependencies import (
 )
 from app.utils.rate_limiter import limiter
 from .dependencies import _check_admin_or_owner
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -50,7 +52,7 @@ async def create_template(
     request: Request,
     template_data: MessageTemplateV2Create,
     current_user: dict = Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> MessageTemplateV2Response:
     """
@@ -88,8 +90,8 @@ async def create_template(
             "is_active": True,
             "usage_count": 0,
             "created_by": current_user.get("id"),
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "created_at": now_sao_paulo(),
+            "updated_at": now_sao_paulo(),
         }
 
         # Store in cache (30 min TTL for templates)
@@ -175,7 +177,7 @@ async def list_templates(
         # Simulate getting templates from cache/db
         if category:
             category_key = f"templates:v2:category:{category.value}"
-            template_ids = await redis_cache.smembers(category_key) or []
+            template_ids = list(await redis_cache.smembers(category_key) or [])
 
             for template_id in template_ids[: limit + 1]:
                 template_key = f"template:v2:{template_id}"
@@ -333,7 +335,7 @@ async def update_template(
 
         # Increment version
         template_dict["version"] = template_dict.get("version", 1) + 1
-        template_dict["updated_at"] = datetime.now(timezone.utc)
+        template_dict["updated_at"] = now_sao_paulo()
 
         # Update cache
         await redis_cache.set(

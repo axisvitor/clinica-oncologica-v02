@@ -10,6 +10,7 @@ from sqlalchemy import and_
 from app.models.quiz import QuizSession
 from app.repositories.quiz import QuizSessionRepository
 from app.schemas.monthly_quiz import MonthlyQuizLinkResponse
+from app.exceptions import NotFoundError
 
 import logging
 
@@ -46,7 +47,7 @@ class HistoryQuery:
         # FAST 404 CHECK: Verify patient exists before querying sessions
         if not self.status_query._check_patient_exists_fast(str(patient_id)):
             logger.info(f"Fast 404 for patient history {str(patient_id)[:8]}...")
-            return []
+            raise NotFoundError(f"Patient {patient_id} not found")
 
         sessions = (
             self.db.query(QuizSession)

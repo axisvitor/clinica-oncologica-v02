@@ -131,7 +131,7 @@ src/features/messages/
 // Cada função/componente pode ser testado isoladamente
 describe('messageFormatters', () => {
   test('formatTime formats timestamp correctly', () => {
-    expect(formatTime('2025-01-15T14:30:00Z')).toBe('14:30')
+    expect(formatTime('2025-01-15T14:30:00-03:00')).toBe('14:30')
   })
 })
 

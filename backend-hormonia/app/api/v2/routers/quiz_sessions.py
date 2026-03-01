@@ -5,6 +5,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import joinedload
 from sqlalchemy import and_, func
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
     ConflictError,
@@ -13,7 +15,7 @@ from app.core.exceptions import (
     ServiceUnavailableError,
     ValidationError,
 )
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.quiz import QuizSession, QuizTemplate
 from app.models.patient import Patient
 from app.schemas.v2.quiz import (
@@ -28,7 +30,7 @@ from app.api.v2.dependencies import (
     get_eager_load_params,
     apply_field_selection,
 )
-from app.api.v2.utils.auth_helpers import (
+from app.utils.auth_helpers import (
     extract_user_context as _extract_user_context,
     is_admin,
     ensure_uuid as _ensure_uuid,
@@ -36,7 +38,8 @@ from app.api.v2.utils.auth_helpers import (
 from app.models.user import UserRole
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
-from app.core.distributed_lock import acquire_lock_sync, LockAcquisitionError, LockKeys
+from app.core.distributed_lock import acquire_lock, LockAcquisitionError, LockKeys
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 
@@ -51,9 +54,33 @@ def _ensure_patient_owner(current_user, doctor_id):
         raise ForbiddenError("Not enough permissions")
 
 
+async def _get_quiz_with_access(
+    db: AsyncSession, current_user, quiz_id: str
+) -> QuizSession:
+    """Load quiz by ID and enforce patient ownership/admin access."""
+    try:
+        qid = UUID(quiz_id)
+    except (ValueError, TypeError) as exc:
+        raise ValidationError("Invalid quiz_id UUID", field="quiz_id") from exc
+
+    quiz_result = await db.execute(select(QuizSession).where(QuizSession.id == qid))
+    quiz = quiz_result.scalar_one_or_none()
+    if not quiz:
+        raise NotFoundError("Quiz", quiz_id)
+
+    patient_result = await db.execute(select(Patient).where(Patient.id == quiz.patient_id))
+    patient = patient_result.scalar_one_or_none()
+    if patient is None:
+        if not is_admin(current_user):
+            raise ForbiddenError("Not enough permissions")
+    else:
+        _ensure_patient_owner(current_user, patient.doctor_id)
+    return quiz
+
+
 @router.get("/sessions", response_model=QuizV2List, summary="List quizzes")
 async def list_quizzes(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     pagination=Depends(get_pagination_params),
     fields: Optional[List[str]] = Depends(get_field_selection),
@@ -68,7 +95,7 @@ async def list_quizzes(
     try:
         cursor_data = pagination["cursor_data"]
         limit = pagination["limit"]
-        query = db.query(QuizSession)
+        query = select(QuizSession)
 
         role_enum, user_id = _extract_user_context(current_user)
         current_user_uuid = _ensure_uuid(user_id)
@@ -88,8 +115,23 @@ async def list_quizzes(
         if cursor_data and "id" in cursor_data:
             from datetime import datetime as dt
 
-            cid = UUID(cursor_data["id"])
-            cdate = dt.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+            try:
+                raw_cursor_id = cursor_data["id"]
+                raw_created_at = cursor_data["created_at"]
+
+                cid = (
+                    raw_cursor_id
+                    if isinstance(raw_cursor_id, UUID)
+                    else UUID(str(raw_cursor_id))
+                )
+                cdate = (
+                    raw_created_at
+                    if isinstance(raw_created_at, dt)
+                    else dt.fromisoformat(str(raw_created_at))
+                )
+            except (KeyError, TypeError, ValueError):
+                raise ValidationError("Invalid cursor format", field="cursor")
+
             filters.append(
                 (QuizSession.created_at < cdate)
                 | ((QuizSession.created_at == cdate) & (QuizSession.id > cid))
@@ -105,19 +147,19 @@ async def list_quizzes(
             filters.append(QuizSession.status == status_filter)
 
         if filters:
-            query = query.filter(and_(*filters))
+            query = query.where(and_(*filters))
 
         total = None
         if not cursor_data:
-            tq = db.query(func.count(QuizSession.id))
+            tq = select(func.count(QuizSession.id)).select_from(QuizSession)
             if role_enum != UserRole.ADMIN:
                 tq = tq.join(Patient)
             if filters:
-                tq = tq.filter(and_(*filters))
-            total = tq.scalar()
+                tq = tq.where(and_(*filters))
+            total = (await db.execute(tq)).scalar_one()
 
-        query = query.order_by(QuizSession.created_at.desc(), QuizSession.id)
-        quizzes = query.limit(limit + 1).all()
+        query = query.order_by(QuizSession.created_at.desc(), QuizSession.id).limit(limit + 1)
+        quizzes = (await db.execute(query)).scalars().all()
 
         has_more = len(quizzes) > limit
         if has_more:
@@ -186,7 +228,7 @@ async def list_quizzes(
 @router.get("/{quiz_id}", response_model=QuizV2Response)
 async def get_quiz(
     quiz_id: str,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
@@ -196,7 +238,7 @@ async def get_quiz(
     except (ValueError, TypeError):
         raise ValidationError("Invalid quiz_id UUID", field="quiz_id")
 
-    query = db.query(QuizSession)
+    query = select(QuizSession)
     if include and "patient" in include:
         query = query.options(joinedload(QuizSession.patient))
 
@@ -206,9 +248,10 @@ async def get_quiz(
     if role_enum != UserRole.ADMIN:
         if not current_user_uuid:
             raise ForbiddenError("Insufficient permissions")
-        query = query.join(Patient).filter(Patient.doctor_id == current_user_uuid)
+        query = query.join(Patient).where(Patient.doctor_id == current_user_uuid)
 
-    quiz = query.filter(QuizSession.id == qid).first()
+    quiz_result = await db.execute(query.where(QuizSession.id == qid))
+    quiz = quiz_result.scalar_one_or_none()
     if not quiz:
         raise NotFoundError("Quiz", quiz_id)
 
@@ -217,7 +260,9 @@ async def get_quiz(
         patient = (
             quiz.patient
             if hasattr(quiz, "patient") and quiz.patient
-            else db.query(Patient).get(quiz.patient_id)
+            else (
+                await db.execute(select(Patient).where(Patient.id == quiz.patient_id))
+            ).scalar_one_or_none()
         )
         if patient:
             _ensure_patient_owner(current_user, patient.doctor_id)
@@ -251,7 +296,7 @@ async def get_quiz(
 async def create_quiz(
     request: Request,
     quiz_data: QuizV2Create,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     """
@@ -260,20 +305,20 @@ async def create_quiz(
     Uses distributed lock to prevent race condition where concurrent requests
     could both pass the "existing session" check and create duplicate sessions.
     """
-    from datetime import datetime, timezone
-
     try:
         pid = UUID(quiz_data.patient_id)
         tid = UUID(quiz_data.quiz_template_id)
     except (ValueError, TypeError):
         raise ValidationError("Invalid UUID format", field="patient_id or quiz_template_id")
 
-    patient = db.query(Patient).get(pid)
+    patient_result = await db.execute(select(Patient).where(Patient.id == pid))
+    patient = patient_result.scalar_one_or_none()
     if not patient:
         raise NotFoundError("Patient", str(pid))
     _ensure_patient_owner(current_user, patient.doctor_id)
 
-    template = db.query(QuizTemplate).get(tid)
+    template_result = await db.execute(select(QuizTemplate).where(QuizTemplate.id == tid))
+    template = template_result.scalar_one_or_none()
     if not template:
         raise NotFoundError("Template", str(tid))
     if not template.is_active:
@@ -282,17 +327,16 @@ async def create_quiz(
     # Acquire distributed lock per patient+template to prevent duplicate sessions
     lock_key = LockKeys.quiz_session(str(pid))
     try:
-        with acquire_lock_sync(lock_key, timeout=5.0, ttl=30):
+        async with acquire_lock(lock_key, timeout=5.0, ttl=30):
             # Re-check for existing session within lock (double-check pattern)
-            existing = (
-                db.query(QuizSession)
-                .filter(
+            existing_result = await db.execute(
+                select(QuizSession).where(
                     QuizSession.patient_id == pid,
                     QuizSession.quiz_template_id == tid,
                     QuizSession.status == "started",
                 )
-                .first()
             )
+            existing = existing_result.scalar_one_or_none()
             if existing:
                 raise ConflictError("Active session exists", {"patient_id": str(pid), "quiz_template_id": str(tid)})
 
@@ -300,11 +344,11 @@ async def create_quiz(
                 patient_id=pid,
                 quiz_template_id=tid,
                 status=quiz_data.status or "started",
-                started_at=datetime.now(timezone.utc),
+                started_at=now_sao_paulo(),
             )
             db.add(new_quiz)
-            db.commit()
-            db.refresh(new_quiz)
+            await db.commit()
+            await db.refresh(new_quiz)
 
     except LockAcquisitionError:
         raise ServiceUnavailableError("Service busy, please retry")
@@ -328,27 +372,16 @@ async def create_quiz(
 async def update_quiz(
     quiz_id: str,
     quiz_data: QuizV2Update,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
-    try:
-        qid = UUID(quiz_id)
-    except (ValueError, TypeError):
-        raise ValidationError("Invalid quiz_id UUID", field="quiz_id")
-
-    quiz = db.query(QuizSession).get(qid)
-    if not quiz:
-        raise NotFoundError("Quiz", quiz_id)
-
-    patient = db.query(Patient).get(quiz.patient_id)
-    if patient:
-        _ensure_patient_owner(current_user, patient.doctor_id)
+    quiz = await _get_quiz_with_access(db, current_user, quiz_id)
 
     update_data = quiz_data.dict(exclude_unset=True)
     for k, v in update_data.items():
         setattr(quiz, k, v)
-    db.commit()
-    db.refresh(quiz)
+    await db.commit()
+    await db.refresh(quiz)
 
     return {
         "id": str(quiz.id),
@@ -368,22 +401,11 @@ async def update_quiz(
 @router.delete("/{quiz_id}", status_code=204)
 async def delete_quiz(
     quiz_id: str,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
-    try:
-        qid = UUID(quiz_id)
-    except (ValueError, TypeError):
-        raise ValidationError("Invalid quiz_id UUID", field="quiz_id")
+    quiz = await _get_quiz_with_access(db, current_user, quiz_id)
 
-    quiz = db.query(QuizSession).get(qid)
-    if not quiz:
-        raise NotFoundError("Quiz", quiz_id)
-
-    patient = db.query(Patient).get(quiz.patient_id)
-    if patient:
-        _ensure_patient_owner(current_user, patient.doctor_id)
-
-    db.delete(quiz)
-    db.commit()
+    await db.delete(quiz)
+    await db.commit()
     return None

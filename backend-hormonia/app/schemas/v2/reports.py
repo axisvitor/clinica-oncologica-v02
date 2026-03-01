@@ -254,7 +254,7 @@ class ScheduledReportCreate(BaseModel):
     start_date: date
     end_date: Optional[date] = None
     time_of_day: str = Field(..., pattern=r"^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$")  # HH:MM
-    timezone: str = "UTC"
+    timezone: str = "America/Sao_Paulo"
 
     # Filters (same as ReportGenerateRequest)
     patient_ids: Optional[List[UUID]] = None

@@ -18,6 +18,7 @@ import enum
 from datetime import datetime
 
 from app.models.base import BaseModel
+from app.utils.timezone import now_sao_paulo_naive
 
 
 class ReportType(str, enum.Enum):
@@ -80,7 +81,7 @@ class Report(BaseModel):
         LargeBinary, nullable=True
     )  # Store PDF bytes directly or use path
     status = Column(Enum(ReportStatus), default=ReportStatus.PENDING)
-    generated_at = Column(DateTime, default=datetime.utcnow)
+    generated_at = Column(DateTime, default=now_sao_paulo_naive)
     report_metadata = Column(
         "metadata", JSONB, nullable=True
     )  # metadata is reserved in Base? No, usually metadata in sqlalchemy is Base.metadata.

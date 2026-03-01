@@ -5,6 +5,7 @@ import { getRuntimeConfigSync } from './runtime-config'
 import { createLogger } from './logger'
 
 const logger = createLogger('WebSocket')
+const TOKEN_EXPIRY_SKEW_SECONDS = 30
 
 /**
  * Automatically upgrades WebSocket protocol based on page protocol
@@ -23,6 +24,29 @@ function upgradeWebSocketProtocol(wsUrl: string): string {
 
   // Replace ws:// or wss:// with the appropriate protocol
   return wsUrl.replace(/^(ws|wss):/, protocol)
+}
+
+function getJwtPayload(token: string): { exp?: number } | null {
+  const parts = token.split('.')
+  if (parts.length < 2) return null
+
+  try {
+    const payloadSegment = parts[1]
+    if (!payloadSegment) return null
+    const base64 = payloadSegment.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=')
+    if (typeof atob !== 'function') return null
+    return JSON.parse(atob(padded)) as { exp?: number }
+  } catch {
+    return null
+  }
+}
+
+function isJwtExpired(token: string): boolean {
+  const payload = getJwtPayload(token)
+  if (!payload || typeof payload.exp !== 'number') return false
+  const nowSeconds = Math.floor(Date.now() / 1000)
+  return nowSeconds >= (payload.exp - TOKEN_EXPIRY_SKEW_SECONDS)
 }
 
 function resolveWsBaseUrl(): string | null {
@@ -102,6 +126,13 @@ class WebSocketManager {
       return this.connectionPromise
     }
 
+    if (token && isJwtExpired(token)) {
+      logger.warn('WebSocket token expired; skipping connect until refreshed')
+      this.isConnecting = false
+      this.shouldReconnect = false
+      return Promise.resolve()
+    }
+
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       return Promise.resolve()
     }
@@ -118,16 +149,10 @@ class WebSocketManager {
         return resolve()
       }
 
-      // HYBRID AUTH: Include both session_id and token for authentication
-      // Backend WebSocket supports both authentication methods
+      // HYBRID AUTH: Prefer Firebase token for WebSocket authentication
+      // Session IDs remain in httpOnly cookies and are not persisted client-side
       let wsUrl = base
       const params = new URLSearchParams()
-
-      // Get session_id from localStorage (stored after successful login)
-      const sessionId = localStorage.getItem('session_id')
-      if (sessionId) {
-        params.append('session_id', sessionId)
-      }
 
       // Also include Firebase token as fallback
       if (token) {
@@ -504,14 +529,18 @@ class WebSocketManager {
   updateToken(token: string | null) {
     this.currentToken = token
 
-    if (this.ws) {
-      // Reconnect with new token
-      this.disconnect()
-      if (token) {
-        this.shouldReconnect = true
-        this.connect(token)
-      }
+    if (!token) {
+      this.shouldReconnect = false
+      return
     }
+
+    // Reconnect with new token (even if socket is currently closed)
+    if (this.ws) {
+      this.disconnect()
+    }
+
+    this.shouldReconnect = true
+    this.connect(token)
   }
 }
 

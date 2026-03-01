@@ -119,7 +119,7 @@ def test_valid_complete_metadata():
         },
         "onboarding": {
             "completed": True,
-            "completed_at": "2024-01-15T10:30:00Z",
+            "completed_at": "2024-01-15T10:30:00-03:00",
             "steps_completed": ["welcome", "assessment", "preferences"],
             "welcome_sent": True,
             "initial_assessment_done": True
@@ -461,15 +461,10 @@ def test_timezone_pattern_validation():
 
 def test_unique_items_in_arrays():
     """Arrays enforce uniqueItems constraint."""
-    # Note: jsonschema doesn't always enforce uniqueItems strictly
-    # This test documents expected behavior
     metadata = {
         "medical_history": {
             "allergies": ["penicillin", "latex", "penicillin"]  # Duplicate
         }
     }
-    # This should ideally fail, but jsonschema may not enforce it
-    # depending on implementation
-    result = validate_patient_metadata(metadata)
-    # Test passes if no exception (lenient) or fails (strict)
-    assert result is not None
+    with pytest.raises(ValidationError):
+        validate_patient_metadata(metadata)

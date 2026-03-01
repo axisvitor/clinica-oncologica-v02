@@ -12,9 +12,9 @@ from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import asc, desc, func, and_, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.quiz import QuizResponse, QuizSession, QuizTemplate
 from app.models.user import User, UserRole
 from app.models.patient import Patient
@@ -109,14 +109,14 @@ __all__ = [
     "HTTPException",
     "status",
     # SQLAlchemy
-    "Session",
     "asc",
     "desc",
     "func",
     "and_",
     "or_",
+    "AsyncSession",
     # Database
-    "get_db",
+    "get_async_db",
     # Rate limiting
     "limiter",
     # Pagination

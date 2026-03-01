@@ -10,8 +10,72 @@ from typing import Callable, Optional, Type, Tuple
 from .retry_manager import RetryManager, RetryConfig
 from .backoff import BackoffConfig, BackoffStrategy
 
+RETRY_ARG_NAMES = (
+    "max_attempts",
+    "backoff_strategy",
+    "base_delay",
+    "max_delay",
+    "multiplier",
+    "jitter",
+    "exceptions",
+    "stop_exceptions",
+    "timeout",
+    "enable_dead_letter",
+    "retry_condition",
+    "name",
+)
 
-def retry(
+
+def _merge_retry_args(args: tuple, kwargs: dict) -> dict:
+    """Accept positional decorator args while normalizing to keyword arguments."""
+    merged_kwargs = dict(kwargs)
+    for index, value in enumerate(args):
+        if index >= len(RETRY_ARG_NAMES):
+            raise TypeError("Too many positional arguments for retry decorator")
+        key = RETRY_ARG_NAMES[index]
+        merged_kwargs.setdefault(key, value)
+    return merged_kwargs
+
+
+def _build_retry_manager(
+    *,
+    manager_name: str,
+    max_attempts: int,
+    backoff_strategy: BackoffStrategy,
+    base_delay: float,
+    max_delay: float,
+    multiplier: float,
+    jitter: bool,
+    exceptions: Tuple[Type[Exception], ...],
+    stop_exceptions: Tuple[Type[Exception], ...],
+    timeout: Optional[float],
+    enable_dead_letter: bool,
+    retry_condition: Optional[Callable],
+) -> RetryManager:
+    """Construct a RetryManager with shared decorator configuration."""
+    backoff_config = BackoffConfig(
+        base_delay=base_delay,
+        max_delay=max_delay,
+        multiplier=multiplier,
+        jitter=jitter,
+        strategy=backoff_strategy,
+    )
+
+    retry_config = RetryConfig(
+        max_attempts=max_attempts,
+        backoff_config=backoff_config,
+        retryable_exceptions=exceptions,
+        stop_exceptions=stop_exceptions,
+        timeout=timeout,
+        enable_dead_letter=enable_dead_letter,
+        retry_condition=retry_condition,
+    )
+    return RetryManager(retry_config, name=manager_name)
+
+
+def _make_retry_decorator(
+    *,
+    use_async: bool,
     max_attempts: int = 3,
     backoff_strategy: BackoffStrategy = BackoffStrategy.EXPONENTIAL,
     base_delay: float = 1.0,
@@ -25,6 +89,44 @@ def retry(
     retry_condition: Optional[Callable] = None,
     name: Optional[str] = None,
 ):
+    """Create a retry decorator for sync or async callables."""
+
+    def decorator(func: Callable) -> Callable:
+        retry_manager = _build_retry_manager(
+            manager_name=name or func.__name__,
+            max_attempts=max_attempts,
+            backoff_strategy=backoff_strategy,
+            base_delay=base_delay,
+            max_delay=max_delay,
+            multiplier=multiplier,
+            jitter=jitter,
+            exceptions=exceptions,
+            stop_exceptions=stop_exceptions,
+            timeout=timeout,
+            enable_dead_letter=enable_dead_letter,
+            retry_condition=retry_condition,
+        )
+
+        if use_async:
+
+            @functools.wraps(func)
+            async def wrapper(*args, **kwargs):
+                return await retry_manager.aexecute(func, *args, **kwargs)
+
+        else:
+
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                return retry_manager.execute(func, *args, **kwargs)
+
+        # Attach retry manager for metrics access
+        wrapper._retry_manager = retry_manager
+        return wrapper
+
+    return decorator
+
+
+def retry(*args, **kwargs):
     """
     Retry decorator for synchronous functions
 
@@ -43,56 +145,11 @@ def retry(
         name: Name for the retry manager (defaults to function name)
     """
 
-    def decorator(func: Callable) -> Callable:
-        # Create retry configuration
-        backoff_config = BackoffConfig(
-            base_delay=base_delay,
-            max_delay=max_delay,
-            multiplier=multiplier,
-            jitter=jitter,
-            strategy=backoff_strategy,
-        )
-
-        retry_config = RetryConfig(
-            max_attempts=max_attempts,
-            backoff_config=backoff_config,
-            retryable_exceptions=exceptions,
-            stop_exceptions=stop_exceptions,
-            timeout=timeout,
-            enable_dead_letter=enable_dead_letter,
-            retry_condition=retry_condition,
-        )
-
-        # Create retry manager
-        manager_name = name or func.__name__
-        retry_manager = RetryManager(retry_config, name=manager_name)
-
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            return retry_manager.execute(func, *args, **kwargs)
-
-        # Attach retry manager for metrics access
-        wrapper._retry_manager = retry_manager
-
-        return wrapper
-
-    return decorator
+    merged_kwargs = _merge_retry_args(args, kwargs)
+    return _make_retry_decorator(use_async=False, **merged_kwargs)
 
 
-def async_retry(
-    max_attempts: int = 3,
-    backoff_strategy: BackoffStrategy = BackoffStrategy.EXPONENTIAL,
-    base_delay: float = 1.0,
-    max_delay: float = 60.0,
-    multiplier: float = 2.0,
-    jitter: bool = True,
-    exceptions: Tuple[Type[Exception], ...] = (Exception,),
-    stop_exceptions: Tuple[Type[Exception], ...] = (),
-    timeout: Optional[float] = None,
-    enable_dead_letter: bool = False,
-    retry_condition: Optional[Callable] = None,
-    name: Optional[str] = None,
-):
+def async_retry(*args, **kwargs):
     """
     Retry decorator for asynchronous functions
 
@@ -111,40 +168,8 @@ def async_retry(
         name: Name for the retry manager (defaults to function name)
     """
 
-    def decorator(func: Callable) -> Callable:
-        # Create retry configuration
-        backoff_config = BackoffConfig(
-            base_delay=base_delay,
-            max_delay=max_delay,
-            multiplier=multiplier,
-            jitter=jitter,
-            strategy=backoff_strategy,
-        )
-
-        retry_config = RetryConfig(
-            max_attempts=max_attempts,
-            backoff_config=backoff_config,
-            retryable_exceptions=exceptions,
-            stop_exceptions=stop_exceptions,
-            timeout=timeout,
-            enable_dead_letter=enable_dead_letter,
-            retry_condition=retry_condition,
-        )
-
-        # Create retry manager
-        manager_name = name or func.__name__
-        retry_manager = RetryManager(retry_config, name=manager_name)
-
-        @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
-            return await retry_manager.aexecute(func, *args, **kwargs)
-
-        # Attach retry manager for metrics access
-        wrapper._retry_manager = retry_manager
-
-        return wrapper
-
-    return decorator
+    merged_kwargs = _merge_retry_args(args, kwargs)
+    return _make_retry_decorator(use_async=True, **merged_kwargs)
 
 
 def database_retry(
@@ -185,7 +210,30 @@ def api_retry(
     """
     Specialized retry decorator for API calls
     """
-    import requests
+    retryable_exceptions: Tuple[Type[Exception], ...]
+    stop_exceptions: Tuple[Type[Exception], ...]
+
+    try:
+        import aiohttp
+
+        retryable_exceptions = (
+            aiohttp.ClientError,
+            aiohttp.ClientConnectionError,
+            aiohttp.ServerTimeoutError,
+            ConnectionError,
+            TimeoutError,
+        )
+        # Client response errors (typically 4xx) should not be retried.
+        stop_exceptions = (aiohttp.ClientResponseError,)
+    except Exception:
+        from urllib.error import HTTPError, URLError
+
+        retryable_exceptions = (
+            URLError,
+            ConnectionError,
+            TimeoutError,
+        )
+        stop_exceptions = (HTTPError,)
 
     return retry(
         max_attempts=max_attempts,
@@ -193,16 +241,8 @@ def api_retry(
         base_delay=base_delay,
         max_delay=max_delay,
         timeout=timeout,
-        exceptions=(
-            requests.RequestException,
-            requests.Timeout,
-            requests.ConnectionError,
-            ConnectionError,
-            TimeoutError,
-        ),
-        stop_exceptions=(
-            requests.HTTPError,  # 4xx client errors shouldn't retry
-        ),
+        exceptions=retryable_exceptions,
+        stop_exceptions=stop_exceptions,
         name="api_retry",
     )
 

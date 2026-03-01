@@ -128,7 +128,7 @@ export function FlowNodeComponent({
   return (
     <div
       className={`
-        absolute cursor-pointer select-none transition-all duration-200
+        absolute cursor-pointer select-none transition-[transform,box-shadow] duration-200
         ${isDragging ? 'z-50' : 'z-10'}
         ${mode === DesignerMode.CONNECT ? 'cursor-crosshair' : 'cursor-move'}
       `}

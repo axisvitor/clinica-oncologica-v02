@@ -5,12 +5,14 @@ Handles scheduling retries, calculating backoff delays, and managing retry state
 
 import logging
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from uuid import UUID
 from dataclasses import dataclass, field
 from typing import Optional, Any
 
 from .classifier import ErrorHandlerConstants, RecoveryStrategy, ErrorCategory
+from .redis_scan import scan_keys
+from app.utils.timezone import now_sao_paulo, to_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ class ErrorContext:
     flow_state_id: Optional[UUID] = None
     message_id: Optional[UUID] = None
     operation: str = ""
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=now_sao_paulo)
     additional_data: dict[str, Any] = field(default_factory=dict)
 
 
@@ -43,7 +45,7 @@ class ErrorRecord:
     recovery_strategy: RecoveryStrategy = RecoveryStrategy.RETRY_EXPONENTIAL
     resolved: bool = False
     resolved_at: Optional[datetime] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=now_sao_paulo)
 
 
 @dataclass
@@ -77,6 +79,19 @@ class RetryManager:
             RecoveryStrategy.RETRY_LINEAR: [ErrorHandlerConstants.DEFAULT_LINEAR_DELAY]
             * 5,
         }
+
+    async def _scan_keys(self, pattern: str, count: int = 200) -> list[Any]:
+        """List keys using SCAN to avoid blocking Redis with KEYS."""
+        return await scan_keys(self.redis, pattern=pattern, count=count)
+
+    def _calculate_ttl_seconds(self, target_at: datetime) -> int:
+        """Calculate a positive Redis TTL for scheduled operations."""
+        target_at_aware = to_sao_paulo(target_at)
+        ttl_seconds = (
+            int((target_at_aware - now_sao_paulo()).total_seconds())
+            + ErrorHandlerConstants.REDIS_RETRY_BUFFER
+        )
+        return max(1, ttl_seconds)
 
     def calculate_exponential_backoff(self, attempt: int) -> int:
         """
@@ -124,7 +139,7 @@ class RetryManager:
         else:
             delay_seconds = ErrorHandlerConstants.DEFAULT_LINEAR_DELAY
 
-        return datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+        return now_sao_paulo() + timedelta(seconds=delay_seconds)
 
     async def schedule_retry(
         self, error_record: ErrorRecord, retry_at: datetime
@@ -140,26 +155,25 @@ class RetryManager:
             Success status
         """
         try:
+            retry_at_aware = to_sao_paulo(retry_at)
             retry_data = {
                 "error_id": error_record.id,
                 "patient_id": str(error_record.context.patient_id),
                 "operation": error_record.context.operation,
-                "retry_at": retry_at.isoformat(),
+                "retry_at": retry_at_aware.isoformat(),
                 "attempt": error_record.recovery_attempts,
             }
 
-            # Calculate TTL with buffer
-            ttl_seconds = (
-                int((retry_at - datetime.now(timezone.utc)).total_seconds())
-                + ErrorHandlerConstants.REDIS_RETRY_BUFFER
-            )
+            ttl_seconds = self._calculate_ttl_seconds(retry_at_aware)
 
             # Store in Redis
             await self.redis.setex(
                 f"flow_retry:{error_record.id}", ttl_seconds, json.dumps(retry_data)
             )
 
-            logger.info(f"Scheduled retry for error {error_record.id} at {retry_at}")
+            logger.info(
+                f"Scheduled retry for error {error_record.id} at {retry_at_aware}"
+            )
             return True
 
         except Exception as e:
@@ -178,17 +192,14 @@ class RetryManager:
             Success status
         """
         try:
+            resume_at_aware = to_sao_paulo(resume_at)
             resume_data = {
                 "patient_id": str(patient_id),
-                "resume_at": resume_at.isoformat(),
+                "resume_at": resume_at_aware.isoformat(),
                 "reason": "error_recovery",
             }
 
-            # Calculate TTL with buffer
-            ttl_seconds = (
-                int((resume_at - datetime.now(timezone.utc)).total_seconds())
-                + ErrorHandlerConstants.REDIS_RETRY_BUFFER
-            )
+            ttl_seconds = self._calculate_ttl_seconds(resume_at_aware)
 
             # Store in Redis
             await self.redis.setex(
@@ -196,7 +207,7 @@ class RetryManager:
             )
 
             logger.info(
-                f"Scheduled flow resume for patient {patient_id} at {resume_at}"
+                f"Scheduled flow resume for patient {patient_id} at {resume_at_aware}"
             )
             return True
 
@@ -212,7 +223,7 @@ class RetryManager:
             List of scheduled retry data
         """
         try:
-            retry_keys = await self.redis.keys("flow_retry:*")
+            retry_keys = await self._scan_keys("flow_retry:*")
             retries = []
 
             for key in retry_keys:

@@ -23,9 +23,13 @@ from celery.signals import (
     worker_shutdown,
 )
 import logging
-from typing import Dict, Any
+import threading
+from typing import Dict, Any, Optional
 import time
+from datetime import datetime
 from functools import wraps
+
+from app.core.redis_manager import get_redis_manager
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +101,236 @@ celery_info = Info("celery_worker_info", "Information about Celery worker")
 
 # Task metadata storage for duration calculation
 _task_metadata: Dict[str, Dict[str, Any]] = {}
+_task_metadata_lock = threading.Lock()
+
+# How long metadata may remain without terminal signals (safety net for missed postrun)
+_TASK_METADATA_MAX_AGE_SECONDS = 6 * 60 * 60
+# Grace period for failure/revoked/rejected tasks waiting for possible postrun
+_TASK_TERMINAL_METADATA_TTL_SECONDS = 5 * 60
+
+# Redis key used to store rolling task duration samples
+_DURATION_REDIS_KEY = "celery:metrics:avg_task_duration"
+
+
+def _push_duration_to_redis(duration: float) -> None:
+    """
+    Push a task duration sample to the Redis rolling list.
+
+    Keeps the last 100 samples with a 24-hour TTL.
+    Silently swallows all exceptions — metrics writes must never affect task execution.
+    """
+    try:
+        client = get_redis_manager().get_sync_client()
+        pipe = client.pipeline()
+        pipe.lpush(_DURATION_REDIS_KEY, str(duration))
+        pipe.ltrim(_DURATION_REDIS_KEY, 0, 99)  # Keep last 100 samples
+        pipe.expire(_DURATION_REDIS_KEY, 86400)  # 24h TTL
+        pipe.execute()
+    except Exception:
+        pass
+
+
+def _resolve_task_name(sender=None, task=None) -> str:
+    """Resolve task name safely from Celery signal payloads."""
+    if sender is not None and hasattr(sender, "name"):
+        return sender.name
+    if task is not None and hasattr(task, "name"):
+        return task.name
+    return "unknown"
+
+
+def _register_task_metadata(
+    task_id: Optional[str],
+    task_name: str,
+    eta: Optional[Any] = None,
+) -> None:
+    """Store metadata required to compute duration and cleanup lifecycle."""
+    if not task_id:
+        return
+
+    now = time.time()
+    with _task_metadata_lock:
+        _task_metadata[task_id] = {
+            "task_name": task_name,
+            "start_time": now,
+            "eta": eta,
+            "active_decremented": False,
+            "terminal_status": None,
+            "terminal_at": None,
+        }
+
+
+def _mark_task_terminal(
+    task_id: Optional[str],
+    fallback_task_name: str,
+    status: str,
+) -> bool:
+    """
+    Mark task metadata as terminal and decrement active gauge once.
+
+    Returns True when metadata exists for task_id.
+    """
+    if not task_id:
+        return False
+
+    should_decrement_active = False
+    task_name = fallback_task_name
+
+    with _task_metadata_lock:
+        metadata = _task_metadata.get(task_id)
+        if not metadata:
+            return False
+
+        metadata["terminal_status"] = status
+        metadata["terminal_at"] = time.time()
+        task_name = metadata.get("task_name", fallback_task_name)
+
+        if not metadata.get("active_decremented", False):
+            metadata["active_decremented"] = True
+            should_decrement_active = True
+
+    if should_decrement_active:
+        celery_task_active.labels(task_name=task_name).dec()
+
+    return True
+
+
+def _finalize_task_metadata(
+    task_id: Optional[str],
+    fallback_task_name: str,
+    observe_duration: bool,
+) -> bool:
+    """
+    Remove task metadata and finalize active/duration metrics idempotently.
+
+    Returns True when metadata existed and was finalized.
+    """
+    if not task_id:
+        return False
+
+    with _task_metadata_lock:
+        metadata = _task_metadata.pop(task_id, None)
+
+    if not metadata:
+        return False
+
+    task_name = metadata.get("task_name", fallback_task_name)
+    if not metadata.get("active_decremented", False):
+        celery_task_active.labels(task_name=task_name).dec()
+
+    if observe_duration:
+        start_time = metadata.get("start_time")
+        if isinstance(start_time, (float, int)):
+            duration = max(0.0, time.time() - start_time)
+            celery_task_duration.labels(task_name=task_name).observe(duration)
+            _push_duration_to_redis(duration)
+            logger.debug(f"Task {task_name} [{task_id}] completed in {duration:.2f}s")
+
+    return True
+
+
+def _cleanup_stale_task_metadata() -> int:
+    """
+    Cleanup metadata leaked by missing lifecycle signals.
+
+    - Terminal tasks are removed after a short grace period.
+    - Non-terminal tasks are removed after a long max-age safety timeout.
+    """
+    now = time.time()
+    stale_task_ids = []
+
+    with _task_metadata_lock:
+        for task_id, metadata in _task_metadata.items():
+            start_time = metadata.get("start_time", now)
+            terminal_at = metadata.get("terminal_at")
+
+            terminal_expired = (
+                isinstance(terminal_at, (float, int))
+                and now - terminal_at >= _TASK_TERMINAL_METADATA_TTL_SECONDS
+            )
+            max_age_expired = (
+                isinstance(start_time, (float, int))
+                and now - start_time >= _TASK_METADATA_MAX_AGE_SECONDS
+            )
+
+            if terminal_expired or max_age_expired:
+                stale_task_ids.append(task_id)
+
+    for stale_task_id in stale_task_ids:
+        _finalize_task_metadata(
+            task_id=stale_task_id,
+            fallback_task_name="unknown",
+            observe_duration=False,
+        )
+
+    if stale_task_ids:
+        logger.warning(
+            "Cleaned %d stale celery task metadata entries",
+            len(stale_task_ids),
+        )
+
+    return len(stale_task_ids)
+
+
+def _clear_all_task_metadata() -> int:
+    """Force cleanup of all tracked metadata (worker shutdown safety)."""
+    with _task_metadata_lock:
+        task_ids = list(_task_metadata.keys())
+
+    for task_id in task_ids:
+        _finalize_task_metadata(
+            task_id=task_id,
+            fallback_task_name="unknown",
+            observe_duration=False,
+        )
+
+    if task_ids:
+        logger.warning(
+            "Cleared %d task metadata entries during worker lifecycle cleanup",
+            len(task_ids),
+        )
+
+    return len(task_ids)
+
+
+def _extract_message_task_id(message: Any) -> Optional[str]:
+    """Best-effort task id extraction from rejected message payload."""
+    if message is None:
+        return None
+
+    for attr_name in ("headers", "properties"):
+        payload = getattr(message, attr_name, None)
+        if isinstance(payload, dict):
+            task_id = (
+                payload.get("id")
+                or payload.get("task_id")
+                or payload.get("correlation_id")
+            )
+            if task_id:
+                return str(task_id)
+
+    return None
+
+
+def _eta_to_timestamp_seconds(eta: Any) -> Optional[float]:
+    """Normalize ETA to unix timestamp seconds."""
+    if eta is None:
+        return None
+    if isinstance(eta, (int, float)):
+        return float(eta)
+    if isinstance(eta, datetime):
+        return eta.timestamp()
+    if isinstance(eta, str):
+        parsed_eta = eta.strip()
+        if not parsed_eta:
+            return None
+        try:
+            # Accept both ISO8601 and trailing Z UTC format.
+            normalized = parsed_eta.replace("Z", "+00:00")
+            return datetime.fromisoformat(normalized).timestamp()
+        except ValueError:
+            return None
+    return None
 
 # ============================================================================
 # SIGNAL HANDLERS
@@ -115,24 +349,30 @@ def task_prerun_handler(
     - Task start time
     - Queue wait time calculation
     """
+    _ = extra
     try:
-        task_name = sender.name if sender else task.name if task else "unknown"
+        task_name = _resolve_task_name(sender=sender, task=task)
+
+        # Opportunistic cleanup in case previous terminal events missed postrun
+        _cleanup_stale_task_metadata()
 
         # Increment active tasks counter
         celery_task_active.labels(task_name=task_name).inc()
 
         # Store task metadata
-        _task_metadata[task_id] = {
-            "task_name": task_name,
-            "start_time": time.time(),
-            "eta": kwargs.get("eta") if kwargs else None,
-        }
+        _register_task_metadata(
+            task_id=task_id,
+            task_name=task_name,
+            eta=kwargs.get("eta") if kwargs else None,
+        )
 
         # Calculate queue wait time if eta is available
         if kwargs and kwargs.get("eta"):
-            wait_time = time.time() - kwargs["eta"]
-            if wait_time > 0:
+            eta_timestamp = _eta_to_timestamp_seconds(kwargs.get("eta"))
+            wait_time = time.time() - eta_timestamp if eta_timestamp is not None else None
+            if wait_time is not None and wait_time > 0:
                 celery_task_wait_time.labels(task_name=task_name).observe(wait_time)
+                celery_task_latency.labels(task_name=task_name).observe(wait_time)
 
         logger.debug(f"Task {task_name} [{task_id}] started")
 
@@ -151,18 +391,21 @@ def task_postrun_handler(
     - Active task count decrement
     - Task duration
     """
+    _ = retval
+    _ = extra
     try:
-        task_name = sender.name if sender else task.name if task else "unknown"
+        task_name = _resolve_task_name(sender=sender, task=task)
 
-        # Decrement active tasks counter
-        celery_task_active.labels(task_name=task_name).dec()
+        # Fallback for tasks without task_id metadata support
+        if not task_id:
+            celery_task_active.labels(task_name=task_name).dec()
+            return
 
-        # Calculate and record duration
-        if task_id in _task_metadata:
-            metadata = _task_metadata.pop(task_id)
-            duration = time.time() - metadata["start_time"]
-            celery_task_duration.labels(task_name=task_name).observe(duration)
-            logger.debug(f"Task {task_name} [{task_id}] completed in {duration:.2f}s")
+        _finalize_task_metadata(
+            task_id=task_id,
+            fallback_task_name=task_name,
+            observe_duration=True,
+        )
 
     except Exception as e:
         logger.error(f"Error in task_postrun_handler: {e}", exc_info=True)
@@ -203,8 +446,11 @@ def task_failure_handler(
     - Failure counter increment
     - Exception type tracking
     """
+    _ = traceback
+    _ = einfo
+    _ = extra
     try:
-        task_name = sender.name if sender else "unknown"
+        task_name = _resolve_task_name(sender=sender)
         exception_type = type(exception).__name__ if exception else "Unknown"
 
         # Increment failure counters
@@ -216,6 +462,13 @@ def task_failure_handler(
         logger.error(
             f"Task {task_name} [{task_id}] failed with {exception_type}: {exception}",
             exc_info=True,
+        )
+
+        # Mark terminal in case postrun is missed; cleanup is idempotent.
+        _mark_task_terminal(
+            task_id=task_id,
+            fallback_task_name=task_name,
+            status="failure",
         )
 
     except Exception as e:
@@ -231,8 +484,9 @@ def task_retry_handler(sender=None, task_id=None, reason=None, einfo=None, **kwa
     - Retry counter increment
     - Retry attempt number
     """
+    _ = einfo
     try:
-        task_name = sender.name if sender else "unknown"
+        task_name = _resolve_task_name(sender=sender)
 
         # Get retry count from request
         retry_count = str(sender.request.retries) if hasattr(sender, "request") else "0"
@@ -258,11 +512,19 @@ def task_rejected_handler(sender=None, message=None, exc=None, **kwargs):
     try:
         # Extract task name from message
         task_name = message.headers.get("task", "unknown") if message else "unknown"
+        task_id = _extract_message_task_id(message)
 
         celery_task_total.labels(task_name=task_name, status="rejected").inc()
         celery_task_rejected.labels(task_name=task_name).inc()
 
         logger.warning(f"Task {task_name} rejected: {exc}")
+
+        # Rejected tasks may not emit postrun in some worker failure paths.
+        _mark_task_terminal(
+            task_id=task_id,
+            fallback_task_name=task_name,
+            status="rejected",
+        )
 
     except Exception as e:
         logger.error(f"Error in task_rejected_handler: {e}", exc_info=True)
@@ -278,14 +540,23 @@ def task_revoked_handler(
     Tracks:
     - Revoked task counter
     """
+    _ = signum
     try:
-        task_name = sender.name if sender else "unknown"
+        task_name = _resolve_task_name(sender=sender)
+        task_id = getattr(request, "id", None) if request is not None else None
 
         celery_task_total.labels(task_name=task_name, status="revoked").inc()
         celery_task_revoked.labels(task_name=task_name).inc()
 
         reason = "expired" if expired else "terminated" if terminated else "manual"
         logger.info(f"Task {task_name} revoked ({reason})")
+
+        # Revoked tasks may not emit postrun in some worker failure paths.
+        _mark_task_terminal(
+            task_id=task_id,
+            fallback_task_name=task_name,
+            status="revoked",
+        )
 
     except Exception as e:
         logger.error(f"Error in task_revoked_handler: {e}", exc_info=True)
@@ -302,6 +573,9 @@ def worker_ready_handler(sender=None, **kwargs):
     try:
         worker_name = sender.hostname if sender else "unknown"
         celery_worker_active.labels(worker_name=worker_name).set(1)
+
+        # Safety cleanup at startup in case worker lifecycle ended unexpectedly.
+        _cleanup_stale_task_metadata()
 
         # Set worker info
         celery_info.info({"worker": worker_name, "status": "ready"})
@@ -323,6 +597,9 @@ def worker_shutdown_handler(sender=None, **kwargs):
     try:
         worker_name = sender.hostname if sender else "unknown"
         celery_worker_active.labels(worker_name=worker_name).set(0)
+
+        # Ensure metadata and active gauges are not leaked across worker lifecycle.
+        _clear_all_task_metadata()
 
         logger.info(f"Celery worker {worker_name} shutting down")
 
@@ -382,21 +659,38 @@ def get_task_metrics_summary() -> Dict[str, Any]:
     Returns:
         Dictionary containing metric summaries
     """
+    active_tasks = 0.0
+    total_failures = 0.0
+    total_retries = 0.0
+    queue_lengths: Dict[str, float] = {}
+
+    for family in celery_task_active.collect():
+        for sample in family.samples:
+            if sample.name == "celery_task_active":
+                active_tasks += float(sample.value)
+
+    for family in celery_task_failures.collect():
+        for sample in family.samples:
+            if sample.name == "celery_task_failures_total":
+                total_failures += float(sample.value)
+
+    for family in celery_task_retries.collect():
+        for sample in family.samples:
+            if sample.name == "celery_task_retries_total":
+                total_retries += float(sample.value)
+
+    for family in celery_queue_length.collect():
+        for sample in family.samples:
+            if sample.name != "celery_queue_length":
+                continue
+            queue_name = sample.labels.get("queue_name", "unknown")
+            queue_lengths[queue_name] = float(sample.value)
+
     return {
-        "active_tasks": sum(
-            metric.labels(task_name=name)._value.get()
-            for name, metric in celery_task_active._metrics.items()
-        ),
-        "total_failures": sum(
-            metric._value.get() for metric in celery_task_failures._metrics.values()
-        ),
-        "total_retries": sum(
-            metric._value.get() for metric in celery_task_retries._metrics.values()
-        ),
-        "queue_lengths": {
-            name: metric._value.get()
-            for name, metric in celery_queue_length._metrics.items()
-        },
+        "active_tasks": active_tasks,
+        "total_failures": total_failures,
+        "total_retries": total_retries,
+        "queue_lengths": queue_lengths,
     }
 
 

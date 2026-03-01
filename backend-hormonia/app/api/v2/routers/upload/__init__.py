@@ -36,9 +36,10 @@ from fastapi import (
     Query,
     BackgroundTasks,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.dependencies.auth_dependencies import get_current_user_object_from_session
 from app.schemas.v2.upload import (
     UploadResponse,
@@ -111,7 +112,7 @@ async def upload_file(
     public: bool = Query(False, description="Make file publicly accessible"),
     fields: Optional[str] = Query(None, description="Fields to return"),
     current_user: User = Depends(get_current_user_object_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> Dict[str, Any]:
     """Upload a file with optional processing."""
     return await upload_file_handler(

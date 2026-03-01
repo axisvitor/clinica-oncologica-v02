@@ -16,6 +16,7 @@ from unittest.mock import Mock, patch, MagicMock
 from sqlalchemy import text
 from fastapi.testclient import TestClient
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.middleware.csrf import (
     generate_csrf_token,
     validate_csrf_token,
@@ -389,7 +390,7 @@ class TestCSRFProtection:
 
         # Generate fresh token
         token = generate_csrf_token()
-        current_time = datetime.utcnow()
+        current_time = now_sao_paulo_naive()
 
         # Fresh token should be valid
         assert validate_csrf_token(token) is True

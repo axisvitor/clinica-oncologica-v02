@@ -13,10 +13,11 @@ from uuid import UUID
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy.orm import joinedload
-from sqlalchemy import func, desc
+from sqlalchemy import func, desc, select, update as sql_update
+from sqlalchemy.orm import selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.flow import FlowTemplateVersion
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.schemas.v2.templates import (
@@ -41,7 +42,8 @@ from app.api.v2.templates_shared import (
     RATE_LIMIT_READ,
     RATE_LIMIT_WRITE,
 )
-from app.utils.audit_logger import AuditLogger, AuditAction
+from app.monitoring.audit_logger import TemplateAuditLogger as AuditLogger, TemplateAuditAction as AuditAction
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -60,7 +62,7 @@ logger = logging.getLogger(__name__)
 async def list_template_versions(
     request: Request,
     template_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
@@ -76,11 +78,10 @@ async def list_template_versions(
             return cached
 
         # Get the template to find its kind
-        template = (
-            db.query(FlowTemplateVersion)
-            .filter(FlowTemplateVersion.id == template_id)
-            .first()
+        template_result = await db.execute(
+            select(FlowTemplateVersion).where(FlowTemplateVersion.id == template_id)
         )
+        template = template_result.scalar_one_or_none()
 
         if not template:
             raise HTTPException(
@@ -88,13 +89,13 @@ async def list_template_versions(
             )
 
         # Get all versions for this kind (with eager loading to prevent N+1)
-        versions = (
-            db.query(FlowTemplateVersion)
-            .options(joinedload(FlowTemplateVersion.kind))
-            .filter(FlowTemplateVersion.kind_id == template.kind_id)
+        versions_result = await db.execute(
+            select(FlowTemplateVersion)
+            .options(selectinload(FlowTemplateVersion.kind))
+            .where(FlowTemplateVersion.flow_kind_id == template.flow_kind_id)
             .order_by(desc(FlowTemplateVersion.version_number))
-            .all()
         )
+        versions = list(versions_result.scalars().all())
 
         data = [_serialize_flow_template(v) for v in versions]
 
@@ -130,7 +131,7 @@ async def compare_template_versions(
     request: Request,
     template_id: UUID,
     compare_with_id: UUID = Query(..., description="Version ID to compare with"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
@@ -140,16 +141,14 @@ async def compare_template_versions(
     """
     try:
         # Get both templates
-        template1 = (
-            db.query(FlowTemplateVersion)
-            .filter(FlowTemplateVersion.id == template_id)
-            .first()
+        t1_result = await db.execute(
+            select(FlowTemplateVersion).where(FlowTemplateVersion.id == template_id)
         )
-        template2 = (
-            db.query(FlowTemplateVersion)
-            .filter(FlowTemplateVersion.id == compare_with_id)
-            .first()
+        template1 = t1_result.scalar_one_or_none()
+        t2_result = await db.execute(
+            select(FlowTemplateVersion).where(FlowTemplateVersion.id == compare_with_id)
         )
+        template2 = t2_result.scalar_one_or_none()
 
         if not template1 or not template2:
             raise HTTPException(
@@ -191,7 +190,7 @@ async def rollback_template_version(
     request: Request,
     template_id: UUID,
     rollback_data: TemplateVersionRollbackRequest,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
@@ -206,11 +205,10 @@ async def rollback_template_version(
         role, user_uuid = _extract_user_context(current_user)
 
         # Get source version to rollback to
-        source_version = (
-            db.query(FlowTemplateVersion)
-            .filter(FlowTemplateVersion.id == template_id)
-            .first()
+        source_result = await db.execute(
+            select(FlowTemplateVersion).where(FlowTemplateVersion.id == template_id)
         )
+        source_version = source_result.scalar_one_or_none()
 
         if not source_version:
             raise HTTPException(
@@ -218,30 +216,32 @@ async def rollback_template_version(
             )
 
         # Get latest version number for this kind
-        latest = (
-            db.query(func.max(FlowTemplateVersion.version_number))
-            .filter(FlowTemplateVersion.kind_id == source_version.kind_id)
-            .scalar()
+        latest_result = await db.execute(
+            select(func.max(FlowTemplateVersion.version_number)).where(
+                FlowTemplateVersion.flow_kind_id == source_version.flow_kind_id
+            )
         )
+        latest = latest_result.scalar()
 
         new_version_number = (latest or 0) + 1
 
         # Create rollback version
         rollback_version = FlowTemplateVersion(
-            kind_id=source_version.kind_id,
+            flow_kind_id=source_version.flow_kind_id,
             version_number=new_version_number,
             template_name=f"{source_version.template_name} (Rollback)",
             description=rollback_data.reason
             or f"Rollback to version {source_version.version_number}",
-            messages=source_version.messages,
-            template_metadata=source_version.template_metadata.copy()
-            if source_version.template_metadata
+            steps=source_version.steps,
+            metadata_json=source_version.metadata_json.copy()
+            if source_version.metadata_json
             else {},
             is_active=rollback_data.set_as_active
             if rollback_data.set_as_active is not None
             else False,
-            is_draft=False,  # Rollbacks are published by default
-            published_at=datetime.now(timezone.utc),
+            is_draft=False,
+            # Rollbacks are published by default
+            published_at=now_sao_paulo(),
             created_by=user_uuid,
         )
 
@@ -249,13 +249,17 @@ async def rollback_template_version(
 
         # If set_as_active, deactivate other versions
         if rollback_data.set_as_active:
-            db.query(FlowTemplateVersion).filter(
-                FlowTemplateVersion.kind_id == source_version.kind_id,
-                FlowTemplateVersion.id != rollback_version.id,
-            ).update({"is_active": False})
+            await db.execute(
+                sql_update(FlowTemplateVersion)
+                .where(
+                    FlowTemplateVersion.flow_kind_id == source_version.flow_kind_id,
+                    FlowTemplateVersion.id != rollback_version.id,
+                )
+                .values(is_active=False)
+            )
 
-        db.commit()
-        db.refresh(rollback_version)
+        await db.commit()
+        await db.refresh(rollback_version)
 
         # Invalidate cache
         await _invalidate_template_cache("flow")
@@ -282,12 +286,12 @@ async def rollback_template_version(
         )
 
         # Reload with kind relationship
-        rollback_version = (
-            db.query(FlowTemplateVersion)
-            .options(joinedload(FlowTemplateVersion.kind))
-            .filter(FlowTemplateVersion.id == rollback_version.id)
-            .first()
+        reload_result = await db.execute(
+            select(FlowTemplateVersion)
+            .options(selectinload(FlowTemplateVersion.kind))
+            .where(FlowTemplateVersion.id == rollback_version.id)
         )
+        rollback_version = reload_result.scalar_one_or_none()
 
         return _serialize_flow_template(rollback_version)
 
@@ -295,7 +299,7 @@ async def rollback_template_version(
         raise
     except Exception as e:
         logger.error(f"Error rolling back template version: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to rollback template version: {str(e)}",
@@ -313,7 +317,7 @@ async def publish_template_version(
     request: Request,
     template_id: UUID,
     set_as_active: bool = Query(False, description="Set this version as active"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
@@ -326,11 +330,10 @@ async def publish_template_version(
         _check_write_permission(current_user)
         role, user_uuid = _extract_user_context(current_user)
 
-        template = (
-            db.query(FlowTemplateVersion)
-            .filter(FlowTemplateVersion.id == template_id)
-            .first()
+        template_result = await db.execute(
+            select(FlowTemplateVersion).where(FlowTemplateVersion.id == template_id)
         )
+        template = template_result.scalar_one_or_none()
 
         if not template:
             raise HTTPException(
@@ -345,20 +348,24 @@ async def publish_template_version(
 
         # Publish template
         template.is_draft = False
-        template.published_at = datetime.now(timezone.utc)
+        template.published_at = now_sao_paulo()
 
         if set_as_active:
             # Deactivate other versions
-            db.query(FlowTemplateVersion).filter(
-                FlowTemplateVersion.kind_id == template.kind_id,
-                FlowTemplateVersion.id != template.id,
-            ).update({"is_active": False})
+            await db.execute(
+                sql_update(FlowTemplateVersion)
+                .where(
+                    FlowTemplateVersion.flow_kind_id == template.flow_kind_id,
+                    FlowTemplateVersion.id != template.id,
+                )
+                .values(is_active=False)
+            )
             template.is_active = True
 
-        template.updated_at = datetime.now(timezone.utc)
+        template.updated_at = now_sao_paulo()
 
-        db.commit()
-        db.refresh(template)
+        await db.commit()
+        await db.refresh(template)
 
         # Invalidate cache
         await _invalidate_template_cache("flow", template_id)
@@ -381,12 +388,12 @@ async def publish_template_version(
         logger.info(f"Published template: {template_id} by user {user_uuid}")
 
         # Reload with kind relationship
-        template = (
-            db.query(FlowTemplateVersion)
-            .options(joinedload(FlowTemplateVersion.kind))
-            .filter(FlowTemplateVersion.id == template_id)
-            .first()
+        reload_result = await db.execute(
+            select(FlowTemplateVersion)
+            .options(selectinload(FlowTemplateVersion.kind))
+            .where(FlowTemplateVersion.id == template_id)
         )
+        template = reload_result.scalar_one_or_none()
 
         return _serialize_flow_template(template)
 
@@ -394,7 +401,7 @@ async def publish_template_version(
         raise
     except Exception as e:
         logger.error(f"Error publishing template: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to publish template",

@@ -9,7 +9,6 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from app.dependencies.auth_dependencies import get_current_user
 from app.models.user import User
 from app.schemas.v2.health import (
     RailwayHealth,
@@ -18,6 +17,7 @@ from app.schemas.v2.health import (
     HealthStatus,
 )
 from app.config import settings
+from .compat import get_current_user_compat
 
 
 logger = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ router = APIRouter()
 
 @router.get("/railway", response_model=RailwayHealth)
 async def railway_health_check(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_compat),
 ) -> RailwayHealth:
     """
     Railway-specific health check (Authenticated).
@@ -47,7 +47,7 @@ async def railway_health_check(
 
 @router.get("/production", response_model=ProductionHealth)
 async def production_health_check(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_compat),
 ) -> ProductionHealth:
     """
     Production environment health check (Authenticated).
@@ -65,7 +65,7 @@ async def production_health_check(
 
 @router.get("/environment", response_model=EnvironmentHealth)
 async def environment_health_check(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_compat),
 ) -> EnvironmentHealth:
     """
     Environment configuration health check (Authenticated).

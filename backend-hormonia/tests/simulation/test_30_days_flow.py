@@ -5,6 +5,7 @@ Simula o fluxo completo de mensagens para um paciente ao longo de 30 dias.
 
 import sys
 import os
+from app.utils.timezone import now_sao_paulo
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import asyncio
@@ -45,7 +46,7 @@ async def run_simulation():
     print("🧪 SIMULAÇÃO DE 30 DIAS DE ENVIOS")
     print("=" * 70)
 
-    from app.core.database import SessionLocal
+    from app.database import SessionLocal
     from app.schemas.patient import PatientCreate
     from app.orchestration.saga_orchestrator import SagaOrchestrator
     from app.models.patient import Patient
@@ -104,7 +105,7 @@ async def run_simulation():
         print("-" * 70)
 
         messages_created = []
-        base_time = datetime.now(timezone.utc)
+        base_time = now_sao_paulo()
 
         for day in range(1, 31):
             day_time = base_time + timedelta(days=day-1)

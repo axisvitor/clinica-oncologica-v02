@@ -8,9 +8,10 @@ Handles quiz-related analytics, status distribution and completion trends.
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, case
+from sqlalchemy import func, case, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.quiz import QuizSession
 from app.models.patient import Patient
 from app.models.user import UserRole
@@ -27,6 +28,7 @@ from .base import (
     get_cached_result,
     set_cached_result,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -39,7 +41,7 @@ router = APIRouter()
     description="Get distribution of quiz statuses with optional filtering (ADMIN/DOCTOR only)",
 )
 async def get_quiz_status_distribution(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     month: Optional[int] = Query(None, ge=1, le=12, description="Filter by month"),
     year: Optional[int] = Query(None, ge=2020, description="Filter by year"),
@@ -70,19 +72,21 @@ async def get_quiz_status_distribution(
     if cached_result:
         return cached_result
 
-    query = db.query(
-        QuizSession.status, func.count(QuizSession.id).label("count")
-    ).join(Patient, Patient.id == QuizSession.patient_id)
+    stmt = (
+        select(QuizSession.status, func.count(QuizSession.id).label("count"))
+        .join(Patient, Patient.id == QuizSession.patient_id)
+    )
 
     if role != UserRole.ADMIN and user_uuid:
-        query = query.filter(Patient.doctor_id == user_uuid)
+        stmt = stmt.where(Patient.doctor_id == user_uuid)
 
     if month:
-        query = query.filter(func.extract("month", QuizSession.created_at) == month)
+        stmt = stmt.where(func.extract("month", QuizSession.created_at) == month)
     if year:
-        query = query.filter(func.extract("year", QuizSession.created_at) == year)
+        stmt = stmt.where(func.extract("year", QuizSession.created_at) == year)
 
-    results = query.group_by(QuizSession.status).all()
+    stmt = stmt.group_by(QuizSession.status)
+    results = (await db.execute(stmt)).all()
 
     distribution = {status: count for status, count in results}
 
@@ -113,7 +117,7 @@ async def get_quiz_status_distribution(
     description="Get quiz completion trend over the last N months (ADMIN/DOCTOR only)",
 )
 async def get_completion_trend(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     months: int = Query(6, ge=1, le=24, description="Number of months to include"),
 ):
@@ -142,12 +146,12 @@ async def get_completion_trend(
         return cached_result
 
     # Calculate date range
-    end_date = datetime.now(timezone.utc)
+    end_date = now_sao_paulo()
     start_date = end_date - timedelta(days=months * 30)
 
     # Get monthly stats using date functions
-    results_query = (
-        db.query(
+    stmt = (
+        select(
             func.extract("year", QuizSession.created_at).label("year"),
             func.extract("month", QuizSession.created_at).label("month"),
             func.count(QuizSession.id).label("total"),
@@ -156,14 +160,14 @@ async def get_completion_trend(
             ),
         )
         .join(Patient, Patient.id == QuizSession.patient_id)
-        .filter(QuizSession.created_at >= start_date)
+        .where(QuizSession.created_at >= start_date)
     )
 
     if role != UserRole.ADMIN and user_uuid:
-        results_query = results_query.filter(Patient.doctor_id == user_uuid)
+        stmt = stmt.where(Patient.doctor_id == user_uuid)
 
-    results = (
-        results_query.group_by(
+    stmt = (
+        stmt.group_by(
             func.extract("year", QuizSession.created_at),
             func.extract("month", QuizSession.created_at),
         )
@@ -171,8 +175,9 @@ async def get_completion_trend(
             func.extract("year", QuizSession.created_at),
             func.extract("month", QuizSession.created_at),
         )
-        .all()
     )
+
+    results = (await db.execute(stmt)).all()
 
     trend = []
     for year, month, total, completed in results:

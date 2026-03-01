@@ -18,8 +18,6 @@ import logging
 from dataclasses import dataclass, asdict
 from enum import Enum
 
-from app.config import settings
-
 logger = logging.getLogger(__name__)
 
 
@@ -211,15 +209,20 @@ class MetricsRedisStorage:
         if self.redis_client is None:
             try:
                 # Use unified Redis client
-                from app.core.redis_unified import get_async_redis
+                from app.core.redis_manager import get_async_redis_client as get_async_redis
 
                 self.redis_client = await get_async_redis()
                 logger.info("MetricsRedisStorage connected to Redis via unified client")
             except Exception as e:
                 logger.error(f"Failed to connect to Redis: {e}")
                 # Fallback to direct connection
-                self.redis_client = redis.from_url(
-                    settings.REDIS_URL,
+                from app.core.redis_manager import (
+                    get_redis_connection_kwargs,
+                    get_redis_url_with_ssl,
+                )
+
+                connection_kwargs = get_redis_connection_kwargs(
+                    mode="async",
                     decode_responses=True,
                     socket_timeout=30.0,
                     socket_connect_timeout=30.0,
@@ -228,6 +231,10 @@ class MetricsRedisStorage:
                     socket_keepalive=True,
                     socket_keepalive_options={},
                     health_check_interval=30,
+                )
+                self.redis_client = redis.from_url(
+                    get_redis_url_with_ssl(),
+                    **connection_kwargs,
                 )
                 logger.warning(
                     "MetricsRedisStorage using direct Redis connection as fallback"
@@ -601,8 +608,10 @@ class MetricsRedisStorage:
             redis_client = await self._get_redis_client()
             int(time.time())
 
-            # Get all metric keys
-            all_keys = await redis_client.keys(f"{self.key_prefix}*")
+            # Get all metric keys (non-blocking scan)
+            all_keys = []
+            async for key in redis_client.scan_iter(match=f"{self.key_prefix}*", count=100):
+                all_keys.append(key)
 
             for key in all_keys:
                 try:
@@ -644,14 +653,13 @@ class MetricsRedisStorage:
             # Get memory usage
             memory_info = await redis_client.info("memory")
 
-            # Count keys by type
-            key_counts = {
-                "raw": len(await redis_client.keys(f"{self.key_prefix}raw:*")),
-                "hourly": len(await redis_client.keys(f"{self.key_prefix}hourly:*")),
-                "daily": len(await redis_client.keys(f"{self.key_prefix}daily:*")),
-                "monthly": len(await redis_client.keys(f"{self.key_prefix}monthly:*")),
-                "current": len(await redis_client.keys(f"{self.key_prefix}current:*")),
-            }
+            # Count keys by type (non-blocking scan)
+            key_counts = {"raw": 0, "hourly": 0, "daily": 0, "monthly": 0, "current": 0}
+            for category in key_counts:
+                async for _ in redis_client.scan_iter(
+                    match=f"{self.key_prefix}{category}:*", count=100
+                ):
+                    key_counts[category] += 1
 
             return {
                 "memory_used_bytes": memory_info.get("used_memory", 0),

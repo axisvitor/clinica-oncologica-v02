@@ -40,4 +40,11 @@ Historical analysis, test results, and debugging logs.
 - **[.refactor](./.refactor)**: Internal refactoring logs.
 
 ---
-*Backend documentation refactored on 2025-12-27.*
+
+> [!IMPORTANT]
+> **Deprecation Notice (2026-01-04):**
+> - References to `saga_orchestrator.py` in older docs are outdated. Use `app/orchestration/saga_orchestrator/` package instead.
+> - Tables `quiz_sessions_v2`, `quiz_template_versions_v2`, `quiz_questions` have been dropped.
+> - Phone normalization now uses E.164 format exclusively.
+
+*Backend documentation last updated: 2026-01-04.*

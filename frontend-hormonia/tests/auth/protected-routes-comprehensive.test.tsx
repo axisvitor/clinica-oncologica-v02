@@ -163,7 +163,7 @@ describe('Protected Routes Comprehensive Tests', () => {
             <Route
               path="/admin"
               element={
-                <ProtectedRoute requiredRole="admin">
+                <ProtectedRoute requiredPermission="canAccessAdmin">
                   <MockAdminPanel />
                 </ProtectedRoute>
               }
@@ -191,7 +191,7 @@ describe('Protected Routes Comprehensive Tests', () => {
             <Route
               path="/admin"
               element={
-                <ProtectedRoute requiredRole="admin">
+                <ProtectedRoute requiredPermission="canAccessAdmin">
                   <MockAdminPanel />
                 </ProtectedRoute>
               }
@@ -219,7 +219,7 @@ describe('Protected Routes Comprehensive Tests', () => {
             <Route
               path="/patients"
               element={
-                <ProtectedRoute requiredRoles={['doctor', 'admin']}>
+                <ProtectedRoute requiredPermission="canManagePatients">
                   <MockPatientList />
                 </ProtectedRoute>
               }
@@ -341,7 +341,6 @@ describe('Protected Routes Comprehensive Tests', () => {
               path="/admin"
               element={
                 <ProtectedRoute
-                  requiredRole="admin"
                   requiredPermission="admin:full"
                 >
                   <MockAdminPanel />
@@ -376,7 +375,6 @@ describe('Protected Routes Comprehensive Tests', () => {
               path="/admin"
               element={
                 <ProtectedRoute
-                  requiredRole="admin"
                   requiredPermission="admin:full"
                 >
                   <MockAdminPanel />
@@ -434,7 +432,7 @@ describe('Protected Routes Comprehensive Tests', () => {
               path="/admin"
               element={
                 <ProtectedRoute
-                  requiredRole="admin"
+                  requiredPermission="canAccessAdmin"
                   unauthorizedRedirect="/custom-unauthorized"
                 >
                   <MockAdminPanel />
@@ -568,7 +566,7 @@ describe('Protected Routes Comprehensive Tests', () => {
             <Route
               path="/admin/*"
               element={
-                <ProtectedRoute requiredRole="admin">
+                <ProtectedRoute requiredPermission="canAccessAdmin">
                   <Routes>
                     <Route
                       path="users"
@@ -656,7 +654,7 @@ describe('Protected Routes Comprehensive Tests', () => {
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute requiredRole="admin">
+                <ProtectedRoute requiredPermission="canAccessAdmin">
                   <MockDashboard />
                 </ProtectedRoute>
               }

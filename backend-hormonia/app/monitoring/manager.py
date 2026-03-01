@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from sqlalchemy.engine import Engine
 
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from .config import MonitoringConfig, get_monitoring_config
 from .apm import APMCollector
 from .database_monitor import DatabasePerformanceMonitor
@@ -19,6 +19,7 @@ from .dashboard import RealTimeDashboard
 from .anomaly_detector import AnomalyDetector
 from .metrics_exporter import MetricsExporter
 from .middleware import MonitoringMiddleware
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -315,7 +316,7 @@ class MonitoringManager:
     async def get_system_metrics(self) -> Dict[str, Any]:
         """Get current system metrics from all collectors."""
         metrics = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "system_health": self.get_health_status(),
         }
 

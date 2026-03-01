@@ -20,6 +20,7 @@ class FlowState(enum.Enum):
     - ACTIVE: Actively receiving treatment
     - PAUSED: Treatment temporarily suspended
     - COMPLETED: Treatment successfully finished
+    - INACTIVE: Archived or inactive patient record
     - CANCELLED: Treatment cancelled or archived
 
     Used in: Patient model, Flow model
@@ -29,6 +30,7 @@ class FlowState(enum.Enum):
     ACTIVE = "active"
     PAUSED = "paused"
     COMPLETED = "completed"
+    INACTIVE = "inactive"
     CANCELLED = "cancelled"
 
 
@@ -49,6 +51,7 @@ class SagaStatus(str, enum.Enum):
     - COMPENSATING: Running compensation
     - COMPENSATED: Compensation complete
     - RETRY_SCHEDULED: Retry pending
+    - CLEANED_UP: Manual cleanup performed
 
     Used in: PatientOnboardingSaga model
     """
@@ -64,6 +67,7 @@ class SagaStatus(str, enum.Enum):
     COMPENSATING = "COMPENSATING"
     COMPENSATED = "COMPENSATED"
     RETRY_SCHEDULED = "RETRY_SCHEDULED"
+    CLEANED_UP = "CLEANED_UP"
 
 
 # Backward compatibility exports

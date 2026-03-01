@@ -5,17 +5,17 @@ This module contains Celery tasks for processing monthly quizzes and generating
 quiz reports for patients.
 """
 
-import asyncio
 import logging
 from typing import Any
-from datetime import datetime, timezone
 from uuid import UUID
 from celery.exceptions import MaxRetriesExceededError
 
-from app.celery_app import celery_app
-from app.database import get_db
+from app.task_queue import task_queue as celery_app
+from app.database import get_scoped_session
+from app.utils.async_helpers import run_async
 
 from .base import FlowTaskBase
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -50,50 +50,21 @@ def process_monthly_quizzes(self, limit: int = 50) -> dict[str, Any]:
     try:
         logger.info(f"Starting monthly quiz processing for up to {limit} patients")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             # Initialize quiz trigger service
-            from app.domain.quizzes.integration.flow_integration import (
+            from app.domain.quizzes.integration.flow_integration.utils import (
                 get_quiz_trigger_service,
             )
 
             quiz_trigger_service = get_quiz_trigger_service(db)
 
-            # Check and trigger monthly quizzes using proper async handling
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    results = loop.run_until_complete(
-                        quiz_trigger_service.check_and_trigger_monthly_quizzes(
-                            limit=limit
-                        )
-                    )
-                finally:
-                    loop.close()
-            except RuntimeError as e:
-                if "cannot be called from a running event loop" in str(e):
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(
-                            lambda: asyncio.run(
-                                quiz_trigger_service.check_and_trigger_monthly_quizzes(
-                                    limit=limit
-                                )
-                            )
-                        )
-                        results = future.result(timeout=QUIZ_PROCESSING_TIMEOUT)
-                else:
-                    raise
+            results = run_async(
+                quiz_trigger_service.check_and_trigger_monthly_quizzes(limit=limit),
+                timeout=QUIZ_PROCESSING_TIMEOUT,
+            )
 
             logger.info(f"Monthly quiz processing completed: {results}")
             return results
-
-        finally:
-            db.close()
 
     except Exception as e:
         logger.error(f"Monthly quiz processing failed: {e}")
@@ -151,10 +122,7 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
     try:
         logger.info(f"Generating quiz report for session {session_id}")
 
-        # Get database session
-        db = next(get_db())
-
-        try:
+        with get_scoped_session() as db:
             # Initialize quiz report generator
             from app.services.reporting.quiz_report_generator import (
                 get_quiz_report_generator,
@@ -162,42 +130,20 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
 
             report_generator = get_quiz_report_generator(db)
 
-            # Generate report using proper async handling
-            try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    report_id = loop.run_until_complete(
-                        report_generator.generate_quiz_report(UUID(session_id))
-                    )
-                finally:
-                    loop.close()
-            except RuntimeError as e:
-                if "cannot be called from a running event loop" in str(e):
-                    import concurrent.futures
-
-                    with concurrent.futures.ThreadPoolExecutor() as executor:
-                        future = executor.submit(
-                            lambda: asyncio.run(
-                                report_generator.generate_quiz_report(UUID(session_id))
-                            )
-                        )
-                        report_id = future.result(timeout=QUIZ_REPORT_TIMEOUT)
-                else:
-                    raise
+            report_id = run_async(
+                report_generator.generate_quiz_report(UUID(session_id)),
+                timeout=QUIZ_REPORT_TIMEOUT,
+            )
 
             result = {
                 "status": "success",
                 "session_id": session_id,
                 "report_id": str(report_id),
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": now_sao_paulo().isoformat(),
             }
 
             logger.info(f"Quiz report generated successfully: {result}")
             return result
-
-        finally:
-            db.close()
 
     except Exception as e:
         logger.error(f"Quiz report generation failed: {e}")
@@ -217,9 +163,6 @@ def generate_quiz_report(self, session_id: str) -> dict[str, Any]:
             logger.error(
                 f"Quiz report generation failed after {self.max_retries} attempts"
             )
-            return {
-                "status": "failed",
-                "session_id": session_id,
-                "error": str(e),
-                "failed_at": datetime.now(timezone.utc).isoformat(),
-            }
+            raise MaxRetriesExceededError(
+                f"Task failed after {self.max_retries} retries: {e}"
+            )

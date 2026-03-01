@@ -43,6 +43,7 @@ class UserCRUDMixin:
         """
         # Check admin permissions
         self._check_admin_permissions(admin_user, "create_user")
+        _ = request_info
 
         # Validate email format and check for issues
         email_validation = await validate_email_advanced(
@@ -151,6 +152,7 @@ class UserCRUDMixin:
         """Update user information with enhanced validation."""
         # Check admin permissions
         self._check_admin_permissions(admin_user, "update_user")
+        _ = request_info
 
         user = await self.get_user_by_id(user_id)
         if not user:
@@ -264,6 +266,7 @@ class UserCRUDMixin:
         """Activate a user with permission checks."""
         # Check admin permissions
         self._check_admin_permissions(admin_user, "activate_user")
+        _ = request_info
 
         user = await self.get_user_by_id(user_id)
         if not user:
@@ -309,6 +312,7 @@ class UserCRUDMixin:
         """Deactivate a user with permission checks."""
         # Check admin permissions
         self._check_admin_permissions(admin_user, "deactivate_user")
+        _ = request_info
 
         user = await self.get_user_by_id(user_id)
         if not user:

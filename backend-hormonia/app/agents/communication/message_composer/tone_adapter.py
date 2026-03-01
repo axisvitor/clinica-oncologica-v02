@@ -1,3 +1,4 @@
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
 """
 Tone Adaptation Module
 
@@ -6,7 +7,9 @@ Handles adaptive tone adjustment for messages based on patient context.
 
 from typing import Dict, Any
 
-from app.integrations.gemini_client import GeminiClient
+from app.agents.communication.utils import clean_message_content
+from app.ai.client import GeminiClient
+from app.services.ai.guardrails import OutputKind
 from app.utils.logging import get_logger
 
 
@@ -43,11 +46,11 @@ class MessageToneAdapter:
                 content, target_tone, mood_score, stress_level
             )
 
-            return adapted_content if adapted_content else content
+            return adapted_content
 
         except Exception as e:
             self.logger.error(f"Tone adaptation failed: {e}")
-            return payload.get("content", "")
+            raise
 
     def _determine_appropriate_tone(
         self, mood_score: float, stress_level: float, default_tone: str
@@ -79,30 +82,27 @@ class MessageToneAdapter:
             Tom desejado: {target_tone}
 
             Mantenha o conteúdo principal mas ajuste o tom e as palavras.
-            Retorne apenas a mensagem adaptada.
+            Regras de saída (obrigatório):
+            - Retorne apenas o texto final
+            - Gere apenas UMA mensagem para este envio
+            - Não antecipe mensagens futuras nem mencione sequência
+            - Não inclua explicações, raciocínios ou meta-comentários
+            - Não mencione prompt, instruções, políticas ou sistema
+            - Não use markdown, listas, cabeçalhos ou blocos de código
+            - Não envolva a resposta em aspas
+            - Escreva apenas em português do Brasil
             """
 
-            adapted_content = await self.gemini_client.generate_content(tone_prompt)
+            adapted_content = await self.gemini_client.generate_content(
+                tone_prompt,
+                output_kind=OutputKind.MESSAGE,
+            )
 
             if adapted_content:
-                return self._clean_message_content(adapted_content)
-            else:
-                return content
+                return clean_message_content(adapted_content)
+            raise ValueError("AI returned empty tone adaptation")
 
         except Exception as e:
             self.logger.error(f"AI tone adaptation failed: {e}")
-            return content
+            raise
 
-    def _clean_message_content(self, content: str) -> str:
-        """Clean and validate message content."""
-        if not content:
-            return ""
-
-        # Remove extra whitespace
-        content = content.strip()
-
-        # Remove quotes if AI returned quoted text
-        if content.startswith('"') and content.endswith('"'):
-            content = content[1:-1]
-
-        return content

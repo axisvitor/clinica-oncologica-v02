@@ -5,8 +5,8 @@ ENV Variable Naming Convention: {CATEGORY}_{SUBCATEGORY}_{ATTRIBUTE}_{UNIT}
 
 from pydantic import Field, model_validator, field_validator
 from typing import List, Optional, Any
-import json
 from .base import BaseAppSettings
+from .parsing import parse_boolean_env_values, parse_list_field
 
 
 class SecuritySettings(BaseAppSettings):
@@ -19,10 +19,29 @@ class SecuritySettings(BaseAppSettings):
         default="dev-insecure-secret-key-must-be-changed-in-production-railway",
         description="Secret key for JWT signing. MUST be set via environment variable in production.",
     )
-    SECURITY_ENCRYPTION_KEY: Optional[str] = Field(
-        default=None, description="Encryption key for sensitive data"
-    )
     SECURITY_ALGORITHM: str = Field(default="HS256", description="JWT algorithm")
+    ENCRYPTION_KEY_CURRENT: Optional[str] = Field(
+        default=None,
+        description="Fernet key for legacy field encryption (base64)",
+    )
+    PHI_ENCRYPTION_KEY: Optional[str] = Field(
+        default=None,
+        description="Base64-encoded 32-byte key for PHI/PII encryption (AES-GCM)",
+    )
+    HASH_SALT: Optional[str] = Field(
+        default=None,
+        description="Hex-encoded salt for searchable hash generation",
+    )
+    SECURITY_ENCRYPTION_KEY: Optional[str] = Field(
+        default=None, description="Legacy fallback for ENCRYPTION_KEY_CURRENT"
+    )
+    SECURITY_ALLOW_WEAK_KEYS: bool = Field(
+        default=False,
+        description=(
+            "Allow startup in production with weak/legacy security keys. "
+            "Use only for backward compatibility while planning key rotation."
+        ),
+    )
 
     # ============================================================================
     # Authentication - Direct ENV names
@@ -75,6 +94,14 @@ class SecuritySettings(BaseAppSettings):
         description="Session cookie max age in seconds (default: 8 hours)",
     )
 
+    # ========================================================================
+    # Authentication Feature Flags
+    # ========================================================================
+    ENABLE_COOKIE_PRIORITY: bool = Field(
+        default=True,
+        description="Prioritize cookie over header for session ID",
+    )
+
     # ============================================================================
     # Security Features - Direct ENV names
     # ============================================================================
@@ -110,6 +137,9 @@ class SecuritySettings(BaseAppSettings):
     )
     FIREBASE_ADMIN_CLIENT_EMAIL: Optional[str] = Field(
         default=None, description="Firebase Admin SDK service account email"
+    )
+    FIREBASE_ADMIN_SDK_TIMEOUT: int = Field(
+        default=10, description="Timeout in seconds for Firebase Admin SDK calls"
     )
 
     # Firebase Security Configuration - Direct ENV names
@@ -157,6 +187,10 @@ class SecuritySettings(BaseAppSettings):
         default=86400,
         description="Firebase session management TTL in seconds (Layer 3 - Default: 24 hours)",
     )
+    SESSION_MAX_AGE_SECONDS: int = Field(
+        default=604800,  # 7 days
+        description="Maximum absolute session lifetime in seconds regardless of activity (Default: 7 days)",
+    )
 
     # ============================================================================
     # Rate Limiting Configuration - Direct ENV name
@@ -181,7 +215,10 @@ class SecuritySettings(BaseAppSettings):
         description="Quiz interface URL (used for CORS in production)",
     )
     CORS_ALLOWED_ORIGINS: List[str] = Field(
-        default=[],
+        default=[
+            "https://clinica-oncologica-hosting.web.app",
+            "https://clinica-oncologica-hosting.firebaseapp.com",
+        ],
         description="Allowed CORS origins (combined with CORS_FRONTEND_URL + CORS_QUIZ_URL)",
     )
     CORS_ALLOWED_HEADERS: List[str] = Field(
@@ -194,6 +231,8 @@ class SecuritySettings(BaseAppSettings):
             "X-CSRF-Token",
             "X-CSRFToken",
             "X-XSRF-Token",
+            "X-Session-ID",
+            "X-Idempotency-Key",
         ],
         description="Allowed CORS headers (validated against safe headers whitelist)",
     )
@@ -291,18 +330,25 @@ class SecuritySettings(BaseAppSettings):
                     "  Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
                 )
 
-            # Encryption Keys (check environment directly as they're not in settings)
-            encryption_key = os.getenv("ENCRYPTION_KEY_CURRENT") or os.getenv(
-                "SECURITY_ENCRYPTION_KEY"
-            )
+            # Encryption Keys
+            encryption_key = self.ENCRYPTION_KEY_CURRENT or self.SECURITY_ENCRYPTION_KEY
             if not encryption_key:
                 missing_vars.append(
                     "ENCRYPTION_KEY_CURRENT - Required for field-level encryption (PHI/PII)\n"
                     "  Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
                 )
 
+            phi_encryption_key = self.PHI_ENCRYPTION_KEY or os.getenv(
+                "COMPLIANCE_PHI_ENCRYPTION_KEY"
+            )
+            if not phi_encryption_key:
+                missing_vars.append(
+                    "PHI_ENCRYPTION_KEY - Required for AES-GCM encryption\n"
+                    "  Generate with: python -c 'import os, base64; print(base64.b64encode(os.urandom(32)).decode())'"
+                )
+
             # Hash Salt for searchable encryption
-            hash_salt = os.getenv("HASH_SALT") or os.getenv("COMPLIANCE_HASH_SALT")
+            hash_salt = self.HASH_SALT or os.getenv("COMPLIANCE_HASH_SALT")
             if not hash_salt:
                 missing_vars.append(
                     "HASH_SALT - Required for searchable hash generation\n"
@@ -387,6 +433,8 @@ class SecuritySettings(BaseAppSettings):
             "X-CSRF-Token",
             "X-CSRFToken",
             "X-XSRF-Token",
+            "X-Session-ID",
+            "X-Idempotency-Key",
             "X-API-Key",
             "Cache-Control",
             "Pragma",
@@ -427,47 +475,9 @@ class SecuritySettings(BaseAppSettings):
             "RATE_LIMIT_ENABLE_SERVICE",
         ]
 
-        for field in boolean_fields:
-            if field in data:
-                v = data[field]
-                if isinstance(v, bool):
-                    data[field] = v
-                elif isinstance(v, str):
-                    data[field] = v.lower() not in ("false", "0", "no", "off", "")
-                else:
-                    data[field] = bool(v)
-
-        # Parse FIREBASE_ALLOWED_DOMAINS from JSON string
-        if "FIREBASE_ALLOWED_DOMAINS" in data:
-            v = data["FIREBASE_ALLOWED_DOMAINS"]
-            if v is None or v == "":
-                data["FIREBASE_ALLOWED_DOMAINS"] = []
-            elif isinstance(v, str):
-                try:
-                    data["FIREBASE_ALLOWED_DOMAINS"] = json.loads(v)
-                except json.JSONDecodeError:
-                    data["FIREBASE_ALLOWED_DOMAINS"] = []
-
-        # Parse CORS_ALLOWED_ORIGINS
-        if "CORS_ALLOWED_ORIGINS" in data:
-            v = data["CORS_ALLOWED_ORIGINS"]
-            if isinstance(v, list) and len(v) > 0:
-                pass  # Already a list
-            elif isinstance(v, str) and v.strip():
-                s = v.strip()
-                if s.startswith("["):
-                    try:
-                        data["CORS_ALLOWED_ORIGINS"] = json.loads(s)
-                    except (json.JSONDecodeError, ValueError):
-                        data["CORS_ALLOWED_ORIGINS"] = [
-                            item.strip() for item in s.split(",") if item.strip()
-                        ]
-                else:
-                    data["CORS_ALLOWED_ORIGINS"] = [
-                        item.strip() for item in s.split(",") if item.strip()
-                    ]
-            else:
-                data["CORS_ALLOWED_ORIGINS"] = []
+        parse_boolean_env_values(data, boolean_fields)
+        parse_list_field(data, "FIREBASE_ALLOWED_DOMAINS")
+        parse_list_field(data, "CORS_ALLOWED_ORIGINS", allow_quoted_json=True)
 
         # Validate security keys are not placeholders (only in production)
         # In development, default insecure keys are allowed for local testing
@@ -485,15 +495,34 @@ class SecuritySettings(BaseAppSettings):
                 "DEV-",
                 "MUST-BE-CHANGED",
             ]
-            for field in ["SECURITY_SECRET_KEY", "SECURITY_ENCRYPTION_KEY"]:
+            generation_commands = {
+                "SECURITY_SECRET_KEY": "python -c 'import secrets; print(secrets.token_urlsafe(64))'",
+                "SECURITY_CSRF_SECRET_KEY": "python -c 'import secrets; print(secrets.token_urlsafe(32))'",
+                "ENCRYPTION_KEY_CURRENT": "python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'",
+                "PHI_ENCRYPTION_KEY": "python -c 'import os, base64; print(base64.b64encode(os.urandom(32)).decode())'",
+                "HASH_SALT": "python -c 'import secrets; print(secrets.token_hex(32))'",
+                "SECURITY_ENCRYPTION_KEY": "python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'",
+            }
+            for field in [
+                "SECURITY_SECRET_KEY",
+                "SECURITY_CSRF_SECRET_KEY",
+                "ENCRYPTION_KEY_CURRENT",
+                "PHI_ENCRYPTION_KEY",
+                "HASH_SALT",
+                "SECURITY_ENCRYPTION_KEY",
+            ]:
                 if field in data:
                     v = data[field]
                     if v and any(
                         pattern in v.upper() for pattern in placeholder_patterns
                     ):
+                        command = generation_commands.get(
+                            field,
+                            "python -c 'import secrets; print(secrets.token_urlsafe(64))'",
+                        )
                         raise ValueError(
                             f"{field} must be changed from placeholder/default value in production. "
-                            f"Generate a secure key with: python -c 'import secrets; print(secrets.token_urlsafe(64))'"
+                            f"Generate a secure key with: {command}"
                         )
 
         return data
@@ -507,7 +536,7 @@ class SecuritySettings(BaseAppSettings):
         if self.SECURITY_CSRF_SECRET_KEY:
             try:
                 # Import validation function
-                from app.utils.security_validation import validate_csrf_secret
+                from app.utils.key_validation import validate_csrf_secret
 
                 # Validate CSRF secret with entropy checking
                 # log_validation=True will log metrics without exposing the secret
@@ -585,7 +614,7 @@ class SecuritySettings(BaseAppSettings):
             # AUTH-001: Validate entropy of security keys (NEW)
             # ===================================================================
             try:
-                from app.utils.security_validation import (
+                from app.utils.key_validation import (
                     validate_all_secrets,
                     mask_secret_for_logging,
                 )
@@ -602,9 +631,12 @@ class SecuritySettings(BaseAppSettings):
                         self.SECURITY_SECRET_KEY
                     )
 
-                if self.SECURITY_ENCRYPTION_KEY:
-                    secrets_to_validate["SECURITY_ENCRYPTION_KEY"] = (
-                        self.SECURITY_ENCRYPTION_KEY
+                encryption_key_current = (
+                    self.ENCRYPTION_KEY_CURRENT or self.SECURITY_ENCRYPTION_KEY
+                )
+                if encryption_key_current:
+                    secrets_to_validate["ENCRYPTION_KEY_CURRENT"] = (
+                        encryption_key_current
                     )
 
                 if self.SECURITY_CSRF_SECRET_KEY:
@@ -612,44 +644,57 @@ class SecuritySettings(BaseAppSettings):
                         self.SECURITY_CSRF_SECRET_KEY
                     )
 
-                # Validate all secrets
-                validation_results = validate_all_secrets(
-                    secrets_to_validate, environment="production"
-                )
+                if self.PHI_ENCRYPTION_KEY:
+                    secrets_to_validate["PHI_ENCRYPTION_KEY"] = (
+                        self.PHI_ENCRYPTION_KEY
+                    )
 
-                # Check for any invalid keys
-                for key_name, result in validation_results.items():
-                    if not result.is_valid:
-                        masked_key = mask_secret_for_logging(
-                            secrets_to_validate[key_name]
-                        )
+                if self.HASH_SALT:
+                    secrets_to_validate["HASH_SALT"] = self.HASH_SALT
 
-                        error_msg = (
-                            f"{key_name} has insufficient entropy:\n"
-                            f"  - Masked value: {masked_key}\n"
-                            f"  - Entropy: {result.entropy_bits:.1f} bits (minimum: 128)\n"
-                            f"  - Strength: {result.strength_level}\n"
-                            f"  - Issues: {', '.join(result.issues)}\n"
-                            f"  - Recommendation: {result.recommendations[0] if result.recommendations else 'Generate secure key'}"
-                        )
-                        errors.append(error_msg)
-                        logger.error(f"❌ {key_name} validation failed: {error_msg}")
-                    else:
-                        # Log successful validation (with masked key)
-                        masked_key = mask_secret_for_logging(
-                            secrets_to_validate[key_name]
-                        )
-                        logger.info(
-                            f"✅ {key_name} validation passed: "
-                            f"entropy={result.entropy_bits:.1f} bits, "
-                            f"strength={result.strength_level}, "
-                            f"masked={masked_key}"
-                        )
+                if self.SECURITY_ALLOW_WEAK_KEYS:
+                    logger.warning(
+                        "SECURITY_ALLOW_WEAK_KEYS enabled; skipping entropy validation for production keys."
+                    )
+                else:
+                    # Validate all secrets
+                    validation_results = validate_all_secrets(
+                        secrets_to_validate, environment="production"
+                    )
+
+                    # Check for any invalid keys
+                    for key_name, result in validation_results.items():
+                        if not result.is_valid:
+                            masked_key = mask_secret_for_logging(
+                                secrets_to_validate[key_name]
+                            )
+
+                            error_msg = (
+                                f"{key_name} has insufficient entropy:\n"
+                                f"  - Masked value: {masked_key}\n"
+                                f"  - Entropy: {result.entropy_bits:.1f} bits (minimum: 128)\n"
+                                f"  - Strength: {result.strength_level}\n"
+                                f"  - Issues: {', '.join(result.issues)}\n"
+                                f"  - Recommendation: {result.recommendations[0] if result.recommendations else 'Generate secure key'}"
+                            )
+                            errors.append(error_msg)
+                            logger.error(f"❌ {key_name} validation failed: {error_msg}")
+                        else:
+                            # Log successful validation (with masked key)
+                            masked_key = mask_secret_for_logging(
+                                secrets_to_validate[key_name]
+                            )
+                            logger.info(
+                                f"✅ {key_name} validation passed: "
+                                f"entropy={result.entropy_bits:.1f} bits, "
+                                f"strength={result.strength_level}, "
+                                f"masked={masked_key}"
+                            )
 
             except ImportError as e:
                 errors.append(
                     f"Could not import security validation module: {e}\n"
-                    "Ensure app.utils.security_validation is available"
+                    "Ensure app.utils.key_validation is available"
                 )
 
             if errors:
@@ -706,6 +751,17 @@ class SecuritySettings(BaseAppSettings):
         """
         origins = set()
         is_production = self.APP_ENVIRONMENT.lower() == "production"
+
+        # Ensure production frontend is always allowed (prevents empty CORS config in deploys).
+        required_prod_origins = {
+            "https://clinica-oncologica-hosting.web.app",
+            "https://clinica-oncologica-hosting.firebaseapp.com",
+        }
+        if is_production:
+            for origin in required_prod_origins:
+                normalized = self._normalize_cors_origin(origin, is_production)
+                if normalized:
+                    origins.add(normalized)
 
         # 1. Explicitly configured origins
         if self.CORS_ALLOWED_ORIGINS:

@@ -6,7 +6,9 @@ Handles scheduling of message-based follow-ups.
 import logging
 
 from ..models import FollowUpAction
-from app.models.message import Message, MessageDirection, MessageType, MessageStatus
+from ..message_deduplication_service import MessageDeduplicationService
+from app.models.message import MessageType
+from app.domain.messaging.core.message_service.service import MessageService
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +26,8 @@ class MessageScheduler:
         """
         self.db = db
         self.message_scheduler = message_scheduler
+        self.dedup_service = MessageDeduplicationService()
+        self.message_service = MessageService(db)
 
     async def schedule_message_action(self, action: FollowUpAction) -> None:
         """
@@ -38,14 +42,24 @@ class MessageScheduler:
                 logger.warning(f"No message content for action {action.action_id}")
                 return
 
-            # Create message
-            message = Message(
+            # Check for duplicates
+            is_duplicate = await self.dedup_service.check_duplicate(
                 patient_id=action.patient_id,
-                direction=MessageDirection.OUTBOUND,
-                type=MessageType.TEXT,
+                message_content=message_content,
+                follow_up_type=action.follow_up_type.value,
+            )
+            if is_duplicate:
+                logger.info(
+                    f"Skipping duplicate follow-up message for action {action.action_id}"
+                )
+                return
+
+            # Create message with domain service (handles idempotency key)
+            message = self.message_service.schedule_message(
+                patient_id=action.patient_id,
                 content=message_content,
-                status=MessageStatus.PENDING,
                 scheduled_for=action.scheduled_for,
+                message_type=MessageType.TEXT,
                 message_metadata={
                     "follow_up_action_id": str(action.action_id),
                     "follow_up_type": action.follow_up_type.value,
@@ -54,16 +68,16 @@ class MessageScheduler:
                 },
             )
 
-            # Save message
-            self.db.add(message)
-            self.db.commit()
-            self.db.refresh(message)
+            # Schedule delivery task at the desired time
+            await self.message_scheduler.task_scheduler.schedule_celery_task(
+                message, action.scheduled_for
+            )
 
-            # Schedule with message scheduler
-            await self.message_scheduler.schedule_message(
-                message_id=message.id,
-                send_time=action.scheduled_for,
-                priority=action.priority,
+            # Mark message as sent in deduplication cache
+            await self.dedup_service.mark_as_sent(
+                patient_id=action.patient_id,
+                message_content=message_content,
+                follow_up_type=action.follow_up_type.value,
             )
 
             logger.info(f"Scheduled message for action {action.action_id}")

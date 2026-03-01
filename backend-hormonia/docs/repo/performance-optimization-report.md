@@ -469,7 +469,7 @@ class DatabaseOptimizer:
             'total_queries': 0,
             'total_duration': 0.0,
             'slow_queries': 0,
-            'last_update': datetime.utcnow()
+            'last_update': now_sao_paulo()
         }
 
     def log_query(self, query: str, duration_ms: float, row_count: Optional[int] = None):
@@ -636,11 +636,11 @@ async def track_slow_queries(request, call_next):
 ### 2. Connection Pool Monitor
 ```python
 # Endpoint de health check
-from app.core.database import connection_manager
+from app.database import get_pool_status
 
 @app.get("/health/database")
 async def database_health():
-    pool_status = connection_manager.pool_monitor.get_pool_status()
+    pool_status = get_pool_status()
 
     return {
         "status": "healthy" if pool_status['utilization_percent'] < 80 else "warning",

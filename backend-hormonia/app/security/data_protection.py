@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 from enum import Enum
 import json
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +190,7 @@ class DataProtectionService:
         """Log access to sensitive data for audit trail."""
         try:
             audit_entry = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "user_id": str(user_id),
                 "data_type": data_type.value,
                 "entity_id": str(entity_id),

@@ -10,7 +10,8 @@ from datetime import datetime, timezone
 from celery.events.state import State
 import concurrent.futures
 
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -157,7 +158,7 @@ class TaskLogger:
                 "task_name": task_name,
                 "args": args,
                 "kwargs": kwargs,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "event": "task_start",
             },
         )
@@ -172,7 +173,7 @@ class TaskLogger:
                 "task_name": task_name,
                 "result": result,
                 "runtime_seconds": runtime,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "event": "task_success",
             },
         )
@@ -190,7 +191,7 @@ class TaskLogger:
                 "error": error,
                 "traceback": traceback,
                 "runtime_seconds": runtime,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "event": "task_failure",
             },
         )
@@ -208,7 +209,7 @@ class TaskLogger:
                 "error": error,
                 "retry_count": retry_count,
                 "countdown": countdown,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "event": "task_retry",
             },
         )
@@ -226,7 +227,7 @@ def get_task_monitoring_data() -> Dict[str, Any]:
         "scheduled_tasks": task_monitor.get_scheduled_tasks(),
         "worker_stats": task_monitor.get_worker_stats(),
         "queue_lengths": task_monitor.get_queue_lengths(),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now_sao_paulo().isoformat(),
     }
 
 
@@ -259,7 +260,7 @@ async def get_task_monitoring_data_async() -> Dict[str, Any]:
                         [] if key in ["active_tasks", "scheduled_tasks"] else {}
                     )
 
-            results["timestamp"] = datetime.now(timezone.utc).isoformat()
+            results["timestamp"] = now_sao_paulo().isoformat()
             return results
 
     except Exception as e:
@@ -269,7 +270,7 @@ async def get_task_monitoring_data_async() -> Dict[str, Any]:
             "scheduled_tasks": [],
             "worker_stats": {},
             "queue_lengths": {},
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "error": str(e),
         }
 
@@ -278,14 +279,14 @@ async def health_check_async() -> Dict[str, Any]:
     """Perform async health check of task monitoring system."""
     try:
         # Test basic connectivity
-        start_time = datetime.now(timezone.utc)
+        start_time = now_sao_paulo()
 
         # Get monitoring data with timeout
         monitoring_data = await asyncio.wait_for(
             get_task_monitoring_data_async(), timeout=15.0
         )
 
-        end_time = datetime.now(timezone.utc)
+        end_time = now_sao_paulo()
         response_time = (end_time - start_time).total_seconds()
 
         # Check if we have any workers
@@ -301,7 +302,7 @@ async def health_check_async() -> Dict[str, Any]:
             "response_time_seconds": response_time,
             "worker_count": worker_count,
             "active_task_count": active_task_count,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "details": monitoring_data,
         }
 
@@ -309,11 +310,11 @@ async def health_check_async() -> Dict[str, Any]:
         return {
             "status": "unhealthy",
             "error": "Health check timed out",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
     except Exception as e:
         return {
             "status": "unhealthy",
             "error": str(e),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }

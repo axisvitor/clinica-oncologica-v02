@@ -10,7 +10,6 @@ import {
   CircleCheck as CheckCircle,
   Circle as XCircle,
   Calendar,
-  FileText,
   Shield,
   Settings,
 } from "lucide-react";
@@ -29,17 +28,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useRoleGuard, PermissionGate } from "@/features/auth/ProtectedRoute";
 import { getRoleLabel } from "@/types/shared";
 import { Link } from "react-router-dom";
+import type { DashboardMainData } from "@/lib/api-client/dashboard";
 
 export function DashboardPage() {
   const { user, isInitializing: authLoading } = useAuth();
-  const { permissions, userRole, isAdmin, isDoctor } = useRoleGuard();
+  const { userRole, isAdmin, isDoctor } = useRoleGuard();
 
   // Wait for authentication to be ready before making API calls
   const {
     data: metrics,
     isLoading,
     error,
-  } = useQuery({
+  } = useQuery<DashboardMainData>({
     queryKey: ["dashboard-metrics"],
     queryFn: () => apiClient.dashboard.getMain({ time_range: 'week' }),
     enabled: !!user && !authLoading, // Only run when authenticated
@@ -164,7 +164,7 @@ export function DashboardPage() {
       </PermissionGate>
 
       {/* Quick Stats */}
-      <QuickStats />
+      <QuickStats data={metrics} />
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-4 md:space-y-6">

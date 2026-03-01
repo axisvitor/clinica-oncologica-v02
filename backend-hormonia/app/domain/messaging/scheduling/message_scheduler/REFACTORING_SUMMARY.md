@@ -102,6 +102,24 @@ from app.domain.messaging.scheduling.message_scheduler.scheduler import MessageS
 from app.domain.messaging.scheduling.message_scheduler.config import MessageSchedulerConfig
 ```
 
+## Import Safety (Canonical Path)
+
+To reduce architectural duplication risk between legacy and new scheduler
+implementations, new code should prefer:
+
+```python
+from app.domain.messaging.scheduling import (
+    MessageScheduler,
+    MessageSchedulerConfig,
+    SchedulingWindow,
+    get_message_scheduler,
+)
+```
+
+Legacy import surface under
+`app.domain.messaging.core.message_service.scheduler` remains available for
+backward compatibility only.
+
 ## Key Improvements
 
 1. **Modularity:** Each module has a single, well-defined responsibility

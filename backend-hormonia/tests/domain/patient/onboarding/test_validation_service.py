@@ -15,6 +15,7 @@ from app.schemas.patient import PatientCreate
 from app.exceptions import ValidationError
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 class TestValidationServiceInitialization:
     """Tests for ValidationService initialization."""
 
@@ -158,7 +159,7 @@ class TestFindExistingPatient:
             cpf="12345678909",
             phone="+5511999999999",
             doctor_id=doctor_id,
-            deleted_at=datetime.utcnow(),
+            deleted_at=now_sao_paulo_naive(),
         )
         db_session.add(patient)
         db_session.commit()
@@ -290,15 +291,15 @@ class TestValidatePhoneFormat:
     @pytest.mark.asyncio
     async def test_valid_phone_10_digits(self, validation_service):
         """Test validation passes for valid 10-digit phone."""
-        await validation_service.validate_phone_format("+5511999999999")
-        await validation_service.validate_phone_format("11999999999")
-        await validation_service.validate_phone_format("(11) 9999-9999")
+        await validation_service.validate_phone_format("+551133334444")
+        await validation_service.validate_phone_format("1133334444")
+        await validation_service.validate_phone_format("(11) 3333-4444")
 
     @pytest.mark.asyncio
     async def test_valid_phone_11_digits(self, validation_service):
         """Test validation passes for valid 11-digit phone."""
-        await validation_service.validate_phone_format("+55119999999999")
-        await validation_service.validate_phone_format("119999999999")
+        await validation_service.validate_phone_format("+5511987654321")
+        await validation_service.validate_phone_format("11987654321")
 
     @pytest.mark.asyncio
     async def test_invalid_phone_empty(self, validation_service):
@@ -401,7 +402,7 @@ class TestValidateEmailFormat:
         """Test validation fails for too short email."""
         with pytest.raises(ValidationError) as exc_info:
             await validation_service.validate_email_format("a@b")
-        assert "too short" in str(exc_info.value)
+        assert "Invalid email format" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_invalid_email_too_long(self, validation_service):
@@ -436,7 +437,7 @@ class TestValidatePatientDataFormat:
     @pytest.mark.asyncio
     async def test_validation_fails_on_invalid_phone(self, validation_service):
         """Test validation fails when phone is invalid."""
-        patient_data = PatientCreate(
+        patient_data = PatientCreate.model_construct(
             name="Invalid Phone",
             phone="123",  # Too short
         )
@@ -448,7 +449,7 @@ class TestValidatePatientDataFormat:
     @pytest.mark.asyncio
     async def test_validation_fails_on_invalid_cpf(self, validation_service):
         """Test validation fails when CPF is invalid."""
-        patient_data = PatientCreate(
+        patient_data = PatientCreate.model_construct(
             name="Invalid CPF",
             cpf="123",  # Too short
             phone="+5511999999999",
@@ -461,7 +462,7 @@ class TestValidatePatientDataFormat:
     @pytest.mark.asyncio
     async def test_validation_fails_on_invalid_email(self, validation_service):
         """Test validation fails when email is invalid."""
-        patient_data = PatientCreate(
+        patient_data = PatientCreate.model_construct(
             name="Invalid Email",
             email="invalid-email",  # No @ or dot
             phone="+5511999999999",

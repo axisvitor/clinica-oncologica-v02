@@ -1,6 +1,0 @@
-# Flower - Celery Monitoring UI Dependencies
-flower==2.0.1
-celery[redis]==5.3.4
-redis==5.0.1
-prometheus-client==0.19.0
-tornado==6.4

@@ -21,6 +21,8 @@ describe('API Error Handling - HTTP Status Codes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     apiClient.setBaseURL('http://localhost:8000')
+      // Pre-set CSRF token to prevent implicit fetch in tests not testing CSRF
+      ; (apiClient as any).csrfToken = 'test-csrf-token'
   })
 
   afterEach(() => {

@@ -244,7 +244,7 @@ Expected response:
 ```json
 {
   "status": "healthy",
-  "timestamp": "2025-12-23T13:00:00Z"
+  "timestamp": "2025-12-23T13:00:00-03:00"
 }
 ```
 
@@ -479,6 +479,6 @@ For issues or questions about the authentication system:
 
 ---
 
-**Report Generated**: 2025-12-23T13:10:00Z
+**Report Generated**: 2025-12-23T13:10:00-03:00
 **Test Status**: ⚠️ Pending (Server not running)
 **Next Action**: Start backend server and re-run tests

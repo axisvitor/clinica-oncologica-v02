@@ -5,20 +5,24 @@ Provides system-wide metrics for admin dashboards.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func
+from sqlalchemy import func, desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.models.user import User
+from app.core.database.async_engine import get_async_db
+from app.models.user import User, UserRole
 from app.models.appointment import Appointment, AppointmentStatus
+from app.models.audit_log import AuditLog
 from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import get_unified_cache_manager
 
 from .dependencies import get_admin_user
-from .utils import _status_count
+from .utils import _status_count_async
+from app.schemas.v2.admin import ActivityStatsResponse, UserStatsResponse
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -37,7 +41,7 @@ SYSTEM_STATS_CACHE_TTL_SECONDS = 60
 @limiter.limit("60/minute")
 async def get_system_stats(
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
 ) -> Dict[str, Any]:
     """
@@ -56,24 +60,27 @@ async def get_system_stats(
     if cached_stats:
         return cached_stats
 
-    now = datetime.now(timezone.utc)
+    now = now_sao_paulo()
     start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    total_users = db.query(func.count(User.id)).scalar() or 0
+    total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
     active_users = (
-        db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar() or 0
-    )
+        await db.execute(select(func.count(User.id)).where(User.is_active.is_(True)))
+    ).scalar() or 0
     new_users = (
-        db.query(func.count(User.id)).filter(User.created_at >= start_of_month).scalar()
-        or 0
-    )
+        await db.execute(
+            select(func.count(User.id)).where(User.created_at >= start_of_month)
+        )
+    ).scalar() or 0
 
-    appointments_total = db.query(func.count(Appointment.id)).scalar() or 0
-    scheduled = _status_count(db, AppointmentStatus.SCHEDULED.value)
-    confirmed = _status_count(db, AppointmentStatus.CONFIRMED.value)
-    in_progress = _status_count(db, AppointmentStatus.IN_PROGRESS.value)
-    completed = _status_count(db, AppointmentStatus.COMPLETED.value)
-    cancelled = _status_count(db, AppointmentStatus.CANCELLED.value)
+    appointments_total = (
+        await db.execute(select(func.count(Appointment.id)))
+    ).scalar() or 0
+    scheduled = await _status_count_async(db, AppointmentStatus.SCHEDULED.value)
+    confirmed = await _status_count_async(db, AppointmentStatus.CONFIRMED.value)
+    in_progress = await _status_count_async(db, AppointmentStatus.IN_PROGRESS.value)
+    completed = await _status_count_async(db, AppointmentStatus.COMPLETED.value)
+    cancelled = await _status_count_async(db, AppointmentStatus.CANCELLED.value)
     pending = min(appointments_total, scheduled + confirmed + in_progress)
 
     # Lightweight revenue approximation based on completed appointments
@@ -130,3 +137,129 @@ async def get_system_stats(
     )
 
     return stats_payload
+
+
+@router.get(
+    "/stats/users",
+    response_model=UserStatsResponse,
+    summary="Get user statistics",
+    tags=["admin-v2"],
+)
+@limiter.limit("60/minute")
+async def get_user_stats(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: User = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    """Return user statistics for admin dashboards."""
+    now = now_sao_paulo()
+    thirty_days_ago = now - timedelta(days=30)
+
+    total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
+    active_users = (
+        await db.execute(select(func.count(User.id)).where(User.is_active.is_(True)))
+    ).scalar() or 0
+    inactive_users = max(total_users - active_users, 0)
+
+    recent_registrations = (
+        await db.execute(
+            select(func.count(User.id)).where(User.created_at >= thirty_days_ago)
+        )
+    ).scalar() or 0
+
+    role_counts_result = await db.execute(
+        select(User.role, func.count(User.id)).group_by(User.role)
+    )
+    role_counts = role_counts_result.all()
+    by_role = {
+        (role.value if hasattr(role, "value") else str(role)): count
+        for role, count in role_counts
+    }
+    for role in UserRole:
+        by_role.setdefault(role.value, 0)
+
+    return {
+        "total_users": total_users,
+        "active_users": active_users,
+        "inactive_users": inactive_users,
+        "by_role": by_role,
+        "recent_registrations": recent_registrations,
+        "growth_rate": None,
+    }
+
+
+@router.get(
+    "/stats/activity",
+    response_model=ActivityStatsResponse,
+    summary="Get activity statistics",
+    tags=["admin-v2"],
+)
+@limiter.limit("60/minute")
+async def get_activity_stats(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: User = Depends(get_admin_user),
+) -> Dict[str, Any]:
+    """Return audit activity statistics for admin dashboards."""
+    now = now_sao_paulo()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = now - timedelta(days=7)
+    month_start = now - timedelta(days=30)
+
+    total_events = (await db.execute(select(func.count(AuditLog.id)))).scalar() or 0
+    events_today = (
+        await db.execute(
+            select(func.count(AuditLog.id)).where(AuditLog.timestamp >= today_start)
+        )
+    ).scalar() or 0
+    events_this_week = (
+        await db.execute(
+            select(func.count(AuditLog.id)).where(AuditLog.timestamp >= week_start)
+        )
+    ).scalar() or 0
+    events_this_month = (
+        await db.execute(
+            select(func.count(AuditLog.id)).where(AuditLog.timestamp >= month_start)
+        )
+    ).scalar() or 0
+
+    event_counts_result = await db.execute(
+        select(AuditLog.event_type, func.count(AuditLog.id)).group_by(AuditLog.event_type)
+    )
+    event_counts = event_counts_result.all()
+    by_event_type = {
+        (evt.value if hasattr(evt, "value") else str(evt)): count
+        for evt, count in event_counts
+    }
+
+    severity_counts_result = await db.execute(
+        select(AuditLog.severity, func.count(AuditLog.id)).group_by(AuditLog.severity)
+    )
+    severity_counts = severity_counts_result.all()
+    by_severity = {
+        str(severity): count
+        for severity, count in severity_counts
+    }
+
+    active_user_counts_result = await db.execute(
+        select(AuditLog.user_id, func.count(AuditLog.id).label("count"))
+        .group_by(AuditLog.user_id)
+        .order_by(desc("count"))
+        .limit(5)
+    )
+    active_user_counts = active_user_counts_result.all()
+    most_active_users = [
+        {"user_id": str(user_id), "count": count}
+        for user_id, count in active_user_counts
+        if user_id
+    ]
+
+    return {
+        "total_events": total_events,
+        "events_today": events_today,
+        "events_this_week": events_this_week,
+        "events_this_month": events_this_month,
+        "by_event_type": by_event_type,
+        "by_severity": by_severity,
+        "most_active_users": most_active_users,
+    }

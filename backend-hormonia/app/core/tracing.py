@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # Try to import opentelemetry, use mocks if not available
 try:
-    from opentelemetry import trace  # noqa: F401
+    from opentelemetry import trace as otel_trace  # noqa: F401
     from opentelemetry.sdk.trace import TracerProvider  # noqa: F401
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter  # noqa: F401
     from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION  # noqa: F401
@@ -26,6 +26,7 @@ try:
 except ImportError:
     logger.warning("OpenTelemetry not installed. Tracing will be disabled.")
     OPENTELEMETRY_AVAILABLE = False
+    otel_trace = None
 
     # Create mock classes
     class MockSpan:
@@ -90,6 +91,8 @@ class DistributedTracer:
             return
 
         # Real OpenTelemetry setup would go here
+        if self.tracer is None:
+            self.tracer = otel_trace.get_tracer(self.config.service_name)
         self._initialized = True
         logger.info(f"Distributed tracing initialized for {self.config.service_name}")
 

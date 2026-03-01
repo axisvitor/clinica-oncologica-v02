@@ -55,9 +55,9 @@ class FlowAnalyzer(BaseAnalyzer):
         """Analyze flow type for corruption patterns"""
         try:
             valid_flow_types = [
-                "initial_15_days",
-                "days_16_45",
-                "monthly_recurring",
+                "onboarding",
+                "daily_follow_up",
+                "quiz_mensal",
                 "paused",
                 "completed",
             ]
@@ -95,9 +95,9 @@ class FlowAnalyzer(BaseAnalyzer):
 
             # Check for unrealistic step values
             max_steps_by_type = {
-                "initial_15_days": 15,
-                "days_16_45": 45,
-                "monthly_recurring": 365,
+                "onboarding": 15,
+                "daily_follow_up": 45,
+                "quiz_mensal": 365,
             }
 
             max_step = max_steps_by_type.get(flow.flow_type, 365)

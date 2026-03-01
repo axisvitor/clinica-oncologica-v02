@@ -1,7 +1,7 @@
 """
-Tests for Cache Settings Configuration
+Tests for cache settings configuration.
 
-MEDIUM-008: Verify that TTL configuration works correctly with environment variables.
+Verifies current CacheSettings contract and environment overrides.
 """
 
 import pytest
@@ -13,194 +13,163 @@ class TestCacheSettings:
     """Test cache TTL configuration."""
 
     def test_default_values(self):
-        """Test that default TTL values are set correctly."""
+        """Default TTL values should match the current settings model."""
         settings = CacheSettings()
 
-        # Flow & Templates
-        assert settings.FLOW_TEMPLATE_TTL == 3600
-        assert settings.TEMPLATE_CACHE_TTL == 3600
+        # Flow & templates
+        assert settings.CACHE_FLOW_TEMPLATE_TTL_SECONDS == 3600
+        assert settings.CACHE_TEMPLATE_CACHE_TTL_SECONDS == 3600
 
-        # User & Auth
-        assert settings.USER_SESSION_TTL == 1800
-        assert settings.AUTH_TOKEN_TTL == 86400
-        assert settings.REFRESH_TOKEN_TTL == 604800
+        # User & auth
+        assert settings.CACHE_USER_SESSION_TTL_SECONDS == 1800
+        assert settings.CACHE_AUTH_TOKEN_TTL_SECONDS == 86400
+        assert settings.CACHE_REFRESH_TOKEN_TTL_SECONDS == 604800
 
-        # Patient Data
-        assert settings.PATIENT_CACHE_TTL == 900
-        assert settings.DOCTOR_CACHE_TTL == 1800
+        # Patient data
+        assert settings.CACHE_PATIENT_CACHE_TTL_SECONDS == 900
+        assert settings.CACHE_DOCTOR_CACHE_TTL_SECONDS == 1800
 
         # Quiz
-        assert settings.QUIZ_SESSION_TTL == 7200
+        assert settings.CACHE_QUIZ_SESSION_TTL_SECONDS == 7200
 
         # Messages
-        assert settings.MESSAGE_CACHE_TTL == 3600
+        assert settings.CACHE_MESSAGE_CACHE_TTL_SECONDS == 3600
 
         # Webhooks
-        assert settings.WEBHOOK_IDEMPOTENCY_TTL == 3600
+        assert settings.CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS == 3600
 
-        # Rate Limiting
-        assert settings.RATE_LIMIT_WINDOW_TTL == 60
+        # Rate limiting
+        assert settings.CACHE_RATE_LIMIT_WINDOW_TTL_SECONDS == 60
 
-        # Reports
-        assert settings.REPORT_CACHE_TTL == 1800
-        assert settings.ANALYTICS_CACHE_TTL == 300
+        # Reports / analytics
+        assert settings.CACHE_REPORT_CACHE_TTL_SECONDS == 1800
+        assert settings.CACHE_ANALYTICS_CACHE_TTL_SECONDS == 300
 
         # Distributed
-        assert settings.DISTRIBUTED_LOCK_TTL == 30
-        assert settings.SAGA_STATE_TTL == 3600
+        assert settings.CACHE_DISTRIBUTED_LOCK_TTL_SECONDS == 30
+        assert settings.CACHE_SAGA_STATE_TTL_SECONDS == 3600
 
     def test_env_variable_override(self, monkeypatch):
-        """Test that environment variables override default values."""
-        # Set environment variable
-        monkeypatch.setenv('CACHE_FLOW_TEMPLATE_TTL', '7200')
-        monkeypatch.setenv('CACHE_PATIENT_CACHE_TTL', '1800')
-        monkeypatch.setenv('CACHE_AUTH_TOKEN_TTL', '172800')
+        """Environment variables should override defaults."""
+        monkeypatch.setenv("CACHE_FLOW_TEMPLATE_TTL_SECONDS", "7200")
+        monkeypatch.setenv("CACHE_PATIENT_CACHE_TTL_SECONDS", "1800")
+        monkeypatch.setenv("CACHE_AUTH_TOKEN_TTL_SECONDS", "172800")
 
-        # Create new settings instance
         settings = CacheSettings()
 
-        # Verify overrides
-        assert settings.FLOW_TEMPLATE_TTL == 7200
-        assert settings.PATIENT_CACHE_TTL == 1800
-        assert settings.AUTH_TOKEN_TTL == 172800
+        assert settings.CACHE_FLOW_TEMPLATE_TTL_SECONDS == 7200
+        assert settings.CACHE_PATIENT_CACHE_TTL_SECONDS == 1800
+        assert settings.CACHE_AUTH_TOKEN_TTL_SECONDS == 172800
 
-        # Other values should remain default
-        assert settings.USER_SESSION_TTL == 1800
-        assert settings.QUIZ_SESSION_TTL == 7200
+        # Unchanged defaults
+        assert settings.CACHE_USER_SESSION_TTL_SECONDS == 1800
+        assert settings.CACHE_QUIZ_SESSION_TTL_SECONDS == 7200
 
     def test_all_ttls_positive(self):
-        """Test that all TTL values are positive integers."""
+        """Every TTL field should be a positive integer."""
         settings = CacheSettings()
 
-        for field_name, field in settings.__fields__.items():
-            if field_name.endswith('_TTL'):
+        for field_name in settings.model_fields:
+            if field_name.endswith("_TTL") or field_name.endswith("_TTL_SECONDS"):
                 value = getattr(settings, field_name)
                 assert isinstance(value, int), f"{field_name} should be int"
                 assert value > 0, f"{field_name} should be positive"
 
     def test_singleton_instance(self):
-        """Test that get_cache_settings returns singleton."""
+        """get_cache_settings should return a singleton instance."""
         settings1 = get_cache_settings()
         settings2 = get_cache_settings()
-
-        assert settings1 is settings2, "Should return same instance"
+        assert settings1 is settings2
 
     def test_get_ttl_helper(self):
-        """Test get_ttl helper function."""
-        # Test existing keys
-        assert get_ttl('FLOW_TEMPLATE_TTL') == 3600
-        assert get_ttl('PATIENT_CACHE_TTL') == 900
-
-        # Test non-existent key with default
-        assert get_ttl('NONEXISTENT_TTL', default=999) == 999
+        """get_ttl should return configured values by exact key."""
+        assert get_ttl("CACHE_FLOW_TEMPLATE_TTL_SECONDS") == 3600
+        assert get_ttl("CACHE_PATIENT_CACHE_TTL_SECONDS") == 900
+        assert get_ttl("NONEXISTENT_TTL", default=999) == 999
 
     def test_ttl_hierarchy(self):
-        """Test that TTL values follow a logical hierarchy."""
+        """Core TTL hierarchy should remain logically ordered."""
         settings = CacheSettings()
-
-        # Refresh token should be longer than auth token
-        assert settings.REFRESH_TOKEN_TTL > settings.AUTH_TOKEN_TTL
-
-        # Auth token should be longer than session
-        assert settings.AUTH_TOKEN_TTL > settings.USER_SESSION_TTL
-
-        # Long cache should be longer than medium
+        assert settings.CACHE_REFRESH_TOKEN_TTL_SECONDS > settings.CACHE_AUTH_TOKEN_TTL_SECONDS
+        assert settings.CACHE_AUTH_TOKEN_TTL_SECONDS > settings.CACHE_USER_SESSION_TTL_SECONDS
         assert settings.LONG_CACHE_TTL > settings.MEDIUM_CACHE_TTL
-
-        # Medium cache should be longer than short
         assert settings.MEDIUM_CACHE_TTL > settings.SHORT_CACHE_TTL
 
     def test_distributed_lock_ttl_is_short(self):
-        """Test that distributed locks have short TTL (prevent deadlocks)."""
+        """Distributed locks must stay short to avoid deadlocks."""
         settings = CacheSettings()
-
-        # Distributed locks should be < 1 minute to prevent deadlocks
-        assert settings.DISTRIBUTED_LOCK_TTL < 60
+        assert settings.CACHE_DISTRIBUTED_LOCK_TTL_SECONDS < 60
 
     def test_rate_limit_window_is_short(self):
-        """Test that rate limit windows are short (prevent long blocks)."""
+        """Rate-limit windows should remain short."""
         settings = CacheSettings()
-
-        # Rate limit windows should be <= 1 minute
-        assert settings.RATE_LIMIT_WINDOW_TTL <= 60
+        assert settings.CACHE_RATE_LIMIT_WINDOW_TTL_SECONDS <= 60
 
     def test_qrcode_ttl_matches_expiration(self):
-        """Test that QR code TTL matches typical QR code expiration."""
+        """QR code cache TTL should remain at 5 minutes."""
         settings = CacheSettings()
+        assert settings.CACHE_QRCODE_TTL_SECONDS == 300
 
-        # QR codes typically expire in 5 minutes
-        assert settings.QRCODE_TTL == 300
-
-    @pytest.mark.parametrize("ttl_name,expected_min,expected_max", [
-        ("DISTRIBUTED_LOCK_TTL", 10, 60),      # Locks: 10s-60s
-        ("RATE_LIMIT_WINDOW_TTL", 30, 120),    # Rate limits: 30s-2min
-        ("ANALYTICS_CACHE_TTL", 60, 600),      # Analytics: 1min-10min
-        ("PATIENT_CACHE_TTL", 300, 1800),      # Patients: 5min-30min
-        ("FLOW_TEMPLATE_TTL", 1800, 7200),     # Templates: 30min-2h
-        ("REFRESH_TOKEN_TTL", 86400, 2592000), # Refresh: 1day-30days
-    ])
+    @pytest.mark.parametrize(
+        "ttl_name,expected_min,expected_max",
+        [
+            ("CACHE_DISTRIBUTED_LOCK_TTL_SECONDS", 10, 60),     # Locks: 10s-60s
+            ("CACHE_RATE_LIMIT_WINDOW_TTL_SECONDS", 30, 120),   # Rate limits: 30s-2min
+            ("CACHE_ANALYTICS_CACHE_TTL_SECONDS", 60, 600),     # Analytics: 1min-10min
+            ("CACHE_PATIENT_CACHE_TTL_SECONDS", 300, 1800),     # Patients: 5min-30min
+            ("CACHE_FLOW_TEMPLATE_TTL_SECONDS", 1800, 7200),    # Templates: 30min-2h
+            ("CACHE_REFRESH_TOKEN_TTL_SECONDS", 86400, 2592000),  # Refresh: 1day-30days
+        ],
+    )
     def test_ttl_reasonable_ranges(self, ttl_name, expected_min, expected_max):
-        """Test that TTL values are within reasonable ranges."""
+        """TTL values should stay in reasonable operational ranges."""
         settings = CacheSettings()
         value = getattr(settings, ttl_name)
+        assert expected_min <= value <= expected_max
 
-        assert expected_min <= value <= expected_max, (
-            f"{ttl_name}={value} should be between {expected_min} and {expected_max}"
-        )
-
-    def test_env_prefix_configuration(self):
-        """Test that environment variables use CACHE_ prefix."""
-        # This is defined in Config class
-        settings = CacheSettings()
-        assert settings.Config.env_prefix == "CACHE_"
-
-    def test_case_sensitivity(self):
-        """Test that environment variables are case-sensitive."""
-        assert CacheSettings.Config.case_sensitive is True
+    def test_model_config(self):
+        """Settings model config should enforce expected behavior."""
+        assert CacheSettings.model_config.get("case_sensitive") is True
+        assert CacheSettings.model_config.get("extra") == "ignore"
 
 
 class TestCacheSettingsIntegration:
     """Integration tests for cache settings."""
 
     def test_redis_settings_included(self):
-        """Test that Redis connection settings are included."""
+        """Redis connection settings should be present and valid."""
         settings = CacheSettings()
 
-        assert hasattr(settings, 'REDIS_MAX_CONNECTIONS')
-        assert hasattr(settings, 'REDIS_SOCKET_TIMEOUT')
-        assert hasattr(settings, 'REDIS_SOCKET_CONNECT_TIMEOUT')
+        assert hasattr(settings, "REDIS_MAX_CONNECTIONS")
+        assert hasattr(settings, "REDIS_SOCKET_TIMEOUT")
+        assert hasattr(settings, "REDIS_SOCKET_CONNECT_TIMEOUT")
 
-        # Verify reasonable values
         assert settings.REDIS_MAX_CONNECTIONS > 0
         assert settings.REDIS_SOCKET_TIMEOUT > 0
         assert settings.REDIS_SOCKET_CONNECT_TIMEOUT > 0
 
     def test_all_major_components_covered(self):
-        """Test that all major system components have TTL config."""
+        """All major cache components should have configured TTLs."""
         settings = CacheSettings()
 
-        # Required components
         required_ttls = [
-            'FLOW_TEMPLATE_TTL',
-            'USER_SESSION_TTL',
-            'AUTH_TOKEN_TTL',
-            'PATIENT_CACHE_TTL',
-            'QUIZ_SESSION_TTL',
-            'MESSAGE_CACHE_TTL',
-            'WEBHOOK_IDEMPOTENCY_TTL',
-            'RATE_LIMIT_WINDOW_TTL',
-            'REPORT_CACHE_TTL',
-            'SAGA_STATE_TTL',
-            'DISTRIBUTED_LOCK_TTL',
+            "CACHE_FLOW_TEMPLATE_TTL_SECONDS",
+            "CACHE_USER_SESSION_TTL_SECONDS",
+            "CACHE_AUTH_TOKEN_TTL_SECONDS",
+            "CACHE_PATIENT_CACHE_TTL_SECONDS",
+            "CACHE_QUIZ_SESSION_TTL_SECONDS",
+            "CACHE_MESSAGE_CACHE_TTL_SECONDS",
+            "CACHE_WEBHOOK_IDEMPOTENCY_TTL_SECONDS",
+            "CACHE_RATE_LIMIT_WINDOW_TTL_SECONDS",
+            "CACHE_REPORT_CACHE_TTL_SECONDS",
+            "CACHE_SAGA_STATE_TTL_SECONDS",
+            "CACHE_DISTRIBUTED_LOCK_TTL_SECONDS",
         ]
 
-        for ttl in required_ttls:
-            assert hasattr(settings, ttl), f"Missing required TTL: {ttl}"
-            assert getattr(settings, ttl) > 0
+        for ttl_name in required_ttls:
+            assert hasattr(settings, ttl_name), f"Missing required TTL: {ttl_name}"
+            assert getattr(settings, ttl_name) > 0
 
-    def test_backward_compatibility(self):
-        """Test backward compatibility with old TTL constants."""
-        # If code was using old constants, get_ttl should work
-        ttl = get_ttl('PATIENT_CACHE_TTL')
-        assert isinstance(ttl, int)
-        assert ttl > 0
+    def test_exact_key_required_in_get_ttl(self):
+        """Legacy key names should not resolve unless explicitly present."""
+        assert get_ttl("PATIENT_CACHE_TTL", default=123) == 123

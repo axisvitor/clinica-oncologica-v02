@@ -6,9 +6,10 @@ Handles overview, treatment distribution and consolidated dashboard metrics.
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.quiz import QuizSession
 from app.models.patient import Patient, FlowState
 from app.models.user import UserRole
@@ -26,6 +27,7 @@ from .base import (
     set_cached_result,
     COLOR_PALETTE,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -38,7 +40,7 @@ router = APIRouter()
     description="Get high-level analytics overview with key metrics (ADMIN/DOCTOR only)",
 )
 async def get_analytics_overview(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     start_date: Optional[datetime] = Query(
         None, description="Start date for filtering"
@@ -76,37 +78,39 @@ async def get_analytics_overview(
         return cached_result
 
     # Total patients (active = not cancelled/inactive)
-    patient_filters = [Patient.flow_state != FlowState.CANCELLED]
+    patient_stmt = select(func.count(Patient.id)).where(
+        Patient.flow_state != FlowState.CANCELLED
+    )
     if role != UserRole.ADMIN and user_uuid:
-        patient_filters.append(Patient.doctor_id == user_uuid)
-
-    total_patients = db.query(func.count(Patient.id)).filter(*patient_filters).scalar()
+        patient_stmt = patient_stmt.where(Patient.doctor_id == user_uuid)
+    total_patients = (await db.execute(patient_stmt)).scalar() or 0
 
     # Total quizzes
-    quiz_query = db.query(func.count(QuizSession.id)).join(
-        Patient, Patient.id == QuizSession.patient_id
+    quiz_stmt = (
+        select(func.count(QuizSession.id))
+        .join(Patient, Patient.id == QuizSession.patient_id)
     )
     if role != UserRole.ADMIN and user_uuid:
-        quiz_query = quiz_query.filter(Patient.doctor_id == user_uuid)
+        quiz_stmt = quiz_stmt.where(Patient.doctor_id == user_uuid)
     if start_date:
-        quiz_query = quiz_query.filter(QuizSession.created_at >= start_date)
+        quiz_stmt = quiz_stmt.where(QuizSession.created_at >= start_date)
     if end_date:
-        quiz_query = quiz_query.filter(QuizSession.created_at <= end_date)
-    total_quizzes = quiz_query.scalar()
+        quiz_stmt = quiz_stmt.where(QuizSession.created_at <= end_date)
+    total_quizzes = (await db.execute(quiz_stmt)).scalar() or 0
 
     # Completed quizzes
-    completed_query = (
-        db.query(func.count(QuizSession.id))
+    completed_stmt = (
+        select(func.count(QuizSession.id))
         .join(Patient, Patient.id == QuizSession.patient_id)
-        .filter(QuizSession.status == "completed")
+        .where(QuizSession.status == "completed")
     )
     if role != UserRole.ADMIN and user_uuid:
-        completed_query = completed_query.filter(Patient.doctor_id == user_uuid)
+        completed_stmt = completed_stmt.where(Patient.doctor_id == user_uuid)
     if start_date:
-        completed_query = completed_query.filter(QuizSession.created_at >= start_date)
+        completed_stmt = completed_stmt.where(QuizSession.created_at >= start_date)
     if end_date:
-        completed_query = completed_query.filter(QuizSession.created_at <= end_date)
-    completed_quizzes = completed_query.scalar()
+        completed_stmt = completed_stmt.where(QuizSession.created_at <= end_date)
+    completed_quizzes = (await db.execute(completed_stmt)).scalar() or 0
 
     # Completion rate
     completion_rate = (
@@ -114,15 +118,15 @@ async def get_analytics_overview(
     )
 
     # Active patients (last 30 days)
-    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
-    active_query = (
-        db.query(func.count(func.distinct(QuizSession.patient_id)))
+    thirty_days_ago = now_sao_paulo() - timedelta(days=30)
+    active_stmt = (
+        select(func.count(func.distinct(QuizSession.patient_id)))
         .join(Patient, Patient.id == QuizSession.patient_id)
-        .filter(QuizSession.created_at >= thirty_days_ago)
+        .where(QuizSession.created_at >= thirty_days_ago)
     )
     if role != UserRole.ADMIN and user_uuid:
-        active_query = active_query.filter(Patient.doctor_id == user_uuid)
-    active_patients = active_query.scalar()
+        active_stmt = active_stmt.where(Patient.doctor_id == user_uuid)
+    active_patients = (await db.execute(active_stmt)).scalar() or 0
 
     result = {
         "total_patients": total_patients,
@@ -152,7 +156,7 @@ async def get_treatment_distribution(
     period: str = Query(
         "30d", pattern="^(7d|30d|90d|all)$", description="Analytics period"
     ),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     """
@@ -188,7 +192,7 @@ async def get_treatment_distribution(
             return cached_result
         logger.info("No cached result, proceeding with database query")
 
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         period_map = {"7d": 7, "30d": 30, "90d": 90}
         start_date = (
             now - timedelta(days=period_map.get(period, 30))
@@ -202,29 +206,30 @@ async def get_treatment_distribution(
 
     try:
         logger.info("Building distribution query...")
-        distribution_query = db.query(
+        distribution_stmt = select(
             Patient.treatment_type,
             func.count(Patient.id).label("count"),
         )
 
         if role != UserRole.ADMIN and user_uuid:
-            distribution_query = distribution_query.filter(
+            distribution_stmt = distribution_stmt.where(
                 Patient.doctor_id == user_uuid
             )
             logger.info(f"Filtered by doctor_id: {user_uuid}")
 
         if start_date:
-            distribution_query = distribution_query.filter(
+            distribution_stmt = distribution_stmt.where(
                 Patient.created_at >= start_date
             )
             logger.info(f"Filtered by start_date: {start_date}")
 
-        logger.info("Executing distribution query...")
-        distribution_results = (
-            distribution_query.group_by(Patient.treatment_type)
+        distribution_stmt = (
+            distribution_stmt.group_by(Patient.treatment_type)
             .order_by(func.count(Patient.id).desc())
-            .all()
         )
+
+        logger.info("Executing distribution query...")
+        distribution_results = (await db.execute(distribution_stmt)).all()
         logger.info(f"Distribution query returned {len(distribution_results)} results")
     except Exception as e:
         logger.error(f"Error in distribution query: {e}")
@@ -249,26 +254,27 @@ async def get_treatment_distribution(
         # Use a subquery or alias to avoid GROUP BY issues
         week_start_expr = func.date_trunc("week", Patient.created_at)
 
-        trend_query = db.query(
+        trend_stmt = select(
             week_start_expr.label("week_start"),
             func.count(Patient.id).label("count"),
         )
 
         if role != UserRole.ADMIN and user_uuid:
-            trend_query = trend_query.filter(Patient.doctor_id == user_uuid)
+            trend_stmt = trend_stmt.where(Patient.doctor_id == user_uuid)
             logger.info(f"Trend filtered by doctor_id: {user_uuid}")
 
         if start_date:
-            trend_query = trend_query.filter(Patient.created_at >= start_date)
+            trend_stmt = trend_stmt.where(Patient.created_at >= start_date)
             logger.info(f"Trend filtered by start_date: {start_date}")
 
-        logger.info("Executing trend query...")
-        trend_results = (
-            trend_query.group_by(week_start_expr)
+        trend_stmt = (
+            trend_stmt.group_by(week_start_expr)
             .order_by(week_start_expr)
             .limit(12)
-            .all()
         )
+
+        logger.info("Executing trend query...")
+        trend_results = (await db.execute(trend_stmt)).all()
         logger.info(f"Trend query returned {len(trend_results)} results")
     except Exception as e:
         logger.error(f"Error in trend query: {e}")
@@ -308,7 +314,7 @@ async def get_treatment_distribution(
     description="Get count of patients by flow state (active, paused, completed, etc.)",
 )
 async def get_patient_status_distribution(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     """
@@ -334,16 +340,17 @@ async def get_patient_status_distribution(
         return cached_result
 
     # Query patient counts by flow_state
-    query = db.query(
+    stmt = select(
         Patient.flow_state,
         func.count(Patient.id).label("count")
     )
 
     # Filter by doctor if not admin
     if role != UserRole.ADMIN and user_uuid:
-        query = query.filter(Patient.doctor_id == user_uuid)
+        stmt = stmt.where(Patient.doctor_id == user_uuid)
 
-    results = query.group_by(Patient.flow_state).all()
+    stmt = stmt.group_by(Patient.flow_state)
+    results = (await db.execute(stmt)).all()
 
     # Build distribution dict
     status_counts = {
@@ -372,4 +379,3 @@ async def get_patient_status_distribution(
     await set_cached_result(cache_key, result)
 
     return result
-

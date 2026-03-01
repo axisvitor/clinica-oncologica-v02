@@ -15,8 +15,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from datetime import datetime, timezone
-import time
 
 from app.config import settings
 from app.utils.logging import get_logger
@@ -37,6 +35,7 @@ from app.core.setup.openapi import (
 # Import rate limiter components
 from slowapi.errors import RateLimitExceeded
 from app.utils.rate_limiter import limiter, rate_limit_handler
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -147,7 +146,7 @@ def create_application(
                 "message": exc.message,
                 "details": exc.details,
                 "request_id": request_id,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             },
         )
 
@@ -185,17 +184,12 @@ def create_application(
     _register_routers_with_resilience(app, deployment_mode)
     logger.info("✓ Routers registered")
 
-    # 5. Add debug endpoints (if enabled)
-    if enable_debug_endpoints:
-        _add_debug_endpoints(app)
-        logger.info("✓ Debug endpoints added")
-
-    # 6. Setup enhanced OpenAPI (if enabled)
+    # 5. Setup enhanced OpenAPI (if enabled)
     if enable_enhanced_openapi:
         setup_enhanced_openapi(app)
         logger.info("✓ Enhanced OpenAPI configured")
 
-    # 7. Setup static file serving for uploads
+    # 6. Setup static file serving for uploads
     _setup_static_files(app)
     logger.info("✓ Static file serving configured")
 
@@ -265,7 +259,7 @@ def _setup_global_exception_handler(app: FastAPI) -> None:
             "error": "internal_server_error",
             "message": "An unexpected error occurred",
             "details": {},
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "request_id": request_id,
         }
 
@@ -318,88 +312,3 @@ def _register_core_routers_individually(app: FastAPI) -> None:
         except Exception as e:
             logger.error(f"✗ Failed to register {router_name} router: {e}")
 
-
-def _add_debug_endpoints(app: FastAPI) -> None:
-    """Add debug endpoints for troubleshooting (from minimal_main.py)."""
-    import os
-    import sys
-
-    @app.get("/debug/env", tags=["Debug"])
-    async def debug_env():
-        """Debug environment variables (sensitive values masked)."""
-        env_vars = {
-            "PORT": os.getenv("PORT", "not_set"),
-            "ENVIRONMENT": os.getenv("ENVIRONMENT", "not_set"),
-            "DATABASE_URL": "***masked***" if os.getenv("DATABASE_URL") else "not_set",
-            "REDIS_URL": "***masked***" if os.getenv("REDIS_URL") else "not_set",
-            "PYTHONPATH": os.getenv("PYTHONPATH", "not_set"),
-            "PWD": os.getenv("PWD", "not_set"),
-            "DEBUG": str(settings.APP_ENABLE_DEBUG),
-            "DEPLOYMENT_MODE": getattr(app.state, "deployment_mode", "unknown"),
-        }
-        return {
-            "environment_variables": env_vars,
-            "python_path": sys.path[:10],  # Limit for readability
-            "app_state": {
-                "deployment_mode": getattr(app.state, "deployment_mode", "unknown"),
-                "debug_endpoints_enabled": getattr(
-                    app.state, "debug_endpoints_enabled", False
-                ),
-                "error_tracking_enabled": getattr(
-                    app.state, "error_tracking_enabled", True
-                ),
-            },
-        }
-
-    @app.get("/debug/imports", tags=["Debug"])
-    async def debug_imports():
-        """Test critical imports for troubleshooting."""
-        import_results = {}
-
-        critical_imports = [
-            ("app.config", "Application configuration"),
-            ("app.database", "Database connectivity"),
-            ("app.services", "Core services"),
-            ("app.core.application_factory", "Application factory"),
-        ]
-
-        for module_path, description in critical_imports:
-            try:
-                __import__(module_path)
-                import_results[module_path] = {
-                    "status": "success",
-                    "description": description,
-                }
-            except Exception as e:
-                import_results[module_path] = {
-                    "status": "failed",
-                    "error": str(e),
-                    "description": description,
-                }
-
-        return {
-            "import_test_results": import_results,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-
-    @app.get("/debug/health", tags=["Debug"])
-    async def debug_health():
-        """Enhanced health check with debug information."""
-        uptime = time.time() - getattr(app.state, "start_time", time.time())
-
-        health_info = {
-            "status": "healthy",
-            "deployment_mode": getattr(app.state, "deployment_mode", "unknown"),
-            "debug_mode": getattr(app.state, "debug_endpoints_enabled", False),
-            "uptime_seconds": uptime,
-            "version": "2.0.0",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "features": {
-                "monitoring": hasattr(app.state, "monitoring_manager"),
-                "redis": hasattr(app.state, "redis_client"),
-                "session_manager": hasattr(app.state, "session_manager"),
-                "error_tracking": getattr(app.state, "error_tracking_enabled", True),
-            },
-        }
-
-        return health_info

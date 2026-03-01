@@ -48,8 +48,8 @@ describe('MedicationsApi', () => {
             dosage: '1mg',
             frequency: '1x ao dia',
             is_active: true,
-            created_at: '2025-11-07T10:00:00Z',
-            updated_at: '2025-11-07T10:00:00Z',
+            created_at: '2025-11-07T10:00:00-03:00',
+            updated_at: '2025-11-07T10:00:00-03:00',
           },
         ],
         total: 1,
@@ -209,8 +209,8 @@ describe('MedicationsApi', () => {
       const mockResponse = {
         id: 'med-new',
         ...createData,
-        created_at: '2025-11-07T10:00:00Z',
-        updated_at: '2025-11-07T10:00:00Z',
+        created_at: '2025-11-07T10:00:00-03:00',
+        updated_at: '2025-11-07T10:00:00-03:00',
       };
 
       vi.mocked(client.post).mockResolvedValue(mockResponse);
@@ -375,8 +375,8 @@ describe('MedicationsApi', () => {
         end_date: '2026-11-08',
         instructions: 'Tomar pela manhã',
         is_active: true,
-        created_at: '2025-11-07T10:00:00Z',
-        updated_at: '2025-11-07T10:00:00Z',
+        created_at: '2025-11-07T10:00:00-03:00',
+        updated_at: '2025-11-07T10:00:00-03:00',
         refills_allowed: 12,
         refills_remaining: 12,
         prescription_date: '2025-11-07',

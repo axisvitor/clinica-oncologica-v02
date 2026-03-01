@@ -331,10 +331,15 @@ class TestCPFEncryptionService:
         assert encrypted_cpf.startswith("encrypted:")
 
         # Should be base64 encoded after prefix
-        encrypted_part = encrypted_cpf.replace("encrypted:", "")
+        encrypted_part = encrypted_cpf.replace("encrypted:", "", 1)
+        # Current format may include algorithm marker, e.g.:
+        # encrypted:gcm:<base64_payload>
+        if ":" in encrypted_part:
+            _, encrypted_part = encrypted_part.split(":", 1)
         try:
             import base64
-            base64.b64decode(encrypted_part)
+            padding = "=" * (-len(encrypted_part) % 4)
+            base64.b64decode(f"{encrypted_part}{padding}")
         except Exception:
             pytest.fail("Encrypted data is not valid base64")
 

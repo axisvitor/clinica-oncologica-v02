@@ -175,9 +175,9 @@ class SyncJobResponse(BaseModel):
                 "skipped_items": 2,
                 "conflicts_detected": 5,
                 "conflicts_resolved": 5,
-                "created_at": "2025-01-01T10:00:00Z",
-                "started_at": "2025-01-01T10:00:05Z",
-                "completed_at": "2025-01-01T10:15:00Z",
+                "created_at": "2025-01-01T10:00:00-03:00",
+                "started_at": "2025-01-01T10:00:05-03:00",
+                "completed_at": "2025-01-01T10:15:00-03:00",
                 "duration_seconds": 895.5,
                 "error_message": None,
             }
@@ -257,7 +257,7 @@ class SyncTriggerResponse(BaseModel):
                 "status": "pending",
                 "message": "Sync job created successfully",
                 "estimated_items": 500,
-                "started_at": "2025-01-01T10:00:00Z",
+                "started_at": "2025-01-01T10:00:00-03:00",
             }
         }
     )
@@ -296,7 +296,7 @@ class SyncStatusResponse(BaseModel):
                 "current_batch": 4,
                 "total_batches": 5,
                 "items_per_second": 8.5,
-                "estimated_completion": "2025-01-01T10:15:00Z",
+                "estimated_completion": "2025-01-01T10:15:00-03:00",
                 "current_entity_type": "patients",
                 "errors": [],
                 "warnings": ["3 items skipped due to validation errors"],
@@ -456,9 +456,9 @@ class SyncConfigResponse(BaseModel):
                 "timeout_seconds": 30,
                 "custom_headers": {},
                 "custom_settings": {},
-                "created_at": "2025-01-01T00:00:00Z",
-                "updated_at": "2025-01-01T10:00:00Z",
-                "last_sync_at": "2025-01-01T09:00:00Z",
+                "created_at": "2025-01-01T00:00:00-03:00",
+                "updated_at": "2025-01-01T10:00:00-03:00",
+                "last_sync_at": "2025-01-01T09:00:00-03:00",
                 "last_sync_status": "completed",
                 "total_syncs": 150,
                 "successful_syncs": 148,
@@ -600,7 +600,7 @@ class ConflictResolutionResponse(BaseModel):
                 "resolution_strategy": "use_local",
                 "resolved_value": {"name": "John Doe", "age": 35},
                 "message": "Conflict resolved successfully",
-                "resolved_at": "2025-01-01T10:00:00Z",
+                "resolved_at": "2025-01-01T10:00:00-03:00",
             }
         }
     )
@@ -643,8 +643,8 @@ class SyncHistoryResponse(BaseModel):
                 "successful_items": 495,
                 "failed_items": 5,
                 "duration_seconds": 895.5,
-                "started_at": "2025-01-01T10:00:00Z",
-                "completed_at": "2025-01-01T10:15:00Z",
+                "started_at": "2025-01-01T10:00:00-03:00",
+                "completed_at": "2025-01-01T10:15:00-03:00",
                 "error_summary": "5 items failed validation",
                 "detailed_logs": [],
             }
@@ -713,7 +713,7 @@ class SyncRollbackResponse(BaseModel):
                 "status": "pending",
                 "message": "Rollback initiated successfully",
                 "estimated_items_to_revert": 495,
-                "started_at": "2025-01-01T11:00:00Z",
+                "started_at": "2025-01-01T11:00:00-03:00",
             }
         }
     )

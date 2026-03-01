@@ -6,11 +6,15 @@ patient onboarding saga, keeping each step focused and testable.
 """
 
 import logging
+import inspect
+import time
 from typing import Optional, Any
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.models.patient import Patient
 from app.models.message import MessageType
@@ -18,13 +22,53 @@ from app.models.template import MessageTemplate
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
 from app.schemas.patient import PatientCreate
-from app.repositories.patient import PatientRepository
+from app.exceptions import ValidationError
 from app.services.patient.flow_service import PatientFlowService
 from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.domain.messaging.core import MessageService
 from app.config.messages import DEFAULT_WELCOME_MESSAGE
+from app.config import settings
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
+from .query_helpers import metadata_key_equals
 
 logger = logging.getLogger(__name__)
+
+
+# Valid keyword arguments for Patient(**kwargs) — columns + property setters.
+# Schema-only fields (e.g. allergies, comorbidities) must be filtered out
+# before construction and routed into the patient_data JSONB metadata dict.
+_PATIENT_MODEL_FIELDS = frozenset(
+    {
+        # Columns
+        "doctor_id",
+        "name",
+        "birth_date",
+        "treatment_type",
+        "treatment_start_date",
+        "flow_state",
+        "current_day",
+        "cpf_encrypted",
+        "cpf_hash",
+        "email_encrypted",
+        "email_hash",
+        "phone_encrypted",
+        "phone_hash",
+        "diagnosis",
+        "treatment_phase",
+        "doctor_notes",
+        "patient_data",
+        "idempotency_key",
+        "deleted_at",
+        "messaging_stopped_at",
+        # Property setters (accept values via __init__ -> setattr)
+        "cpf",
+        "email",
+        "phone",
+        "timezone",
+        "doctor_name",
+        "enrollment_date",
+    }
+)
 
 
 class SagaStepExecutor:
@@ -39,17 +83,71 @@ class SagaStepExecutor:
 
     def __init__(
         self,
-        db: Session,
-        patient_repo: PatientRepository,
-        flow_service: PatientFlowService,
-        whatsapp_service: UnifiedWhatsAppService,
-        message_service: MessageService,
+        db: Any,  # AsyncSession (typed as Any for backward compat with orchestrator)
+        patient_repo: Any = None,  # Kept for backward compat; inlined for async compat
+        flow_service: Optional[PatientFlowService] = None,
+        whatsapp_service: Optional[UnifiedWhatsAppService] = None,
+        message_service: Optional[MessageService] = None,
     ):
         self.db = db
         self.patient_repo = patient_repo
         self.flow_service = flow_service
         self.whatsapp_service = whatsapp_service
         self.message_service = message_service
+
+    @staticmethod
+    def _sync_select_execute(db, statement):
+        entity = statement.column_descriptions[0].get("entity")
+        query = db.query(entity)
+
+        where_criteria = tuple(getattr(statement, "_where_criteria", ()))
+        if where_criteria:
+            query = query.filter(*where_criteria)
+
+        rows = query.all() if hasattr(query, "all") else None
+        if not isinstance(rows, list):
+            first_row = query.first() if hasattr(query, "first") else None
+            rows = [first_row] if first_row is not None else []
+
+        class _ScalarResult:
+            def __init__(self, items):
+                self._items = items
+
+            def first(self):
+                return self._items[0] if self._items else None
+
+            def all(self):
+                return self._items
+
+        class _QueryResult:
+            def __init__(self, items):
+                self._items = items
+
+            def scalars(self):
+                return _ScalarResult(self._items)
+
+        return _QueryResult(rows)
+
+    async def _db_execute(self, statement):
+        if not isinstance(self.db, AsyncSession) and hasattr(self.db, "query"):
+            return self._sync_select_execute(self.db, statement)
+        result = self.db.execute(statement)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    async def _db_flush(self):
+        result = self.db.flush()
+        if inspect.isawaitable(result):
+            await result
+
+    async def _db_refresh(self, obj):
+        refresh = getattr(self.db, "refresh", None)
+        if refresh is None:
+            return
+        result = refresh(obj)
+        if inspect.isawaitable(result):
+            await result
 
     async def step_create_patient(
         self,
@@ -75,20 +173,55 @@ class SagaStepExecutor:
         Raises:
             Exception: If patient creation fails
         """
+        step_start = time.time()
+        step_status = "success"
         try:
-            patient_dict = patient_data.dict(exclude_unset=True)
+            patient_dict = patient_data.model_dump(exclude_unset=True)
             metadata = patient_dict.pop("metadata", {})
+
+            # Separate schema-only clinical fields that are NOT valid
+            # Patient model kwargs (they would cause TypeError).
+            clinical_extras = {}
+            filtered_dict = {}
+            for key, value in patient_dict.items():
+                if key in _PATIENT_MODEL_FIELDS:
+                    filtered_dict[key] = value
+                else:
+                    clinical_extras[key] = value
+
+            # Route clinical extras into metadata under clinical_info key.
+            # Root-level metadata is schema-validated with additionalProperties=false,
+            # so persist these extras within custom_fields.
+            if clinical_extras:
+                if not metadata:
+                    metadata = {}
+                custom_fields = metadata.get("custom_fields")
+                if custom_fields is None or not isinstance(custom_fields, dict):
+                    custom_fields = {}
+                custom_fields["clinical_info"] = clinical_extras
+                metadata["custom_fields"] = custom_fields
 
             # Only set doctor_id if provided
             if doctor_id:
-                patient_dict["doctor_id"] = doctor_id
+                filtered_dict["doctor_id"] = doctor_id
             if metadata:
-                patient_dict["patient_data"] = metadata
+                filtered_dict["patient_data"] = metadata
 
             if idempotency_key:
-                patient_dict["idempotency_key"] = idempotency_key
+                filtered_dict["idempotency_key"] = idempotency_key
 
-            patient = self.patient_repo.create(patient_dict, auto_commit=False)
+            # Inlined from PatientRepository.create() for async compat
+            patient = None
+            if not isinstance(self.db, AsyncSession) and self.patient_repo:
+                create_fn = getattr(self.patient_repo, "create", None)
+                if callable(create_fn):
+                    candidate = create_fn(filtered_dict, auto_commit=False)
+                    if isinstance(candidate, Patient):
+                        patient = candidate
+
+            if patient is None:
+                patient = Patient(**filtered_dict)
+                self.db.add(patient)  # self.db.add() is NOT a coroutine
 
             saga.patient_id = patient.id
             saga.current_step = 1
@@ -96,7 +229,8 @@ class SagaStepExecutor:
             saga.add_log_entry(1, "create_patient", "success")
 
             try:
-                self.db.flush()
+                await self._db_flush()
+                await self._db_refresh(patient)
             except Exception as flush_error:
                 logger.warning(
                     f"Saga {saga.id}: Flush failed in create_patient step: {flush_error}",
@@ -105,16 +239,68 @@ class SagaStepExecutor:
 
             return patient
 
+        except IntegrityError as e:
+            step_status = "failed"
+            logger.error(f"Step 1 failed: {type(e).__name__}", exc_info=True)
+            saga.add_log_entry(1, "create_patient", "failed", str(e))
+
+            error_message = str(e.orig) if getattr(e, "orig", None) else str(e)
+            if any(
+                term in error_message
+                for term in ["uq_patient_cpf_hash_doctor", "uq_patient_cpf_doctor", "cpf_hash", "cpf"]
+            ):
+                raise ValidationError(
+                    "Paciente com este CPF ja existe",
+                    field="cpf",
+                    code="duplicate_cpf",
+                ) from e
+            if any(
+                term in error_message
+                for term in ["ix_patients_phone_hash_doctor", "uq_patient_phone_doctor", "phone_hash", "phone"]
+            ):
+                raise ValidationError(
+                    "Paciente com este telefone ja existe",
+                    field="phone",
+                    code="duplicate_phone",
+                ) from e
+            if any(
+                term in error_message
+                for term in ["ix_patients_email_hash_doctor", "uq_patient_email_doctor", "email_hash", "email"]
+            ):
+                raise ValidationError(
+                    "Paciente com este email ja existe",
+                    field="email",
+                    code="duplicate_email",
+                ) from e
+
+            raise ValidationError(
+                "Patient creation failed due to data integrity constraints",
+                code="integrity_error",
+            ) from e
+
         except Exception as e:
+            step_status = "failed"
             logger.error(f"Step 1 failed: {type(e).__name__}", exc_info=True)
             saga.add_log_entry(1, "create_patient", "failed", str(e))
             raise
+        finally:
+            duration = time.time() - step_start
+            logger.info(
+                f"Saga {saga.id}: create_patient duration {duration:.2f}s",
+                extra={
+                    "saga_id": str(saga.id),
+                    "step": "create_patient",
+                    "status": step_status,
+                    "duration_s": duration,
+                },
+            )
 
     async def step_initialize_flow(
         self,
         saga: PatientOnboardingSaga,
         patient: Patient,
         current_user: Any,
+        idempotency_key: Optional[str] = None,
     ) -> None:
         """
         Step 2/3: Initialize Flow.
@@ -123,10 +309,17 @@ class SagaStepExecutor:
             saga: The saga record being executed
             patient: The patient to initialize flow for
             current_user: Current user context
+            idempotency_key: Optional key to avoid duplicate flow creation
 
         Raises:
             Exception: If flow initialization fails
         """
+        # NOTE: flow_service calls may still be sync if PatientFlowService
+        # has not been fully migrated to AsyncSession. The AsyncSession is
+        # passed through db and the service detects the session type.
+        # Direct idempotency check below is inlined for async compat.
+        step_start = time.time()
+        step_status = "success"
         try:
             current_user_id = (
                 current_user.id
@@ -134,17 +327,74 @@ class SagaStepExecutor:
                 else None
             )
 
-            await self.flow_service.initialize_default_flow(
+            if idempotency_key:
+                from app.models.flow import PatientFlowState
+
+                # Inlined idempotency check for async compat
+                result = await self._db_execute(
+                    select(PatientFlowState).filter(
+                        PatientFlowState.patient_id == patient.id
+                    )
+                )
+                existing_flow = result.scalars().first()
+                if existing_flow:
+                    step_status = "skipped_existing_flow"
+                    saga.current_step = 3
+                    saga.status = SagaStatus.STEP_3_FLOW_INITIALIZED
+                    saga.add_log_entry(3, "initialize_flow", "skipped_existing_flow")
+                    try:
+                        await self._db_flush()
+                    except Exception as flush_error:
+                        logger.warning(
+                            f"Saga {saga.id}: Flush failed in initialize_flow step: {flush_error}",
+                            exc_info=True,
+                        )
+                    return
+
+            flow_state = await self.flow_service.initialize_default_flow(
                 patient, current_user_id, auto_commit=False
             )
+            if not flow_state:
+                step_status = (
+                    "skipped_auto_enrollment_disabled"
+                    if not settings.FLOW_ENABLE_AUTO_ENROLLMENT
+                    else "skipped_no_flow"
+                )
+                skip_reason = (
+                    "auto_enrollment_disabled"
+                    if not settings.FLOW_ENABLE_AUTO_ENROLLMENT
+                    else "flow_not_initialized"
+                )
+                saga.current_step = 3
+                saga.add_log_entry(
+                    3, "initialize_flow", step_status, skip_reason
+                )
+                if not isinstance(saga.step_data, dict):
+                    saga.step_data = {}
+                saga.step_data["flow_initialized"] = False
+                saga.step_data["flow_skip_reason"] = skip_reason
+                try:
+                    await self._db_flush()
+                except Exception as flush_error:
+                    logger.warning(
+                        f"Saga {saga.id}: Flush failed in initialize_flow step: {flush_error}",
+                        exc_info=True,
+                    )
+                return
+
             await self.flow_service.activate_patient(patient.id, auto_commit=False)
+
+            if idempotency_key and flow_state:
+                flow_metadata = flow_state.flow_metadata or {}
+                flow_metadata["idempotency_key"] = idempotency_key
+                flow_state.flow_metadata = flow_metadata
 
             saga.current_step = 3
             saga.status = SagaStatus.STEP_3_FLOW_INITIALIZED
             saga.add_log_entry(3, "initialize_flow", "success")
 
             try:
-                self.db.flush()
+                await self._db_flush()
             except Exception as flush_error:
                 logger.warning(
                     f"Saga {saga.id}: Flush failed in initialize_flow step: {flush_error}",
@@ -152,14 +402,27 @@ class SagaStepExecutor:
                 )
 
         except Exception as e:
+            step_status = "failed"
             logger.error(f"Step 2 (Flow) failed: {type(e).__name__}", exc_info=True)
             saga.add_log_entry(3, "initialize_flow", "failed", str(e))
             raise
+        finally:
+            duration = time.time() - step_start
+            logger.info(
+                f"Saga {saga.id}: initialize_flow duration {duration:.2f}s",
+                extra={
+                    "saga_id": str(saga.id),
+                    "step": "initialize_flow",
+                    "status": step_status,
+                    "duration_s": duration,
+                },
+            )
 
     async def step_send_welcome_message(
         self,
         saga: PatientOnboardingSaga,
         patient: Patient,
+        idempotency_key: Optional[str] = None,
     ) -> None:
         """
         Step 3/4: Schedule Welcome Message (NON-BLOCKING).
@@ -175,16 +438,58 @@ class SagaStepExecutor:
         Args:
             saga: The saga record being executed
             patient: The patient to send welcome message to
+            idempotency_key: Optional key to avoid duplicate welcome messages
         """
+        step_start = time.time()
+        step_status = "success"
         try:
-            template = (
-                self.db.query(MessageTemplate)
-                .filter(
+            if idempotency_key:
+                from app.models.message import Message
+
+                # Inlined idempotency check for async compat
+                result = await self._db_execute(
+                    select(Message).filter(
+                        Message.patient_id == patient.id,
+                        metadata_key_equals(
+                            Message.message_metadata,
+                            "idempotency_key",
+                            idempotency_key,
+                        ),
+                        metadata_key_equals(
+                            Message.message_metadata,
+                            "message_type",
+                            "welcome",
+                        ),
+                    )
+                )
+                existing_message = result.scalars().first()
+                if existing_message:
+                    step_status = "skipped_existing_message"
+                    logger.info(
+                        f"Saga {saga.id}: Welcome message already exists "
+                        f"(message_id={existing_message.id}), skipping send"
+                    )
+                    saga.current_step = 4
+                    saga.status = SagaStatus.STEP_4_MESSAGE_SENT
+                    saga.add_log_entry(4, "send_message", "skipped_existing_message")
+                    try:
+                        await self._db_flush()
+                    except Exception as flush_error:
+                        logger.warning(
+                            f"Saga {saga.id}: Flush failed in send_welcome_message step: "
+                            f"{flush_error}",
+                            exc_info=True,
+                        )
+                    return
+
+            # Inlined template lookup for async compat
+            result = await self._db_execute(
+                select(MessageTemplate).filter(
                     MessageTemplate.name == "welcome_message",
                     MessageTemplate.is_active,
                 )
-                .first()
             )
+            template = result.scalars().first()
 
             if template:
                 try:
@@ -202,50 +507,38 @@ class SagaStepExecutor:
                     patient_name=patient.name
                 )
 
-            scheduled_for = saga.started_at or datetime.now(timezone.utc)
+            scheduled_for = saga.started_at or now_sao_paulo()
             if scheduled_for.tzinfo is None:
-                scheduled_for = scheduled_for.replace(tzinfo=timezone.utc)
+                scheduled_for = scheduled_for.replace(tzinfo=SAO_PAULO_TZ)
+
+            message_metadata = {
+                "message_type": "welcome",
+                "saga_id": str(saga.id),
+            }
+            if idempotency_key:
+                message_metadata["idempotency_key"] = idempotency_key
 
             message = self.message_service.schedule_message(
                 patient_id=patient.id,
                 content=message_content,
                 scheduled_for=scheduled_for,
                 message_type=MessageType.TEXT,
-                message_metadata={
-                    "message_type": "welcome",
-                    "saga_id": str(saga.id),
-                },
+                message_metadata=message_metadata,
+                auto_commit=False,  # Defer commit to saga's Unit of Work
             )
 
-            # PERFORMANCE FIX: Schedule Celery task to send message asynchronously
-            # instead of blocking the saga with direct WhatsApp API call.
-            # This prevents the ~5-7s delay caused by:
-            # 1. AsyncSession mismatch (UnifiedWhatsAppService expects AsyncSession)
-            # 2. Circuit breaker checks and connection setup
-            # 3. Potential API timeouts
-            #
-            # The message is already in PENDING status from schedule_message(),
-            # and the Celery task will handle sending and retries.
-            try:
-                from app.tasks.messaging import send_scheduled_message
-
-                # Schedule task with small delay to ensure DB commit happens first
-                send_scheduled_message.apply_async(
-                    args=[str(message.id)],
-                    countdown=2,  # 2 second delay to ensure transaction commits
-                )
-                logger.info(
-                    f"Saga {saga.id}: Welcome message {message.id} scheduled for async send",
-                    extra={"patient_id": str(patient.id), "message_id": str(message.id)},
-                )
-            except Exception as task_exc:
-                # If Celery scheduling fails, message stays in PENDING status
-                # and retry_pending_welcome_messages task will pick it up later
-                logger.warning(
-                    f"Saga {saga.id}: Failed to schedule Celery task for welcome message: "
-                    f"{type(task_exc).__name__}",
-                    exc_info=True,
-                )
+            # NOTE: Message is in PENDING status and will be sent by Cloud Scheduler
+            # job `process-scheduled-messages` which runs every 1 minute.
+            # This is more reliable than Celery and avoids race conditions with
+            # saga commit timing. The message will be picked up on next scheduler run.
+            logger.info(
+                f"Saga {saga.id}: Welcome message {message.id} created in PENDING status",
+                extra={
+                    "patient_id": str(patient.id),
+                    "message_id": str(message.id),
+                    "delivery_method": "celery_beat",
+                },
+            )
 
             # Update Saga (message scheduling is best-effort; do not fail onboarding)
             saga.current_step = 4
@@ -253,7 +546,7 @@ class SagaStepExecutor:
             saga.add_log_entry(4, "send_message", "scheduled_async")
 
             try:
-                self.db.flush()
+                await self._db_flush()
             except Exception as flush_error:
                 logger.warning(
                     f"Saga {saga.id}: Flush failed in send_welcome_message step: "
@@ -262,6 +555,7 @@ class SagaStepExecutor:
                 )
 
         except Exception as e:
+            step_status = "failed_nonfatal"
             logger.error(
                 f"Step 3 (Message) failed: {type(e).__name__}", exc_info=True
             )
@@ -269,9 +563,23 @@ class SagaStepExecutor:
             saga.status = SagaStatus.STEP_4_MESSAGE_SENT
             saga.add_log_entry(4, "send_message", "failed_nonfatal", str(e))
             try:
-                self.db.flush()
+                await self._db_flush()
             except Exception as flush_err:
                 logger.error(
                     f"Failed to flush message step state: {flush_err}", exc_info=True
                 )
             return
+        finally:
+            duration = time.time() - step_start
+            logger.info(
+                f"Saga {saga.id}: send_welcome_message duration {duration:.2f}s",
+                extra={
+                    "saga_id": str(saga.id),
+                    "step": "send_welcome_message",
+                    "status": step_status,
+                    "duration_s": duration,
+                },
+            )
+
+
+__all__ = ["SagaStepExecutor"]

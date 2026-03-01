@@ -4,7 +4,7 @@ Handles raw data collection from database with optimized queries.
 """
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Any
 from collections import deque
 from uuid import UUID
@@ -24,6 +24,8 @@ from app.repositories.alert import AlertRepository
 from app.utils.db_retry import with_db_retry
 from app.services.query_performance_monitor import QueryPerformanceMonitor
 from app.schemas.report import PatientAnalytics, SystemAnalytics
+from app.domain.analytics.date_utils import build_date_window
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -50,6 +52,11 @@ class MetricsCollector:
         self.query_monitor = QueryPerformanceMonitor(db)
 
         logger.info("MetricsCollector initialized")
+
+    @staticmethod
+    def _date_window(start_date: date, end_date: date) -> tuple[datetime, datetime]:
+        """Build inclusive date window [start, end+1day) in Sao Paulo timezone."""
+        return build_date_window(start_date, end_date)
 
     @with_db_retry(max_retries=3)
     def get_patient_metrics(
@@ -79,9 +86,9 @@ class MetricsCollector:
 
             # Set date range
             if not start_date:
-                start_date = datetime.now(timezone.utc).date() - timedelta(days=30)
+                start_date = now_sao_paulo().date() - timedelta(days=30)
             if not end_date:
-                end_date = datetime.now(timezone.utc).date()
+                end_date = now_sao_paulo().date()
 
             analytics = PatientAnalytics(
                 patient_id=patient_id,
@@ -134,13 +141,15 @@ class MetricsCollector:
         """
         # Set default date range
         if not end_date:
-            end_date = datetime.now(timezone.utc).date()
+            end_date = now_sao_paulo().date()
         if not start_date:
             start_date = end_date - timedelta(days=30)
 
-        today = datetime.now(timezone.utc).date()
-        week_start = today - timedelta(days=7)
-        month_start = today - timedelta(days=30)
+        now = now_sao_paulo()
+        today = now.date()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = today_start - timedelta(days=7)
+        month_start = today_start - timedelta(days=30)
 
         # Get basic counts (avoid selecting full Patient rows)
         total_patients = int(self.db.query(func.count(Patient.id)).scalar() or 0)
@@ -154,7 +163,7 @@ class MetricsCollector:
 
         # Get message metrics
         messages_today = (
-            self.db.query(Message).filter(Message.created_at >= today).count()
+            self.db.query(Message).filter(Message.created_at >= today_start).count()
         )
 
         messages_week = (
@@ -171,7 +180,7 @@ class MetricsCollector:
             .filter(
                 and_(
                     QuizResponse.responded_at.isnot(None),
-                    QuizResponse.created_at >= today,
+                    QuizResponse.responded_at >= today_start,
                 )
             )
             .count()
@@ -182,14 +191,14 @@ class MetricsCollector:
             .filter(
                 and_(
                     QuizResponse.responded_at.isnot(None),
-                    QuizResponse.created_at >= week_start,
+                    QuizResponse.responded_at >= week_start,
                 )
             )
             .count()
         )
 
         # Get alert metrics
-        alerts_today = self.db.query(Alert).filter(Alert.created_at >= today).count()
+        alerts_today = self.db.query(Alert).filter(Alert.created_at >= today_start).count()
 
         unresolved_alerts = (
             self.db.query(Alert).filter(Alert.status != AlertStatus.RESOLVED).count()
@@ -215,7 +224,7 @@ class MetricsCollector:
         Get all quick stats in a single optimized query using CTEs.
         This reduces database round-trips from 4 separate queries to 1.
         """
-        today = datetime.now(timezone.utc).date()
+        today = now_sao_paulo().date()
 
         # Build the consolidated query with CTEs (corrected enum values and columns)
         if doctor_id:
@@ -271,12 +280,14 @@ class MetricsCollector:
         self, days: int, doctor_id: Optional[UUID]
     ) -> int:
         """Return total quizzes completed in the last N days, optionally filtered by doctor."""
-        end_date = datetime.now(timezone.utc).date()
+        end_date = now_sao_paulo().date()
         start_date = end_date - timedelta(days=days)
+        start_dt, end_dt_exclusive = self._date_window(start_date, end_date)
         query = self.db.query(QuizResponse).filter(
             and_(
                 QuizResponse.responded_at.isnot(None),
-                QuizResponse.created_at >= start_date,
+                QuizResponse.responded_at >= start_dt,
+                QuizResponse.responded_at < end_dt_exclusive,
             )
         )
         if doctor_id:
@@ -362,23 +373,7 @@ class MetricsCollector:
             .all()
         )
 
-        # Convert to dict for lookup
-        count_by_date = {}
-        for result_date, count in daily_counts:
-            date_key = (
-                result_date.isoformat()
-                if hasattr(result_date, "isoformat")
-                else str(result_date)
-            )
-            try:
-                count_num = int(count) if count is not None else 0
-            except (TypeError, ValueError):
-                count_num = (
-                    getattr(count, "return_value", 0)
-                    if hasattr(count, "return_value")
-                    else 0
-                )
-            count_by_date[date_key] = count_num
+        count_by_date = self._build_daily_count_map(daily_counts)
 
         # Build trend data with all dates
         trend_data = []
@@ -424,23 +419,7 @@ class MetricsCollector:
             .all()
         )
 
-        # Convert to dict for lookup
-        count_by_date = {}
-        for result_date, count in daily_counts:
-            date_key = (
-                result_date.isoformat()
-                if hasattr(result_date, "isoformat")
-                else str(result_date)
-            )
-            try:
-                count_num = int(count) if count is not None else 0
-            except (TypeError, ValueError):
-                count_num = (
-                    getattr(count, "return_value", 0)
-                    if hasattr(count, "return_value")
-                    else 0
-                )
-            count_by_date[date_key] = count_num
+        count_by_date = self._build_daily_count_map(daily_counts)
 
         # Build trend data with all dates
         trend_data = []
@@ -460,6 +439,27 @@ class MetricsCollector:
         return trend_data
 
     # Private helper methods
+
+    @staticmethod
+    def _build_daily_count_map(daily_counts: List[tuple[Any, Any]]) -> Dict[str, int]:
+        """Convert grouped SQL rows into a date->count lookup map."""
+        count_by_date: Dict[str, int] = {}
+        for result_date, count in daily_counts:
+            date_key = (
+                result_date.isoformat()
+                if hasattr(result_date, "isoformat")
+                else str(result_date)
+            )
+            try:
+                count_num = int(count) if count is not None else 0
+            except (TypeError, ValueError):
+                count_num = (
+                    getattr(count, "return_value", 0)
+                    if hasattr(count, "return_value")
+                    else 0
+                )
+            count_by_date[date_key] = count_num
+        return count_by_date
 
     def _add_engagement_metrics(
         self,
@@ -509,20 +509,23 @@ class MetricsCollector:
         end_date: date,
     ):
         """Add quiz metrics to patient analytics."""
+        start_dt, end_dt_exclusive = self._date_window(start_date, end_date)
+
         # Get quiz responses
         quiz_responses = (
             self.db.query(QuizResponse)
             .filter(
                 and_(
                     QuizResponse.patient_id == patient_id,
-                    QuizResponse.created_at >= start_date,
-                    QuizResponse.created_at <= end_date,
+                    QuizResponse.responded_at.isnot(None),
+                    QuizResponse.responded_at >= start_dt,
+                    QuizResponse.responded_at < end_dt_exclusive,
                 )
             )
             .all()
         )
 
-        completed_quizzes = [r for r in quiz_responses if r.completed_at is not None]
+        completed_quizzes = quiz_responses
 
         analytics.quizzes_completed = len(completed_quizzes)
 

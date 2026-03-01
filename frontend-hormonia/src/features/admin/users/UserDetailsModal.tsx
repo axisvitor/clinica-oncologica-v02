@@ -109,7 +109,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
       // Return generated password for display
       return { temporary_password: tempPassword }
     },
-    onSuccess: (data) => {
+    onSuccess: (data: { temporary_password: string }) => {
       toast({
         title: 'Senha resetada com sucesso',
         description: `Senha temporária: ${data.temporary_password}`

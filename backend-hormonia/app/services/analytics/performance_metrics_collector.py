@@ -15,7 +15,8 @@ import json
 import statistics
 import redis.asyncio as redis
 
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -171,7 +172,7 @@ class PerformanceMetricsCollector:
             return
 
         metric_point = MetricPoint(
-            timestamp=timestamp or datetime.now(timezone.utc),
+            timestamp=timestamp or now_sao_paulo(),
             metric_name=metric_name,
             metric_type=metric_type,
             value=value,
@@ -382,7 +383,7 @@ class PerformanceMetricsCollector:
         self, threshold: float = 1.0, limit: int = 10, hours: int = 24
     ) -> List[Dict[str, Any]]:
         """Get slow database queries."""
-        start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        start_time = now_sao_paulo() - timedelta(hours=hours)
 
         query_metrics = await self.get_metrics(
             metric_name="db_query_execution_time",
@@ -409,7 +410,7 @@ class PerformanceMetricsCollector:
 
     async def get_error_analysis(self, hours: int = 24) -> Dict[str, Any]:
         """Get error rate analysis."""
-        start_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        start_time = now_sao_paulo() - timedelta(hours=hours)
 
         error_metrics = await self.get_metrics(
             metric_name="error_rate",
@@ -458,13 +459,13 @@ class PerformanceMetricsCollector:
             "by_endpoint": by_endpoint,
             "time_range": {
                 "start": start_time.isoformat(),
-                "end": datetime.now(timezone.utc).isoformat(),
+                "end": now_sao_paulo().isoformat(),
             },
         }
 
     async def get_performance_dashboard_data(self) -> Dict[str, Any]:
         """Get comprehensive performance data for dashboard."""
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         last_hour = now - timedelta(hours=1)
         now - timedelta(hours=24)
 
@@ -617,9 +618,9 @@ class PerformanceMetricsCollector:
     ) -> List[str]:
         """Generate Redis keys for time range."""
         if not start_time:
-            start_time = datetime.now(timezone.utc) - timedelta(hours=24)
+            start_time = now_sao_paulo() - timedelta(hours=24)
         if not end_time:
-            end_time = datetime.now(timezone.utc)
+            end_time = now_sao_paulo()
 
         keys = []
         current_time = start_time.replace(minute=0, second=0, microsecond=0)
@@ -661,11 +662,13 @@ class PerformanceMetricsCollector:
             return
 
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(days=self.retention_days)
+            cutoff_time = now_sao_paulo() - timedelta(days=self.retention_days)
 
-            # Find keys older than retention period
+            # Find keys older than retention period (non-blocking scan)
             pattern = f"{self.redis_prefix}*"
-            keys = await self.redis_client.keys(pattern)
+            keys = []
+            async for key in self.redis_client.scan_iter(match=pattern, count=100):
+                keys.append(key)
 
             deleted_count = 0
             for key in keys:

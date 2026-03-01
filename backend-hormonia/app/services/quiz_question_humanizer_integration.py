@@ -185,7 +185,7 @@ class QuizQuestionHumanizerIntegration:
             return "medication_verification"
 
         if any(word in question_text for word in ["como você está", "como se sente"]):
-            return "daily_checkin"
+            return "daily_follow_up"
 
         if any(word in question_text for word in ["dor", "náusea", "fadiga"]):
             return "symptom_tracking"

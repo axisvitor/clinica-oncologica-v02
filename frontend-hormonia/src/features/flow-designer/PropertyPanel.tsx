@@ -281,7 +281,7 @@ function MessageNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (
           value={String(node.data.config['message_type'] || 'text')}
           onValueChange={(value) => onUpdate('data.config.message_type', value)}
         >
-          <SelectTrigger className="mt-1">
+          <SelectTrigger id="message-type" className="mt-1">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -305,7 +305,7 @@ function ConditionNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate:
           value={String(node.data.config['operator'] || 'AND')}
           onValueChange={(value) => onUpdate('data.config.operator', value)}
         >
-          <SelectTrigger className="mt-1">
+          <SelectTrigger id="condition-operator" className="mt-1">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -338,7 +338,7 @@ function DelayNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (fi
             value={String(node.data.config['unit'] || 'minutes')}
             onValueChange={(value) => onUpdate('data.config.unit', value)}
           >
-            <SelectTrigger className="mt-1">
+            <SelectTrigger id="delay-unit" className="mt-1">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -363,7 +363,7 @@ function ActionNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (f
           value={String(node.data.config['action_type'] || 'set_variable')}
           onValueChange={(value) => onUpdate('data.config.action_type', value)}
         >
-          <SelectTrigger className="mt-1">
+          <SelectTrigger id="action-type" className="mt-1">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

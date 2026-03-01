@@ -218,7 +218,7 @@ class PerformanceOverview(BaseModel):
                     }
                 ],
                 "recommendations": ["Consider increasing cache TTL"],
-                "timestamp": "2025-11-07T15:30:00Z",
+                "timestamp": "2025-11-07T15:30:00-03:00",
             }
         }
     )
@@ -440,7 +440,7 @@ class DatabaseHealth(BaseModel):
                 "active_connections": 13,
                 "locks_count": 2,
                 "response_time_ms": 5.2,
-                "timestamp": "2025-11-07T15:30:00Z",
+                "timestamp": "2025-11-07T15:30:00-03:00",
                 "issues": [],
             }
         }
@@ -577,8 +577,8 @@ class TableStatistics(BaseModel):
                 "total_size_mb": 170.7,
                 "dead_tuples": 542,
                 "bloat_ratio": 3.5,
-                "last_vacuum": "2025-11-06T10:30:00Z",
-                "last_analyze": "2025-11-06T10:30:00Z",
+                "last_vacuum": "2025-11-06T10:30:00-03:00",
+                "last_analyze": "2025-11-06T10:30:00-03:00",
                 "needs_vacuum": False,
             }
         }

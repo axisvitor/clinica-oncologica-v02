@@ -29,6 +29,7 @@ Usage:
 
 import asyncio
 import logging
+import threading
 import uuid
 import time
 from contextlib import asynccontextmanager, contextmanager
@@ -137,7 +138,7 @@ class DistributedLock:
     async def _get_async_redis(self):
         """Get async Redis client (lazy initialization)."""
         if self._async_redis is None:
-            from app.core.redis_unified import get_async_redis
+            from app.core.redis_manager import get_async_redis_client as get_async_redis
 
             self._async_redis = await get_async_redis()
             # Register Lua scripts for performance
@@ -148,7 +149,7 @@ class DistributedLock:
     def _get_sync_redis(self):
         """Get sync Redis client (lazy initialization)."""
         if self._sync_redis is None:
-            from app.core.redis_unified import get_sync_redis
+            from app.core.redis_manager import get_sync_redis_client as get_sync_redis
 
             self._sync_redis = get_sync_redis()
             # Register Lua scripts for sync client
@@ -323,7 +324,7 @@ class DistributedLock:
 
             jitter = delay * 0.1 * (uuid.uuid4().int % 100) / 100
             sleep_time = min(delay + jitter, self.MAX_RETRY_DELAY)
-            time.sleep(sleep_time)
+            threading.Event().wait(sleep_time)
 
             delay = min(delay * 2, self.MAX_RETRY_DELAY)
 

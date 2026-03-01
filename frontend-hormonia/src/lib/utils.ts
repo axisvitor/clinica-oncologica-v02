@@ -25,7 +25,7 @@ export function formatDateTime(date: string | Date): string {
   })
 }
 
-export function debounce<T extends (...args: unknown[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   delay: number
 ): (...args: Parameters<T>) => void {
@@ -37,7 +37,7 @@ export function debounce<T extends (...args: unknown[]) => any>(
   }
 }
 
-export function throttle<T extends (...args: unknown[]) => any>(
+export function throttle<T extends (...args: unknown[]) => unknown>(
   func: T,
   delay: number
 ): (...args: Parameters<T>) => void {

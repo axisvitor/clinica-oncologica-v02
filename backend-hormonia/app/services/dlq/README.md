@@ -105,7 +105,7 @@ app/services/dlq/
 ### Basic Usage (Backward Compatible)
 
 ```python
-from app.services.dlq_service import DLQService, ErrorCategory
+from app.services.dlq import DLQService, ErrorCategory
 
 # Initialize
 dlq_service = DLQService(db)
@@ -127,7 +127,7 @@ success, error = dlq_service.retry_message(failed_msg.id, manual=True)
 messages = dlq_service.list_messages(
     page=1,
     size=20,
-    status=DLQStatus.PENDING,
+    status=DLQStatus.PENDING_REVIEW,
     category=ErrorCategory.TRANSIENT
 )
 
@@ -260,7 +260,7 @@ No changes required! The new modular structure maintains 100% backward compatibi
 
 ```python
 # Old code continues to work
-from app.services.dlq_service import DLQService
+from app.services.dlq import DLQService
 
 dlq = DLQService(db)
 dlq.add_to_dlq(...)  # Still works
@@ -297,7 +297,7 @@ from app.services.dlq.base import RetryConfig
 
 **Issue**: Import error after refactoring
 ```python
-ImportError: cannot import name 'DLQService' from 'app.services.dlq_service'
+ImportError: cannot import name 'DLQService' from 'app.services.dlq'
 ```
 
 **Solution**: Ensure `app/services/dlq_service.py` exists as compatibility wrapper

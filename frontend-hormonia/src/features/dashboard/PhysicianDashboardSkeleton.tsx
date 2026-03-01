@@ -44,7 +44,7 @@ export function PhysicianDashboardSkeleton() {
             {/* Tabs */}
             <div className="space-y-4">
                 <div className="flex gap-2">
-                    {['Pacientes', 'Insights IA', 'Analytics'].map((tab) => (
+                    {['Pacientes'].map((tab) => (
                         <Skeleton key={tab} className="h-9 w-24" />
                     ))}
                 </div>

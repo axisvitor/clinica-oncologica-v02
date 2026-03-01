@@ -50,32 +50,28 @@ class TestEncryptionBackwardCompatibility:
         assert hasattr(FieldType, 'CPF') or hasattr(FieldType, 'PHI_GENERIC')
 
     def test_base_classes_exported(self):
-        """Verify base classes are properly exported."""
-        from app.services.encryption import BaseEncryptionService, UnifiedEncryptionService
+        """Verify canonical encryption service/base classes are importable."""
+        from app.services.encryption import UnifiedEncryptionService
+        from app.services.encryption.service import BaseEncryptionService
 
         assert BaseEncryptionService is not None
         assert UnifiedEncryptionService is not None
+        assert issubclass(UnifiedEncryptionService, BaseEncryptionService)
 
 
-class TestDLQServiceBackwardCompatibility:
-    """Test backward compatibility of DLQ service imports."""
+class TestDLQServiceCanonicalImports:
+    """Test canonical DLQ service imports."""
 
-    def test_dlq_service_wrapper_works(self):
-        """Verify DLQ wrapper re-exports work."""
-        from app.services.dlq_service import DLQService
-        from app.services.dlq import DLQService as NewDLQService
+    def test_dlq_service_exported_from_canonical_package(self):
+        """Verify package export matches canonical service implementation."""
+        from app.services.dlq import DLQService
+        from app.services.dlq.service import DLQService as CanonicalDLQService
 
-        # Both imports should resolve to same class
-        assert DLQService is NewDLQService
+        assert DLQService is CanonicalDLQService
 
-    def test_dlq_error_category_exported(self):
-        """Verify ErrorCategory is exported from both locations."""
-        try:
-            from app.services.dlq_service import ErrorCategory
-            from app.services.dlq.base import ErrorCategory as NewErrorCategory
+    def test_dlq_error_category_exported_from_canonical_modules(self):
+        """Verify ErrorCategory is consistently exported by canonical modules."""
+        from app.services.dlq import ErrorCategory
+        from app.services.dlq.base import ErrorCategory as BaseErrorCategory
 
-            assert ErrorCategory is not None
-            # May or may not be same reference, but both should exist
-        except ImportError:
-            # If ErrorCategory doesn't exist, that's acceptable
-            pass
+        assert ErrorCategory is BaseErrorCategory

@@ -23,6 +23,7 @@ from app.services.cache.specialized import (
     get_analytics_cache,
     get_query_cache,
 )
+from app.utils.timezone import now_sao_paulo
 
 
 class InvalidationStrategy(str, Enum):
@@ -103,7 +104,7 @@ class CacheInvalidator:
             "entity_type": entity_type,
             "entity_id": str(entity_id),
             "strategy": strategy,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "caches": {},
         }
 
@@ -179,7 +180,7 @@ class CacheInvalidator:
         stats = {
             "entity_type": entity_type,
             "strategy": strategy,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "caches": {},
         }
 
@@ -232,7 +233,7 @@ class CacheInvalidator:
         stats = {
             "user_id": str(user_id),
             "logout": logout,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "caches": {},
         }
 
@@ -277,7 +278,7 @@ class CacheInvalidator:
             "entity_type": entity_type,
             "entity_count": len(entity_ids),
             "strategy": strategy,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "entities": [],
         }
 
@@ -310,7 +311,7 @@ class CacheInvalidator:
         stats = {
             "cache_type": cache_type,
             "namespace": namespace,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "deleted": 0,
         }
 
@@ -359,7 +360,7 @@ class CacheInvalidator:
 
         stats = {
             "operation": "clear_all",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "caches": {},
         }
 
@@ -404,7 +405,7 @@ class CacheInvalidator:
             "operation": "on_create",
             "entity_type": entity_type,
             "entity_id": str(entity_id),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "caches": {},
         }
 

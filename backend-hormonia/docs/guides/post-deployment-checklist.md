@@ -490,7 +490,7 @@ LIMIT 5;
 **Verify Audit Retention Policy:**
 ```bash
 # Check audit retention configuration
-railway variables get AUDIT_RETENTION_DAYS
+railway variables get RETENTION_AUDIT_LOG_DAYS
 # Expected: 2555 (7 years for HIPAA compliance)
 
 # Verify oldest audit events
@@ -508,7 +508,7 @@ FROM hipaa_audit_trail;
 - [ ] PHI access events logged
 - [ ] User actions tracked
 - [ ] IP addresses captured
-- [ ] Timestamps accurate (UTC)
+- [ ] Timestamps accurate (Sao Paulo)
 - [ ] Retention policy: 7 years (2555 days)
 - [ ] No audit logging failures
 

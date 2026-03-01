@@ -13,6 +13,7 @@ from __future__ import annotations
 
 # Standard library imports
 import asyncio
+import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Any, List, Optional
@@ -30,6 +31,7 @@ from app.services.cache import CacheInvalidationService, CacheKeyBuilder
 from app.utils.db_retry import with_db_retry
 from app.utils.transaction_manager import sync_transaction
 from app.core.executors import get_cache_executor
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -134,7 +136,7 @@ class PatientCRUDService:
             NotFoundError: If patient does not exist
         """
         self._logger.debug(f"Fetching patient: {patient_id}")
-        patient = self.repository.get_by_id(patient_id)
+        patient = self.repository.get_by_id(patient_id, eager_load=False)
         if not patient:
             raise NotFoundError(f"Patient {patient_id} not found")
         return patient
@@ -219,40 +221,125 @@ class PatientCRUDService:
         return updated_patient
 
     @with_db_retry(max_retries=3)
-    def delete_patient(self, patient_id: UUID) -> bool:
+    def delete_patient(
+        self,
+        patient_id: UUID,
+        *,
+        performed_by_user_id: Optional[UUID] = None,
+        performed_by_email: Optional[str] = None,
+        deletion_reason: Optional[str] = None,
+    ) -> bool:
         """
         Soft delete patient with transaction management.
 
+        Writes a PatientDeletionAudit record BEFORE the soft-delete so that
+        the audit entry is guaranteed to exist even if the process crashes
+        after the transaction commits.  Both operations share the same
+        transaction — either both persist or neither does.
+
+        Also cancels all active flows and pending messages to stop background
+        processing.
+
         Args:
-            patient_id: UUID of the patient to soft delete
+            patient_id:            UUID of the patient to soft delete.
+            performed_by_user_id:  UUID of the authenticated user who
+                                   triggered this deletion.  Optional so
+                                   callers without a user context (e.g. bulk
+                                   jobs) continue to work unchanged.
+            performed_by_email:    Email of the executor.  Optional for the
+                                   same backward-compatibility reason.
+            deletion_reason:       Human-readable reason stored in the audit
+                                   record.  Defaults to a system message.
 
         Returns:
-            True if deletion successful, False if patient not found
+            True if deletion successful, False if patient not found.
 
         Transaction Strategy:
-            1. Start transaction
-            2. Set deleted_at timestamp
-            3. Commit transaction
-            4. Invalidate cache (best-effort, outside transaction)
-            5. Rollback on any DB error
+            0. INSERT PatientDeletionAudit (LGPD-01 — FIRST, before soft-delete)
+            1. Set deleted_at timestamp
+            2. Cancel active flows (status='cancelled')
+            3. Cancel pending messages (status='cancelled')
+            4. Commit transaction (steps 0-3 are atomic)
+            5. Invalidate cache (best-effort, outside transaction)
+            6. Rollback on any DB error
         """
+        from app.models.patient_deletion_audit import PatientDeletionAudit
+
         patient = self.repository.get_by_id(patient_id)
         if not patient:
             return False
 
-        doctor_id = patient.doctor_id  # Save for cache invalidation
-
         try:
             # Use transaction context manager for atomic operations
             with sync_transaction(self.db) as session:
-                patient.deleted_at = datetime.now(timezone.utc)
+                # 0. Write LGPD audit record — MUST be the first INSERT in the
+                #    transaction so the audit row is guaranteed to land before
+                #    the soft-delete, even if rollback occurs after commit.
+                audit_record = PatientDeletionAudit(
+                    patient_id=patient.id,
+                    deleted_by_user_id=performed_by_user_id,
+                    deleted_by_email=performed_by_email,
+                    deletion_reason=(
+                        deletion_reason or "Admin deletion via API"
+                    ),
+                    patient_name_hash=hashlib.sha256(
+                        (patient.name or "").encode()
+                    ).hexdigest(),
+                    deleted_at=now_sao_paulo(),
+                )
+                session.add(audit_record)
+
+                # 1. Mark patient as deleted
+                patient.deleted_at = now_sao_paulo()
                 session.add(patient)
+                
+                # 2. Cancel active flows
+                from app.models.flow import PatientFlowState
+                from app.models.enums import FlowState
+                
+                active_flows = (
+                    session.query(PatientFlowState)
+                    .filter(
+                        PatientFlowState.patient_id == patient_id,
+                        PatientFlowState.completed_at.is_(None)
+                    )
+                    .all()
+                )
+                
+                for flow in active_flows:
+                    flow.status = FlowState.CANCELLED.value
+                    flow.completed_at = now_sao_paulo()
+                    flow.step_data = {
+                        **(flow.step_data or {}),
+                        "cancellation_reason": "Patient deleted"
+                    }
+                    session.add(flow)
+                    self._logger.info(f"Cancelled active flow {flow.id} for deleted patient {patient_id}")
+
+                # 3. Cancel pending messages
+                from app.models.message import Message, MessageStatus
+                
+                pending_messages = (
+                    session.query(Message)
+                    .filter(
+                        Message.patient_id == patient_id,
+                        Message.status.in_([MessageStatus.PENDING, MessageStatus.SCHEDULED])
+                    )
+                    .all()
+                )
+                
+                for msg in pending_messages:
+                    msg.status = MessageStatus.CANCELLED
+                    msg.failure_reason = "Patient deleted"
+                    session.add(msg)
+                    self._logger.info(f"Cancelled pending message {msg.id} for deleted patient {patient_id}")
+
                 # Transaction auto-commits here if no exception
 
             # Cache invalidation AFTER successful DB commit (best-effort, fire-and-forget)
             self._run_cache_invalidation(entity="patient", identifier=str(patient_id), cascade=True)
 
-            self._logger.info(f"Patient soft deleted: {patient_id}")
+            self._logger.info(f"Patient soft deleted and resources cancelled: {patient_id}")
             return True
 
         except Exception as e:

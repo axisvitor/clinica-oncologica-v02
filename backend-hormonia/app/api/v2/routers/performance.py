@@ -5,8 +5,9 @@ Delegates logic to PerformanceService.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.models.user import User, UserRole
 from app.schemas.v2.performance import (
@@ -23,7 +24,9 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-def get_performance_service(db=Depends(get_db)) -> PerformanceService:
+async def get_performance_service(
+    db: AsyncSession = Depends(get_async_db),
+) -> PerformanceService:
     return PerformanceService(db)
 
 

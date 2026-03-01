@@ -20,6 +20,12 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import {
+  validateEmailField,
+  validateFullNameField,
+  validatePasswordConfirmation,
+  validatePasswordPolicy
+} from './utils/userFormValidation'
 
 interface UserCreateModalProps {
   open: boolean
@@ -118,41 +124,17 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {}
 
-    // Email validation
-    const email = form['email']
-    if (!email) {
-      errors['email'] = 'Email é obrigatório'
-    } else if (typeof email === 'string' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      errors['email'] = 'Email inválido'
-    }
+    validateEmailField(form['email'], errors)
+    validateFullNameField(form['full_name'], errors)
 
-    // Name validation
-    const fullName = form['full_name']
-    if (typeof fullName === 'string') {
-      if (!fullName.trim()) {
-        errors['full_name'] = 'Nome completo é obrigatório'
-      } else if (fullName.trim().length < 2) {
-        errors['full_name'] = 'Nome deve ter pelo menos 2 caracteres'
-      }
-    }
-
-    // Password validation
     const password = form['password']
     if (!password) {
       errors['password'] = 'Senha é obrigatória'
-    } else if (typeof password === 'string') {
-      if (password.length < 8) {
-        errors['password'] = 'Senha deve ter pelo menos 8 caracteres'
-      } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
-        errors['password'] = 'Senha deve conter pelo menos uma letra minúscula, uma maiúscula e um número'
-      }
+    } else {
+      validatePasswordPolicy(password, errors, 'password')
     }
 
-    // Confirm password validation
-    const confirmPassword = form['confirm_password']
-    if (password !== confirmPassword) {
-      errors['confirm_password'] = 'Senhas não coincidem'
-    }
+    validatePasswordConfirmation(password, form['confirm_password'], errors)
 
     // Role validation
     if (!form['role']) {
@@ -331,7 +313,7 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
                       passwordStrength.score === 3 ? 'bg-yellow-200' : 'bg-green-200'
                     }`}>
                       <div
-                        className={`h-2 rounded-full transition-all ${
+                        className={`h-2 rounded-full transition-[width] ${
                           passwordStrength.score <= 2 ? 'bg-red-500' :
                           passwordStrength.score === 3 ? 'bg-yellow-500' : 'bg-green-500'
                         }`}

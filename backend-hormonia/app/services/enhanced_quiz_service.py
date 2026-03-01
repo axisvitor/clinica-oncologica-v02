@@ -5,16 +5,15 @@ Business logic for advanced quiz operations, risk scoring, and adaptive flows.
 
 from __future__ import annotations
 
-import json
-import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy.orm import joinedload
-from sqlalchemy import and_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy import and_, select, func
 
 from app.models.quiz import QuizSession, QuizTemplate, QuizResponse
 from app.models.patient import Patient
@@ -40,8 +39,9 @@ from app.schemas.v2.enhanced_quiz import (
     QuizCategory,
     QuizQuestion,
 )
-from app.core.redis_unified import get_async_redis
+from app.services.cache.json_cache_mixin import RedisJsonCacheMixin
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -51,46 +51,14 @@ QUIZ_RESULTS_CACHE_TTL = 600
 ANALYTICS_CACHE_TTL = 900
 
 
-class EnhancedQuizService:
+class EnhancedQuizService(RedisJsonCacheMixin):
     """Service for enhanced quiz operations."""
 
-    def __init__(self, db: Any):
+    _cache_namespace = "enhanced_quiz"
+
+    def __init__(self, db: AsyncSession):
         self.db = db
-
-    async def _get_cached_result(self, cache_key: str) -> Optional[Dict[str, Any]]:
-        try:
-            redis_client = await get_async_redis()
-            if redis_client is None:
-                return None
-            cached = await redis_client.get(cache_key)
-            if cached:
-                return json.loads(cached)
-            return None
-        except Exception as e:
-            logger.warning(f"Cache read failed: {e}")
-            return None
-
-    async def _set_cached_result(self, cache_key: str, data: Any, ttl: int) -> None:
-        try:
-            redis_client = await get_async_redis()
-            if redis_client is None:
-                return
-
-            if hasattr(data, "dict"):
-                serialized = json.dumps(data.dict(), default=str)
-            elif hasattr(data, "model_dump"):
-                serialized = json.dumps(data.model_dump(), default=str)
-            else:
-                serialized = json.dumps(data, default=str)
-
-            await redis_client.setex(cache_key, ttl, serialized)
-        except Exception as e:
-            logger.warning(f"Cache write failed: {e}")
-
-    def _get_cache_key(self, endpoint: str, **params) -> str:
-        param_str = json.dumps(params, sort_keys=True, default=str)
-        param_hash = hashlib.md5(param_str.encode()).hexdigest()
-        return f"enhanced_quiz:v2:{endpoint}:{param_hash}"
+        self._logger = logger
 
     def _evaluate_branching_condition(
         self, condition: Dict[str, Any], response_data: Dict[str, Any]
@@ -200,12 +168,14 @@ class EnhancedQuizService:
         if cached:
             return QuizAnalyticsResponse(**cached)
 
-        query = self.db.query(QuizSession).join(
-            Patient, Patient.id == QuizSession.patient_id
+        stmt = (
+            select(QuizSession)
+            .join(Patient, Patient.id == QuizSession.patient_id)
+            .options(joinedload(QuizSession.quiz_template))
         )
 
         if role_enum != UserRole.ADMIN and user_uuid:
-            query = query.filter(Patient.doctor_id == user_uuid)
+            stmt = stmt.filter(Patient.doctor_id == user_uuid)
 
         filters = []
         if start_date:
@@ -213,9 +183,10 @@ class EnhancedQuizService:
         if end_date:
             filters.append(QuizSession.created_at <= end_date)
         if filters:
-            query = query.filter(and_(*filters))
+            stmt = stmt.filter(and_(*filters))
 
-        sessions = query.options(joinedload(QuizSession.quiz_template)).all()
+        result = await self.db.execute(stmt)
+        sessions = result.scalars().unique().all()
 
         total_sessions = len(sessions)
         completed_sessions = sum(1 for s in sessions if s.status == "completed")
@@ -332,8 +303,8 @@ class EnhancedQuizService:
         )
 
         self.db.add(new_template)
-        self.db.commit()
-        self.db.refresh(new_template)
+        await self.db.commit()
+        await self.db.refresh(new_template)
 
         return {
             "id": str(new_template.id),
@@ -352,24 +323,25 @@ class EnhancedQuizService:
         role_enum: Optional[UserRole],
     ) -> AdaptiveQuizFlowResponse:
         session_uuid = UUID(flow_request.session_id)
-        session = (
-            self.db.query(QuizSession).filter(QuizSession.id == session_uuid).first()
+        result = await self.db.execute(
+            select(QuizSession).filter(QuizSession.id == session_uuid)
         )
+        session = result.scalar_one_or_none()
         if not session:
             raise HTTPException(status_code=404, detail="Quiz session not found")
 
         if role_enum != UserRole.ADMIN:
-            patient = (
-                self.db.query(Patient).filter(Patient.id == session.patient_id).first()
+            patient_result = await self.db.execute(
+                select(Patient).filter(Patient.id == session.patient_id)
             )
+            patient = patient_result.scalar_one_or_none()
             if patient and patient.doctor_id != user_uuid:
                 raise HTTPException(status_code=403, detail="Not authorized")
 
-        template = (
-            self.db.query(QuizTemplate)
-            .filter(QuizTemplate.id == session.quiz_template_id)
-            .first()
+        template_result = await self.db.execute(
+            select(QuizTemplate).filter(QuizTemplate.id == session.quiz_template_id)
         )
+        template = template_result.scalar_one_or_none()
         if not template:
             raise HTTPException(status_code=404, detail="Quiz template not found")
 
@@ -382,7 +354,7 @@ class EnhancedQuizService:
             response_type="adaptive",
             response_value=str(flow_request.response_value),
             response_metadata=flow_request.response_metadata or {},
-            responded_at=datetime.now(timezone.utc),
+            responded_at=now_sao_paulo(),
         )
         self.db.add(new_response)
 
@@ -441,9 +413,9 @@ class EnhancedQuizService:
 
         if is_completed:
             session.status = "completed"
-            session.completed_at = datetime.now(timezone.utc)
+            session.completed_at = now_sao_paulo()
 
-        self.db.commit()
+        await self.db.commit()
 
         total_questions = len(questions)
         progress_percentage = (
@@ -482,14 +454,17 @@ class EnhancedQuizService:
             return RiskScoringResponse(**cached)
 
         patient_uuid = UUID(risk_request.patient_id)
-        patient = self.db.query(Patient).filter(Patient.id == patient_uuid).first()
+        patient_result = await self.db.execute(
+            select(Patient).filter(Patient.id == patient_uuid)
+        )
+        patient = patient_result.scalar_one_or_none()
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
         if role_enum != UserRole.ADMIN and patient.doctor_id != user_uuid:
             raise HTTPException(status_code=403, detail="Not authorized")
 
-        lookback_date = datetime.now(timezone.utc) - timedelta(days=risk_request.lookback_days)
-        query = self.db.query(QuizSession).filter(
+        lookback_date = now_sao_paulo() - timedelta(days=risk_request.lookback_days)
+        stmt = select(QuizSession).filter(
             and_(
                 QuizSession.patient_id == patient_uuid,
                 QuizSession.created_at >= lookback_date,
@@ -497,21 +472,20 @@ class EnhancedQuizService:
             )
         )
         if risk_request.session_id:
-            query = query.filter(QuizSession.id == UUID(risk_request.session_id))
+            stmt = stmt.filter(QuizSession.id == UUID(risk_request.session_id))
 
-        # FIX: Use selectinload for one-to-many relationships to avoid cartesian product
-        # joinedload for one-to-one (quiz_template), selectinload for one-to-many (responses)
-        from sqlalchemy.orm import selectinload
-        sessions = query.options(
+        # Use joinedload for one-to-one (quiz_template), selectinload for one-to-many (responses)
+        stmt = stmt.options(
             joinedload(QuizSession.quiz_template),
             selectinload(QuizSession.responses)
-        ).all()
+        )
+        result = await self.db.execute(stmt)
+        sessions = result.scalars().unique().all()
         if not sessions:
             raise HTTPException(status_code=404, detail="No sessions found")
 
         latest_session = sessions[0]
-        # FIX: Use already-loaded responses from selectinload instead of N+1 queries
-        # The responses are already loaded via selectinload(QuizSession.responses) above
+        # Use already-loaded responses from selectinload instead of N+1 queries
         responses = list(latest_session.responses) if latest_session.responses else []
         current_risk = self._calculate_risk_score(
             responses, latest_session.quiz_template
@@ -519,8 +493,7 @@ class EnhancedQuizService:
 
         historical_scores = []
         if risk_request.include_historical and len(sessions) > 1:
-            # FIX: Use already-loaded relationships instead of individual queries per session
-            # This eliminates the N+1 pattern that was causing len(sessions)-1 extra queries
+            # Use already-loaded relationships instead of individual queries per session
             for session in sessions[1:]:
                 # Use eager-loaded responses directly
                 s_responses = list(session.responses) if session.responses else []
@@ -549,7 +522,7 @@ class EnhancedQuizService:
 
         result = RiskScoringResponse(
             patient_id=risk_request.patient_id,
-            assessment_date=datetime.now(timezone.utc),
+            assessment_date=now_sao_paulo(),
             current_risk=current_risk,
             trend=trend,
             historical_scores=historical_scores,
@@ -571,26 +544,32 @@ class EnhancedQuizService:
             return QuizRecommendationsResponse(**cached)
 
         patient_uuid = UUID(patient_id)
-        patient = self.db.query(Patient).filter(Patient.id == patient_uuid).first()
+        patient_result = await self.db.execute(
+            select(Patient).filter(Patient.id == patient_uuid)
+        )
+        patient = patient_result.scalar_one_or_none()
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
         if role_enum != UserRole.ADMIN and patient.doctor_id != user_uuid:
             raise HTTPException(status_code=403, detail="Not authorized")
 
-        recent_sessions = (
-            self.db.query(QuizSession)
+        recent_sessions_result = await self.db.execute(
+            select(QuizSession)
             .filter(
                 and_(
                     QuizSession.patient_id == patient_uuid,
-                    QuizSession.created_at >= datetime.now(timezone.utc) - timedelta(days=90),
+                    QuizSession.created_at >= now_sao_paulo() - timedelta(days=90),
                 )
             )
             .options(joinedload(QuizSession.quiz_template))
-            .all()
         )
-        available_templates = (
-            self.db.query(QuizTemplate).filter(QuizTemplate.is_active).all()
+        recent_sessions = recent_sessions_result.scalars().unique().all()
+
+        available_templates_result = await self.db.execute(
+            select(QuizTemplate).filter(QuizTemplate.is_active)
         )
+        available_templates = available_templates_result.scalars().all()
+
         completed_ids = {
             str(s.quiz_template_id) for s in recent_sessions if s.status == "completed"
         }
@@ -615,7 +594,7 @@ class EnhancedQuizService:
                     else QuizCategory.GENERAL_HEALTH,
                     priority=priority,
                     reason=reason,
-                    due_date=datetime.now(timezone.utc) + timedelta(days=7),
+                    due_date=now_sao_paulo() + timedelta(days=7),
                 )
             )
 
@@ -638,7 +617,7 @@ class EnhancedQuizService:
         user_uuid: Optional[UUID],
     ) -> PerformanceMetricsResponse:
         if not end_date:
-            end_date = datetime.now(timezone.utc)
+            end_date = now_sao_paulo()
         if not start_date:
             start_date = end_date - timedelta(days=30)
 
@@ -654,28 +633,32 @@ class EnhancedQuizService:
         if cached:
             return PerformanceMetricsResponse(**cached)
 
-        query = self.db.query(QuizSession).join(
+        base_stmt = select(QuizSession).join(
             Patient, Patient.id == QuizSession.patient_id
         )
         if role_enum != UserRole.ADMIN and user_uuid:
-            query = query.filter(Patient.doctor_id == user_uuid)
+            base_stmt = base_stmt.filter(Patient.doctor_id == user_uuid)
 
-        current_sessions = query.filter(
+        current_stmt = base_stmt.filter(
             and_(
                 QuizSession.created_at >= start_date, QuizSession.created_at <= end_date
             )
-        ).all()
+        )
+        current_result = await self.db.execute(current_stmt)
+        current_sessions = current_result.scalars().all()
 
         previous_sessions = []
         if compare_period:
             period_length = (end_date - start_date).days
             prev_start = start_date - timedelta(days=period_length)
-            previous_sessions = query.filter(
+            previous_stmt = base_stmt.filter(
                 and_(
                     QuizSession.created_at >= prev_start,
                     QuizSession.created_at < start_date,
                 )
-            ).all()
+            )
+            previous_result = await self.db.execute(previous_stmt)
+            previous_sessions = previous_result.scalars().all()
 
         metrics = []
         # Completion Rate
@@ -765,7 +748,10 @@ class EnhancedQuizService:
     ) -> BulkOperationResponse:
         job_id = f"bulk-quiz-{uuid.uuid4().hex[:12]}"
         patient_uuids = [UUID(pid) for pid in operation.patient_ids]
-        patients = self.db.query(Patient).filter(Patient.id.in_(patient_uuids)).all()
+        patients_result = await self.db.execute(
+            select(Patient).filter(Patient.id.in_(patient_uuids))
+        )
+        patients = patients_result.scalars().all()
 
         if role_enum != UserRole.ADMIN:
             unauthorized = [p for p in patients if p.doctor_id != user_uuid]
@@ -779,11 +765,10 @@ class EnhancedQuizService:
 
         if operation.operation == "assign":
             template_uuid = UUID(operation.template_id)
-            template = (
-                self.db.query(QuizTemplate)
-                .filter(QuizTemplate.id == template_uuid)
-                .first()
+            template_result = await self.db.execute(
+                select(QuizTemplate).filter(QuizTemplate.id == template_uuid)
             )
+            template = template_result.scalar_one_or_none()
             if not template or not template.is_active:
                 raise HTTPException(
                     status_code=404, detail="Template not found/inactive"
@@ -791,24 +776,23 @@ class EnhancedQuizService:
 
             for patient in patients:
                 try:
-                    existing = (
-                        self.db.query(QuizSession)
-                        .filter(
+                    existing_result = await self.db.execute(
+                        select(QuizSession).filter(
                             and_(
                                 QuizSession.patient_id == patient.id,
                                 QuizSession.quiz_template_id == template_uuid,
                                 QuizSession.status == "started",
                             )
                         )
-                        .first()
                     )
+                    existing = existing_result.scalar_one_or_none()
                     if not existing:
                         self.db.add(
                             QuizSession(
                                 patient_id=patient.id,
                                 quiz_template_id=template_uuid,
                                 status="started",
-                                started_at=operation.scheduled_for or datetime.now(timezone.utc),
+                                started_at=operation.scheduled_for or now_sao_paulo(),
                             )
                         )
                         successful += 1
@@ -818,32 +802,33 @@ class EnhancedQuizService:
                 except Exception as e:
                     failed += 1
                     errors.append(f"Patient {patient.id}: {str(e)}")
-            self.db.commit()
+            await self.db.commit()
 
         elif operation.operation == "delete":
             for pid in patient_uuids:
                 try:
-                    count = (
-                        self.db.query(QuizSession)
-                        .filter(QuizSession.patient_id == pid)
-                        .delete()
+                    sessions_result = await self.db.execute(
+                        select(QuizSession).filter(QuizSession.patient_id == pid)
                     )
+                    sessions_to_delete = sessions_result.scalars().all()
+                    count = len(sessions_to_delete)
+                    for s in sessions_to_delete:
+                        await self.db.delete(s)
                     if count > 0:
                         successful += count
                 except Exception as e:
                     failed += 1
                     errors.append(f"Patient {pid}: {str(e)}")
-            self.db.commit()
+            await self.db.commit()
 
         elif operation.operation == "update":
             update_data = operation.update_data or {}
             for pid in patient_uuids:
                 try:
-                    sessions = (
-                        self.db.query(QuizSession)
-                        .filter(QuizSession.patient_id == pid)
-                        .all()
+                    sessions_result = await self.db.execute(
+                        select(QuizSession).filter(QuizSession.patient_id == pid)
                     )
+                    sessions = sessions_result.scalars().all()
                     for s in sessions:
                         for k, v in update_data.items():
                             if hasattr(s, k):
@@ -852,7 +837,7 @@ class EnhancedQuizService:
                 except Exception as e:
                     failed += 1
                     errors.append(f"Patient {pid}: {str(e)}")
-            self.db.commit()
+            await self.db.commit()
 
         return BulkOperationResponse(
             job_id=job_id,
@@ -871,11 +856,11 @@ class EnhancedQuizService:
         role_enum: Optional[UserRole],
     ) -> QuizExportResponse:
         export_id = f"export-{uuid.uuid4().hex[:12]}"
-        query = self.db.query(QuizSession).join(
+        stmt = select(QuizSession).join(
             Patient, Patient.id == QuizSession.patient_id
         )
         if role_enum != UserRole.ADMIN and user_uuid:
-            query = query.filter(Patient.doctor_id == user_uuid)
+            stmt = stmt.filter(Patient.doctor_id == user_uuid)
 
         filters = []
         if export_request.patient_ids:
@@ -895,9 +880,11 @@ class EnhancedQuizService:
         if export_request.end_date:
             filters.append(QuizSession.created_at <= export_request.end_date)
         if filters:
-            query = query.filter(and_(*filters))
+            stmt = stmt.filter(and_(*filters))
 
-        total = query.count()
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        count_result = await self.db.execute(count_stmt)
+        total = count_result.scalar_one()
         if total == 0:
             raise HTTPException(status_code=404, detail="No quiz data found")
 
@@ -906,6 +893,6 @@ class EnhancedQuizService:
             format=export_request.format,
             status="processing",
             download_url=None,
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+            expires_at=now_sao_paulo() + timedelta(hours=24),
             file_size_bytes=None,
         )

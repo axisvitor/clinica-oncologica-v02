@@ -16,20 +16,19 @@ from app.models.patient import Patient
 from app.models.user import User
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Fixtures for Pagination Testing
 # ============================================================================
 
 @pytest.fixture
-def auth_token(auth_headers: dict) -> str:
-    """
-    Alias for auth_headers to return just the token string.
-    """
-    return auth_headers["Authorization"].split(" ", 1)[1]
+def auth_token(auth_headers: dict) -> dict:
+    """Alias fixture used by legacy tests; returns full auth headers."""
+    return auth_headers
 
 
 @pytest.fixture
-def quiz_template(db_session, test_user: User) -> QuizTemplate:
+def quiz_template(db_session, test_doctor_user: User) -> QuizTemplate:
     """Create a quiz template for session testing."""
     template = QuizTemplate(
         id=uuid4(),
@@ -51,7 +50,7 @@ def quiz_template(db_session, test_user: User) -> QuizTemplate:
         ],
         is_active=True,
         category="wellness",
-        created_at=datetime.utcnow()
+        created_at=now_sao_paulo_naive()
     )
     db_session.add(template)
     db_session.commit()
@@ -60,7 +59,7 @@ def quiz_template(db_session, test_user: User) -> QuizTemplate:
 
 
 @pytest.fixture
-def create_quiz_sessions(db_session, test_user: User, quiz_template: QuizTemplate):
+def create_quiz_sessions(db_session, test_doctor_user: User, quiz_template: QuizTemplate):
     """
     Create 25+ quiz sessions for pagination testing.
 
@@ -68,17 +67,17 @@ def create_quiz_sessions(db_session, test_user: User, quiz_template: QuizTemplat
     """
     from tests.conftest import create_test_patient
 
-    # Create a patient for the sessions
-    patient = create_test_patient(
-        db_session,
-        doctor=test_user,
-        name="Pagination Test Patient"
-    )
-
     sessions = []
-    base_time = datetime.utcnow()
+    base_time = now_sao_paulo_naive()
 
     for i in range(30):  # Create 30 sessions
+        # Keep patient/template pairs unique to satisfy quiz session uniqueness
+        # constraint introduced in current schema.
+        patient = create_test_patient(
+            db_session,
+            doctor=test_doctor_user,
+            name=f"Pagination Test Patient {i}",
+        )
         session = QuizSession(
             id=uuid4(),
             patient_id=patient.id,
@@ -99,14 +98,14 @@ def create_quiz_sessions(db_session, test_user: User, quiz_template: QuizTemplat
 
 
 @pytest.fixture
-def create_patients(db_session, test_user: User):
+def create_patients(db_session, test_doctor_user: User):
     """
     Create 25+ patients for pagination testing.
 
     Each patient has a different created_at timestamp to test ordering.
     """
     patients = []
-    base_time = datetime.utcnow()
+    base_time = now_sao_paulo_naive()
 
     for i in range(30):  # Create 30 patients
         patient = Patient(
@@ -114,7 +113,7 @@ def create_patients(db_session, test_user: User):
             name=f"Pagination Patient {i}",
             email=f"pagination_patient_{i}_{uuid4().hex[:6]}@test.com",
             phone=f"1199999{str(i).zfill(4)}",
-            doctor_id=test_user.id,
+            doctor_id=test_doctor_user.id,
             created_at=base_time - timedelta(hours=i),  # Different timestamps
             updated_at=base_time - timedelta(hours=i),
         )
@@ -131,7 +130,7 @@ class TestQuizCursorPagination:
     def test_quiz_pagination_with_cursor(
         self,
         client: TestClient,
-        auth_token: str,
+        auth_token: dict,
         create_quiz_sessions
     ):
         """
@@ -152,8 +151,8 @@ class TestQuizCursorPagination:
         """
         # First page
         response1 = client.get(
-            "/api/v2/quiz?limit=10",
-            headers={"Authorization": f"Bearer {auth_token}"}
+            "/api/v2/quiz/sessions?limit=10",
+            headers=auth_token
         )
         
         assert response1.status_code == 200
@@ -170,12 +169,12 @@ class TestQuizCursorPagination:
         assert "id" in cursor_data
         
         # Verify created_at is ISO format
-        datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        datetime.fromisoformat(cursor_data["created_at"])
         
         # Second page - this should NOT throw SQL error
         response2 = client.get(
-            f"/api/v2/quiz?limit=10&cursor={cursor}",
-            headers={"Authorization": f"Bearer {auth_token}"}
+            f"/api/v2/quiz/sessions?limit=10&cursor={cursor}",
+            headers=auth_token
         )
         
         assert response2.status_code == 200
@@ -190,15 +189,15 @@ class TestQuizCursorPagination:
     def test_quiz_pagination_empty_cursor(
         self,
         client: TestClient,
-        auth_token: str,
+        auth_token: dict,
         create_quiz_sessions
     ):
         """
         Test first page without cursor (empty cursor case).
         """
         response = client.get(
-            "/api/v2/quiz?limit=10",
-            headers={"Authorization": f"Bearer {auth_token}"}
+            "/api/v2/quiz/sessions?limit=10",
+            headers=auth_token
         )
         
         assert response.status_code == 200
@@ -208,7 +207,7 @@ class TestQuizCursorPagination:
     def test_quiz_pagination_invalid_cursor(
         self,
         client: TestClient,
-        auth_token: str
+        auth_token: dict
     ):
         """
         Test malformed cursor handling.
@@ -221,33 +220,33 @@ class TestQuizCursorPagination:
         """
         # Invalid base64
         response = client.get(
-            "/api/v2/quiz?cursor=invalid!!!",
-            headers={"Authorization": f"Bearer {auth_token}"}
+            "/api/v2/quiz/sessions?cursor=invalid!!!",
+            headers=auth_token
         )
         assert response.status_code == 400
         
         # Valid base64 but invalid JSON
         bad_cursor = base64.b64encode(b"not json").decode()
         response = client.get(
-            f"/api/v2/quiz?cursor={bad_cursor}",
-            headers={"Authorization": f"Bearer {auth_token}"}
+            f"/api/v2/quiz/sessions?cursor={bad_cursor}",
+            headers=auth_token
         )
         assert response.status_code == 400
         
         # Valid JSON but missing fields
         bad_data = base64.b64encode(json.dumps({"id": "123"}).encode()).decode()
         response = client.get(
-            f"/api/v2/quiz?cursor={bad_data}",
-            headers={"Authorization": f"Bearer {auth_token}"}
+            f"/api/v2/quiz/sessions?cursor={bad_data}",
+            headers=auth_token
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
     
     def test_quiz_pagination_tie_breaking(
         self,
         client: TestClient,
-        auth_token: str,
+        auth_token: dict,
         db_session,
-        test_user,
+        test_doctor_user,
         quiz_template
     ):
         """
@@ -264,18 +263,17 @@ class TestQuizCursorPagination:
         """
         from tests.conftest import create_test_patient
 
-        now = datetime.utcnow()
+        now = now_sao_paulo_naive()
 
-        # Create a patient for the sessions
-        patient = create_test_patient(
-            db_session,
-            doctor=test_user,
-            name="Tie Breaking Test Patient"
-        )
-
-        # Create 3 sessions with same timestamp
+        # Create 3 sessions with same timestamp using distinct patients to
+        # satisfy unique (patient_id, quiz_template_id) constraint.
         session_ids = []
         for i in range(3):
+            patient = create_test_patient(
+                db_session,
+                doctor=test_doctor_user,
+                name=f"Tie Breaking Test Patient {i}",
+            )
             session = QuizSession(
                 id=uuid4(),
                 patient_id=patient.id,
@@ -290,8 +288,8 @@ class TestQuizCursorPagination:
 
         # Fetch all
         response = client.get(
-            "/api/v2/quiz?limit=100",
-            headers={"Authorization": f"Bearer {auth_token}"}
+            "/api/v2/quiz/sessions?limit=100",
+            headers=auth_token
         )
 
         assert response.status_code == 200
@@ -305,15 +303,15 @@ class TestQuizCursorPagination:
     def test_quiz_pagination_descending_order(
         self,
         client: TestClient,
-        auth_token: str,
+        auth_token: dict,
         create_quiz_sessions
     ):
         """
         Test that results are in descending order (newest first).
         """
         response = client.get(
-            "/api/v2/quiz?limit=20",
-            headers={"Authorization": f"Bearer {auth_token}"}
+            "/api/v2/quiz/sessions?limit=20",
+            headers=auth_token
         )
         
         assert response.status_code == 200
@@ -321,7 +319,7 @@ class TestQuizCursorPagination:
         
         # Verify descending order
         created_at_list = [
-            datetime.fromisoformat(q["created_at"].replace("Z", "+00:00"))
+            datetime.fromisoformat(q["created_at"])
             for q in data
         ]
         
@@ -331,7 +329,7 @@ class TestQuizCursorPagination:
     def test_patients_pagination_with_cursor(
         self,
         client: TestClient,
-        auth_token: str,
+        auth_token: dict,
         create_patients
     ):
         """
@@ -342,7 +340,7 @@ class TestQuizCursorPagination:
         # First page
         response1 = client.get(
             "/api/v2/patients?limit=10",
-            headers={"Authorization": f"Bearer {auth_token}"}
+            headers=auth_token
         )
         
         assert response1.status_code == 200
@@ -354,7 +352,7 @@ class TestQuizCursorPagination:
             # Second page
             response2 = client.get(
                 f"/api/v2/patients?limit=10&cursor={cursor}",
-                headers={"Authorization": f"Bearer {auth_token}"}
+                headers=auth_token
             )
             
             assert response2.status_code == 200
@@ -364,5 +362,3 @@ class TestQuizCursorPagination:
             page1_ids = {p["id"] for p in page1["data"]}
             page2_ids = {p["id"] for p in page2["data"]}
             assert page1_ids.isdisjoint(page2_ids)
-
-

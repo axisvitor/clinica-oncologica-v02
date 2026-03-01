@@ -11,10 +11,24 @@ from .phone import (
     normalize_phone,
     PhoneValidationMode,
 )
+from .cpf import (
+    validate_cpf,
+    is_valid_cpf,
+    normalize_cpf,
+    format_cpf,
+    has_valid_cpf_characters,
+    CPFValidationError,
+)
 
 __all__ = [
     "validate_phone_e164",
     "validate_phone_br",
     "normalize_phone",
     "PhoneValidationMode",
+    "validate_cpf",
+    "is_valid_cpf",
+    "normalize_cpf",
+    "format_cpf",
+    "has_valid_cpf_characters",
+    "CPFValidationError",
 ]

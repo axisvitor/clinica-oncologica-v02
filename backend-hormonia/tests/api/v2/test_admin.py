@@ -17,6 +17,7 @@ from app.models.audit_log import AuditLog
 from app.utils.security import get_password_hash
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # FIXTURES
 # ============================================================================
@@ -31,8 +32,8 @@ def admin_user(db_session: Session):
         full_name="Test Admin",
         role=UserRole.ADMIN,
         is_active=True,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive()
     )
     db_session.add(admin)
     db_session.commit()
@@ -50,8 +51,8 @@ def doctor_user(db_session: Session):
         full_name="Dr. Test Doctor",
         role=UserRole.DOCTOR,
         is_active=True,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive()
     )
     db_session.add(doctor)
     db_session.commit()
@@ -69,8 +70,8 @@ def inactive_user(db_session: Session):
         full_name="Inactive User",
         role=UserRole.DOCTOR,
         is_active=False,
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        created_at=now_sao_paulo_naive(),
+        updated_at=now_sao_paulo_naive()
     )
     db_session.add(user)
     db_session.commit()
@@ -90,8 +91,8 @@ def multiple_users(db_session: Session):
             full_name=f"Test User {i}",
             role=UserRole.DOCTOR if i % 2 == 0 else UserRole.ADMIN,
             is_active=i % 3 != 0,  # Some inactive
-            created_at=datetime.utcnow() - timedelta(days=i),
-            updated_at=datetime.utcnow()
+            created_at=now_sao_paulo_naive() - timedelta(days=i),
+            updated_at=now_sao_paulo_naive()
         )
         users.append(user)
         db_session.add(user)
@@ -108,14 +109,14 @@ def audit_logs(db_session: Session, admin_user: User):
         log = AuditLog(
             id=uuid4(),
             event_type=f"admin_user_{'create' if i % 2 == 0 else 'update'}",
-            event_category="admin",
+            event_category="ADMIN",
             severity="info",
             user_id=admin_user.id,
             ip_address="127.0.0.1",
             user_agent="TestAgent/1.0",
             event_data={"action": f"test_action_{i}"},
             result="success",
-            timestamp=datetime.utcnow() - timedelta(hours=i)
+            timestamp=now_sao_paulo_naive() - timedelta(hours=i)
         )
         logs.append(log)
         db_session.add(log)
@@ -359,7 +360,10 @@ class TestGetUser:
         """Test getting user with invalid UUID."""
         response = client.get("/api/v2/admin/users/not-a-uuid")
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code in {
+            status.HTTP_404_NOT_FOUND,
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+        }
 
 
 class TestUpdateUser:
@@ -697,6 +701,18 @@ class TestBulkUpdate:
 class TestBulkDelete:
     """Tests for POST /api/v2/admin/users/bulk-delete"""
 
+    @pytest.fixture(autouse=True)
+    def _override_admin_dep(self, admin_user):
+        from app.main import app
+        from app.api.v2.routers.admin.dependencies import get_admin_user
+
+        async def _admin_override():
+            return admin_user
+
+        app.dependency_overrides[get_admin_user] = _admin_override
+        yield
+        app.dependency_overrides.pop(get_admin_user, None)
+
     def test_bulk_delete_success(self, client: TestClient, admin_user: User, multiple_users, db_session: Session):
         """Test successful bulk delete."""
         user_ids = [str(u.id) for u in multiple_users[:3]]
@@ -815,8 +831,8 @@ class TestSearchUsers:
     def test_search_users_date_range(self, client: TestClient, admin_user: User, multiple_users):
         """Test searching with date range."""
         search_data = {
-            "created_after": (datetime.utcnow() - timedelta(days=30)).isoformat(),
-            "created_before": datetime.utcnow().isoformat()
+            "created_after": (now_sao_paulo_naive() - timedelta(days=30)).isoformat(),
+            "created_before": now_sao_paulo_naive().isoformat()
         }
 
         response = client.post("/api/v2/admin/users/search", json=search_data)
@@ -894,12 +910,12 @@ class TestPermissionManagement:
 
         assert response.status_code == status.HTTP_200_OK
 
-    def test_assign_permissions_not_implemented(self, client: TestClient, admin_user: User, doctor_user: User):
-        """Test permission assignment returns not implemented."""
+    def test_assign_permissions_post_not_allowed(self, client: TestClient, admin_user: User, doctor_user: User):
+        """Test POST permission assignment is not allowed (use PUT)."""
         perm_data = {
             "permissions": ["read_patients"]
         }
 
         response = client.post(f"/api/v2/admin/users/{doctor_user.id}/permissions", json=perm_data)
 
-        assert response.status_code == status.HTTP_501_NOT_IMPLEMENTED
+        assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED

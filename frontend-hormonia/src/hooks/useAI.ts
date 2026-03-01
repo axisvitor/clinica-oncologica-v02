@@ -11,11 +11,13 @@ import {
   UseAIChatOptions,
   UseAIAnalyticsOptions,
   UseAIInsightsOptions,
+  UseAISummaryOptions,
   AIGeneratedMessage,
   ChatRole,
   InsightType
 } from '@/types/api'
-import type { AIInsight } from '@/lib/api-client/types'
+import type { AIInsight, AIInsights, AIRecommendations } from '@/lib/api-client/types'
+import { mapInsightsToCards } from '@/lib/ai-adapters'
 import { FEATURES } from '../config'
 
 const logger = createLogger('useAI')
@@ -319,49 +321,42 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 /**
  * Hook for fetching patient AI insights with 5-minute cache
  */
-export function useAIInsights(patientId: string) {
-  return useQuery({
-    queryKey: ['ai-insights', patientId],
+export function useAIInsights(
+  patientId: string,
+  timeframe?: 'day' | 'week' | 'month' | 'quarter',
+  options?: { enabled?: boolean }
+) {
+  return useQuery<AIInsights>({
+    queryKey: ['ai-insights', patientId, timeframe],
     queryFn: async () => {
-      if (!FEATURES.AI_CHAT) {
-        // Return mock insights for demo
-        return [
-          {
-            id: `insight-${Date.now()}-1`,
-            type: 'pattern' as const,
-            title: 'Padrão de Resposta Positivo',
-            description: 'Paciente demonstra engajamento consistente com as mensagens enviadas pela manhã',
-            confidence: 0.89,
-            priority: 'medium' as const,
-            metadata: {
-              response_rate: 0.92,
-              preferred_time: '08:00-10:00'
-            },
-            created_at: new Date().toISOString(),
-            patient_id: patientId
+      if (!FEATURES.AI_INSIGHTS) {
+        // Return mock insights response for demo
+        return {
+          patient_id: patientId,
+          overall_status: 'Paciente com engajamento consistente',
+          risk_level: 'low',
+          sentiment_trends: [],
+          adherence_score: 0.87,
+          key_insights: [
+            'Paciente demonstra engajamento consistente com as mensagens enviadas pela manha',
+            'Sentimento geral das mensagens melhorou nos ultimos 7 dias'
+          ],
+          alerts: [],
+          engagement_metrics: {
+            response_rate: 0.92,
+            total_messages: 45,
+            avg_response_time_hours: 2.5
           },
-          {
-            id: `insight-${Date.now()}-2`,
-            type: 'trend' as const,
-            title: 'Melhora no Sentimento',
-            description: 'Sentimento geral das mensagens melhorou 15% nos últimos 7 dias',
-            confidence: 0.82,
-            priority: 'high' as const,
-            metadata: {
-              trend: 'upward',
-              change_percentage: 15
-            },
-            created_at: new Date().toISOString(),
-            patient_id: patientId
-          }
-        ] as AIInsight[]
+          last_contact: new Date().toISOString(),
+          generated_at: new Date().toISOString()
+        } as AIInsights
       }
 
-      return apiClient.ai.insights(patientId)
+      return apiClient.ai.insights(patientId, timeframe)
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
-    enabled: !!patientId,
+    enabled: !!patientId && FEATURES.AI_INSIGHTS && (options?.enabled ?? true),
     retry: 2,
     refetchOnWindowFocus: false
   })
@@ -370,66 +365,40 @@ export function useAIInsights(patientId: string) {
 /**
  * Hook for fetching AI recommendations with 5-minute cache
  */
-export function useAIRecommendations(patientId: string) {
-  return useQuery({
+export function useAIRecommendations(
+  patientId: string,
+  options?: { enabled?: boolean }
+) {
+  return useQuery<AIRecommendations>({
     queryKey: ['ai-recommendations', patientId],
     queryFn: async () => {
-      if (!FEATURES.AI_CHAT) {
-        // Return mock recommendations
-        return [
-          {
-            id: `rec-${Date.now()}-1`,
-            type: 'communication' as const,
-            title: 'Otimizar Horário de Mensagens',
-            description: 'Ajustar envio de mensagens para o período da manhã',
-            rationale: 'Baseado em padrões de engajamento, o paciente responde 40% mais rápido entre 8h-10h',
-            confidence: 0.85,
-            priority: 'medium' as const,
-            actions: [
-              {
-                id: 'action-1',
-                type: 'message' as const,
-                title: 'Agendar mensagens matinais',
-                description: 'Configurar envio automático de mensagens entre 8h-10h',
-                urgency: 'medium' as const,
-                estimated_time: '5 minutos',
-                resources_needed: ['Sistema de agendamento']
-              }
-            ],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            patient_id: patientId
-          },
-          {
-            id: `rec-${Date.now()}-2`,
-            type: 'follow_up' as const,
-            title: 'Acompanhamento Necessário',
-            description: 'Paciente não respondeu às últimas 3 mensagens',
-            rationale: 'Queda no engajamento pode indicar necessidade de contato direto',
-            confidence: 0.78,
-            priority: 'high' as const,
-            actions: [
-              {
-                id: 'action-2',
-                type: 'appointment' as const,
-                title: 'Agendar contato telefônico',
-                description: 'Realizar contato telefônico para verificar bem-estar',
-                urgency: 'high' as const,
-                estimated_time: '15 minutos'
-              }
-            ],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            patient_id: patientId
-          }
-        ] as AIRecommendation[]
+      if (!FEATURES.AI_RECOMMENDATIONS) {
+        // Return mock recommendations response
+        return {
+          patient_id: patientId,
+          recommendations: [
+            {
+              type: 'engagement',
+              priority: 'medium',
+              description: 'Ajustar envio de mensagens para o periodo da manha',
+              rationale: 'Paciente responde mais rapido entre 8h-10h'
+            },
+            {
+              type: 'follow_up',
+              priority: 'high',
+              description: 'Realizar contato telefonico para verificar bem-estar',
+              rationale: 'Paciente nao respondeu as ultimas 3 mensagens'
+            }
+          ],
+          generated_at: new Date().toISOString()
+        } as AIRecommendations
       }
 
       return apiClient.ai.recommendations(patientId)
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
-    enabled: !!patientId,
+    enabled: !!patientId && (options?.enabled ?? true),
     retry: 2,
     refetchOnWindowFocus: false
   })
@@ -438,11 +407,11 @@ export function useAIRecommendations(patientId: string) {
 /**
  * Hook for comprehensive patient summary with 10-minute cache
  */
-export function useAISummary(patientId: string) {
+export function useAISummary(patientId: string, options: UseAISummaryOptions = {}) {
   return useQuery({
     queryKey: ['ai-summary', patientId],
     queryFn: async () => {
-      if (!FEATURES.AI_CHAT) {
+      if (!FEATURES.AI_INSIGHTS || !FEATURES.AI_RECOMMENDATIONS) {
         // Return mock comprehensive summary
         return {
           patient_id: patientId,
@@ -480,7 +449,7 @@ export function useAISummary(patientId: string) {
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
     gcTime: 15 * 60 * 1000, // 15 minutes
-    enabled: !!patientId,
+    enabled: !!patientId && (options.enabled ?? false),
     retry: 2,
     refetchOnWindowFocus: false
   })
@@ -492,38 +461,26 @@ export function useAISummary(patientId: string) {
 export function useAIAnalyze() {
   const queryClient = useQueryClient()
 
+  type AIAnalyzeVariables = {
+    patientId: string
+    analysisType: 'sentiment' | 'risk' | 'response'
+    data: Record<string, unknown>
+  }
+
   return useMutation({
     mutationFn: async ({
       patientId: _patientId,
       analysisType,
       data
-    }: {
-      patientId: string
-      analysisType: 'sentiment' | 'pattern' | 'anomaly' | 'trend' | 'classification'
-      data: Record<string, unknown>
-    }) => {
-      if (!FEATURES.AI_CHAT) {
+    }: AIAnalyzeVariables) => {
+      if (!FEATURES.AI_ANALYTICS) {
         // Return mock analysis
-        return {
-          type: analysisType,
-          result: {
-            status: 'completed',
-            insights: ['Mock insight 1', 'Mock insight 2'],
-            confidence: 0.85
-          },
-          confidence: 0.85,
-          metadata: {
-            analyzed_at: new Date().toISOString(),
-            data_points: 150
-          },
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
+        return { type: analysisType, result: { status: 'mock', data } }
       }
 
       return apiClient.ai.analyze(data, analysisType)
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (_: unknown, variables: AIAnalyzeVariables) => {
       // Invalidate related queries
       queryClient.invalidateQueries({ queryKey: ['ai-insights', variables.patientId] })
       queryClient.invalidateQueries({ queryKey: ['ai-recommendations', variables.patientId] })
@@ -538,7 +495,7 @@ export function useAIAnalyze() {
 export function useAISentiment(_text?: string) {
   return useMutation({
     mutationFn: async (textToAnalyze: string): Promise<SentimentAnalysis> => {
-      if (!FEATURES.AI_CHAT) {
+      if (!FEATURES.AI_ANALYTICS) {
         // Return mock sentiment
         const score = Math.random() * 2 - 1 // -1 to 1
         const sentiment: 'positive' | 'negative' | 'neutral' = score > 0.2 ? 'positive' : score < -0.2 ? 'negative' : 'neutral'
@@ -568,7 +525,7 @@ export function useAIAnalytics(options: UseAIAnalyticsOptions = {}) {
   return useQuery({
     queryKey: ['ai-analytics', { include_insights, include_recommendations }],
     queryFn: async () => {
-      if (!FEATURES.AI_CHAT) {
+      if (!FEATURES.AI_ANALYTICS) {
         // Return mock data when AI is not configured
         return {
           overview: {
@@ -582,12 +539,21 @@ export function useAIAnalytics(options: UseAIAnalyticsOptions = {}) {
         }
       }
 
-      // In a real implementation, call API
-      return apiClient.ai.insights('all')
+      logger.warn('AI analytics summary requires patient scope; returning empty summary.')
+      return {
+        overview: {
+          total_conversations: 0,
+          avg_sentiment: 0.5,
+          response_accuracy: 0,
+          human_handoff_rate: 0
+        },
+        insights: include_insights ? [] : undefined,
+        recommendations: include_recommendations ? [] : undefined
+      }
     },
     staleTime: refresh_interval,
     refetchInterval: refresh_interval,
-    enabled: FEATURES.AI_CHAT || true // Allow mock data even when AI is disabled
+    enabled: true // Allow mock data even when AI is disabled
   })
 }
 
@@ -605,7 +571,7 @@ export function useAIInsightsAdvanced(options: UseAIInsightsOptions = {}) {
   return useQuery({
     queryKey: ['ai-insights-advanced', patient_id, timeframe, types, min_confidence],
     queryFn: async () => {
-      if (!FEATURES.AI_CHAT) {
+      if (!FEATURES.AI_INSIGHTS) {
         // Return mock insights
         return [
           {
@@ -625,8 +591,12 @@ export function useAIInsightsAdvanced(options: UseAIInsightsOptions = {}) {
         ] as AIInsight[]
       }
 
-      const response = await apiClient.ai.insights(patient_id || 'all', timeframe)
-      const insightsList = response.insights || []
+      if (!patient_id) {
+        return [] as AIInsight[]
+      }
+
+      const response = await apiClient.ai.insights(patient_id || '', timeframe)
+      const insightsList = mapInsightsToCards(response)
 
       // Filter by confidence and type
       return insightsList
@@ -634,7 +604,7 @@ export function useAIInsightsAdvanced(options: UseAIInsightsOptions = {}) {
         .filter((insight: AIInsight) => !types || types?.includes(insight.type as unknown as InsightType))
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
-    enabled: !!patient_id || !patient_id
+    enabled: !!patient_id
   })
 }
 
@@ -696,10 +666,14 @@ export function useAIMessageGeneration() {
 /**
  * Combined AI hook for comprehensive patient AI data
  */
-export function useAI(patientId: string) {
+type UseAIOptions = {
+  summaryEnabled?: boolean
+}
+
+export function useAI(patientId: string, options: UseAIOptions = {}) {
   const insights = useAIInsights(patientId)
   const recommendations = useAIRecommendations(patientId)
-  const summary = useAISummary(patientId)
+  const summary = useAISummary(patientId, { enabled: options.summaryEnabled ?? false })
   const analyze = useAIAnalyze()
   const sentiment = useAISentiment()
   const messageGeneration = useAIMessageGeneration()

@@ -39,7 +39,7 @@ This API follows a clean architecture pattern with:
     if deployment_mode == "debug":
         base_description += """
 ### Debug Mode Features
-- **Debug Endpoints**: `/debug/env`, `/debug/imports`, `/debug/health` for troubleshooting
+- **Debug Endpoints**: Secured diagnostics under `/api/v2/debug/*` for troubleshooting
 - **Enhanced Logging**: Detailed request/response logging
 - **Development Tools**: Full OpenAPI documentation available
 """
@@ -148,7 +148,7 @@ def setup_enhanced_openapi(app: FastAPI) -> None:
                         "error": "validation_error",
                         "message": "Invalid input data provided",
                         "details": {"field": "email", "issue": "Invalid email format"},
-                        "timestamp": "2024-01-01T00:00:00Z",
+                        "timestamp": "2024-01-01T00:00:00-03:00",
                         "request_id": "req_123456789",
                     },
                 },
@@ -158,7 +158,7 @@ def setup_enhanced_openapi(app: FastAPI) -> None:
                         "error": "unauthorized",
                         "message": "Authentication credentials required",
                         "details": {},
-                        "timestamp": "2024-01-01T00:00:00Z",
+                        "timestamp": "2024-01-01T00:00:00-03:00",
                         "request_id": "req_123456789",
                     },
                 },
@@ -168,7 +168,7 @@ def setup_enhanced_openapi(app: FastAPI) -> None:
                         "error": "internal_server_error",
                         "message": "An unexpected error occurred",
                         "details": {},
-                        "timestamp": "2024-01-01T00:00:00Z",
+                        "timestamp": "2024-01-01T00:00:00-03:00",
                         "request_id": "req_123456789",
                     },
                 },

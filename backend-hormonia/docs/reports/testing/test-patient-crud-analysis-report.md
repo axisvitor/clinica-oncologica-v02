@@ -299,6 +299,6 @@ db_session.refresh(patient)
 ## ✍️ Assinatura
 
 **Gerado por**: QA Specialist Agent
-**Data**: 2025-12-23 19:46 UTC
+**Data**: 2025-12-23 19:46 Sao Paulo
 **Versão do Relatório**: 1.0
 **Status**: APROVADO PARA CORREÇÃO IMEDIATA

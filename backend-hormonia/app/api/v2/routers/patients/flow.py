@@ -23,12 +23,13 @@ Lines: 57-416
 # NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI
 # OpenAPI schema generation issues with Query() and Depends() parameters
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, time
 from typing import Any, Dict, List, Optional
 
 # Third-party imports
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 # Local application imports
@@ -38,7 +39,7 @@ from app.core.exceptions import (
     ServiceUnavailableError,
     ValidationError,
 )
-from app.database import get_db
+from app.database import get_async_db
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.infrastructure.cache import invalidate_patient_cache
 from app.models.patient import FlowState, Patient
@@ -47,6 +48,7 @@ from app.repositories.patient import PatientRepository
 from app.services.enhanced_flow_engine import get_enhanced_flow_engine
 from app.services.patient.flow_service import PatientFlowService
 from app.utils.rate_limiter import limiter
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 
 from .base import (
     PatientStatsResponse,
@@ -60,24 +62,97 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+async def _run_sync(db: AsyncSession, operation):
+    if hasattr(db, "run_sync"):
+        return await db.run_sync(operation)
+    sync_db = getattr(db, "_sync_session", db)
+    return operation(sync_db)
+
+
 def _normalize_datetime(dt: Any) -> datetime:
     """Helper to normalize mixed datetime/string types for sorting."""
     if dt is None:
-        return datetime.min.replace(tzinfo=timezone.utc)
+        return datetime.min.replace(tzinfo=SAO_PAULO_TZ)
     if isinstance(dt, datetime):
         if dt.tzinfo is None:
-            return dt.replace(tzinfo=timezone.utc)
+            return dt.replace(tzinfo=SAO_PAULO_TZ)
         return dt
     if isinstance(dt, str):
         try:
-            # Handle ISO strings, including those with 'Z'
-            parsed = datetime.fromisoformat(dt.replace("Z", "+00:00"))
+            # Handle ISO strings with offsets.
+            normalized = dt.replace("Z", "+00:00") if dt.endswith("Z") else dt
+            parsed = datetime.fromisoformat(normalized)
             if parsed.tzinfo is None:
-                return parsed.replace(tzinfo=timezone.utc)
+                return parsed.replace(tzinfo=SAO_PAULO_TZ)
             return parsed
         except (ValueError, TypeError):
-            return datetime.min.replace(tzinfo=timezone.utc)
-    return datetime.min.replace(tzinfo=timezone.utc)
+            return datetime.min.replace(tzinfo=SAO_PAULO_TZ)
+    return datetime.min.replace(tzinfo=SAO_PAULO_TZ)
+
+
+def _format_event_datetime(value: Any) -> Optional[str]:
+    """Normalize event timestamps to ISO strings for API responses."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=SAO_PAULO_TZ)
+        return value.isoformat()
+    if isinstance(value, date):
+        return datetime.combine(value, time.min, tzinfo=SAO_PAULO_TZ).isoformat()
+    if isinstance(value, str):
+        trimmed = value.strip()
+        if not trimmed:
+            return None
+        normalized = trimmed.replace("Z", "+00:00") if trimmed.endswith("Z") else trimmed
+        try:
+            parsed = datetime.fromisoformat(normalized)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=SAO_PAULO_TZ)
+            return parsed.isoformat()
+        except (ValueError, TypeError):
+            for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+                try:
+                    parsed = datetime.strptime(normalized, fmt).replace(tzinfo=SAO_PAULO_TZ)
+                    return parsed.isoformat()
+                except ValueError:
+                    continue
+            return None
+    return None
+
+
+def _build_timeline_event(
+    patient_id: str,
+    event_key: str,
+    title: str,
+    description: str,
+    date_value: Any,
+    metadata: Optional[Dict[str, Any]] = None,
+    event_type: str = "system",
+) -> Dict[str, Any]:
+    """Build a normalized timeline event payload."""
+    safe_metadata = dict(metadata or {})
+    timestamp = _format_event_datetime(date_value)
+    event_id_parts = [event_key, patient_id]
+    saga_id = safe_metadata.get("saga_id")
+    if saga_id:
+        event_id_parts.append(str(saga_id))
+    step = safe_metadata.get("step")
+    if step is not None:
+        event_id_parts.append(str(step))
+    if timestamp:
+        event_id_parts.append(timestamp)
+    event_id = safe_metadata.get("id") or "-".join(event_id_parts)
+
+    return {
+        "id": event_id,
+        "patient_id": patient_id,
+        "type": event_type,
+        "title": title,
+        "description": description,
+        "timestamp": timestamp,
+        "metadata": safe_metadata,
+    }
 
 
 @router.post(
@@ -91,7 +166,7 @@ async def activate_patient(
     request: Request,
     patient_id: str,
     current_user=Depends(get_current_user_from_session),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Activate a patient's flow state.
@@ -103,8 +178,10 @@ async def activate_patient(
     if patient_uuid is None:
         raise ValidationError("Invalid patient ID format", field="patient_id")
 
-    repo = PatientRepository(db)
-    patient = repo.get_by_id(patient_uuid)
+    patient = await _run_sync(
+        db,
+        lambda sync_db: PatientRepository(sync_db).get_by_id(patient_uuid)
+    )
     if not patient:
         raise PatientNotFoundError(patient_id)
 
@@ -133,7 +210,7 @@ async def deactivate_patient(
     request: Request,
     patient_id: str,
     current_user=Depends(get_current_user_from_session),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Deactivate a patient's flow state.
@@ -145,8 +222,10 @@ async def deactivate_patient(
     if patient_uuid is None:
         raise ValidationError("Invalid patient ID format", field="patient_id")
 
-    repo = PatientRepository(db)
-    patient = repo.get_by_id(patient_uuid)
+    patient = await _run_sync(
+        db,
+        lambda sync_db: PatientRepository(sync_db).get_by_id(patient_uuid)
+    )
     if not patient:
         raise PatientNotFoundError(patient_id)
 
@@ -174,7 +253,7 @@ async def deactivate_patient(
 async def archive_patient(
     request: Request,
     patient_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     """
@@ -194,11 +273,10 @@ async def archive_patient(
         raise ValidationError("Invalid patient ID format", field="patient_id")
 
     # Get patient
-    patient = (
-        db.query(Patient)
-        .filter(Patient.id == patient_uuid, Patient.deleted_at.is_(None))
-        .first()
+    patient_result = await db.execute(
+        select(Patient).filter(Patient.id == patient_uuid, Patient.deleted_at.is_(None))
     )
+    patient = patient_result.scalars().first()
 
     if not patient:
         raise PatientNotFoundError(patient_id)
@@ -214,7 +292,7 @@ async def archive_patient(
         patient.patient_data = {}
 
     patient.patient_data["archived"] = True
-    patient.patient_data["archived_at"] = datetime.now(timezone.utc).isoformat()
+    patient.patient_data["archived_at"] = now_sao_paulo().isoformat()
 
     # Get user info for metadata
     role_enum, user_id = await extract_user_context(current_user)
@@ -226,10 +304,10 @@ async def archive_patient(
 
     # Commit changes
     try:
-        db.commit()
-        db.refresh(patient)
+        await db.commit()
+        await db.refresh(patient)
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Failed to archive patient {patient_id}: {e}")
         raise ServiceUnavailableError(f"Failed to archive patient: {str(e)}")
 
@@ -249,7 +327,7 @@ async def archive_patient(
 async def get_patient_timeline(
     request: Request,
     patient_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     """
@@ -267,11 +345,10 @@ async def get_patient_timeline(
     if patient_uuid is None:
         raise ValidationError("Invalid patient ID format", field="patient_id")
 
-    patient = (
-        db.query(Patient)
-        .filter(Patient.id == patient_uuid, Patient.deleted_at.is_(None))
-        .first()
+    patient_result = await db.execute(
+        select(Patient).filter(Patient.id == patient_uuid, Patient.deleted_at.is_(None))
     )
+    patient = patient_result.scalars().first()
 
     if not patient:
         raise PatientNotFoundError(patient_id)
@@ -281,82 +358,113 @@ async def get_patient_timeline(
     events = []
 
     # 1. Patient created event
-    events.append({
-        "date": patient.created_at,
-        "event": "patient_created",
-        "details": f"Paciente {patient.name} foi cadastrado",
-        "metadata": {
-            "doctor_id": str(patient.doctor_id) if patient.doctor_id else None,
-            "treatment_type": patient.treatment_type,
-        },
-    })
+    events.append(
+        _build_timeline_event(
+            patient_id=str(patient_uuid),
+            event_key="patient_created",
+            title="Paciente cadastrado",
+            description=f"Paciente {patient.name} foi cadastrado",
+            date_value=patient.created_at,
+            metadata={
+                "doctor_id": str(patient.doctor_id) if patient.doctor_id else None,
+                "treatment_type": patient.treatment_type,
+            },
+            event_type="flow_change",
+        )
+    )
 
     # 2. Current flow state
-    events.append({
-        "date": patient.updated_at or patient.created_at,
-        "event": "flow_state_current",
-        "details": f"Estado atual do fluxo: {patient.flow_state.value if patient.flow_state else 'N/A'}",
-        "metadata": {
-            "flow_state": patient.flow_state.value if patient.flow_state else None,
-        },
-    })
+    events.append(
+        _build_timeline_event(
+            patient_id=str(patient_uuid),
+            event_key="flow_state_current",
+            title="Estado do fluxo",
+            description=f"Estado atual do fluxo: {patient.flow_state.value if patient.flow_state else 'N/A'}",
+            date_value=patient.updated_at or patient.created_at,
+            metadata={
+                "flow_state": patient.flow_state.value if patient.flow_state else None,
+            },
+            event_type="flow_change",
+        )
+    )
 
     # 3. Saga events (if any)
     try:
         from app.models.patient_onboarding_saga import PatientOnboardingSaga
 
-        sagas = (
-            db.query(PatientOnboardingSaga)
+        sagas_result = await db.execute(
+            select(PatientOnboardingSaga)
             .filter(PatientOnboardingSaga.patient_id == patient_uuid)
             .order_by(PatientOnboardingSaga.created_at.desc())
             .limit(5)
-            .all()
         )
+        sagas = sagas_result.scalars().all()
 
         for saga in sagas:
             # Saga started
-            events.append({
-                "date": saga.started_at or saga.created_at,
-                "event": "saga_started",
-                "details": "Saga de onboarding iniciada",
-                "metadata": {
-                    "saga_id": str(saga.id),
-                    "status": saga.status.value if saga.status else None,
-                },
-            })
+            events.append(
+                _build_timeline_event(
+                    patient_id=str(patient_uuid),
+                    event_key="saga_started",
+                    title="Saga iniciada",
+                    description="Saga de onboarding iniciada",
+                    date_value=saga.started_at or saga.created_at,
+                    metadata={
+                        "saga_id": str(saga.id),
+                        "status": saga.status.value if saga.status else None,
+                    },
+                    event_type="flow_change",
+                )
+            )
 
             # Saga completed/failed
             if saga.completed_at:
-                events.append({
-                    "date": saga.completed_at,
-                    "event": "saga_completed",
-                    "details": "Onboarding concluído com sucesso",
-                    "metadata": {
-                        "saga_id": str(saga.id),
-                        "duration_seconds": saga._calculate_duration(),
-                    },
-                })
+                events.append(
+                    _build_timeline_event(
+                        patient_id=str(patient_uuid),
+                        event_key="saga_completed",
+                        title="Saga concluída",
+                        description="Onboarding concluído com sucesso",
+                        date_value=saga.completed_at,
+                        metadata={
+                            "saga_id": str(saga.id),
+                            "duration_seconds": saga._calculate_duration(),
+                        },
+                        event_type="flow_change",
+                    )
+                )
             elif saga.failed_at:
-                events.append({
-                    "date": saga.failed_at,
-                    "event": "saga_failed",
-                    "details": f"Onboarding falhou: {saga.error_message or 'Erro desconhecido'}",
-                    "metadata": {
-                        "saga_id": str(saga.id),
-                        "error_type": saga.error_type,
-                        "retry_count": saga.retry_count,
-                    },
-                })
+                events.append(
+                    _build_timeline_event(
+                        patient_id=str(patient_uuid),
+                        event_key="saga_failed",
+                        title="Saga falhou",
+                        description=f"Onboarding falhou: {saga.error_message or 'Erro desconhecido'}",
+                        date_value=saga.failed_at,
+                        metadata={
+                            "saga_id": str(saga.id),
+                            "error_type": saga.error_type,
+                            "retry_count": saga.retry_count,
+                        },
+                        event_type="flow_change",
+                    )
+                )
 
             # Add execution log entries as events
             if saga.execution_log:
                 for log_entry in saga.execution_log:
-                    events.append({
-                        "date": log_entry.get("timestamp", saga.created_at),
-                        "event": f"saga_step_{log_entry.get('step', 0)}",
-                        "details": f"Step {log_entry.get('step')}: {log_entry.get('action')} - {log_entry.get('status')}",
-                        "metadata": log_entry,
-                    })
+                    step_value = log_entry.get("step")
+                    events.append(
+                        _build_timeline_event(
+                            patient_id=str(patient_uuid),
+                            event_key=f"saga_step_{step_value or 0}",
+                            title=f"Etapa {step_value or 0}",
+                            description=f"Step {step_value}: {log_entry.get('action')} - {log_entry.get('status')}",
+                            date_value=log_entry.get("timestamp", saga.created_at),
+                            metadata=log_entry,
+                            event_type="flow_change",
+                        )
+                    )
 
     except Exception as e:
         logger.warning(f"Could not fetch saga events for patient {patient_id}: {e}")
@@ -364,17 +472,25 @@ async def get_patient_timeline(
     # 4. Check for archived status in metadata
     if patient.patient_data and patient.patient_data.get("archived"):
         archived_at = patient.patient_data.get("archived_at")
-        events.append({
-            "date": archived_at or patient.updated_at,
-            "event": "patient_archived",
-            "details": "Paciente foi arquivado",
-            "metadata": {
-                "archived_by": patient.patient_data.get("archived_by"),
-            },
-        })
+        events.append(
+            _build_timeline_event(
+                patient_id=str(patient_uuid),
+                event_key="patient_archived",
+                title="Paciente arquivado",
+                description="Paciente foi arquivado",
+                date_value=archived_at or patient.updated_at,
+                metadata={
+                    "archived_by": patient.patient_data.get("archived_by"),
+                },
+                event_type="flow_change",
+            )
+        )
 
     # Sort events by date (most recent first)
-    events.sort(key=lambda x: _normalize_datetime(x.get("date")), reverse=True)
+    events.sort(
+        key=lambda x: _normalize_datetime(x.get("timestamp")),
+        reverse=True,
+    )
 
     return {
         "patient_id": patient_id,
@@ -394,7 +510,7 @@ async def get_patient_timeline(
 async def get_patient_saga_status(
     request: Request,
     patient_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     """
@@ -410,11 +526,10 @@ async def get_patient_saga_status(
     if patient_uuid is None:
         raise ValidationError("Invalid patient ID format", field="patient_id")
 
-    patient = (
-        db.query(Patient)
-        .filter(Patient.id == patient_uuid, Patient.deleted_at.is_(None))
-        .first()
+    patient_result = await db.execute(
+        select(Patient).filter(Patient.id == patient_uuid, Patient.deleted_at.is_(None))
     )
+    patient = patient_result.scalars().first()
 
     if not patient:
         raise PatientNotFoundError(patient_id)
@@ -425,12 +540,13 @@ async def get_patient_saga_status(
     try:
         from app.models.patient_onboarding_saga import PatientOnboardingSaga
 
-        saga = (
-            db.query(PatientOnboardingSaga)
+        saga_result = await db.execute(
+            select(PatientOnboardingSaga)
             .filter(PatientOnboardingSaga.patient_id == patient_uuid)
             .order_by(PatientOnboardingSaga.created_at.desc())
-            .first()
+            .limit(1)
         )
+        saga = saga_result.scalars().first()
 
         if not saga:
             return {
@@ -458,7 +574,7 @@ async def get_patient_saga_status(
 @limiter.limit("30/minute")
 async def get_patient_stats(
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     """
@@ -475,26 +591,50 @@ async def get_patient_stats(
     role_enum, user_id = await extract_user_context(current_user)
     current_user_uuid = await ensure_uuid(user_id)
 
-    base_query = db.query(Patient).filter(Patient.deleted_at.is_(None))
+    if role_enum != UserRole.ADMIN and current_user_uuid is None:
+        raise ForbiddenError("Unable to determine user permissions")
+
+    base_filters = [Patient.deleted_at.is_(None)]
     if role_enum != UserRole.ADMIN:
-        if current_user_uuid is None:
-            raise ForbiddenError("Unable to determine user permissions")
-        base_query = base_query.filter(Patient.doctor_id == current_user_uuid)
+        base_filters.append(Patient.doctor_id == current_user_uuid)
 
-    total_patients = base_query.count()
-    active_patients = base_query.filter(Patient.flow_state == FlowState.ACTIVE).count()
-    inactive_patients = base_query.filter(
-        Patient.flow_state == FlowState.CANCELLED
-    ).count()
+    total_patients_result = await db.execute(
+        select(func.count()).select_from(Patient).filter(*base_filters)
+    )
+    total_patients = total_patients_result.scalar_one()
 
-    start_of_month = datetime.now(timezone.utc).replace(
+    active_patients_result = await db.execute(
+        select(func.count())
+        .select_from(Patient)
+        .filter(*base_filters, Patient.flow_state == FlowState.ACTIVE)
+    )
+    active_patients = active_patients_result.scalar_one()
+
+    inactive_patients_result = await db.execute(
+        select(func.count())
+        .select_from(Patient)
+        .filter(*base_filters, Patient.flow_state == FlowState.CANCELLED)
+    )
+    inactive_patients = inactive_patients_result.scalar_one()
+
+    start_of_month = now_sao_paulo().replace(
         day=1, hour=0, minute=0, second=0, microsecond=0
     )
-    new_this_month = base_query.filter(Patient.created_at >= start_of_month).count()
+    new_this_month_result = await db.execute(
+        select(func.count())
+        .select_from(Patient)
+        .filter(*base_filters, Patient.created_at >= start_of_month)
+    )
+    new_this_month = new_this_month_result.scalar_one()
 
     by_status: Dict[str, int] = {}
     for state in FlowState:
-        by_status[state.value] = base_query.filter(Patient.flow_state == state).count()
+        state_count_result = await db.execute(
+            select(func.count())
+            .select_from(Patient)
+            .filter(*base_filters, Patient.flow_state == state)
+        )
+        by_status[state.value] = state_count_result.scalar_one()
 
     return PatientStatsResponse(
         total_patients=total_patients,

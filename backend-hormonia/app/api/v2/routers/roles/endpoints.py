@@ -14,7 +14,7 @@ Features:
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import List, Dict, Any
 from uuid import UUID
 
@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.audit_log import AuditLog
-from app.utils.cache import cache
+from app.infrastructure.cache import cache
 from app.utils.rate_limiter import limiter
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.schemas.v2.roles import (
@@ -50,6 +50,7 @@ from .dependencies import get_admin_user
 from .validators import get_role_permissions, get_role_description, group_permissions
 from .serializers import serialize_user_role_info
 from .handlers import log_role_change
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -107,7 +108,7 @@ async def get_available_roles(
 
 
 @router.get(
-    "/{user_id}",
+    "/{user_id:uuid}",
     response_model=UserRoleInfo,
     summary="Get user role information",
     description="Get role information for a specific user",
@@ -224,7 +225,7 @@ async def assign_role_to_user(
 
         # Assign new role
         user.role = new_role
-        user.updated_at = datetime.now(timezone.utc)
+        user.updated_at = now_sao_paulo()
         db.commit()
         db.refresh(user)
 
@@ -321,7 +322,7 @@ async def revoke_user_role(
 
         # Reset to default role
         user.role = UserRole.DOCTOR
-        user.updated_at = datetime.now(timezone.utc)
+        user.updated_at = now_sao_paulo()
         db.commit()
         db.refresh(user)
 
@@ -436,7 +437,7 @@ async def bulk_assign_roles(
 
                 # Assign new role
                 user.role = new_role
-                user.updated_at = datetime.now(timezone.utc)
+                user.updated_at = now_sao_paulo()
                 db.commit()
                 db.refresh(user)
 
@@ -530,7 +531,7 @@ async def get_role_statistics(
             inactive_users_by_role[role.value] = inactive_count
 
         # Role changes in last 30 days
-        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+        thirty_days_ago = now_sao_paulo() - timedelta(days=30)
         role_changes_count = (
             db.query(AuditLog)
             .filter(

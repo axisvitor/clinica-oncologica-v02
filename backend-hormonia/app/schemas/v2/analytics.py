@@ -31,8 +31,8 @@ class AnalyticsOverview(BaseModel):
                 "completion_rate": 84.44,
                 "active_patients_30d": 120,
                 "period": {
-                    "start_date": "2025-01-01T00:00:00Z",
-                    "end_date": "2025-01-31T23:59:59Z",
+                    "start_date": "2025-01-01T00:00:00-03:00",
+                    "end_date": "2025-01-31T23:59:59-03:00",
                 },
             }
         }
@@ -108,8 +108,8 @@ class CompletionTrend(BaseModel):
                 ],
                 "period": {
                     "months": 6,
-                    "start_date": "2024-08-01T00:00:00Z",
-                    "end_date": "2025-01-31T23:59:59Z",
+                    "start_date": "2024-08-01T00:00:00-03:00",
+                    "end_date": "2025-01-31T23:59:59-03:00",
                 },
             }
         }
@@ -220,7 +220,7 @@ class TreatmentDistribution(BaseModel):
                     {"week": "2025-01-06", "count": 35},
                     {"week": "2025-01-13", "count": 41},
                 ],
-                "last_updated": "2025-01-31T23:59:59Z",
+                "last_updated": "2025-01-31T23:59:59-03:00",
             }
         }
     )

@@ -24,9 +24,9 @@ from starlette.concurrency import run_in_threadpool
 
 # Local application imports
 from app.exceptions import ValidationError
-from app.infrastructure.cache import get_unified_cache_manager as get_cache_manager
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
+from app.domain.patient.onboarding.cache_helpers import invalidate_patient_list_cache
 
 if TYPE_CHECKING:
     from app.domain.patient.onboarding.completion_service import CompletionService
@@ -239,11 +239,4 @@ class CreationService:
         Args:
             doctor_id: Doctor ID for cache invalidation.
         """
-        cache_manager = get_cache_manager()
-        cache_manager.invalidate_pattern(
-            f"patient_list:*:{doctor_id}*", namespace="cache"
-        )
-        self._logger.debug(
-            "Invalidated patient list cache",
-            extra={"doctor_id": str(doctor_id)}
-        )
+        invalidate_patient_list_cache(self._logger, doctor_id)

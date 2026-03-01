@@ -265,48 +265,33 @@ class FlowErrorHandlingConfig(BaseSettings):
 
 class FlowFeatureFlags(BaseSettings):
     """
-    Feature flags for flow system migration (QW-021).
+    Feature flags for the canonical production flow system.
 
-    Controls gradual rollout of consolidated flow system.
+    Controls routing behavior of the FlowDispatcher facade.
+    Canonical system: production (flow_core.py / EnhancedFlowEngine).
     """
 
-    # Migration flags
-    use_consolidated_flows: bool = Field(
-        default=False,
-        description="Use new consolidated flow system (QW-021)",
-    )
-    consolidated_flows_rollout_percentage: int = Field(
-        default=0,
-        description="Percentage of flows using new system (0-100)",
+    # Canonical system identifier (informational)
+    canonical_system: str = Field(
+        default="production",
+        description="Canonical flow system: 'production' (flat files: flow_core.py / EnhancedFlowEngine)",
     )
 
-    # Feature toggles
-    enable_advanced_validation: bool = Field(
-        default=False,
-        description="Enable advanced flow validation",
-    )
-    enable_flow_optimization: bool = Field(
-        default=False,
-        description="Enable flow execution optimization",
-    )
-    enable_parallel_execution: bool = Field(
-        default=False,
-        description="Enable parallel step execution (experimental)",
-    )
-
-    # Deprecation warnings
-    show_legacy_deprecation_warnings: bool = Field(
+    # Patient-type routing flags
+    route_new_patients_to_canonical: bool = Field(
         default=True,
-        description="Show warnings when legacy flow services are used",
+        description="Route new patients to the canonical production system immediately",
+    )
+    route_existing_patients_to_canonical: bool = Field(
+        default=True,
+        description="Route existing patients to the canonical production system",
     )
 
-    @field_validator("consolidated_flows_rollout_percentage")
-    @classmethod
-    def validate_percentage(cls, v):
-        """Ensure percentage is between 0-100."""
-        if v < 0 or v > 100:
-            raise ValueError("rollout_percentage must be between 0-100")
-        return v
+    # Audit / transition logging
+    log_dispatcher_routing: bool = Field(
+        default=True,
+        description="Log FlowDispatcher routing decisions for audit during migration",
+    )
 
     model_config = {"env_prefix": "FLOW_FEATURE_"}
 
@@ -365,48 +350,14 @@ class FlowConfig:
         if "feature_flags" in config_dict:
             self.feature_flags = FlowFeatureFlags(**config_dict["feature_flags"])
 
-    def is_consolidated_enabled(self) -> bool:
+    def is_canonical_system_production(self) -> bool:
         """
-        Check if consolidated flow system is enabled.
+        Check if the canonical system is set to production.
 
         Returns:
-            True if consolidated system should be used.
+            True if canonical_system == "production" (always True post-QW-021 deletion).
         """
-        return self.feature_flags.use_consolidated_flows
-
-    def should_use_consolidated_for_flow(self, flow_id: Optional[str] = None) -> bool:
-        """
-        Determine if a specific flow should use consolidated system.
-
-        Implements gradual rollout based on rollout percentage.
-
-        Args:
-            flow_id: Optional flow ID for deterministic selection.
-
-        Returns:
-            True if this flow should use consolidated system.
-        """
-        if not self.feature_flags.use_consolidated_flows:
-            return False
-
-        from .constants import FlowEngine
-
-        rollout_pct = self.feature_flags.consolidated_flows_rollout_percentage
-
-        if rollout_pct == FlowEngine.ROLLOUT_DISABLED:
-            return False
-        if rollout_pct == FlowEngine.ROLLOUT_FULL:
-            return True
-
-        # Deterministic selection based on flow_id hash
-        if flow_id:
-            flow_hash = hash(flow_id)
-            return (flow_hash % 100) < rollout_pct
-
-        # Random selection if no flow_id
-        import random
-
-        return random.randint(0, 99) < rollout_pct
+        return self.feature_flags.canonical_system == "production"
 
 
 # ============================================================================

@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main, develop, docs-refactor-py313]
   schedule:
-    # Run security scans daily at 2 AM UTC
+    # Run security scans daily at 2 AM Sao Paulo
     - cron: '0 2 * * *'
   workflow_dispatch:
 

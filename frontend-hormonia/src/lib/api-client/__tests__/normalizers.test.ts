@@ -30,7 +30,7 @@ describe('User Normalization', () => {
         full_name: 'Dr. Maria Silva',
         role: 'doctor',
         is_active: true,
-        created_at: '2025-01-01T00:00:00Z',
+        created_at: '2025-01-01T00:00:00-03:00',
       }
 
       const frontendUser = normalizeUser(backendUser)
@@ -47,7 +47,7 @@ describe('User Normalization', () => {
         full_name: null,
         role: 'doctor',
         is_active: true,
-        created_at: '2025-01-01T00:00:00Z',
+        created_at: '2025-01-01T00:00:00-03:00',
       }
 
       const frontendUser = normalizeUser(backendUser)
@@ -62,7 +62,7 @@ describe('User Normalization', () => {
         email: 'doctor@example.com',
         role: 'doctor',
         is_active: true,
-        created_at: '2025-01-01T00:00:00Z',
+        created_at: '2025-01-01T00:00:00-03:00',
       }
 
       const frontendUser = normalizeUser(backendUser)
@@ -78,7 +78,7 @@ describe('User Normalization', () => {
         full_name: 'Dr. Maria',
         role: 'doctor',
         is_active: true,
-        created_at: '2025-01-01T00:00:00Z',
+        created_at: '2025-01-01T00:00:00-03:00',
       }
 
       const frontendUser = normalizeUser(backendUser)
@@ -94,7 +94,7 @@ describe('User Normalization', () => {
         role: 'doctor',
         permissions: ['read:patients', 'write:patients'],
         is_active: true,
-        created_at: '2025-01-01T00:00:00Z',
+        created_at: '2025-01-01T00:00:00-03:00',
       }
 
       const frontendUser = normalizeUser(backendUser)
@@ -415,7 +415,7 @@ describe('Integration Tests', () => {
       full_name: 'Test User',
       role: 'doctor',
       is_active: true,
-      created_at: '2025-01-01T00:00:00Z',
+      created_at: '2025-01-01T00:00:00-03:00',
     }
 
     const frontend = normalizeUser(original)

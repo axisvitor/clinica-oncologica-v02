@@ -103,8 +103,8 @@ class EnhancedDashboardMetrics(BaseModel):
             "example": {
                 "time_range": "30d",
                 "period": {
-                    "start_date": "2025-01-01T00:00:00Z",
-                    "end_date": "2025-01-31T23:59:59Z",
+                    "start_date": "2025-01-01T00:00:00-03:00",
+                    "end_date": "2025-01-31T23:59:59-03:00",
                 },
                 "metrics": {
                     "total_patients": 150,
@@ -128,7 +128,7 @@ class EnhancedDashboardMetrics(BaseModel):
                     "Imunoterapia": 30,
                 },
                 "alerts": {"critical": 2, "warning": 5, "info": 12},
-                "generated_at": "2025-01-31T12:00:00Z",
+                "generated_at": "2025-01-31T12:00:00-03:00",
             }
         }
     )
@@ -187,8 +187,8 @@ class PatientCohortAnalysis(BaseModel):
                 "cohort_filter": "high_engagement",
                 "time_range": "90d",
                 "period": {
-                    "start_date": "2024-11-01T00:00:00Z",
-                    "end_date": "2025-01-31T23:59:59Z",
+                    "start_date": "2024-11-01T00:00:00-03:00",
+                    "end_date": "2025-01-31T23:59:59-03:00",
                 },
                 "cohort_metrics": {
                     "cohort_size": 50,
@@ -216,7 +216,7 @@ class PatientCohortAnalysis(BaseModel):
                     "next_cursor": None,
                     "has_more": False,
                 },
-                "generated_at": "2025-01-31T12:00:00Z",
+                "generated_at": "2025-01-31T12:00:00-03:00",
             }
         }
     )
@@ -256,8 +256,8 @@ class EngagementFunnelMetrics(BaseModel):
             "example": {
                 "time_range": "30d",
                 "period": {
-                    "start_date": "2025-01-01T00:00:00Z",
-                    "end_date": "2025-01-31T23:59:59Z",
+                    "start_date": "2025-01-01T00:00:00-03:00",
+                    "end_date": "2025-01-31T23:59:59-03:00",
                 },
                 "treatment_type": None,
                 "funnel_stages": [
@@ -295,7 +295,7 @@ class EngagementFunnelMetrics(BaseModel):
                 "overall_conversion": 30.0,
                 "total_enrolled": 100,
                 "total_converted": 30,
-                "generated_at": "2025-01-31T12:00:00Z",
+                "generated_at": "2025-01-31T12:00:00-03:00",
             }
         }
     )
@@ -354,7 +354,7 @@ class PredictiveAnalytics(BaseModel):
                 ],
                 "trend_direction": "increasing",
                 "model_accuracy": 0.85,
-                "generated_at": "2025-01-31T12:00:00Z",
+                "generated_at": "2025-01-31T12:00:00-03:00",
                 "notes": "Predictions based on linear regression of 90-day historical data",
             }
         },
@@ -408,7 +408,7 @@ class CustomMetricResponse(BaseModel):
                 "metric_type": "patients",
                 "value": 25.0,
                 "aggregation": "count",
-                "calculated_at": "2025-01-31T12:00:00Z",
+                "calculated_at": "2025-01-31T12:00:00-03:00",
                 "status": "success",
             }
         }
@@ -437,7 +437,7 @@ class RealtimeAnalyticsStream(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-01-31T12:00:00Z",
+                "timestamp": "2025-01-31T12:00:00-03:00",
                 "active_sessions": 45,
                 "recent_activity_1h": 125,
                 "system_health": {
@@ -471,9 +471,9 @@ class AnalyticsExportResponse(BaseModel):
                 "metric_type": "patients",
                 "record_count": 150,
                 "file_size_bytes": 45678,
-                "generated_at": "2025-01-31T12:00:00Z",
+                "generated_at": "2025-01-31T12:00:00-03:00",
                 "download_url": "/api/v2/enhanced-analytics/downloads/exp_abc123",
-                "expires_at": "2025-01-31T18:00:00Z",
+                "expires_at": "2025-01-31T18:00:00-03:00",
             }
         }
     )
@@ -511,13 +511,13 @@ class ComparativeAnalytics(BaseModel):
             "example": {
                 "metric_type": "patients",
                 "current_period": {
-                    "start_date": "2025-01-01T00:00:00Z",
-                    "end_date": "2025-01-31T23:59:59Z",
+                    "start_date": "2025-01-01T00:00:00-03:00",
+                    "end_date": "2025-01-31T23:59:59-03:00",
                     "value": 45.0,
                 },
                 "comparison_period": {
-                    "start_date": "2024-12-01T00:00:00Z",
-                    "end_date": "2024-12-31T23:59:59Z",
+                    "start_date": "2024-12-01T00:00:00-03:00",
+                    "end_date": "2024-12-31T23:59:59-03:00",
                     "value": 38.0,
                 },
                 "change_metrics": {
@@ -525,7 +525,7 @@ class ComparativeAnalytics(BaseModel):
                     "percent_change": 18.42,
                     "trend": "up",
                 },
-                "generated_at": "2025-01-31T12:00:00Z",
+                "generated_at": "2025-01-31T12:00:00-03:00",
             }
         }
     )

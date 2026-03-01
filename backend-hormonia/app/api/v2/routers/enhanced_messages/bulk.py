@@ -8,12 +8,14 @@ Handles bulk message operations including:
 """
 
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 
-from app.database import get_db
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.database.async_engine import get_async_db
 from app.models.patient import Patient
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
@@ -25,6 +27,7 @@ from app.schemas.v2.enhanced_messages import (
     BulkJobStatusV2Response,
 )
 from app.utils.rate_limiter import limiter
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -42,7 +45,7 @@ async def send_bulk_messages(
     bulk_data: BulkMessageV2Create,
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> BulkMessageV2Response:
     """
@@ -57,10 +60,19 @@ async def send_bulk_messages(
     """
     try:
         # Validate patients
-        patients = db.query(Patient).filter(Patient.id.in_(bulk_data.patient_ids)).all()
+        requested_ids = [str(pid) for pid in bulk_data.patient_ids]
+        parsed_ids = []
+        for patient_id in bulk_data.patient_ids:
+            try:
+                parsed_ids.append(UUID(str(patient_id)))
+            except (TypeError, ValueError):
+                continue
+
+        result = await db.execute(select(Patient).where(Patient.id.in_(parsed_ids)))
+        patients = result.scalars().all()
 
         valid_patient_ids = [str(p.id) for p in patients]
-        failed_patients = list(set(bulk_data.patient_ids) - set(valid_patient_ids))
+        failed_patients = list(set(requested_ids) - set(valid_patient_ids))
 
         if not valid_patient_ids:
             raise HTTPException(
@@ -70,7 +82,7 @@ async def send_bulk_messages(
 
         # Create bulk job
         job_id = f"bulk_{uuid4().hex[:12]}"
-        estimated_completion = datetime.now(timezone.utc) + timedelta(
+        estimated_completion = now_sao_paulo() + timedelta(
             seconds=len(valid_patient_ids)
             * bulk_data.delay_between_batches_seconds
             / bulk_data.batch_size
@@ -154,7 +166,7 @@ async def get_bulk_job_status(
                 / max(job_dict.get("total_patients", 1), 1)
             )
             * 100,
-            started_at=datetime.now(timezone.utc) - timedelta(minutes=5),
+            started_at=now_sao_paulo() - timedelta(minutes=5),
             completed_at=None,
             estimated_completion=job_dict.get("estimated_completion"),
             error_message=None,

@@ -1,3 +1,4 @@
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
 """
 Template Management Module
 
@@ -8,7 +9,9 @@ from typing import Dict, List, Optional, Any
 
 from sqlalchemy.orm import Session
 
-from app.services.template_loader import (
+from app.agents.patient.flow_coordinator.constants import FLOW_TYPES
+
+from app.services.template_loader_pkg import (
     EnhancedTemplateLoader,
     MessageTemplate,
     FlowTemplateData,
@@ -60,7 +63,7 @@ class MessageTemplateManager:
         """Load message templates from template files."""
         try:
             # Load flow templates that contain message templates
-            flow_types = ["initial_15_days", "days_16_45", "monthly_recurring"]
+            flow_types = FLOW_TYPES
 
             for flow_type in flow_types:
                 try:
@@ -105,20 +108,6 @@ class MessageTemplateManager:
             self.logger.error(f"Failed to reload templates: {e}")
             return False
 
-    def get_fallback_message(self, message_type: str, patient_name: str) -> str:
-        """Get fallback message when AI generation fails."""
-        fallback_messages = {
-            "greeting": f"Olá {patient_name}! Como você está hoje? 😊",
-            "checkup": f"Oi {patient_name}! Hora do nosso check-in. Como você se sente? 💙",
-            "support": f"Olá {patient_name}! Lembre-se que estou aqui para apoiá-la. 🤗",
-            "reminder": f"Oi {patient_name}! Um lembrete gentil para você. 📝",
-            "follow_up": f"Oi {patient_name}! Pensando em você. Como está? 💙",
-        }
-
-        return fallback_messages.get(
-            message_type, f"Olá {patient_name}! Como você está? 😊"
-        )
-
     def get_builtin_template(
         self,
         template_id: str,
@@ -137,5 +126,4 @@ class MessageTemplateManager:
                 # Use first available template in category
                 first_template = list(template_category.values())[0]
                 return first_template.format(name=patient_name, **context)
-
-        return self.get_fallback_message("general", patient_name)
+        raise ValueError(f"Template not found: {template_id} ({time_of_day})")

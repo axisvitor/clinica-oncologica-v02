@@ -10,6 +10,12 @@ These variables **MUST** be set in production or the application will not start:
 # CSRF Protection
 export SECURITY_CSRF_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 
+# Core App Secret
+export SECURITY_SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(64))')"
+
+# PHI Encryption (AES-256-GCM)
+export PHI_ENCRYPTION_KEY="$(python3 -c 'import os, base64; print(base64.b64encode(os.urandom(32)).decode())')"
+
 # Field-level Encryption (PHI/PII)
 export ENCRYPTION_KEY_CURRENT="$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
 
@@ -45,6 +51,8 @@ echo "# Generated on $(date)"
 echo ""
 echo "# Security Keys"
 echo "SECURITY_CSRF_SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+echo "SECURITY_SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(64))')"
+echo "PHI_ENCRYPTION_KEY=$(python3 -c 'import os, base64; print(base64.b64encode(os.urandom(32)).decode())')"
 echo "ENCRYPTION_KEY_CURRENT=$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
 echo "HASH_SALT=$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 ```
@@ -54,6 +62,8 @@ echo "HASH_SALT=$(python3 -c 'import secrets; print(secrets.token_hex(32))')"
 ```bash
 # From generated values above
 railway variables set SECURITY_CSRF_SECRET_KEY="..."
+railway variables set SECURITY_SECRET_KEY="..."
+railway variables set PHI_ENCRYPTION_KEY="..."
 railway variables set ENCRYPTION_KEY_CURRENT="..."
 railway variables set HASH_SALT="..."
 ```
@@ -63,6 +73,8 @@ railway variables set HASH_SALT="..."
 ```yaml
 environment:
   SECURITY_CSRF_SECRET_KEY: ${SECURITY_CSRF_SECRET_KEY}
+  SECURITY_SECRET_KEY: ${SECURITY_SECRET_KEY}
+  PHI_ENCRYPTION_KEY: ${PHI_ENCRYPTION_KEY}
   ENCRYPTION_KEY_CURRENT: ${ENCRYPTION_KEY_CURRENT}
   HASH_SALT: ${HASH_SALT}
 ```
@@ -71,7 +83,7 @@ environment:
 
 ```bash
 # Check if variables are set
-env | grep -E "(SECURITY_CSRF_SECRET_KEY|ENCRYPTION_KEY_CURRENT|HASH_SALT|FIREBASE_ADMIN)"
+env | grep -E "(SECURITY_SECRET_KEY|SECURITY_CSRF_SECRET_KEY|PHI_ENCRYPTION_KEY|ENCRYPTION_KEY_CURRENT|HASH_SALT|FIREBASE_ADMIN)"
 
 # Test application startup
 python3 -m app.main

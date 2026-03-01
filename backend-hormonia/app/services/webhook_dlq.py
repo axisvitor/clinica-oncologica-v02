@@ -6,8 +6,8 @@ Implements MEDIUM-005: Dead Letter Queue for failed webhooks.
 
 Architecture:
 - Uses Redis LIST for DLQ storage (FIFO with priority)
-- Exponential backoff: 60s, 120s, 240s, 480s
-- Max retries: 5 attempts (configurable)
+- Exponential backoff using shared RetryConfig from canonical DLQ
+- Max retries derived from canonical RetryConfig (default 5)
 - Automatic cleanup of aged failed events
 - Monitoring metrics for DLQ size and failure rates
 
@@ -15,6 +15,11 @@ Integration:
 - WebhookProcessor sends failed events to DLQ
 - Celery periodic task processes DLQ every minute
 - Alerts trigger on DLQ overflow (>1000 events)
+
+Note:
+    This is a **Redis-based** DLQ specialization for transient webhook events.
+    For persistent DB-backed DLQ, see ``app.services.dlq.DLQService``.
+    Retry configuration is shared via ``app.services.dlq.base.RetryConfig``.
 """
 
 import json
@@ -25,14 +30,19 @@ from uuid import UUID
 
 from redis.asyncio import Redis
 
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
+from app.services.dlq.base import RetryConfig as _CanonicalRetryConfig
+from app.utils.timezone import now_sao_paulo_naive
 
 logger = logging.getLogger(__name__)
+
+# Shared retry configuration from the canonical DLQ module
+_retry_config = _CanonicalRetryConfig()
 
 
 class WebhookDLQ:
     """
-    Dead Letter Queue for failed webhook events.
+    Dead Letter Queue for failed webhook events (Redis-backed).
 
     Responsibilities:
     1. Store failed webhook events with retry metadata
@@ -40,13 +50,20 @@ class WebhookDLQ:
     3. Track retry attempts and failure reasons
     4. Provide metrics for monitoring
     5. Auto-cleanup aged events
+
+    Note:
+        Retry constants (MAX_RETRIES, BASE_RETRY_DELAY) are derived from the
+        canonical ``app.services.dlq.base.RetryConfig`` to keep a single source
+        of truth for retry behaviour across all DLQ implementations.
     """
 
-    # DLQ configuration
+    # DLQ configuration -- derived from canonical RetryConfig
     DLQ_KEY_PREFIX = "webhook:dlq"
     DLQ_METADATA_KEY = "webhook:dlq:metadata"
-    MAX_RETRIES = 5
-    BASE_RETRY_DELAY = 60  # 60 seconds
+    MAX_RETRIES = _retry_config.MAX_RETRY_ATTEMPTS
+    BASE_RETRY_DELAY = (
+        _retry_config.RETRY_DELAYS[0] if _retry_config.RETRY_DELAYS else 60
+    )
     MAX_DLQ_SIZE = 10000  # Alert threshold
     EVENT_TTL_DAYS = 7  # Auto-cleanup after 7 days
 
@@ -64,10 +81,8 @@ class WebhookDLQ:
 
     @property
     async def redis(self) -> Redis:
-        """Get Redis client (lazy load)."""
-        if self._redis is None:
-            self._redis = await get_async_redis()
-        return self._redis
+        """Get Redis client (always fresh for the current event loop)."""
+        return await get_async_redis()
 
     async def send_to_dlq(
         self,
@@ -103,8 +118,8 @@ class WebhookDLQ:
                 "error": error,
                 "retry_count": retry_count,
                 "max_retries": self.MAX_RETRIES,
-                "timestamp": (original_timestamp or datetime.now(timezone.utc)).isoformat(),
-                "added_to_dlq_at": datetime.now(timezone.utc).isoformat(),
+                "timestamp": (original_timestamp or now_sao_paulo_naive()).isoformat(),
+                "added_to_dlq_at": now_sao_paulo_naive().isoformat(),
                 "next_retry_at": self._calculate_next_retry(retry_count).isoformat(),
             }
 
@@ -160,11 +175,21 @@ class WebhookDLQ:
             if event_type:
                 dlq_keys = [f"{self.DLQ_KEY_PREFIX}:{event_type}"]
             else:
-                # Get all DLQ keys
+                # Get all DLQ keys using SCAN instead of KEYS for production safety
                 pattern = f"{self.DLQ_KEY_PREFIX}:*"
-                dlq_keys = await redis_client.keys(pattern)
+                dlq_keys = []
+                try:
+                    async for key in redis_client.scan_iter(match=pattern):
+                        key_text = key.decode() if isinstance(key, bytes) else str(key)
+                        if key_text.startswith(f"{self.DLQ_METADATA_KEY}:"):
+                            continue
+                        dlq_keys.append(key)
+                except Exception as e:
+                    self.logger.error(f"Error scanning Redis keys with pattern {pattern}: {e}", exc_info=True)
+                    # Fallback to empty list or handle gracefully
+                    dlq_keys = []
 
-            current_time = datetime.now(timezone.utc)
+            current_time = now_sao_paulo_naive()
 
             for dlq_key in dlq_keys:
                 # Process batch from this DLQ
@@ -294,7 +319,7 @@ class WebhookDLQ:
 
             # Add to dead letter storage (separate key with longer TTL)
             dead_letter_key = f"webhook:dead_letter:{event['event_type']}"
-            event["moved_to_dead_letter_at"] = datetime.now(timezone.utc).isoformat()
+            event["moved_to_dead_letter_at"] = now_sao_paulo_naive().isoformat()
             await redis_client.rpush(dead_letter_key, json.dumps(event))
 
             # Set longer TTL (30 days for manual review)
@@ -332,7 +357,7 @@ class WebhookDLQ:
         delay_seconds = self.BASE_RETRY_DELAY * (2**retry_count)
         # Cap at 30 minutes
         delay_seconds = min(delay_seconds, 1800)
-        return datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+        return now_sao_paulo_naive() + timedelta(seconds=delay_seconds)
 
     async def _update_dlq_metadata(self, event_type: str, action: str) -> None:
         """
@@ -349,7 +374,7 @@ class WebhookDLQ:
             # Increment counter for action
             await redis_client.hincrby(metadata_key, f"total_{action}", 1)
             await redis_client.hset(
-                metadata_key, "last_updated", datetime.now(timezone.utc).isoformat()
+                metadata_key, "last_updated", now_sao_paulo_naive().isoformat()
             )
 
             # Set TTL
@@ -370,7 +395,8 @@ class WebhookDLQ:
             dlq_key = f"{self.DLQ_KEY_PREFIX}:{event_type}"
 
             # Get queue size
-            queue_size = await redis_client.llen(dlq_key)
+            queue_size_raw = await redis_client.llen(dlq_key)
+            queue_size = int(queue_size_raw or 0)
 
             if queue_size > self.MAX_DLQ_SIZE:
                 self.logger.error(
@@ -408,30 +434,58 @@ class WebhookDLQ:
                 dlq_keys = [f"{self.DLQ_KEY_PREFIX}:{event_type}"]
             else:
                 pattern = f"{self.DLQ_KEY_PREFIX}:*"
-                dlq_keys = await redis_client.keys(pattern)
+                dlq_keys = []
+                async for key in redis_client.scan_iter(match=pattern):
+                    key_text = key.decode() if isinstance(key, bytes) else str(key)
+                    if key_text.startswith(f"{self.DLQ_METADATA_KEY}:"):
+                        continue
+                    dlq_keys.append(key)
 
             total_pending = 0
             by_event_type = {}
 
             for dlq_key in dlq_keys:
                 # Extract event type from key
-                event_type_name = dlq_key.decode().split(":")[-1]
+                if isinstance(dlq_key, bytes):
+                    event_type_name = dlq_key.decode().split(":")[-1]
+                else:
+                    event_type_name = str(dlq_key).split(":")[-1]
 
                 # Get queue size
-                queue_size = await redis_client.llen(dlq_key)
+                queue_size_raw = await redis_client.llen(dlq_key)
+                queue_size = int(queue_size_raw or 0)
                 total_pending += queue_size
 
                 # Get metadata
                 metadata_key = f"{self.DLQ_METADATA_KEY}:{event_type_name}"
-                metadata = await redis_client.hgetall(metadata_key)
+                metadata = await redis_client.hgetall(metadata_key) or {}
+
+                def _meta_value(name: str, default: int = 0) -> int:
+                    raw = metadata.get(name)
+                    if raw is None:
+                        raw = metadata.get(name.encode())
+                    if raw in (None, ""):
+                        return default
+                    try:
+                        return int(raw)
+                    except (TypeError, ValueError):
+                        return default
+
+                last_updated_raw = metadata.get("last_updated")
+                if last_updated_raw is None:
+                    last_updated_raw = metadata.get(b"last_updated", b"")
+                if isinstance(last_updated_raw, bytes):
+                    last_updated = last_updated_raw.decode()
+                else:
+                    last_updated = str(last_updated_raw or "")
 
                 by_event_type[event_type_name] = {
                     "pending": queue_size,
-                    "total_added": int(metadata.get(b"total_added", 0)),
-                    "total_processed": int(metadata.get(b"total_processed", 0)),
-                    "total_requeued": int(metadata.get(b"total_requeued", 0)),
-                    "total_dead_letter": int(metadata.get(b"total_dead_letter", 0)),
-                    "last_updated": metadata.get(b"last_updated", b"").decode(),
+                    "total_added": _meta_value("total_added"),
+                    "total_processed": _meta_value("total_processed"),
+                    "total_requeued": _meta_value("total_requeued"),
+                    "total_dead_letter": _meta_value("total_dead_letter"),
+                    "last_updated": last_updated,
                 }
 
             stats = {

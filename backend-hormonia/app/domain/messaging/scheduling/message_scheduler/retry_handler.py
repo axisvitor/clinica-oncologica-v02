@@ -4,7 +4,7 @@ Retry logic and Dead Letter Queue (DLQ) handling for failed message deliveries.
 
 import logging
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.models.message import Message
@@ -12,6 +12,8 @@ from app.models.failed_message import FailureReason
 from app.repositories.patient import PatientRepository
 from app.utils.db_retry import with_db_retry
 from .config import MessageSchedulerConfig
+from .shared import ensure_message_metadata
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,11 @@ class RetryHandler:
         self.db = db
         self.config = config or MessageSchedulerConfig()
         self.patient_repo = PatientRepository(db)
+
+    @staticmethod
+    def _ensure_message_metadata(message: Message) -> Dict[str, Any]:
+        """Guarantee message.message_metadata is a mutable dict."""
+        return ensure_message_metadata(message, logger)
 
     def calculate_retry_delay(self, retry_count: int) -> timedelta:
         """
@@ -55,27 +62,19 @@ class RetryHandler:
         """
         try:
             # Import here to avoid circular imports
-            from app.tasks.flows import send_flow_message
+            from app.tasks.messaging import send_scheduled_message
 
-            # Prepare message data
-            message_data = {
-                "content": message.content,
-                "type": message.type.value,
-                "metadata": message.message_metadata,
-                "is_retry": True,
-                "retry_count": message.retry_count,
-            }
-
-            # Schedule retry task with ETA
-            task_result = send_flow_message.apply_async(
-                args=[str(message.patient_id), message_data, str(message.id)],
+            # Schedule retry task with ETA using the message id
+            task_result = send_scheduled_message.apply_async(
+                args=[str(message.id)],
                 eta=retry_time,
             )
 
             # Update message metadata with retry task ID
-            message.message_metadata["retry_task_id"] = task_result.id
-            message.message_metadata["retry_scheduled_at"] = (
-                datetime.now(timezone.utc).isoformat()
+            message_metadata = self._ensure_message_metadata(message)
+            message_metadata["retry_task_id"] = task_result.id
+            message_metadata["retry_scheduled_at"] = (
+                now_sao_paulo().isoformat()
             )
 
             logger.info(
@@ -121,11 +120,12 @@ class RetryHandler:
                 "last_retry_at": message.last_retry_at.isoformat()
                 if message.last_retry_at
                 else None,
-                "routed_at": datetime.now(timezone.utc).isoformat(),
+                "routed_at": now_sao_paulo().isoformat(),
             }
 
             # Route to DLQ
             dlq_handler = DLQHandler(self.db)
+            message_metadata = self._ensure_message_metadata(message)
             await dlq_handler.route_to_dlq(
                 message_id=message.id,
                 patient_id=message.patient_id,
@@ -134,7 +134,7 @@ class RetryHandler:
                 failure_reason=categorized_reason,
                 failure_details=failure_details,
                 retry_count=message.retry_count,
-                metadata=message.message_metadata,
+                metadata=message_metadata,
             )
 
             logger.info(
@@ -200,7 +200,7 @@ class RetryHandler:
         """
         try:
             # Get flow context from message metadata
-            flow_context = message.message_metadata.get("flow_context", {})
+            flow_context = self._ensure_message_metadata(message).get("flow_context", {})
 
             if not flow_context:
                 logger.warning(
@@ -232,7 +232,7 @@ class RetryHandler:
             flow_state_data["delivery_failures"].append(
                 {
                     "message_id": str(message.id),
-                    "failure_timestamp": datetime.now(timezone.utc).isoformat(),
+                    "failure_timestamp": now_sao_paulo().isoformat(),
                     "failure_reason": message.failure_reason,
                     "retry_count": message.retry_count,
                     "step": active_flow.current_step,
@@ -241,7 +241,7 @@ class RetryHandler:
 
             # Mark that flow should not wait for this message
             flow_state_data["skip_waiting_for_message"] = str(message.id)
-            flow_state_data["last_delivery_failure"] = datetime.now(timezone.utc).isoformat()
+            flow_state_data["last_delivery_failure"] = now_sao_paulo().isoformat()
 
             active_flow.state_data = flow_state_data
             self.db.commit()

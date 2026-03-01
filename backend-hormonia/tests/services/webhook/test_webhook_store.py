@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.exc import IntegrityError
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 class TestWebhookEventStore:
     """Test WebhookEventStore functionality."""
 
@@ -47,9 +48,8 @@ class TestPersistEvent(TestWebhookEventStore):
     @pytest.mark.asyncio
     async def test_persist_new_event_success(self, store, mock_db, sample_payload):
         """Test persisting a new webhook event."""
-        # No existing event found
         mock_result = Mock()
-        mock_result.fetchone.return_value = None
+        mock_result.fetchone.return_value = (str(uuid4()),)
         mock_db.execute.return_value = mock_result
         
         event_id = await store.persist_event(
@@ -66,24 +66,26 @@ class TestPersistEvent(TestWebhookEventStore):
     async def test_persist_duplicate_event_returns_existing_id(self, store, mock_db, sample_payload):
         """Test that duplicate events return existing ID."""
         existing_id = str(uuid4())
-        mock_result = Mock()
-        mock_result.fetchone.return_value = (existing_id,)
-        mock_db.execute.return_value = mock_result
+        insert_result = Mock()
+        insert_result.fetchone.return_value = None
+        select_result = Mock()
+        select_result.fetchone.return_value = (existing_id,)
+        mock_db.execute.side_effect = [insert_result, select_result]
         
         event_id = await store.persist_event(
             event_type="messages.upsert",
             source="evolution_api",
             payload=sample_payload
         )
-        
+
         assert event_id == UUID(existing_id)
-        mock_db.commit.assert_not_called()  # Should not commit for duplicate
+        mock_db.commit.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_persist_event_with_related_ids(self, store, mock_db, sample_payload):
         """Test persisting event with related message and patient IDs."""
         mock_result = Mock()
-        mock_result.fetchone.return_value = None
+        mock_result.fetchone.return_value = (str(uuid4()),)
         mock_db.execute.return_value = mock_result
         
         message_id = uuid4()
@@ -103,9 +105,7 @@ class TestPersistEvent(TestWebhookEventStore):
     @pytest.mark.asyncio
     async def test_persist_event_integrity_error_rollback(self, store, mock_db, sample_payload):
         """Test rollback on integrity error (race condition duplicate)."""
-        mock_result = Mock()
-        mock_result.fetchone.return_value = None
-        mock_db.execute.side_effect = [mock_result, IntegrityError("duplicate", None, None)]
+        mock_db.execute.side_effect = IntegrityError("duplicate", None, None)
         
         event_id = await store.persist_event(
             event_type="messages.upsert",
@@ -178,8 +178,8 @@ class TestGetFailedEvents(TestWebhookEventStore):
         
         mock_result = Mock()
         mock_result.fetchall.return_value = [
-            (event1_id, "messages.upsert", {"test": 1}, 1, 3, None, None, datetime.utcnow()),
-            (event2_id, "status.update", {"test": 2}, 2, 3, None, None, datetime.utcnow()),
+            (event1_id, "messages.upsert", {"test": 1}, 1, 3, None, None, now_sao_paulo_naive()),
+            (event2_id, "status.update", {"test": 2}, 2, 3, None, None, now_sao_paulo_naive()),
         ]
         mock_db.execute.return_value = mock_result
         
@@ -219,7 +219,7 @@ class TestIncrementRetryCount(TestWebhookEventStore):
     async def test_increment_retry_count_success(self, store, mock_db):
         """Test incrementing retry count."""
         event_id = uuid4()
-        next_retry = datetime.utcnow() + timedelta(minutes=5)
+        next_retry = now_sao_paulo_naive() + timedelta(minutes=5)
         
         await store.increment_retry_count(event_id, next_retry)
         
@@ -230,7 +230,7 @@ class TestIncrementRetryCount(TestWebhookEventStore):
     async def test_increment_retry_count_with_error_message(self, store, mock_db):
         """Test incrementing retry count with error message."""
         event_id = uuid4()
-        next_retry = datetime.utcnow() + timedelta(minutes=10)
+        next_retry = now_sao_paulo_naive() + timedelta(minutes=10)
         error_message = "API timeout"
         
         await store.increment_retry_count(event_id, next_retry, error_message)
@@ -242,7 +242,7 @@ class TestIncrementRetryCount(TestWebhookEventStore):
     async def test_increment_retry_count_database_error(self, store, mock_db):
         """Test handling database error when incrementing."""
         event_id = uuid4()
-        next_retry = datetime.utcnow() + timedelta(minutes=5)
+        next_retry = now_sao_paulo_naive() + timedelta(minutes=5)
         mock_db.execute.side_effect = Exception("Database error")
         
         # Should not raise

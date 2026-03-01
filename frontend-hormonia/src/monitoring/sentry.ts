@@ -5,10 +5,7 @@
  * for the Clínica Oncológica frontend application.
  *
  * Sentry packages installed:
- * - @sentry/react - Core React integration
- * - @sentry/tracing - Performance monitoring
- * - @sentry/integrations - Console capture and extra integrations
- * - @sentry/replay - Session replay functionality
+ * - @sentry/react - Core React integration, tracing, replay, and integrations
  */
 
 import * as Sentry from '@sentry/react';
@@ -18,6 +15,10 @@ import { createLogger } from '@/lib/logger';
 // CaptureConsole is available via Sentry.captureConsoleIntegration()
 
 const logger = createLogger('Sentry');
+type MeasurementUnit = Parameters<typeof Sentry.setMeasurement>[2];
+type SentryInitOptions = Parameters<typeof Sentry.init>[0];
+type BeforeSend = NonNullable<SentryInitOptions['beforeSend']>;
+type BeforeSendTransaction = NonNullable<SentryInitOptions['beforeSendTransaction']>;
 
 interface UserContext {
   id: string;
@@ -115,7 +116,7 @@ export class SentryMonitoring {
   /**
    * Filter events before sending to Sentry
    */
-  private static beforeSendFilter(event: any): any | null {
+  private static beforeSendFilter: BeforeSend = (event, _hint) => {
     // Filter out development errors if in production
     if (event.environment === 'production' && event.level === 'debug') {
       return null;
@@ -128,12 +129,12 @@ export class SentryMonitoring {
     }
 
     return event;
-  }
+  };
 
   /**
    * Filter transactions before sending to Sentry
    */
-  private static beforeSendTransactionFilter(event: any): any | null {
+  private static beforeSendTransactionFilter: BeforeSendTransaction = (event, _hint) => {
     // Filter out very short transactions (noise)
     if (event.start_timestamp && event.timestamp) {
       const duration = event.timestamp - event.start_timestamp;
@@ -143,7 +144,7 @@ export class SentryMonitoring {
     }
 
     return event;
-  }
+  };
 
   /**
    * Set user context for error tracking
@@ -303,11 +304,11 @@ export class SentryMonitoring {
   /**
    * Track performance metrics manually
    */
-  static trackPerformance(metricName: string, value: number, unit: string = 'ms'): void {
+  static trackPerformance(metricName: string, value: number, unit: MeasurementUnit = 'ms'): void {
     if (!this.isInitialized) return;
 
     try {
-      Sentry.setMeasurement(metricName, value, unit as any);
+      Sentry.setMeasurement(metricName, value, unit);
     } catch (error) {
       logger.error('Failed to track performance metric:', error);
     }
@@ -386,7 +387,8 @@ export class SentryMonitoring {
 
     // Set session context in Sentry
     if (this.isInitialized) {
-      Sentry.setContext('session', this.sessionContext as any);
+      const sessionContext: Record<string, unknown> = { ...this.sessionContext };
+      Sentry.setContext('session', sessionContext);
     }
   }
 }

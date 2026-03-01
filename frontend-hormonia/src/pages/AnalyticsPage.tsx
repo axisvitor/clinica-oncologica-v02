@@ -1,26 +1,20 @@
-import React, { useState, useMemo, Suspense } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Calendar, TrendingUp, Users, MessageSquare, Activity, Download, RefreshCw, ChartBar as BarChart3, ListFilter as Filter, ArrowUp, ArrowDown } from 'lucide-react'
+import { TrendingUp, Users, MessageSquare, Activity, Download, RefreshCw, ChartBar as BarChart3, ArrowUp } from 'lucide-react'
+import { LineChart, AreaChart, PieChart } from '@/components/ui/charts/LazyRechartsComponents'
 import {
-  LineChart,
   Line,
-  AreaChart,
   Area,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   Legend,
-  PieChart,
   Pie,
   Cell
-} from '@/components/ui/charts/LazyRechartsComponents'
+} from '@/components/ui/charts/RechartsPrimitives'
 import type { TooltipProps } from 'recharts'
-import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
-import { ChartSkeleton } from '@/components/ui/chart-skeleton'
+import type { NameType, Payload, ValueType } from 'recharts/types/component/DefaultTooltipContent'
 import { SafeChartContainer } from '@/components/ui/charts/SafeChartContainer'
 import { apiClient } from '@/lib/api-client'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -37,11 +31,11 @@ import {
 import { useTreatmentDistribution, type Period } from '@/hooks/api/useTreatmentDistribution'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import type { TreatmentDistributionItem } from '@/lib/api-client/analytics'
 
 export function AnalyticsPage() {
   const [dateRange, setDateRange] = useState('7d')
   const [compareMode, setCompareMode] = useState(false)
-  const [selectedMetrics, setSelectedMetrics] = useState<string[]>(['all'])
   const [treatmentPeriod, setTreatmentPeriod] = useState<Period>('30d')
 
   const { data: dashboardData, isLoading } = useQuery({
@@ -49,12 +43,12 @@ export function AnalyticsPage() {
     queryFn: () => apiClient.analytics.dashboard()
   })
 
-  const { data: engagementData } = useQuery({
+  const { data: _engagementData } = useQuery({
     queryKey: ['analytics-engagement', dateRange],
     queryFn: () => apiClient.analytics.engagement()
   })
 
-  const { data: patientsAnalytics } = useQuery({
+  const { data: _patientsAnalytics } = useQuery({
     queryKey: ['analytics-patients', dateRange],
     queryFn: () => apiClient.analytics.patients()
   })
@@ -75,20 +69,6 @@ export function AnalyticsPage() {
     queryKey: ['analytics-alerts-summary'],
     queryFn: () => apiClient.analytics.alertsSummary()
   })
-
-  function getStartDate(range: string): string {
-    const now = new Date()
-    switch (range) {
-      case '7d':
-        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
-      case '30d':
-        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
-      case '90d':
-        return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
-      default:
-        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    }
-  }
 
   // Define the engagement chart item type
   interface EngagementChartItem {
@@ -122,18 +102,19 @@ export function AnalyticsPage() {
   }
 
   const CustomTooltip = ({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
-    if (active && payload && payload.length) {
+    const entries = (payload ?? []) as Payload<ValueType, NameType>[]
+    if (active && entries.length) {
       return (
         <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-xl">
           <p className="font-semibold text-gray-900 mb-3 text-sm">{label}</p>
           <div className="space-y-2">
-            {payload.map((entry, index: number) => (
+            {entries.map((entry, index: number) => (
               <div key={index} className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color || '#94a3b8' }} />
                   <span className="text-sm text-gray-600">{entry.name}</span>
                 </div>
-                <span className="font-medium text-sm" style={{ color: entry.color }}>
+                <span className="font-medium text-sm" style={{ color: entry.color || '#111827' }}>
                   {Number(entry.value).toLocaleString('pt-BR')}
                   {entry.dataKey === 'response_rate' && '%'}
                 </span>
@@ -429,18 +410,19 @@ export function AnalyticsPage() {
                       dataKey="count"
                       paddingAngle={2}
                     >
-                      {treatmentDistribution.distribution.map((entry, index: number) => (
+                      {treatmentDistribution.distribution.map((entry: TreatmentDistributionItem, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip
                       content={({ active, payload }: TooltipProps<ValueType, NameType>) => {
-                        if (active && payload && payload.length && payload[0]) {
-                          const data = payload[0].payload as { treatment_type: string; percentage: number };
+                        const payloadEntry = (payload?.[0] as Payload<ValueType, NameType> | undefined)
+                        if (active && payloadEntry?.payload) {
+                          const data = payloadEntry.payload as { treatment_type: string; percentage: number };
                           return (
                             <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
                               <p className="font-medium text-sm">{data.treatment_type}</p>
-                              <p className="text-sm text-gray-600">{payload[0].value} pacientes</p>
+                              <p className="text-sm text-gray-600">{payloadEntry.value} pacientes</p>
                               <p className="text-sm text-gray-500">{data.percentage.toFixed(1)}%</p>
                             </div>
                           )
@@ -451,7 +433,7 @@ export function AnalyticsPage() {
                   </PieChart>
                 </SafeChartContainer>
                 <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3">
-                  {treatmentDistribution.distribution.map((item, idx: number) => (
+                  {treatmentDistribution.distribution.map((item: TreatmentDistributionItem, idx: number) => (
                     <div key={idx} className="flex items-center gap-2">
                       <div className="w-4 h-4 rounded" style={{ backgroundColor: item.color }} />
                       <span className="text-sm">

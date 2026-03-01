@@ -8,12 +8,12 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime, timedelta, date, time, timezone
 from uuid import UUID
 
-from sqlalchemy import func, case
-from sqlalchemy.orm import Session
+from sqlalchemy import func, case, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.patient import Patient, FlowState
 from app.models.message import Message, MessageDirection, MessageStatus
-from app.models.alert import Alert, AlertSeverity, AlertStatus
+from app.models.alert import Alert, AlertSeverity
 from app.models.appointment import Appointment, AppointmentStatus
 from app.schemas.v2.physicians import (
     PhysicianStatistics,
@@ -21,8 +21,9 @@ from app.schemas.v2.physicians import (
     AppointmentStats,
     AlertStats,
 )
-from app.core.redis_unified import get_sync_redis
+from app.core.redis_manager import get_sync_redis_client as get_sync_redis
 from ..base import _calculate_workload_level
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class PhysicianStatisticsService:
     - Optimized SQL aggregations
     """
 
-    def __init__(self, db: Session, cache_ttl: int = 300):
+    def __init__(self, db: AsyncSession, cache_ttl: int = 300):
         """
         Initialize statistics service.
 
@@ -50,7 +51,7 @@ class PhysicianStatisticsService:
         self.cache_ttl = cache_ttl
         self.redis_client = get_sync_redis()
 
-    def calculate_statistics(
+    async def calculate_statistics(
         self, physician_id: UUID, use_cache: bool = True
     ) -> PhysicianStatistics:
         """
@@ -73,14 +74,14 @@ class PhysicianStatisticsService:
         logger.info(f"Calculating statistics for physician {physician_id}")
 
         # Calculate all metrics
-        patient_metrics = self._calculate_patient_metrics(physician_id)
-        message_stats = self._calculate_message_stats(physician_id)
-        appointment_stats = self._calculate_appointment_stats(physician_id)
-        alert_stats = self._calculate_alert_stats(physician_id)
+        patient_metrics = await self._calculate_patient_metrics(physician_id)
+        message_stats = await self._calculate_message_stats(physician_id)
+        appointment_stats = await self._calculate_appointment_stats(physician_id)
+        alert_stats = await self._calculate_alert_stats(physician_id)
         satisfaction_score = self._calculate_satisfaction_score(
             patient_metrics, message_stats, appointment_stats, alert_stats
         )
-        treatment_duration = self._calculate_treatment_duration(physician_id)
+        treatment_duration = await self._calculate_treatment_duration(physician_id)
 
         # Build statistics object
         statistics = PhysicianStatistics(
@@ -94,7 +95,7 @@ class PhysicianStatisticsService:
             alerts=alert_stats,
             patient_satisfaction_score=satisfaction_score,
             avg_treatment_duration_days=treatment_duration,
-            calculated_at=datetime.now(timezone.utc),
+            calculated_at=now_sao_paulo(),
         )
 
         # Cache the result
@@ -103,7 +104,7 @@ class PhysicianStatisticsService:
 
         return statistics
 
-    def calculate_batch_statistics(
+    async def calculate_batch_statistics(
         self, physician_ids: List[UUID]
     ) -> Dict[UUID, PhysicianStatistics]:
         """
@@ -132,21 +133,21 @@ class PhysicianStatisticsService:
                 f"Batch calculating statistics for {len(uncached_ids)} physicians"
             )
             for physician_id in uncached_ids:
-                stats = self.calculate_statistics(physician_id, use_cache=False)
+                stats = await self.calculate_statistics(physician_id, use_cache=False)
                 results[physician_id] = stats
                 self._save_to_cache(physician_id, stats)
 
         return results
 
-    def _calculate_patient_metrics(self, physician_id: UUID) -> Dict[str, Any]:
+    async def _calculate_patient_metrics(self, physician_id: UUID) -> Dict[str, Any]:
         """Calculate patient-related metrics with optimized queries."""
         # Single query with aggregations
-        start_of_month = datetime.now(timezone.utc).replace(
+        start_of_month = now_sao_paulo().replace(
             day=1, hour=0, minute=0, second=0, microsecond=0
         )
 
-        result = (
-            self.db.query(
+        result = await self.db.execute(
+            select(
                 func.count(Patient.id).label("total"),
                 func.sum(
                     case((Patient.flow_state == FlowState.ACTIVE, 1), else_=0)
@@ -158,14 +159,14 @@ class PhysicianStatisticsService:
                     case((Patient.created_at >= start_of_month, 1), else_=0)
                 ).label("new_this_month"),
             )
-            .filter(Patient.doctor_id == physician_id, Patient.deleted_at.is_(None))
-            .first()
+            .where(Patient.doctor_id == physician_id, Patient.deleted_at.is_(None))
         )
+        row = result.first()
 
-        total = result.total or 0
-        active = result.active or 0
-        inactive = result.inactive or 0
-        new_this_month = result.new_this_month or 0
+        total = row.total if row and row.total is not None else 0
+        active = row.active if row and row.active is not None else 0
+        inactive = row.inactive if row and row.inactive is not None else 0
+        new_this_month = row.new_this_month if row and row.new_this_month is not None else 0
 
         return {
             "total": total,
@@ -175,20 +176,31 @@ class PhysicianStatisticsService:
             "workload_level": _calculate_workload_level(total),
         }
 
-    def _calculate_message_stats(self, physician_id: UUID) -> MessageStats:
+    async def _calculate_message_stats(self, physician_id: UUID) -> MessageStats:
         """Calculate message statistics with optimized queries."""
-        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        week_ago = now_sao_paulo() - timedelta(days=7)
 
-        # Get patient IDs subquery
-        patient_ids = (
-            self.db.query(Patient.id)
-            .filter(Patient.doctor_id == physician_id, Patient.deleted_at.is_(None))
-            .subquery()
+        # Get patient IDs in scope
+        patient_ids_result = await self.db.execute(
+            select(Patient.id).where(
+                Patient.doctor_id == physician_id,
+                Patient.deleted_at.is_(None),
+            )
         )
+        patient_ids = list(patient_ids_result.scalars().all())
+
+        if not patient_ids:
+            return MessageStats(
+                total_sent=0,
+                total_received=0,
+                unread_count=0,
+                response_rate=0.0,
+                avg_response_time_minutes=None,
+            )
 
         # Single aggregation query for all message metrics
-        result = (
-            self.db.query(
+        result = await self.db.execute(
+            select(
                 func.sum(
                     case((Message.direction == MessageDirection.OUTBOUND, 1), else_=0)
                 ).label("sent"),
@@ -227,20 +239,20 @@ class PhysicianStatisticsService:
                     )
                 ).label("read_week"),
             )
-            .filter(Message.patient_id.in_(patient_ids))
-            .first()
+            .where(Message.patient_id.in_(patient_ids))
         )
+        row = result.first()
 
-        total_sent = result.sent or 0
-        total_received = result.received or 0
-        unread_count = result.unread or 0
-        inbound_week = result.inbound_week or 0
-        read_week = result.read_week or 0
+        total_sent = row.sent if row and row.sent is not None else 0
+        total_received = row.received if row and row.received is not None else 0
+        unread_count = row.unread if row and row.unread is not None else 0
+        inbound_week = row.inbound_week if row and row.inbound_week is not None else 0
+        read_week = row.read_week if row and row.read_week is not None else 0
 
         response_rate = (read_week / inbound_week) if inbound_week > 0 else 0.0
 
         # Calculate average response time (separate query for complexity)
-        avg_response_time = self._calculate_avg_response_time(patient_ids, week_ago)
+        avg_response_time = await self._calculate_avg_response_time(patient_ids, week_ago)
 
         return MessageStats(
             total_sent=total_sent,
@@ -250,27 +262,30 @@ class PhysicianStatisticsService:
             avg_response_time_minutes=avg_response_time,
         )
 
-    def _calculate_avg_response_time(
-        self, patient_ids, week_ago: datetime
+    async def _calculate_avg_response_time(
+        self, patient_ids: List[UUID], week_ago: datetime
     ) -> Optional[float]:
         """Calculate average response time in minutes."""
+        if not patient_ids:
+            return None
+
         try:
             # Simplified approach: average time between inbound and next outbound
-            response_times = (
-                self.db.query(
+            result = await self.db.execute(
+                select(
                     func.avg(
                         func.extract("epoch", Message.created_at)
                         - func.extract("epoch", Message.created_at)
                     )
                     / 60
                 )
-                .filter(
+                .where(
                     Message.patient_id.in_(patient_ids),
                     Message.direction == MessageDirection.OUTBOUND,
                     Message.created_at >= week_ago,
                 )
-                .scalar()
             )
+            response_times = result.scalar()
 
             if response_times:
                 return round(float(response_times), 1)
@@ -279,14 +294,14 @@ class PhysicianStatisticsService:
 
         return None
 
-    def _calculate_appointment_stats(self, physician_id: UUID) -> AppointmentStats:
+    async def _calculate_appointment_stats(self, physician_id: UUID) -> AppointmentStats:
         """Calculate appointment statistics with optimized queries."""
         today_start = datetime.combine(date.today(), time.min)
         today_end = datetime.combine(date.today(), time.max)
 
         try:
-            result = (
-                self.db.query(
+            result = await self.db.execute(
+                select(
                     func.count(Appointment.id).label("total"),
                     func.sum(
                         case(
@@ -314,7 +329,7 @@ class PhysicianStatisticsService:
                     func.sum(
                         case(
                             (
-                                (Appointment.scheduled_at > datetime.now(timezone.utc))
+                                (Appointment.scheduled_at > now_sao_paulo())
                                 & (
                                     Appointment.status.in_(
                                         [
@@ -339,16 +354,16 @@ class PhysicianStatisticsService:
                         )
                     ).label("today"),
                 )
-                .filter(Appointment.practitioner_id == physician_id)
-                .first()
+                .where(Appointment.practitioner_id == physician_id)
             )
+            row = result.first()
 
             return AppointmentStats(
-                total_scheduled=result.total or 0,
-                completed=result.completed or 0,
-                cancelled=result.cancelled or 0,
-                upcoming=result.upcoming or 0,
-                today=result.today or 0,
+                total_scheduled=row.total if row and row.total is not None else 0,
+                completed=row.completed if row and row.completed is not None else 0,
+                cancelled=row.cancelled if row and row.cancelled is not None else 0,
+                upcoming=row.upcoming if row and row.upcoming is not None else 0,
+                today=row.today if row and row.today is not None else 0,
             )
         except Exception as e:
             logger.warning(f"Failed to calculate appointment stats: {e}")
@@ -356,16 +371,21 @@ class PhysicianStatisticsService:
                 total_scheduled=0, completed=0, cancelled=0, upcoming=0, today=0
             )
 
-    def _calculate_alert_stats(self, physician_id: UUID) -> AlertStats:
+    async def _calculate_alert_stats(self, physician_id: UUID) -> AlertStats:
         """Calculate alert statistics with optimized queries."""
-        patient_ids = (
-            self.db.query(Patient.id)
-            .filter(Patient.doctor_id == physician_id, Patient.deleted_at.is_(None))
-            .subquery()
+        patient_ids_result = await self.db.execute(
+            select(Patient.id).where(
+                Patient.doctor_id == physician_id,
+                Patient.deleted_at.is_(None),
+            )
         )
+        patient_ids = list(patient_ids_result.scalars().all())
 
-        result = (
-            self.db.query(
+        if not patient_ids:
+            return AlertStats(total=0, critical=0, high=0, medium=0, low=0)
+
+        result = await self.db.execute(
+            select(
                 func.count(Alert.id).label("total"),
                 func.sum(
                     case((Alert.severity == AlertSeverity.CRITICAL, 1), else_=0)
@@ -382,17 +402,19 @@ class PhysicianStatisticsService:
             )
             .filter(
                 Alert.patient_id.in_(patient_ids),
-                Alert.status.in_([AlertStatus.PENDING, AlertStatus.ACTIVE]),
+                # Alert.status is a Python property backed by acknowledged boolean.
+                # For DB filtering we must use the actual mapped column.
+                Alert.acknowledged.is_(False),
             )
-            .first()
         )
+        row = result.first()
 
         return AlertStats(
-            total=result.total or 0,
-            critical=result.critical or 0,
-            high=result.high or 0,
-            medium=result.medium or 0,
-            low=result.low or 0,
+            total=row.total if row and row.total is not None else 0,
+            critical=row.critical if row and row.critical is not None else 0,
+            high=row.high if row and row.high is not None else 0,
+            medium=row.medium if row and row.medium is not None else 0,
+            low=row.low if row and row.low is not None else 0,
         )
 
     def _calculate_satisfaction_score(
@@ -437,24 +459,24 @@ class PhysicianStatisticsService:
             logger.warning(f"Failed to calculate satisfaction score: {e}")
             return None
 
-    def _calculate_treatment_duration(self, physician_id: UUID) -> Optional[float]:
+    async def _calculate_treatment_duration(self, physician_id: UUID) -> Optional[float]:
         """Calculate average treatment duration in days."""
         try:
-            avg_duration = (
-                self.db.query(
+            result = await self.db.execute(
+                select(
                     func.avg(
                         func.extract("epoch", Patient.updated_at)
                         - func.extract("epoch", Patient.created_at)
                     )
                     / 86400  # Convert to days
                 )
-                .filter(
+                .where(
                     Patient.doctor_id == physician_id,
                     Patient.flow_state == FlowState.CANCELLED,
                     Patient.deleted_at.is_(None),
                 )
-                .scalar()
             )
+            avg_duration = result.scalar()
 
             if avg_duration:
                 return round(float(avg_duration), 1)

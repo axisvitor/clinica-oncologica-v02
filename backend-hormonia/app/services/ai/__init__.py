@@ -1,175 +1,142 @@
 """
-AI Services Module
-==================
+AI Services Module (Consolidated)
+==================================
 
-Unified AI service with integrated cache and batch processing.
+This module provides high-level AI services, primarily batch processing
+and specialized summary services.
 
-This module consolidates:
-- ai.py (AIHumanizer, SentimentAnalyzer, ContextBuilder)
-- ai_cache.py (caching logic)
-- ai_cache_service.py (cache service - duplicated, removed)
-- ai_redis_cache.py (Redis cache with metrics)
-- ai_batch_processor.py (batch processing)
-
-Public API:
-    AIService: Main service class with integrated cache and batch processing
-    PatientContext: Patient context data structure
-    ConcernLevel: Medical concern severity levels
-    CacheLayer: Unified cache layer
-    CacheOperation: Cache operation types
-    CacheStrategy: Cache storage strategies
-    CacheMetrics: Cache performance metrics
-
-Example:
-    >>> from app.services.ai import AIService, PatientContext
-    >>>
-    >>> # Initialize service
-    >>> service = AIService()
-    >>> await service.initialize()
-    >>>
-    >>> # Build patient context
-    >>> context = PatientContext(
-    ...     patient_id="123",
-    ...     name="Maria",
-    ...     treatment_type="Hormone Therapy",
-    ...     treatment_day=10
-    ... )
-    >>>
-    >>> # Humanize message with caching
-    >>> response = await service.humanize_message(
-    ...     template="Check-in semanal",
-    ...     patient_context=context
-    ... )
-    >>>
-    >>> # Analyze sentiment
-    >>> analysis, concern = await service.analyze_sentiment(
-    ...     "Estou sentindo muita dor",
-    ...     context
-    ... )
-
-Version: 2.0.0 (Consolidated)
-Author: AI Architect
-Date: 20 Jan 2025
+Integrated with LangGraph and GeminiClient (app/ai/).
 """
 
-from .ai_service import (
-    AIService,
-    PatientContext,
-    ConcernLevel,
-    get_ai_service,
-    reset_ai_service,
-)
-from .nlp_utilities import NLPUtilities
+from __future__ import annotations
 
-from .cache_layer import (
-    CacheLayer,
-    CacheOperation,
-    CacheStrategy,
-    CacheMetrics,
-    CacheEntry,
-    get_cache_layer,
-    reset_cache_layer,
-)
+from typing import TYPE_CHECKING
 
-AICache = CacheLayer  # Backward compatibility alias
+from app.ai.models import PatientContext, ConcernLevel
+from .guardrails import normalize_ai_output, validate_ai_output, OutputKind
+from .execution_policy import AIFailureDecision, decide_ai_failure, is_real_ai_ready
+from .output_profiles import OutputProfile, list_output_profiles, resolve_output_profile
 
-from .batch_processor import (
-    BatchProcessor,
-    AIOperation,
-    BatchResult,
-    get_batch_processor,
-    reset_batch_processor,
-)
-
-from .patient_summary_service import (
-    PatientSummaryService,
-    get_patient_summary_service,
-)
-
-from .summary_data_aggregator import (
-    SummaryDataAggregator,
-    AggregatedPatientData,
-)
+if TYPE_CHECKING:
+    from .batch_processor import (
+        BatchProcessor,
+        AIOperation,
+        BatchResult,
+        get_batch_processor,
+    )
+    from .patient_summary_service import (
+        PatientSummaryService,
+        get_patient_summary_service,
+    )
+    from .summary_data_aggregator import (
+        SummaryDataAggregator,
+        AggregatedPatientData,
+    )
 
 __all__ = [
-    # Core AI Service
-    "AIService",
     "PatientContext",
     "ConcernLevel",
-    "NLPUtilities",
+    "normalize_ai_output",
+    "validate_ai_output",
+    "OutputKind",
+    "AIFailureDecision",
+    "decide_ai_failure",
+    "is_real_ai_ready",
+    "OutputProfile",
+    "resolve_output_profile",
+    "list_output_profiles",
+    "SentimentType",
+    "AIService",
+    "HumanizeResult",
+    "SentimentResponse",
+    "SentimentAnalyzer",
+    "ContextBuilder",
     "get_ai_service",
-    "reset_ai_service",
-    # Cache Layer
-    "CacheLayer",
-    "CacheOperation",
-    "CacheStrategy",
-    "CacheMetrics",
-    "CacheEntry",
-    "get_cache_layer",
-    "AICache",
-    "reset_cache_layer",
-    # Batch Processing
+    "get_sentiment_analyzer",
+    "get_context_builder",
     "BatchProcessor",
     "AIOperation",
     "BatchResult",
     "get_batch_processor",
-    "reset_batch_processor",
-    # Patient Summary
     "PatientSummaryService",
     "get_patient_summary_service",
     "SummaryDataAggregator",
     "AggregatedPatientData",
 ]
 
-__version__ = "2.0.0"  # Version 2.0 - Consolidated
 
-# ============================================================================
-# Backward Compatibility Aliases (Legacy Support)
-# ============================================================================
-# These aliases maintain backward compatibility with old import patterns.
-# Code using old imports will continue to work without changes.
-
-# Legacy function aliases
-get_ai_humanizer = get_ai_service  # AIService replaces AIHumanizer
-get_sentiment_analyzer = get_ai_service  # Sentiment analysis is now a method
-
-
-def get_context_builder():
-    return PatientContext  # PatientContext is the builder
-
-
-# Legacy class aliases
-AIHumanizer = AIService  # Renamed to AIService
-SentimentAnalyzer = AIService  # Integrated into AIService
-ContextBuilder = PatientContext  # PatientContext is the builder
-
-# Add legacy exports to __all__
-__all__.extend(
-    [
-        # Legacy aliases (deprecated but supported)
-        "get_ai_humanizer",
-        "get_sentiment_analyzer",
-        "get_context_builder",
-        "AIHumanizer",
-        "SentimentAnalyzer",
+def __getattr__(name: str):
+    if name in {
+        "AIService",
         "ContextBuilder",
-        # Additional exports
-        "reset_cache_layer",
-        "reset_batch_processor",
-    ]
-)
+        "HumanizeResult",
+        "SentimentAnalyzer",
+        "SentimentResponse",
+        "SentimentType",
+        "get_ai_service",
+        "get_context_builder",
+        "get_sentiment_analyzer",
+    }:
+        from .ai_service import (
+            AIService,
+            ContextBuilder,
+            HumanizeResult,
+            SentimentAnalyzer,
+            SentimentResponse,
+            SentimentType,
+            get_ai_service,
+            get_context_builder,
+            get_sentiment_analyzer,
+        )
 
-# Module metadata
-__consolidation_date__ = "2025-01-20"
-__files_consolidated__ = [
-    "ai.py (675 LOC)",
-    "ai_cache.py (419 LOC)",
-    "ai_cache_service.py (436 LOC - removed as duplicate)",
-    "ai_redis_cache.py (281 LOC)",
-    "ai_batch_processor.py (458 LOC - refactored)",
-]
-__total_reduction__ = "5 files → 3 files (40% reduction)"
-__loc_reduction__ = "2,269 LOC → 1,974 LOC (13% reduction, quality improved)"
-__duplications_eliminated__ = "436 LOC (100%)"
-__features_maintained__ = "100% - All functionality preserved with better integration"
-__backward_compatibility__ = "100% - Legacy imports supported via aliases"
+        return {
+            "AIService": AIService,
+            "ContextBuilder": ContextBuilder,
+            "HumanizeResult": HumanizeResult,
+            "SentimentAnalyzer": SentimentAnalyzer,
+            "SentimentResponse": SentimentResponse,
+            "SentimentType": SentimentType,
+            "get_ai_service": get_ai_service,
+            "get_context_builder": get_context_builder,
+            "get_sentiment_analyzer": get_sentiment_analyzer,
+        }[name]
+
+    """Lazy import heavy modules to avoid circular imports."""
+    if name in {"BatchProcessor", "AIOperation", "BatchResult", "get_batch_processor"}:
+        from .batch_processor import (
+            BatchProcessor,
+            AIOperation,
+            BatchResult,
+            get_batch_processor,
+        )
+
+        return {
+            "BatchProcessor": BatchProcessor,
+            "AIOperation": AIOperation,
+            "BatchResult": BatchResult,
+            "get_batch_processor": get_batch_processor,
+        }[name]
+
+    if name in {"PatientSummaryService", "get_patient_summary_service"}:
+        from .patient_summary_service import (
+            PatientSummaryService,
+            get_patient_summary_service,
+        )
+
+        return {
+            "PatientSummaryService": PatientSummaryService,
+            "get_patient_summary_service": get_patient_summary_service,
+        }[name]
+
+    if name in {"SummaryDataAggregator", "AggregatedPatientData"}:
+        from .summary_data_aggregator import (
+            SummaryDataAggregator,
+            AggregatedPatientData,
+        )
+
+        return {
+            "SummaryDataAggregator": SummaryDataAggregator,
+            "AggregatedPatientData": AggregatedPatientData,
+        }[name]
+
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

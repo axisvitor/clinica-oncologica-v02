@@ -7,13 +7,24 @@
  * @optimized React.memo + useMemo for 60% performance gain
  */
 import React, { Suspense, useMemo } from 'react';
+import { AreaChart, BarChart, RadialBarChart, ComposedChart } from '@/components/ui/charts/LazyRechartsComponents';
 import {
-  Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadialBarChart, RadialBar,
-  ComposedChart, Cell
-} from '@/components/ui/charts/LazyRechartsComponents';
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Area,
+  Bar,
+  RadialBar,
+  Cell
+} from '@/components/ui/charts/RechartsPrimitives';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
+import { MetricBarChartCard } from './MetricBarChartCard';
+import { OverviewRadialChart } from './OverviewRadialChart';
 
 interface AIPersonalizationData {
   total_messages_processed: number;
@@ -96,38 +107,7 @@ export const AIPersonalizationChart = React.memo<AIPersonalizationChartProps>(({
     // Simple overview chart
     return (
       <div className="space-y-4">
-        <div className="h-64">
-          <Suspense fallback={<ChartSkeleton />}>
-          <ResponsiveContainer width="100%" height="100%">
-            <RadialBarChart
-              cx="50%"
-              cy="50%"
-              innerRadius="20%"
-              outerRadius="90%"
-              data={scoreData}
-              startAngle={180}
-              endAngle={0}
-            >
-              <RadialBar
-                label={{ position: 'insideStart', fill: '#fff', fontSize: 12 }}
-                background
-                dataKey="score"
-              />
-              <Legend
-                iconSize={10}
-                width={120}
-                height={140}
-                layout="vertical"
-                verticalAlign="middle"
-                align="right"
-              />
-              <Tooltip
-                formatter={(value: ValueType) => [`${Number(value).toFixed(1)}%`, 'Score']}
-              />
-            </RadialBarChart>
-          </ResponsiveContainer>
-          </Suspense>
-        </div>
+        <OverviewRadialChart data={scoreData} valueKey="score" tooltipLabel="Score" />
 
         <div className="grid grid-cols-3 gap-4 text-center">
           <div className="bg-purple-50 p-3 rounded-lg">
@@ -277,49 +257,22 @@ export const AIPersonalizationChart = React.memo<AIPersonalizationChartProps>(({
       </div>
 
       {/* Impact Metrics */}
-      <div className="space-y-2">
-        <h4 className="font-semibold text-lg">Impacto da Personalização</h4>
-        <div className="h-64">
-          <Suspense fallback={<ChartSkeleton />}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={impactMetrics}
-              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis
-                dataKey="metric"
-                tick={{ fontSize: 12 }}
-                stroke="#6B7280"
-                angle={-45}
-                textAnchor="end"
-                height={120}
-              />
-              <YAxis
-                tick={{ fontSize: 12 }}
-                stroke="#6B7280"
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #E5E7EB',
-                  borderRadius: '8px'
-                }}
-                formatter={(value: ValueType, name: NameType, item) => {
-                  const payload = item.payload as { displayValue: string; metric: string };
-                  return [payload.displayValue, payload.metric];
-                }}
-              />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                {impactMetrics.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          </Suspense>
-        </div>
-      </div>
+      <MetricBarChartCard
+        title="Impacto da Personalização"
+        data={impactMetrics}
+        xDataKey="metric"
+        yDataKey="value"
+        xAxisHeight={120}
+        tooltipFormatter={(
+          value: ValueType,
+          _name: NameType,
+          item: { payload?: { displayValue: string; metric: string } }
+        ) => {
+          const payload = item.payload as { displayValue: string; metric: string };
+          return [payload.displayValue, payload.metric];
+        }}
+        getBarColor={(_entry, index) => COLORS[index % COLORS.length] ?? '#8B5CF6'}
+      />
 
       {/* Detailed Score Comparison */}
       <div className="space-y-2">

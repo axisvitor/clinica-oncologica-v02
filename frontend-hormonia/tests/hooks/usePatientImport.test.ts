@@ -228,7 +228,7 @@ describe('usePatientImport', () => {
             successfulRows: 10,
             failedRows: 0,
             skippedRows: 0,
-            startedAt: '2025-01-01T00:00:00Z',
+            startedAt: '2025-01-01T00:00:00-03:00',
           },
         ],
         total: 1,

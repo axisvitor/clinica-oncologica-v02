@@ -183,9 +183,9 @@ class WebhookResponse(BaseModel):
                 "timeout": 30,
                 "retry_enabled": True,
                 "max_retries": 3,
-                "created_at": "2025-01-01T00:00:00Z",
-                "updated_at": "2025-01-01T00:00:00Z",
-                "last_triggered_at": "2025-01-01T12:00:00Z",
+                "created_at": "2025-01-01T00:00:00-03:00",
+                "updated_at": "2025-01-01T00:00:00-03:00",
+                "last_triggered_at": "2025-01-01T12:00:00-03:00",
                 "success_count": 1250,
                 "failure_count": 5,
             }
@@ -281,8 +281,8 @@ class WebhookDelivery(BaseModel):
                 "response_time_ms": 156.3,
                 "error": None,
                 "next_retry_at": None,
-                "created_at": "2025-01-01T12:00:00Z",
-                "completed_at": "2025-01-01T12:00:00Z",
+                "created_at": "2025-01-01T12:00:00-03:00",
+                "completed_at": "2025-01-01T12:00:00-03:00",
             }
         },
     )
@@ -360,7 +360,7 @@ class WebhookSecretResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "secret_preview": "wh_new_se",
-                "rotated_at": "2025-01-01T12:00:00Z",
+                "rotated_at": "2025-01-01T12:00:00-03:00",
                 "message": "Secret rotated successfully. Save your new secret securely.",
             }
         }
@@ -386,7 +386,7 @@ class WebhookLog(BaseModel):
                 "event_type": "message.received",
                 "action": "delivery_success",
                 "details": {"status_code": 200, "response_time_ms": 145.2},
-                "created_at": "2025-01-01T12:00:00Z",
+                "created_at": "2025-01-01T12:00:00-03:00",
             }
         },
     )
@@ -468,8 +468,8 @@ class WebhookHealth(BaseModel):
                 "uptime_percentage": 99.8,
                 "recent_failures": 0,
                 "average_response_time_ms": 156.3,
-                "last_success_at": "2025-01-01T12:00:00Z",
-                "last_failure_at": "2024-12-31T10:00:00Z",
+                "last_success_at": "2025-01-01T12:00:00-03:00",
+                "last_failure_at": "2024-12-31T10:00:00-03:00",
                 "recommendations": [],
             }
         }
@@ -573,7 +573,7 @@ class FailedWebhook(BaseModel):
                 "url": "https://api.example.com/webhooks",
                 "description": "Production webhook",
                 "consecutive_failures": 5,
-                "last_failure_at": "2025-01-01T12:00:00Z",
+                "last_failure_at": "2025-01-01T12:00:00-03:00",
                 "last_error": "Connection timeout",
                 "status": "error",
             }

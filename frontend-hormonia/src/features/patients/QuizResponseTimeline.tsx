@@ -6,13 +6,14 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { FileText, CheckCircle, Clock, AlertCircle } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
+import type { PatientQuizResponses, QuizSession } from '@/lib/api-client/types'
 interface QuizResponseTimelineProps {
   patientId: string
   onSessionClick?: (sessionId: string) => void
   className?: string
 }
 
-interface _TimelineSession {
+interface TimelineSession {
   id: string
   template_name: string
   template_version: string
@@ -23,7 +24,7 @@ interface _TimelineSession {
 
 export function QuizResponseTimeline({ patientId, onSessionClick, className }: QuizResponseTimelineProps) {
   // Fetch patient quiz sessions
-  const { data: sessionsData, isLoading, error } = useQuery({
+  const { data: sessionsData, isLoading, error } = useQuery<PatientQuizResponses>({
     queryKey: ['patient-quiz-sessions-timeline', patientId],
     queryFn: async () => {
       const result = await apiClient.quiz.getPatientResponses(patientId, {
@@ -35,17 +36,17 @@ export function QuizResponseTimeline({ patientId, onSessionClick, className }: Q
   })
 
   // Convert sessions to timeline format
-  const sessions = React.useMemo(() => {
+  const sessions = React.useMemo<TimelineSession[]>(() => {
     if (!sessionsData?.sessions) return []
 
-    return sessionsData.sessions.map(session => ({
+    return sessionsData.sessions.map((session: QuizSession) => ({
       id: session.id,
       template_name: 'Quiz', // Default name, could be enhanced with template lookup
       template_version: '1.0',
       status: session.status,
       date: session.created_at,
       responseCount: 0 // This could be fetched separately if needed
-    })).sort((a, b) =>
+    })).sort((a: TimelineSession, b: TimelineSession) =>
       new Date(b.date).getTime() - new Date(a.date).getTime()
     )
   }, [sessionsData])
@@ -168,12 +169,13 @@ export function QuizResponseTimeline({ patientId, onSessionClick, className }: Q
                     </div>
                     
                     {/* Content */}
-                    <div 
-                      className={`flex-1 ml-8 p-4 rounded-lg border bg-white ${
-                        onSessionClick ? 'cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all' : ''
-                      }`}
-                      onClick={() => onSessionClick?.(session.id)}
-                    >
+                    {onSessionClick ? (
+                      <button
+                        type="button"
+                        className="flex-1 ml-8 p-4 rounded-lg border bg-white cursor-pointer hover:border-blue-300 hover:shadow-sm transition-[box-shadow,border-color]"
+                        onClick={() => onSessionClick(session.id)}
+                        aria-label={`Abrir sessao ${session.template_name}`}
+                      >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-2">
@@ -192,7 +194,29 @@ export function QuizResponseTimeline({ patientId, onSessionClick, className }: Q
                           {session.status}
                         </Badge>
                       </div>
-                    </div>
+                      </button>
+                    ) : (
+                      <div className="flex-1 ml-8 p-4 rounded-lg border bg-white">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Icon className={`h-4 w-4 ${colorClass.split(' ')[0]}`} />
+                              <span className="font-medium text-sm">{session.template_name}</span>
+                            </div>
+                            
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              <div>Versão: {session.template_version}</div>
+                              <div>{formatDate(session.date)}</div>
+                              <div>{session.responseCount} {session.responseCount === 1 ? 'resposta' : 'respostas'}</div>
+                            </div>
+                          </div>
+                          
+                          <Badge variant={getStatusBadgeVariant(session.status)}>
+                            {session.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}

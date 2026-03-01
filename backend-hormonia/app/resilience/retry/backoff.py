@@ -5,7 +5,7 @@ Production-ready backoff strategies with jitter and customization.
 """
 
 import random
-import time
+import threading
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Iterator
@@ -170,7 +170,7 @@ class ExponentialBackoff:
             f"strategy={self.config.strategy.value})"
         )
 
-        time.sleep(delay)
+        threading.Event().wait(delay)
 
     async def await_delay(self, attempt: int) -> None:
         """Async wait for calculated delay"""

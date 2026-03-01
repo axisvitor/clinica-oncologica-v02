@@ -66,6 +66,9 @@ Application PR: #456 (Add priority support to WhatsApp sender)
 References:
 - PostgreSQL ENUM types: https://www.postgresql.org/docs/current/datatype-enum.html
 - Message priority RFC: docs/architecture/MESSAGE_PRIORITY_DESIGN.md
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from alembic import op

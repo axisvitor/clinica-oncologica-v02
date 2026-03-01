@@ -12,12 +12,14 @@ Endpoints:
 
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from sqlalchemy.future import select
 
 from ._shared import (
     UUID,
     datetime,
+    AsyncSession,
     logger,
-    get_db,
+    get_async_db,
     limiter,
     QuizSession,
     QuizTemplate,
@@ -34,6 +36,7 @@ from ._shared import (
     Dict,
     Any,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 
@@ -49,7 +52,7 @@ async def send_monthly_quiz_reminder(
     request: Request,
     quiz_id: UUID,
     reminder_request: QuizReminderRequestV2,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple),
 ):
     """
@@ -65,11 +68,12 @@ async def send_monthly_quiz_reminder(
         )
 
     # Verify quiz exists and is published
-    quiz = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
-        .first()
+    quiz_result = await db.execute(
+        select(QuizTemplate).where(
+            QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz"
+        )
     )
+    quiz = quiz_result.scalar_one_or_none()
 
     if not quiz:
         raise HTTPException(
@@ -100,14 +104,13 @@ async def send_monthly_quiz_reminder(
 
     # Find patients who haven't completed
     completed_patient_ids = (
-        db.query(QuizSession.patient_id)
-        .filter(
-            QuizSession.quiz_template_id == quiz_id, QuizSession.status == "completed"
+        await db.execute(
+            select(QuizSession.patient_id)
+            .where(QuizSession.quiz_template_id == quiz_id, QuizSession.status == "completed")
+            .distinct()
         )
-        .distinct()
-        .all()
     )
-    completed_patient_ids = [str(p[0]) for p in completed_patient_ids]
+    completed_patient_ids = [str(pid) for pid in completed_patient_ids.scalars().all()]
 
     non_completers = [
         pid for pid in target_patient_ids if pid not in completed_patient_ids
@@ -119,7 +122,7 @@ async def send_monthly_quiz_reminder(
     # In production, send actual reminders here via WhatsApp/Email/SMS
     # For now, just log and update metadata
     reminder_entry = {
-        "sent_at": datetime.now(timezone.utc).isoformat(),
+        "sent_at": now_sao_paulo().isoformat(),
         "sent_by": str(current_user.id),
         "recipient_count": len(non_completers),
         "delivery_method": reminder_request.delivery_method.value,
@@ -129,7 +132,7 @@ async def send_monthly_quiz_reminder(
     reminder_history.append(reminder_entry)
     quiz.tags["reminder_history"] = reminder_history
 
-    db.commit()
+    await db.commit()
 
     logger.info(f"Reminder sent for quiz {quiz_id} to {len(non_completers)} patients")
 
@@ -152,7 +155,7 @@ async def get_quiz_schedule(
     request: Request,
     from_date: Optional[datetime] = Query(None, description="Start date filter"),
     to_date: Optional[datetime] = Query(None, description="End date filter"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple),
     redis_cache=Depends(get_redis_cache),
 ):
@@ -169,9 +172,11 @@ async def get_quiz_schedule(
         )
 
     # Get all monthly quizzes with scheduled dates
-    query = db.query(QuizTemplate).filter(QuizTemplate.category == "monthly_quiz")
-
-    quizzes = query.all()
+    quizzes = (
+        await db.execute(
+            select(QuizTemplate).where(QuizTemplate.category == "monthly_quiz")
+        )
+    ).scalars().all()
 
     # Filter and build schedule
     schedule = []
@@ -215,7 +220,7 @@ async def get_quiz_schedule(
 async def generate_monthly_quiz(
     request: Request,
     generate_request: QuizGenerateRequestV2,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple),
 ):
     """
@@ -234,11 +239,10 @@ async def generate_monthly_quiz(
         )
 
     # Verify template exists
-    template = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == generate_request.template_id)
-        .first()
+    template_result = await db.execute(
+        select(QuizTemplate).where(QuizTemplate.id == generate_request.template_id)
     )
+    template = template_result.scalar_one_or_none()
 
     if not template:
         raise HTTPException(
@@ -304,11 +308,11 @@ async def generate_monthly_quiz(
     )
 
     if generate_request.auto_publish:
-        monthly_quiz.tags["published_at"] = datetime.now(timezone.utc).isoformat()
+        monthly_quiz.tags["published_at"] = now_sao_paulo().isoformat()
 
     db.add(monthly_quiz)
-    db.commit()
-    db.refresh(monthly_quiz)
+    await db.commit()
+    await db.refresh(monthly_quiz)
 
     logger.info(
         f"Auto-generated monthly quiz '{generated_name}' for {generate_request.target_month}"
@@ -343,7 +347,7 @@ async def generate_monthly_quiz(
 @limiter.limit("50/minute")
 async def list_quiz_templates(
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple),
     redis_cache=Depends(get_redis_cache),
 ):
@@ -368,10 +372,13 @@ async def list_quiz_templates(
 
     # Get templates (exclude monthly quizzes)
     templates = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.category != "monthly_quiz", QuizTemplate.is_active)
-        .all()
+        await db.execute(
+            select(QuizTemplate).where(
+                QuizTemplate.category != "monthly_quiz", QuizTemplate.is_active
+            )
+        )
     )
+    templates = templates.scalars().all()
 
     result = []
     for template in templates:

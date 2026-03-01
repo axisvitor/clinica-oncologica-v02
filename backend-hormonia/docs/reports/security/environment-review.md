@@ -31,8 +31,6 @@ All primary security keys are properly generated with high entropy:
 | Key | Status | Length | Entropy | Notes |
 |-----|--------|--------|---------|-------|
 | `SECURITY_SECRET_KEY` | ✅ Secure | 86 chars | 49 unique | Excellent |
-| `AUTH_JWT_SECRET_KEY` | ✅ Secure | 86 chars | 51 unique | Excellent |
-| `SECURITY_ENCRYPTION_KEY` | ✅ Secure | 44 chars | 30 unique | Good |
 | `SECURITY_CSRF_SECRET_KEY` | ✅ Secure | 43 chars | 34 unique | Good |
 | `QUIZ_TOKEN_SECRET` | ✅ Secure | 43 chars | 30 unique | Good |
 | `ENCRYPTION_KEY_CURRENT` | ✅ Secure | 44 chars | 30 unique | Good |
@@ -261,7 +259,7 @@ CELERY_WORKER_SOFT_TIME_LIMIT_SECONDS=240  ✅ 4-minute soft limit
 
 **Settings**:
 ```
-CELERY_ENABLE_UTC=true                      ✅ Timezone consistency
+CELERY_ENABLE_TZ_NORMALIZATION=false        ✅ Timezone consistency
 CELERY_ENABLE_TRACK_STARTED=true            ✅ Task monitoring
 CELERY_TASK_SERIALIZER=json                 ✅ Secure serialization
 CELERY_RESULT_SERIALIZER=json               ✅ Secure serialization
@@ -374,12 +372,12 @@ SLACK_DEFAULT_CHANNEL=#alerts
 
 The following keys have identical values by design:
 
-1. **Encryption Keys**:
+1. **Encryption Keys (Legacy Fallback)**:
    ```
    ENCRYPTION_KEY_CURRENT=TUMDOz5ZjuMiKaUDLsOim7IGS5KSLhRevvuhyNx5ALQ=
    SECURITY_ENCRYPTION_KEY=TUMDOz5ZjuMiKaUDLsOim7IGS5KSLhRevvuhyNx5ALQ=
    ```
-   **Reason**: Backward compatibility during migration
+   **Reason**: Legacy fallback during migration (prefer ENCRYPTION_KEY_CURRENT)
 
 2. **PHI Encryption Keys**:
    ```

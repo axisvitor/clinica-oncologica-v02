@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append(os.getcwd())
-from app.core.database import SessionLocal
+from app.database import SessionLocal
 from sqlalchemy import text
 import json
 from collections import defaultdict
@@ -57,9 +57,9 @@ def verify_multi_message_days():
             
             print()
 
-        analyze_flow_messages('initial_15_days')
-        analyze_flow_messages('days_16_45')
-        analyze_flow_messages('monthly_recurring')
+        analyze_flow_messages('onboarding')
+        analyze_flow_messages('daily_follow_up')
+        analyze_flow_messages('quiz_mensal')
 
     finally:
         db.close()

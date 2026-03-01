@@ -17,6 +17,7 @@ from sqlalchemy import and_
 from app.models.quiz import QuizSession
 from app.schemas.monthly_quiz import MonthlyQuizStats
 import logging
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +64,10 @@ class ReportGenerator:
                 s
                 for s in sessions
                 if s.status != "completed"
-                and datetime.now(timezone.utc)
+                and now_sao_paulo()
                 <= datetime.fromisoformat(
                     (s.session_metadata or {}).get(
-                        "expires_at", datetime.now(timezone.utc).isoformat()
+                        "expires_at", now_sao_paulo().isoformat()
                     )
                 )
             ]
@@ -76,10 +77,10 @@ class ReportGenerator:
                 s
                 for s in sessions
                 if s.status != "completed"
-                and datetime.now(timezone.utc)
+                and now_sao_paulo()
                 > datetime.fromisoformat(
                     (s.session_metadata or {}).get(
-                        "expires_at", datetime.now(timezone.utc).isoformat()
+                        "expires_at", now_sao_paulo().isoformat()
                     )
                 )
             ]
@@ -106,7 +107,12 @@ class ReportGenerator:
         # Delivery methods distribution
         delivery_distribution: Dict[str, int] = {}
         for session in sessions:
-            method = (session.session_metadata or {}).get("delivery_method", "unknown")
+            metadata = session.session_metadata or {}
+            method = (
+                metadata.get("delivery_method")
+                or metadata.get("last_delivery_method")
+                or "unknown"
+            )
             delivery_distribution[method] = delivery_distribution.get(method, 0) + 1
 
         return MonthlyQuizStats(
@@ -141,7 +147,7 @@ class ReportGenerator:
         completed = query.filter(QuizSession.status == "completed").count()
 
         # Calculate expired links and average score
-        current_time = datetime.now(timezone.utc)
+        current_time = now_sao_paulo()
         sessions = query.all()
         expired = 0
         active = 0
@@ -234,7 +240,8 @@ class ReportGenerator:
             "duration_seconds": duration,
             "current_question": session.current_question,
             "access_count": metadata.get("access_count", 0),
-            "delivery_method": metadata.get("delivery_method"),
+            "delivery_method": metadata.get("delivery_method")
+            or metadata.get("last_delivery_method"),
             "expires_at": metadata.get("expires_at"),
             "link_status": metadata.get("link_status"),
             "delivery_attempts": metadata.get("delivery_attempts", []),
@@ -393,7 +400,13 @@ class ReportGenerator:
             for attempt in attempts:
                 delivery_stats["total_attempts"] += 1
                 status = attempt.get("status", "unknown")
-                method = attempt.get("method", "unknown")
+                method = (
+                    attempt.get("delivery_method")
+                    or attempt.get("method")
+                    or metadata.get("delivery_method")
+                    or metadata.get("last_delivery_method")
+                    or "unknown"
+                )
 
                 if status == "sent":
                     delivery_stats["successful_deliveries"] += 1

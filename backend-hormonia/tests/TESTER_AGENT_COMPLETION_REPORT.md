@@ -335,5 +335,5 @@ tests/
 
 **Tester Agent Mission**: ✅ **COMPLETE**
 
-Report generated: 2025-12-23 06:59 UTC
+Report generated: 2025-12-23 06:59 Sao Paulo
 Working directory: /mnt/c/Meu Projetos/clinica-oncologica-v02-1/backend-hormonia

@@ -18,6 +18,7 @@
  *   logger.warn('Warning message');
  *   logger.error('Error message', error);
  */
+/* eslint-disable no-console */
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 

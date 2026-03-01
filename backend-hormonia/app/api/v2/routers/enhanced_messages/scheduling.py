@@ -10,7 +10,7 @@ Handles scheduling of messages including:
 
 from typing import Optional
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 import json
 import logging
 from fastapi import (
@@ -23,7 +23,9 @@ from fastapi import (
     Request,
 )
 
-from app.database import get_db
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.database.async_engine import get_async_db
 from app.models.patient import Patient
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
@@ -40,6 +42,7 @@ from app.api.v2.dependencies import (
 )
 from app.utils.rate_limiter import limiter
 from .dependencies import _render_template
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -58,7 +61,7 @@ async def schedule_message(
     schedule_data: ScheduledMessageV2Create,
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> ScheduledMessageV2Response:
     """
@@ -72,9 +75,16 @@ async def schedule_message(
     """
     try:
         # Validate patient access
-        patient = (
-            db.query(Patient).filter(Patient.id == schedule_data.patient_id).first()
-        )
+        try:
+            patient_id = UUID(str(schedule_data.patient_id))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid patient_id",
+            ) from exc
+
+        result = await db.execute(select(Patient).where(Patient.id == patient_id))
+        patient = result.scalar_one_or_none()
 
         if not patient:
             raise HTTPException(
@@ -111,8 +121,8 @@ async def schedule_message(
             "status": "pending",
             "occurrences_sent": 0,
             "next_occurrence": schedule_data.scheduled_for,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "created_at": now_sao_paulo(),
+            "updated_at": now_sao_paulo(),
         }
 
         # Store in cache (5 min TTL for scheduled messages)

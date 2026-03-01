@@ -9,12 +9,28 @@ Tests multi-layer rate limiting functionality:
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock, MagicMock, patch
 from fastapi import Request, HTTPException
 from app.utils.rate_limiter import (
     multi_layer_rate_limit,
     check_rate_limit_redis,
 )
+
+
+def _build_pipeline(result=None, side_effect=None):
+    pipeline = MagicMock()
+    if side_effect is not None:
+        pipeline.execute = AsyncMock(side_effect=side_effect)
+    else:
+        pipeline.execute = AsyncMock(return_value=result)
+    return pipeline
+
+
+def _build_redis_client(pipeline):
+    redis_client = AsyncMock()
+    redis_client.pipeline = Mock(return_value=pipeline)
+    redis_client.close = AsyncMock()
+    return redis_client
 
 
 class TestRedisRateLimiting:
@@ -24,9 +40,9 @@ class TestRedisRateLimiting:
     async def test_check_rate_limit_redis_under_limit(self):
         """Test rate limit check when under the limit."""
         # Mock Redis client
-        redis_client = AsyncMock()
-        redis_client.pipeline.return_value = redis_pipeline = AsyncMock()
-        redis_pipeline.execute.return_value = [None, None, 5, None]  # 5 requests
+        redis_client = _build_redis_client(
+            _build_pipeline(result=[None, None, 5, None])
+        )
 
         allowed, retry_after = await check_rate_limit_redis(
             key="test:key",
@@ -43,9 +59,9 @@ class TestRedisRateLimiting:
     async def test_check_rate_limit_redis_over_limit(self):
         """Test rate limit check when over the limit."""
         # Mock Redis client
-        redis_client = AsyncMock()
-        redis_client.pipeline.return_value = redis_pipeline = AsyncMock()
-        redis_pipeline.execute.return_value = [None, None, 15, None]  # 15 requests
+        redis_client = _build_redis_client(
+            _build_pipeline(result=[None, None, 15, None])
+        )
 
         allowed, retry_after = await check_rate_limit_redis(
             key="test:key",
@@ -76,7 +92,7 @@ class TestRedisRateLimiting:
         """Test rate limit fails open on Redis error."""
         # Mock Redis client that raises error
         redis_client = AsyncMock()
-        redis_client.pipeline.side_effect = Exception("Redis error")
+        redis_client.pipeline = Mock(side_effect=Exception("Redis error"))
 
         allowed, retry_after = await check_rate_limit_redis(
             key="test:key",
@@ -115,14 +131,14 @@ class TestMultiLayerRateLimiting:
 
         # Mock Redis to allow request
         with patch('app.utils.rate_limiter.get_redis_client') as mock_redis:
-            redis_client = AsyncMock()
-            redis_client.pipeline.return_value = redis_pipeline = AsyncMock()
-            # Global: 5 requests, Phone: 2 requests (both under limit)
-            redis_pipeline.execute.side_effect = [
-                [None, None, 5, None],    # Global check
-                [None, None, 2, None],    # Phone check
-            ]
-            redis_client.close = AsyncMock()
+            redis_client = _build_redis_client(
+                _build_pipeline(
+                    side_effect=[
+                        [None, None, 5, None],    # Global check
+                        [None, None, 2, None],    # Phone check
+                    ]
+                )
+            )
             mock_redis.return_value = redis_client
 
             result = await decorated(mock_request)
@@ -147,11 +163,9 @@ class TestMultiLayerRateLimiting:
         )(mock_endpoint)
 
         with patch('app.utils.rate_limiter.get_redis_client') as mock_redis:
-            redis_client = AsyncMock()
-            redis_client.pipeline.return_value = redis_pipeline = AsyncMock()
-            # Global: 1500 requests (over limit)
-            redis_pipeline.execute.return_value = [None, None, 1500, None]
-            redis_client.close = AsyncMock()
+            redis_client = _build_redis_client(
+                _build_pipeline(result=[None, None, 1500, None])
+            )
             mock_redis.return_value = redis_client
 
             with pytest.raises(HTTPException) as exc_info:
@@ -179,14 +193,14 @@ class TestMultiLayerRateLimiting:
         )(mock_endpoint)
 
         with patch('app.utils.rate_limiter.get_redis_client') as mock_redis:
-            redis_client = AsyncMock()
-            redis_client.pipeline.return_value = redis_pipeline = AsyncMock()
-            # Global: 500 requests (under), Phone: 150 requests (over)
-            redis_pipeline.execute.side_effect = [
-                [None, None, 500, None],   # Global check (pass)
-                [None, None, 150, None],   # Phone check (fail)
-            ]
-            redis_client.close = AsyncMock()
+            redis_client = _build_redis_client(
+                _build_pipeline(
+                    side_effect=[
+                        [None, None, 500, None],   # Global check (pass)
+                        [None, None, 150, None],   # Phone check (fail)
+                    ]
+                )
+            )
             mock_redis.return_value = redis_client
 
             with pytest.raises(HTTPException) as exc_info:
@@ -230,10 +244,9 @@ class TestMultiLayerRateLimiting:
             )(mock_endpoint)
 
             with patch('app.utils.rate_limiter.get_redis_client') as mock_redis:
-                redis_client = AsyncMock()
-                redis_client.pipeline.return_value = redis_pipeline = AsyncMock()
-                redis_pipeline.execute.return_value = [None, None, 5, None]
-                redis_client.close = AsyncMock()
+                redis_client = _build_redis_client(
+                    _build_pipeline(result=[None, None, 5, None])
+                )
                 mock_redis.return_value = redis_client
 
                 result = await decorated(mock_request)
@@ -273,10 +286,9 @@ class TestMultiLayerRateLimiting:
         decorated = multi_layer_rate_limit()(mock_endpoint)
 
         with patch('app.utils.rate_limiter.get_redis_client') as mock_redis:
-            redis_client = AsyncMock()
-            redis_client.pipeline.return_value = redis_pipeline = AsyncMock()
-            redis_pipeline.execute.return_value = [None, None, 5, None]
-            redis_client.close = AsyncMock()
+            redis_client = _build_redis_client(
+                _build_pipeline(result=[None, None, 5, None])
+            )
             mock_redis.return_value = redis_client
 
             result = await decorated(mock_request)
@@ -304,10 +316,9 @@ class TestRateLimitHeaders:
         )(mock_endpoint)
 
         with patch('app.utils.rate_limiter.get_redis_client') as mock_redis:
-            redis_client = AsyncMock()
-            redis_client.pipeline.return_value = redis_pipeline = AsyncMock()
-            redis_pipeline.execute.return_value = [None, None, 1500, None]
-            redis_client.close = AsyncMock()
+            redis_client = _build_redis_client(
+                _build_pipeline(result=[None, None, 1500, None])
+            )
             mock_redis.return_value = redis_client
 
             with pytest.raises(HTTPException) as exc_info:
@@ -339,13 +350,14 @@ class TestRateLimitHeaders:
         )(mock_endpoint)
 
         with patch('app.utils.rate_limiter.get_redis_client') as mock_redis:
-            redis_client = AsyncMock()
-            redis_client.pipeline.return_value = redis_pipeline = AsyncMock()
-            redis_pipeline.execute.side_effect = [
-                [None, None, 500, None],   # Global (pass)
-                [None, None, 150, None],   # Phone (fail)
-            ]
-            redis_client.close = AsyncMock()
+            redis_client = _build_redis_client(
+                _build_pipeline(
+                    side_effect=[
+                        [None, None, 500, None],   # Global (pass)
+                        [None, None, 150, None],   # Phone (fail)
+                    ]
+                )
+            )
             mock_redis.return_value = redis_client
 
             with pytest.raises(HTTPException) as exc_info:
@@ -374,10 +386,6 @@ class TestRateLimitIntegration:
 
         # Simulate multiple concurrent requests
         with patch('app.utils.rate_limiter.get_redis_client') as mock_redis:
-            redis_client = AsyncMock()
-            redis_client.pipeline.return_value = redis_pipeline = AsyncMock()
-            redis_client.close = AsyncMock()
-
             request_count = 0
 
             async def mock_execute():
@@ -385,7 +393,9 @@ class TestRateLimitIntegration:
                 request_count += 1
                 return [None, None, request_count, None]
 
+            redis_pipeline = _build_pipeline()
             redis_pipeline.execute = mock_execute
+            redis_client = _build_redis_client(redis_pipeline)
             mock_redis.return_value = redis_client
 
             # First 10 requests should succeed

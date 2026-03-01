@@ -2,10 +2,17 @@
 Message Service Package - Consolidated Message Management Core (QW-022).
 
 This package consolidates core message functionality previously spread across
-multiple files:
+multiple files.
+
+Important scheduler note:
+- `MessageScheduler` exported here is a legacy compatibility surface.
+- Canonical Celery/timezone scheduling lives under
+  `app.domain.messaging.scheduling`.
+
+Core capabilities:
 - Message CRUD operations (from message.py)
 - Message factory and templates (from message_factory.py)
-- Message scheduling (from message_scheduler.py)
+- Legacy scheduling compatibility (from message_scheduler.py)
 
 Package Structure:
     - config.py: Configuration, enums, and constants
@@ -43,6 +50,7 @@ from .exceptions import (
 # Core services
 from .service import MessageService
 from .factory import MessageFactory
+# Legacy compatibility scheduler (prefer app.domain.messaging.scheduling)
 from .scheduler import MessageScheduler
 
 # Templates

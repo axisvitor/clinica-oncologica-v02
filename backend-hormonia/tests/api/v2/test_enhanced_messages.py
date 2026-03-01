@@ -2,7 +2,7 @@
 Tests for Enhanced Messages API v2
 
 Comprehensive test suite covering template management, scheduling,
-A/B testing, analytics, and bulk operations.
+analytics, and bulk operations.
 """
 
 import pytest
@@ -15,6 +15,7 @@ from app.models.patient import Patient
 from app.models.user import User, UserRole
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 class TestTemplateManagementV2:
     """Test suite for template management endpoints"""
 
@@ -253,7 +254,7 @@ class TestScheduledMessagesV2:
             "patient_id": str(patient.id),
             "content": "Reminder message",
             "type": "text",
-            "scheduled_for": (datetime.utcnow() + timedelta(hours=1)).isoformat() + "Z",
+            "scheduled_for": (now_sao_paulo_naive() + timedelta(hours=1)).isoformat(),
             "optimization_strategy": "immediate",
             "priority": "normal"
         }
@@ -291,7 +292,7 @@ class TestScheduledMessagesV2:
             "patient_id": str(patient.id),
             "content": "Daily reminder",
             "type": "text",
-            "scheduled_for": (datetime.utcnow() + timedelta(hours=1)).isoformat() + "Z",
+            "scheduled_for": (now_sao_paulo_naive() + timedelta(hours=1)).isoformat(),
             "recurrence": {
                 "type": "daily",
                 "interval": 1,
@@ -334,7 +335,7 @@ class TestScheduledMessagesV2:
             "patient_id": str(patient.id),
             "content": "Past message",
             "type": "text",
-            "scheduled_for": (datetime.utcnow() - timedelta(hours=1)).isoformat() + "Z",
+            "scheduled_for": (now_sao_paulo_naive() - timedelta(hours=1)).isoformat(),
             "optimization_strategy": "immediate"
         }
 
@@ -381,142 +382,6 @@ class TestScheduledMessagesV2:
         assert response.status_code == 200
         data = response.json()
         assert "data" in data
-
-
-class TestABTestingV2:
-    """Test suite for A/B testing endpoints"""
-
-    def test_create_ab_test_success(
-        self, client: TestClient, admin_headers: dict
-    ):
-        """Test creating an A/B test successfully"""
-        test_data = {
-            "name": "Reminder Test",
-            "description": "Testing different reminder formats",
-            "variants": [
-                {
-                    "name": "Short",
-                    "content": "Consulta amanhã",
-                    "weight": 50.0
-                },
-                {
-                    "name": "Detailed",
-                    "content": "Olá! Lembre-se da consulta amanhã às 14h.",
-                    "weight": 50.0
-                }
-            ],
-            "patient_ids": ["pat_1", "pat_2", "pat_3"],
-            "start_date": (datetime.utcnow() + timedelta(days=1)).isoformat() + "Z",
-            "end_date": (datetime.utcnow() + timedelta(days=8)).isoformat() + "Z",
-            "success_metric": "read_rate",
-            "metadata": {}
-        }
-
-        response = client.post(
-            "/api/v2/enhanced-messages/ab-tests",
-            json=test_data,
-            headers=admin_headers
-        )
-
-        assert response.status_code == 201
-        data = response.json()
-        assert data["name"] == test_data["name"]
-        assert data["status"] == "draft"
-        assert len(data["variants"]) == 2
-
-    def test_create_ab_test_invalid_weights(
-        self, client: TestClient, admin_headers: dict
-    ):
-        """Test creating A/B test with invalid weights fails"""
-        test_data = {
-            "name": "Invalid Test",
-            "variants": [
-                {
-                    "name": "A",
-                    "content": "Content A",
-                    "weight": 40.0  # Only sums to 70
-                },
-                {
-                    "name": "B",
-                    "content": "Content B",
-                    "weight": 30.0
-                }
-            ],
-            "patient_ids": ["pat_1"],
-            "start_date": (datetime.utcnow() + timedelta(days=1)).isoformat() + "Z",
-            "end_date": (datetime.utcnow() + timedelta(days=8)).isoformat() + "Z",
-            "success_metric": "read_rate"
-        }
-
-        response = client.post(
-            "/api/v2/enhanced-messages/ab-tests",
-            json=test_data,
-            headers=admin_headers
-        )
-
-        assert response.status_code == 422  # Validation error
-
-    def test_create_ab_test_non_admin_fails(
-        self, client: TestClient, auth_headers: dict
-    ):
-        """Test non-admin cannot create A/B tests"""
-        test_data = {
-            "name": "Test",
-            "variants": [
-                {"name": "A", "content": "A", "weight": 50.0},
-                {"name": "B", "content": "B", "weight": 50.0}
-            ],
-            "patient_ids": ["pat_1"],
-            "start_date": (datetime.utcnow() + timedelta(days=1)).isoformat() + "Z",
-            "end_date": (datetime.utcnow() + timedelta(days=8)).isoformat() + "Z",
-            "success_metric": "read_rate"
-        }
-
-        response = client.post(
-            "/api/v2/enhanced-messages/ab-tests",
-            json=test_data,
-            headers=auth_headers
-        )
-
-        # Should fail with 403 if user is not admin
-        # If user happens to be admin, test will pass
-        assert response.status_code in [403, 201]
-
-    def test_get_ab_test_results(
-        self, client: TestClient, admin_headers: dict
-    ):
-        """Test getting A/B test results"""
-        # First create a test
-        test_data = {
-            "name": "Results Test",
-            "variants": [
-                {"name": "A", "content": "Content A", "weight": 50.0},
-                {"name": "B", "content": "Content B", "weight": 50.0}
-            ],
-            "patient_ids": ["pat_1", "pat_2"],
-            "start_date": (datetime.utcnow() + timedelta(days=1)).isoformat() + "Z",
-            "end_date": (datetime.utcnow() + timedelta(days=8)).isoformat() + "Z",
-            "success_metric": "read_rate"
-        }
-
-        create_response = client.post(
-            "/api/v2/enhanced-messages/ab-tests",
-            json=test_data,
-            headers=admin_headers
-        )
-
-        if create_response.status_code == 201:
-            test_id = create_response.json()["id"]
-
-            # Get results
-            response = client.get(
-                f"/api/v2/enhanced-messages/ab-tests/{test_id}/results",
-                headers=admin_headers
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "results" in data or data["results"] is None  # May not have results yet
 
 
 class TestAnalyticsV2:
@@ -778,19 +643,3 @@ class TestRateLimiting:
 
 class TestPermissions:
     """Test suite for permission checks"""
-
-    def test_doctor_can_create_template(
-        self, client: TestClient, db: Session
-    ):
-        """Test that doctors can create templates"""
-        # This would require creating a doctor user and auth headers
-        # Implementation depends on auth setup
-        pass
-
-    def test_patient_cannot_create_template(
-        self, client: TestClient, db: Session
-    ):
-        """Test that patients cannot create templates"""
-        # This would require creating a patient user and auth headers
-        # Implementation depends on auth setup
-        pass

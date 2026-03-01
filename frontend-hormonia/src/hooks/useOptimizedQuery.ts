@@ -78,14 +78,16 @@ export function useOptimizedQuery<TData = unknown, TError = Error>(
     ...queryOptions
   } = options;
 
-  const queryKeyString = JSON.stringify(queryOptions.queryKey);
+  const typedQueryOptions = queryOptions as UseQueryOptions<TData, TError>;
+
+  const queryKeyString = JSON.stringify(typedQueryOptions.queryKey ?? []);
   const dedupeAwareQueryFn = useDedupeAwareQueryFn<TData>({
     queryKeyString,
     deduplicationWindow,
-    originalQueryFn: queryOptions.queryFn,
+    originalQueryFn: typedQueryOptions.queryFn,
   });
 
-  const queryResult = useConfiguredQuery<TData, TError>(queryOptions, dedupeAwareQueryFn);
+  const queryResult = useConfiguredQuery<TData, TError>(typedQueryOptions, dedupeAwareQueryFn);
 
   const { data, error, isLoading, isFetching, isSuccess, isError, refetch } = queryResult;
 

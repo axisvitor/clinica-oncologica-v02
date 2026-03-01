@@ -9,11 +9,12 @@ from typing import List, Optional, Dict, Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.appointment import Appointment
-from app.dependencies import RequestContext
+from app.utils.request_context import RequestContext
 from app.api.v2.dependencies import apply_field_selection
 
 
@@ -44,7 +45,16 @@ def _serialize_user(user: User, fields: Optional[List[str]] = None) -> dict:
     }
 
     if fields:
-        data = apply_field_selection(data, fields)
+        required_fields = {
+            "id",
+            "email",
+            "role",
+            "is_active",
+            "created_at",
+            "updated_at",
+        }
+        normalized_fields = list(set(fields) | required_fields)
+        data = apply_field_selection(data, normalized_fields)
 
     return data
 
@@ -129,20 +139,35 @@ async def _log_admin_action(
         logger.error(f"Failed to log admin action {action}: {e}")
 
 
-def _status_count(db, status_value: str) -> int:
+async def _status_count(db: AsyncSession, status_value: str) -> int:
     """
     Count appointments by status.
 
     Args:
-        db: Database session
+        db: AsyncSession instance
         status_value: Appointment status value
 
     Returns:
         int: Count of appointments with the given status
     """
-    return (
-        db.query(func.count(Appointment.id))
-        .filter(Appointment.status == status_value)
-        .scalar()
-        or 0
+    result = await db.execute(
+        select(func.count(Appointment.id)).where(Appointment.status == status_value)
     )
+    return result.scalar() or 0
+
+
+async def _status_count_async(db: AsyncSession, status_value: str) -> int:
+    """
+    Count appointments by status (async version for AsyncSession handlers).
+
+    Args:
+        db: AsyncSession instance
+        status_value: Appointment status value
+
+    Returns:
+        int: Count of appointments with the given status
+    """
+    result = await db.execute(
+        select(func.count(Appointment.id)).where(Appointment.status == status_value)
+    )
+    return result.scalar() or 0

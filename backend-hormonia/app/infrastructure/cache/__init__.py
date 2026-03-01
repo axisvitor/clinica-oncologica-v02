@@ -45,17 +45,11 @@ from .invalidation import (
     cache_user_data,
     get_cached_user_data,
     invalidate_user_cache,
-    cache_user_data_async,
-    get_cached_user_data_async,
     invalidate_user_cache_async,
     cache_patient_data,
     get_cached_patient_data,
     invalidate_patient_cache,
-    cache_patient_data_async,
-    get_cached_patient_data_async,
-    invalidate_patient_cache_async,
     invalidate_cache,
-    get_cache_manager,
 )
 
 __all__ = [
@@ -85,18 +79,12 @@ __all__ = [
     "cache_user_data",
     "get_cached_user_data",
     "invalidate_user_cache",
-    "cache_user_data_async",
-    "get_cached_user_data_async",
     "invalidate_user_cache_async",
     # Patient cache operations (backward compatibility)
     "cache_patient_data",
     "get_cached_patient_data",
     "invalidate_patient_cache",
-    "cache_patient_data_async",
-    "get_cached_patient_data_async",
-    "invalidate_patient_cache_async",
     # Utilities
     "generate_request_cache_key",
     "generate_user_cache_key",
-    "get_cache_manager",
 ]

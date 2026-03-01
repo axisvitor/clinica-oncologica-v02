@@ -16,10 +16,9 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, cast, func, or_, String
 from sqlalchemy.orm import joinedload, selectinload
 
-from app.models.message import Message
 from app.models.patient import FlowState, Patient
 
 from .encryption_helpers import build_search_criteria
@@ -75,6 +74,14 @@ class PatientPaginationMixin:
         except Exception:
             pass  # Cache write failure - continue without cache
 
+    def _compute_total_count(self, filters: Dict[str, Any]) -> int:
+        """Compute authoritative total count directly from DB for first-page queries."""
+        count_criteria = self._build_count_criteria(filters)
+        count_q = self.db.query(func.count(Patient.id))
+        if count_criteria:
+            count_q = count_q.filter(and_(*count_criteria))
+        return int(count_q.scalar() or 0)
+
     def list_v2(
         self,
         filters: Dict[str, Any],
@@ -106,6 +113,10 @@ class PatientPaginationMixin:
 
         # Always filter soft-deleted
         criteria.append(Patient.deleted_at.is_(None))
+
+        # Exclude quarantined patients unless explicitly included
+        if not filters.get("include_quarantined"):
+            criteria.append(self._build_quarantine_filter())
 
         # Doctor Filter
         if filters.get("doctor_id"):
@@ -173,7 +184,7 @@ class PatientPaginationMixin:
             ]:
                 try:
                     cursor_val = datetime.fromisoformat(
-                        cursor_val.replace("Z", "+00:00")
+                        cursor_val
                     )
                 except ValueError:
                     pass  # Handle date vs datetime if needed
@@ -207,17 +218,7 @@ class PatientPaginationMixin:
             total = self._get_cached_count(filters)
 
             if total is None:
-                # Build clean filter criteria for count (exclude cursor pagination)
-                count_criteria = self._build_count_criteria(filters)
-
-                # Execute optimized count query
-                count_q = self.db.query(func.count(Patient.id))
-                if count_criteria:
-                    count_q = count_q.filter(and_(*count_criteria))
-
-                total = count_q.scalar()
-
-                # Cache the count for 60 seconds
+                total = self._compute_total_count(filters)
                 self._set_cached_count(filters, total, ttl=60)
 
         # 5. Sorting
@@ -233,6 +234,16 @@ class PatientPaginationMixin:
         has_more = len(results) > limit
         if has_more:
             results = results[:limit]
+
+        # If cache invalidation failed elsewhere, cached totals may be stale.
+        if not cursor_data and total is not None:
+            expected_min_total = len(results) + (1 if has_more else 0)
+            cache_inconsistent = total < expected_min_total or (
+                not has_more and total != len(results)
+            )
+            if cache_inconsistent:
+                total = self._compute_total_count(filters)
+                self._set_cached_count(filters, total, ttl=60)
 
         # 7. Next Cursor
         next_cursor = None
@@ -253,6 +264,9 @@ class PatientPaginationMixin:
         """Build filter criteria for count queries (excludes cursor pagination)"""
         count_criteria = []
         count_criteria.append(Patient.deleted_at.is_(None))
+
+        if not filters.get("include_quarantined"):
+            count_criteria.append(self._build_quarantine_filter())
 
         if filters.get("doctor_id"):
             count_criteria.append(Patient.doctor_id == filters["doctor_id"])
@@ -307,6 +321,23 @@ class PatientPaginationMixin:
 
         return count_criteria
 
+    def _build_quarantine_filter(self):
+        """Build quarantine filter with SQLite-compatible fallback."""
+        dialect = getattr(getattr(self.db, "bind", None), "dialect", None)
+        dialect_name = dialect.name if dialect else ""
+
+        if dialect_name == "sqlite":
+            payload = cast(Patient.patient_data, String)
+            return or_(
+                Patient.patient_data.is_(None),
+                ~payload.like('%"quarantine": true%'),
+            )
+
+        return or_(
+            Patient.patient_data["quarantine"].astext.is_(None),
+            Patient.patient_data["quarantine"].astext == "false",
+        )
+
     async def list_patients_optimized(
         self,
         doctor_id: str,
@@ -329,7 +360,7 @@ class PatientPaginationMixin:
         QUERY OPTIMIZATION:
         - joinedload: doctor (1:1)
         - selectinload: messages, quiz_sessions, flow_states (1:many)
-        - Nested joinedload: Message.sender (1:1 within 1:many)
+        - selectinload: messages (1:many)
 
         EXPECTED QUERIES:
         - Page 1: 4 queries (main + 3 selectinload batches)
@@ -359,8 +390,8 @@ class PatientPaginationMixin:
 
         # 2. selectinload for 1:many relationships (separate optimized queries)
         query = query.options(
-            # Messages with sender (nested join)
-            selectinload(Patient.messages).joinedload(Message.sender),
+            # Messages
+            selectinload(Patient.messages),
             # Quiz sessions
             selectinload(Patient.quiz_sessions),
             # Flow states
@@ -421,7 +452,7 @@ class PatientPaginationMixin:
             if isinstance(cursor_val, str) and sort_by in ["created_at", "updated_at"]:
                 try:
                     cursor_val = datetime.fromisoformat(
-                        cursor_val.replace("Z", "+00:00")
+                        cursor_val
                     )
                 except ValueError as e:
                     logger.warning(
@@ -453,8 +484,7 @@ class PatientPaginationMixin:
         if not cursor_data:
             total = self._get_cached_count(filters)
             if total is None:
-                count_q = self.db.query(func.count(Patient.id)).filter(and_(*criteria))
-                total = count_q.scalar()
+                total = self._compute_total_count(filters)
                 self._set_cached_count(filters, total, ttl=60)
 
         # Sorting
@@ -470,6 +500,15 @@ class PatientPaginationMixin:
         has_more = len(results) > limit
         if has_more:
             results = results[:limit]
+
+        if not cursor_data and total is not None:
+            expected_min_total = len(results) + (1 if has_more else 0)
+            cache_inconsistent = total < expected_min_total or (
+                not has_more and total != len(results)
+            )
+            if cache_inconsistent:
+                total = self._compute_total_count(filters)
+                self._set_cached_count(filters, total, ttl=60)
 
         # Generate next cursor
         next_cursor = None

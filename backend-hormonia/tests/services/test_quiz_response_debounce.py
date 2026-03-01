@@ -8,6 +8,7 @@ import pytest
 import asyncio
 from uuid import uuid4
 from unittest.mock import AsyncMock, patch
+from redis.exceptions import ConnectionError as RedisConnectionError, TimeoutError as RedisTimeoutError
 
 from app.services.quiz_response_debounce import (
     QuizResponseDebouncer,
@@ -33,7 +34,7 @@ def message_metadata():
     return {
         "message_id": str(uuid4()),
         "whatsapp_id": "test_whatsapp_id",
-        "timestamp": "2025-01-01T12:00:00Z"
+        "timestamp": "2025-01-01T12:00:00-03:00"
     }
 
 
@@ -362,11 +363,13 @@ class TestQuizResponseDebouncerIntegration:
     async def test_real_debounce_timing(self, session_id, question_id):
         """Test actual debounce timing with real Redis."""
         try:
-            from app.core.redis_unified import get_async_redis
+            from app.core.redis_manager import get_async_redis_client as get_async_redis
 
             redis_client = await get_async_redis()
 
             debouncer = QuizResponseDebouncer(debounce_window_seconds=1)
+            debounce_key = debouncer._build_debounce_key(session_id, question_id)
+            await redis_client.delete(debounce_key)
 
             # First response
             first = await debouncer.should_process_response(
@@ -380,8 +383,14 @@ class TestQuizResponseDebouncerIntegration:
             )
             assert second is False
 
-            # Wait for debounce to expire
-            await asyncio.sleep(1.5)
+            # Wait for debounce to expire (robust against backend timing granularity)
+            deadline = asyncio.get_running_loop().time() + 5.0
+            while asyncio.get_running_loop().time() < deadline:
+                if await redis_client.exists(debounce_key) == 0:
+                    break
+                await asyncio.sleep(0.1)
+
+            assert await redis_client.exists(debounce_key) == 0
 
             # Third response (after window expires)
             third = await debouncer.should_process_response(
@@ -392,5 +401,5 @@ class TestQuizResponseDebouncerIntegration:
             # Cleanup
             await debouncer.clear_debounce(session_id)
 
-        except Exception as e:
+        except (RedisConnectionError, RedisTimeoutError, OSError) as e:
             pytest.skip(f"Redis not available: {e}")

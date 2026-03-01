@@ -1,39 +1,42 @@
 """Business Logic Dependencies - Domain Validation & Access Control"""
 
-from fastapi import Depends, HTTPException, status, Path, Query, Request
-from typing import Optional, Dict, Any
+from fastapi import Depends, HTTPException, status, Path, Query
+from typing import Dict, Any, TYPE_CHECKING
 from uuid import UUID
 
 from app.models.user import User, UserRole
 from app.models.patient import Patient
 from app.schemas.common import PaginationParams
-from app.dependencies.auth_dependencies import get_current_user_object_from_session, get_optional_user
+from app.dependencies.auth_dependencies import get_current_user_object_from_session
 from app.dependencies.service_dependencies import (
     get_patient_service,
     get_patient_repository,
 )
-from app.services import ServiceProvider
-from typing import Generator
+from app.exceptions import (
+    NotFoundError as DomainNotFoundError,
+    patient_not_found_exception,
+)
+from app.core.exceptions import NotFoundError as CoreNotFoundError
+if TYPE_CHECKING:
+    from app.service_provider import ServiceProvider
+from app.utils.auth_helpers import extract_user_context, ensure_uuid
+from app.dependencies.thread_safe_provider import ThreadSafeProviderDependency
 
 
-# CRITICAL: Lazy import to avoid circular dependency
-class _ThreadSafeProviderDependency:
-    """Callable class for lazy importing to prevent circular import"""
+def _load_thread_safe_provider():
+    from app.dependencies import get_thread_safe_service_provider
 
-    def __call__(self) -> Generator:
-        from app.dependencies import get_thread_safe_service_provider
-
-        yield from get_thread_safe_service_provider()
+    return get_thread_safe_service_provider()
 
 
-_get_provider_dep = _ThreadSafeProviderDependency()
+_get_provider_dep = ThreadSafeProviderDependency(_load_thread_safe_provider)
 
 # =============================================================================
 # PAGINATION DEPENDENCIES
 # =============================================================================
 
 
-def get_pagination_params(
+async def get_pagination_params(
     skip: int = Query(0, ge=0, description="Number of items to skip"),
     limit: int = Query(100, ge=1, le=200, description="Maximum items to return"),
 ) -> PaginationParams:
@@ -48,7 +51,7 @@ def get_pagination_params(
 
 async def validate_patient_access(
     patient_id: UUID,
-    current_user: User = Depends(get_current_user_object_from_session),
+    current_user: Any = Depends(get_current_user_object_from_session),
     patient_service=Depends(get_patient_service),
 ) -> Patient:
     """Validate user has access to patient and return patient object"""
@@ -59,33 +62,53 @@ async def validate_patient_access(
     try:
         patient = patient_service.get_patient(patient_id)
         if not patient:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
-            )
+            raise patient_not_found_exception(str(patient_id))
     except HTTPException:
         raise
+    except (DomainNotFoundError, CoreNotFoundError):
+        raise patient_not_found_exception(str(patient_id))
     except Exception as e:
         logger.error(f"Error retrieving patient {patient_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error retrieving patient information",
-        )
+        # Fallback path for transient service-layer failures (e.g., circuit breaker
+        # temporarily open) while repository access is still available.
+        try:
+            db_session = getattr(patient_service, "db", None)
+            patient = None
+            if db_session is not None:
+                patient = (
+                    db_session.query(Patient)
+                    .filter(Patient.id == patient_id)
+                    .first()
+                )
+            if not patient:
+                raise patient_not_found_exception(str(patient_id))
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error retrieving patient information",
+            )
 
-    # Implement role-based authorization
-    if current_user.role == UserRole.ADMIN:
+    # Implement role-based authorization (supports dict or User)
+    role_enum, user_id = extract_user_context(current_user)
+
+    if role_enum == UserRole.ADMIN:
         return patient
-    elif current_user.role == UserRole.DOCTOR:
-        if patient.doctor_id != current_user.id:
+
+    if role_enum == UserRole.DOCTOR:
+        user_uuid = ensure_uuid(user_id)
+        if not user_uuid or patient.doctor_id != user_uuid:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: Patient not assigned to current doctor",
             )
         return patient
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied: Insufficient permissions for patient access",
-        )
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access denied: Insufficient permissions for patient access",
+    )
 
 
 async def get_validated_patient(
@@ -135,7 +158,7 @@ def verify_patient_access(
 
 
 async def verify_monthly_quiz_token(
-    token: str, services: ServiceProvider = Depends(_get_provider_dep)
+    token: str, services: "ServiceProvider" = Depends(_get_provider_dep)
 ) -> Dict[str, Any]:
     """
     Verify monthly quiz token for public access.
@@ -154,54 +177,3 @@ async def verify_monthly_quiz_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired quiz token",
         )
-
-
-# =============================================================================
-# REQUEST CONTEXT DEPENDENCIES (For audit logging)
-# =============================================================================
-
-
-class RequestContext:
-    """Container for request context information used in audit logging"""
-
-    def __init__(
-        self,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        user_id: Optional[UUID] = None,
-        session_id: Optional[str] = None,
-    ):
-        self.ip_address = ip_address
-        self.user_agent = user_agent
-        self.user_id = user_id
-        self.session_id = session_id
-
-
-async def get_request_context(
-    request: Request, current_user: Optional[User] = Depends(get_optional_user)
-) -> RequestContext:
-    """Extract request context for audit logging"""
-    # Extract IP address with X-Forwarded-For support
-    ip_address = None
-    if "x-forwarded-for" in request.headers:
-        ip_address = request.headers["x-forwarded-for"].split(",")[0].strip()
-    elif "x-real-ip" in request.headers:
-        ip_address = request.headers["x-real-ip"]
-    else:
-        ip_address = request.client.host if request.client else "unknown"
-
-    # Extract user agent
-    user_agent = request.headers.get("user-agent", "unknown")
-
-    # Extract user ID if authenticated
-    user_id = current_user.id if current_user else None
-
-    # Extract session ID from request state or generate one
-    session_id = getattr(request.state, "session_id", None)
-
-    return RequestContext(
-        ip_address=ip_address,
-        user_agent=user_agent,
-        user_id=user_id,
-        session_id=session_id,
-    )

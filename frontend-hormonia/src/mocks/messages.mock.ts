@@ -21,8 +21,8 @@ export const MOCK_MESSAGES: MockMessage[] = [
     content: 'Olá Ana! Lembramos que sua consulta está marcada para amanhã às 10h.',
     type: 'sent',
     status: 'delivered',
-    created_at: '2024-09-30T10:00:00Z',
-    delivered_at: '2024-09-30T10:00:15Z'
+    created_at: '2024-09-30T10:00:00-03:00',
+    delivered_at: '2024-09-30T10:00:15-03:00'
   },
   {
     id: 'msg-002',
@@ -30,9 +30,9 @@ export const MOCK_MESSAGES: MockMessage[] = [
     content: 'Obrigada pelo lembrete! Estarei lá.',
     type: 'received',
     status: 'delivered',
-    created_at: '2024-09-30T10:05:00Z',
-    delivered_at: '2024-09-30T10:05:05Z',
-    read_at: '2024-09-30T10:06:00Z'
+    created_at: '2024-09-30T10:05:00-03:00',
+    delivered_at: '2024-09-30T10:05:05-03:00',
+    read_at: '2024-09-30T10:06:00-03:00'
   },
   {
     id: 'msg-003',
@@ -40,8 +40,8 @@ export const MOCK_MESSAGES: MockMessage[] = [
     content: 'Sr. Roberto, como você está se sentindo hoje?',
     type: 'sent',
     status: 'delivered',
-    created_at: '2024-09-29T14:00:00Z',
-    delivered_at: '2024-09-29T14:00:10Z'
+    created_at: '2024-09-29T14:00:00-03:00',
+    delivered_at: '2024-09-29T14:00:10-03:00'
   },
   {
     id: 'msg-004',
@@ -49,9 +49,9 @@ export const MOCK_MESSAGES: MockMessage[] = [
     content: 'Estou bem, obrigado. Sem sintomas adversos.',
     type: 'received',
     status: 'delivered',
-    created_at: '2024-09-29T14:30:00Z',
-    delivered_at: '2024-09-29T14:30:05Z',
-    read_at: '2024-09-29T15:00:00Z'
+    created_at: '2024-09-29T14:30:00-03:00',
+    delivered_at: '2024-09-29T14:30:05-03:00',
+    read_at: '2024-09-29T15:00:00-03:00'
   },
   {
     id: 'msg-005',
@@ -59,8 +59,8 @@ export const MOCK_MESSAGES: MockMessage[] = [
     content: 'Maria, não esqueça de tomar a medicação prescrita 3x ao dia.',
     type: 'sent',
     status: 'delivered',
-    created_at: '2024-10-01T08:00:00Z',
-    delivered_at: '2024-10-01T08:00:12Z'
+    created_at: '2024-10-01T08:00:00-03:00',
+    delivered_at: '2024-10-01T08:00:12-03:00'
   },
   {
     id: 'msg-006',
@@ -68,8 +68,8 @@ export const MOCK_MESSAGES: MockMessage[] = [
     content: 'Sr. Carlos, seus exames ficaram prontos. Agende uma consulta para revisão.',
     type: 'sent',
     status: 'delivered',
-    created_at: '2024-09-28T11:00:00Z',
-    delivered_at: '2024-09-28T11:00:08Z'
+    created_at: '2024-09-28T11:00:00-03:00',
+    delivered_at: '2024-09-28T11:00:08-03:00'
   },
   {
     id: 'msg-007',
@@ -77,8 +77,8 @@ export const MOCK_MESSAGES: MockMessage[] = [
     content: 'Juliana, parabéns pelo progresso! Continue assim.',
     type: 'sent',
     status: 'delivered',
-    created_at: '2024-10-01T09:00:00Z',
-    delivered_at: '2024-10-01T09:00:15Z'
+    created_at: '2024-10-01T09:00:00-03:00',
+    delivered_at: '2024-10-01T09:00:15-03:00'
   },
   {
     id: 'msg-008',
@@ -86,9 +86,9 @@ export const MOCK_MESSAGES: MockMessage[] = [
     content: 'Muito obrigada! Estou me sentindo muito melhor.',
     type: 'received',
     status: 'delivered',
-    created_at: '2024-10-01T09:15:00Z',
-    delivered_at: '2024-10-01T09:15:05Z',
-    read_at: '2024-10-01T09:20:00Z'
+    created_at: '2024-10-01T09:15:00-03:00',
+    delivered_at: '2024-10-01T09:15:05-03:00',
+    read_at: '2024-10-01T09:20:00-03:00'
   }
 ]
 

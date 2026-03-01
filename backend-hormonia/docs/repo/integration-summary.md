@@ -21,25 +21,28 @@
 ### Backend Environment Variables (Production)
 ```bash
 # Core
-ENVIRONMENT=production
-DEBUG=false
+APP_ENVIRONMENT=production
+APP_ENABLE_DEBUG=false
 
 # API & CORS (HTTPS required)
-FRONTEND_URL=https://app.your-domain.com
-QUIZ_URL=https://quiz.your-domain.com
-ALLOWED_ORIGINS=https://app.your-domain.com,https://quiz.your-domain.com
+CORS_FRONTEND_URL=https://app.your-domain.com
+CORS_QUIZ_URL=https://quiz.your-domain.com
+CORS_ALLOWED_ORIGINS=https://app.your-domain.com,https://quiz.your-domain.com
 
 # Database (SSL required)
 DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:PORT/DB?sslmode=require
 
 # Redis (SSL required)
 REDIS_URL=rediss://default:PASSWORD@HOST:PORT
-REDIS_SSL=true
+REDIS_ENABLE_SSL=true
+REDIS_SSL_CERT_REQS=required
 
 # Security (Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))")
-JWT_SECRET=<secure-random-value>
-CSRF_SECRET_KEY=<secure-random-value>
-ENCRYPTION_KEY=<fernet-key>
+SECURITY_SECRET_KEY=<secure-random-value>
+SECURITY_CSRF_SECRET_KEY=<secure-random-value>
+PHI_ENCRYPTION_KEY=<base64-encoded-32-byte-key>
+ENCRYPTION_KEY_CURRENT=<fernet-key>
+HASH_SALT=<hex-encoded-salt>
 
 # Firebase Admin SDK
 FIREBASE_ADMIN_PROJECT_ID=<production-project-id>
@@ -97,7 +100,7 @@ VITE_SENTRY_DSN=https://KEY@ORG.ingest.sentry.io/PROJECT
 ### 1. Backend Deployment
 ```bash
 # Verify environment variables
-cat .env | grep -E "(FRONTEND_URL|ALLOWED_ORIGINS|DATABASE_URL|REDIS_URL)"
+cat .env | grep -E "(CORS_FRONTEND_URL|CORS_ALLOWED_ORIGINS|DATABASE_URL|REDIS_URL)"
 
 # Run database migrations
 alembic upgrade head
@@ -174,7 +177,7 @@ const ws = new WebSocket('wss://your-backend-url.com/ws/connect?token=TOKEN');
 **Problem:** `Access to XMLHttpRequest has been blocked by CORS policy`
 
 **Solution:**
-1. Verify backend `ALLOWED_ORIGINS` includes frontend URL
+1. Verify backend `CORS_ALLOWED_ORIGINS` includes frontend URL
 2. Ensure frontend uses HTTPS in production
 3. Check backend logs for CORS middleware messages
 

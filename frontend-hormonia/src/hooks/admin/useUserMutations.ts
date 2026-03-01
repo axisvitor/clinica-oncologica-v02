@@ -13,7 +13,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { apiClient } from '@/lib/api-client'
-import { CreateUserRequest, UpdateUserRequest } from '@/lib/api-client/types'
+import { CreateUserRequest, MessageResponse, UpdateUserRequest } from '@/lib/api-client/types'
 import { AdminUser } from '@/types/admin'
 import { useToast } from '@/components/ui/use-toast'
 import { getErrorMessage } from '@/lib/utils/type-guards'
@@ -100,7 +100,7 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       logger.debug('Creating user:', userData.email)
       return apiClient.adminUsers.create(userData as CreateUserRequest)
     },
-    onSuccess: (newUser) => {
+    onSuccess: (newUser: AdminUser) => {
       invalidateQueries()
 
       toast({
@@ -131,7 +131,7 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       logger.debug('Updating user:', id)
       return apiClient.adminUsers.update(id, userData as UpdateUserRequest)
     },
-    onSuccess: (updatedUser, variables) => {
+    onSuccess: (updatedUser: AdminUser, variables: { id: string; userData: Partial<AdminUser> }) => {
       invalidateQueries()
       queryClient.invalidateQueries({ queryKey: ['admin-user', variables.id] })
 
@@ -163,7 +163,7 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       logger.debug('Deleting user:', id)
       return apiClient.adminUsers.delete(id)
     },
-    onSuccess: (_, id) => {
+    onSuccess: (_: MessageResponse, id: string) => {
       invalidateQueries()
 
       toast({
@@ -202,7 +202,7 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
 
       return { successes, failures, total: userIds.length }
     },
-    onSuccess: (result) => {
+    onSuccess: (result: BulkOperationResult) => {
       invalidateQueries()
 
       if (result.failures > 0) {
@@ -247,7 +247,7 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
 
       return { successes, failures, total: userIds.length }
     },
-    onSuccess: (result) => {
+    onSuccess: (result: BulkOperationResult) => {
       invalidateQueries()
 
       if (result.failures > 0) {
@@ -284,7 +284,7 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       logger.debug('Updating permissions for user:', id)
       return apiClient.adminUsers.updatePermissions(id, permissions)
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (_: unknown, variables: { id: string; permissions: string[] }) => {
       invalidateQueries()
       queryClient.invalidateQueries({ queryKey: ['admin-user', variables.id] })
 
@@ -325,7 +325,7 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       // Return generated password for display
       return { temporary_password: tempPassword }
     },
-    onSuccess: (response) => {
+    onSuccess: (response: { temporary_password: string }) => {
       toast({
         title: 'Senha redefinida com sucesso',
         description: `Nova senha temporária: ${response.temporary_password}`,

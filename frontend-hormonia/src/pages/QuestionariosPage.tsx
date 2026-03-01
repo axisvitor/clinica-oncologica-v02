@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -10,38 +10,26 @@ import { useQuestionarios } from '@/hooks/api/useQuestionarios'
 import { createLogger } from '@/lib/logger'
 
 // Import extracted components
-import {
-  QuestionariosHeader,
-  QuestionariosStats,
-  QuestionariosFilters,
-  QuestionariosGrid,
-  CreateQuestionarioModal,
-  EditQuestionarioModal,
-  type QuestionariosFiltersConfig,
-  type QuizQuestion,
-  type CreateQuizFormData
-} from '@/features/questionarios'
-import type { QuizTemplate } from '@/types/api'
+import { QuestionariosHeader } from '@/features/questionarios/QuestionariosHeader'
+import { QuestionariosStats } from '@/features/questionarios/QuestionariosStats'
+import { QuestionariosFilters } from '@/features/questionarios/QuestionariosFilters'
+import type { QuestionariosFiltersConfig } from '@/features/questionarios/QuestionariosFilters'
+import { QuestionariosGrid } from '@/features/questionarios/QuestionariosGrid'
+import { CreateQuestionarioModal } from '@/features/questionarios/CreateQuestionarioModal'
+import type { CreateQuizFormData } from '@/features/questionarios/CreateQuestionarioModal'
+import { EditQuestionarioModal } from '@/features/questionarios/EditQuestionarioModal'
+import type { QuizTemplate, QuizQuestion } from '@/types/api'
 
 const logger = createLogger('QuestionariosPage')
 
-/**
- * Question option interface
- */
-interface QuestionOption {
-  id: string
-  text: string
-  value: string | number
-  is_correct?: boolean
+type QuizTemplatePayload = Parameters<typeof apiClient.quizzes.createTemplate>[0] & {
+  version?: string
+  is_active?: boolean
 }
 
-/**
- * Validation rule interface
- */
-interface ValidationRule {
-  type: string
-  value: unknown
-  message: string
+type QuizTemplateUpdatePayload = Parameters<typeof apiClient.quizzes.updateTemplate>[1] & {
+  version?: string
+  is_active?: boolean
 }
 
 /**
@@ -135,28 +123,61 @@ export function QuestionariosPage() {
   })
 
   const {
-    handleSubmit,
     reset,
     watch,
     setValue,
-    formState: { isSubmitting }
+    formState: { isSubmitting = false }
   } = form
 
   const questions = watch('questions')
+  const templatesPayload = useMemo(
+    () => templatesData as { items: QuizTemplate[]; total: number; page: number } | undefined,
+    [templatesData]
+  )
+
+  const {
+    totalTemplates,
+    activeTemplates,
+    totalResponses,
+    averageCompletionRate,
+  } = useMemo(() => {
+    const items = (templatesData?.items ?? []) as Array<QuizTemplate & {
+      analytics?: { total_responses?: number; completion_rate?: number }
+    }>
+    let activeCount = 0
+    let responsesTotal = 0
+    let completionSum = 0
+
+    for (const template of items) {
+      if (template.is_active) {
+        activeCount += 1
+      }
+      responsesTotal += template.analytics?.total_responses ?? 0
+      completionSum += template.analytics?.completion_rate ?? 0
+    }
+
+    return {
+      totalTemplates: templatesData?.total ?? 0,
+      activeTemplates: activeCount,
+      totalResponses: responsesTotal,
+      averageCompletionRate: items.length > 0 ? completionSum / items.length : 0
+    }
+  }, [templatesData])
 
   // Mutations
   const createMutation = useMutation({
     mutationFn: (data: CreateQuizFormData) => {
       logger.info('Creating quiz template', { name: data.name, version: data.version })
-      return apiClient.quizzes.createTemplate({
+      const payload: QuizTemplatePayload = {
         ...data,
         questions: data.questions.map(q => ({
           question_text: q.text,
           question_type: q.type,
           options: q.options?.map(o => o.text),
           required: q.required
-        })) as any
-      })
+        }))
+      }
+      return apiClient.quizzes.createTemplate(payload)
     },
     onSuccess: () => {
       logger.info('Quiz template created successfully')
@@ -204,15 +225,16 @@ export function QuestionariosPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: CreateQuizFormData }) => {
       logger.info('Updating quiz template', { templateId: id, name: data.name })
-      return apiClient.quizzes.updateTemplate(id, {
+      const payload: QuizTemplateUpdatePayload = {
         ...data,
         questions: data.questions.map(q => ({
           question_text: q.text,
           question_type: q.type,
           options: q.options?.map(o => o.text),
           required: q.required
-        })) as any
-      })
+        }))
+      }
+      return apiClient.quizzes.updateTemplate(id, payload)
     },
     onSuccess: () => {
       logger.info('Quiz template updated successfully')
@@ -255,28 +277,28 @@ export function QuestionariosPage() {
   }, [templatesData, filters])
 
   // Event handlers
-  const handleSearch = (value: string) => {
+  const handleSearch = useCallback((value: string) => {
     setFilters((prev: QuestionariosFiltersConfig) => ({ ...prev, search: value }))
     setCurrentPage(1)
-  }
+  }, [setFilters, setCurrentPage])
 
-  const handleFilterChange = <K extends keyof QuestionariosFiltersConfig>(
+  const handleFilterChange = useCallback(<K extends keyof QuestionariosFiltersConfig,>(
     key: K,
     value: QuestionariosFiltersConfig[K]
   ) => {
     setFilters((prev: QuestionariosFiltersConfig) => ({ ...prev, [key]: value }))
     setCurrentPage(1)
-  }
+  }, [setFilters, setCurrentPage])
 
-  const onSubmit = (data: CreateQuizFormData) => {
+  const onSubmit = useCallback((data: CreateQuizFormData) => {
     if (editingTemplate) {
       updateMutation.mutate({ id: editingTemplate.id, data })
     } else {
       createMutation.mutate(data)
     }
-  }
+  }, [createMutation, editingTemplate, updateMutation])
 
-  const handleDeleteTemplate = (id: string) => {
+  const handleDeleteTemplate = useCallback((id: string) => {
     if (confirmDeleteId === id) {
       setConfirmDeleteId(null)
       deleteMutation.mutate(id)
@@ -291,24 +313,24 @@ export function QuestionariosPage() {
     setTimeout(() => {
       setConfirmDeleteId((prev) => (prev === id ? null : prev))
     }, 3000)
-  }
+  }, [confirmDeleteId, deleteMutation, toast])
 
-  const handleEditTemplate = (template: QuizTemplate) => {
+  const handleEditTemplate = useCallback((template: QuizTemplate) => {
     setEditingTemplate(template)
     setValue('name', template.name)
     setValue('version', template.version)
     setValue('questions', template.questions)
     setValue('is_active', template.is_active)
     setIsEditDialogOpen(true)
-  }
+  }, [setValue])
 
-  const handleCloseEditDialog = () => {
+  const handleCloseEditDialog = useCallback(() => {
     setIsEditDialogOpen(false)
     setEditingTemplate(null)
     reset()
-  }
+  }, [reset])
 
-  const addQuestion = () => {
+  const addQuestion = useCallback(() => {
     const newQuestion: QuizQuestion = {
       id: `q${questions.length + 1}`,
       type: 'multiple_choice',
@@ -321,13 +343,13 @@ export function QuestionariosPage() {
       ]
     }
     setValue('questions', [...questions, newQuestion])
-  }
+  }, [questions, setValue])
 
-  const removeQuestion = (index: number) => {
+  const removeQuestion = useCallback((index: number) => {
     setValue('questions', questions.filter((_: unknown, i: number) => i !== index))
-  }
+  }, [questions, setValue])
 
-  const updateQuestion = (index: number, field: string, value: unknown) => {
+  const updateQuestion = useCallback((index: number, field: string, value: unknown) => {
     const updatedQuestions = [...questions]
     const currentQuestion = updatedQuestions[index]
     if (!currentQuestion) return
@@ -337,19 +359,7 @@ export function QuestionariosPage() {
       [field]: value
     }
     setValue('questions', updatedQuestions)
-  }
-
-  // Calculate statistics from server data
-  const analyticsList = (templatesData?.items ?? []) as Array<QuizTemplate & {
-    analytics?: { total_responses?: number; completion_rate?: number }
-  }>
-
-  const totalTemplates = templatesData?.total || 0
-  const activeTemplates = analyticsList.filter((t) => t.is_active).length
-  const totalResponses = analyticsList.reduce((sum, t) => sum + (t.analytics?.total_responses ?? 0), 0)
-  const averageCompletionRate = analyticsList.length > 0
-    ? analyticsList.reduce((sum, t) => sum + (t.analytics?.completion_rate ?? 0), 0) / analyticsList.length
-    : 0
+  }, [questions, setValue])
 
   return (
     <div className="container mx-auto py-4 sm:py-6 lg:py-8 px-3 sm:px-4 lg:px-6 max-w-7xl">
@@ -376,7 +386,7 @@ export function QuestionariosPage() {
 
       {/* Templates Grid */}
       <QuestionariosGrid
-        templatesData={templatesData as any}
+        templatesData={templatesPayload}
         isLoading={isLoadingTemplates}
         error={templatesError}
         filters={filters}

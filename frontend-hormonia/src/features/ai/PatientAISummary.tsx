@@ -28,7 +28,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { usePatientSummaryManager } from '@/hooks/usePatientSummary';
-import type { PatientSummaryResponse, SeverityLevel } from '@/types/api';
+import type { HealthConcern, PatientSummaryResponse, SeverityLevel } from '@/types/api';
 
 const _logger = createLogger('PatientAISummary');
 
@@ -51,6 +51,7 @@ const severityColors: Record<SeverityLevel, string> = {
 export function PatientAISummary({ patientId, patientName: _patientName }: PatientAISummaryProps) {
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [summariesEnabled, setSummariesEnabled] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<SectionKey, boolean>>({
     overview: true,
     quiz: false,
@@ -64,11 +65,13 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
   const {
     summaries,
     isLoading,
+    isFetching,
     generateSummary,
     isGenerating,
     exportToPdf,
     isExporting,
-  } = usePatientSummaryManager(patientId);
+    refreshSummaries,
+  } = usePatientSummaryManager(patientId, { enabled: summariesEnabled });
 
   const toggleSection = (section: SectionKey) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -76,11 +79,22 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
 
   const handleGenerate = async () => {
     try {
+      if (!summariesEnabled) {
+        setSummariesEnabled(true);
+      }
       const summary = await generateSummary(startDate, endDate, false);
       setCurrentSummary(summary);
     } catch (error) {
       _logger.error('Failed to generate summary', error instanceof Error ? error : undefined);
     }
+  };
+
+  const handleLoadSummaries = () => {
+    if (!summariesEnabled) {
+      setSummariesEnabled(true);
+      return;
+    }
+    refreshSummaries();
   };
 
   const handleExport = async () => {
@@ -146,7 +160,14 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
                     <Brain className="mr-2 h-4 w-4" />
                     Gerar Resumo
                   </>
-                )}
+                  )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleLoadSummaries}
+                disabled={isLoading || isFetching}
+              >
+                {summariesEnabled ? 'Atualizar Resumos' : 'Carregar Resumos'}
               </Button>
               {displaySummary && (
                 <Button
@@ -261,7 +282,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
                 <div>
                   <h4 className="font-medium mb-2">Principais Achados</h4>
                   <ul className="list-disc list-inside space-y-1 text-gray-700">
-                    {displaySummary.content.quiz_findings.key_findings.map((finding, i) => (
+                    {displaySummary.content.quiz_findings.key_findings.map((finding: string, i: number) => (
                       <li key={i}>{finding}</li>
                     ))}
                   </ul>
@@ -275,7 +296,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
                     Respostas Preocupantes
                   </h4>
                   <ul className="list-disc list-inside space-y-1 text-yellow-700">
-                    {displaySummary.content.quiz_findings.concerning_responses.map((resp, i) => (
+                    {displaySummary.content.quiz_findings.concerning_responses.map((resp: string, i: number) => (
                       <li key={i}>{resp}</li>
                     ))}
                   </ul>
@@ -298,7 +319,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
           >
             {displaySummary.content.health_concerns.length > 0 ? (
               <div className="space-y-3">
-                {displaySummary.content.health_concerns.map((concern, i) => (
+                {displaySummary.content.health_concerns.map((concern: HealthConcern, i: number) => (
                   <div
                     key={i}
                     className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"
@@ -413,7 +434,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
             highlight
           >
             <ul className="space-y-2">
-              {displaySummary.content.recommendations.map((rec, i) => (
+              {displaySummary.content.recommendations.map((rec: string, i: number) => (
                 <li
                   key={i}
                   className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg"
@@ -443,7 +464,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
             <p className="text-gray-600">Carregando resumos...</p>
           </CardContent>
         </Card>
-      ) : (
+      ) : summariesEnabled ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Brain className="h-12 w-12 mx-auto text-gray-300 mb-4" />
@@ -453,6 +474,21 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
             <p className="text-gray-500 mb-4">
               Selecione um período e clique em "Gerar Resumo" para criar um resumo inteligente do paciente.
             </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Brain className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Resumo sob demanda
+            </h3>
+            <p className="text-gray-500 mb-4">
+              O resumo de IA so aparece quando voce solicitar. Clique em "Gerar Resumo" ou carregue resumos anteriores.
+            </p>
+            <Button variant="outline" onClick={handleLoadSummaries}>
+              Carregar Resumos
+            </Button>
           </CardContent>
         </Card>
       )}
@@ -465,7 +501,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {summaries.slice(1).map((summary) => (
+              {summaries.slice(1).map((summary: PatientSummaryResponse) => (
                 <button
                   key={summary.summary_id}
                   onClick={() => setCurrentSummary(summary)}

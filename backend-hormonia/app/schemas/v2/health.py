@@ -60,7 +60,7 @@ class HealthResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "status": "healthy",
-                "timestamp": "2025-01-17T15:00:00Z",
+                "timestamp": "2025-01-17T15:00:00-03:00",
                 "version": "2.0.0",
                 "environment": "production",
             }
@@ -80,7 +80,7 @@ class ReadinessProbe(BaseModel):
             "example": {
                 "ready": True,
                 "checks": {"database": True, "redis": True, "workers": True},
-                "timestamp": "2025-01-17T15:00:00Z",
+                "timestamp": "2025-01-17T15:00:00-03:00",
             }
         }
     )
@@ -98,7 +98,7 @@ class LivenessProbe(BaseModel):
             "example": {
                 "alive": True,
                 "uptime_seconds": 3600,
-                "timestamp": "2025-01-17T15:00:00Z",
+                "timestamp": "2025-01-17T15:00:00-03:00",
             }
         }
     )
@@ -202,7 +202,7 @@ class ExternalServiceHealth(BaseModel):
                 "name": "Evolution API",
                 "status": "healthy",
                 "latency_ms": 150.0,
-                "last_check": "2025-01-17T15:00:00Z",
+                "last_check": "2025-01-17T15:00:00-03:00",
                 "error_message": None,
             }
         }
@@ -263,7 +263,7 @@ class DetailedHealthResponse(BaseModel):
             "example": {
                 "status": "healthy",
                 "health_score": 95.5,
-                "timestamp": "2025-01-17T15:00:00Z",
+                "timestamp": "2025-01-17T15:00:00-03:00",
                 "version": "2.0.0",
                 "environment": "production",
                 "database": {"status": "healthy", "latency_ms": 5.2},
@@ -367,7 +367,7 @@ class PrometheusMetrics(BaseModel):
         json_schema_extra={
             "example": {
                 "metrics": '# HELP health_status Current health status\nhealth_status{component="database"} 1.0\n',
-                "timestamp": "2025-01-17T15:00:00Z",
+                "timestamp": "2025-01-17T15:00:00-03:00",
             }
         }
     )
@@ -387,7 +387,7 @@ class MetricsResponse(BaseModel):
                 "system": {"cpu_percent": 45.2, "memory_percent": 62.5},
                 "application": {"total_requests": 125000, "error_rate_percent": 0.5},
                 "custom": {"active_patients": 250, "messages_sent_24h": 1500},
-                "timestamp": "2025-01-17T15:00:00Z",
+                "timestamp": "2025-01-17T15:00:00-03:00",
             }
         }
     )
@@ -437,7 +437,7 @@ class ProductionHealth(BaseModel):
                 "status": "healthy",
                 "environment": "production",
                 "build_version": "2.0.0-abc123",
-                "deployment_time": "2025-01-17T14:00:00Z",
+                "deployment_time": "2025-01-17T14:00:00-03:00",
                 "debug_mode": False,
             }
         }
@@ -484,7 +484,7 @@ class HealthHistoryEntry(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-01-17T15:00:00Z",
+                "timestamp": "2025-01-17T15:00:00-03:00",
                 "status": "healthy",
                 "health_score": 95.5,
                 "component_statuses": {
@@ -537,12 +537,12 @@ class HealthIncident(BaseModel):
         json_schema_extra={
             "example": {
                 "id": "inc_abc123",
-                "timestamp": "2025-01-17T14:30:00Z",
+                "timestamp": "2025-01-17T14:30:00-03:00",
                 "component": "database",
                 "severity": "high",
                 "message": "Database connection pool exhausted",
                 "resolved": True,
-                "resolved_at": "2025-01-17T14:35:00Z",
+                "resolved_at": "2025-01-17T14:35:00-03:00",
                 "duration_seconds": 300,
             }
         }
@@ -592,7 +592,7 @@ class HealthAlert(BaseModel):
                 "message": "Redis memory usage exceeds threshold",
                 "threshold": 80.0,
                 "current_value": 85.5,
-                "triggered_at": "2025-01-17T15:00:00Z",
+                "triggered_at": "2025-01-17T15:00:00-03:00",
                 "acknowledged": False,
             }
         }
@@ -662,7 +662,7 @@ class HealthTestResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "test_id": "test_abc123",
-                "timestamp": "2025-01-17T15:00:00Z",
+                "timestamp": "2025-01-17T15:00:00-03:00",
                 "status": "healthy",
                 "components_tested": ["database", "redis", "workers"],
                 "results": {},

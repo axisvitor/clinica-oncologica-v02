@@ -10,18 +10,25 @@ Endpoints:
 # NOTE: Do NOT use `from __future__ import annotations` here
 # It breaks FastAPI/Pydantic path parameter validation with UUID type
 
-import base64
+import asyncio
+import inspect
 import json
+import jwt
 from uuid import UUID
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response, Cookie
 from pydantic import BaseModel
+from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
+from app.config import settings
+from app.domain.quizzes.session import TokenManager
 from ._shared import (
     logger,
     defaultdict,
-    get_db,
+    get_async_db,
     limiter,
     QuizResponse,
     QuizSession,
@@ -31,30 +38,102 @@ from ._shared import (
     PublicQuizResultsV2,
     get_redis_cache,
     CACHE_TTL_PUBLIC_QUIZ,
-    PUBLIC_PATIENT_ID,
-    Dict,
-    Any,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 
 
+async def _maybe_await(value):
+    """Await cache operations when providers expose async methods."""
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+async def _cache_get(redis_cache, key: str):
+    if not redis_cache:
+        return None
+    getter = getattr(redis_cache, "get", None)
+    if not callable(getter):
+        return None
+    try:
+        return await asyncio.wait_for(_maybe_await(getter(key)), timeout=1.0)
+    except Exception:
+        return None
+
+
+async def _cache_set(redis_cache, key: str, value: str, ttl: int) -> None:
+    if not redis_cache:
+        return
+
+    setex = getattr(redis_cache, "setex", None)
+    if callable(setex):
+        try:
+            await asyncio.wait_for(_maybe_await(setex(key, ttl, value)), timeout=1.0)
+        except Exception:
+            pass
+        return
+
+    setter = getattr(redis_cache, "set", None)
+    if not callable(setter):
+        return
+
+    try:
+        await asyncio.wait_for(_maybe_await(setter(key, value, ttl)), timeout=1.0)
+    except TypeError:
+        try:
+            await asyncio.wait_for(_maybe_await(setter(key, value)), timeout=1.0)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def _decode_quiz_token(token: str) -> Dict[str, Any]:
+    """
+    Decode quiz access token.
+
+    Supports signed JWT tokens only.
+    """
+    token = token.strip()
+
+    if token.count(".") != 2:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
+        )
+
+    try:
+        payload = TokenManager().verify_token(token)
+        return {
+            "quiz_id": payload.get("quiz_template_id"),
+            "patient_id": payload.get("patient_id"),
+            "session_id": payload.get("session_id"),
+            "exp": payload.get("exp"),
+            "type": payload.get("type", "quiz_access"),
+        }
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
+        )
+
+
 # ==============================================================================
-# CSRF TOKEN ENDPOINT (Frontend Compatibility)
+# CSRF TOKEN ENDPOINT
 # ==============================================================================
-# Frontend quiz-mensal-interface uses NEXT_PUBLIC_QUIZ_PUBLIC_API_URL as base
-# and expects /auth/csrf-token to be available under that prefix
 
 @router.get(
     "/auth/csrf-token",
     summary="Get CSRF Token (Quiz Public)",
-    description="CSRF token endpoint for quiz interface compatibility",
-    include_in_schema=False  # Hide from docs since it's a compatibility layer
+    description="CSRF token endpoint for quiz interface",
+    include_in_schema=False
 )
 async def get_csrf_token_quiz_public(response: Response):
-    """
-    Compatibility endpoint: Frontend expects CSRF at /monthly-quiz-public/auth/csrf-token
-    """
+    """Return CSRF token for quiz public flows."""
     from app.middleware.csrf import get_csrf_token, set_csrf_cookie
     
     token = get_csrf_token()
@@ -72,7 +151,7 @@ async def get_csrf_token_quiz_public(response: Response):
 async def get_current_public_quiz(
     request: Request,
     token: str = Query(..., description="Access token"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ):
     """
@@ -82,27 +161,16 @@ async def get_current_public_quiz(
     **Rate limited:** 20 requests/minute per IP
     **Security:** Token validation, IP logging, expiry checking
 
-    Token format (base64-encoded JSON):
-    {
-        "quiz_id": "uuid",
-        "exp": timestamp,
-        "type": "quiz_access"
-    }
+    Token format:
+    - Signed JWT with quiz_template_id/patient_id/session_id/exp
     """
     logger.info(f"Public quiz access from IP: {request.client.host}")
 
     # Validate token
     try:
-        token_data = json.loads(base64.b64decode(token))
+        token_data = _decode_quiz_token(token)
         quiz_id = UUID(token_data.get("quiz_id"))
-        exp_timestamp = token_data.get("exp")
         token_type = token_data.get("type")
-
-        # Check expiry
-        if exp_timestamp and datetime.fromtimestamp(exp_timestamp) < datetime.now(timezone.utc):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
-            )
 
         # Check token type
         if token_type != "quiz_access":
@@ -110,17 +178,18 @@ async def get_current_public_quiz(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type"
             )
 
-    except (ValueError, KeyError, json.JSONDecodeError):
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
         )
 
     # Get quiz
-    quiz = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
-        .first()
+    quiz_result = await db.execute(
+        select(QuizTemplate).where(
+            QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz"
+        )
     )
+    quiz = quiz_result.scalar_one_or_none()
 
     if not quiz:
         raise HTTPException(
@@ -137,39 +206,56 @@ async def get_current_public_quiz(
     # Check if quiz has expired
     if quiz.tags.get("expires_at"):
         expires_at = datetime.fromisoformat(quiz.tags["expires_at"])
-        if expires_at < datetime.now(timezone.utc):
+        if expires_at < now_sao_paulo():
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Quiz has expired"
             )
 
-    # Create or get quiz session for public user
-    # Use a special public patient ID (in production, create a PUBLIC_USER patient)
+    # Resolve patient and session from token
+    patient_id = token_data.get("patient_id")
+    if not patient_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        )
+    patient_uuid = UUID(patient_id)
+    session_id = token_data.get("session_id")
 
     # Find or create session
-    session = (
-        db.query(QuizSession)
-        .filter(
-            QuizSession.quiz_template_id == quiz_id,
-            QuizSession.patient_id == PUBLIC_PATIENT_ID,
-            QuizSession.status.in_(["in_progress", "pending"]),
+    session = None
+    if session_id:
+        try:
+            session_result = await db.execute(
+                select(QuizSession).where(QuizSession.id == UUID(session_id))
+            )
+            session = session_result.scalar_one_or_none()
+        except ValueError:
+            session = None
+
+    if not session:
+        session_result = await db.execute(
+            select(QuizSession).where(
+                QuizSession.quiz_template_id == quiz_id,
+                QuizSession.patient_id == patient_uuid,
+                QuizSession.status.in_(["in_progress", "pending"]),
+            )
         )
-        .first()
-    )
+        session = session_result.scalar_one_or_none()
 
     if not session:
         session = QuizSession(
-            patient_id=PUBLIC_PATIENT_ID,
+            patient_id=patient_uuid,
             quiz_template_id=quiz_id,
             status="in_progress",
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
         )
         db.add(session)
-        db.commit()
-        db.refresh(session)
+        await db.commit()
+        await db.refresh(session)
 
         # Increment access count
         quiz.tags["total_accessed"] = quiz.tags.get("total_accessed", 0) + 1
-        db.commit()
+        await db.commit()
 
     # Sanitize questions (remove sensitive data, scoring info)
     sanitized_questions = []
@@ -207,7 +293,7 @@ async def submit_public_quiz_response(
     request: Request,
     quiz_id: UUID,
     submission: PublicSubmissionRequestV2,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Submit quiz response with token validation.
@@ -219,9 +305,8 @@ async def submit_public_quiz_response(
 
     # Validate token
     try:
-        token_data = json.loads(base64.b64decode(submission.token))
+        token_data = _decode_quiz_token(submission.token)
         token_quiz_id = UUID(token_data.get("quiz_id"))
-        exp_timestamp = token_data.get("exp")
         token_type = token_data.get("type")
 
         # Check if token matches quiz_id
@@ -231,12 +316,6 @@ async def submit_public_quiz_response(
                 detail="Token does not match quiz ID",
             )
 
-        # Check expiry
-        if exp_timestamp and datetime.fromtimestamp(exp_timestamp) < datetime.now(timezone.utc):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has expired"
-            )
-
         # Check token type
         if token_type not in ["quiz_access", "quiz_submission"]:
             raise HTTPException(
@@ -244,17 +323,18 @@ async def submit_public_quiz_response(
                 detail="Invalid token type for submission",
             )
 
-    except (ValueError, KeyError, json.JSONDecodeError):
+    except (ValueError, TypeError):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token format"
         )
 
     # Get quiz
-    quiz = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
-        .first()
+    quiz_result = await db.execute(
+        select(QuizTemplate).where(
+            QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz"
+        )
     )
+    quiz = quiz_result.scalar_one_or_none()
 
     if not quiz:
         raise HTTPException(
@@ -268,28 +348,48 @@ async def submit_public_quiz_response(
             detail="Cannot submit to unpublished quiz",
         )
 
-    # Get or create session
-    session = (
-        db.query(QuizSession)
-        .filter(
-            QuizSession.quiz_template_id == quiz_id,
-            QuizSession.patient_id == PUBLIC_PATIENT_ID,
-            QuizSession.status.in_(["in_progress", "pending"]),
+    # Resolve patient and session from token
+    patient_id = token_data.get("patient_id")
+    if not patient_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
         )
-        .first()
-    )
+    patient_uuid = UUID(patient_id)
+    session_id = token_data.get("session_id")
+
+    # Get or create session
+    session = None
+    if session_id:
+        try:
+            session_result = await db.execute(
+                select(QuizSession).where(QuizSession.id == UUID(session_id))
+            )
+            session = session_result.scalar_one_or_none()
+        except ValueError:
+            session = None
+
+    if not session:
+        session_result = await db.execute(
+            select(QuizSession).where(
+                QuizSession.quiz_template_id == quiz_id,
+                QuizSession.patient_id == patient_uuid,
+                QuizSession.status.in_(["in_progress", "pending"]),
+            )
+        )
+        session = session_result.scalar_one_or_none()
 
     if not session:
         # Create new session
         session = QuizSession(
-            patient_id=PUBLIC_PATIENT_ID,
+            patient_id=patient_uuid,
             quiz_template_id=quiz_id,
             status="in_progress",
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
         )
         db.add(session)
-        db.commit()
-        db.refresh(session)
+        await db.commit()
+        await db.refresh(session)
 
     # Find the question in quiz
     question = None
@@ -307,7 +407,7 @@ async def submit_public_quiz_response(
 
     # Create quiz response
     quiz_response = QuizResponse(
-        patient_id=PUBLIC_PATIENT_ID,
+        patient_id=patient_uuid,
         quiz_template_id=quiz_id,
         quiz_session_id=session.id,
         question_id=submission.question_id,
@@ -315,25 +415,26 @@ async def submit_public_quiz_response(
         response_type=question.get("type", "text"),
         response_value=str(submission.response_value),
         response_metadata=submission.response_metadata or {},
-        responded_at=datetime.now(timezone.utc),
+        responded_at=now_sao_paulo(),
     )
 
     db.add(quiz_response)
-    db.commit()
-    db.refresh(quiz_response)
+    await db.commit()
+    await db.refresh(quiz_response)
 
     # Check if all questions are answered
     total_questions = len(quiz.questions) if quiz.questions else 0
     answered_questions = (
-        db.query(QuizResponse)
-        .filter(QuizResponse.quiz_session_id == session.id)
-        .count()
+        await db.execute(
+            select(func.count(QuizResponse.id)).where(QuizResponse.quiz_session_id == session.id)
+        )
     )
+    answered_questions = answered_questions.scalar_one()
 
     if answered_questions >= total_questions:
         # Complete session
         session.status = "completed"
-        session.completed_at = datetime.now(timezone.utc)
+        session.completed_at = now_sao_paulo()
 
         # Update quiz completion stats
         quiz.tags["total_completed"] = quiz.tags.get("total_completed", 0) + 1
@@ -342,7 +443,7 @@ async def submit_public_quiz_response(
             (quiz.tags["total_completed"] / total_sent * 100) if total_sent > 0 else 0.0
         )
 
-        db.commit()
+        await db.commit()
 
         logger.info(f"Public quiz {quiz_id} completed by session {session.id}")
 
@@ -374,7 +475,7 @@ async def submit_public_quiz_response(
 async def get_public_quiz_results(
     request: Request,
     quiz_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ):
     """
@@ -389,16 +490,17 @@ async def get_public_quiz_results(
     # Check cache
     cache_key = f"public_quiz_results:{quiz_id}"
     if redis_cache:
-        cached = redis_cache.get(cache_key)
+        cached = await _cache_get(redis_cache, cache_key)
         if cached:
             return PublicQuizResultsV2.parse_raw(cached)
 
     # Get quiz
-    quiz = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
-        .first()
+    quiz_result = await db.execute(
+        select(QuizTemplate).where(
+            QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz"
+        )
     )
+    quiz = quiz_result.scalar_one_or_none()
 
     if not quiz:
         raise HTTPException(
@@ -413,16 +515,25 @@ async def get_public_quiz_results(
         )
 
     # Get aggregate statistics
-    sessions_query = db.query(QuizSession).filter(
-        QuizSession.quiz_template_id == quiz_id
-    )
-
-    total_completions = sessions_query.filter(QuizSession.status == "completed").count()
+    total_completions = (
+        await db.execute(
+            select(func.count(QuizSession.id)).where(
+                QuizSession.quiz_template_id == quiz_id,
+                QuizSession.status == "completed",
+            )
+        )
+    ).scalar_one()
 
     # Calculate average score
-    completed_sessions = sessions_query.filter(
-        QuizSession.status == "completed", QuizSession.score.isnot(None)
-    ).all()
+    completed_sessions = (
+        await db.execute(
+            select(QuizSession).where(
+                QuizSession.quiz_template_id == quiz_id,
+                QuizSession.status == "completed",
+                QuizSession.score.isnot(None),
+            )
+        )
+    ).scalars().all()
 
     average_score = None
     if completed_sessions:
@@ -437,8 +548,10 @@ async def get_public_quiz_results(
     # Response distribution (aggregate, anonymized)
     response_distribution = {}
     responses = (
-        db.query(QuizResponse).filter(QuizResponse.quiz_template_id == quiz_id).all()
-    )
+        await db.execute(
+            select(QuizResponse).where(QuizResponse.quiz_template_id == quiz_id)
+        )
+    ).scalars().all()
 
     # Group responses by question
     question_responses = defaultdict(list)
@@ -499,7 +612,7 @@ async def get_public_quiz_results(
 
     # Cache result
     if redis_cache:
-        redis_cache.setex(cache_key, CACHE_TTL_PUBLIC_QUIZ, result.json())
+        await _cache_set(redis_cache, cache_key, result.json(), CACHE_TTL_PUBLIC_QUIZ)
 
     return result
 
@@ -552,7 +665,7 @@ def transform_single_question(q: dict) -> dict:
     }
 
 
-def get_cached_transformed_questions(
+async def get_cached_transformed_questions(
     quiz_template_id: str,
     questions: list,
     redis_cache=None
@@ -572,7 +685,7 @@ def get_cached_transformed_questions(
     # Try to get from cache first
     if redis_cache:
         try:
-            cached = redis_cache.get(cache_key)
+            cached = await _cache_get(redis_cache, cache_key)
             if cached:
                 logger.debug(f"[Cache HIT] Transformed questions for template {quiz_template_id}")
                 return json.loads(cached)
@@ -586,7 +699,7 @@ def get_cached_transformed_questions(
     # Store in cache
     if redis_cache:
         try:
-            redis_cache.setex(cache_key, 3600, json.dumps(transformed))  # 1 hour TTL
+            await _cache_set(redis_cache, cache_key, json.dumps(transformed), 3600)  # 1 hour TTL
             logger.debug(f"[Cache SET] Stored transformed questions for template {quiz_template_id}")
         except Exception as e:
             logger.warning(f"Redis cache write error: {e}")
@@ -594,25 +707,25 @@ def get_cached_transformed_questions(
     return transformed
 
 
-class QuizAccessRequestCompatibility(BaseModel):
+class QuizAccessRequest(BaseModel):
     token: str
 
 @router.post(
     "/access",
-    summary="Access Quiz (Frontend Compatibility)",
-    description="POST /access endpoint compatible with frontend QuizApiClient",
+    summary="Access Quiz",
+    description="POST /access endpoint for QuizApiClient",
     response_model=Dict[str, Any]
 )
 @limiter.limit("20/minute")
-async def access_quiz_compatibility(
-    access_req: QuizAccessRequestCompatibility,
+async def access_quiz(
+    access_req: QuizAccessRequest,
     response: Response,
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache)
 ):
     """
-    Compatibility endpoint for POST /monthly-quiz-public/access
+    Access endpoint for POST /quiz-extensions/access
     
     1. Validates token
     2. Creates/Gets session
@@ -623,55 +736,89 @@ async def access_quiz_compatibility(
     
     # Reuse logic from get_current_public_quiz, but adapted
     try:
-        token_data = json.loads(base64.b64decode(access_req.token))
+        token_data = _decode_quiz_token(access_req.token)
         quiz_id = UUID(token_data.get("quiz_id"))
-        exp_timestamp = token_data.get("exp")
-        # token_type validation same as above...
-    except (ValueError, KeyError, json.JSONDecodeError):
+        token_type = token_data.get("type")
+
+        # Validate token type
+        if token_type != "quiz_access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type"
+            )
+
+    except (ValueError, TypeError):
         raise HTTPException(status_code=401, detail="Invalid token format")
 
     # Get Quiz
-    quiz = db.query(QuizTemplate).filter(QuizTemplate.id == quiz_id).first()
+    quiz_result = await db.execute(select(QuizTemplate).where(QuizTemplate.id == quiz_id))
+    quiz = quiz_result.scalar_one_or_none()
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
 
+    # Resolve patient and session from token
+    patient_id = token_data.get("patient_id")
+    if not patient_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        )
+    patient_uuid = UUID(patient_id)
+    session_id = token_data.get("session_id")
+
     # Get/Create Session
-    session = db.query(QuizSession).filter(
-        QuizSession.quiz_template_id == quiz_id,
-        QuizSession.patient_id == PUBLIC_PATIENT_ID,
-        QuizSession.status == "started"
-    ).first()
+    session = None
+    if session_id:
+        try:
+            session_result = await db.execute(
+                select(QuizSession).where(QuizSession.id == UUID(session_id))
+            )
+            session = session_result.scalar_one_or_none()
+        except ValueError:
+            session = None
+
+    if not session:
+        session_result = await db.execute(
+            select(QuizSession).where(
+                QuizSession.quiz_template_id == quiz_id,
+                QuizSession.patient_id == patient_uuid,
+                QuizSession.status == "started",
+            )
+        )
+        session = session_result.scalar_one_or_none()
 
     if not session:
         session = QuizSession(
-            patient_id=PUBLIC_PATIENT_ID,
+            patient_id=patient_uuid,
             quiz_template_id=quiz_id,
             status="started",
-            started_at=datetime.now(timezone.utc)
+            started_at=now_sao_paulo()
         )
         db.add(session)
-        db.commit()
-        db.refresh(session)
+        await db.commit()
+        await db.refresh(session)
         
         # Increment stats
         if quiz.tags:
             quiz.tags["total_accessed"] = quiz.tags.get("total_accessed", 0) + 1
         else:
             quiz.tags = {"total_accessed": 1}
-        db.commit()
+        await db.commit()
 
-    # Set Session Cookie
+    # Set Session Cookie (SameSite=None for cross-site fetch from quiz domain)
+    cookie_secure = settings.SESSION_ENABLE_COOKIE_SECURE
+    cookie_samesite = "none" if cookie_secure else "lax"
     response.set_cookie(
         key="quiz_session_id",
         value=str(session.id),
         httponly=True,
-        secure=False, # Set True in production if HTTPS
-        samesite="lax",
-        max_age=86400 # 24h
+        secure=cookie_secure,
+        samesite=cookie_samesite,
+        max_age=86400  # 24h
     )
 
     # Transform questions using cached function (Performance optimization)
-    sanitized_questions = get_cached_transformed_questions(
+    sanitized_questions = await get_cached_transformed_questions(
         quiz_template_id=str(quiz.id),
         questions=quiz.questions or [],
         redis_cache=redis_cache
@@ -685,21 +832,21 @@ async def access_quiz_compatibility(
         "template_id": str(quiz.id),
         "patient_name": "Paciente", # Public/Anon
         "template_name": quiz.name,
-        "expires_at": (datetime.now(timezone.utc).replace(year=datetime.now().year + 1)).isoformat(), # Mock expiry if not set
+        "expires_at": (now_sao_paulo().replace(year=datetime.now().year + 1)).isoformat(), # Mock expiry if not set
         "questions": sanitized_questions,
         "status": session.status
     }
 
 @router.get(
     "/session/active",
-    summary="Get Active Session (Frontend Compatibility)",
+    summary="Get Active Session",
     description="GET /session/active endpoint for session recovery",
     response_model=Dict[str, Any]
 )
-async def get_active_session_compatibility(
+async def get_active_session(
     request: Request,
     quiz_session_id: Optional[str] = Cookie(None),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache)
 ):
     """
@@ -708,14 +855,22 @@ async def get_active_session_compatibility(
     if not quiz_session_id:
         raise HTTPException(status_code=401, detail="No active session cookie")
     
-    session = db.query(QuizSession).filter(QuizSession.id == UUID(quiz_session_id)).first()
+    session_result = await db.execute(
+        select(QuizSession).where(QuizSession.id == UUID(quiz_session_id))
+    )
+    session = session_result.scalar_one_or_none()
     if not session or session.status != "started":
         raise HTTPException(status_code=404, detail="Session expired or not found")
 
-    quiz = session.quiz_template
+    quiz_result = await db.execute(
+        select(QuizTemplate).where(QuizTemplate.id == session.quiz_template_id)
+    )
+    quiz = quiz_result.scalar_one_or_none()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
     
     # Transform questions using cached function (Performance optimization)
-    sanitized_questions = get_cached_transformed_questions(
+    sanitized_questions = await get_cached_transformed_questions(
         quiz_template_id=str(quiz.id),
         questions=quiz.questions or [],
         redis_cache=redis_cache
@@ -728,7 +883,7 @@ async def get_active_session_compatibility(
         "template_id": str(quiz.id),
         "patient_name": "Paciente",
         "template_name": quiz.name,
-        "expires_at": (datetime.now(timezone.utc).replace(year=datetime.now().year + 1)).isoformat(),
+        "expires_at": (now_sao_paulo().replace(year=datetime.now().year + 1)).isoformat(),
         "questions": sanitized_questions,
         "status": session.status,
         "current_question_index": 0  # TODO: Track progress if needed
@@ -736,10 +891,10 @@ async def get_active_session_compatibility(
 
 
 # ==============================================================================
-# SUBMIT ENDPOINT (Frontend Compatibility)
+# SUBMIT ENDPOINT
 # ==============================================================================
 
-class QuizSubmitRequestCompatibility(BaseModel):
+class QuizSubmitRequest(BaseModel):
     question_id: str
     response_value: Any  # Can be string or list
     response_metadata: Optional[Dict[str, Any]] = None
@@ -747,16 +902,16 @@ class QuizSubmitRequestCompatibility(BaseModel):
 
 @router.post(
     "/submit",
-    summary="Submit Quiz Answer (Frontend Compatibility)",
+    summary="Submit Quiz Answer",
     description="POST /submit endpoint for submitting quiz answers",
     response_model=Dict[str, Any]
 )
 @limiter.limit("60/minute")
-async def submit_answer_compatibility(
-    submit_req: QuizSubmitRequestCompatibility,
+async def submit_answer(
+    submit_req: QuizSubmitRequest,
     request: Request,
     quiz_session_id: Optional[str] = Cookie(None),
-    db=Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Submit an answer to a quiz question.
@@ -766,16 +921,22 @@ async def submit_answer_compatibility(
         raise HTTPException(status_code=401, detail="No active session")
     
     try:
-        session = db.query(QuizSession).filter(
-            QuizSession.id == UUID(quiz_session_id)
-        ).first()
+        session_result = await db.execute(
+            select(QuizSession).where(QuizSession.id == UUID(quiz_session_id))
+        )
+        session = session_result.scalar_one_or_none()
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid session ID")
     
     if not session or session.status != "started":
         raise HTTPException(status_code=404, detail="Session not found or expired")
     
-    quiz = session.quiz_template
+    quiz_result = await db.execute(
+        select(QuizTemplate).where(QuizTemplate.id == session.quiz_template_id)
+    )
+    quiz = quiz_result.scalar_one_or_none()
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
     
     # Find question in template
     question_data = None
@@ -790,10 +951,13 @@ async def submit_answer_compatibility(
         raise HTTPException(status_code=400, detail="Question not found in quiz")
     
     # Create or update response
-    existing = db.query(QuizResponse).filter(
-        QuizResponse.quiz_session_id == session.id,
-        QuizResponse.question_id == submit_req.question_id
-    ).first()
+    existing_result = await db.execute(
+        select(QuizResponse).where(
+            QuizResponse.quiz_session_id == session.id,
+            QuizResponse.question_id == submit_req.question_id,
+        )
+    )
+    existing = existing_result.scalar_one_or_none()
     
     response_value = submit_req.response_value
     if isinstance(response_value, str):
@@ -816,7 +980,7 @@ async def submit_answer_compatibility(
         existing.response_value = response_value
         existing.response_value_text_backup = str(submit_req.response_value)
         existing.response_metadata = submit_req.response_metadata or {}
-        existing.responded_at = datetime.now(timezone.utc)
+        existing.responded_at = now_sao_paulo()
     else:
         new_response = QuizResponse(
             patient_id=session.patient_id,
@@ -828,12 +992,13 @@ async def submit_answer_compatibility(
             response_value=response_value,
             response_value_text_backup=str(submit_req.response_value),
             response_metadata=submit_req.response_metadata or {},
-            responded_at=datetime.now(timezone.utc)
+            responded_at=now_sao_paulo()
         )
         db.add(new_response)
     
-    # Update session progress
-    session.answered_questions = (session.answered_questions or 0) + 1
+    # Update session progress (only increment for new responses, not updates)
+    if not existing:
+        session.answered_questions = (session.answered_questions or 0) + 1
     session.current_question = question_index + 1
     
     total_questions = len(quiz.questions or [])
@@ -842,9 +1007,9 @@ async def submit_answer_compatibility(
     # If last question, mark completed
     if is_last:
         session.status = "completed"
-        session.completed_at = datetime.now(timezone.utc)
+        session.completed_at = now_sao_paulo()
     
-    db.commit()
+    await db.commit()
     
     # Prepare next question
     next_question = None
@@ -872,35 +1037,42 @@ async def submit_answer_compatibility(
 
 
 # ==============================================================================
-# LOGOUT ENDPOINT (Frontend Compatibility)
+# LOGOUT ENDPOINT
 # ==============================================================================
 
 @router.post(
     "/logout",
-    summary="Logout from Quiz Session (Frontend Compatibility)",
+    summary="Logout from Quiz Session",
     description="POST /logout endpoint to end quiz session",
     response_model=Dict[str, Any]
 )
-async def logout_quiz_compatibility(
+async def logout_quiz(
     response: Response,
     quiz_session_id: Optional[str] = Cookie(None),
-    db=Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     End quiz session and clear cookie.
     """
     if quiz_session_id:
         try:
-            session = db.query(QuizSession).filter(
-                QuizSession.id == UUID(quiz_session_id)
-            ).first()
+            session_result = await db.execute(
+                select(QuizSession).where(QuizSession.id == UUID(quiz_session_id))
+            )
+            session = session_result.scalar_one_or_none()
             if session and session.status == "started":
                 session.status = "cancelled"
-                db.commit()
+                await db.commit()
         except ValueError:
             pass  # Invalid UUID, just clear cookie
     
     # Clear session cookie
-    response.delete_cookie(key="quiz_session_id")
+    cookie_secure = settings.SESSION_ENABLE_COOKIE_SECURE
+    cookie_samesite = "none" if cookie_secure else "lax"
+    response.delete_cookie(
+        key="quiz_session_id",
+        secure=cookie_secure,
+        samesite=cookie_samesite,
+    )
     
     return {"success": True, "message": "Session ended"}

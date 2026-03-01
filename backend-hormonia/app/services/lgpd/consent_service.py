@@ -6,15 +6,18 @@ including consent tracking, revocation, and audit logging.
 """
 
 import logging
+import inspect
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
+from sqlalchemy import and_, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
 
 from app.models.consent import Consent, ConsentType, ConsentStatus
 from app.models.lgpd_audit import LGPDAuditLog, LGPDActionType, LGPDDataCategory
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +36,7 @@ class ConsentService:
     # Default consent expiration period (2 years as per LGPD best practices)
     DEFAULT_EXPIRATION_DAYS = 730
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session | AsyncSession):
         """
         Initialize consent service.
 
@@ -41,6 +44,17 @@ class ConsentService:
             db: Database session
         """
         self.db = db
+
+    async def _resolve(self, maybe_awaitable: Any) -> Any:
+        if inspect.isawaitable(maybe_awaitable):
+            return await maybe_awaitable
+        return maybe_awaitable
+
+    async def _get_consent_by_id(self, consent_id: UUID) -> Optional[Consent]:
+        result = await self._resolve(
+            self.db.execute(select(Consent).where(Consent.id == consent_id).limit(1))
+        )
+        return result.scalars().first()
 
     async def create_consent(
         self,
@@ -77,9 +91,9 @@ class ConsentService:
         """
         expires_at = None
         if expires_in_days:
-            expires_at = datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+            expires_at = now_sao_paulo() + timedelta(days=expires_in_days)
         elif self.DEFAULT_EXPIRATION_DAYS:
-            expires_at = datetime.now(timezone.utc) + timedelta(
+            expires_at = now_sao_paulo() + timedelta(
                 days=self.DEFAULT_EXPIRATION_DAYS
             )
 
@@ -99,8 +113,8 @@ class ConsentService:
         )
 
         self.db.add(consent)
-        self.db.commit()
-        self.db.refresh(consent)
+        await self._resolve(self.db.commit())
+        await self._resolve(self.db.refresh(consent))
 
         # Log consent creation
         await self._log_consent_operation(
@@ -137,7 +151,7 @@ class ConsentService:
         Raises:
             ValueError: If consent not found or already processed
         """
-        consent = self.db.query(Consent).filter(Consent.id == consent_id).first()
+        consent = await self._get_consent_by_id(consent_id)
         if not consent:
             raise ValueError(f"Consent {consent_id} not found")
 
@@ -145,13 +159,13 @@ class ConsentService:
             raise ValueError(f"Consent {consent_id} is already {consent.status.value}")
 
         consent.status = ConsentStatus.GRANTED
-        consent.granted_at = datetime.now(timezone.utc)
+        consent.granted_at = now_sao_paulo()
         consent.consented_by_id = user_id
         if signature_data:
             consent.signature_data = signature_data
 
-        self.db.commit()
-        self.db.refresh(consent)
+        await self._resolve(self.db.commit())
+        await self._resolve(self.db.refresh(consent))
 
         # Log consent grant
         await self._log_consent_operation(
@@ -188,7 +202,7 @@ class ConsentService:
         Raises:
             ValueError: If consent not found or not granted
         """
-        consent = self.db.query(Consent).filter(Consent.id == consent_id).first()
+        consent = await self._get_consent_by_id(consent_id)
         if not consent:
             raise ValueError(f"Consent {consent_id} not found")
 
@@ -198,11 +212,11 @@ class ConsentService:
             )
 
         consent.status = ConsentStatus.REVOKED
-        consent.revoked_at = datetime.now(timezone.utc)
+        consent.revoked_at = now_sao_paulo()
         consent.revocation_reason = reason
 
-        self.db.commit()
-        self.db.refresh(consent)
+        await self._resolve(self.db.commit())
+        await self._resolve(self.db.refresh(consent))
 
         # Log consent revocation
         await self._log_consent_operation(
@@ -232,11 +246,11 @@ class ConsentService:
         Returns:
             True if consent is granted and valid
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
 
-        consent = (
-            self.db.query(Consent)
-            .filter(
+        stmt = (
+            select(Consent)
+            .where(
                 and_(
                     Consent.patient_id == patient_id,
                     Consent.consent_type == consent_type,
@@ -245,8 +259,11 @@ class ConsentService:
                     or_(Consent.expires_at.is_(None), Consent.expires_at > now),
                 )
             )
-            .first()
+            .limit(1)
         )
+
+        result = await self._resolve(self.db.execute(stmt))
+        consent = result.scalars().first()
 
         return consent is not None
 
@@ -267,20 +284,21 @@ class ConsentService:
         Returns:
             List of Consent objects
         """
-        query = self.db.query(Consent).filter(
-            Consent.patient_id == patient_id, Consent.is_active
-        )
+        stmt = select(Consent).where(Consent.patient_id == patient_id, Consent.is_active)
 
         if not include_expired:
-            now = datetime.now(timezone.utc)
-            query = query.filter(
+            now = now_sao_paulo()
+            stmt = stmt.where(
                 or_(Consent.expires_at.is_(None), Consent.expires_at > now)
             )
 
         if not include_revoked:
-            query = query.filter(Consent.status != ConsentStatus.REVOKED)
+            stmt = stmt.where(Consent.status != ConsentStatus.REVOKED)
 
-        return query.order_by(Consent.created_at.desc()).all()
+        stmt = stmt.order_by(Consent.created_at.desc())
+
+        result = await self._resolve(self.db.execute(stmt))
+        return list(result.scalars().all())
 
     async def check_and_update_expired_consents(self) -> int:
         """
@@ -289,19 +307,17 @@ class ConsentService:
         Returns:
             Number of consents marked as expired
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
 
-        expired = (
-            self.db.query(Consent)
-            .filter(
-                and_(
-                    Consent.status == ConsentStatus.GRANTED,
-                    Consent.expires_at.isnot(None),
-                    Consent.expires_at < now,
-                )
+        stmt = select(Consent).where(
+            and_(
+                Consent.status == ConsentStatus.GRANTED,
+                Consent.expires_at.isnot(None),
+                Consent.expires_at < now,
             )
-            .all()
         )
+        result = await self._resolve(self.db.execute(stmt))
+        expired = result.scalars().all()
 
         count = 0
         for consent in expired:
@@ -318,7 +334,7 @@ class ConsentService:
             count += 1
 
         if count > 0:
-            self.db.commit()
+            await self._resolve(self.db.commit())
             logger.info(f"Marked {count} consents as expired")
 
         return count
@@ -388,7 +404,7 @@ class LGPDAuditService:
     QW-005: Provides audit logging capabilities for all PII access.
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session | AsyncSession):
         """
         Initialize audit service.
 
@@ -396,6 +412,11 @@ class LGPDAuditService:
             db: Database session
         """
         self.db = db
+
+    async def _resolve(self, maybe_awaitable: Any) -> Any:
+        if inspect.isawaitable(maybe_awaitable):
+            return await maybe_awaitable
+        return maybe_awaitable
 
     async def log_data_access(
         self,
@@ -456,8 +477,8 @@ class LGPDAuditService:
         )
 
         self.db.add(audit_log)
-        self.db.commit()
-        self.db.refresh(audit_log)
+        await self._resolve(self.db.commit())
+        await self._resolve(self.db.refresh(audit_log))
 
         return audit_log
 
@@ -480,16 +501,16 @@ class LGPDAuditService:
         Returns:
             List of audit logs
         """
-        query = self.db.query(LGPDAuditLog).filter(
-            LGPDAuditLog.patient_id == patient_id
-        )
+        stmt = select(LGPDAuditLog).where(LGPDAuditLog.patient_id == patient_id)
 
         if start_date:
-            query = query.filter(LGPDAuditLog.created_at >= start_date)
+            stmt = stmt.where(LGPDAuditLog.created_at >= start_date)
         if end_date:
-            query = query.filter(LGPDAuditLog.created_at <= end_date)
+            stmt = stmt.where(LGPDAuditLog.created_at <= end_date)
 
-        return query.order_by(LGPDAuditLog.created_at.desc()).limit(limit).all()
+        stmt = stmt.order_by(LGPDAuditLog.created_at.desc()).limit(limit)
+        result = await self._resolve(self.db.execute(stmt))
+        return list(result.scalars().all())
 
     async def get_user_access_history(
         self,
@@ -510,14 +531,16 @@ class LGPDAuditService:
         Returns:
             List of audit logs
         """
-        query = self.db.query(LGPDAuditLog).filter(LGPDAuditLog.user_id == user_id)
+        stmt = select(LGPDAuditLog).where(LGPDAuditLog.user_id == user_id)
 
         if start_date:
-            query = query.filter(LGPDAuditLog.created_at >= start_date)
+            stmt = stmt.where(LGPDAuditLog.created_at >= start_date)
         if end_date:
-            query = query.filter(LGPDAuditLog.created_at <= end_date)
+            stmt = stmt.where(LGPDAuditLog.created_at <= end_date)
 
-        return query.order_by(LGPDAuditLog.created_at.desc()).limit(limit).all()
+        stmt = stmt.order_by(LGPDAuditLog.created_at.desc()).limit(limit)
+        result = await self._resolve(self.db.execute(stmt))
+        return list(result.scalars().all())
 
     async def get_failed_access_attempts(
         self, hours: int = 24, limit: int = 100
@@ -532,15 +555,22 @@ class LGPDAuditService:
         Returns:
             List of failed access logs
         """
-        since = datetime.now(timezone.utc) - timedelta(hours=hours)
+        since = now_sao_paulo() - timedelta(hours=hours)
 
-        return (
-            self.db.query(LGPDAuditLog)
-            .filter(and_(not LGPDAuditLog.success, LGPDAuditLog.created_at >= since))
+        stmt = (
+            select(LGPDAuditLog)
+            .where(
+                and_(
+                    LGPDAuditLog.success.is_(False),
+                    LGPDAuditLog.created_at >= since,
+                )
+            )
             .order_by(LGPDAuditLog.created_at.desc())
             .limit(limit)
-            .all()
         )
+
+        result = await self._resolve(self.db.execute(stmt))
+        return list(result.scalars().all())
 
 
 __all__ = ["ConsentService", "LGPDAuditService"]

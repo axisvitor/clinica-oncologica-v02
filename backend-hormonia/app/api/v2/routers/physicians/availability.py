@@ -7,9 +7,9 @@ from uuid import UUID
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 
@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 async def get_physician_schedule(
     request: Request,
     physician_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     start_date: date = Query(..., description="Schedule start date"),
     end_date: date = Query(..., description="Schedule end date"),
@@ -53,13 +53,15 @@ async def get_physician_schedule(
         )
 
     # Validate access
-    validate_physician_access(
+    await validate_physician_access(
         physician_uuid, current_user, db, allow_patient_view=False
     )
 
     # Get schedule
     availability_service = PhysicianAvailabilityService(db)
-    schedule = availability_service.get_schedule(physician_uuid, start_date, end_date)
+    schedule = await availability_service.get_schedule(
+        physician_uuid, start_date, end_date
+    )
 
     return schedule
 
@@ -77,7 +79,7 @@ async def get_physician_schedule(
 async def check_physician_availability(
     request: Request,
     physician_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     requested_datetime: datetime = Query(
         ..., description="Requested appointment datetime"
@@ -96,11 +98,11 @@ async def check_physician_availability(
         )
 
     # Validate access
-    validate_physician_access(physician_uuid, current_user, db, allow_patient_view=True)
+    await validate_physician_access(physician_uuid, current_user, db, allow_patient_view=True)
 
     # Check availability
     availability_service = PhysicianAvailabilityService(db)
-    is_available = availability_service.is_available(
+    is_available = await availability_service.is_available(
         physician_uuid, requested_datetime, duration_minutes
     )
 
@@ -125,7 +127,7 @@ async def check_physician_availability(
 async def get_next_available_slot(
     request: Request,
     physician_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     after_datetime: datetime = Query(None, description="Search after this datetime"),
     duration_minutes: int = Query(30, ge=15, le=120, description="Required duration"),
@@ -141,7 +143,7 @@ async def get_next_available_slot(
         )
 
     # Validate access
-    validate_physician_access(physician_uuid, current_user, db, allow_patient_view=True)
+    await validate_physician_access(physician_uuid, current_user, db, allow_patient_view=True)
 
     # Find next available slot
     availability_service = PhysicianAvailabilityService(db)

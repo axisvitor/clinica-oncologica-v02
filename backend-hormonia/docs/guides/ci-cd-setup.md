@@ -66,7 +66,7 @@ Approval Required → Pre-deployment Checks → Build Production Images
 
 **Triggers:**
 - Push/PR to main branches
-- Weekly schedule (Mondays at 9 AM UTC)
+- Weekly schedule (Mondays at 9 AM Sao Paulo)
 - Manual dispatch
 
 **Scans:**

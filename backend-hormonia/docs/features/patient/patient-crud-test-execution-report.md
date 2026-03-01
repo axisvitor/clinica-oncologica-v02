@@ -317,7 +317,7 @@ This will **immediately unblock 5 failing tests**.
 
 ---
 
-**Report Generated**: 2025-12-23T22:47:00Z
+**Report Generated**: 2025-12-23T22:47:00-03:00
 **Testing Agent**: Patient CRUD Tester
 **Status**: ⚠️ Critical issue identified - Patient creation broken
 **Resolution**: Root cause found in `/backend-hormonia/app/repositories/patient/base.py:143`

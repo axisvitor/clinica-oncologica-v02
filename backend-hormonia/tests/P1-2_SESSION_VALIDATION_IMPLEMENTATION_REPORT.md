@@ -61,8 +61,8 @@ def mock_firebase_auth():
         "uid": "firebase-uid-123",
         "email": "test@example.com",
         "custom_claims": {"role": "doctor"},
-        "auth_time": int(datetime.utcnow().timestamp()),
-        "exp": int((datetime.utcnow() + timedelta(hours=1)).timestamp())
+        "auth_time": int(now_sao_paulo().timestamp()),
+        "exp": int((now_sao_paulo() + timedelta(hours=1)).timestamp())
     }
     return mock
 ```
@@ -357,7 +357,7 @@ mock.create_session(session_id, user_id, firebase_uid, ttl=86400)
 
 ---
 
-**Report Generated:** 2025-11-14 16:45:00 UTC
+**Report Generated:** 2025-11-14 16:45:00 Sao Paulo
 **Author:** TESTER Agent (Claude-Flow)
 **Review Status:** Ready for QA Review
 **Production Ready:** Pending import error fix

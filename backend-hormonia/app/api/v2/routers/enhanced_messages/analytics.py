@@ -9,11 +9,14 @@ Provides analytics and performance metrics including:
 
 from typing import Optional
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 
-from app.database import get_db
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.database.async_engine import get_async_db
 from app.models.patient import Patient
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
@@ -24,6 +27,7 @@ from app.schemas.v2.enhanced_messages import (
     DeliveryOptimizationV2Response,
 )
 from app.utils.rate_limiter import limiter
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -66,8 +70,8 @@ async def get_message_performance(
 
         # Calculate performance metrics
         # In production, this would query the database
-        period_start = datetime.now(timezone.utc) - timedelta(days=days)
-        period_end = datetime.now(timezone.utc)
+        period_start = now_sao_paulo() - timedelta(days=days)
+        period_end = now_sao_paulo()
 
         performance = MessagePerformanceV2Response(
             period_start=period_start,
@@ -117,7 +121,7 @@ async def get_delivery_optimization(
     request: Request,
     patient_id: str,
     current_user: dict = Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> DeliveryOptimizationV2Response:
     """
@@ -132,7 +136,15 @@ async def get_delivery_optimization(
     """
     try:
         # Validate patient
-        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+        try:
+            patient_uuid = UUID(str(patient_id))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
+            ) from exc
+
+        result = await db.execute(select(Patient).where(Patient.id == patient_uuid))
+        patient = result.scalar_one_or_none()
         if not patient:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"

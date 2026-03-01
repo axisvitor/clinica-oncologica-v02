@@ -10,9 +10,11 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from enum import Enum
 import json
+import logging
 import redis.asyncio as redis
 
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 
 logger = get_logger(__name__)
@@ -73,7 +75,7 @@ class AuditEntry:
         self.resource_type = resource_type
         self.resource_id = resource_id
         self.user_id = user_id
-        self.timestamp = timestamp or datetime.now(timezone.utc)
+        self.timestamp = timestamp or now_sao_paulo()
         self.patient_id = patient_id
         self.changes = changes or {}
         self.reason = reason
@@ -220,7 +222,10 @@ class AuditLogger:
             return
 
         try:
-            pipeline = self.redis.pipeline()
+            try:
+                pipeline = self.redis.pipeline(transaction=False)
+            except TypeError:
+                pipeline = self.redis.pipeline()
 
             for entry in entries:
                 # Store in audit log
@@ -267,7 +272,8 @@ class AuditLogger:
 
         try:
             user_audit_key = f"audit:user:{user_id}"
-            entries_json = await self.redis.lrange(user_audit_key, 0, -1)
+            window = max(limit * 5, 200)
+            entries_json = await self.redis.lrange(user_audit_key, -window, -1)
 
             entries = []
             for entry_json in entries_json:
@@ -302,7 +308,8 @@ class AuditLogger:
 
         try:
             patient_audit_key = f"audit:patient:{patient_id}"
-            entries_json = await self.redis.lrange(patient_audit_key, 0, -1)
+            window = max(limit * 5, 200)
+            entries_json = await self.redis.lrange(patient_audit_key, -window, -1)
 
             entries = []
             for entry_json in entries_json:
@@ -333,7 +340,8 @@ class AuditLogger:
 
         try:
             resource_audit_key = f"audit:resource:{resource_type.value}:{resource_id}"
-            entries_json = await self.redis.lrange(resource_audit_key, 0, -1)
+            window = max(limit * 5, 200)
+            entries_json = await self.redis.lrange(resource_audit_key, -window, -1)
 
             entries = []
             for entry_json in entries_json:
@@ -441,3 +449,152 @@ def get_audit_logger(redis_client: Optional[redis.Redis] = None) -> AuditLogger:
     if _audit_logger is None:
         _audit_logger = AuditLogger(redis_client)
     return _audit_logger
+
+
+# =============================================================================
+# Template Audit Logger (simple structured logging for CRUD operations)
+# =============================================================================
+# Migrated from app/utils/audit_logger.py during audit consolidation.
+# Provides static-method logging for template and resource CRUD operations.
+
+template_audit_logger = logging.getLogger("audit")
+
+
+class TemplateAuditAction(str, Enum):
+    """Enumeration of auditable actions for template CRUD operations."""
+
+    CREATE = "create"
+    UPDATE = "update"
+    DELETE = "delete"
+    READ = "read"
+    PUBLISH = "publish"
+    ARCHIVE = "archive"
+    DUPLICATE = "duplicate"
+    ROLLBACK = "rollback"
+    SEARCH = "search"
+    VALIDATE = "validate"
+
+
+class TemplateAuditLogger:
+    """
+    Structured audit logging for template and resource CRUD operations.
+
+    All methods are static -- no instance or database connection required.
+    Logs are emitted via the standard ``logging`` module for downstream
+    aggregation (ELK, CloudWatch, etc.).
+    """
+
+    @staticmethod
+    def log(
+        action: TemplateAuditAction,
+        resource_type: str,
+        resource_id: str,
+        user_id: str,
+        user_role: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None,
+        success: bool = True,
+        error_message: Optional[str] = None,
+    ) -> None:
+        """Log an audit event with full context."""
+        from app.utils.timezone import now_sao_paulo
+
+        audit_entry = {
+            "timestamp": now_sao_paulo().isoformat(),
+            "action": action.value,
+            "resource_type": resource_type,
+            "resource_id": resource_id,
+            "user_id": user_id,
+            "user_role": user_role,
+            "details": details or {},
+            "ip_address": ip_address,
+            "success": success,
+            "error_message": error_message,
+        }
+        log_level = logging.INFO if success else logging.WARNING
+        template_audit_logger.log(
+            log_level,
+            f"AUDIT: {action.value} {resource_type}:{resource_id} by user:{user_id} "
+            f"{'SUCCESS' if success else 'FAILED'}",
+            extra={"audit_data": audit_entry},
+        )
+
+    @staticmethod
+    def log_batch(
+        action: TemplateAuditAction,
+        resource_type: str,
+        resource_ids: List[str],
+        user_id: str,
+        user_role: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None,
+        success: bool = True,
+    ) -> None:
+        """Log a batch operation affecting multiple resources."""
+        from app.utils.timezone import now_sao_paulo
+
+        audit_entry = {
+            "timestamp": now_sao_paulo().isoformat(),
+            "action": action.value,
+            "resource_type": resource_type,
+            "resource_ids": resource_ids,
+            "resource_count": len(resource_ids),
+            "user_id": user_id,
+            "user_role": user_role,
+            "details": details or {},
+            "ip_address": ip_address,
+            "success": success,
+        }
+        template_audit_logger.info(
+            f"AUDIT: BATCH {action.value} {len(resource_ids)} {resource_type}(s) "
+            f"by user:{user_id}",
+            extra={"audit_data": audit_entry},
+        )
+
+    @staticmethod
+    def log_access(
+        resource_type: str,
+        resource_id: str,
+        user_id: str,
+        user_role: Optional[str] = None,
+        access_type: str = "view",
+        ip_address: Optional[str] = None,
+    ) -> None:
+        """Log access to sensitive resources (read operations)."""
+        TemplateAuditLogger.log(
+            action=TemplateAuditAction.READ,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            user_id=user_id,
+            user_role=user_role,
+            details={"access_type": access_type},
+            ip_address=ip_address,
+            success=True,
+        )
+
+    @staticmethod
+    def log_security_event(
+        event_type: str,
+        user_id: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+        ip_address: Optional[str] = None,
+        severity: str = "medium",
+    ) -> None:
+        """Log security-related events."""
+        from app.utils.timezone import now_sao_paulo
+
+        audit_entry = {
+            "timestamp": now_sao_paulo().isoformat(),
+            "event_type": event_type,
+            "user_id": user_id,
+            "details": details or {},
+            "ip_address": ip_address,
+            "severity": severity,
+        }
+        log_level = logging.WARNING if severity in ["high", "critical"] else logging.INFO
+        template_audit_logger.log(
+            log_level,
+            f"SECURITY: {event_type} severity:{severity} "
+            f"user:{user_id or 'anonymous'}",
+            extra={"security_event": audit_entry},
+        )

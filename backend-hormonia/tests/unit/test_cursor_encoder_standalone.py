@@ -11,6 +11,7 @@ import json
 from typing import Dict, Any
 
 
+from app.utils.timezone import SAO_PAULO_TZ
 # Inline CursorEncoder for standalone testing
 class CursorEncoder:
     """Encode/decode pagination cursors."""
@@ -78,7 +79,7 @@ class TestCursorEncoder:
         """Test cursor encoding with timezone-aware datetime."""
         # Arrange
         last_id = 456
-        last_created_at = datetime(2025, 1, 17, 15, 30, 0, tzinfo=timezone.utc)
+        last_created_at = datetime(2025, 1, 17, 15, 30, 0, tzinfo=SAO_PAULO_TZ)
         
         # Act
         cursor = CursorEncoder.encode(last_id, last_created_at)

@@ -13,7 +13,7 @@
 import { firebaseAuthLazy } from '../lib/firebase-lazy'
 import { apiClient } from '../lib/api-client'
 import { createLogger } from '../lib/logger'
-import { isErrorWithMessage, getErrorMessage } from '@/lib/utils/type-guards'
+import { isErrorWithMessage } from '@/lib/utils/type-guards'
 import type { User, LoginResponse } from '@/types/api'
 
 const logger = createLogger('FirebaseAuthService')
@@ -33,12 +33,19 @@ export function getSessionId(): string | null {
 }
 
 /**
+ * Set the current session ID (UUID from backend)
+ */
+export function setSessionId(sessionId: string | null): void {
+  currentSessionId = sessionId
+  apiClient.setAuthToken(sessionId)
+}
+
+/**
  * Clear the stored session ID
  * Called on logout
  */
 export function clearSessionId(): void {
-  currentSessionId = null
-  apiClient.setAuthToken(null)
+  setSessionId(null)
 }
 
 /**
@@ -155,7 +162,7 @@ export async function loginUser(
       },
       session_id: sessionData.session_id || 'cookie'
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Login failed:', error)
     // Clear any partial session data (cookie cleared by backend on error)
     // Firebase Auth SDK automatically clears in-memory token

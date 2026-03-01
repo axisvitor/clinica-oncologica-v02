@@ -14,6 +14,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB, INET
 from sqlalchemy.orm import relationship
 
 from app.models.base import BaseModel
+from app.utils.timezone import now_sao_paulo_naive
 
 if TYPE_CHECKING:
     pass
@@ -156,7 +157,7 @@ class LGPDAuditLog(BaseModel):
         Index(
             "ix_lgpd_audit_failures",
             "created_at",
-            postgresql_where=(~Column("success")),
+            postgresql_where=success.is_(False),
         ),
     )
 
@@ -199,7 +200,7 @@ class DataAccessRequest(BaseModel):
 
     # Deadlines (LGPD requires 15-day response)
     received_at = Column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=now_sao_paulo_naive, nullable=False
     )
     deadline_at = Column(DateTime(timezone=True), nullable=False)
     responded_at = Column(DateTime(timezone=True), nullable=True)

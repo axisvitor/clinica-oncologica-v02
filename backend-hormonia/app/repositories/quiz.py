@@ -2,13 +2,14 @@
 from __future__ import annotations
 from typing import List, Optional
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.models.quiz import QuizTemplate, QuizResponse, QuizSession
 from app.repositories.base import BaseRepository
 from app.utils.query_cache import cached_query
+from app.utils.timezone import now_sao_paulo
 
 
 class QuizRepository(BaseRepository[QuizSession]):
@@ -57,6 +58,20 @@ class QuizRepository(BaseRepository[QuizSession]):
 
         return query.offset(skip).limit(limit).all()
 
+    def get_recent_for_patient(
+        self, patient_id: UUID, limit: int = 5, days: int = 30
+    ) -> List[QuizResponse]:
+        """Get recent quiz responses for a patient within the last N days."""
+        cutoff = now_sao_paulo() - timedelta(days=days)
+        return (
+            self.db.query(QuizResponse)
+            .filter(QuizResponse.patient_id == patient_id)
+            .filter(QuizResponse.responded_at >= cutoff)
+            .order_by(QuizResponse.responded_at.desc())
+            .limit(limit)
+            .all()
+        )
+
     def get_active_sessions(self, eager_load: bool = True) -> List[QuizSession]:
         """
         Get active quiz sessions with eager loading.
@@ -76,7 +91,7 @@ class QuizRepository(BaseRepository[QuizSession]):
         """
         from sqlalchemy.orm import joinedload, selectinload
 
-        query = self.db.query(QuizSession).filter(QuizSession.status == "in_progress")
+        query = self.db.query(QuizSession).filter(QuizSession.status == "started")
 
         if eager_load:
             # PERFORMANCE: Load patient, template, and responses to prevent N+1 queries
@@ -326,9 +341,7 @@ class QuizSessionRepository(BaseRepository[QuizSession]):
         query = (
             self.db.query(QuizSession)
             .filter(QuizSession.patient_id == patient_id)
-            .filter(
-                QuizSession.status == "in_progress"
-            )  # FIX: Use status field instead of is_completed
+            .filter(QuizSession.status == "started")
             .order_by(QuizSession.started_at.desc())
         )
 
@@ -415,7 +428,7 @@ class QuizSessionRepository(BaseRepository[QuizSession]):
             session and session.status != "completed"
         ):  # FIX: Check status instead of is_completed
             session.status = "completed"  # FIX: Set status to completed
-            session.completed_at = datetime.now(timezone.utc)
+            session.completed_at = now_sao_paulo()
             self.db.commit()
         return session
 

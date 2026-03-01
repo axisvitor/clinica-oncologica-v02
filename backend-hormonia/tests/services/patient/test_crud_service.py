@@ -28,7 +28,7 @@ Priority: P0 - Core Business Logic
 from __future__ import annotations
 
 import pytest
-from datetime import datetime, timezone, date
+from datetime import datetime, date
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -36,6 +36,7 @@ from app.services.patient.crud_service import PatientCRUDService
 from app.models.patient import Patient, FlowState
 from app.schemas.patient import PatientUpdate
 from app.exceptions import NotFoundError
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 
 
 # =============================================================================
@@ -108,8 +109,8 @@ def sample_patient():
     patient.treatment_phase = "initial"
     patient.doctor_notes = "Initial notes"
     patient.patient_data = {"preferences": {"timezone": "America/Sao_Paulo"}}
-    patient.created_at = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    patient.updated_at = datetime(2024, 1, 15, tzinfo=timezone.utc)
+    patient.created_at = datetime(2024, 1, 1, tzinfo=SAO_PAULO_TZ)
+    patient.updated_at = datetime(2024, 1, 15, tzinfo=SAO_PAULO_TZ)
 
     return patient
 
@@ -149,7 +150,9 @@ class TestGetPatient:
 
         # Assert
         assert result == sample_patient
-        mock_repository.get_by_id.assert_called_once_with(patient_id)
+        mock_repository.get_by_id.assert_called_once_with(
+            patient_id, eager_load=False
+        )
 
     def test_get_patient_not_found(self, crud_service, mock_repository):
         """Test NotFoundError when patient does not exist."""
@@ -162,7 +165,9 @@ class TestGetPatient:
             crud_service.get_patient(patient_id)
 
         assert str(patient_id) in str(exc_info.value)
-        mock_repository.get_by_id.assert_called_once_with(patient_id)
+        mock_repository.get_by_id.assert_called_once_with(
+            patient_id, eager_load=False
+        )
 
     def test_get_patient_with_uuid_string(self, crud_service, mock_repository, sample_patient):
         """Test retrieval with UUID as string."""
@@ -324,8 +329,8 @@ class TestListPatients:
     ):
         """Test list patients with date range filter."""
         # Arrange
-        start_from = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        start_to = datetime(2024, 12, 31, tzinfo=timezone.utc)
+        start_from = datetime(2024, 1, 1, tzinfo=SAO_PAULO_TZ)
+        start_to = datetime(2024, 12, 31, tzinfo=SAO_PAULO_TZ)
         mock_repository.get_paginated.return_value = ([], 0)
 
         # Act
@@ -559,7 +564,12 @@ class TestDeletePatient:
     def test_delete_patient_success(
         self, crud_service, mock_repository, mock_db_session, sample_patient
     ):
-        """Test successful soft delete."""
+        """Test successful soft delete.
+
+        After the LGPD-01 audit hook, session.add() is called twice:
+        first for the PatientDeletionAudit record, then for the patient.
+        The test verifies that the patient was added and deleted_at is set.
+        """
         # Arrange
         patient_id = sample_patient.id
         sample_patient.deleted_at = None
@@ -574,7 +584,11 @@ class TestDeletePatient:
         # Assert
         assert result is True
         assert sample_patient.deleted_at is not None
-        mock_db_session.add.assert_called_once_with(sample_patient)
+        # session.add() is called at least twice: once for the LGPD audit record
+        # (PatientDeletionAudit) and once for the soft-deleted patient.
+        assert mock_db_session.add.call_count >= 2
+        # The patient must be among the objects added to the session.
+        mock_db_session.add.assert_any_call(sample_patient)
 
     def test_delete_patient_not_found(
         self, crud_service, mock_repository
@@ -593,13 +607,13 @@ class TestDeletePatient:
     def test_delete_patient_sets_deleted_at_timestamp(
         self, crud_service, mock_repository, mock_db_session, sample_patient
     ):
-        """Test that deleted_at is set to current UTC time."""
+        """Test that deleted_at is set to current Sao Paulo time."""
         # Arrange
         patient_id = sample_patient.id
         sample_patient.deleted_at = None
         mock_repository.get_by_id.return_value = sample_patient
 
-        before_delete = datetime.now(timezone.utc)
+        before_delete = now_sao_paulo()
 
         # Act
         with patch("app.services.patient.crud_service.sync_transaction") as mock_tx:
@@ -607,7 +621,7 @@ class TestDeletePatient:
             mock_tx.return_value.__exit__ = MagicMock(return_value=False)
             result = crud_service.delete_patient(patient_id)
 
-        after_delete = datetime.now(timezone.utc)
+        after_delete = now_sao_paulo()
 
         # Assert
         assert result is True
@@ -676,7 +690,7 @@ class TestRestorePatient:
         """Test successful restoration of soft-deleted patient."""
         # Arrange
         patient_id = sample_patient.id
-        sample_patient.deleted_at = datetime.now(timezone.utc)
+        sample_patient.deleted_at = now_sao_paulo()
 
         # Mock the query for deleted patients
         mock_query = MagicMock()
@@ -740,7 +754,7 @@ class TestRestorePatient:
         """Test cache is invalidated after restoration."""
         # Arrange
         patient_id = sample_patient.id
-        sample_patient.deleted_at = datetime.now(timezone.utc)
+        sample_patient.deleted_at = now_sao_paulo()
 
         mock_query = MagicMock()
         mock_filter = MagicMock()
@@ -832,7 +846,9 @@ class TestCacheInvalidation:
         patient_id = uuid4()
 
         # Act
-        with patch("app.services.patient.crud_service._cache_executor") as mock_executor:
+        with patch("app.services.patient.crud_service.get_cache_executor") as mock_get_executor:
+            mock_executor = MagicMock()
+            mock_get_executor.return_value = mock_executor
             crud_service._run_cache_invalidation(
                 entity="patient",
                 identifier=str(patient_id),
@@ -850,8 +866,10 @@ class TestCacheInvalidation:
         patient_id = uuid4()
 
         # Act & Assert - should not raise
-        with patch("app.services.patient.crud_service._cache_executor") as mock_executor:
+        with patch("app.services.patient.crud_service.get_cache_executor") as mock_get_executor:
+            mock_executor = MagicMock()
             mock_executor.submit.side_effect = Exception("Executor error")
+            mock_get_executor.return_value = mock_executor
 
             # This should not raise
             crud_service._run_cache_invalidation(
@@ -867,7 +885,9 @@ class TestCacheInvalidation:
         doctor_id = uuid4()
 
         # Act & Assert - should not raise
-        with patch("app.services.patient.crud_service._cache_executor") as mock_executor:
+        with patch("app.services.patient.crud_service.get_cache_executor") as mock_get_executor:
+            mock_executor = MagicMock()
+            mock_get_executor.return_value = mock_executor
             PatientCRUDService.invalidate_patient_cache_static(patient_id, doctor_id)
 
             # Assert - executor.submit should be called

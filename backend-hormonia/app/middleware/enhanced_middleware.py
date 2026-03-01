@@ -13,7 +13,6 @@ import time
 import json
 import hashlib
 from typing import Optional, Callable
-from datetime import datetime, timezone
 
 from fastapi import Request, Response, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -22,6 +21,7 @@ from pydantic import BaseModel
 
 from app.utils.logging import get_logger
 from app.core.logging_config import OptimizedRequestLogger, RateLimitedLogger
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -338,7 +338,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "query_params": dict(request.query_params),
             "headers": headers,
             "client_ip": request.client.host if request.client else "unknown",
-            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         # Add request body if enabled and appropriate
@@ -374,7 +374,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "status_code": response.status_code,
             "process_time_seconds": round(process_time, 3),
             "response_size": response.headers.get("content-length", 0),
-            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         # Log response body if enabled and not too large
@@ -422,7 +422,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             "error_type": type(error).__name__,
             "error_message": str(error),
             "process_time_seconds": round(process_time, 3),
-            "timestamp": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+            "timestamp": now_sao_paulo().isoformat(),
         }
 
         # Determine if we should include stack trace based on error type

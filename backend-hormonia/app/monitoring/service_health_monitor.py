@@ -14,7 +14,8 @@ import aiohttp
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +128,7 @@ class EndpointHealthChecker:
             service_type=ServiceType.API,
             status=status,
             response_time_ms=response_time,
-            checked_at=datetime.now(timezone.utc),
+            checked_at=now_sao_paulo(),
             details=details,
             error=error,
         )
@@ -187,7 +188,7 @@ class DatabaseHealthChecker:
             service_type=ServiceType.DATABASE,
             status=status,
             response_time_ms=response_time,
-            checked_at=datetime.now(timezone.utc),
+            checked_at=now_sao_paulo(),
             details=details,
             error=error,
         )
@@ -238,7 +239,7 @@ class CacheHealthChecker:
             service_type=ServiceType.CACHE,
             status=status,
             response_time_ms=response_time,
-            checked_at=datetime.now(timezone.utc),
+            checked_at=now_sao_paulo(),
             details=details,
             error=error,
         )
@@ -312,7 +313,7 @@ class ServiceHealthMonitor:
         if service_name not in self.health_history:
             return None
 
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = now_sao_paulo() - timedelta(hours=hours)
         recent_checks = [
             check
             for check in self.health_history[service_name]
@@ -353,13 +354,13 @@ class ServiceHealthMonitor:
             current_error_rate=error_rate,
             sla_met=sla_met,
             period_start=cutoff_time,
-            period_end=datetime.now(timezone.utc),
+            period_end=now_sao_paulo(),
         )
 
     async def get_uptime_report(self, hours: int = 24) -> Dict[str, Any]:
         """Generate uptime report for all services"""
         report = {}
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = now_sao_paulo() - timedelta(hours=hours)
 
         for service_name, history in self.health_history.items():
             recent_checks = [c for c in history if c.checked_at >= cutoff_time]

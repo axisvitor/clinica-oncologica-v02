@@ -31,15 +31,15 @@
   ↓
 006_add_message_priority
   ↓
-007_add_quiz_sessions_patient_id_index
+007_quiz_sessions_index
   ↓
-008_add_flow_executions_flow_id_index
+008_flow_states_index
   ↓
-009_add_patient_unique_constraints
+009_patient_constraints
   ↓
-010_add_missing_foreign_key_and_composite_indexes
+010_missing_indexes
   ↓
-011_hipaa_audit_trail_enhancement
+011_hipaa_audit
   ↓
 012_migrate_quiz_response_value_to_jsonb
   ↓
@@ -61,7 +61,7 @@
   ↓
 020_encrypt_cpf_lgpd ❌ REFERENCES WRONG REVISION
   ↓
-021_add_patient_summaries
+021_patient_summaries
 ```
 
 ---
@@ -149,7 +149,7 @@ down_revision = '019_seed_welcome_message'
   ↓
 020_encrypt_cpf_lgpd
   ↓
-021_add_patient_summaries
+021_patient_summaries
   ↓
 022_create_message_templates ← Renamed with sequential number
 ```
@@ -159,7 +159,7 @@ Rename `27ee28e62ff8` to `022_create_message_templates` and adjust chain:
 - 019 down_revision → '018_seed_flow_templates'
 - 020 down_revision → '019_seed_welcome_message'
 - 021 down_revision → '020_encrypt_cpf_lgpd'
-- 022 down_revision → '021_add_patient_summaries'
+- 022 down_revision → '021_patient_summaries'
 
 ---
 

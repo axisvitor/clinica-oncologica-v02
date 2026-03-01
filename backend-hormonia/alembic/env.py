@@ -5,7 +5,7 @@ CRITICAL FIX: Import ALL models to ensure migrations capture complete schema.
 """
 
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config
+from sqlalchemy import engine_from_config, text
 from sqlalchemy import pool
 from alembic import context
 import os
@@ -29,18 +29,7 @@ from app.models.flow import PatientFlowState, FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate, QuizResponse
 from app.models.report import MedicalReport
 from app.models.alert import Alert, AlertSeverity, AlertStatus
-from app.models.flow_analytics import FlowAnalytics, FlowMessage, QuizQuestion
-from app.models.ab_experiment import (
-    ABExperiment,
-    ABVariantAssignment,
-    ABExperimentMetric,
-    ABExperimentResult,
-    ABExperimentAudit,
-    ABExperimentMonitoring,
-    ExperimentStatus,
-    VariantType,
-    PatientSafetyLevel,
-)
+from app.models.flow_analytics import FlowAnalytics, FlowMessage
 from app.models.audit_log import AuditLog, AuditEventType
 from app.models.user_sync_log import UserSyncLog
 from app.models.treatment import Treatment, TreatmentStatus, TreatmentType
@@ -52,6 +41,8 @@ from app.models.consent import Consent, ConsentType, ConsentStatus
 from app.models.webhook_event import WebhookEvent
 from app.models.failed_message import FailedMessage, FailureReason, DLQStatus
 from app.models.error_tracking import ErrorLog
+from app.models.lgpd_audit import LGPDAuditLog, DataAccessRequest
+from app.models.webhook import WebhookEndpoint, WebhookDelivery, WebhookLog
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -104,6 +95,11 @@ def run_migrations_offline() -> None:
 
     """
     url = get_url()
+    autocommit = os.getenv("ALEMBIC_AUTOCOMMIT", "1").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -112,6 +108,7 @@ def run_migrations_offline() -> None:
         compare_type=True,
         compare_server_default=True,
         render_as_batch=True,  # Better compatibility with PostgreSQL
+        transactional_ddl=not autocommit,
     )
 
     with context.begin_transaction():
@@ -128,19 +125,48 @@ def run_migrations_online() -> None:
     configuration = config.get_section(config.config_ini_section)
     configuration["sqlalchemy.url"] = get_url()
 
+    autocommit = os.getenv("ALEMBIC_AUTOCOMMIT", "1").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    engine_kwargs = {"poolclass": pool.NullPool}
+    if autocommit:
+        engine_kwargs["isolation_level"] = "AUTOCOMMIT"
+
     connectable = engine_from_config(
         configuration,
         prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+        **engine_kwargs,
     )
 
     with connectable.connect() as connection:
+        # Some historical revisions use IDs longer than Alembic's default
+        # version table width (VARCHAR(32)). Ensure enough capacity before
+        # Alembic starts writing revision values.
+        connection.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS alembic_version (
+                    version_num VARCHAR(255) NOT NULL
+                )
+                """
+            )
+        )
+        connection.execute(
+            text(
+                "ALTER TABLE alembic_version "
+                "ALTER COLUMN version_num TYPE VARCHAR(255)"
+            )
+        )
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
             compare_server_default=True,
             render_as_batch=True,  # Better compatibility with PostgreSQL
+            transactional_ddl=not autocommit,
         )
 
         with context.begin_transaction():

@@ -2,24 +2,28 @@
 
 from __future__ import annotations
 
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
+
 # Standard library
 import logging
-from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 # Third-party
 from sqlalchemy.orm import Session
 
 # Local
-from app.integrations.gemini_client import get_gemini_client
-from app.services.template_loader import (
+from app.ai.client import get_gemini_client
+from app.ai.pii_redaction import redact_conversation_history, redact_patient_context
+from app.services.template_loader_pkg import (
     EnhancedTemplateLoader,
     FlowTemplateData,
     MessageTemplate,
 )
 from app.utils.template_variables import TemplateVariableProcessor
 
+from .constants import FLOW_TYPES, normalize_flow_day, resolve_flow_type_and_day
 from .models import FlowContext
+from app.utils.timezone import now_sao_paulo
 
 
 class MessageGenerator:
@@ -61,7 +65,7 @@ class MessageGenerator:
         """Load all available flow templates."""
         try:
             # Load main flow templates
-            flow_types = ["initial_15_days", "days_16_45", "monthly_recurring"]
+            flow_types = FLOW_TYPES
 
             for flow_type in flow_types:
                 try:
@@ -89,11 +93,13 @@ class MessageGenerator:
 
         try:
             # Determine appropriate flow template based on current day
-            flow_type = self._determine_flow_type(context.current_day)
+            flow_type, template_day = self._resolve_flow_type_and_day(
+                context.current_day
+            )
 
             # Try to get message from templates first
             template_message = await self._get_template_message(
-                flow_type, context.current_day
+                flow_type, template_day
             )
 
             if template_message:
@@ -107,7 +113,7 @@ class MessageGenerator:
             # All templates MUST be in the database (see template_loader.py)
             self.logger.critical(
                 f"TEMPLATE_MISSING: No template found for flow_type={flow_type}, day={context.current_day}. "
-                f"Patient: {context.patient_data.name if context.patient_data else 'unknown'}. "
+                f"Patient ID: {getattr(context.patient_data, 'id', 'unknown') if context.patient_data else 'unknown'}. "
                 "Please ensure all templates are loaded in the database."
             )
             raise ValueError(
@@ -121,14 +127,10 @@ class MessageGenerator:
             self.logger.error(f"Error generating daily message: {e}")
             raise
 
-    def _determine_flow_type(self, current_day: int) -> str:
-        """Determine appropriate flow type based on current day."""
-        if current_day <= 15:
-            return "initial_15_days"
-        elif current_day <= 45:
-            return "days_16_45"
-        else:
-            return "monthly_recurring"
+    def _resolve_flow_type_and_day(self, current_day: int) -> tuple[str, int]:
+        """Determine flow type and template day based on current day."""
+        normalized_day = normalize_flow_day(current_day)
+        return resolve_flow_type_and_day(normalized_day)
 
     async def _get_template_message(
         self, flow_type: str, day: int
@@ -180,6 +182,34 @@ class MessageGenerator:
                 "personalization_hints": template.personalization_hints,
                 "core_elements": template.core_elements,
             }
+            flow_state_data: Dict[str, Any] = {}
+            flow_kind = None
+            send_mode = None
+            message_index = None
+            if context.flow_state:
+                try:
+                    flow_state_data = context.flow_state.state_data or {}
+                except Exception:
+                    flow_state_data = {}
+                flow_kind = flow_state_data.get("flow_kind")
+                send_mode = (
+                    flow_state_data.get("send_mode")
+                    or flow_state_data.get("daily_send_mode")
+                )
+                message_index = flow_state_data.get("current_day_message_index")
+                if not flow_kind:
+                    try:
+                        flow_kind = str(context.flow_state.flow_type)
+                    except Exception:
+                        flow_kind = None
+
+            personalization_context.update(
+                {
+                    "flow_kind": flow_kind or "unknown",
+                    "send_mode": send_mode or "single",
+                    "message_index": message_index,
+                }
+            )
 
             # Generate personalized content using AI if available
             if template.ai_instructions and self.gemini_client:
@@ -198,60 +228,43 @@ class MessageGenerator:
                 if template.ai_instructions
                 else "standard",
                 "template_intent": template.intent,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generated_at": now_sao_paulo().isoformat(),
                 "source": "template",
             }
 
         except Exception as e:
             self.logger.error(f"Error personalizing template message: {e}")
-            # Fallback to base content
-            return {
-                "content": template.base_content.replace(
-                    "{patient_name}",
-                    context.patient_data.name if context.patient_data else "Cliente",
-                ),
-                "personalization_level": "basic",
-                "template_intent": template.intent,
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "source": "template_fallback",
-            }
+            raise
 
     async def _generate_ai_content(
         self, template: MessageTemplate, context: Dict[str, Any]
     ) -> str:
         """Generate AI-optimized content based on template and context."""
         try:
-            # Prepare AI prompt
-            ai_prompt = f"""
-            {template.ai_instructions}
+            patient_name = str(context.get("patient_name") or "").strip()
+            safe_context = redact_patient_context(context)
+            safe_history = redact_conversation_history(
+                context.get("conversation_history", []),
+                patient_names=[patient_name] if patient_name else None,
+            )
+            personalized = await self.gemini_client.humanize_flow_message(
+                template=template.base_content,
+                patient_name=str(safe_context.get("patient_name", "Paciente")),
+                patient_context=safe_context,
+                conversation_history=safe_history,
+                personalization_hints=context.get("personalization_hints", []),
+                ai_instructions=template.ai_instructions,
+                strict=True,
+            )
 
-            Contexto do paciente:
-            - Nome: {context["patient_name"]}
-            - Dia do tratamento: {context["current_day"]}
-            - Tendência de humor: {context["mood_trend"]}
-            - Nível de engajamento: {context["engagement_level"]}
-            - Fatores de risco: {", ".join(context["risk_factors"])}
+            if not personalized:
+                raise ValueError("AI returned empty flow message")
 
-            Dicas de personalização: {", ".join(context["personalization_hints"])}
-            Elementos essenciais: {context["core_elements"]}
-
-            Conteúdo base: {template.base_content}
-
-            Gere uma mensagem personalizada seguindo as instruções acima:
-            """
-
-            # Call AI service
-            response = await self.gemini_client.generate_content(ai_prompt)
-
-            if response and hasattr(response, "text"):
-                return response.text.strip()
-
-            # Fallback if AI fails
-            return self._apply_basic_personalization(template, context)
+            return personalized.strip()
 
         except Exception as e:
             self.logger.error(f"AI content generation failed: {e}")
-            return self._apply_basic_personalization(template, context)
+            raise
 
     def _apply_basic_personalization(
         self, template: MessageTemplate, context: Dict[str, Any]

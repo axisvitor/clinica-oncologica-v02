@@ -1,15 +1,34 @@
+# DDD service agent - delegates to GeminiClient.generate_content() directly, not a pydantic-ai migration target.
 """
 Message Composer Module
 
 Core message composition logic including AI-based generation and personalization.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-from app.integrations.gemini_client import GeminiClient
+from app.agents.communication.utils import clean_message_content
+from app.ai.client import GeminiClient
 from app.models.patient import Patient
-from app.services.template_loader import MessageTemplate
+from app.services.ai.guardrails import OutputKind
+from app.services.ai.output_profiles import MESSAGE_HUMANIZED, MESSAGE_STANDARD
+from app.services.template_loader_pkg import MessageTemplate
 from app.utils.logging import get_logger
+from app.utils.thread_ids import sanitize_thread_component
+
+# Shared AI output rules appended to all composition prompts
+_OUTPUT_RULES = """
+Regras de saida (obrigatorio):
+- Retorne apenas o texto final
+- Gere apenas UMA mensagem para este envio
+- Se precisar fazer pergunta, faca no maximo UMA
+- Nao antecipe mensagens futuras nem mencione sequencia
+- Nao inclua explicacoes, raciocinios ou meta-comentarios
+- Nao mencione prompt, instrucoes, politicas ou sistema
+- Nao use markdown, listas, cabecalhos ou blocos de codigo
+- Nao envolva a resposta em aspas
+- Escreva apenas em portugues do Brasil
+""".strip()
 
 
 class MessageComposer:
@@ -28,53 +47,56 @@ class MessageComposer:
         try:
             # Build AI prompt
             prompt = f"""
-            Compose uma mensagem personalizada e empática para uma paciente de oncologia.
+            Compose uma mensagem personalizada e empatica para uma paciente de oncologia.
 
-            Informações da paciente:
+            Informacoes da paciente:
             - Nome: {patient.name}
             - Tipo de tratamento: {context["patient"].get("treatment_type", "terapia hormonal")}
-            - Dias desde início: {context["patient"].get("days_since_enrollment", 0)}
+            - Dias desde inicio: {context["patient"].get("days_since_enrollment", 0)}
             - Fase do tratamento: {context["patient"].get("treatment_phase", "inicial")}
 
             Tipo de mensagem: {message_type}
 
             Contexto emocional: {context.get("emotional_context", {})}
 
-            Preferências de comunicação: {context.get("communication_preferences", {})}
+            Preferencias de comunicacao: {context.get("communication_preferences", {})}
 
-            Histórico recente: {context.get("conversation_history", [])}
+            Historico recente: {context.get("conversation_history", [])}
 
             Contexto de tempo: {context.get("time_context", {})}
 
             Diretrizes:
-            1. Use tom acolhedor e empático
+            1. Use tom acolhedor e empatico
             2. Personalize com o nome da paciente
             3. Considere o contexto emocional atual
             4. Mantenha entre 100-300 caracteres
             5. Use emojis apropriados mas moderadamente
-            6. Evite linguagem médica técnica
+            6. Evite linguagem medica tecnica
             7. Seja positiva mas realista
 
-            Retorne apenas o texto da mensagem, sem explicações adicionais.
+            {_OUTPUT_RULES}
             """
 
-            message_content = await self.gemini_client.generate_content(prompt)
+            # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
+            message_content = await self.gemini_client.generate_content(
+                prompt,
+                output_kind=OutputKind.MESSAGE,
+                profile=MESSAGE_STANDARD,
+            )
 
             # Clean and validate message
-            if message_content:
-                message_content = self._clean_message_content(message_content)
-                if len(message_content) > self.max_message_length:
-                    message_content = (
-                        message_content[: self.max_message_length - 3] + "..."
-                    )
+            if not message_content:
+                raise ValueError("AI returned empty message")
 
-                return message_content
-            else:
-                return ""
+            message_content = clean_message_content(message_content)
+            if len(message_content) > self.max_message_length:
+                message_content = message_content[: self.max_message_length - 3] + "..."
+
+            return message_content
 
         except Exception as e:
             self.logger.error(f"AI message generation failed: {e}")
-            return ""
+            raise
 
     async def personalize_custom_content(
         self,
@@ -95,27 +117,31 @@ class MessageComposer:
             # Add AI personalization if enabled
             if personalization_level == "high":
                 personalization_prompt = f"""
-                Personalize este conteúdo para a paciente:
+                Personalize este conteudo para a paciente:
 
-                Conteúdo: "{personalized}"
+                Conteudo: "{personalized}"
                 Paciente: {patient.name}
                 Contexto: {context}
 
-                Mantenha o sentido mas torne mais pessoal e empático.
-                Retorne apenas o conteúdo personalizado.
+                Mantenha o sentido mas torne mais pessoal e empatico.
+                {_OUTPUT_RULES}
                 """
 
+                # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
                 ai_personalized = await self.gemini_client.generate_content(
-                    personalization_prompt
+                    personalization_prompt,
+                    output_kind=OutputKind.MESSAGE,
+                    profile=MESSAGE_STANDARD,
                 )
-                if ai_personalized:
-                    personalized = self._clean_message_content(ai_personalized)
+                if not ai_personalized:
+                    raise ValueError("AI returned empty personalized content")
+                personalized = clean_message_content(ai_personalized)
 
             return personalized
 
         except Exception as e:
             self.logger.error(f"Content personalization failed: {e}")
-            return content.replace("{name}", str(patient.name))
+            raise
 
     async def personalize_template(
         self,
@@ -138,21 +164,25 @@ class MessageComposer:
 
                 Contexto da paciente: {context}
 
-                Mantenha o sentido original mas torne mais pessoal e empática.
-                Retorne apenas a mensagem personalizada.
+                Mantenha o sentido original mas torne mais pessoal e empatica.
+                {_OUTPUT_RULES}
                 """
 
+                # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
                 enhanced_content = await self.gemini_client.generate_content(
-                    enhanced_prompt
+                    enhanced_prompt,
+                    output_kind=OutputKind.MESSAGE,
+                    profile=MESSAGE_STANDARD,
                 )
-                if enhanced_content:
-                    personalized_content = self._clean_message_content(enhanced_content)
+                if not enhanced_content:
+                    raise ValueError("AI returned empty enhanced content")
+                personalized_content = clean_message_content(enhanced_content)
 
             return personalized_content
 
         except Exception as e:
             self.logger.error(f"Template personalization failed: {e}")
-            return template.format(name=patient.name, **context)
+            raise
 
     async def compose_follow_up(
         self,
@@ -168,31 +198,33 @@ class MessageComposer:
             Compose uma mensagem de follow-up apropriada:
 
             Paciente: {patient.name}
-            Interação anterior: {previous_interaction}
-            Análise da interação: {interaction_analysis}
+            Interacao anterior: {previous_interaction}
+            Analise da interacao: {interaction_analysis}
             Motivo do follow-up: {follow_up_reason}
 
             A mensagem deve:
             1. Referenciar sutilmente a conversa anterior
-            2. Mostrar que você prestou atenção às preocupações
-            3. Ser empática e de apoio
-            4. Oferecer ajuda adicional se necessário
+            2. Mostrar que voce prestou atencao as preocupacoes
+            3. Ser empatica e de apoio
+            4. Oferecer ajuda adicional se necessario
 
-            Retorne apenas a mensagem de follow-up.
+            {_OUTPUT_RULES}
             """
 
+            # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
             follow_up_content = await self.gemini_client.generate_content(
-                follow_up_prompt
+                follow_up_prompt,
+                output_kind=OutputKind.MESSAGE,
+                profile=MESSAGE_STANDARD,
             )
-
             if not follow_up_content:
-                follow_up_content = f"Oi {patient.name}! Como você está se sentindo após nossa conversa? Estou aqui se precisar de algo. 💙"
+                raise ValueError("AI returned empty follow-up")
 
-            return self._clean_message_content(follow_up_content)
+            return clean_message_content(follow_up_content)
 
         except Exception as e:
             self.logger.error(f"Follow-up composition failed: {e}")
-            return f"Oi {patient.name}! Como você está se sentindo após nossa conversa? Estou aqui se precisar de algo. 💙"
+            raise
 
     async def generate_quiz_message(
         self,
@@ -208,40 +240,40 @@ class MessageComposer:
 
             # Generate contextual quiz introduction
             quiz_prompt = f"""
-            Crie uma introdução personalizada para uma pergunta de quiz médico:
+            Crie uma introducao personalizada para uma pergunta de quiz medico:
 
             Paciente: {patient.name}
             Contexto do tratamento: {quiz_context}
 
             Pergunta: "{question_text}"
             Tipo: {question_type}
-            Opções: {options}
+            Opcoes: {options}
 
-            A introdução deve:
+            A introducao deve:
             1. Ser calorosa e acolhedora
-            2. Contextualizar a importância da pergunta
+            2. Contextualizar a importancia da pergunta
             3. Encorajar honestidade na resposta
-            4. Não ser muito longa
+            4. Nao ser muito longa
 
-            Formato: [Introdução] + [Pergunta] + [Opções se necessário]
+            Formato: [Introducao] + [Pergunta] + [Opcoes se necessario]
+
+            {_OUTPUT_RULES}
             """
 
-            quiz_message = await self.gemini_client.generate_content(quiz_prompt)
-
+            # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
+            quiz_message = await self.gemini_client.generate_content(
+                quiz_prompt,
+                output_kind=OutputKind.MESSAGE,
+                profile=MESSAGE_STANDARD,
+            )
             if not quiz_message:
-                # Fallback quiz message
-                quiz_message = f"Olá {patient.name}! Vamos fazer uma pergunta importante para acompanhar seu bem-estar:\n\n{question_text}"
+                raise ValueError("AI returned empty quiz message")
 
-                if options:
-                    quiz_message += "\n\nOpções:\n" + "\n".join(
-                        [f"• {opt}" for opt in options]
-                    )
-
-            return self._clean_message_content(quiz_message)
+            return clean_message_content(quiz_message)
 
         except Exception as e:
             self.logger.error(f"Quiz message generation failed: {e}")
-            return f"Olá {patient.name}! Vamos fazer uma pergunta importante para acompanhar seu bem-estar:\n\n{question_data.get('text', '')}"
+            raise
 
     async def compose_from_flow_template(
         self, template: MessageTemplate, patient: Patient, context: Dict[str, Any]
@@ -274,44 +306,44 @@ class MessageComposer:
 
         except Exception as e:
             self.logger.error(f"Failed to compose from flow template: {e}")
-            return ""
+            raise
 
     async def _compose_with_ai_instructions(
         self, template: MessageTemplate, context: Dict[str, Any]
     ) -> str:
         """Compose message using AI instructions from template."""
         try:
-            # Prepare AI prompt using template instructions
-            ai_prompt = f"""
-            {template.ai_instructions}
+            from app.ai.agents.helpers import (
+                _coerce_recent_interactions,
+                _replace_patient_name,
+                build_humanization_prompt,
+            )
 
-            Contexto do paciente:
-            - Nome: {context["patient_name"]}
-            - Dia do tratamento: {context["current_day"]}
-            - Tendência de humor: {context["mood_trend"]}
-            - Nível de engajamento: {context["engagement_level"]}
-            - Nível de stress: {context["stress_level"]}
+            patient_name = context.get("patient_name", "")
+            recent_interactions = _coerce_recent_interactions(
+                context.get("recent_interactions"),
+                fallback_history=context.get("conversation_history", []),
+            )
+            template_text = _replace_patient_name(template.base_content, patient_name)
+            prompt = build_humanization_prompt(
+                template=template_text,
+                ai_instructions=template.ai_instructions,
+                recent_interactions=recent_interactions,
+            )
+            # Call generate_content directly — no LangGraph intermediary (Phase 8 AI-03)
+            composed_message = await self.gemini_client.generate_content(
+                prompt,
+                profile=MESSAGE_HUMANIZED,
+            )
 
-            Dicas de personalização: {", ".join(context["personalization_hints"])}
-            Elementos essenciais: {context["core_elements"]}
+            if not composed_message:
+                raise ValueError("AI returned empty composed message")
 
-            Conteúdo base: {template.base_content}
-
-            Gere uma mensagem personalizada seguindo as instruções acima.
-            Mantenha o tom apropriado para o contexto médico e de apoio.
-            """
-
-            response = await self.gemini_client.generate_content(ai_prompt)
-
-            if response and hasattr(response, "text"):
-                return self._clean_message_content(response.text)
-
-            # Fallback to basic personalization
-            return self._apply_basic_template_personalization(template, context)
+            return clean_message_content(composed_message)
 
         except Exception as e:
             self.logger.error(f"AI composition failed: {e}")
-            return self._apply_basic_template_personalization(template, context)
+            raise
 
     def _apply_basic_template_personalization(
         self, template: MessageTemplate, context: Dict[str, Any]
@@ -337,20 +369,34 @@ class MessageComposer:
 
         return content
 
-    def _clean_message_content(self, content: str) -> str:
-        """Clean and validate message content."""
-        if not content:
-            return ""
+    def _build_thread_id(
+        self,
+        scope: str,
+        *,
+        patient: Optional[Patient] = None,
+        context: Optional[Dict[str, Any]] = None,
+        detail: Optional[Any] = None,
+    ) -> str:
+        """Build deterministic thread_id for LangGraph invocations."""
+        context_data = context or {}
+        patient_key = (
+            getattr(patient, "id", None)
+            or context_data.get("patient_id")
+            or context_data.get("id")
+            or "unknown_patient"
+        )
+        context_key = (
+            context_data.get("session_id")
+            or context_data.get("quiz_session_id")
+            or context_data.get("question_id")
+            or context_data.get("message_id")
+            or context_data.get("current_day")
+            or detail
+            or "default"
+        )
 
-        # Remove extra whitespace
-        content = content.strip()
-
-        # Remove quotes if AI returned quoted text
-        if content.startswith('"') and content.endswith('"'):
-            content = content[1:-1]
-
-        # Ensure reasonable length
-        if len(content) > self.max_message_length:
-            content = content[: self.max_message_length - 3] + "..."
-
-        return content
+        return (
+            f"composer:{sanitize_thread_component(scope)}:"
+            f"patient:{sanitize_thread_component(patient_key)}:"
+            f"context:{sanitize_thread_component(context_key)}"
+        )

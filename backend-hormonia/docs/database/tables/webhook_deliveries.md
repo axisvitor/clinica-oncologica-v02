@@ -4,11 +4,11 @@
 
 | Name | Type | Nullable | Default | PK | FK |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **id** | `UUID` | ❌ | - | 🔑 |  |
+| **id** | `UUID` | ❌ | `gen_random_uuid()` | 🔑 |  |
 | **webhook_id** | `UUID` | ❌ | - |  | ➡️ [webhook_endpoints]( webhook_endpoints.md ).id |
 | **event_type** | `VARCHAR(100)` | ❌ | - |  |  |
 | **payload** | `JSONB` | ✅ | - |  |  |
-| **status** | `VARCHAR(20)` | ❌ | - |  |  |
+| **status** | `ENUM(webhook_delivery_status)` | ❌ | - |  |  |
 | **attempt** | `INTEGER` | ❌ | - |  |  |
 | **status_code** | `INTEGER` | ✅ | - |  |  |
 | **response_time_ms** | `DOUBLE PRECISION` | ✅ | - |  |  |

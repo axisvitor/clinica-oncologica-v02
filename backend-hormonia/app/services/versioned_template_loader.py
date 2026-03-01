@@ -15,6 +15,7 @@ from app.utils.version_utils import (
     DEFAULT_VERSION,
     VersionError,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ class VersionedTemplateLoader:
                 "name": name,
                 "version": normalize_version(data.get("version", DEFAULT_VERSION)),
                 "description": data.get("description", ""),
-                "created_at": data.get("created_at", datetime.now(timezone.utc).isoformat()),
+                "created_at": data.get("created_at", now_sao_paulo().isoformat()),
             }
             for name, data in self.templates_cache.items()
         }
@@ -127,7 +128,7 @@ class VersionedTemplateLoader:
 
             # Add metadata with normalized version
             data["version"] = normalized_version
-            data["created_at"] = datetime.now(timezone.utc).isoformat()
+            data["created_at"] = now_sao_paulo().isoformat()
             data["name"] = name
 
             # Save to file

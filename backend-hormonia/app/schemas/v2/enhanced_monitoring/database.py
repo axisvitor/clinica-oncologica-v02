@@ -43,7 +43,7 @@ class DatabaseOverviewResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "query_statistics": {
                     "total_queries": 5000,
                     "slow_queries": 25,
@@ -74,7 +74,7 @@ class SlowQueryResponse(BaseModel):
             "example": {
                 "query": "SELECT * FROM patients WHERE...",
                 "duration_ms": 850.5,
-                "timestamp": "2025-11-07T11:55:00Z",
+                "timestamp": "2025-11-07T11:55:00-03:00",
                 "table": "patients",
                 "rows_examined": 15000,
             }
@@ -129,7 +129,7 @@ class TableStatsListResponse(BaseModel):
                         "slow_query_count": 15,
                     }
                 ],
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "total_tables": 10,
             }
         }

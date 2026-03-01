@@ -174,6 +174,7 @@ export function MonthlyQuizStatus({
                 }}
                 disabled={isResending}
                 className="h-7 px-2"
+                aria-label={isResending ? 'Reenviando quiz…' : 'Reenviar quiz'}
               >
                 <RefreshCw className={`h-3 w-3 ${isResending ? 'animate-spin' : ''}`} />
               </Button>

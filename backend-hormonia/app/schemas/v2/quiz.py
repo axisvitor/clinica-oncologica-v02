@@ -63,7 +63,7 @@ class QuizV2Update(BaseModel):
                 "score": 85.5,
                 "max_score": 100.0,
                 "passed": True,
-                "completed_at": "2025-01-17T15:00:00Z",
+                "completed_at": "2025-01-17T15:00:00-03:00",
             }
         }
     )
@@ -95,10 +95,10 @@ class QuizV2Response(QuizV2Base):
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "quiz_template_id": "223e4567-e89b-12d3-a456-426614174001",
                 "status": "completed",
-                "created_at": "2025-01-01T10:00:00Z",
-                "updated_at": "2025-01-17T15:00:00Z",
-                "started_at": "2025-01-01T10:00:00Z",
-                "completed_at": "2025-01-17T15:00:00Z",
+                "created_at": "2025-01-01T10:00:00-03:00",
+                "updated_at": "2025-01-17T15:00:00-03:00",
+                "started_at": "2025-01-01T10:00:00-03:00",
+                "completed_at": "2025-01-17T15:00:00-03:00",
                 "score": 85.5,
                 "max_score": 100.0,
                 "passed": True,
@@ -145,10 +145,10 @@ class QuizV2List(CursorPaginatedResponse[QuizV2Response]):
                         "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                         "quiz_template_id": "223e4567-e89b-12d3-a456-426614174001",
                         "status": "completed",
-                        "created_at": "2025-01-01T10:00:00Z",
-                        "updated_at": "2025-01-17T15:00:00Z",
-                        "started_at": "2025-01-01T10:00:00Z",
-                        "completed_at": "2025-01-17T15:00:00Z",
+                        "created_at": "2025-01-01T10:00:00-03:00",
+                        "updated_at": "2025-01-17T15:00:00-03:00",
+                        "started_at": "2025-01-01T10:00:00-03:00",
+                        "completed_at": "2025-01-17T15:00:00-03:00",
                     }
                 ],
                 "next_cursor": "eyJpZCI6IjQ1NmU0NTY3LWU4OWItMTJkMy1hNDU2LTQyNjYxNDE3NDAwMiJ9",

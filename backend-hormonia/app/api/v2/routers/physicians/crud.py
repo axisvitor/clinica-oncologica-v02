@@ -9,10 +9,10 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import get_async_db
 from app.models.user import User, UserRole
 from app.models.patient import Patient, FlowState
 from app.schemas.v2.physicians import (
@@ -44,8 +44,17 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _serialize_physician(
-    physician: User, db: Session, include_statistics: bool = False
+async def _run_sync(db: AsyncSession, operation):
+    if hasattr(db, "run_sync"):
+        return await db.run_sync(operation)
+    sync_db = getattr(db, "_sync_session", db)
+    return operation(sync_db)
+
+
+async def _serialize_physician(
+    physician: User,
+    db: AsyncSession,
+    include_statistics: bool = False,
 ) -> Dict[str, Any]:
     """
     Serialize physician User model to API response dict.
@@ -59,28 +68,23 @@ def _serialize_physician(
         Dictionary with physician data
     """
     # Count assigned patients (optimized single query)
-    db.query(
-        Patient.flow_state,
-        db.query(Patient.id)
+    total_patients_result = await db.execute(
+        select(func.count())
+        .select_from(Patient)
         .filter(Patient.doctor_id == physician.id, Patient.deleted_at.is_(None))
-        .count(),
-    ).filter(Patient.doctor_id == physician.id, Patient.deleted_at.is_(None)).first()
-
-    total_patients = (
-        db.query(Patient)
-        .filter(Patient.doctor_id == physician.id, Patient.deleted_at.is_(None))
-        .count()
     )
+    total_patients = total_patients_result.scalar_one()
 
-    active_patients = (
-        db.query(Patient)
+    active_patients_result = await db.execute(
+        select(func.count())
+        .select_from(Patient)
         .filter(
             Patient.doctor_id == physician.id,
             Patient.flow_state == FlowState.ACTIVE,
             Patient.deleted_at.is_(None),
         )
-        .count()
     )
+    active_patients = active_patients_result.scalar_one()
 
     workload_level = _calculate_workload_level(total_patients)
 
@@ -130,8 +134,9 @@ def _serialize_physician(
 
     # Add statistics if requested
     if include_statistics:
-        stats_service = PhysicianStatisticsService(db)
-        statistics = stats_service.calculate_statistics(physician.id)
+        statistics = await PhysicianStatisticsService(db).calculate_statistics(
+            physician.id
+        )
         response["statistics"] = statistics.model_dump()
 
     return response
@@ -146,7 +151,7 @@ def _serialize_physician(
 @limiter.limit("60/minute")
 async def list_physicians(
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     pagination=Depends(get_pagination_params),
     fields: Optional[List[str]] = Depends(get_field_selection),
@@ -168,13 +173,12 @@ async def list_physicians(
     cursor_data = pagination["cursor_data"]
     limit = pagination["limit"]
 
-    # Build query
-    query = db.query(User).filter(User.role == UserRole.DOCTOR)
+    filters = [User.role.in_([UserRole.DOCTOR, UserRole.ADMIN])]
 
     # Apply RBAC
     role_enum, user_id = _extract_user_context(current_user)
     if role_enum != UserRole.ADMIN:
-        query = query.filter(User.is_active)
+        filters.append(User.is_active)
 
     # Apply cursor pagination
     if cursor_data and "id" in cursor_data:
@@ -184,10 +188,10 @@ async def list_physicians(
             else cursor_data["id"]
         )
         cursor_created_at = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
+            cursor_data["created_at"]
         )
 
-        query = query.filter(
+        filters.append(
             (User.created_at < cursor_created_at)
             | ((User.created_at == cursor_created_at) & (User.id > cursor_id))
         )
@@ -195,7 +199,7 @@ async def list_physicians(
     # Apply search filter
     if search:
         search_filter = f"%{search}%"
-        query = query.filter(
+        filters.append(
             or_(
                 User.full_name.ilike(search_filter),
                 User.email.ilike(search_filter),
@@ -205,18 +209,26 @@ async def list_physicians(
 
     # Apply status filter
     if status == PhysicianStatus.INACTIVE:
-        query = query.filter(not User.is_active)
+        filters.append(User.is_active.is_(False))
     elif status == PhysicianStatus.ACTIVE:
-        query = query.filter(User.is_active)
+        filters.append(User.is_active)
+
+    stmt = select(User).filter(*filters)
 
     # Get total count (only on first page)
     total = None
     if not cursor_data:
-        total = query.count()
+        total_result = await db.execute(
+            select(func.count())
+            .select_from(User)
+            .filter(*filters)
+        )
+        total = total_result.scalar_one()
 
     # Order and fetch
-    query = query.order_by(User.created_at.desc(), User.id)
-    physicians = query.limit(limit + 1).all()
+    ordered_stmt = stmt.order_by(User.created_at.desc(), User.id).limit(limit + 1)
+    physicians_result = await db.execute(ordered_stmt)
+    physicians = physicians_result.scalars().all()
 
     # Check for more results
     has_more = len(physicians) > limit
@@ -235,11 +247,11 @@ async def list_physicians(
         next_cursor = base64.b64encode(json.dumps(cursor_data).encode()).decode()
 
     # Serialize physicians
-    include_statistics = include and "statistics" in include
+    include_statistics = bool(include and "statistics" in include)
     physician_responses = []
 
     for physician in physicians:
-        physician_dict = _serialize_physician(physician, db, include_statistics)
+        physician_dict = await _serialize_physician(physician, db, include_statistics)
 
         # Apply field selection
         if fields:
@@ -283,7 +295,7 @@ async def list_physicians(
 async def get_physician(
     request: Request,
     physician_id: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
@@ -298,13 +310,16 @@ async def get_physician(
         )
 
     # Validate access
-    physician = validate_physician_access(
-        physician_uuid, current_user, db, allow_patient_view=True
+    physician = await validate_physician_access(
+        physician_uuid,
+        current_user,
+        db,
+        allow_patient_view=True,
     )
 
     # Serialize physician
-    include_statistics = include and "statistics" in include
-    physician_dict = _serialize_physician(physician, db, include_statistics)
+    include_statistics = bool(include and "statistics" in include)
+    physician_dict = await _serialize_physician(physician, db, include_statistics)
 
     # Apply field selection
     if fields:
@@ -323,7 +338,7 @@ async def update_physician(
     request: Request,
     physician_id: str,
     update_data: PhysicianUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     """Update physician information (Admin only)."""
@@ -343,11 +358,13 @@ async def update_physician(
         )
 
     # Fetch physician
-    physician = (
-        db.query(User)
-        .filter(User.id == physician_uuid, User.role == UserRole.DOCTOR)
-        .first()
+    physician_result = await db.execute(
+        select(User).filter(
+            User.id == physician_uuid,
+            User.role.in_([UserRole.DOCTOR, UserRole.ADMIN]),
+        )
     )
+    physician = physician_result.scalars().first()
 
     if not physician:
         raise HTTPException(
@@ -365,12 +382,12 @@ async def update_physician(
     if "is_active" in update_dict:
         physician.is_active = update_dict["is_active"]
 
-    # Update Firebase custom claims
-    if not physician.firebase_custom_claims:
-        physician.firebase_custom_claims = {}
+    # Update Firebase custom claims.
+    # Reassign a new dict so SQLAlchemy reliably persists JSON changes.
+    claims = dict(physician.firebase_custom_claims or {})
 
     if "specialties" in update_dict:
-        physician.firebase_custom_claims["specialties"] = [
+        claims["specialties"] = [
             s.value if isinstance(s, Specialty) else s
             for s in update_dict["specialties"]
         ]
@@ -379,28 +396,34 @@ async def update_physician(
         status_value = update_dict["status"]
         if isinstance(status_value, PhysicianStatus):
             status_value = status_value.value
-        physician.firebase_custom_claims["status"] = status_value
+        claims["status"] = status_value
         physician.is_active = status_value == PhysicianStatus.ACTIVE.value
 
     if "license_number" in update_dict:
-        physician.firebase_custom_claims["license_number"] = update_dict[
+        claims["license_number"] = update_dict[
             "license_number"
         ]
 
     if "phone" in update_dict:
-        physician.firebase_custom_claims["phone"] = update_dict["phone"]
+        claims["phone"] = update_dict["phone"]
 
     if "bio" in update_dict:
-        physician.firebase_custom_claims["bio"] = update_dict["bio"]
+        claims["bio"] = update_dict["bio"]
+
+    physician.firebase_custom_claims = claims
 
     # Commit changes
-    db.commit()
-    db.refresh(physician)
+    await db.commit()
+    await db.refresh(physician)
 
     # Invalidate cache
-    stats_service = PhysicianStatisticsService(db)
-    stats_service.invalidate_cache(physician_uuid)
+    await _run_sync(
+        db,
+        lambda sync_db: PhysicianStatisticsService(sync_db).invalidate_cache(
+            physician_uuid
+        )
+    )
 
     # Return updated physician
-    physician_dict = _serialize_physician(physician, db, include_statistics=False)
+    physician_dict = await _serialize_physician(physician, db, include_statistics=False)
     return physician_dict

@@ -7,7 +7,7 @@ FIX P1-006: Added timezone-aware datetime parsing to prevent timezone loss on de
 
 import logging
 from typing import List, Optional, Any, Dict
-from datetime import datetime, timezone
+from datetime import datetime
 from uuid import UUID
 
 
@@ -16,19 +16,19 @@ def _parse_datetime_tz_aware(dt_string: str) -> datetime:
     Parse ISO format datetime string ensuring timezone-aware result.
 
     FIX P1-006: datetime.fromisoformat() can return naive datetimes if the
-    source string lacks timezone info. This helper ensures UTC timezone
+    source string lacks timezone info. This helper ensures Sao Paulo timezone
     is applied to naive results.
 
     Args:
         dt_string: ISO format datetime string
 
     Returns:
-        Timezone-aware datetime (UTC if source was naive)
+        Timezone-aware datetime (Sao Paulo if source was naive)
     """
     dt = datetime.fromisoformat(dt_string)
     if dt.tzinfo is None:
-        # Source was naive - assume UTC
-        dt = dt.replace(tzinfo=timezone.utc)
+        # Source was naive - assume Sao Paulo
+        dt = dt.replace(tzinfo=SAO_PAULO_TZ)
     return dt
 
 from .context.manager import ContextManager
@@ -47,11 +47,12 @@ from app.services.ai.ai_service import get_ai_service
 from app.repositories.message import MessageRepository
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
-from app.domain.messaging.delivery import MessageSender
+from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSender
 from app.domain.messaging.scheduling import MessageScheduler
 from app.services.follow_up.redis_store import FollowUpRedisStore
-from app.core.redis_unified import get_sync_redis
+from app.core.redis_manager import get_sync_redis_client as get_sync_redis
 from app.integrations.evolution import EvolutionClient
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -77,15 +78,14 @@ class FollowUpSystemService:
         self.message_repo = MessageRepository(db)
         self.flow_state_repo = FlowStateRepository(db)
         self.patient_repo = PatientRepository(db)
-        self._ai_service = None
         self._initialized = False
 
         # Domain services - initialize with required dependencies
-        logger.info("Initializing MessageSender with db, redis_client, evolution_client...")
+        logger.info("Initializing IdempotentMessageSender with db, redis_client, evolution_client...")
         redis_client = get_sync_redis()
         evolution_client = EvolutionClient()
-        self.message_sender = MessageSender(db, redis_client, evolution_client)
-        logger.info("MessageSender initialized successfully")
+        self.message_sender = IdempotentMessageSender(db, redis_client, evolution_client)
+        logger.info("IdempotentMessageSender initialized successfully")
         self.message_scheduler = MessageScheduler(db)
 
         # Redis with in-memory fallback
@@ -193,7 +193,7 @@ class FollowUpSystemService:
                     )
                     rehydrated["errors"] += 1
 
-            # Note: conversation_contexts have 7-day TTL and are loaded on-demand
+            # Note: conversation_contexts have 1-hour TTL and are loaded on-demand
             # via context_manager.get_context(), so no bulk rehydration needed
 
             logger.info(
@@ -343,12 +343,6 @@ class FollowUpSystemService:
             logger.warning(f"Failed to convert dict to EscalationAlert: {e}")
             return None
 
-    async def _get_ai_service(self):
-        """Get AI service instance (lazy initialization)."""
-        if self._ai_service is None:
-            self._ai_service = await get_ai_service()
-        return self._ai_service
-
     async def process_response_follow_up(
         self, response_result: ResponseProcessingResult
     ) -> List[FollowUpAction]:
@@ -364,13 +358,27 @@ class FollowUpSystemService:
             # Generate empathetic follow-up
             patient = self.patient_repo.get(patient_id)
             if patient:
-                ai_service = await self._get_ai_service()
-                empathy_gen = EmpathyGenerator(ai_service)
+                # Phase 8 (AI-03): EmpathyGenerator no longer requires a graph object.
+                empathy_gen = EmpathyGenerator()
                 patient_context = self.context_builder.build_patient_context(
                     patient_id, patient
                 )
+                day_complete = False
+                allow_questions = False
+                flow_state = self.flow_state_repo.get_active_flow(patient_id)
+                if flow_state:
+                    step_data = flow_state.step_data or {}
+                    day_complete = bool(step_data.get("day_complete"))
+                    # Never ask new questions from follow-up while a flow is active.
+                    allow_questions = False
+
                 empathetic_action = await empathy_gen.create_empathetic_follow_up(
-                    patient_id, patient, structured_response, patient_context
+                    patient_id,
+                    patient,
+                    structured_response,
+                    patient_context,
+                    allow_questions=allow_questions,
+                    day_complete=day_complete,
                 )
                 if empathetic_action:
                     follow_up_actions.append(empathetic_action)
@@ -505,7 +513,7 @@ class FollowUpSystemService:
     async def acknowledge_alert(self, alert_id: UUID, acknowledged_by: str) -> bool:
         """Acknowledge an escalation alert."""
         try:
-            acknowledged_at = datetime.now(timezone.utc)
+            acknowledged_at = now_sao_paulo()
             success = await self.redis_store.update_alert_status(
                 alert_id=alert_id,
                 acknowledged_at=acknowledged_at,
@@ -528,7 +536,7 @@ class FollowUpSystemService:
     async def resolve_alert(self, alert_id: UUID, resolved_by: str) -> bool:
         """Resolve an escalation alert."""
         try:
-            resolved_at = datetime.now(timezone.utc)
+            resolved_at = now_sao_paulo()
             success = await self.redis_store.update_alert_status(
                 alert_id=alert_id, resolved_at=resolved_at, assigned_to=resolved_by
             )
@@ -576,7 +584,7 @@ class FollowUpSystemService:
 
             return {
                 "service": "FollowUpSystemService",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "healthy": True,
                 "storage": redis_health,
                 "stats": stats,
@@ -586,7 +594,7 @@ class FollowUpSystemService:
             logger.error(f"Health check failed: {e}")
             return {
                 "service": "FollowUpSystemService",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "healthy": False,
                 "error": str(e),
             }

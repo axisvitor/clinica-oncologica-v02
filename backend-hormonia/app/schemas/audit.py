@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
+from app.models.consent import ConsentStatus as ConsentStatusEnum, ConsentType
 
 class AuditLogBase(BaseModel):
     """Base schema for audit logs."""
@@ -67,40 +68,50 @@ class AuditLogResponse(AuditLogBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class ConsentRecordBase(BaseModel):
-    """Base schema for consent records."""
+class ConsentBase(BaseModel):
+    """Base schema for LGPD consent records (aligned with `consents` table)."""
 
     patient_id: UUID
-    consent_type: str = Field(
-        ..., description="Type: data_collection, data_processing, marketing"
-    )
-    consent_given: bool
-    consent_text: Optional[str] = None
-    ip_address: Optional[str] = None
-    user_agent: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    consent_type: ConsentType
+    title: str
+    description: str
+    legal_text: Optional[str] = None
+    consented_by_id: Optional[UUID] = None
+    witness_id: Optional[UUID] = None
+    signature_data: Optional[Dict[str, Any]] = None
+    consent_metadata: Optional[Dict[str, Any]] = None
+    is_required: bool = False
+    is_active: bool = True
+    expires_at: Optional[datetime] = None
+    previous_consent_id: Optional[UUID] = None
+    version: Optional[str] = None
+    revocation_reason: Optional[str] = None
 
 
-class ConsentRecordCreate(ConsentRecordBase):
+class ConsentCreate(ConsentBase):
     """Schema for creating consent records."""
 
-    pass
+    status: ConsentStatusEnum = Field(default=ConsentStatusEnum.PENDING)
 
 
-class ConsentRecordResponse(ConsentRecordBase):
-    """Schema for consent record responses."""
+class ConsentResponse(ConsentBase):
+    """Schema for consent responses."""
 
-    id: str
-    given_at: Optional[datetime] = None
+    id: UUID
+    status: ConsentStatusEnum
+    granted_at: Optional[datetime] = None
     revoked_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class ConsentStatus(BaseModel):
-    """Schema for consent status."""
+    """Schema for consent status summary."""
 
-    consent_type: str
+    consent_type: ConsentType
+    status: ConsentStatusEnum
     given: bool
     given_at: Optional[datetime] = None
     revoked_at: Optional[datetime] = None

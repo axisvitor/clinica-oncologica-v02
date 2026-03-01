@@ -20,7 +20,7 @@ async def test_send_text_message_includes_text_field(monkeypatch):
         captured["data"] = data
         return {"status": "success", "data": {"id": "123"}}
 
-    monkeypatch.setattr(client, "_make_request", fake_make_request)
+    monkeypatch.setattr(client.request_handler, "make_request", fake_make_request)
 
     try:
         response = await client.send_text_message("94991307744", "Hello patient", delay=750)

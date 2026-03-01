@@ -6,7 +6,6 @@ WhatsApp Business integration for Hormonia system.
 from .client import EvolutionClient, get_evolution_client, close_evolution_client
 from .models import (
     MessageType,
-    MessageStatus,
     TextMessage,
     ButtonMessage,
     ListMessage,
@@ -22,7 +21,6 @@ __all__ = [
     "close_evolution_client",
     # Enums
     "MessageType",
-    "MessageStatus",
     # Message models
     "TextMessage",
     "ButtonMessage",

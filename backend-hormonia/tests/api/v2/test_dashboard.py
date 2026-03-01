@@ -28,6 +28,7 @@ from app.models.patient import Patient
 from app.models.user import User
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Test Fixtures
 # ============================================================================
@@ -42,7 +43,7 @@ def create_test_data(db: Session, test_patient: Patient, test_user: User):
             "content": f"Test message {i}",
             "status": "sent" if i % 2 == 0 else "delivered",
             "patient_response_received": i % 3 == 0,
-            "created_at": datetime.utcnow() - timedelta(days=i)
+            "created_at": now_sao_paulo_naive() - timedelta(days=i)
         }
         # Note: Assuming messages table exists with these fields
         # db.execute(text("INSERT INTO messages ..."))
@@ -56,7 +57,7 @@ def create_test_data(db: Session, test_patient: Patient, test_user: User):
             severity=severities[i % 4],
             description=f"Test alert {i}",
             acknowledged=i % 2 == 0,
-            created_at=datetime.utcnow() - timedelta(days=i)
+            created_at=now_sao_paulo_naive() - timedelta(days=i)
         )
         db.add(alert)
 
@@ -65,7 +66,7 @@ def create_test_data(db: Session, test_patient: Patient, test_user: User):
         flow_data = {
             "patient_id": test_patient.id,
             "status": "active" if i < 3 else "completed",
-            "created_at": datetime.utcnow() - timedelta(days=i * 2)
+            "created_at": now_sao_paulo_naive() - timedelta(days=i * 2)
         }
         # Note: Assuming patient_flows table exists
         # db.execute(text("INSERT INTO patient_flows ..."))
@@ -135,8 +136,8 @@ class TestMainDashboard:
         assert data["time_range"] == "today"
 
         # Verify dates are for today
-        start_date = datetime.fromisoformat(data["start_date"].replace("Z", "+00:00"))
-        assert start_date.date() == datetime.utcnow().date()
+        start_date = datetime.fromisoformat(data["start_date"])
+        assert start_date.date() == now_sao_paulo_naive().date()
 
     def test_get_main_dashboard_with_time_range_week(
         self,
@@ -180,8 +181,8 @@ class TestMainDashboard:
         create_test_data: Dict[str, int]
     ):
         """Test main dashboard with custom date range."""
-        start_date = (datetime.utcnow() - timedelta(days=14)).isoformat()
-        end_date = datetime.utcnow().isoformat()
+        start_date = (now_sao_paulo_naive() - timedelta(days=14)).isoformat()
+        end_date = now_sao_paulo_naive().isoformat()
 
         response = client.get(
             f"/api/v2/dashboard/main?time_range=custom&custom_start={start_date}&custom_end={end_date}",
@@ -299,25 +300,15 @@ class TestPatientDashboard:
         self,
         client: TestClient,
         db: Session,
-        auth_headers: Dict[str, str],
+        auth_headers_patient: Dict[str, str],
         test_patient: Patient
     ):
         """Test patient cannot access another patient's dashboard."""
-        # Create another patient
-        other_patient = Patient(
-            full_name="Other Patient",
-            email="other@example.com",
-            doctor_id=test_patient.doctor_id
-        )
-        db.add(other_patient)
-        db.commit()
-        db.refresh(other_patient)
-
-        # Assuming auth_headers is for test_patient
-        # Try to access other_patient's dashboard
+        # Use a different patient UUID to ensure the requester is not the owner.
+        other_patient_id = uuid4()
         response = client.get(
-            f"/api/v2/dashboard/patient/{other_patient.id}",
-            headers=auth_headers
+            f"/api/v2/dashboard/patient/{other_patient_id}",
+            headers=auth_headers_patient
         )
 
         # Should be forbidden (depends on RBAC implementation)
@@ -408,12 +399,12 @@ class TestPhysicianDashboard:
         self,
         client: TestClient,
         db: Session,
-        auth_headers: Dict[str, str]  # Patient auth headers
+        auth_headers_patient: Dict[str, str]
     ):
         """Test patient cannot access physician dashboard."""
         response = client.get(
             "/api/v2/dashboard/physician",
-            headers=auth_headers
+            headers=auth_headers_patient
         )
 
         assert response.status_code == 403

@@ -106,7 +106,7 @@ class AppointmentV2Create(AppointmentV2Base):
                 "practitioner_id": "123e4567-e89b-12d3-a456-426614174001",
                 "appointment_type": "consultation",
                 "status": "scheduled",
-                "scheduled_at": "2025-11-10T10:00:00Z",
+                "scheduled_at": "2025-11-10T10:00:00-03:00",
                 "duration_minutes": 30,
                 "pre_appointment_notes": "First consultation for new patient",
             }

@@ -7,7 +7,7 @@ Handles user search, filtering, summaries, and statistics generation.
 import logging
 from typing import Optional
 from uuid import UUID
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from sqlalchemy import desc, func
 from sqlalchemy.orm import joinedload
 
@@ -18,6 +18,7 @@ from .schemas import (
     PaginatedUsersResponse,
     UserStatistics,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +185,7 @@ class UserQueriesMixin:
                 users_by_role[role.value] = count
 
         # Recent registrations (last 30 days)
-        thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+        thirty_days_ago = now_sao_paulo() - timedelta(days=30)
         recent_registrations = (
             self.db.query(User).filter(User.created_at >= thirty_days_ago).count()
         )

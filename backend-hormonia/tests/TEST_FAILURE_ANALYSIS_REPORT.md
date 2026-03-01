@@ -1,5 +1,5 @@
 # Test Suite Failure Analysis Report
-**Generated**: 2025-12-23 06:59 UTC
+**Generated**: 2025-12-23 06:59 Sao Paulo
 **Test Suite**: backend-hormonia/tests/
 **Total Test Files**: 284
 **Total Test Cases**: 245 (test_*.py files)

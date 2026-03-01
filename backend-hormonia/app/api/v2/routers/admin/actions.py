@@ -14,14 +14,15 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.user import User, UserRole
-from app.repositories.user import UserRepository
 from app.utils.security import get_password_hash
 from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import invalidate_user_cache
-from app.dependencies import get_request_context, RequestContext
+from app.utils.request_context import get_request_context, RequestContext
 from app.schemas.v2.admin import (
     UserActionResponse,
     UserResetPasswordRequest,
@@ -32,6 +33,11 @@ from .utils import _log_admin_action, _validate_password_strength
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+async def _get_user_by_id(db: AsyncSession, user_id: UUID) -> User | None:
+    result = await db.execute(select(User).where(User.id == user_id))
+    return result.scalar_one_or_none()
 
 
 # ============================================================================
@@ -49,7 +55,7 @@ logger = logging.getLogger(__name__)
 async def activate_user(
     request: Request,
     user_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -62,22 +68,20 @@ async def activate_user(
     - Audit logging
     """
     try:
-        user_repo = UserRepository(db)
-
-        user = user_repo.get(user_id)
+        user = await _get_user_by_id(db, user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
-        if user.is_active:
+        if bool(getattr(user, "is_active", False)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="User is already active"
             )
 
         # Activate user
-        user_repo.update(user_id, {"is_active": True})
-        db.commit()
+        setattr(user, "is_active", True)
+        await db.commit()
 
         # Invalidate cache
         invalidate_user_cache(str(user_id))
@@ -102,7 +106,7 @@ async def activate_user(
         raise
     except Exception as e:
         logger.error(f"Error activating user {user_id}: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error activating user",
@@ -124,7 +128,7 @@ async def activate_user(
 async def deactivate_user(
     request: Request,
     user_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -138,8 +142,6 @@ async def deactivate_user(
     - Audit logging
     """
     try:
-        user_repo = UserRepository(db)
-
         # Prevent self-deactivation
         if user_id == admin_user.id:
             raise HTTPException(
@@ -147,21 +149,21 @@ async def deactivate_user(
                 detail="Cannot deactivate your own account",
             )
 
-        user = user_repo.get(user_id)
+        user = await _get_user_by_id(db, user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
-        if not user.is_active:
+        if not bool(getattr(user, "is_active", False)):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User is already inactive",
             )
 
         # Deactivate user
-        user_repo.update(user_id, {"is_active": False})
-        db.commit()
+        setattr(user, "is_active", False)
+        await db.commit()
 
         # Invalidate cache
         invalidate_user_cache(str(user_id))
@@ -186,10 +188,72 @@ async def deactivate_user(
         raise
     except Exception as e:
         logger.error(f"Error deactivating user {user_id}: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error deactivating user",
+        )
+
+
+# ============================================================================
+# ENDPOINT 2.5: RESTORE USER
+# ============================================================================
+
+
+@router.post(
+    "/users/{user_id}/restore",
+    response_model=UserActionResponse,
+    summary="Restore User",
+    description="Restore (reactivate) a previously deactivated user account.",
+)
+@limiter.limit("20/hour")
+async def restore_user(
+    request: Request,
+    user_id: UUID,
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: User = Depends(get_admin_user),
+    context: RequestContext = Depends(get_request_context),
+):
+    """Restore a deactivated user account."""
+    try:
+        user = await _get_user_by_id(db, user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            )
+
+        if bool(getattr(user, "is_active", False)):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is already active",
+            )
+
+        setattr(user, "is_active", True)
+        await db.commit()
+
+        invalidate_user_cache(str(user_id))
+
+        await _log_admin_action(
+            db,
+            "restore_user",
+            admin_user,
+            context,
+            target_user_id=user_id,
+            additional_data={"user_email": user.email},
+        )
+
+        return UserActionResponse(
+            success=True, message="User restored successfully", user_id=user_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error restoring user {user_id}: {e}")
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error restoring user",
         )
 
 
@@ -209,7 +273,7 @@ async def reset_password(
     request: Request,
     user_id: UUID,
     password_data: UserResetPasswordRequest,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -224,9 +288,7 @@ async def reset_password(
     - Optional force password change on next login
     """
     try:
-        user_repo = UserRepository(db)
-
-        user = user_repo.get(user_id)
+        user = await _get_user_by_id(db, user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -239,14 +301,13 @@ async def reset_password(
         hashed_password = get_password_hash(password_data.new_password)
 
         # Update password
-        update_data = {"hashed_password": hashed_password}
+        user.hashed_password = hashed_password
 
         # Set force change password flag if requested
         if password_data.force_change:
-            update_data["force_change_password"] = True
+            setattr(user, "force_change_password", True)
 
-        user_repo.update(user_id, update_data)
-        db.commit()
+        await db.commit()
 
         # Invalidate cache
         invalidate_user_cache(str(user_id))
@@ -274,7 +335,7 @@ async def reset_password(
         raise
     except Exception as e:
         logger.error(f"Error resetting password for user {user_id}: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error resetting password",
@@ -297,7 +358,7 @@ async def update_role(
     request: Request,
     user_id: UUID,
     role: str = Query(..., description="New role (admin or doctor)"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -311,9 +372,7 @@ async def update_role(
     - Audit logging
     """
     try:
-        user_repo = UserRepository(db)
-
-        user = user_repo.get(user_id)
+        user = await _get_user_by_id(db, user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -336,10 +395,11 @@ async def update_role(
             )
 
         old_role = user.role
+        old_role_value = old_role.value if hasattr(old_role, "value") else str(old_role)
 
         # Update role
-        user_repo.update(user_id, {"role": new_role})
-        db.commit()
+        setattr(user, "role", new_role)
+        await db.commit()
 
         # Invalidate cache
         invalidate_user_cache(str(user_id))
@@ -353,13 +413,13 @@ async def update_role(
             target_user_id=user_id,
             additional_data={
                 "user_email": user.email,
-                "old_role": old_role.value,
+                "old_role": old_role_value,
                 "new_role": new_role.value,
             },
         )
 
         logger.info(
-            f"Admin {admin_user.email} updated role for user {user.email}: {old_role.value} -> {new_role.value}"
+            f"Admin {admin_user.email} updated role for user {user.email}: {old_role_value} -> {new_role.value}"
         )
 
         return UserActionResponse(
@@ -372,7 +432,7 @@ async def update_role(
         raise
     except Exception as e:
         logger.error(f"Error updating role for user {user_id}: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error updating user role",

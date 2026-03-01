@@ -11,6 +11,7 @@ from uuid import UUID
 
 from app.models.audit_log import AuditLog, AuditEventType
 from app.utils.security import mask_dict_secrets
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,7 @@ class BaseAuditService:
             user_agent=user_agent[:500] if user_agent else None,
             event_metadata=sanitized_metadata,
             message=f"{event_category}: {event_type}",
-            created_at=datetime.now(timezone.utc),
+            created_at=now_sao_paulo(),
         )
 
         self.db.add(audit_log)

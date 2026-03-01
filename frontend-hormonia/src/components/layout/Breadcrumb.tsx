@@ -164,7 +164,7 @@ export function Breadcrumb({
               to={item?.href}
               className={cn(
                 "flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors rounded-md p-1 hover:bg-accent/50",
-                "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               )}
               aria-current={item?.isActive ? "page" : undefined}
             >

@@ -46,6 +46,7 @@ from app.schemas.v2.enhanced_monitoring import (
     MetricType,
 )
 from app.api.v2.dependencies import create_cursor, apply_field_selection
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +54,9 @@ logger = logging.getLogger(__name__)
 class MonitoringService:
     """Service for monitoring operations."""
 
-    def __init__(self):
-        self.manager = get_monitoring_manager()
+    def __init__(self, manager=None):
+        # Allow explicit manager injection for tests and dependency overrides.
+        self.manager = manager or get_monitoring_manager()
 
     def _check_component_availability(self, component_name: str) -> Any:
         """Check if a monitoring component is available."""
@@ -143,7 +145,7 @@ class MonitoringService:
         health_data = self.manager.get_health_status()
         return MonitoringHealthResponse(
             status=health_data.get("status", "unknown"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             components=health_data.get("components", {}),
             uptime_seconds=health_data.get("uptime", 0),
             version=health_data.get("version", "unknown"),
@@ -154,7 +156,7 @@ class MonitoringService:
     ) -> SystemMetricsResponse:
         metrics = await self.manager.get_system_metrics()
         response_data = {
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": now_sao_paulo(),
             "apm": metrics.get("apm", {}),
             "database": metrics.get("database", {}),
             "resources": metrics.get("resources", {}),
@@ -162,7 +164,20 @@ class MonitoringService:
             "health_score": metrics.get("health_score", 100),
         }
         if fields:
-            response_data = apply_field_selection(response_data, fields)
+            selected_metrics = apply_field_selection(
+                {
+                    "apm": response_data["apm"],
+                    "database": response_data["database"],
+                    "resources": response_data["resources"],
+                    "business": response_data["business"],
+                },
+                fields,
+            )
+            # Keep response-model contract stable: non-selected sections are empty objects.
+            response_data["apm"] = selected_metrics.get("apm", {})
+            response_data["database"] = selected_metrics.get("database", {})
+            response_data["resources"] = selected_metrics.get("resources", {})
+            response_data["business"] = selected_metrics.get("business", {})
         return SystemMetricsResponse(**response_data)
 
     async def get_system_info(self) -> SystemInfoResponse:
@@ -174,7 +189,7 @@ class MonitoringService:
         apm_collector = self._check_component_availability("apm_collector")
         stats = apm_collector.get_global_stats()
         return APMGlobalStatsResponse(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             total_requests=stats.get("total_requests", 0),
             total_errors=stats.get("total_errors", 0),
             error_rate=stats.get("error_rate", 0.0),
@@ -253,7 +268,7 @@ class MonitoringService:
 
         return APMEndpointDetailResponse(
             endpoint=endpoint_path,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             total_requests=stats.get("total_requests", 0),
             total_errors=stats.get("total_errors", 0),
             error_rate=stats.get("error_rate", 0.0),
@@ -273,7 +288,7 @@ class MonitoringService:
         pool_stats = db_monitor.get_connection_pool_stats()
 
         return DatabaseOverviewResponse(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             query_statistics=query_stats,
             connection_pool=ConnectionPoolStatsResponse(**pool_stats),
         )
@@ -304,7 +319,7 @@ class MonitoringService:
             SlowQueryResponse(
                 query=q.get("query", ""),
                 duration_ms=q.get("duration_ms", 0.0),
-                timestamp=q.get("timestamp", datetime.now(timezone.utc)),
+                timestamp=q.get("timestamp", now_sao_paulo()),
                 table=q.get("table"),
                 rows_examined=q.get("rows_examined"),
             )
@@ -336,7 +351,7 @@ class MonitoringService:
 
         return TableStatsListResponse(
             data=table_stats,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             total_tables=len(table_stats),
         )
 
@@ -344,7 +359,7 @@ class MonitoringService:
         resource_monitor = self._check_component_availability("resource_monitor")
         stats = resource_monitor.get_current_stats()
         return ResourceStatsResponse(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             cpu=stats.get("cpu", {}),
             memory=stats.get("memory", {}),
             disk=stats.get("disk", {}),
@@ -359,7 +374,7 @@ class MonitoringService:
 
         time_series = [
             ResourceTimeSeriesPoint(
-                timestamp=point.get("timestamp", datetime.now(timezone.utc)),
+                timestamp=point.get("timestamp", now_sao_paulo()),
                 cpu_percent=point.get("cpu", {}).get("percent", 0.0),
                 memory_percent=point.get("memory", {}).get("percent", 0.0),
                 disk_percent=point.get("disk", {}).get("percent", 0.0),
@@ -383,7 +398,7 @@ class MonitoringService:
         summary = business_metrics.get_all_metrics_summary(hours)
         return BusinessMetricsSummaryResponse(
             time_range_hours=hours,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             metrics=summary,
         )
 
@@ -396,7 +411,7 @@ class MonitoringService:
         return PatientMetricsResponse(
             patient_id=patient_id,
             time_range_hours=hours,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             metrics=metrics,
         )
 
@@ -409,7 +424,7 @@ class MonitoringService:
         return MetricTypeStatsResponse(
             metric_type=metric_type,
             time_range_hours=hours,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             statistics=stats,
         )
 
@@ -439,7 +454,7 @@ class MonitoringService:
 
         anomalies = [
             AnomalyRecord(
-                timestamp=a.get("timestamp", datetime.now(timezone.utc)),
+                timestamp=a.get("timestamp", now_sao_paulo()),
                 metric=a.get("metric", ""),
                 value=a.get("value", 0.0),
                 expected_value=a.get("expected_value", 0.0),
@@ -462,7 +477,7 @@ class MonitoringService:
         summary = anomaly_detector.get_anomaly_summary(hours)
         return AnomalySummaryResponse(
             time_range_hours=hours,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             total_anomalies=summary.get("total", 0),
             by_severity=summary.get("by_severity", {}),
             by_metric=summary.get("by_metric", {}),
@@ -472,7 +487,7 @@ class MonitoringService:
         dashboard = self._check_component_availability("dashboard")
         status_data = dashboard.get_dashboard_status()
         return DashboardStatusResponse(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             active_connections=status_data.get("active_connections", 0),
             metrics_snapshot=DashboardMetricsSnapshot(**status_data.get("metrics", {})),
         )
@@ -500,7 +515,7 @@ class MonitoringService:
                         message=f"High error rate: {error_rate:.1f}%",
                         value=error_rate,
                         threshold=5.0,
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=now_sao_paulo(),
                     )
                 )
 
@@ -518,7 +533,7 @@ class MonitoringService:
                         message=f"High CPU usage: {cpu_percent:.1f}%",
                         value=cpu_percent,
                         threshold=80.0,
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=now_sao_paulo(),
                     )
                 )
 
@@ -531,7 +546,7 @@ class MonitoringService:
                         message=f"High memory usage: {memory_percent:.1f}%",
                         value=memory_percent,
                         threshold=85.0,
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=now_sao_paulo(),
                     )
                 )
 
@@ -539,7 +554,7 @@ class MonitoringService:
             alerts = [a for a in alerts if a.severity == severity.value]
 
         return AlertListResponse(
-            alerts=alerts, count=len(alerts), timestamp=datetime.now(timezone.utc)
+            alerts=alerts, count=len(alerts), timestamp=now_sao_paulo()
         )
 
     async def get_performance_overview(self) -> PerformanceOverviewResponse:
@@ -562,7 +577,7 @@ class MonitoringService:
         )
 
         return PerformanceOverviewResponse(
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             performance_score=perf_score,
             apm=apm_stats,
             database=db_stats,
@@ -585,7 +600,7 @@ class MonitoringService:
         logger.warning(f"All monitoring statistics reset by user {user_id}")
         return StatsResetResponse(
             message="All monitoring statistics have been reset",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             reset_by=str(user_id),
         )
 
@@ -594,7 +609,7 @@ class MonitoringService:
             return ServiceActionResponse(
                 success=True,
                 message="Monitoring services are already running",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now_sao_paulo(),
             )
 
         await self.manager.start()
@@ -602,7 +617,7 @@ class MonitoringService:
         return ServiceActionResponse(
             success=True,
             message="Monitoring services started successfully",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
     async def stop_monitoring_services(self, user_id: str) -> ServiceActionResponse:
@@ -610,7 +625,7 @@ class MonitoringService:
             return ServiceActionResponse(
                 success=True,
                 message="Monitoring services are not running",
-                timestamp=datetime.now(timezone.utc),
+                timestamp=now_sao_paulo(),
             )
 
         await self.manager.stop()
@@ -618,5 +633,5 @@ class MonitoringService:
         return ServiceActionResponse(
             success=True,
             message="Monitoring services stopped successfully",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )

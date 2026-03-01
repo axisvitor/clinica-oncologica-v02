@@ -6,13 +6,15 @@ Handles detection of medical concerns from patient messages.
 import logging
 import re
 import json
-from typing import List
+from typing import Any, List
 
 from app.services.ai import PatientContext, ConcernLevel
 
 from .models import MedicalConcern, MedicalConcernType
 from .patterns import MedicalPatterns
-from app.integrations.openai_client import LangChainOrchestrator
+from .severity import concern_level_from_score, concern_level_rank
+from app.ai.client import GeminiClient
+from app.services.ai.guardrails import OutputKind
 
 logger = logging.getLogger(__name__)
 
@@ -20,18 +22,26 @@ logger = logging.getLogger(__name__)
 class ConcernDetector:
     """Handles medical concern detection from patient messages."""
 
-    def __init__(self, langchain_orchestrator: LangChainOrchestrator):
+    def __init__(self, gemini_client: GeminiClient):
         """
         Initialize concern detector.
 
         Args:
-            langchain_orchestrator: LangChain orchestrator for AI detection
+            gemini_client: Gemini client for AI detection
         """
-        self.langchain_orchestrator = langchain_orchestrator
+        self.gemini_client = gemini_client
         self.patterns = MedicalPatterns()
 
+    def _severity_rank(self, severity: ConcernLevel) -> int:
+        """Rank concern levels for comparison."""
+        return concern_level_rank(severity)
+
+    def _level_from_score(self, severity_score: int) -> ConcernLevel:
+        """Map numeric severity score to concern level."""
+        return concern_level_from_score(severity_score)
+
     async def detect_medical_concerns(
-        self, message_text: str, patient_context: PatientContext
+        self, message_text: str, patient_context: PatientContext | dict[str, Any]
     ) -> List[MedicalConcern]:
         """
         Detect medical concerns from patient message.
@@ -81,40 +91,42 @@ class ConcernDetector:
         try:
             # Emergency concerns
             emergency_patterns = [
-                (r"\b(não consigo respirar|can\'t breathe)\b", "breathing difficulty"),
-                (r"\b(dor no peito|chest pain)\b", "chest pain"),
-                (r"\b(sangramento|bleeding)\b", "bleeding"),
-                (r"\b(desmaiei|fainted|unconscious)\b", "loss of consciousness"),
+                (
+                    r"\b(não consigo respirar|nao consigo respirar|falta de ar|can't breathe|dificuldade para respirar)\b",
+                    "breathing difficulty",
+                    10,
+                ),
+                (r"\b(dor no peito|chest pain)\b", "chest pain", 9),
+                (r"\b(sangramento intenso|hemorragia|bleeding)\b", "severe bleeding", 9),
+                (r"\b(desmaiei|desmaio|fainted|unconscious)\b", "loss of consciousness", 10),
+                (r"\b(febre (muito )?alta|febre 39|febre 40)\b", "high fever", 8),
             ]
 
-            for pattern, description in emergency_patterns:
+            for pattern, description, severity_score in emergency_patterns:
                 if re.search(pattern, text_lower):
                     concerns.append(
                         MedicalConcern(
                             concern_type=MedicalConcernType.EMERGENCY,
                             description=description,
-                            severity=ConcernLevel.CRITICAL,
+                            severity=self._level_from_score(severity_score),
                             keywords=re.findall(pattern, text_lower),
                             confidence=0.9,
                             requires_immediate_attention=True,
+                            severity_score=severity_score,
                         )
                     )
 
             # Pain concerns
             pain_patterns = [
-                (r"\b(dor insuportável|unbearable pain)\b", "severe pain"),
-                (r"\b(dor forte|severe pain|intense pain)\b", "intense pain"),
-                (r"\b(dor de cabeça|headache)\b", "headache"),
-                (r"\b(dor nas costas|back pain)\b", "back pain"),
+                (r"\b(dor insuportável|dor insuportavel|unbearable pain)\b", "severe pain", 8),
+                (r"\b(dor forte|dor muito forte|severe pain|intense pain)\b", "intense pain", 7),
+                (r"\b(dor de cabeça|headache)\b", "headache", 5),
+                (r"\b(dor nas costas|back pain)\b", "back pain", 5),
             ]
 
-            for pattern, description in pain_patterns:
+            for pattern, description, severity_score in pain_patterns:
                 if re.search(pattern, text_lower):
-                    severity = (
-                        ConcernLevel.HIGH
-                        if "insuportável" in pattern or "unbearable" in pattern
-                        else ConcernLevel.MEDIUM
-                    )
+                    severity = self._level_from_score(severity_score)
                     concerns.append(
                         MedicalConcern(
                             concern_type=MedicalConcernType.PAIN,
@@ -122,26 +134,28 @@ class ConcernDetector:
                             severity=severity,
                             keywords=re.findall(pattern, text_lower),
                             confidence=0.8,
+                            severity_score=severity_score,
                         )
                     )
 
             # Side effect concerns
             side_effect_patterns = [
-                (r"\b(náusea|nausea|enjoo)\b", "nausea"),
-                (r"\b(tontura|dizziness|dizzy)\b", "dizziness"),
-                (r"\b(vômito|vomiting)\b", "vomiting"),
-                (r"\b(erupção|rash|alergia|allergy)\b", "allergic reaction"),
+                (r"\b(náusea|nausea|enjoo)\b", "nausea", 5),
+                (r"\b(tontura|dizziness|dizzy)\b", "dizziness", 5),
+                (r"\b(vômito|vomiting)\b", "vomiting", 6),
+                (r"\b(erupção|rash|alergia|allergy)\b", "allergic reaction", 6),
             ]
 
-            for pattern, description in side_effect_patterns:
+            for pattern, description, severity_score in side_effect_patterns:
                 if re.search(pattern, text_lower):
                     concerns.append(
                         MedicalConcern(
                             concern_type=MedicalConcernType.SIDE_EFFECT,
                             description=description,
-                            severity=ConcernLevel.MEDIUM,
+                            severity=self._level_from_score(severity_score),
                             keywords=re.findall(pattern, text_lower),
                             confidence=0.7,
+                            severity_score=severity_score,
                         )
                     )
 
@@ -150,23 +164,26 @@ class ConcernDetector:
                 (
                     r"\b(muito triste|very sad|deprimida|depressed)\b",
                     "depression symptoms",
+                    5,
                 ),
-                (r"\b(ansiosa|anxious|panic|pânico)\b", "anxiety symptoms"),
+                (r"\b(ansiosa|anxious|panic|pânico)\b", "anxiety symptoms", 4),
                 (
                     r"\b(não consigo dormir|can\'t sleep|insomnia|insônia)\b",
                     "sleep issues",
+                    4,
                 ),
             ]
 
-            for pattern, description in emotional_patterns:
+            for pattern, description, severity_score in emotional_patterns:
                 if re.search(pattern, text_lower):
                     concerns.append(
                         MedicalConcern(
                             concern_type=MedicalConcernType.EMOTIONAL_DISTRESS,
                             description=description,
-                            severity=ConcernLevel.MEDIUM,
+                            severity=self._level_from_score(severity_score),
                             keywords=re.findall(pattern, text_lower),
                             confidence=0.6,
+                            severity_score=severity_score,
                         )
                     )
 
@@ -177,7 +194,7 @@ class ConcernDetector:
             return concerns
 
     async def detect_concerns_by_ai(
-        self, message_text: str, patient_context: PatientContext
+        self, message_text: str, patient_context: PatientContext | dict[str, Any]
     ) -> List[MedicalConcern]:
         """
         Detect medical concerns using AI.
@@ -192,10 +209,18 @@ class ConcernDetector:
         concerns = []
 
         try:
+            treatment_type = getattr(patient_context, "treatment_type", None)
+            treatment_day = getattr(patient_context, "treatment_day", None)
+            if isinstance(patient_context, dict):
+                treatment_type = patient_context.get("treatment_type") or treatment_type
+                treatment_day = patient_context.get("treatment_day") or patient_context.get("current_day") or treatment_day
+            treatment_type = treatment_type or "general"
+            treatment_day = treatment_day or 1
+
             concern_detection_prompt = f"""
             Analyze this patient message for medical concerns that require healthcare provider attention.
 
-            Patient context: {patient_context.treatment_type} treatment, day {patient_context.treatment_day}
+            Patient context: {treatment_type} treatment, day {treatment_day}
             Message: "{message_text}"
 
             Identify concerns and format as JSON:
@@ -223,8 +248,12 @@ class ConcernDetector:
             - general_health: other health concerns
             """
 
-            ai_response = await self.langchain_orchestrator.generate_text(
-                concern_detection_prompt
+            ai_response = await self.gemini_client.generate_content(
+                concern_detection_prompt,
+                output_kind=OutputKind.JSON,
+                required_keys=["concerns"],
+                min_length=2,
+                max_length=1600,
             )
 
             # Parse AI response
@@ -248,6 +277,17 @@ class ConcernDetector:
                         if sev.value == severity_str:
                             severity = sev
                             break
+                    severity_score_map = {
+                        ConcernLevel.LOW: 2,
+                        ConcernLevel.MEDIUM: 5,
+                        ConcernLevel.HIGH: 7,
+                        ConcernLevel.CRITICAL: 9,
+                    }
+                    severity_score = severity_score_map.get(severity, 2)
+
+                    keywords = concern_data.get("keywords", [])
+                    if not isinstance(keywords, list):
+                        keywords = [str(keywords)]
 
                     concerns.append(
                         MedicalConcern(
@@ -256,11 +296,12 @@ class ConcernDetector:
                                 "description", "AI detected concern"
                             ),
                             severity=severity,
-                            keywords=concern_data.get("keywords", []),
+                            keywords=keywords,
                             confidence=float(concern_data.get("confidence", 0.5)),
                             requires_immediate_attention=concern_data.get(
                                 "immediate_attention", False
                             ),
+                            severity_score=severity_score,
                         )
                     )
 
@@ -293,8 +334,18 @@ class ConcernDetector:
             if key in seen_concerns:
                 # Keep the one with higher severity or confidence
                 existing = seen_concerns[key]
-                if concern.severity.value > existing.severity.value or (
-                    concern.severity == existing.severity
+                concern_score = (
+                    concern.severity_score
+                    if concern.severity_score is not None
+                    else self._severity_rank(concern.severity)
+                )
+                existing_score = (
+                    existing.severity_score
+                    if existing.severity_score is not None
+                    else self._severity_rank(existing.severity)
+                )
+                if concern_score > existing_score or (
+                    concern_score == existing_score
                     and concern.confidence > existing.confidence
                 ):
                     seen_concerns[key] = concern

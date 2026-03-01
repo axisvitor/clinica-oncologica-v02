@@ -1,3 +1,4 @@
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
 """
 Context Builder Module
 
@@ -5,14 +6,16 @@ Handles building comprehensive context for message composition.
 """
 
 import json
-from datetime import datetime, timezone
 from typing import Dict, Any
 from uuid import UUID
 
-from app.integrations.gemini_client import GeminiClient
+from app.agents.patient.flow_coordinator.constants import ONBOARDING_END_DAY, DAILY_FOLLOWUP_END_DAY
+from app.ai.client import GeminiClient
 from app.models.patient import Patient
 from app.services.conversation_memory import ConversationMemory
+from app.services.ai.guardrails import OutputKind
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 
 class MessageContextBuilder:
@@ -54,13 +57,13 @@ class MessageContextBuilder:
 
             # Calculate treatment timeline
             enrollment_date = patient.enrollment_date or patient.created_at
-            days_since_enrollment = (datetime.now(timezone.utc) - enrollment_date).days
+            days_since_enrollment = (now_sao_paulo() - enrollment_date).days
 
             # Get patient emotional state
             emotional_context = await self.analyze_patient_emotional_state(patient.id)  # type: ignore[arg-type]
 
             # Get time-based context
-            current_time = datetime.now(timezone.utc)
+            current_time = now_sao_paulo()
             time_context = {
                 "hour": current_time.hour,
                 "day_of_week": current_time.weekday(),
@@ -91,7 +94,7 @@ class MessageContextBuilder:
 
         except Exception as e:
             self.logger.error(f"Failed to build composition context: {e}")
-            return {}
+            raise
 
     async def analyze_patient_emotional_state(self, patient_id: UUID) -> Dict[str, Any]:
         """Analyze patient's emotional state from recent interactions."""
@@ -127,27 +130,28 @@ class MessageContextBuilder:
                 "anxiety_indicators": true/false,
                 "confidence": "low/medium/high"
             }}
+
+            Regras de saída (obrigatório):
+            - Responda apenas com JSON válido
+            - Não inclua texto antes ou depois do JSON
+            - Não use markdown ou blocos de código
             """
 
-            analysis = await self.gemini_client.generate_content(emotional_prompt)
-
-            if analysis:
-                try:
-                    return json.loads(analysis)
-                except json.JSONDecodeError:
-                    pass
-
-            # Fallback analysis
-            return {
-                "mood_score": 0.5,
-                "stress_level": 0.5,
-                "anxiety_indicators": False,
-                "confidence": "low",
-            }
+            analysis = await self.gemini_client.generate_content(
+                emotional_prompt,
+                output_kind=OutputKind.JSON,
+                required_keys=[
+                    "mood_score",
+                    "stress_level",
+                    "anxiety_indicators",
+                    "confidence",
+                ],
+            )
+            return json.loads(analysis)
 
         except Exception as e:
             self.logger.error(f"Emotional analysis failed: {e}")
-            return {"mood_score": 0.5, "stress_level": 0.5, "confidence": "error"}
+            raise
 
     async def analyze_previous_interaction(
         self, interaction: Dict[str, Any]
@@ -174,26 +178,35 @@ class MessageContextBuilder:
             3. Necessidade de follow-up (sim/não)
             4. Tipo de suporte necessário
 
-            Retorne resumo da análise.
+            Regras de saída (obrigatório):
+            - Retorne apenas o resumo final
+            - Não inclua explicações, raciocínios ou meta-comentários
+            - Não mencione prompt, instruções, políticas ou sistema
+            - Não use markdown, listas, cabeçalhos ou blocos de código
+            - Não envolva a resposta em aspas
+            - Escreva apenas em português do Brasil
             """
 
-            analysis = await self.gemini_client.generate_content(analysis_prompt)
+            analysis = await self.gemini_client.generate_content(
+                analysis_prompt,
+                output_kind=OutputKind.MESSAGE,
+            )
 
             return {
-                "summary": analysis or "Análise não disponível",
+                "summary": analysis,
                 "needs_follow_up": True,
                 "interaction_type": interaction_type,
             }
 
         except Exception as e:
             self.logger.error(f"Interaction analysis failed: {e}")
-            return {}
+            raise
 
     def _determine_treatment_phase(self, days_since_enrollment: int) -> str:
         """Determine treatment phase based on enrollment duration."""
-        if days_since_enrollment <= 15:
+        if days_since_enrollment <= ONBOARDING_END_DAY:
             return "initial"
-        elif days_since_enrollment <= 45:
+        elif days_since_enrollment <= DAILY_FOLLOWUP_END_DAY:
             return "adaptation"
         else:
             return "maintenance"

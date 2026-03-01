@@ -10,10 +10,10 @@ import json
 import uuid
 import traceback
 from contextvars import ContextVar
-from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from functools import wraps
 import time
+from app.utils.timezone import now_sao_paulo
 
 # Context variables for request tracking
 correlation_id: ContextVar[str] = ContextVar("correlation_id", default="")
@@ -54,7 +54,7 @@ class StructuredLogger:
             JSON-formatted log string
         """
         log_data: Dict[str, Any] = {
-            "timestamp": datetime.now(timezone.utc).isoformat() + "Z",
+            "timestamp": now_sao_paulo().isoformat(),
             "level": level,
             "logger": self.name,
             "message": message,

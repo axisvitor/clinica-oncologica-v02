@@ -7,7 +7,7 @@ Consolidated from: app/services/message.py
 
 from typing import List, Optional, Any, Dict
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import datetime
 import logging
 import hashlib
 
@@ -23,6 +23,9 @@ from app.models.message import (
 from app.repositories.message import MessageRepository
 from app.schemas.message import MessageCreate, MessageUpdate
 from app.utils.db_retry import with_db_retry
+from app.utils.idempotency import build_message_idempotency_key
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
+from app.domain.messaging.core.update_helpers import update_message_by_id
 
 
 logger = logging.getLogger(__name__)
@@ -58,9 +61,12 @@ class MessageService:
         Combines patient, type, scheduled time and content hash to prevent
         duplicação de envios quando o mesmo payload é gerado mais de uma vez.
         """
-        ts = scheduled_for.replace(microsecond=0).isoformat()
-        base = f"{patient_id}:{message_type.value}:{ts}:{content or ''}"
-        return hashlib.sha256(base.encode("utf-8")).hexdigest()
+        return build_message_idempotency_key(
+            patient_id=patient_id,
+            content=content,
+            scheduled_for=scheduled_for,
+            message_type_value=message_type.value,
+        )
 
     @with_db_retry(max_retries=3)
     def create_message(self, message_data: MessageCreate) -> Message:
@@ -75,7 +81,7 @@ class MessageService:
         """
         message_dict = message_data.dict()
         scheduled_time = message_dict.get("scheduled_for") or datetime.now(
-            timezone.utc
+            SAO_PAULO_TZ
         ).replace(microsecond=0)
         message_type = message_dict.get("type", MessageType.TEXT)
         message_dict["scheduled_for"] = scheduled_time
@@ -127,12 +133,11 @@ class MessageService:
         Returns:
             Updated Message object or None
         """
-        message = self.repository.get_by_id(message_id)
-        if not message:
-            return None
-
-        update_data = message_data.dict(exclude_unset=True)
-        return self.repository.update(message, update_data)
+        return update_message_by_id(
+            self.repository,
+            message_id=message_id,
+            message_data=message_data,
+        )
 
     @with_db_retry(max_retries=3)
     def get_patient_messages(
@@ -167,6 +172,34 @@ class MessageService:
             List of Message objects
         """
         return self.repository.get_conversation_history(patient_id, skip, limit)
+
+    @with_db_retry(max_retries=3)
+    def process_inbound_message(
+        self,
+        patient_id: UUID,
+        content: str,
+        whatsapp_id: str,
+        message_type: MessageType = MessageType.TEXT,
+        message_metadata: Optional[Dict[str, Any]] = None,
+    ) -> Message:
+        """
+        Process an inbound message from WhatsApp.
+
+        Creates a message marked as read to represent patient inbound traffic.
+        """
+        idempotency_base = f"inbound:{patient_id}:{whatsapp_id or ''}:{content or ''}"
+        idempotency_key = hashlib.sha256(idempotency_base.encode("utf-8")).hexdigest()
+        message_data = {
+            "patient_id": patient_id,
+            "direction": MessageDirection.INBOUND,
+            "type": message_type,
+            "content": content,
+            "whatsapp_id": whatsapp_id,
+            "message_metadata": message_metadata or {},
+            "idempotency_key": idempotency_key,
+            "status": MessageStatus.READ,
+        }
+        return self.repository.create(message_data)
 
     @with_db_retry(max_retries=3)
     def get_pending_messages(
@@ -210,6 +243,7 @@ class MessageService:
         scheduled_for: datetime,
         message_type: MessageType = MessageType.TEXT,
         message_metadata: Optional[Dict[str, Any]] = None,
+        auto_commit: bool = True,
     ) -> Message:
         """
         Schedule a message for later delivery.
@@ -220,13 +254,17 @@ class MessageService:
             scheduled_for: Scheduled delivery time
             message_type: Type of message
             message_metadata: Optional metadata
+            auto_commit: If True (default), commits immediately.
+                         Set to False when using within a saga/Unit of Work pattern.
 
         Returns:
             Scheduled Message object
         """
-        scheduled_time = (scheduled_for or datetime.now(timezone.utc)).replace(
+        scheduled_time = (scheduled_for or now_sao_paulo()).replace(
             microsecond=0
         )
+        if scheduled_time.tzinfo is None:
+            scheduled_time = SAO_PAULO_TZ.localize(scheduled_time)
         idempotency_key = self._generate_idempotency_key(
             patient_id=patient_id,
             content=content,
@@ -243,7 +281,7 @@ class MessageService:
             "status": MessageStatus.PENDING,
             "idempotency_key": idempotency_key,
         }
-        return self.repository.create(message_data)
+        return self.repository.create(message_data, auto_commit=auto_commit)
 
     @with_db_retry(max_retries=3)
     def mark_as_sent(
@@ -256,7 +294,7 @@ class MessageService:
         if not message:
             return None
 
-        update_data = {"status": MessageStatus.SENT, "sent_at": datetime.now(timezone.utc)}
+        update_data = {"status": MessageStatus.SENT, "sent_at": now_sao_paulo()}
         if whatsapp_id:
             update_data["whatsapp_id"] = whatsapp_id
 
@@ -277,7 +315,7 @@ class MessageService:
             "message_metadata": {
                 **(message.message_metadata or {}),
                 "error": error_message,
-                "failed_at": datetime.now(timezone.utc).isoformat(),
+                "failed_at": now_sao_paulo().isoformat(),
             },
         }
 
@@ -302,3 +340,59 @@ class MessageService:
         import asyncio
 
         return await asyncio.to_thread(self.mark_as_failed, message_id, error_message)
+
+    @with_db_retry(max_retries=3)
+    def get_messages_with_filters(
+        self,
+        status: Optional[MessageStatus] = None,
+        patient_id: Optional[UUID] = None,
+        limit: int = 100,
+    ) -> List[Message]:
+        """
+        Get messages matching filters.
+
+        Args:
+            status: Optional status filter
+            patient_id: Optional patient filter
+            limit: Maximum number of results
+
+        Returns:
+            List of Message objects matching filters
+        """
+        query = self.db.query(Message)
+        if status:
+            query = query.filter(Message.status == status)
+        if patient_id:
+            query = query.filter(Message.patient_id == patient_id)
+        return query.limit(limit).all()
+
+    @with_db_retry(max_retries=3)
+    def get_message_statistics(
+        self,
+        patient_id: Optional[UUID] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ) -> Dict[str, int]:
+        """
+        Get message count statistics by status.
+
+        Args:
+            patient_id: Optional patient filter
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+
+        Returns:
+            Dictionary mapping status values to counts
+        """
+        from sqlalchemy import func
+
+        query = self.db.query(Message.status, func.count(Message.id))
+        if patient_id:
+            query = query.filter(Message.patient_id == patient_id)
+        if start_date:
+            query = query.filter(Message.created_at >= start_date)
+        if end_date:
+            query = query.filter(Message.created_at <= end_date)
+
+        results = query.group_by(Message.status).all()
+        return {str(status.value): count for status, count in results}

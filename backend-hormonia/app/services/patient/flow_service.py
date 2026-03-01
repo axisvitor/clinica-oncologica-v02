@@ -21,13 +21,15 @@ from uuid import UUID
 
 # Local application imports
 from app.config import settings
-from app.config.template_loader import get_template_for_treatment
 from app.models.flow import PatientFlowState
 from app.models.patient import FlowState, Patient
 from app.schemas.websocket import WebSocketEventType
-from app.services.flow_core import FlowType
-from app.services.websocket_service import websocket_events
+from app.services.flow.types import FlowType  # canonical location
+from app.repositories.flow_kind import FlowKindRepository
+# Production websocket_events lives in app.services.websocket_events (lazy-init global)
+import app.services.websocket_events as _ws_events_mod
 from app.utils.db_retry import with_db_retry
+from app.utils.timezone import now_sao_paulo, SAO_PAULO_TZ
 
 # TYPE_CHECKING import to avoid circular import at runtime
 if TYPE_CHECKING:
@@ -87,31 +89,15 @@ class PatientFlowService:
             return None
 
         try:
-            template_name = self._select_template(patient.treatment_type)
+            flow_type = self._select_flow_type(patient)
 
-            if not template_name:
+            if not flow_type:
                 self._logger.warning(
-                    f"No template found for patient {patient.id} "
-                    f"(treatment_type: {patient.treatment_type})"
+                    "No eligible flow type found for patient %s (treatment_type: %s)",
+                    patient.id,
+                    patient.treatment_type,
                 )
                 return None
-
-            # Get flow configuration to find the correct Enum value
-            from app.config.template_loader import get_template_loader
-
-            loader = get_template_loader()
-            flow_config = loader.get_flow_type_config(template_name)
-
-            # Default to INITIAL_15_DAYS if mapping fails or template unknown
-            flow_type = FlowType.INITIAL_15_DAYS
-
-            if flow_config and flow_config.enum_value:
-                try:
-                    flow_type = FlowType(flow_config.enum_value)
-                except ValueError:
-                    self._logger.warning(
-                        f"Invalid enum value {flow_config.enum_value} for template {template_name}"
-                    )
 
             # Enroll patient using the new engine
             # Pass auto_commit to support saga/Unit of Work pattern
@@ -120,7 +106,7 @@ class PatientFlowService:
             )
 
             self._logger.info(
-                f"Flow started for patient {patient.id} with type {flow_type.value} (template: {template_name})"
+                f"Flow started for patient {patient.id} with type {flow_type.value}"
             )
 
             # Update patient metadata
@@ -130,7 +116,7 @@ class PatientFlowService:
             patient.patient_data.update(
                 {
                     "auto_flow_started": True,
-                    "requested_template": template_name,
+                    "requested_template": flow_type.value,
                     "actual_flow_type": flow_type.value,
                     "flow_start_time": flow_state.started_at.isoformat(),
                     "initialized_by": str(current_user_id)
@@ -157,7 +143,7 @@ class PatientFlowService:
                     "auto_flow_error": str(e),
                     "flow_start_attempted": True,
                     "flow_start_failed": True,
-                    "error_timestamp": datetime.now(timezone.utc).isoformat(),
+                    "error_timestamp": now_sao_paulo().isoformat(),
                 }
             )
 
@@ -199,25 +185,67 @@ class PatientFlowService:
             return None
 
         update_data = {"flow_state": FlowState.ACTIVE}
+
+        flow_start_time = None
+        if patient.patient_data:
+            flow_start_time = patient.patient_data.get("flow_start_time")
+
+        start_dt = None
+        if flow_start_time:
+            try:
+                start_dt = datetime.fromisoformat(flow_start_time)
+            except ValueError:
+                logger.warning(
+                    "Invalid flow_start_time; using created_at instead",
+                    extra={"patient_id": str(patient_id), "flow_start_time": flow_start_time},
+                )
+
+        if start_dt is None and patient.created_at:
+            start_dt = patient.created_at
+
+        if start_dt is None:
+            start_dt = now_sao_paulo()
+
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=SAO_PAULO_TZ)
+        else:
+            start_dt = start_dt.astimezone(SAO_PAULO_TZ)
+
+        if (patient.current_day or 0) <= 0:
+            today = now_sao_paulo().date()
+            start_date = start_dt.date()
+            if start_date > today:
+                start_date = today
+            update_data["current_day"] = max(1, (today - start_date).days + 1)
+
+        if not flow_start_time:
+            update_data["patient_data"] = {
+                "flow_start_time": start_dt.isoformat()
+            }
         updated_patient = repository.update(patient, update_data, auto_commit=auto_commit)
 
-        # Publish WebSocket event (non-blocking, best-effort)
-        try:
-            await websocket_events.broadcast_flow_event(
-                event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
-                patient_id=patient_id,
-                flow_data={
-                    "flow_state": FlowState.ACTIVE.value,
-                    "action": "activated",
-                    "patient_name": updated_patient.name,
-                    "doctor_id": str(updated_patient.doctor_id),
-                    "changes": {"flow_state": FlowState.ACTIVE.value},
-                    "metadata": {"action": "activated"},
-                },
-            )
-        except Exception as ws_error:
-            # WebSocket events are non-critical - log and continue
-            logger.warning(f"Failed to broadcast flow event for patient {patient_id}: {ws_error}")
+        if auto_commit:
+            # Publish WebSocket event (non-blocking, best-effort) only after commit
+            try:
+                websocket_events = _ws_events_mod.websocket_events
+                if websocket_events:
+                    await websocket_events.broadcast_flow_event(
+                        event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
+                        patient_id=patient_id,
+                        flow_data={
+                            "flow_state": FlowState.ACTIVE.value,
+                            "action": "activated",
+                            "patient_name": updated_patient.name,
+                            "doctor_id": str(updated_patient.doctor_id),
+                            "changes": {"flow_state": FlowState.ACTIVE.value},
+                            "metadata": {"action": "activated"},
+                        },
+                    )
+            except Exception as ws_error:
+                # WebSocket events are non-critical - log and continue
+                logger.warning(
+                    f"Failed to broadcast flow event for patient {patient_id}: {ws_error}"
+                )
 
         return updated_patient
 
@@ -236,18 +264,20 @@ class PatientFlowService:
 
         # Publish WebSocket event (non-blocking, best-effort)
         try:
-            await websocket_events.broadcast_flow_event(
-                event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
-                patient_id=patient_id,
-                flow_data={
-                    "flow_state": FlowState.PAUSED.value,
-                    "action": "paused",
-                    "patient_name": updated_patient.name,
-                    "doctor_id": str(updated_patient.doctor_id),
-                    "changes": {"flow_state": FlowState.PAUSED.value},
-                    "metadata": {"action": "paused"},
-                },
-            )
+            websocket_events = _ws_events_mod.websocket_events
+            if websocket_events:
+                await websocket_events.broadcast_flow_event(
+                    event_type=WebSocketEventType.PATIENT_FLOW_CHANGED,
+                    patient_id=patient_id,
+                    flow_data={
+                        "flow_state": FlowState.PAUSED.value,
+                        "action": "paused",
+                        "patient_name": updated_patient.name,
+                        "doctor_id": str(updated_patient.doctor_id),
+                        "changes": {"flow_state": FlowState.PAUSED.value},
+                        "metadata": {"action": "paused"},
+                    },
+                )
         except Exception as ws_error:
             # WebSocket events are non-critical - log and continue
             logger.warning(f"Failed to broadcast flow event for patient {patient_id}: {ws_error}")
@@ -267,21 +297,45 @@ class PatientFlowService:
         update_data = {"flow_state": "COMPLETED"}
         return repository.update(patient, update_data)
 
-    def _select_template(self, treatment_type: Optional[str]) -> Optional[str]:
+    def _select_flow_type(self, patient: Patient) -> Optional[FlowType]:
         """
-        Select appropriate flow template based on treatment type.
+        Select flow type using DB-backed flow_kinds only.
 
-        Uses centralized template configuration from flow_templates.yaml
-        instead of hardcoded mapping.
-
-        Args:
-            treatment_type: Patient's treatment type
-
-        Returns:
-            Flow template identifier from configuration
+        Prefers an explicit patient current_flow_type if present, then tries
+        treatment_type as a kind_key alias. Defaults to onboarding when available.
         """
-        # Use centralized template loader
-        return get_template_for_treatment(treatment_type)
+        flow_kind_repo = FlowKindRepository(self.db)
+        candidate_keys = [patient.current_flow_type, patient.treatment_type]
+
+        for key in candidate_keys:
+            if not key:
+                continue
+            flow_kind = flow_kind_repo.get_by_kind_key(key)
+            if flow_kind:
+                try:
+                    return FlowType(flow_kind.kind_key)
+                except ValueError:
+                    self._logger.warning(
+                        "Flow kind '%s' not registered in FlowType enum",
+                        flow_kind.kind_key,
+                    )
+
+        onboarding_kind = flow_kind_repo.get_by_kind_key(FlowType.ONBOARDING.value)
+        if onboarding_kind:
+            return FlowType.ONBOARDING
+
+        active_kinds = flow_kind_repo.list_active()
+        if active_kinds:
+            try:
+                return FlowType(active_kinds[0].kind_key)
+            except ValueError:
+                self._logger.warning(
+                    "Active flow kind '%s' not registered in FlowType enum",
+                    active_kinds[0].kind_key,
+                )
+                return FlowType.ONBOARDING
+
+        return None
 
     @with_db_retry(max_retries=3)
     async def delete_flow(self, patient_id: UUID) -> bool:

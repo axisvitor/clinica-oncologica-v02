@@ -48,7 +48,7 @@ class MessageSender:
         # Evolution sendText endpoint requires a top-level "text" field
         payload = {"number": clean_number, "text": message}
 
-        if delay:
+        if delay is not None:
             payload["delay"] = delay
 
         logger.info(

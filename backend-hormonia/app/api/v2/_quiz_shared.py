@@ -8,12 +8,13 @@ used across all quiz extension endpoints.
 from __future__ import annotations
 
 from uuid import UUID
-from fastapi import Depends, HTTPException, status, Header
-from sqlalchemy.orm import Session
+from fastapi import Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
-from app.database import get_db
 from app.models.user import User, UserRole
 from app.models.patient import Patient
+from app.dependencies.auth_dependencies import get_current_user_object_from_session
 
 
 # Cache TTL configurations
@@ -25,38 +26,24 @@ CACHE_TTL_TEMPLATES = 1800  # 30 minutes for templates (rarely change)
 CACHE_TTL_QUIZ_LIST = 300  # 5 minutes for quiz lists
 
 
-def _get_current_user_simple(
-    session_id: str = Header(None, alias="X-Session-ID"),
-    authorization: str = Header(None),
-    db: Session = Depends(get_db),
+async def _get_current_user_simple(
+    current_user: User = Depends(get_current_user_object_from_session),
 ) -> User:
-    """Simplified session validation for V2 endpoints."""
-    # Support both X-Session-ID and Authorization: Bearer headers
-    final_session_id = session_id
-    if not final_session_id and authorization and authorization.startswith("Bearer "):
-        final_session_id = authorization.split(" ")[1]
-
-    if not final_session_id:
+    """Session-based auth for quiz endpoints (cookie/X-Session-ID/Bearer session_id)."""
+    if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided",
+            detail="Authentication required",
         )
-
-    # For now, we'll use a simple lookup. In production, validate against Redis/session store
-    # This is a placeholder - replace with actual session validation
-    user = db.query(User).filter(User.id == final_session_id).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
-        )
-
-    return user
+    return current_user
 
 
-def _check_patient_access(db: Session, current_user: User, patient_id: UUID) -> Patient:
+async def _check_patient_access(
+    db: AsyncSession, current_user: User, patient_id: UUID
+) -> Patient:
     """Check if user has access to patient data."""
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    result = await db.execute(select(Patient).where(Patient.id == patient_id))
+    patient = result.scalar_one_or_none()
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"

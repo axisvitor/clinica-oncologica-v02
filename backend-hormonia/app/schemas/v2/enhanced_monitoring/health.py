@@ -27,7 +27,7 @@ class MonitoringHealthResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "status": "healthy",
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "components": {
                     "apm": "healthy",
                     "database": "healthy",
@@ -53,7 +53,7 @@ class SystemMetricsResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "apm": {"total_requests": 10000, "error_rate": 2.5},
                 "database": {"query_count": 5000, "avg_duration_ms": 15.5},
                 "resources": {"cpu_percent": 45.2, "memory_percent": 62.8},

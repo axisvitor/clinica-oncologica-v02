@@ -44,6 +44,7 @@ interface RuntimeConfigType {
   WHATSAPP_INSTANCE_NAME: string
   AI_CHAT_ENABLED: boolean
   AI_ANALYTICS_ENABLED: boolean
+  AI_SUMMARY_ENABLED: boolean
   AI_INSIGHTS_ENABLED: boolean
   AI_RECOMMENDATIONS_ENABLED: boolean
   SENTRY_DSN?: string
@@ -87,6 +88,7 @@ export async function loadConfig() {
           // AI Feature Flags
           AI_CHAT_ENABLED: runtimeConfig.VITE_AI_CHAT_ENABLED === 'true',
           AI_ANALYTICS_ENABLED: runtimeConfig.VITE_AI_ANALYTICS_ENABLED === 'true',
+          AI_SUMMARY_ENABLED: runtimeConfig.VITE_AI_SUMMARY_ENABLED === 'true',
           AI_INSIGHTS_ENABLED: runtimeConfig.VITE_AI_INSIGHTS_ENABLED === 'true',
           AI_RECOMMENDATIONS_ENABLED: runtimeConfig.VITE_AI_RECOMMENDATIONS_ENABLED === 'true',
 
@@ -157,11 +159,18 @@ const STATIC_DEBUG_MODE = import.meta.env['VITE_APP_ENABLE_DEBUG'] === 'true';
 const _STATIC_SESSION_TIMEOUT = parseInt(import.meta.env['VITE_SESSION_TIMEOUT_MS'] || '28800000', 10);
 const _STATIC_TOKEN_REFRESH_THRESHOLD = parseInt(import.meta.env['VITE_SESSION_TOKEN_REFRESH_THRESHOLD_MS'] || '300000', 10);
 
-// AI Feature Flag Statics - NEW NAMING: VITE_AI_ENABLE_*
-const STATIC_AI_CHAT_ENABLED = import.meta.env['VITE_AI_ENABLE_CHAT'] === 'true' || import.meta.env['VITE_AI_ENABLE_CHAT'] === undefined;
-const STATIC_AI_ANALYTICS_ENABLED = import.meta.env['VITE_AI_ENABLE_ANALYTICS'] === 'true' || import.meta.env['VITE_AI_ENABLE_ANALYTICS'] === undefined;
-const STATIC_AI_INSIGHTS_ENABLED = import.meta.env['VITE_AI_ENABLE_INSIGHTS'] === 'true' || import.meta.env['VITE_AI_ENABLE_INSIGHTS'] === undefined;
-const STATIC_AI_RECOMMENDATIONS_ENABLED = import.meta.env['VITE_AI_ENABLE_RECOMMENDATIONS'] === 'true' || import.meta.env['VITE_AI_ENABLE_RECOMMENDATIONS'] === undefined;
+// AI Feature Flag Statics - support legacy *_ENABLED and current ENABLE_* names
+const AI_CHAT_ENV = import.meta.env['VITE_AI_ENABLE_CHAT'] ?? import.meta.env['VITE_AI_CHAT_ENABLED'];
+const AI_ANALYTICS_ENV = import.meta.env['VITE_AI_ENABLE_ANALYTICS'] ?? import.meta.env['VITE_AI_ANALYTICS_ENABLED'];
+const AI_SUMMARY_ENV = import.meta.env['VITE_AI_ENABLE_SUMMARY'] ?? import.meta.env['VITE_AI_SUMMARY_ENABLED'];
+const AI_INSIGHTS_ENV = import.meta.env['VITE_AI_ENABLE_INSIGHTS'] ?? import.meta.env['VITE_AI_INSIGHTS_ENABLED'];
+const AI_RECOMMENDATIONS_ENV = import.meta.env['VITE_AI_ENABLE_RECOMMENDATIONS'] ?? import.meta.env['VITE_AI_RECOMMENDATIONS_ENABLED'];
+
+const STATIC_AI_CHAT_ENABLED = AI_CHAT_ENV === undefined || AI_CHAT_ENV === 'true';
+const STATIC_AI_ANALYTICS_ENABLED = AI_ANALYTICS_ENV === undefined || AI_ANALYTICS_ENV === 'true';
+const STATIC_AI_SUMMARY_ENABLED = AI_SUMMARY_ENV === undefined || AI_SUMMARY_ENV === 'true';
+const STATIC_AI_INSIGHTS_ENABLED = AI_INSIGHTS_ENV === 'true';
+const STATIC_AI_RECOMMENDATIONS_ENABLED = AI_RECOMMENDATIONS_ENV === undefined || AI_RECOMMENDATIONS_ENV === 'true';
 
 // Remove duplicate declarations - these variables are already declared above
 
@@ -225,14 +234,16 @@ export const THEME_CONFIG = {
  *
  * AI Features:
  * - AI_CHAT: Enable AI-powered chat interface (requires OPENAI_API_KEY or GEMINI_API_KEY)
+ * - AI_SUMMARY: Enable AI-powered patient summaries
  * - AI_INSIGHTS: Enable AI-driven insights and recommendations
  * - AI_ANALYTICS: Enable AI analytics dashboard with predictive analytics
  * - AI_RECOMMENDATIONS: Enable AI-powered treatment recommendations
  *
  * Environment Variables (NEW NAMING):
  * - VITE_AI_ENABLE_CHAT: 'true' | 'false' (default: true if API keys present)
+ * - VITE_AI_ENABLE_SUMMARY: 'true' | 'false' (default: true)
  * - VITE_AI_ENABLE_ANALYTICS: 'true' | 'false' (default: true)
- * - VITE_AI_ENABLE_INSIGHTS: 'true' | 'false' (default: true)
+ * - VITE_AI_ENABLE_INSIGHTS: 'true' | 'false' (default: false)
  * - VITE_AI_ENABLE_RECOMMENDATIONS: 'true' | 'false' (default: true)
  * - VITE_OPENAI_API_KEY: OpenAI API key for AI features
  * - VITE_GEMINI_API_KEY: Google Gemini API key for AI features
@@ -241,6 +252,7 @@ export const THEME_CONFIG = {
 export const FEATURES = {
   // AI Features - Controlled by feature flags and API key availability
   AI_CHAT: STATIC_AI_CHAT_ENABLED,
+  AI_SUMMARY: STATIC_AI_SUMMARY_ENABLED,
   AI_INSIGHTS: STATIC_AI_INSIGHTS_ENABLED,
   AI_ANALYTICS: STATIC_AI_ANALYTICS_ENABLED,
   AI_RECOMMENDATIONS: STATIC_AI_RECOMMENDATIONS_ENABLED,
@@ -264,6 +276,7 @@ export const FEATURES = {
 export const getAIConfig = () => ({
   chatEnabled: FEATURES.AI_CHAT,
   analyticsEnabled: FEATURES.AI_ANALYTICS,
+  summaryEnabled: FEATURES.AI_SUMMARY,
   insightsEnabled: FEATURES.AI_INSIGHTS,
   recommendationsEnabled: FEATURES.AI_RECOMMENDATIONS,
   preferredProvider: 'backend'

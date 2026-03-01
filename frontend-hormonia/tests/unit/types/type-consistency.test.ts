@@ -69,8 +69,8 @@ describe('Patient Type Consistency', () => {
         treatment_phase: 'Active treatment',
         doctor_notes: 'Patient responding well',
         patient_data: {},
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
+        created_at: '2024-01-01T00:00:00-03:00',
+        updated_at: '2024-01-01T00:00:00-03:00',
       }
 
       expect(patient.flow_state).toBeDefined()
@@ -111,8 +111,8 @@ describe('Patient Type Consistency', () => {
         treatment_phase: null,
         doctor_notes: null,
         patient_data: null,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
+        created_at: '2024-01-01T00:00:00-03:00',
+        updated_at: '2024-01-01T00:00:00-03:00',
       }
 
       expect(typeof patient.doctor_id).toBe('string')
@@ -138,8 +138,8 @@ describe('Patient Type Consistency', () => {
         treatment_phase: null,
         doctor_notes: null,
         patient_data: null,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
+        created_at: '2024-01-01T00:00:00-03:00',
+        updated_at: '2024-01-01T00:00:00-03:00',
       }
 
       expect(patient.email).toBeNull()
@@ -232,7 +232,7 @@ describe('Quiz Response Value Type', () => {
         question_text: 'How do you feel?',
         response_value: 'Good', // String
         response_type: 'text',
-        answered_at: '2024-01-01T12:00:00Z',
+        answered_at: '2024-01-01T12:00:00-03:00',
       }
 
       expect(response.response_value).toBe('Good')
@@ -244,7 +244,7 @@ describe('Quiz Response Value Type', () => {
         question_text: 'Text question',
         response_value: 'Answer text',
         response_type: 'text',
-        answered_at: '2024-01-01T12:00:00Z',
+        answered_at: '2024-01-01T12:00:00-03:00',
       }
 
       const numberResponse: QuizQuestionResponse = {
@@ -252,7 +252,7 @@ describe('Quiz Response Value Type', () => {
         question_text: 'Scale question',
         response_value: 7,
         response_type: 'scale',
-        answered_at: '2024-01-01T12:00:00Z',
+        answered_at: '2024-01-01T12:00:00-03:00',
       }
 
       const multiChoiceResponse: QuizQuestionResponse = {
@@ -260,7 +260,7 @@ describe('Quiz Response Value Type', () => {
         question_text: 'Multi-choice question',
         response_value: ['option1', 'option2'],
         response_type: 'multi_choice',
-        answered_at: '2024-01-01T12:00:00Z',
+        answered_at: '2024-01-01T12:00:00-03:00',
       }
 
       expect(textResponse.response_value).toBe('Answer text')
@@ -280,9 +280,9 @@ describe('Admin RBAC Types', () => {
         role: 'admin',
         is_active: true,
         permissions: ['users:read', 'users:write'],
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-        last_login: '2024-01-01T12:00:00Z',
+        created_at: '2024-01-01T00:00:00-03:00',
+        updated_at: '2024-01-01T00:00:00-03:00',
+        last_login: '2024-01-01T12:00:00-03:00',
         login_count: 10,
         two_factor_enabled: false,
         failed_login_attempts: 0,
@@ -321,8 +321,8 @@ describe('Admin RBAC Types', () => {
         resource: 'patients',
         action: 'read',
         description: 'Permission to read patient data',
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
+        created_at: '2024-01-01T00:00:00-03:00',
+        updated_at: '2024-01-01T00:00:00-03:00',
       }
 
       expect(permission.resource).toBe('patients')
@@ -380,13 +380,13 @@ describe('Admin RBAC Types', () => {
             resource: 'patients',
             action: 'read',
             description: 'Read patient data',
-            created_at: '2024-01-01T00:00:00Z',
-            updated_at: '2024-01-01T00:00:00Z',
+            created_at: '2024-01-01T00:00:00-03:00',
+            updated_at: '2024-01-01T00:00:00-03:00',
           },
         ],
         is_system: true,
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
+        created_at: '2024-01-01T00:00:00-03:00',
+        updated_at: '2024-01-01T00:00:00-03:00',
       }
 
       expect(role.permissions).toBeInstanceOf(Array)
@@ -497,8 +497,8 @@ describe('API Response Type Compatibility', () => {
         treatment_phase: 'Active',
         doctor_notes: 'Notes',
         patient_data: {},
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
+        created_at: '2024-01-01T00:00:00-03:00',
+        updated_at: '2024-01-01T00:00:00-03:00',
       }
 
       // Frontend should be able to consume this
@@ -516,7 +516,7 @@ describe('API Response Type Compatibility', () => {
         question_text: 'How are you?',
         response_value: 'Good', // Backend sends Union type
         response_type: 'text',
-        answered_at: '2024-01-01T12:00:00Z',
+        answered_at: '2024-01-01T12:00:00-03:00',
       }
 
       const quizResponse: QuizQuestionResponse = backendQuizResponse as QuizQuestionResponse

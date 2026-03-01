@@ -1,6 +1,9 @@
 import pytest
-from datetime import datetime, timezone
+from datetime import datetime
 from app.api.v2.routers.patients.flow import _normalize_datetime
+
+from app.utils.timezone import SAO_PAULO_TZ
+
 
 def test_timeline_sorting_mixed_types_success():
     """
@@ -8,8 +11,8 @@ def test_timeline_sorting_mixed_types_success():
     """
     # Create a list of events with mixed date types (datetime and str)
     events = [
-        {"date": datetime(2023, 1, 1, tzinfo=timezone.utc), "event": "event1"},
-        {"date": "2023-01-02T10:00:00+00:00", "event": "event2"},
+        {"date": datetime(2023, 1, 1, tzinfo=SAO_PAULO_TZ), "event": "event1"},
+        {"date": "2023-01-02T10:00:00-03:00", "event": "event2"},
         {"date": None, "event": "event3"},
     ]
     
@@ -24,7 +27,7 @@ def test_timeline_sorting_mixed_types_success():
 def test_normalize_datetime_helper():
     """Test the _normalize_datetime helper individually."""
     # Test datetime
-    dt = datetime(2023, 1, 1, tzinfo=timezone.utc)
+    dt = datetime(2023, 1, 1, tzinfo=SAO_PAULO_TZ)
     assert _normalize_datetime(dt) == dt
     
     # Test naive datetime (should become aware)
@@ -32,16 +35,16 @@ def test_normalize_datetime_helper():
     assert _normalize_datetime(dt_naive).tzinfo is not None
     
     # Test ISO string
-    s = "2023-01-01T10:00:00+00:00"
+    s = "2023-01-01T10:00:00-03:00"
     assert isinstance(_normalize_datetime(s), datetime)
     assert _normalize_datetime(s).year == 2023
     
-    # Test Z string
-    s_z = "2023-01-01T10:00:00Z"
+    # Test offset string
+    s_z = "2023-01-01T10:00:00-03:00"
     assert _normalize_datetime(s_z).tzinfo is not None
     
     # Test None
-    assert _normalize_datetime(None) == datetime.min.replace(tzinfo=timezone.utc)
+    assert _normalize_datetime(None) == datetime.min.replace(tzinfo=SAO_PAULO_TZ)
     
     # Test invalid string
-    assert _normalize_datetime("invalid") == datetime.min.replace(tzinfo=timezone.utc)
+    assert _normalize_datetime("invalid") == datetime.min.replace(tzinfo=SAO_PAULO_TZ)

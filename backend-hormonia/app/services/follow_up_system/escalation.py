@@ -11,7 +11,10 @@ from uuid import UUID, uuid4
 from .enums import EscalationLevel, NotificationChannel, FollowUpType
 from .models import EscalationAlert, FollowUpAction
 from app.services.response_processor import StructuredResponse
-from app.services.analytics.data_extraction import ConcernLevel, MedicalConcernType
+from app.services.ai import ConcernLevel
+from app.services.analytics.data_extraction import MedicalConcernType
+from app.monitoring.metrics import response_escalation_failures_total
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +84,17 @@ class EscalationManager:
             else:
                 logger.debug(f"Stored alert in Redis: {alert.alert_id}")
 
+            logger.info(
+                "Escalation alert created",
+                extra={
+                    "patient_id": str(patient_id),
+                    "alert_id": str(alert.alert_id),
+                    "escalation_level": escalation_level.value,
+                    "concern_level": structured_response.concern_level.value,
+                    "severity_score": structured_response.severity_score,
+                },
+            )
+
             # Create follow-up action for escalation
             action = FollowUpAction(
                 action_id=uuid4(),
@@ -89,7 +103,7 @@ class EscalationManager:
                 priority="critical"
                 if escalation_level == EscalationLevel.EMERGENCY
                 else "high",
-                scheduled_for=datetime.now(timezone.utc),  # Immediate
+                scheduled_for=now_sao_paulo(),  # Immediate
                 parameters={
                     "alert_id": str(alert.alert_id),
                     "escalation_level": escalation_level.value,
@@ -104,6 +118,9 @@ class EscalationManager:
 
         except Exception as e:
             logger.error(f"Failed to create escalation alert: {e}")
+            response_escalation_failures_total.labels(
+                reason="create_failed"
+            ).inc()
             return None
 
     def _determine_escalation_level(
@@ -120,25 +137,46 @@ class EscalationManager:
         """
         concern_level = structured_response.concern_level
         medical_concerns = structured_response.medical_concerns
+        severity_score = max(
+            structured_response.severity_score,
+            structured_response.extracted_data.get(
+                "concern_detector_severity_score", 0
+            ),
+            structured_response.extracted_data.get("severity_score", 0),
+        )
 
         # Emergency escalation
-        emergency_keywords = ["emergency", "can't breathe", "chest pain", "suicide"]
+        emergency_keywords = [
+            "emergency",
+            "urgent",
+            "can't breathe",
+            "chest pain",
+            "dor no peito",
+            "falta de ar",
+            "nao consigo respirar",
+            "sangramento",
+            "hemorragia",
+            "suicide",
+        ]
         if any(
             keyword in structured_response.original_message.lower()
             for keyword in emergency_keywords
         ):
             return EscalationLevel.EMERGENCY
 
+        if severity_score >= 9:
+            return EscalationLevel.EMERGENCY
+
         # Critical escalation
-        if concern_level == ConcernLevel.CRITICAL:
+        if concern_level == ConcernLevel.CRITICAL or severity_score >= 8:
             return EscalationLevel.CRITICAL
 
         # High escalation
-        if concern_level == ConcernLevel.HIGH or len(medical_concerns) > 2:
+        if concern_level == ConcernLevel.HIGH or severity_score >= 7 or len(medical_concerns) > 2:
             return EscalationLevel.HIGH
 
         # Medium escalation
-        if concern_level == ConcernLevel.MEDIUM or len(medical_concerns) > 0:
+        if concern_level == ConcernLevel.MEDIUM or severity_score >= 4 or len(medical_concerns) > 0:
             return EscalationLevel.MEDIUM
 
         return EscalationLevel.NONE
@@ -182,8 +220,12 @@ class EscalationManager:
         """
         sentiment = structured_response.sentiment_analysis.get("sentiment", "neutral")
         concern_level = structured_response.concern_level.value
+        severity_score = structured_response.severity_score
 
-        description = f"Patient response with {concern_level} concern level and {sentiment} sentiment. "
+        description = (
+            f"Patient response with {concern_level} concern level "
+            f"(score {severity_score}) and {sentiment} sentiment. "
+        )
 
         if structured_response.medical_concerns:
             concerns_text = ", ".join(structured_response.medical_concerns[:3])

@@ -4,7 +4,7 @@ import { toast as sonnerToast } from 'sonner'
 export interface ToastOptions {
   title?: string
   description?: string
-  variant?: 'default' | 'destructive' | 'success'
+  variant?: 'default' | 'destructive' | 'success' | 'warning'
   duration?: number
   action?: {
     label: string
@@ -18,6 +18,34 @@ export interface Toast extends ToastOptions {
 
 let toastCount = 0
 
+function dispatchSonnerToast(options: ToastOptions) {
+  const { variant = 'default', duration = 5000 } = options
+  const title = options.title || options.description
+  const description = options.title ? options.description : undefined
+  const shared = {
+    description,
+    duration,
+    action: options.action,
+  }
+
+  if (variant === 'destructive') {
+    sonnerToast.error(title, shared)
+    return
+  }
+
+  if (variant === 'success') {
+    sonnerToast.success(title, shared)
+    return
+  }
+
+  if (variant === 'warning') {
+    sonnerToast.warning(title, shared)
+    return
+  }
+
+  sonnerToast(title, shared)
+}
+
 export function useToast() {
   const [toasts, setToasts] = useState<Toast[]>([])
 
@@ -25,26 +53,7 @@ export function useToast() {
     const id = `toast-${++toastCount}`
     const { variant = 'default', duration = 5000, ...rest } = options
 
-    // Map to sonner toast based on variant
-    if (variant === 'destructive') {
-      sonnerToast.error(options.title || options.description, {
-        description: options.title ? options.description : undefined,
-        duration,
-        action: options.action
-      })
-    } else if (variant === 'success') {
-      sonnerToast.success(options.title || options.description, {
-        description: options.title ? options.description : undefined,
-        duration,
-        action: options.action
-      })
-    } else {
-      sonnerToast(options.title || options.description, {
-        description: options.title ? options.description : undefined,
-        duration,
-        action: options.action
-      })
-    }
+    dispatchSonnerToast(options)
 
     const newToast: Toast = { id, variant, duration, ...rest }
     setToasts((prev) => [...prev, newToast])
@@ -76,26 +85,5 @@ export function useToast() {
 
 // Standalone toast function for direct import
 export const toast = (options: ToastOptions) => {
-  const { variant = 'default', duration = 5000 } = options
-
-  // Map to sonner toast based on variant
-  if (variant === 'destructive') {
-    sonnerToast.error(options.title || options.description, {
-      description: options.title ? options.description : undefined,
-      duration,
-      action: options.action
-    })
-  } else if (variant === 'success') {
-    sonnerToast.success(options.title || options.description, {
-      description: options.title ? options.description : undefined,
-      duration,
-      action: options.action
-    })
-  } else {
-    sonnerToast(options.title || options.description, {
-      description: options.title ? options.description : undefined,
-      duration,
-      action: options.action
-    })
-  }
+  dispatchSonnerToast(options)
 }

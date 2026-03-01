@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Activity } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { createLogger } from '@/utils/logger';
+import { useAuth } from '@/app/providers/AuthContext';
 
 const logger = createLogger('TaskHealthIndicator');
 import { QueueStatusV2 } from '@/lib/api-client/types';
@@ -15,12 +16,18 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export function TaskHealthIndicator() {
+    const { isAuthenticated, isInitializing } = useAuth();
     const [queues, setQueues] = useState<QueueStatusV2[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
+        if (!isAuthenticated) {
+            setLoading(false);
+            return;
+        }
+
         try {
             setLoading(true);
             const data = await apiClient.tasks.getQueueStatus();
@@ -33,13 +40,20 @@ export function TaskHealthIndicator() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [isAuthenticated]);
 
     useEffect(() => {
+        if (isInitializing || !isAuthenticated) {
+            setQueues([]);
+            setError(null);
+            setLoading(isInitializing);
+            return;
+        }
+
         fetchData();
         const interval = setInterval(fetchData, 30000); // Poll every 30s
         return () => clearInterval(interval);
-    }, []);
+    }, [fetchData, isAuthenticated, isInitializing]);
 
     // Calculate overall health
     const totalPending = queues.reduce((acc, q) => acc + q.pending_count, 0);

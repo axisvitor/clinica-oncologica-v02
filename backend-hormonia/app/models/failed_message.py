@@ -3,8 +3,9 @@ FailedMessage model for Dead Letter Queue (DLQ).
 Stores messages that failed delivery after max retry attempts.
 """
 
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import relationship
 from typing import Dict, Any
 from enum import Enum
@@ -30,6 +31,9 @@ class DLQStatus(str, Enum):
 
     PENDING_REVIEW = "pending_review"
     UNDER_REVIEW = "under_review"
+    RETRY_SCHEDULED = "retry_scheduled"
+    RETRYING = "retrying"
+    MAX_RETRIES_EXCEEDED = "max_retries_exceeded"
     RESOLVED = "resolved"
     DISCARDED = "discarded"
 
@@ -58,9 +62,20 @@ class FailedMessage(BaseModel):
     max_retries = Column(Integer, nullable=False, default=3)
     next_retry_at = Column(DateTime, nullable=True)
     last_retry_at = Column(DateTime, nullable=True)
-    status = Column(String(20), nullable=False, default="pending")
+    status = Column(
+        SAEnum(
+            DLQStatus,
+            name="dlq_status",
+            native_enum=True,
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
+        nullable=False,
+        default=DLQStatus.PENDING_REVIEW,
+    )
     resolved_at = Column(DateTime, nullable=True)
-    dlq_metadata = Column(JSONB, nullable=True, default=dict)
+    dlq_metadata = Column(MutableDict.as_mutable(JSONB), nullable=True, default=dict)
     reviewed_by = Column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
@@ -72,9 +87,20 @@ class FailedMessage(BaseModel):
     )
 
     @property
+    def message_id(self) -> UUID | None:
+        """Compatibility alias for original_message_id."""
+        return self.original_message_id
+
+    @message_id.setter
+    def message_id(self, value: UUID | None) -> None:
+        self.original_message_id = value
+
+    @property
     def dlq_data(self) -> Dict[str, Any]:
         """Access to DLQ metadata."""
-        return self.dlq_metadata or {}
+        if self.dlq_metadata is None:
+            self.dlq_metadata = {}
+        return self.dlq_metadata
 
     @dlq_data.setter
     def dlq_data(self, value: Dict[str, Any]) -> None:
@@ -111,7 +137,7 @@ class FailedMessage(BaseModel):
             "last_retry_at": self.last_retry_at.isoformat()
             if self.last_retry_at
             else None,
-            "status": self.status,
+            "status": self.status.value if isinstance(self.status, DLQStatus) else self.status,
             "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),

@@ -15,17 +15,20 @@ from enum import Enum
 # Removed direct imports to avoid circular dependency - now using lazy imports in methods
 from app.agents.base import MessagePriority
 from app.services.enhanced_flow_engine import EnhancedFlowEngine
-from app.services.template_loader import EnhancedTemplateLoader
+from app.services.template_loader_pkg import EnhancedTemplateLoader
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState
+from app.agents.patient.flow_coordinator.constants import resolve_flow_type_and_day
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo, SAO_PAULO_TZ
 
 
 class IntegrationMode(Enum):
     """Integration modes for different operations."""
 
-    LEGACY_ONLY = "legacy_only"  # Use only existing system
+    FLOW_ENGINE_ONLY = "flow_engine_only"  # Use only existing flow engine fallback
     HIVE_MIND_ONLY = "hive_mind_only"  # Use only new agents
+    LANGGRAPH_ONLY = "langgraph_only"  # Use LangGraph flow execution
     HYBRID = "hybrid"  # Use both systems with coordination
     GRADUAL_MIGRATION = "gradual_migration"  # Gradually migrate to agents
 
@@ -70,6 +73,14 @@ class HiveMindIntegrationService:
         self.migration_percentage = 30  # Start with 30% of patients on agents
         self.gradual_migration_enabled = True
 
+    def close(self) -> None:
+        """Close any owned database resources."""
+        try:
+            if self.db_session:
+                self.db_session.close()
+        except Exception as e:
+            self.logger.warning(f"Failed to close HiveMind DB session: {e}")
+
     async def initialize(self):
         """Initialize the integration service."""
         try:
@@ -97,12 +108,18 @@ class HiveMindIntegrationService:
     async def _initialize_agents(self):
         """Initialize and register agents with swarm manager."""
         try:
+            if not self.swarm_manager:
+                raise RuntimeError("Swarm manager not initialized")
+
             # Lazy imports to avoid circular dependency
             from app.agents.patient.flow_coordinator import FlowCoordinatorAgent
             from app.domain.agents.quiz import QuizConductor as QuizConductorAgent
             from app.agents.communication.message_composer import MessageComposerAgent
             from app.agents.patient.patient_monitor import PatientMonitorAgent
             from app.agents.analytics.alert_analyzer import AlertAnalyzerAgent
+            from app.agents.communication.response_processor import (
+                ResponseProcessorAgent,
+            )
 
             # Create Flow Coordinator Agent with template support
             flow_coordinator = FlowCoordinatorAgent(
@@ -148,6 +165,14 @@ class HiveMindIntegrationService:
                 self.agents["alert_analyzer"] = alert_analyzer
                 self.logger.info("Alert Analyzer Agent registered successfully")
 
+            # Create ResponseProcessorAgent
+            response_processor = ResponseProcessorAgent(self.db_session)
+            success = await self.swarm_manager.register_agent(response_processor)
+
+            if success:
+                self.agents["response_processor"] = response_processor
+                self.logger.info("Response Processor Agent registered successfully")
+
             # Initialize all agents
             for agent_name, agent in self.agents.items():
                 if hasattr(agent, "initialize"):
@@ -157,19 +182,6 @@ class HiveMindIntegrationService:
             self.logger.info(
                 f"Successfully initialized {len(self.agents)} agents with template support"
             )
-
-            # TODO: Add more agents as they're implemented
-            # Create ResponseProcessorAgent
-            from app.domain.agents.response_processor_agent import (
-                ResponseProcessorAgent,
-            )
-
-            response_processor = ResponseProcessorAgent(self.db_session)
-            success = await self.swarm_manager.register_agent(response_processor)
-
-            if success:
-                self.agents["response_processor"] = response_processor
-                self.logger.info("Response Processor Agent registered successfully")
 
         except Exception as e:
             self.logger.error(f"Failed to initialize agents: {e}")
@@ -188,7 +200,8 @@ class HiveMindIntegrationService:
         results = {
             "total_processed": 0,
             "agent_processed": 0,
-            "legacy_processed": 0,
+            "flow_engine_processed": 0,
+            "langgraph_processed": 0,
             "errors": [],
             "performance_metrics": {},
         }
@@ -201,25 +214,36 @@ class HiveMindIntegrationService:
                 self.logger.info("No patients need flow processing")
                 return results
 
-            # Decide processing approach for each patient
-            agent_patients, legacy_patients = await self._distribute_patients(
-                patients_to_process
-            )
+            if self.integration_mode == IntegrationMode.LANGGRAPH_ONLY:
+                langgraph_results = await self._process_with_langgraph(
+                    patients_to_process
+                )
+                results["langgraph_processed"] = langgraph_results["processed"]
+                results["errors"].extend(langgraph_results.get("errors", []))
+            else:
+                # Decide processing approach for each patient
+                agent_patients, flow_engine_patients = await self._distribute_patients(
+                    patients_to_process
+                )
 
-            # Process with agents (parallel)
-            if agent_patients and self.agent_enabled_features["flow_coordination"]:
-                agent_results = await self._process_with_agents(agent_patients)
-                results["agent_processed"] = agent_results["processed"]
-                results["errors"].extend(agent_results.get("errors", []))
+                # Process with agents (parallel)
+                if agent_patients and self.agent_enabled_features["flow_coordination"]:
+                    agent_results = await self._process_with_agents(agent_patients)
+                    results["agent_processed"] = agent_results["processed"]
+                    results["errors"].extend(agent_results.get("errors", []))
 
-            # Process with legacy system (parallel)
-            if legacy_patients:
-                legacy_results = await self._process_with_legacy(legacy_patients)
-                results["legacy_processed"] = legacy_results["processed"]
-                results["errors"].extend(legacy_results.get("errors", []))
+                # Process with flow engine fallback (parallel)
+                if flow_engine_patients:
+                    flow_engine_results = await self._process_with_flow_engine(
+                        flow_engine_patients
+                    )
+                    results["flow_engine_processed"] = flow_engine_results["processed"]
+                    results["errors"].extend(flow_engine_results.get("errors", []))
 
             results["total_processed"] = (
-                results["agent_processed"] + results["legacy_processed"]
+                results["agent_processed"]
+                + results["flow_engine_processed"]
+                + results["langgraph_processed"]
             )
 
             # Update migration statistics
@@ -272,31 +296,35 @@ class HiveMindIntegrationService:
     ) -> Tuple[
         List[Tuple[Patient, PatientFlowState]], List[Tuple[Patient, PatientFlowState]]
     ]:
-        """Distribute patients between agent and legacy processing."""
+        """Distribute patients between agent and flow engine fallback processing."""
         agent_patients = []
-        legacy_patients = []
+        flow_engine_patients = []
 
         for patient, flow_state in patients:
             # Decide based on integration mode and migration settings
             if await self._should_use_agents(patient, flow_state):
                 agent_patients.append((patient, flow_state))
             else:
-                legacy_patients.append((patient, flow_state))
+                flow_engine_patients.append((patient, flow_state))
 
         self.logger.info(
-            f"Distribution: {len(agent_patients)} for agents, {len(legacy_patients)} for legacy"
+            "Distribution: %s for agents, %s for flow engine fallback",
+            len(agent_patients),
+            len(flow_engine_patients),
         )
 
-        return agent_patients, legacy_patients
+        return agent_patients, flow_engine_patients
 
     async def _should_use_agents(
         self, patient: Patient, flow_state: PatientFlowState
     ) -> bool:
         """Determine if patient should be processed by agents."""
-        if self.integration_mode == IntegrationMode.LEGACY_ONLY:
+        if self.integration_mode == IntegrationMode.FLOW_ENGINE_ONLY:
             return False
         elif self.integration_mode == IntegrationMode.HIVE_MIND_ONLY:
             return True
+        elif self.integration_mode == IntegrationMode.LANGGRAPH_ONLY:
+            return False
         elif self.integration_mode == IntegrationMode.HYBRID:
             # Use hash of patient ID to consistently assign patients
             import hashlib
@@ -305,7 +333,7 @@ class HiveMindIntegrationService:
             return (hash_value % 100) < self.migration_percentage
         elif self.integration_mode == IntegrationMode.GRADUAL_MIGRATION:
             # Gradually increase agent usage over time
-            days_since_enrollment = (datetime.now(timezone.utc) - patient.created_at).days
+            days_since_enrollment = (now_sao_paulo() - patient.created_at).days
 
             # Start with newer patients on agents
             if days_since_enrollment < 30:  # New patients
@@ -331,12 +359,12 @@ class HiveMindIntegrationService:
 
         try:
             # Submit tasks to swarm for parallel processing
-            tasks = []
+            pending_tasks: set[str] = set()
 
             for patient, flow_state in patients:
                 # Calculate current treatment day
                 enrollment_date = patient.enrollment_date or patient.created_at
-                current_day = (datetime.now(timezone.utc) - enrollment_date).days + 1
+                current_day = (now_sao_paulo() - enrollment_date).days + 1
 
                 # Submit flow processing task
                 task_id = await self.swarm_manager.submit_task(
@@ -351,23 +379,23 @@ class HiveMindIntegrationService:
                     priority=MessagePriority.NORMAL,
                 )
 
-                tasks.append(task_id)
+                pending_tasks.add(task_id)
 
             # Monitor task completion
             completed_tasks = 0
             timeout = 300  # 5 minutes timeout
-            start_time = datetime.now(timezone.utc)
+            start_time = now_sao_paulo()
 
             while (
-                completed_tasks < len(tasks)
-                and (datetime.now(timezone.utc) - start_time).seconds < timeout
+                pending_tasks
+                and (now_sao_paulo() - start_time).seconds < timeout
             ):
-                for task_id in tasks:
+                for task_id in list(pending_tasks):
                     status = await self.swarm_manager.get_task_status(task_id)
 
                     if status and status.get("status") == "completed":
                         completed_tasks += 1
-                        tasks.remove(task_id)
+                        pending_tasks.discard(task_id)
                     elif status and status.get("status") == "failed":
                         results["errors"].append(
                             {
@@ -375,7 +403,7 @@ class HiveMindIntegrationService:
                                 "error": status.get("error", "Unknown error"),
                             }
                         )
-                        tasks.remove(task_id)
+                        pending_tasks.discard(task_id)
 
                 # Short sleep to avoid busy waiting
                 await asyncio.sleep(1)
@@ -383,7 +411,7 @@ class HiveMindIntegrationService:
             results["processed"] = completed_tasks
 
             # Handle remaining tasks as timeouts
-            for remaining_task in tasks:
+            for remaining_task in pending_tasks:
                 results["errors"].append(
                     {"task_id": remaining_task, "error": "Task timed out"}
                 )
@@ -394,10 +422,10 @@ class HiveMindIntegrationService:
 
         return results
 
-    async def _process_with_legacy(
+    async def _process_with_flow_engine(
         self, patients: List[Tuple[Patient, PatientFlowState]]
     ) -> Dict[str, Any]:
-        """Process patients using legacy flow engine."""
+        """Process patients using flow engine fallback."""
         results = {"processed": 0, "errors": []}
 
         if not self.enhanced_flow_engine:
@@ -422,7 +450,7 @@ class HiveMindIntegrationService:
                             {
                                 "patient_id": str(patient.id),
                                 "error": flow_result.get(
-                                    "error", "Unknown legacy error"
+                                    "error", "Unknown flow engine error"
                                 ),
                             }
                         )
@@ -432,13 +460,87 @@ class HiveMindIntegrationService:
                         {
                             "patient_id": str(patient.id),
                             "error": str(e),
-                            "type": "legacy_processing",
+                            "type": "flow_engine_processing",
                         }
                     )
 
         except Exception as e:
-            self.logger.error(f"Legacy processing failed: {e}")
-            results["errors"].append({"error": str(e), "type": "legacy_system"})
+            self.logger.error(f"Flow engine processing failed: {e}")
+            results["errors"].append({"error": str(e), "type": "flow_engine_system"})
+
+        return results
+
+    async def _process_with_langgraph(
+        self, patients: List[Tuple[Patient, PatientFlowState]]
+    ) -> Dict[str, Any]:
+        """Process patients using LangGraph flow execution."""
+        results = {"processed": 0, "errors": []}
+
+        try:
+            from app.services.flow.sequential_message_handler import (
+                SequentialMessageHandler,
+            )
+
+            # Note: HiveMindIntegrationService receives db_session from the agent
+            # framework (sync Session via SessionLocal). SequentialMessageHandler now
+            # expects AsyncSession for the FastAPI hot-path. This Hive-Mind agent path
+            # should be migrated to AsyncSession in a follow-up task.
+            handler = SequentialMessageHandler(self.db_session)
+
+            for patient, _flow_state in patients:
+                try:
+                    enrollment_date = (
+                        patient.enrollment_date
+                        or patient.created_at
+                        or now_sao_paulo()
+                    )
+                    if isinstance(enrollment_date, datetime):
+                        if enrollment_date.tzinfo is None:
+                            enrollment_date = enrollment_date.replace(
+                                tzinfo=SAO_PAULO_TZ
+                            )
+                        else:
+                            enrollment_date = enrollment_date.astimezone(SAO_PAULO_TZ)
+                        current_day = (
+                            now_sao_paulo().date() - enrollment_date.date()
+                        ).days + 1
+                    else:
+                        current_day = (now_sao_paulo().date() - enrollment_date).days + 1
+                    if current_day <= 0:
+                        current_day = 1
+
+                    flow_kind, day_in_flow = resolve_flow_type_and_day(current_day)
+
+                    flow_result = await handler.send_day_messages(
+                        patient_id=patient.id,
+                        day_number=day_in_flow,
+                        flow_kind=flow_kind,
+                    )
+
+                    if flow_result.get("status") != "error":
+                        results["processed"] += 1
+                    else:
+                        results["errors"].append(
+                            {
+                                "patient_id": str(patient.id),
+                                "error": flow_result.get(
+                                    "message", "LangGraph error"
+                                ),
+                            }
+                        )
+
+                except Exception as e:
+                    results["errors"].append(
+                        {
+                            "patient_id": str(patient.id),
+                            "error": str(e),
+                            "type": "langgraph_processing",
+                        }
+                    )
+
+        except Exception as e:
+            self.logger.error(f"LangGraph processing failed: {e}")
+            results["errors"].append({"error": str(e), "type": "langgraph_system"})
 
         return results
 
@@ -446,7 +548,7 @@ class HiveMindIntegrationService:
         self, patient_id: UUID, quiz_type: str = "monthly_checkup"
     ) -> Dict[str, Any]:
         """
-        Conduct quiz session using agents or fallback to legacy.
+        Conduct quiz session using agents or flow engine fallback.
 
         Args:
             patient_id: Patient ID
@@ -475,8 +577,8 @@ class HiveMindIntegrationService:
                 # Use Hive-Mind agents
                 return await self._conduct_quiz_with_agents(patient_id, quiz_type)
             else:
-                # Use legacy system
-                return await self._conduct_quiz_with_legacy(patient_id, quiz_type)
+                # Use flow engine fallback
+                return await self._conduct_quiz_with_flow_engine(patient_id, quiz_type)
 
         except Exception as e:
             self.logger.error(f"Quiz conduction failed: {e}")
@@ -500,9 +602,9 @@ class HiveMindIntegrationService:
 
             # Wait for task completion
             timeout = 1800  # 30 minutes for quiz
-            start_time = datetime.now(timezone.utc)
+            start_time = now_sao_paulo()
 
-            while (datetime.now(timezone.utc) - start_time).seconds < timeout:
+            while (now_sao_paulo() - start_time).seconds < timeout:
                 status = await self.swarm_manager.get_task_status(task_id)
 
                 if status:
@@ -534,13 +636,13 @@ class HiveMindIntegrationService:
             self.logger.error(f"Agent quiz conduction failed: {e}")
             return {"success": False, "method": "agent", "error": str(e)}
 
-    async def _conduct_quiz_with_legacy(
+    async def _conduct_quiz_with_flow_engine(
         self, patient_id: UUID, quiz_type: str
     ) -> Dict[str, Any]:
-        """Conduct quiz using legacy system."""
+        """Conduct quiz using flow engine fallback."""
         try:
             # Use existing quiz flow integration
-            from app.domain.quizzes.integration.flow_integration import (
+            from app.domain.quizzes.integration.flow_integration.utils import (
                 get_quiz_trigger_service,
             )
 
@@ -555,7 +657,7 @@ class HiveMindIntegrationService:
             }
 
         except Exception as e:
-            self.logger.error(f"Legacy quiz conduction failed: {e}")
+            self.logger.error(f"Flow engine quiz conduction failed: {e}")
             return {"success": False, "method": "legacy", "error": str(e)}
 
     async def process_quiz_response(
@@ -584,7 +686,7 @@ class HiveMindIntegrationService:
                     patient_id, response_text, message_metadata
                 )
             else:
-                return await self._process_response_with_legacy(
+                return await self._process_response_with_flow_engine(
                     patient_id, response_text, message_metadata
                 )
 
@@ -610,9 +712,9 @@ class HiveMindIntegrationService:
 
             # Wait for processing (shorter timeout for responses)
             timeout = 60  # 1 minute
-            start_time = datetime.now(timezone.utc)
+            start_time = now_sao_paulo()
 
-            while (datetime.now(timezone.utc) - start_time).seconds < timeout:
+            while (now_sao_paulo() - start_time).seconds < timeout:
                 status = await self.swarm_manager.get_task_status(task_id)
 
                 if status:
@@ -641,13 +743,13 @@ class HiveMindIntegrationService:
             self.logger.error(f"Agent response processing failed: {e}")
             return {"success": False, "method": "agent", "error": str(e)}
 
-    async def _process_response_with_legacy(
+    async def _process_response_with_flow_engine(
         self, patient_id: UUID, response_text: str, message_metadata: Optional[Dict]
     ) -> Dict[str, Any]:
-        """Process response using legacy system."""
+        """Process response using flow engine fallback."""
         try:
             # Use existing conversational quiz service
-            from app.domain.quizzes.integration.flow_integration import (
+            from app.domain.quizzes.integration.flow_integration.utils import (
                 get_conversational_quiz_service,
             )
 
@@ -663,13 +765,13 @@ class HiveMindIntegrationService:
             }
 
         except Exception as e:
-            self.logger.error(f"Legacy response processing failed: {e}")
+            self.logger.error(f"Flow engine response processing failed: {e}")
             return {"success": False, "method": "legacy", "error": str(e)}
 
     async def _update_migration_stats(self, results: Dict[str, Any]):
         """Update migration statistics."""
         try:
-            # This would update statistics about agent vs legacy usage
+            # This would update statistics about agent vs flow engine fallback usage
             # For monitoring and gradual migration decisions
 
             total = results.get("total_processed", 0)
@@ -722,21 +824,39 @@ async def get_hive_mind_integration() -> HiveMindIntegrationService:
     global _integration_service
 
     if _integration_service is None:
-        from app.database import get_db
+        from app.database import SessionLocal
 
-        db = next(get_db())
-        _integration_service = HiveMindIntegrationService(db)
-        await _integration_service.initialize()
+        db = SessionLocal()
+        try:
+            _integration_service = HiveMindIntegrationService(db)
+            await _integration_service.initialize()
+        except Exception:
+            db.close()
+            raise
 
     return _integration_service
 
 
-async def initialize_integration_service(db_session: Any) -> HiveMindIntegrationService:
+async def initialize_integration_service(
+    db_session: Any | None = None,
+) -> HiveMindIntegrationService:
     """Initialize integration service with specific database session."""
     global _integration_service
 
     if _integration_service is None:
+        if db_session is None:
+            from app.database import SessionLocal
+
+            db_session = SessionLocal()
         _integration_service = HiveMindIntegrationService(db_session)
         await _integration_service.initialize()
 
     return _integration_service
+
+
+def cleanup_hive_mind_integration() -> None:
+    """Cleanup the global integration service."""
+    global _integration_service
+    if _integration_service:
+        _integration_service.close()
+        _integration_service = None

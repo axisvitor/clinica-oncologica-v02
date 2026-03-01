@@ -15,6 +15,7 @@ from app.models.medication import Medication
 from app.models.treatment import Treatment, TreatmentType, TreatmentStatus
 
 
+from app.utils.timezone import now_sao_paulo
 @pytest.fixture
 def test_message(db, test_patient):
     """Create a test message for security tests."""
@@ -24,7 +25,7 @@ def test_message(db, test_patient):
         direction=MessageDirection.OUTBOUND,
         type=MessageType.TEXT,
         status=MessageStatus.SENT,
-        created_at=datetime.now(timezone.utc)
+        created_at=now_sao_paulo()
     )
     db.add(message)
     db.commit()

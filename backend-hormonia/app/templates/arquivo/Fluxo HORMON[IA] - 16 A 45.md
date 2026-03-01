@@ -1,158 +1,99 @@
-Perfeito\! Aqui está o **fluxo do dia 16 ao 45** atualizado, com os ajustes solicitados:
+# FLUXO HORMON[IA] – Dias 16 a 45
 
-* Linguagem neutra e inclusiva
+## Dia 16
 
-* Cuidado redobrado com recomendações (como exercícios)
+1. Oi [nome], espero que esteja tudo certo por aí.
+   Quero registrar como você está hoje. Como você tem se sentido?
+2. Tem alguma dúvida ou algo importante que você gostaria de registrar agora?
 
-* Reforço do vínculo, sem induzir sintomas
+## Dia 18
 
-* Gameficação leve e estímulo ao engajamento
+1. Oi [nome], já ouviu falar que alguns chás podem interferir no tratamento?
+   Tipo hibisco ou prímula…
+   Se tiver dúvidas sobre algum alimento, bebida ou suplemento, pode perguntar!
+   Posso te responder com base no seu protocolo 😉
 
-* Preparação estratégica para o checkup do dia 45
+## Dia 20
 
----
+1. [nome], bora de desafio rápido?
+   Responda com: ✅ sim | ❌ não | 🤔 às vezes
+   ➤ Conseguiu manter alguma rotina de movimento nas últimas semanas?
 
-### **🧠 FLUXO DE INTERAÇÃO — Hormon\[IA\]**
+## Dia 22
 
-**Dias 16 a 45**
+1. Muita gente pergunta se pode começar alguma atividade física leve.
+   [nome], seu médico indicou alguma limitação ou recomendou algo específico?
+   Se quiser compartilhar, posso ajudar com sugestões seguras e adaptadas à sua realidade.
 
----
+## Dia 24
 
-**📅 Dia 16 — Confirmação de apoio**
+1. [nome], parabéns por estar aqui com a gente até agora 💙
+   São pequenas ações como essa que fazem diferença no longo prazo.
+   E você está construindo um cuidado mais completo só por participar.
 
-Oi \[nome\], tudo certo por aí?  
- Só passando pra lembrar que essa conversa aqui é toda sua.  
- Sempre que quiser registrar algo, tirar dúvida ou pedir ajuda, é só chamar.  
- Tô aqui com você\!
+## Dia 26
 
----
+1. Me conta uma coisa: tem algo que você sempre quis perguntar, mas ficou com vergonha ou achou que era bobeira?
+   Tipo: “Será que posso usar óleo de prímula?”
+   Aqui é espaço livre — pode perguntar mesmo. 😉
 
-**📅 Dia 18 — Dúvida comum**
+## Dia 28
 
-Oi \[nome\], já ouviu falar que alguns chás podem interferir no tratamento?  
- Tipo hibisco ou prímula…  
- Se tiver dúvidas sobre algum alimento, bebida ou suplemento, pode perguntar\!  
- Posso te responder com base no seu protocolo 😉
+1. Tudo que você registra aqui vira um relatório automático pra sua médica ou médico.
+   Isso facilita MUITO a próxima consulta — não precisa lembrar de tudo, nem resumir.
+   E ainda mostra detalhes que podem mudar o cuidado pra melhor 🧾
 
----
+## Dia 30
 
-**📅 Dia 20 — Mini desafio do dia**
+1. Estamos chegando na marca de 1 mês de acompanhamento!
+   Você já tem próxima consulta marcada? Se sim, pra quando?
+   Se ainda não, posso te lembrar mais pra frente, combinado?
 
-\[nome\], bora de desafio rápido?  
- Responda com: ✅ sim | ❌ não | 🤔 às vezes  
- ➤ Conseguiu manter alguma rotina de movimento nas últimas semanas?
+## Dia 32
 
-(se responder “sim” → elogio e reforço)  
- (se “não” ou “às vezes” → encorajamento e pergunta leve)
+1. Oi [nome], você recebeu alguma orientação alimentar do profissional que te acompanha?
+   Se sim, como tem sido seguir? Se não recebeu nenhuma indicação, tudo bem também — só quero conhecer seu momento atual 😉
 
----
+## Dia 34
 
-**📅 Dia 22 — Movimento com segurança**
+1. Me conta uma coisa: mudou algo na sua rotina física nas últimas semanas?
+   Qualquer mudança já importa — desde levantar mais vezes até uma caminhada leve.
+   Isso ajuda bastante no acompanhamento.
 
-Muita gente pergunta se pode começar alguma atividade física leve.  
- \[nome\], seu médico indicou alguma limitação ou recomendou algo específico?  
- Se quiser me contar, posso ajudar com sugestões seguras e adaptadas à sua realidade.
+## Dia 36
 
-(Se a pessoa disser que tem liberação ou quiser sugestões → envio posterior com orientações respeitosas)
+1. Tá quase chegando o nosso checkup mensal!
+   As perguntas são simples e suas respostas ajudam demais o profissional que te acompanha.
+   Isso otimiza sua consulta e mostra o que talvez nem você tenha percebido ainda.
 
----
+## Dia 38
 
-**📅 Dia 24 — Celebração da jornada**
+1. [nome], talvez você não saiba, mas manter o acompanhamento por aqui também te ajuda a enxergar sua evolução.
+   É como um diário de saúde que você não precisa preencher — só conversar comigo.
+   E eu cuido do resto.
 
-\[nome\], parabéns por estar aqui com a gente até agora 💙  
- São pequenas ações como essa que fazem diferença no longo prazo.  
- E você já tá construindo um cuidado mais completo só por participar.
+## Dia 40
 
----
+1. Vamos fazer um termômetro rapidinho?
+   De 1 a 5, como está sua motivação com o tratamento nesses últimos dias?
+   (1 = tá difícil | 5 = tô firme no foco)
+   Me responde com o número!
 
-**📅 Dia 26 — Dúvida escondida**
+## Dia 42
 
-Me conta uma coisa: tem algo que você sempre quis perguntar, mas ficou com vergonha ou achou que era bobeira?  
- Tipo: “Será que posso usar óleo de prímula?”  
- Aqui é espaço livre — pode perguntar mesmo. 😉
+1. Lembra que tudo que você conta aqui forma um histórico super importante.
+   Isso valoriza seu cuidado, sua autonomia e sua próxima consulta.
+   E eu tô aqui só pra te ajudar nisso, sem julgamento.
 
----
+## Dia 44
 
-**📅 Dia 28 — Seu relato vale ouro**
+1. Amanhã tem nosso checkup mensal!
+   Já se prepara: vai ser rápido, direto e feito pra te ajudar.
+   E claro — tudo que você responder vai pra sua equipe médica direto, com segurança. 🔒
 
-Tudo que você registra aqui vira um relatório automático pra sua médica ou médico.  
- Isso facilita MUITO a próxima consulta — não precisa lembrar de tudo, nem resumir.  
- E ainda mostra detalhes que podem mudar o cuidado pra melhor 🧾
+## Dia 45
 
----
-
-**📅 Dia 30 — Consultas em dia**
-
-Estamos chegando na marca de 1 mês de acompanhamento\!  
- Você já tem próxima consulta marcada? Se sim, pra quando?  
- Se ainda não, posso te lembrar mais pra frente, combinado?
-
----
-
-**📅 Dia 32 — Alimentação**
-
-Oi \[nome\], você recebeu alguma orientação alimentar do profissional que te acompanha?  
- Se sim, como tem sido seguir? Se não recebeu nenhuma indicação, tudo bem também — só quero conhecer seu momento atual 😉
-
----
-
-**📅 Dia 34 — Movimento na rotina**
-
-Me conta uma coisa: mudou algo na sua rotina física nas últimas semanas?  
- Qualquer mudança já importa — desde levantar mais vezes até uma caminhada leve.  
- Isso ajuda bastante no acompanhamento.
-
----
-
-**📅 Dia 36 — Preparação para o checkup**
-
-Tá quase chegando o nosso checkup mensal\!  
- As perguntas são simples e suas respostas ajudam demais o profissional que te acompanha.  
- Isso otimiza sua consulta e mostra o que talvez nem você tenha percebido ainda.
-
----
-
-**📅 Dia 38 — Benefícios reais**
-
-\[nome\], sabia que manter o acompanhamento por aqui também te ajuda a enxergar sua evolução?  
- É como um diário de saúde que você não precisa preencher — só conversar comigo.  
- E eu cuido do resto.
-
----
-
-**📅 Dia 40 — Termômetro da motivação**
-
-Vamos fazer um termômetro rapidinho?  
- De 1 a 5, como está sua motivação com o tratamento nesses últimos dias?  
- (1 \= tá difícil | 5 \= tô firme no foco)  
- Me responde com o número\!
-
----
-
-**📅 Dia 42 — Reforço final**
-
-Lembra que tudo que você conta aqui forma um histórico super importante.  
- Isso valoriza seu cuidado, sua autonomia e sua próxima consulta.  
- E eu tô aqui só pra te ajudar nisso, sem julgamento.
-
----
-
-**📅 Dia 44 — Amanhã tem checkup**
-
-Amanhã tem nosso checkup mensal\!  
- Já se prepara: vai ser rápido, direto e feito pra te ajudar.  
- E claro — tudo que você responder vai pra sua equipe médica direto, com segurança. 🔒
-
----
-
-**📅 Dia 45 — Checkup mensal (início do quiz)**
-
-Chegou o momento do nosso checkup mensal 🩺  
- Vou te fazer algumas perguntas — elas são confidenciais, automáticas, e vão direto pra equipe médica.  
- Assim a consulta rende mais e seu cuidado fica muito mais eficaz.  
- Podemos começar?
-
----
-
-Se estiver tudo certo, sigo com a **criação do Checkup mensal do dia 45 (quiz completo)**. Deseja?
-
+1. Chegou o momento do nosso checkup mensal 🩺
+   Vou te fazer algumas perguntas — elas são confidenciais, automáticas, e vão direto pra equipe médica.
+   Assim a consulta rende mais e seu cuidado fica muito mais eficaz.
+   Podemos começar?

@@ -21,6 +21,7 @@ from fastapi import Request
 
 from app.models.audit_log import AuditLog, AuditEventType
 from app.models.user import User
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -408,7 +409,7 @@ class AuditLogService:
         Returns:
             List of failed login AuditLog entries
         """
-        start_date = datetime.now(timezone.utc) - timedelta(hours=hours)
+        start_date = now_sao_paulo() - timedelta(hours=hours)
 
         query = self.db.query(AuditLog).filter(
             AuditLog.event_type == AuditEventType.LOGIN_FAILURE,

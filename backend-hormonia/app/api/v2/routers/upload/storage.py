@@ -23,6 +23,7 @@ from app.utils.logging import get_logger
 
 from .config import UPLOAD_DIR
 from .validators import guess_extension
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -45,7 +46,7 @@ def generate_safe_filename(original_filename: str, content_type: str) -> str:
 
     # Generate unique filename
     unique_id = uuid.uuid4().hex[:12]
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    timestamp = now_sao_paulo().strftime("%Y%m%d_%H%M%S")
     safe_filename = f"{timestamp}_{unique_id}{ext}"
 
     return safe_filename

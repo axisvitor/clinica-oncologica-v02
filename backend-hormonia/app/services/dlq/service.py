@@ -21,6 +21,7 @@ from .message_processor import DLQMessageProcessor
 from .retry_handler import DLQRetryHandler
 from .dead_letter_handler import DeadLetterHandler
 from .metrics import DLQMetricsCollector
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -145,12 +146,22 @@ class DLQService:
         if not failed_message:
             return False, "Message not found in DLQ"
 
-        # Mark retry started
-        self.retry_handler.mark_retry_started(failed_message)
+        # Start retry preferring atomic path when available
+        can_retry, retry_count = self.retry_handler.start_retry_prefer_atomic(
+            failed_message
+        )
+        if not can_retry:
+            logger.warning(
+                "Retry skipped for %s: max retries exceeded (retry_count=%s)",
+                failed_message.message_id,
+                retry_count,
+            )
+            self.metrics_collector.update_queue_metrics()
+            return False, "Max retries exceeded"
 
         if manual:
-            failed_message.metadata["manual_retry"] = True
-            failed_message.metadata["manual_retry_at"] = datetime.now(timezone.utc).isoformat()
+            failed_message.dlq_data["manual_retry"] = True
+            failed_message.dlq_data["manual_retry_at"] = now_sao_paulo().isoformat()
             self.db.commit()
 
         # Start processing metrics
@@ -187,7 +198,7 @@ class DLQService:
                 self.retry_handler.mark_retry_failed(failed_message)
 
                 # Record metrics
-                error_category = failed_message.metadata.get(
+                error_category = failed_message.dlq_data.get(
                     "error_category", "unknown"
                 )
                 self.metrics_collector.record_retry_failure(
@@ -321,22 +332,5 @@ class DLQService:
 
         logger.info(f"Processed {processed} scheduled retries")
         return processed
-
-    # ========================================================================
-    # Legacy Methods (For Backward Compatibility)
-    # ========================================================================
-
-    def _update_queue_metrics(self):
-        """Legacy method - delegates to metrics collector."""
-        self.metrics_collector.update_queue_metrics()
-
-    def _schedule_automatic_retry(self, failed_message: FailedMessage):
-        """Legacy method - delegates to retry handler."""
-        self.retry_handler.schedule_retry(failed_message)
-
-    def _reprocess_message(self, failed_message: FailedMessage) -> bool:
-        """Legacy method - delegates to message processor."""
-        return self.message_processor.reprocess_message(failed_message)
-
 
 __all__ = ["DLQService", "ErrorCategory"]

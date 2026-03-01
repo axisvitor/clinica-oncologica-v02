@@ -8,6 +8,7 @@ from app.models.message import Message, MessageStatus, MessageType
 from app.models.patient import Patient
 from app.integrations.whatsapp.services.message_service import MessageResponse, MessageStatus as WhatsAppMessageStatus
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 @pytest.fixture
 def mock_db():
     mock = AsyncMock()
@@ -22,7 +23,7 @@ def mock_queue_service():
         id="msg-123",
         status=WhatsAppMessageStatus.PENDING,
         message="Queued",
-        timestamp=datetime.utcnow()
+        timestamp=now_sao_paulo_naive()
     )
     return service
 
@@ -38,9 +39,8 @@ def service(mock_db, mock_queue_service):
 
     with patch("app.services.unified_whatsapp_service.UnifiedWhatsAppService._get_queue_service", return_value=mock_queue_service), \
          patch.object(UnifiedWhatsAppService, "_ensure_patient_loaded", async_mock_ensure):
-
         svc = UnifiedWhatsAppService(mock_db, redis_url="redis://mock")
-        return svc
+        yield svc
 
 @pytest.mark.asyncio
 async def test_send_message_enqueues(service, mock_queue_service):

@@ -25,7 +25,7 @@ export default function RootLayout({
           <ErrorBoundary>
             {children}
             <Toaster />
-            {process.env.NODE_ENV === 'production' && <Analytics />}
+            {process.env.NEXT_PUBLIC_ENABLE_VERCEL_ANALYTICS === 'true' && <Analytics />}
           </ErrorBoundary>
         </ThemeProvider>
       </body>

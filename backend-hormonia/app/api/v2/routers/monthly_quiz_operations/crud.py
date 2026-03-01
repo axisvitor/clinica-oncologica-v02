@@ -8,14 +8,23 @@ Endpoints:
 
 # NOTE: Removed 'from __future__ import annotations' to fix Pydantic/FastAPI OpenAPI issues
 
+import inspect
+import secrets
+import string
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+from app.domain.quizzes.session import TokenManager
+from app.domain.quizzes.delivery import LinkBuilder
 
 from ._shared import (
     UUID,
     defaultdict,
-    get_db,
+    get_async_db,
     limiter,
     get_pagination_params,
     create_cursor,
@@ -34,8 +43,68 @@ from ._shared import (
     asc,
     desc,
 )
+from .response_utils import build_quiz_response_detail
 
 router = APIRouter()
+
+_SHORT_CODE_ALPHABET = string.ascii_lowercase + string.digits
+_SHORT_CODE_LENGTH = 8
+_SHORT_CODE_MAX_ATTEMPTS = 5
+
+
+async def _maybe_await(value):
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+async def _cache_get(redis_cache, key: str):
+    if not redis_cache:
+        return None
+    getter = getattr(redis_cache, "get", None)
+    if not callable(getter):
+        return None
+    try:
+        return await _maybe_await(getter(key))
+    except Exception:
+        return None
+
+
+async def _cache_set(redis_cache, key: str, value: str, ttl: int) -> None:
+    if not redis_cache:
+        return
+    setex = getattr(redis_cache, "setex", None)
+    if callable(setex):
+        try:
+            await _maybe_await(setex(key, ttl, value))
+        except Exception:
+            pass
+        return
+
+    setter = getattr(redis_cache, "set", None)
+    if not callable(setter):
+        return
+
+    try:
+        await _maybe_await(setter(key, value, ex=ttl))
+    except TypeError:
+        try:
+            await _maybe_await(setter(key, value, ttl))
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+async def _generate_unique_short_code(db: AsyncSession) -> str:
+    for _ in range(_SHORT_CODE_MAX_ATTEMPTS):
+        code = "".join(secrets.choice(_SHORT_CODE_ALPHABET) for _ in range(_SHORT_CODE_LENGTH))
+        exists_result = await db.execute(
+            select(QuizSession.id).where(QuizSession.session_metadata["short_code"].astext == code)
+        )
+        if exists_result.first() is None:
+            return code
+    raise RuntimeError("Failed to generate a unique short code")
 
 
 @router.get(
@@ -49,7 +118,7 @@ async def get_monthly_quiz_responses(
     request: Request,
     quiz_id: UUID,
     pagination: dict = Depends(get_pagination_params),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple),
     redis_cache=Depends(get_redis_cache),
 ):
@@ -66,11 +135,12 @@ async def get_monthly_quiz_responses(
         )
 
     # Verify quiz exists
-    quiz = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
-        .first()
+    quiz_result = await db.execute(
+        select(QuizTemplate).where(
+            QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz"
+        )
     )
+    quiz = quiz_result.scalar_one_or_none()
 
     if not quiz:
         raise HTTPException(
@@ -78,71 +148,71 @@ async def get_monthly_quiz_responses(
         )
 
     # Get responses for this quiz
-    query = db.query(QuizResponse).filter(QuizResponse.quiz_template_id == quiz_id)
+    query = select(QuizResponse).where(QuizResponse.quiz_template_id == quiz_id)
 
     # Apply RBAC for doctors
     if current_user.role == UserRole.DOCTOR:
-        patient_ids = (
-            db.query(Patient.id).filter(Patient.doctor_id == current_user.id).all()
+        patient_ids_result = await db.execute(
+            select(Patient.id).where(Patient.doctor_id == current_user.id)
         )
-        patient_ids = [p[0] for p in patient_ids]
-        query = query.filter(QuizResponse.patient_id.in_(patient_ids))
+        patient_ids = patient_ids_result.scalars().all()
+        query = query.where(QuizResponse.patient_id.in_(patient_ids))
 
     # Apply pagination
     cursor_data = pagination.get("cursor_data")
     limit = pagination.get("limit", 20)
 
     if cursor_data:
-        query = query.filter(QuizResponse.id > cursor_data.get("id"))
+        query = query.where(QuizResponse.id > cursor_data.get("id"))
 
     query = query.order_by(asc(QuizResponse.id))
-    responses = query.limit(limit + 1).all()
+    responses = (await db.execute(query.limit(limit + 1))).scalars().all()
 
     has_more = len(responses) > limit
     if has_more:
         responses = responses[:limit]
 
     # Enrich responses
+    template_ids = {response.quiz_template_id for response in responses}
+    session_ids = {
+        response.quiz_session_id for response in responses if response.quiz_session_id
+    }
+
+    templates_by_id = {}
+    if template_ids:
+        templates_result = await db.execute(
+            select(QuizTemplate).where(QuizTemplate.id.in_(template_ids))
+        )
+        templates_by_id = {template.id: template for template in templates_result.scalars().all()}
+
+    sessions_by_id = {}
+    if session_ids:
+        sessions_result = await db.execute(
+            select(QuizSession).where(QuizSession.id.in_(session_ids))
+        )
+        sessions_by_id = {session.id: session for session in sessions_result.scalars().all()}
+
     enriched_responses = []
     for response in responses:
-        template = (
-            db.query(QuizTemplate)
-            .filter(QuizTemplate.id == response.quiz_template_id)
-            .first()
+        template = templates_by_id.get(response.quiz_template_id)
+        session = sessions_by_id.get(response.quiz_session_id)
+        enriched_responses.append(
+            QuizResponseV2Detail(
+                **build_quiz_response_detail(
+                    response,
+                    template=template,
+                    session=session,
+                )
+            )
         )
-        session = (
-            db.query(QuizSession)
-            .filter(QuizSession.id == response.quiz_session_id)
-            .first()
-            if response.quiz_session_id
-            else None
-        )
-
-        enriched = QuizResponseV2Detail(
-            id=response.id,
-            patient_id=response.patient_id,
-            quiz_template_id=response.quiz_template_id,
-            quiz_session_id=response.quiz_session_id,
-            question_id=response.question_id,
-            question_text=response.question_text,
-            response_type=response.response_type,
-            response_value=response.response_value,
-            response_metadata=response.response_metadata or {},
-            other_text=response.other_text,
-            responded_at=response.responded_at,
-            created_at=response.created_at,
-            template_name=template.name if template else None,
-            template_version=template.version if template else None,
-            session_status=session.status if session else None,
-        )
-        enriched_responses.append(enriched)
 
     next_cursor = None
     if has_more and responses:
         last_item = responses[-1]
         next_cursor = create_cursor(last_item.id, last_item.created_at)
 
-    total = query.count()
+    total_query = select(func.count()).select_from(query.subquery())
+    total = (await db.execute(total_query)).scalar_one()
 
     return QuizResponseV2List(
         data=enriched_responses, next_cursor=next_cursor, has_more=has_more, total=total
@@ -152,6 +222,7 @@ async def get_monthly_quiz_responses(
 # --- New Endpoints matching Frontend monthly-quiz.ts ---
 
 from pydantic import BaseModel
+from app.utils.timezone import now_sao_paulo
 
 class QuizLinkCreate(BaseModel):
     patient_id: UUID
@@ -189,28 +260,34 @@ class QuizStatsDashboard(BaseModel):
 )
 async def create_quiz_link(
     link_data: QuizLinkCreate,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple)
 ):
     """Create a quiz link (session + token)."""
     # Verify template
-    template = db.query(QuizTemplate).filter(QuizTemplate.id == link_data.quiz_template_id).first()
+    template_result = await db.execute(
+        select(QuizTemplate).where(QuizTemplate.id == link_data.quiz_template_id)
+    )
+    template = template_result.scalar_one_or_none()
     if not template:
         raise HTTPException(status_code=404, detail="Quiz template not found")
 
     # Check/Create Session
-    session = db.query(QuizSession).filter(
-        QuizSession.quiz_template_id == link_data.quiz_template_id,
-        QuizSession.patient_id == link_data.patient_id,
-        QuizSession.status.in_(["started", "active"])
-    ).first()
+    session_result = await db.execute(
+        select(QuizSession).where(
+            QuizSession.quiz_template_id == link_data.quiz_template_id,
+            QuizSession.patient_id == link_data.patient_id,
+            QuizSession.status.in_(["started", "active"]),
+        )
+    )
+    session = session_result.scalar_one_or_none()
 
     if not session:
         session = QuizSession(
             patient_id=link_data.patient_id,
             quiz_template_id=link_data.quiz_template_id,
             status="started",
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
             session_metadata={
                 "delivery_method": link_data.delivery_method,
                 "custom_message": link_data.custom_message
@@ -218,23 +295,42 @@ async def create_quiz_link(
         )
         session.set_expiration_date(hours=link_data.expiry_hours)
         db.add(session)
-        db.commit()
-        db.refresh(session)
+        await db.commit()
+        await db.refresh(session)
     
-    # Generate Token (Base64 JSON as per public.py)
-    import json
-    import base64
-    
-    token_data = {
-        "quiz_id": str(link_data.quiz_template_id),
-        "exp": int(session.expiration_date.timestamp()) if session.expiration_date else None,
-        "type": "quiz_access"
-    }
-    token = base64.b64encode(json.dumps(token_data).encode()).decode()
-    
-    # Construct Link (Mock frontend URL)
-    # In production, use env var for frontend URL
-    link = f"http://localhost:3000/quiz-mensal/{token}" 
+    # Ensure short code exists (for short link)
+    metadata = session.session_metadata or {}
+    if session.expiration_date and not metadata.get("expires_at"):
+        metadata["expires_at"] = session.expiration_date.isoformat()
+    metadata.setdefault("link_status", "active")
+    if not metadata.get("short_code"):
+        metadata["short_code"] = await _generate_unique_short_code(db)
+
+    # Generate JWT token for access (patient/session scoped)
+    token_manager = TokenManager()
+    expires_at = session.expiration_date or (
+        now_sao_paulo() + timedelta(hours=48)
+    )
+    token = token_manager.generate_token(
+        patient_id=session.patient_id,
+        quiz_template_id=session.quiz_template_id,
+        expires_at=expires_at,
+        session_id=session.id,
+        token_type="quiz_access",
+    )
+
+    # Keep metadata synchronized with token/expiry used by resolver and monitoring.
+    metadata["token_hash"] = token_manager.hash_token(token)
+    metadata["expires_at"] = expires_at.isoformat()
+    metadata["link_status"] = "active"
+    session.expiration_date = expires_at
+    session.session_metadata = metadata
+    await db.commit()
+    await db.refresh(session)
+
+    # Construct Link using configured base URL (prefer short)
+    link_builder = LinkBuilder()
+    link = link_builder.build_preferred_link(token, metadata.get("short_code"))
 
     return QuizLinkResponse(
         id=session.id, # Session ID as Link ID for now
@@ -244,7 +340,7 @@ async def create_quiz_link(
         link=link,
         token=token,
         status=session.status,
-        expires_at=session.expiration_date or (datetime.now(timezone.utc) + timedelta(hours=48)),
+        expires_at=session.expiration_date or (now_sao_paulo() + timedelta(hours=48)),
         created_at=session.started_at,
         delivery_method=session.session_metadata.get("delivery_method", "whatsapp")
     )
@@ -256,16 +352,29 @@ async def create_quiz_link(
 )
 async def get_patient_quiz_status(
     patient_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple)
 ):
-    sessions = db.query(QuizSession).filter(
-        QuizSession.patient_id == patient_id
-    ).order_by(desc(QuizSession.started_at)).limit(5).all()
+    sessions = (
+        await db.execute(
+            select(QuizSession)
+            .where(QuizSession.patient_id == patient_id)
+            .order_by(desc(QuizSession.started_at))
+            .limit(5)
+        )
+    ).scalars().all()
+
+    template_ids = {session.quiz_template_id for session in sessions}
+    templates_by_id = {}
+    if template_ids:
+        templates_result = await db.execute(
+            select(QuizTemplate).where(QuizTemplate.id.in_(template_ids))
+        )
+        templates_by_id = {template.id: template for template in templates_result.scalars().all()}
 
     result = []
     for s in sessions:
-        template = db.query(QuizTemplate).filter(QuizTemplate.id == s.quiz_template_id).first()
+        template = templates_by_id.get(s.quiz_template_id)
         result.append({
             "id": str(s.id),
             "quiz_session_id": str(s.id),
@@ -286,7 +395,7 @@ async def get_patient_quiz_status(
 )
 async def get_patient_quiz_history(
     patient_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple)
 ):
     return await get_patient_quiz_status(patient_id, db, current_user)
@@ -297,7 +406,7 @@ async def get_patient_quiz_history(
     response_model=List[Dict[str, Any]]
 )
 async def get_active_links(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple)
 ):
     """Get all active (non-expired, non-completed) quiz links/sessions."""
@@ -305,12 +414,38 @@ async def get_active_links(
     logger = logging.getLogger(__name__)
     
     try:
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         
         # Get active sessions (started, not expired)
-        sessions = db.query(QuizSession).filter(
-            QuizSession.status.in_(["started", "active"]),
-        ).order_by(desc(QuizSession.started_at)).limit(50).all()
+        sessions = (
+            await db.execute(
+                select(QuizSession)
+                .where(QuizSession.status.in_(["started", "active"]))
+                .order_by(desc(QuizSession.started_at))
+                .limit(50)
+            )
+        ).scalars().all()
+
+        template_ids = {session.quiz_template_id for session in sessions}
+        patient_ids = {session.patient_id for session in sessions}
+
+        templates_by_id = {}
+        if template_ids:
+            templates_result = await db.execute(
+                select(QuizTemplate).where(QuizTemplate.id.in_(template_ids))
+            )
+            templates_by_id = {
+                template.id: template for template in templates_result.scalars().all()
+            }
+
+        patients_by_id = {}
+        if patient_ids:
+            patients_result = await db.execute(
+                select(Patient).where(Patient.id.in_(patient_ids))
+            )
+            patients_by_id = {
+                patient.id: patient for patient in patients_result.scalars().all()
+            }
         
         result = []
         for s in sessions:
@@ -318,14 +453,14 @@ async def get_active_links(
             if s.expiration_date and s.expiration_date < now:
                 continue
                 
-            template = db.query(QuizTemplate).filter(QuizTemplate.id == s.quiz_template_id).first()
-            patient = db.query(Patient).filter(Patient.id == s.patient_id).first()
+            template = templates_by_id.get(s.quiz_template_id)
+            patient = patients_by_id.get(s.patient_id)
             
             result.append({
                 "id": str(s.id),
                 "quiz_session_id": str(s.id),
                 "patient_id": str(s.patient_id),
-                "patient_name": patient.full_name if patient else "Unknown",
+                "patient_name": patient.name if patient and patient.name else "Unknown",
                 "quiz_template_id": str(s.quiz_template_id),
                 "template_name": template.name if template else "Unknown",
                 "status": s.status,
@@ -346,7 +481,7 @@ async def get_active_links(
     response_model=QuizStatsDashboard
 )
 async def get_dashboard_stats(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple)
 ):
     """Get dashboard statistics for monthly quizzes."""
@@ -355,13 +490,29 @@ async def get_dashboard_stats(
     
     try:
         # Aggregate stats
-        total_active = db.query(QuizSession).filter(QuizSession.status == "started").count()
-        total_completed = db.query(QuizSession).filter(QuizSession.status == "completed").count()
-        total_expired = db.query(QuizSession).filter(QuizSession.status == "expired").count()
+        total_active = (
+            await db.execute(
+                select(func.count(QuizSession.id)).where(QuizSession.status == "started")
+            )
+        ).scalar_one()
+        total_completed = (
+            await db.execute(
+                select(func.count(QuizSession.id)).where(QuizSession.status == "completed")
+            )
+        ).scalar_one()
+        total_expired = (
+            await db.execute(
+                select(func.count(QuizSession.id)).where(QuizSession.status == "expired")
+            )
+        ).scalar_one()
         total_sent = total_active + total_completed + total_expired  # Approximate
 
         # Avg score - with safe conversion
-        completed_sessions = db.query(QuizSession).filter(QuizSession.status == "completed").all()
+        completed_sessions = (
+            await db.execute(
+                select(QuizSession).where(QuizSession.status == "completed")
+            )
+        ).scalars().all()
         scores = []
         for s in completed_sessions:
             if s.score is not None:
@@ -400,7 +551,7 @@ async def get_dashboard_stats(
 async def get_monthly_quiz_statistics(
     request: Request,
     quiz_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(_get_current_user_simple),
     redis_cache=Depends(get_redis_cache),
 ):
@@ -419,16 +570,17 @@ async def get_monthly_quiz_statistics(
     # Check cache
     cache_key = f"monthly_quiz_stats:{quiz_id}"
     if redis_cache:
-        cached = redis_cache.get(cache_key)
+        cached = await _cache_get(redis_cache, cache_key)
         if cached:
             return MonthlyQuizStatisticsV2.parse_raw(cached)
 
     # Verify quiz exists
-    quiz = (
-        db.query(QuizTemplate)
-        .filter(QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz")
-        .first()
+    quiz_result = await db.execute(
+        select(QuizTemplate).where(
+            QuizTemplate.id == quiz_id, QuizTemplate.category == "monthly_quiz"
+        )
     )
+    quiz = quiz_result.scalar_one_or_none()
 
     if not quiz:
         raise HTTPException(
@@ -436,12 +588,19 @@ async def get_monthly_quiz_statistics(
         )
 
     # Get sessions for this quiz
-    sessions_query = db.query(QuizSession).filter(
-        QuizSession.quiz_template_id == quiz_id
-    )
-
-    total_accessed = sessions_query.count()
-    completed_sessions = sessions_query.filter(QuizSession.status == "completed").all()
+    total_accessed = (
+        await db.execute(
+            select(func.count(QuizSession.id)).where(QuizSession.quiz_template_id == quiz_id)
+        )
+    ).scalar_one()
+    completed_sessions = (
+        await db.execute(
+            select(QuizSession).where(
+                QuizSession.quiz_template_id == quiz_id,
+                QuizSession.status == "completed",
+            )
+        )
+    ).scalars().all()
     total_completed = len(completed_sessions)
 
     # Calculate statistics
@@ -491,6 +650,6 @@ async def get_monthly_quiz_statistics(
 
     # Cache result
     if redis_cache:
-        redis_cache.setex(cache_key, CACHE_TTL_STATISTICS, result.json())
+        await _cache_set(redis_cache, cache_key, result.json(), CACHE_TTL_STATISTICS)
 
     return result

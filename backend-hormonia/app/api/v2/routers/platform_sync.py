@@ -21,7 +21,8 @@ from fastapi import (
     status,
 )
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
 from app.schemas.v2.platform_sync import (
@@ -46,6 +47,7 @@ from app.schemas.v2.platform_sync import (
     PlatformType,
 )
 from app.api.v2.dependencies import get_pagination_params
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -131,7 +133,7 @@ async def list_sync_jobs(
     pagination: dict = Depends(get_pagination_params),
     status_filter: Optional[SyncJobStatus] = Query(None, alias="status"),
     platform_filter: Optional[PlatformType] = Query(None, alias="platform"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> SyncJobList:
     """
@@ -179,7 +181,7 @@ async def list_sync_jobs(
 async def get_sync_job(
     request: Request,
     job_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> SyncJobResponse:
     """
@@ -221,7 +223,7 @@ async def trigger_sync(
     request: Request,
     sync_request: SyncTriggerRequest,
     background_tasks: BackgroundTasks,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> SyncTriggerResponse:
     """
@@ -235,6 +237,12 @@ async def trigger_sync(
     Rate limit: 10 syncs per minute (sync operations are expensive)
     """
     try:
+        if sync_request.strategy == SyncStrategy.SELECTIVE and not sync_request.entity_ids:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="entity_ids are required for selective sync strategy",
+            )
+
         # Generate transaction ID
         transaction_id = generate_sync_transaction_id()
 
@@ -254,7 +262,7 @@ async def trigger_sync(
                     status=SyncJobStatus.PENDING,
                     message="Duplicate sync request (idempotency)",
                     estimated_items=0,
-                    started_at=datetime.now(timezone.utc),
+                    started_at=now_sao_paulo(),
                 )
 
         # Estimate items to sync
@@ -287,9 +295,11 @@ async def trigger_sync(
             status=SyncJobStatus.PENDING,
             message="Sync job created successfully",
             estimated_items=estimated_items,
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error triggering sync: {e}", exc_info=True)
         raise HTTPException(
@@ -303,7 +313,7 @@ async def trigger_sync(
 async def get_sync_status(
     request: Request,
     job_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> SyncStatusResponse:
     """
@@ -342,7 +352,7 @@ async def list_sync_configs(
     request: Request,
     pagination: dict = Depends(get_pagination_params),
     platform_filter: Optional[PlatformType] = Query(None, alias="platform"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> SyncConfigList:
     """
@@ -389,7 +399,7 @@ async def list_sync_configs(
 async def create_sync_config(
     request: Request,
     config_data: SyncConfigCreate,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> SyncConfigResponse:
     """
@@ -419,8 +429,8 @@ async def create_sync_config(
             timeout_seconds=config_data.timeout_seconds,
             custom_headers={},
             custom_settings={},
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=now_sao_paulo(),
+            updated_at=now_sao_paulo(),
             last_sync_at=None,
             last_sync_status=None,
             total_syncs=0,
@@ -446,7 +456,7 @@ async def create_sync_config(
 async def get_sync_config(
     request: Request,
     config_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> SyncConfigResponse:
     """
@@ -483,7 +493,7 @@ async def update_sync_config(
     request: Request,
     config_id: UUID,
     config_data: SyncConfigUpdate,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> SyncConfigResponse:
     """
@@ -514,7 +524,7 @@ async def update_sync_config(
 async def delete_sync_config(
     request: Request,
     config_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> None:
     """
@@ -552,7 +562,7 @@ async def delete_sync_config(
 async def test_platform_connection(
     request: Request,
     test_request: PlatformTestRequest,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> PlatformTestResponse:
     """
     Test connection to external platform.
@@ -648,7 +658,7 @@ async def test_platform_connection(
 async def resolve_conflict(
     request: Request,
     resolution_request: ConflictResolutionRequest,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> ConflictResolutionResponse:
     """
@@ -677,7 +687,7 @@ async def resolve_conflict(
             if resolution_request.merged_data
             else {},
             message="Conflict resolved successfully",
-            resolved_at=datetime.now(timezone.utc),
+            resolved_at=now_sao_paulo(),
         )
 
     except Exception as e:
@@ -699,7 +709,7 @@ async def get_sync_history(
     platform_filter: Optional[PlatformType] = Query(None, alias="platform"),
     status_filter: Optional[SyncJobStatus] = Query(None, alias="status"),
     days: int = Query(7, ge=1, le=90, description="Number of days to retrieve"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> SyncHistoryList:
     """
@@ -754,7 +764,7 @@ async def rollback_sync(
     request: Request,
     rollback_request: SyncRollbackRequest,
     background_tasks: BackgroundTasks,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> SyncRollbackResponse:
     """
@@ -788,7 +798,7 @@ async def rollback_sync(
             status="pending",
             message="Rollback initiated successfully",
             estimated_items_to_revert=0,  # Mock
-            started_at=datetime.now(timezone.utc),
+            started_at=now_sao_paulo(),
         )
 
     except Exception as e:

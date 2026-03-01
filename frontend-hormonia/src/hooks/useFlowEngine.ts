@@ -7,7 +7,9 @@ import {
   FlowType,
   type FlowTemplate,
   type InboundMessage,
-  type FlowEvent
+  type FlowEvent,
+  type FlowState,
+  type ResponseResult
 } from '@/lib/api-client/types'
 
 const logger = createLogger('useFlowEngine')
@@ -99,7 +101,7 @@ export function useStartFlow() {
   return useMutation({
     mutationFn: ({ patientId, flowType }: { patientId: string; flowType: FlowType }) =>
       flowEngine.startFlow(patientId, flowType),
-    onSuccess: (data, variables) => {
+    onSuccess: (data: FlowState, variables: { patientId: string; flowType: FlowType }) => {
       queryClient.invalidateQueries({ queryKey: ['flows'] })
       queryClient.invalidateQueries({ queryKey: ['flow-state', variables.patientId] })
       queryClient.setQueryData(['flow-state', variables.patientId], data)
@@ -114,7 +116,7 @@ export function useAdvanceFlow() {
   return useMutation({
     mutationFn: ({ patientId, forceDay }: { patientId: string; forceDay?: number }) =>
       flowEngine.advanceFlow(patientId, forceDay),
-    onSuccess: (data, variables) => {
+    onSuccess: (data: FlowState, variables: { patientId: string; forceDay?: number }) => {
       queryClient.invalidateQueries({ queryKey: ['flows'] })
       queryClient.invalidateQueries({ queryKey: ['flow-state', variables.patientId] })
       queryClient.setQueryData(['flow-state', variables.patientId], data)
@@ -128,7 +130,7 @@ export function usePauseFlow() {
 
   return useMutation({
     mutationFn: (patientId: string) => flowEngine.pauseFlow(patientId),
-    onSuccess: (data, patientId) => {
+    onSuccess: (data: FlowState, patientId: string) => {
       queryClient.invalidateQueries({ queryKey: ['flows'] })
       queryClient.invalidateQueries({ queryKey: ['flow-state', patientId] })
       queryClient.setQueryData(['flow-state', patientId], data)
@@ -142,7 +144,7 @@ export function useResumeFlow() {
 
   return useMutation({
     mutationFn: (patientId: string) => flowEngine.resumeFlow(patientId),
-    onSuccess: (data, patientId) => {
+    onSuccess: (data: FlowState, patientId: string) => {
       queryClient.invalidateQueries({ queryKey: ['flows'] })
       queryClient.invalidateQueries({ queryKey: ['flow-state', patientId] })
       queryClient.setQueryData(['flow-state', patientId], data)
@@ -157,7 +159,7 @@ export function useProcessResponse() {
   return useMutation({
     mutationFn: ({ patientId, message }: { patientId: string; message: InboundMessage }) =>
       flowEngine.processResponse(patientId, message),
-    onSuccess: (data, variables) => {
+    onSuccess: (data: ResponseResult, variables: { patientId: string; message: InboundMessage }) => {
       queryClient.invalidateQueries({ queryKey: ['flows'] })
       queryClient.invalidateQueries({ queryKey: ['flow-state', variables.patientId] })
       queryClient.invalidateQueries({ queryKey: ['messages', variables.patientId] })

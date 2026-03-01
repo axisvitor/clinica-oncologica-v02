@@ -7,10 +7,11 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, time, date, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import and_, or_
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.appointment import Appointment, AppointmentStatus
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class PhysicianAvailabilityService:
     - Calculate busy periods
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         """
         Initialize availability service.
 
@@ -34,7 +35,7 @@ class PhysicianAvailabilityService:
         """
         self.db = db
 
-    def get_available_slots(
+    async def get_available_slots(
         self,
         physician_id: UUID,
         start_date: date,
@@ -54,26 +55,65 @@ class PhysicianAvailabilityService:
             List of available time slots with metadata
         """
         # Get existing appointments in the range
-        self.db.query(Appointment).filter(
-            Appointment.practitioner_id == physician_id,
-            Appointment.scheduled_at >= datetime.combine(start_date, time.min),
-            Appointment.scheduled_at <= datetime.combine(end_date, time.max),
-            Appointment.status.in_(
-                [
-                    AppointmentStatus.SCHEDULED.value,
-                    AppointmentStatus.CONFIRMED.value,
-                    AppointmentStatus.IN_PROGRESS.value,
-                ]
-            ),
-        ).order_by(Appointment.scheduled_at).all()
+        booked_result = await self.db.execute(
+            select(Appointment)
+            .where(
+                Appointment.practitioner_id == physician_id,
+                Appointment.scheduled_at >= datetime.combine(start_date, time.min),
+                Appointment.scheduled_at <= datetime.combine(end_date, time.max),
+                Appointment.status.in_(
+                    [
+                        AppointmentStatus.SCHEDULED.value,
+                        AppointmentStatus.CONFIRMED.value,
+                        AppointmentStatus.IN_PROGRESS.value,
+                    ]
+                ),
+            )
+            .order_by(Appointment.scheduled_at)
+        )
+        booked_appointments = booked_result.scalars().all()
 
-        # TODO: Implement slot generation logic based on working hours
-        # This would typically come from physician preferences/settings
+        # Build a set of booked start times for O(1) overlap checking
+        booked_starts = set()
+        for appt in booked_appointments:
+            appt_time = appt.scheduled_at
+            if appt_time is not None:
+                if appt_time.tzinfo is None:
+                    appt_time = appt_time.replace(tzinfo=timezone.utc)
+                booked_starts.add(appt_time)
+
+        # Default working hours for v1.1 — no DB model exists yet.
+        # Future: load from physician preferences/settings table.
+        WORK_START = time(8, 0)
+        WORK_END = time(17, 0)
+        WORK_DAYS = {0, 1, 2, 3, 4}  # Monday=0 through Friday=4
+
+        # Generate slots by iterating each day in the date range
         available_slots = []
+        current_date = start_date
+        while current_date <= end_date:
+            if current_date.weekday() in WORK_DAYS:
+                slot_start = datetime.combine(current_date, WORK_START).replace(tzinfo=timezone.utc)
+                end_of_day = datetime.combine(current_date, WORK_END).replace(tzinfo=timezone.utc)
+                while slot_start + timedelta(minutes=slot_duration_minutes) <= end_of_day:
+                    slot_end = slot_start + timedelta(minutes=slot_duration_minutes)
+                    # A slot is unavailable if any booked appointment starts within [slot_start, slot_end)
+                    is_booked = any(
+                        slot_start <= appt_start < slot_end
+                        for appt_start in booked_starts
+                    )
+                    if not is_booked:
+                        available_slots.append({
+                            "start": slot_start.isoformat(),
+                            "end": slot_end.isoformat(),
+                            "duration_minutes": slot_duration_minutes,
+                        })
+                    slot_start += timedelta(minutes=slot_duration_minutes)
+            current_date += timedelta(days=1)
 
         return available_slots
 
-    def get_schedule(
+    async def get_schedule(
         self, physician_id: UUID, start_date: date, end_date: date
     ) -> Dict[str, Any]:
         """
@@ -87,16 +127,16 @@ class PhysicianAvailabilityService:
         Returns:
             Dictionary with schedule information
         """
-        appointments = (
-            self.db.query(Appointment)
-            .filter(
+        appointments_result = await self.db.execute(
+            select(Appointment)
+            .where(
                 Appointment.practitioner_id == physician_id,
                 Appointment.scheduled_at >= datetime.combine(start_date, time.min),
                 Appointment.scheduled_at <= datetime.combine(end_date, time.max),
             )
             .order_by(Appointment.scheduled_at)
-            .all()
         )
+        appointments = appointments_result.scalars().all()
 
         return {
             "physician_id": str(physician_id),
@@ -107,14 +147,18 @@ class PhysicianAvailabilityService:
                     "id": str(appt.id),
                     "scheduled_at": appt.scheduled_at.isoformat(),
                     "status": appt.status,
-                    "patient_id": str(appt.patient_id) if appt.patient_id else None,
+                    "patient_id": (
+                        str(patient_id)
+                        if (patient_id := getattr(appt, "patient_id", None)) is not None
+                        else None
+                    ),
                 }
                 for appt in appointments
             ],
             "total_appointments": len(appointments),
         }
 
-    def is_available(
+    async def is_available(
         self,
         physician_id: UUID,
         requested_datetime: datetime,
@@ -134,9 +178,8 @@ class PhysicianAvailabilityService:
         end_time = requested_datetime + timedelta(minutes=duration_minutes)
 
         # Check for overlapping appointments
-        overlapping = (
-            self.db.query(Appointment)
-            .filter(
+        overlapping_result = await self.db.execute(
+            select(Appointment.id).where(
                 Appointment.practitioner_id == physician_id,
                 Appointment.status.in_(
                     [
@@ -158,8 +201,9 @@ class PhysicianAvailabilityService:
                     ),
                 ),
             )
-            .first()
+            .limit(1)
         )
+        overlapping = overlapping_result.scalar_one_or_none()
 
         return overlapping is None
 
@@ -183,7 +227,7 @@ class PhysicianAvailabilityService:
             Next available datetime or None
         """
         if after_datetime is None:
-            after_datetime = datetime.now(timezone.utc)
+            after_datetime = now_sao_paulo()
 
         # TODO: Implement logic to find next available slot
         # This would integrate with physician working hours/preferences

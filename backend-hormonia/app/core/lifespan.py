@@ -11,6 +11,8 @@ Provides a clean lifespan context manager that handles:
 
 import time
 import asyncio
+import glob as _glob
+import os
 import redis.asyncio as redis
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -81,7 +83,24 @@ async def _startup(app: FastAPI) -> object:
         extra={"event_type": "application_startup"}
     )
 
+    # SEC-03: Fail fast if credential files are present in working directory
+    _check_no_service_account_file()
+
     try:
+        if _is_test_environment():
+            logger.info(
+                "Test environment detected - skipping external service initialization"
+            )
+            app.state.redis_client = None
+            app.state.redis_manager = None
+            app.state.websocket_manager = None
+            app.state.pubsub_manager = None
+            app.state.follow_up_service = None
+            app.state.monitoring_manager = None
+            await _initialize_enum_validation(app, logger)
+            await _initialize_session_manager(app, logger)
+            return logger
+
         # PHASE 1: Parallel initialization of independent services
         # These services have no dependencies on each other
         logger.info("Phase 1: Initializing independent services in parallel...")
@@ -92,6 +111,7 @@ async def _startup(app: FastAPI) -> object:
             _initialize_redis_websocket_events(app, logger),
             _initialize_ai_services(app, logger),
             _initialize_enum_validation(app, logger),
+            _initialize_evolution_api(app, logger),
             return_exceptions=True  # Don't fail entire startup on single service failure
         )
 
@@ -134,6 +154,58 @@ async def _startup(app: FastAPI) -> object:
         raise
 
     return logger
+
+
+def _is_test_environment() -> bool:
+    return bool(
+        os.getenv("PYTEST_CURRENT_TEST")
+        or os.getenv("TESTING") == "1"
+        or settings.APP_ENVIRONMENT.lower() in ("test", "testing")
+    )
+
+
+def _check_no_service_account_file() -> None:
+    """Fail fast if a Firebase service account key file is found in the working directory.
+
+    Firebase credentials should be passed via environment variables
+    (FIREBASE_ADMIN_PRIVATE_KEY etc.), never as files in the working directory.
+    In production/staging environments this raises RuntimeError to prevent the
+    application from accepting traffic with credential files present on disk.
+    """
+    import logging as _logging
+
+    _logger = _logging.getLogger(__name__)
+
+    patterns = [
+        "*service_account*.json",
+        "*firebase_adminsdk*.json",
+        "*serviceAccountKey*.json",
+    ]
+    found = []
+    for pattern in patterns:
+        matches = _glob.glob(pattern) + _glob.glob(f"**/{pattern}", recursive=True)
+        # Exclude virtual environments, test fixtures, and node_modules
+        matches = [
+            f for f in matches
+            if ".venv" not in f
+            and "/tests/" not in f
+            and "node_modules" not in f
+            and "\\tests\\" not in f
+        ]
+        found.extend(matches)
+
+    if found:
+        _logger.critical(
+            "SECURITY: Firebase service account key file found in working directory: %s. "
+            "Remove it immediately and use env vars (FIREBASE_ADMIN_PRIVATE_KEY).",
+            found,
+        )
+        env = getattr(settings, "APP_ENVIRONMENT", "development").lower()
+        if env in ("production", "prod", "staging"):
+            raise RuntimeError(
+                f"Service account key file found in {env} environment: {found}. "
+                "Remove the file and use FIREBASE_ADMIN_PRIVATE_KEY env var."
+            )
 
 
 async def _shutdown(app: FastAPI, logger) -> None:
@@ -456,7 +528,7 @@ async def _initialize_enum_validation(app: FastAPI, logger) -> None:
     """Initialize enum validation middleware with timing."""
     start = time.time()
     try:
-        from app.middleware.enum_validation import setup_enum_validation
+        from app.models.enum_validation import setup_enum_validation
 
         setup_enum_validation()
         elapsed = time.time() - start
@@ -468,6 +540,106 @@ async def _initialize_enum_validation(app: FastAPI, logger) -> None:
         logger.warning(
             "Continuing without enum validation - database enum errors may occur"
         )
+
+
+async def _initialize_evolution_api(app: FastAPI, logger) -> None:
+    """Bootstrap Evolution API instance/webhook configuration with timing."""
+    start = time.time()
+
+    if not settings.WHATSAPP_ENABLE_SERVICE:
+        logger.info("Evolution API disabled - skipping bootstrap")
+        return
+
+    webhook_url = settings.WHATSAPP_EVOLUTION_WEBHOOK_URL
+    api_key = settings.WHATSAPP_EVOLUTION_API_KEY
+
+    if not webhook_url or not api_key:
+        logger.warning("Evolution API not configured - skipping bootstrap")
+        return
+
+    if "change_this" in api_key.lower() or "your-evolution-api-key" in api_key.lower():
+        logger.warning("Evolution API key placeholder detected - skipping bootstrap")
+        return
+
+    client = None
+    instance_name = settings.WHATSAPP_EVOLUTION_INSTANCE_NAME
+
+    try:
+        from app.integrations.whatsapp.services.evolution_client import (
+            EvolutionAPIClient,
+            DEFAULT_WEBHOOK_EVENTS,
+        )
+
+        client = EvolutionAPIClient(
+            base_url=settings.WHATSAPP_EVOLUTION_API_URL,
+            api_key=api_key,
+            global_webhook_url=webhook_url,
+        )
+        await client.connect()
+
+        instance_ready = False
+        try:
+            status = await client.get_instance_status(instance_name)
+            instance_ready = True
+            logger.info(
+                "Evolution instance status",
+                extra={
+                    "instance_name": instance_name,
+                    "status": status.status,
+                    "is_connected": status.is_connected,
+                },
+            )
+        except Exception as status_error:
+            logger.warning(
+                "Evolution instance status check failed; attempting create",
+                extra={"instance_name": instance_name, "error": str(status_error)},
+            )
+            try:
+                await client.create_instance(
+                    instance_name=instance_name,
+                    webhook_url=webhook_url,
+                    webhook_events=DEFAULT_WEBHOOK_EVENTS,
+                )
+                instance_ready = True
+                logger.info(
+                    "Evolution instance created",
+                    extra={"instance_name": instance_name},
+                )
+            except Exception as create_error:
+                logger.error(
+                    "Evolution instance create failed",
+                    extra={"instance_name": instance_name, "error": str(create_error)},
+                )
+
+        if instance_ready:
+            webhook_ok = await client.set_webhook_url(
+                instance_name=instance_name,
+                webhook_url=webhook_url,
+                events=DEFAULT_WEBHOOK_EVENTS,
+            )
+            if webhook_ok:
+                logger.info(
+                    "Evolution webhook configured",
+                    extra={"instance_name": instance_name, "webhook_url": webhook_url},
+                )
+            else:
+                logger.warning(
+                    "Evolution webhook configuration failed",
+                    extra={"instance_name": instance_name, "webhook_url": webhook_url},
+                )
+
+        elapsed = time.time() - start
+        logger.info(f"✓ Evolution API bootstrap completed ({elapsed:.2f}s)")
+
+    except Exception as e:
+        elapsed = time.time() - start
+        logger.warning(f"Evolution API bootstrap failed ({elapsed:.2f}s): {e}")
+    finally:
+        if client:
+            try:
+                await client.disconnect()
+            except Exception:
+                logger.debug("Evolution client disconnect failed (non-critical)")
 
 
 async def _initialize_follow_up_system(app: FastAPI, logger) -> None:
@@ -637,9 +809,10 @@ async def _cleanup_websocket_events_redis(logger) -> None:
 async def _cleanup_other_resources(app: FastAPI, logger) -> None:
     """Cleanup other application resources."""
     try:
-        # Add cleanup for other resources as needed
-        # This is where you'd add cleanup for additional services
-        pass
+        from app.services.hive_mind_integration import cleanup_hive_mind_integration
+
+        cleanup_hive_mind_integration()
+        logger.info("✓ Hive-Mind integration cleaned up")
 
     except Exception as e:
         logger.error(f"Error cleaning up other resources: {e}")

@@ -17,6 +17,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict
+from app.utils.timezone import now_sao_paulo_naive
 
 
 # ============================================================================
@@ -30,16 +31,22 @@ class FlowType(str, Enum):
 
     Each flow type represents a different care pathway with specific
     steps, validations, and business rules.
+    
+    Note: Values must match the kind_key column in the flow_kinds table.
     """
 
+    # Canonical flow types (must match flow_kinds.kind_key)
     ONBOARDING = "onboarding"
     """Initial patient onboarding flow"""
 
-    DAILY_CHECKIN = "daily_checkin"
-    """Daily patient check-in flow"""
+    DAILY_FOLLOW_UP = "daily_follow_up"
+    """Daily follow-up and engagement flow"""
 
-    MONTHLY_QUIZ = "monthly_quiz"
-    """Monthly health assessment flow"""
+    QUIZ_MENSAL = "quiz_mensal"
+    """Monthly quiz/assessment flow"""
+
+    CUSTOM = "custom"
+    """Custom flow (user-defined)"""
 
     TREATMENT_ADHERENCE = "treatment_adherence"
     """Treatment adherence monitoring flow"""
@@ -62,8 +69,21 @@ class FlowType(str, Enum):
     MONITORING = "monitoring"
     """General monitoring flow (backward compatibility)"""
 
-    CUSTOM = "custom"
-    """Custom flow (user-defined)"""
+
+
+def normalize_flow_type(value: str | FlowType | None) -> FlowType:
+    """Parse flow identifiers into canonical FlowType values."""
+    if isinstance(value, FlowType):
+        normalized_value = value.value
+    elif value is None:
+        return FlowType.CUSTOM
+    else:
+        normalized_value = str(value).strip()
+
+    try:
+        return FlowType(normalized_value)
+    except ValueError:
+        return FlowType.CUSTOM
 
 
 class FlowStatus(str, Enum):
@@ -275,8 +295,8 @@ class FlowStepData(BaseModel):
                 "status": "completed",
                 "input_data": {"question": "How are you feeling today?"},
                 "output_data": {"response": "I'm feeling better"},
-                "started_at": "2025-01-22T10:00:00Z",
-                "completed_at": "2025-01-22T10:05:00Z",
+                "started_at": "2025-01-22T10:00:00-03:00",
+                "completed_at": "2025-01-22T10:05:00-03:00",
             }
         }
     )
@@ -334,7 +354,7 @@ class FlowContext(BaseModel):
         json_schema_extra={
             "example": {
                 "flow_instance_id": "550e8400-e29b-41d4-a716-446655440000",
-                "flow_type": "daily_checkin",
+                "flow_type": "daily_follow_up",
                 "patient_id": "123e4567-e89b-12d3-a456-426614174000",
                 "current_step_id": "step_002",
                 "status": "active",
@@ -374,10 +394,10 @@ class FlowTemplate(BaseModel):
     description: str = Field(..., description="Template description")
     is_active: bool = Field(default=True, description="Whether template is active")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Creation timestamp"
+        default_factory=now_sao_paulo_naive, description="Creation timestamp"
     )
     updated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Last update timestamp"
+        default_factory=now_sao_paulo_naive, description="Last update timestamp"
     )
     metadata: Dict[str, Any] = Field(
         default_factory=dict, description="Additional template metadata"
@@ -386,8 +406,8 @@ class FlowTemplate(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "template_id": "daily_checkin_v1",
-                "flow_type": "daily_checkin",
+                "template_id": "daily_follow_up_v1",
+                "flow_type": "daily_follow_up",
                 "version": "1.0.0",
                 "name": "Daily Check-in Flow",
                 "description": "Standard daily patient check-in",
@@ -422,7 +442,7 @@ class FlowEvent(BaseModel):
 
     # Timing
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Event timestamp"
+        default_factory=now_sao_paulo_naive, description="Event timestamp"
     )
 
     # Metadata
@@ -439,7 +459,7 @@ class FlowEvent(BaseModel):
                 "flow_instance_id": "550e8400-e29b-41d4-a716-446655440000",
                 "step_id": "step_001",
                 "data": {"duration_seconds": 5},
-                "timestamp": "2025-01-22T10:05:00Z",
+                "timestamp": "2025-01-22T10:05:00-03:00",
             }
         }
     )
@@ -500,6 +520,7 @@ TemplateID = str
 __all__ = [
     # Enums
     "FlowType",
+    "normalize_flow_type",
     "FlowStatus",
     "FlowStepType",
     "FlowStepStatus",

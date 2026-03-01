@@ -21,6 +21,7 @@ from app.repositories.alert import AlertRepository
 from app.models.alert import Alert, AlertStatus, AlertSeverity as ModelAlertSeverity
 from app.exceptions import ValidationError, DatabaseError
 from app.services.audit import AuditService
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +227,7 @@ class QuizResponseEvaluator:
                     "relevant_responses": self._extract_relevant_responses(
                         responses, rule
                     ),
-                    "evaluated_at": datetime.now(timezone.utc).isoformat(),
+                    "evaluated_at": now_sao_paulo().isoformat(),
                 },
             )
 
@@ -354,7 +355,7 @@ class QuizResponseEvaluator:
                 "message": alert.description,
                 "rule_id": rule.rule_id,
                 "recommendation": rule.recommendation,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "requires_action": alert.severity
                 in (ModelAlertSeverity.CRITICAL, ModelAlertSeverity.HIGH),
             }
@@ -412,7 +413,7 @@ class QuizResponseEvaluator:
                 patient_repo = PatientRepository(self.db)
                 patient = patient_repo.get_by_id(alert.patient_id)
                 if patient:
-                    patient_name = getattr(patient, "full_name", patient_name)
+                    patient_name = getattr(patient, "name", patient_name)
 
                     # Get assigned doctor's email
                     if hasattr(patient, "assigned_doctor") and patient.assigned_doctor:
@@ -449,7 +450,7 @@ Recomendação:
 Este alerta foi gerado automaticamente pelo sistema de avaliação de respostas.
 Por favor, revise o caso e tome as medidas apropriadas.
 
-Data/Hora: {datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")}
+Data/Hora: {now_sao_paulo().strftime("%d/%m/%Y %H:%M BRT")}
 ID do Alerta: {alert.id}
             """
 
@@ -531,7 +532,7 @@ ID do Alerta: {alert.id}
                 patient_repo = PatientRepository(self.db)
                 patient = patient_repo.get_by_id(alert.patient_id)
                 if patient:
-                    patient_name = getattr(patient, "full_name", patient_name)
+                    patient_name = getattr(patient, "name", patient_name)
 
                     # Get assigned doctor's phone
                     if hasattr(patient, "assigned_doctor") and patient.assigned_doctor:

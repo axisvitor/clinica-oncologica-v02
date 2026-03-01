@@ -48,7 +48,7 @@ describe('useTreatmentDistribution', () => {
         { week: '2025-09-15', count: 1230 },
         { week: '2025-09-22', count: 1260 }
       ],
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
     vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
@@ -73,7 +73,7 @@ describe('useTreatmentDistribution', () => {
       trend_data: [
         { week: '2025-10-01', count: 320 }
       ],
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
     vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
@@ -101,7 +101,7 @@ describe('useTreatmentDistribution', () => {
         }
       ],
       trend_data: [],
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
     vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
@@ -128,7 +128,7 @@ describe('useTreatmentDistribution', () => {
         }
       ],
       trend_data: [],
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
     vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
@@ -148,7 +148,7 @@ describe('useTreatmentDistribution', () => {
       total_patients: 1260,
       distribution: [],
       trend_data: [],
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
     vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValue(mockData)
@@ -173,7 +173,7 @@ describe('useTreatmentDistribution', () => {
       total_patients: 320,
       distribution: [],
       trend_data: [],
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
     const mockData30d: TreatmentDistribution = {
@@ -181,7 +181,7 @@ describe('useTreatmentDistribution', () => {
       total_patients: 1260,
       distribution: [],
       trend_data: [],
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
     vi.mocked(apiClient.analytics.treatmentDistribution)
@@ -257,7 +257,7 @@ describe('useTreatmentDistribution', () => {
       total_patients: 1260,
       distribution: [],
       trend_data: [],
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
     vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
@@ -278,7 +278,7 @@ describe('useTreatmentDistribution', () => {
       total_patients: 0,
       distribution: [],
       trend_data: [],
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
     vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)
@@ -308,7 +308,7 @@ describe('useTreatmentDistribution', () => {
       trend_data: [
         { week: '2025-10-01', count: 100 }
       ],
-      last_updated: '2025-10-06T14:30:00Z'
+      last_updated: '2025-10-06T14:30:00-03:00'
     }
 
     vi.mocked(apiClient.analytics.treatmentDistribution).mockResolvedValueOnce(mockData)

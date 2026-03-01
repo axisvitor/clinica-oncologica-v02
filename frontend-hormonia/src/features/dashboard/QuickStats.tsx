@@ -1,5 +1,4 @@
-import React, { memo, useMemo, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import React, { memo, useCallback } from 'react'
 import {
   TrendingUp,
   TrendingDown,
@@ -9,21 +8,14 @@ import {
   AlertTriangle,
   CheckCircle
 } from 'lucide-react'
-import { apiClient } from '@/lib/api-client'
-import { useAuth } from '@/app/providers/AuthContext'
+import type { DashboardMainData } from '@/lib/api-client/dashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
-interface DashboardMetrics {
-  active_patients?: number
-  patients_change?: number
-  active_patients_percentage?: number
-  response_rate?: number
-  response_rate_change?: number
-  alerts_pending?: number
-  alerts_change?: number
-  completed_quizzes?: number
-  quizzes_change?: number
+interface QuickStatsProps {
+  data?: DashboardMainData | null
+  isLoading?: boolean
+  error?: unknown
 }
 
 // Loading skeleton component for better UX
@@ -109,77 +101,37 @@ const StatCard = memo<{
 
 StatCard.displayName = 'StatCard'
 
-const QuickStats = memo(() => {
-  const { user, isInitializing: authLoading } = useAuth()
-
-  // OPTIMIZED: Share queryKey with DashboardPage to reuse cached data
-  // This eliminates duplicate API calls when both components mount
-  const { data: dashboardData, isLoading, error } = useQuery<any>({
-    queryKey: ['dashboard-metrics'],
-    queryFn: async () => {
-      const { apiClient } = await import('@/lib/api-client')
-      return apiClient.dashboard.getMain({ time_range: 'week' })
-    },
-    enabled: !!user && !authLoading,
-    refetchInterval: 60000,
-    staleTime: 30000, // Data is fresh for 30s - same as DashboardPage
-    gcTime: 5 * 60 * 1000,
-    retry: 2
-  })
-
-  // Extract metrics from the dashboard response
-  // The main dashboard returns a nested structure
-  const metrics: DashboardMetrics = useMemo(() => {
-    if (!dashboardData) return {}
-
-    // Map from dashboard API response to QuickStats expected format
-    return {
-      active_patients: dashboardData.patient_metrics?.active_patients || dashboardData.active_patients || 0,
-      patients_change: dashboardData.patient_metrics?.patients_change || dashboardData.patients_change || 0,
-      active_patients_percentage: dashboardData.patient_metrics?.active_patients_percentage || dashboardData.active_patients_percentage || 0,
-      response_rate: dashboardData.message_metrics?.response_rate || dashboardData.response_rate || 0,
-      response_rate_change: dashboardData.message_metrics?.response_rate_change || dashboardData.response_rate_change || 0,
-      alerts_pending: dashboardData.alert_metrics?.pending_count || dashboardData.alerts_pending || 0,
-      alerts_change: dashboardData.alert_metrics?.alerts_change || dashboardData.alerts_change || 0,
-      completed_quizzes: dashboardData.flow_metrics?.completed_quizzes || dashboardData.completed_quizzes || 0,
-      quizzes_change: dashboardData.flow_metrics?.quizzes_change || dashboardData.quizzes_change || 0,
-    }
-  }, [dashboardData])
-  const stats = useMemo(() => [
+const QuickStats = memo(({ data, isLoading = false, error }: QuickStatsProps) => {
+  const stats = [
     {
       title: 'Pacientes Ativos',
-      value: metrics?.active_patients || 0,
-      change: metrics?.patients_change || 0,
+      value: data?.active_patients ?? 0,
+      change: data?.patients_change ?? 0,
       icon: Users,
-      description: `${metrics?.active_patients_percentage || 0}% do total`
+      description: `${data?.active_patients_percentage ?? 0}% do total`
     },
     {
       title: 'Taxa de Resposta',
-      value: `${metrics?.response_rate || 0}%`,
-      change: metrics?.response_rate_change || 0,
+      value: `${data?.response_rate ?? 0}%`,
+      change: data?.response_rate_change ?? 0,
       icon: MessageSquare,
       description: 'Ultimos 7 dias'
     },
     {
       title: 'Alertas Ativos',
-      value: metrics?.alerts_pending || 0,
-      change: metrics?.alerts_change || 0,
+      value: data?.alerts_pending ?? 0,
+      change: data?.alerts_change ?? 0,
       icon: AlertTriangle,
       description: 'Requerem atencao'
     },
     {
       title: 'Questionarios',
-      value: metrics?.completed_quizzes || 0,
-      change: metrics?.quizzes_change || 0,
+      value: data?.completed_quizzes ?? 0,
+      change: data?.quizzes_change ?? 0,
       icon: CheckCircle,
       description: 'Completados esta semana'
     }
-  ], [metrics])
-
-  // Loading state with skeleton
-  if (isLoading) {
-    return <QuickStatsLoading />
-  }
+  ]
 
   // Error state
   if (error) {
@@ -195,6 +147,11 @@ const QuickStats = memo(() => {
         </Card>
       </div>
     )
+  }
+
+  // Loading state with skeleton
+  if (isLoading) {
+    return <QuickStatsLoading />
   }
 
   return (

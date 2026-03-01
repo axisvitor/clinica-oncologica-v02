@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
+
 # Standard library
 import logging
+from datetime import timedelta
 from typing import Any, Dict, List
 from uuid import UUID
 
 # Third-party
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 # Local
+from app.models.message import Message, MessageDirection
+from app.models.quiz import QuizSession
 from app.repositories.flow import FlowStateRepository
 from app.repositories.patient import PatientRepository
+from app.services.flow.flags import message_expects_response
+from app.utils.timezone import now_sao_paulo
 
 from .models import FlowContext
 
@@ -102,9 +110,63 @@ class StateManager:
 
     async def _get_recent_interactions(self, patient_id: UUID) -> List[Dict]:
         """Get recent patient interactions."""
-        # This would query the message history
-        # For now, return placeholder
-        return []
+        messages = (
+            self.db_session.query(Message)
+            .filter(
+                Message.patient_id == patient_id,
+                Message.content.isnot(None),
+                Message.content != "",
+            )
+            .order_by(Message.created_at.desc())
+            .limit(40)
+            .all()
+        )
+        if not messages:
+            return []
+
+        interactions: List[Dict[str, Any]] = []
+        current_question: Message | None = None
+        current_responses: List[Message] = []
+
+        for msg in reversed(messages):
+            if msg.direction == MessageDirection.OUTBOUND and message_expects_response(msg):
+                if current_question and current_responses:
+                    interactions.append(
+                        self._build_interaction_payload(
+                            current_question, current_responses
+                        )
+                    )
+                current_question = msg
+                current_responses = []
+                continue
+
+            if msg.direction == MessageDirection.INBOUND and current_question:
+                current_responses.append(msg)
+
+        if current_question and current_responses:
+            interactions.append(
+                self._build_interaction_payload(current_question, current_responses)
+            )
+
+        return interactions[-7:]
+
+    @staticmethod
+    def _build_interaction_payload(
+        question: Message, responses: List[Message]
+    ) -> Dict[str, Any]:
+        """Build normalized interaction payload from one outbound question and responses."""
+        return {
+            "question": question.content,
+            "answer": "\n".join(
+                response.content for response in responses if response.content
+            ).strip(),
+            "asked_at": (question.sent_at or question.created_at).isoformat()
+            if (question.sent_at or question.created_at)
+            else None,
+            "answered_at": responses[-1].created_at.isoformat()
+            if responses[-1].created_at
+            else None,
+        }
 
     async def _analyze_mood_indicators(self, context: FlowContext) -> Dict[str, Any]:
         """Analyze mood indicators from patient context."""
@@ -128,11 +190,53 @@ class StateManager:
         self, context: FlowContext
     ) -> Dict[str, float]:
         """Calculate patient adherence metrics."""
-        # Placeholder - would analyze actual interaction data
+        if not context.patient_id:
+            return {
+                "message_response_rate": 0.0,
+                "quiz_completion_rate": 0.0,
+                "scheduled_engagement_rate": 0.0,
+            }
+
+        interactions = context.recent_interactions or []
+        answered = sum(1 for interaction in interactions if interaction.get("answer"))
+        total_questions = len(interactions)
+        message_response_rate = (
+            answered / total_questions if total_questions > 0 else 0.0
+        )
+
+        window_start = now_sao_paulo() - timedelta(days=30)
+        recent_quizzes = (
+            self.db_session.query(QuizSession.status)
+            .filter(
+                QuizSession.patient_id == context.patient_id,
+                QuizSession.started_at >= window_start,
+            )
+            .all()
+        )
+        total_quizzes = len(recent_quizzes)
+        completed_quizzes = sum(
+            1 for quiz_status, in recent_quizzes if str(quiz_status) == "completed"
+        )
+        quiz_completion_rate = (
+            completed_quizzes / total_quizzes if total_quizzes > 0 else 0.0
+        )
+
+        active_days = (
+            self.db_session.query(func.count(func.distinct(func.date(Message.created_at))))
+            .filter(
+                Message.patient_id == context.patient_id,
+                Message.created_at >= window_start,
+            )
+            .scalar()
+            or 0
+        )
+        expected_days = min(30, max(int(context.current_day or 1), 1))
+        scheduled_engagement_rate = min(1.0, float(active_days) / float(expected_days))
+
         return {
-            "message_response_rate": 0.8,
-            "quiz_completion_rate": 0.9,
-            "scheduled_engagement_rate": 0.7,
+            "message_response_rate": round(message_response_rate, 4),
+            "quiz_completion_rate": round(quiz_completion_rate, 4),
+            "scheduled_engagement_rate": round(scheduled_engagement_rate, 4),
         }
 
     async def _identify_risk_factors(self, context: FlowContext) -> List[str]:

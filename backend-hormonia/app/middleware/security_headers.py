@@ -104,7 +104,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 f"font-src 'self' data: https://fonts.gstatic.com; "
                 # SECURITY: Using specific Railway domains instead of wildcards
                 # Update these if your Railway app domain changes
-                f"connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://backend-hormonia-production.up.railway.app https://backend-hormonia-production.up.railway.app wss://frontend-clinica-production.up.railway.app https://frontend-clinica-production.up.railway.app; "
+                f"connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com wss://backend-hormonia-production.up.railway.app https://backend-hormonia-production.up.railway.app wss://frontend-clinica-production.up.railway.app https://frontend-clinica-production.up.railway.app https://clinica-api-217549452180.us-central1.run.app; "
                 f"object-src 'none'; "
                 f"base-uri 'self'; "
                 f"form-action 'self'; "
@@ -123,7 +123,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "font-src 'self' data: https://fonts.gstatic.com; "
                 "connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com "
                 "wss://backend-hormonia-production.up.railway.app https://backend-hormonia-production.up.railway.app "
-                "wss://frontend-clinica-production.up.railway.app https://frontend-clinica-production.up.railway.app; "
+                "wss://frontend-clinica-production.up.railway.app https://frontend-clinica-production.up.railway.app https://clinica-api-217549452180.us-central1.run.app; "
                 "object-src 'none'; "
                 "base-uri 'self'; "
                 "form-action 'self'; "
@@ -160,12 +160,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if self.enable_hsts and request.url.scheme == "https":
             response.headers["Strict-Transport-Security"] = self._build_hsts_header()
 
-        # Content-Security-Policy: Prevents XSS and injection attacks
-        # Check if CSP nonce is available from CSPNonceMiddleware
+        # Content-Security-Policy: Prevents XSS and injection attacks.
+        # A nonce may be set upstream in request.state by CSP-aware handlers.
         nonce = getattr(request.state, "csp_nonce", None)
         csp = self.csp_policy if self.csp_policy else self._get_default_csp(nonce)
 
-        # Only set CSP if not already set by CSPNonceMiddleware
+        # Respect an existing CSP header when one was already set upstream.
         if "Content-Security-Policy" not in response.headers:
             response.headers["Content-Security-Policy"] = csp
 

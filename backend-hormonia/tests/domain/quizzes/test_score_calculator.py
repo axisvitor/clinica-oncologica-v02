@@ -24,6 +24,7 @@ from app.domain.quizzes.score_calculator import ScoreCalculator
 from app.models.quiz import QuizResponse, QuizSession
 
 
+from app.utils.timezone import now_sao_paulo
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -73,7 +74,7 @@ def create_mock_session(
     mock_session = MagicMock(spec=QuizSession)
     mock_session.id = session_id
     mock_session.status = status
-    mock_session.started_at = started_at or datetime.now(timezone.utc)
+    mock_session.started_at = started_at or now_sao_paulo()
     mock_session.completed_at = completed_at
     return mock_session
 
@@ -612,8 +613,8 @@ class TestCalculateSessionStatistics:
         self, score_calculator, mock_db, sample_session_id
     ):
         """Test complete session statistics calculation."""
-        started = datetime.now(timezone.utc) - timedelta(minutes=30)
-        completed = datetime.now(timezone.utc)
+        started = now_sao_paulo() - timedelta(minutes=30)
+        completed = now_sao_paulo()
 
         responses = [
             create_mock_response(sample_session_id, score=100.0, response_value="A"),

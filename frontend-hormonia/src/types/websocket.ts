@@ -115,7 +115,17 @@ export interface QuizEventData {
 
 export interface FlowEventData {
   patient_id: string;
-  flow_type: 'initial_15_days' | 'days_16_45' | 'monthly_recurring';
+  flow_type:
+    | 'onboarding'
+    | 'daily_follow_up'
+    | 'quiz_mensal'
+    | 'custom'
+    | 'initial_15_days'
+    | 'days_16_45'
+    | 'monthly_recurring'
+    | 'monthly_quiz'
+    | 'daily_checkin'
+    | 'daily_engagement';
   current_day: number;
   previous_day?: number;
   is_paused: boolean;

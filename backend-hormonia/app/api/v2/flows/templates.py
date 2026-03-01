@@ -25,10 +25,8 @@ from ..dependencies import (
     get_pagination_params,
     get_eager_load_params,
 )
-from app.dependencies import (
-    get_current_user,
-    get_flow_management_service,
-)
+from app.dependencies.auth_dependencies import get_current_user
+from app.dependencies.service_dependencies import get_flow_management_service
 from app.services.flow_management import FlowManagementService
 from app.repositories.patient import PatientRepository
 from app.exceptions import (
@@ -38,22 +36,10 @@ from app.exceptions import (
     internal_server_exception,
 )
 from app.utils.rate_limiter import limiter
-import base64
-import json
+from .cursor import _create_cursor
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-
-def _create_cursor(item_id: str, created_at: datetime) -> str:
-    """Create cursor for pagination"""
-    cursor_data = {"id": str(item_id), "created_at": created_at.isoformat()}
-    return base64.b64encode(json.dumps(cursor_data).encode()).decode()
 
 
 # ============================================================================
@@ -104,7 +90,7 @@ async def get_flow_templates(
     if cursor_data and "id" in cursor_data:
         cursor_id = UUID(cursor_data["id"])
         cursor_created = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
+            cursor_data["created_at"]
         )
         filters.append(
             (FlowTemplateVersion.created_at < cursor_created)

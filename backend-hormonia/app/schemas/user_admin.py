@@ -9,6 +9,11 @@ from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 
 from app.models.admin import SystemStatsResponse as AdminSystemStatsResponse
+from app.schemas.admin_validation import (
+    validate_admin_role,
+    validate_password_strength,
+)
+from app.utils.timezone import now_sao_paulo_naive
 
 
 class UserCreateRequest(BaseModel):
@@ -27,23 +32,12 @@ class UserCreateRequest(BaseModel):
     @field_validator("role")
     @classmethod
     def validate_role(cls, v):
-        allowed_roles = ["admin", "doctor"]
-        if v not in allowed_roles:
-            raise ValueError(f"Role must be one of {allowed_roles}")
-        return v
+        return validate_admin_role(v, normalize=False)
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        return v
+        return validate_password_strength(v)
 
 
 class UserUpdateRequest(BaseModel):
@@ -59,12 +53,7 @@ class UserUpdateRequest(BaseModel):
     @field_validator("role")
     @classmethod
     def validate_role(cls, v):
-        if v is None:
-            return v
-        allowed_roles = ["admin", "doctor"]
-        if v not in allowed_roles:
-            raise ValueError(f"Role must be one of {allowed_roles}")
-        return v
+        return validate_admin_role(v, allow_none=True, normalize=False)
 
 
 class UserRoleUpdateRequest(BaseModel):
@@ -75,10 +64,10 @@ class UserRoleUpdateRequest(BaseModel):
     @field_validator("role")
     @classmethod
     def validate_role(cls, v):
-        allowed_roles = ["admin", "doctor"]
-        if v not in allowed_roles:
-            raise ValueError(f"Role must be one of {allowed_roles}")
-        return v
+        validated = validate_admin_role(v, normalize=False)
+        if validated is None:
+            raise ValueError("Role is required")
+        return validated
 
 
 class UserPermissionsUpdateRequest(BaseModel):
@@ -100,15 +89,7 @@ class UserResetPasswordRequest(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        return v
+        return validate_password_strength(v)
 
 
 class UserResponse(BaseModel):
@@ -171,7 +152,7 @@ class UserActionResponse(BaseModel):
     message: str = Field(..., description="Action result message")
     user_id: UUID = Field(..., description="Affected user ID")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow, description="Action timestamp"
+        default_factory=now_sao_paulo_naive, description="Action timestamp"
     )
 
 

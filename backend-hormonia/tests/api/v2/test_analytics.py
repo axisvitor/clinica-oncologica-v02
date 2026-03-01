@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 class TestAnalyticsV2:
     """Test suite for analytics v2 endpoints"""
     
@@ -37,8 +38,8 @@ class TestAnalyticsV2:
     
     def test_get_analytics_overview_with_date_filter(self, client: TestClient, db: Session, auth_headers: dict):
         """Test analytics overview with date filtering"""
-        start_date = (datetime.utcnow() - timedelta(days=30)).isoformat()
-        end_date = datetime.utcnow().isoformat()
+        start_date = (now_sao_paulo_naive() - timedelta(days=30)).isoformat()
+        end_date = now_sao_paulo_naive().isoformat()
         
         response = client.get(
             f"/api/v2/analytics/overview?start_date={start_date}&end_date={end_date}",

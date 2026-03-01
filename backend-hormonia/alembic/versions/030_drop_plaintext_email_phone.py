@@ -48,6 +48,27 @@ Prerequisites:
 - Migration 029 must be applied (data migrated to encrypted columns)
 - All patients must have email/phone encrypted
 - Application must be updated to use encrypted columns
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa
@@ -65,7 +86,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     """
     Remove plaintext email and phone columns after migration to encrypted storage.
 
@@ -296,7 +317,7 @@ def upgrade():
         raise
 
 
-def downgrade():
+def downgrade() -> None:
     """
     Recreate plaintext email and phone columns.
 

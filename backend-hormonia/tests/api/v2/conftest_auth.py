@@ -19,6 +19,7 @@ from app.models.session import Session as SessionModel
 from app.utils.security import get_password_hash
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # User Fixtures
 # ============================================================================
@@ -36,8 +37,8 @@ def firebase_user(db_session: Session) -> User:
         auth_provider=AuthProvider.FIREBASE,
         firebase_email_verified=True,
         firebase_display_name="Firebase User",
-        firebase_created_at=datetime.utcnow(),
-        firebase_last_sign_in=datetime.utcnow(),
+        firebase_created_at=now_sao_paulo_naive(),
+        firebase_last_sign_in=now_sao_paulo_naive(),
     )
     db_session.add(user)
     db_session.commit()
@@ -72,7 +73,7 @@ def locked_user(db_session: Session) -> User:
         full_name="Locked User",
         is_active=True,
         is_locked=True,
-        locked_until=datetime.utcnow() + timedelta(hours=1),
+        locked_until=now_sao_paulo_naive() + timedelta(hours=1),
         failed_login_attempts=5,
         role=UserRole.DOCTOR,
         auth_provider=AuthProvider.FIREBASE,
@@ -93,7 +94,7 @@ def user_with_expired_lock(db_session: Session) -> User:
         full_name="Expired Lock User",
         is_active=True,
         is_locked=True,
-        locked_until=datetime.utcnow() - timedelta(hours=1),  # Expired
+        locked_until=now_sao_paulo_naive() - timedelta(hours=1),  # Expired
         failed_login_attempts=5,
         role=UserRole.DOCTOR,
         auth_provider=AuthProvider.FIREBASE,
@@ -116,9 +117,9 @@ def active_session(db_session: Session, test_user: User) -> SessionModel:
         user_id=test_user.id,
         session_token=f"session_{uuid4().hex}",
         is_active=True,
-        created_at=datetime.utcnow(),
-        expires_at=datetime.utcnow() + timedelta(days=5),
-        last_activity=datetime.utcnow(),
+        created_at=now_sao_paulo_naive(),
+        expires_at=now_sao_paulo_naive() + timedelta(days=5),
+        last_activity=now_sao_paulo_naive(),
         ip_address="192.168.1.100",
         user_agent="Mozilla/5.0 Test Browser",
     )
@@ -136,9 +137,9 @@ def expired_session(db_session: Session, test_user: User) -> SessionModel:
         user_id=test_user.id,
         session_token=f"expired_{uuid4().hex}",
         is_active=True,
-        created_at=datetime.utcnow() - timedelta(days=10),
-        expires_at=datetime.utcnow() - timedelta(hours=1),
-        last_activity=datetime.utcnow() - timedelta(hours=2),
+        created_at=now_sao_paulo_naive() - timedelta(days=10),
+        expires_at=now_sao_paulo_naive() - timedelta(hours=1),
+        last_activity=now_sao_paulo_naive() - timedelta(hours=2),
         ip_address="192.168.1.100",
         user_agent="Mozilla/5.0 Test Browser",
     )
@@ -156,12 +157,12 @@ def revoked_session(db_session: Session, test_user: User) -> SessionModel:
         user_id=test_user.id,
         session_token=f"revoked_{uuid4().hex}",
         is_active=False,
-        created_at=datetime.utcnow() - timedelta(days=1),
-        expires_at=datetime.utcnow() + timedelta(days=4),
-        last_activity=datetime.utcnow() - timedelta(hours=1),
+        created_at=now_sao_paulo_naive() - timedelta(days=1),
+        expires_at=now_sao_paulo_naive() + timedelta(days=4),
+        last_activity=now_sao_paulo_naive() - timedelta(hours=1),
         ip_address="192.168.1.100",
         user_agent="Mozilla/5.0 Test Browser",
-        revoked_at=datetime.utcnow() - timedelta(minutes=30),
+        revoked_at=now_sao_paulo_naive() - timedelta(minutes=30),
         revocation_reason="User requested logout",
     )
     db_session.add(session)
@@ -186,9 +187,9 @@ def multiple_sessions(db_session: Session, test_user: User) -> list[SessionModel
             user_id=test_user.id,
             session_token=f"multi_{uuid4().hex}",
             is_active=True,
-            created_at=datetime.utcnow(),
-            expires_at=datetime.utcnow() + timedelta(days=5),
-            last_activity=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
+            expires_at=now_sao_paulo_naive() + timedelta(days=5),
+            last_activity=now_sao_paulo_naive(),
             ip_address=ip,
             user_agent=user_agent,
         )
@@ -347,34 +348,45 @@ def override_redis_cache(mocker, mock_redis_cache):
 
 @pytest.fixture
 def firebase_auth_headers(firebase_user: User, client) -> dict:
-    """Create auth headers for Firebase user."""
+    """Create auth headers for Firebase user using dependency_overrides."""
     from app.main import app
     from app.dependencies.auth_dependencies import (
         get_current_user,
         get_current_user_from_session,
-        TEST_TOKEN_REGISTRY,
     )
 
     app.dependency_overrides[get_current_user] = lambda: firebase_user
     app.dependency_overrides[get_current_user_from_session] = lambda: firebase_user
-    TEST_TOKEN_REGISTRY[f"firebase_token_{firebase_user.id}"] = firebase_user
 
-    return {"Authorization": f"Bearer firebase_token_{firebase_user.id}"}
+    yield {"Authorization": f"Bearer firebase_token_{firebase_user.id}"}
+
+    app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_current_user_from_session, None)
 
 
 @pytest.fixture
 def session_auth_headers(test_user: User, active_session: SessionModel, client) -> dict:
-    """Create auth headers with session ID."""
+    """Create auth headers with session ID using dependency_overrides."""
     from app.main import app
-    from app.dependencies.auth_dependencies import (
-        get_current_user_from_session,
-        TEST_TOKEN_REGISTRY,
+    from app.dependencies.auth_dependencies import get_current_user_from_session
+
+    user_obj = test_user["user"] if isinstance(test_user, dict) else test_user
+    session_user = (
+        test_user.session_dict() if hasattr(test_user, "session_dict") else {
+            "id": str(user_obj.id),
+            "email": user_obj.email,
+            "full_name": user_obj.full_name,
+            "role": user_obj.role.value if hasattr(user_obj.role, "value") else str(user_obj.role),
+            "is_active": user_obj.is_active,
+            "firebase_uid": getattr(user_obj, "firebase_uid", None),
+        }
     )
 
-    app.dependency_overrides[get_current_user_from_session] = lambda: test_user
-    TEST_TOKEN_REGISTRY[f"session_{active_session.id}"] = test_user
+    app.dependency_overrides[get_current_user_from_session] = lambda: session_user
 
-    return {
+    yield {
         "Authorization": f"Bearer session_{active_session.id}",
         "X-Session-ID": str(active_session.id),
     }
+
+    app.dependency_overrides.pop(get_current_user_from_session, None)

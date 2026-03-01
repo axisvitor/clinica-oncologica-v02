@@ -33,6 +33,8 @@ from app.models.patient import Patient
 from app.models.user import User
 from app.schemas.websocket import WebSocketEventType
 from app.templates.whatsapp import get_welcome_message
+from app.core.executors import get_notification_executor
+from app.utils.timezone import now_sao_paulo
 
 if TYPE_CHECKING:
     from app.domain.messaging.core import MessageService
@@ -139,7 +141,7 @@ class NotificationService:
                     lambda: self.message_service.schedule_message(
                         patient_id=patient.id,
                         content=welcome_text,
-                        scheduled_for=datetime.now(timezone.utc),
+                        scheduled_for=now_sao_paulo(),
                         message_type=MessageType.TEXT,
                         message_metadata={
                             "patient_id": str(patient.id),

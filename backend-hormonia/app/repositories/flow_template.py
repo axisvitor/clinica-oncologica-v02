@@ -1,7 +1,8 @@
-from typing import List, Optional
+from typing import List, Optional, Any
 from sqlalchemy.orm import Session, joinedload
 from app.models.flow import FlowTemplateVersion
 from app.repositories.base import BaseRepository
+from app.utils.versioning import parse_version_number
 
 
 class FlowTemplateRepository(BaseRepository[FlowTemplateVersion]):
@@ -23,8 +24,9 @@ class FlowTemplateRepository(BaseRepository[FlowTemplateVersion]):
         Returns:
             FlowTemplateVersion or None if not found
         """
+        parsed_version = parse_version_number(version)
         query = self.db.query(FlowTemplateVersion).filter(
-            FlowTemplateVersion.version == version
+            FlowTemplateVersion.version_number == parsed_version
         )
 
         if eager_load:
@@ -46,7 +48,7 @@ class FlowTemplateRepository(BaseRepository[FlowTemplateVersion]):
             Current published FlowTemplateVersion or None
         """
         query = self.db.query(FlowTemplateVersion).filter(
-            FlowTemplateVersion.is_current, FlowTemplateVersion.status == "published"
+            FlowTemplateVersion.is_active.is_(True)
         )
 
         if eager_load:

@@ -15,6 +15,7 @@ from uuid import UUID
 from sqlalchemy import delete
 
 from app.models.patient import Patient
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +29,30 @@ class PatientAuditMixin:
     (Right to deletion) and Article 18 (Right to data portability).
 
     Methods:
+        soft_delete: Mark patient as deleted (reversible).
         hard_delete: Permanently delete patient data with audit trail.
     """
 
+    async def soft_delete(self, patient_id: UUID | str) -> bool:
+        """
+        Soft delete patient by setting `deleted_at`.
+
+        Args:
+            patient_id: Patient UUID or string representation.
+
+        Returns:
+            True if at least one row was updated, otherwise False.
+        """
+        result = await self.db.execute(
+            Patient.__table__.update()
+            .where(Patient.id == patient_id)
+            .values(deleted_at=now_sao_paulo())
+        )
+        await self.db.commit()
+        return result.rowcount > 0
+
     async def hard_delete(
-        self, patient_id: UUID, *, audit_reason: Optional[str] = None
+        self, patient_id: UUID | str, *, audit_reason: Optional[str] = None
     ) -> bool:
         """
         Permanently delete patient data for LGPD Art. 16 compliance.
@@ -96,7 +116,7 @@ class PatientAuditMixin:
                 "event": "patient_hard_delete",
                 "patient_id": str(patient_id),
                 "reason": audit_reason,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "compliance_article": "LGPD Art. 16 (Right to deletion)",
             },
         )
@@ -177,7 +197,7 @@ class PatientAuditMixin:
                 "event": "patient_deletion_audit",
                 "patient_id": str(patient_id),
                 "reason": reason,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "compliance": "LGPD Art. 16, 18",
             },
         )
@@ -186,7 +206,7 @@ class PatientAuditMixin:
         # audit_record = DeletionAudit(
         #     patient_id=patient_id,
         #     reason=reason,
-        #     deleted_at=datetime.now(timezone.utc),
+        #     deleted_at=now_sao_paulo(),
         #     deleted_by=current_user_id  # from request context
         # )
         # self.db.add(audit_record)

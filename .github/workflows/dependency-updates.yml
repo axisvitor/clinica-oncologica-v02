@@ -2,7 +2,7 @@ name: Dependency Updates
 
 on:
   schedule:
-    # Run every Monday at midnight UTC
+    # Run every Monday at midnight Sao Paulo
     - cron: '0 0 * * 1'
   workflow_dispatch:
     inputs:

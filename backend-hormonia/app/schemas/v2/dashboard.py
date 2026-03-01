@@ -269,12 +269,12 @@ class ActivityFeedData(BaseModel):
                         "type": "message_sent",
                         "description": "Mensagem enviada para Jane Doe",
                         "entity_name": "Jane Doe",
-                        "timestamp": "2025-01-17T15:30:00Z",
+                        "timestamp": "2025-01-17T15:30:00-03:00",
                         "icon": "mail",
                     }
                 ],
                 "total_count": 45,
-                "last_updated": "2025-01-17T15:35:00Z",
+                "last_updated": "2025-01-17T15:35:00-03:00",
             }
         }
     )
@@ -382,8 +382,8 @@ class DashboardMainResponse(BaseModel):
             "example": {
                 "user_role": "doctor",
                 "time_range": "week",
-                "start_date": "2025-01-10T00:00:00Z",
-                "end_date": "2025-01-17T15:00:00Z",
+                "start_date": "2025-01-10T00:00:00-03:00",
+                "end_date": "2025-01-17T15:00:00-03:00",
                 "patient_metrics": {
                     "total_patients": 150,
                     "active_patients": 142,
@@ -417,7 +417,7 @@ class DashboardMainResponse(BaseModel):
                     "avg_completion_days": 12.5,
                 },
                 "recent_activity": [],
-                "generated_at": "2025-01-17T15:00:00Z",
+                "generated_at": "2025-01-17T15:00:00-03:00",
             }
         }
     )
@@ -455,11 +455,11 @@ class DashboardPatientResponse(BaseModel):
                     "full_name": "Jane Doe",
                     "email": "jane@example.com",
                     "is_active": True,
-                    "created_at": "2024-01-15T10:00:00Z",
+                    "created_at": "2024-01-15T10:00:00-03:00",
                 },
                 "time_range": "month",
-                "start_date": "2024-12-17T00:00:00Z",
-                "end_date": "2025-01-17T15:00:00Z",
+                "start_date": "2024-12-17T00:00:00-03:00",
+                "end_date": "2025-01-17T15:00:00-03:00",
                 "message_metrics": {
                     "total_messages": 45,
                     "sent_count": 43,
@@ -487,7 +487,7 @@ class DashboardPatientResponse(BaseModel):
                 },
                 "recent_activity": [],
                 "engagement_chart": [],
-                "generated_at": "2025-01-17T15:00:00Z",
+                "generated_at": "2025-01-17T15:00:00-03:00",
             }
         }
     )
@@ -532,8 +532,8 @@ class DashboardPhysicianResponse(BaseModel):
             "example": {
                 "user_id": "223e4567-e89b-12d3-a456-426614174001",
                 "time_range": "week",
-                "start_date": "2025-01-10T00:00:00Z",
-                "end_date": "2025-01-17T15:00:00Z",
+                "start_date": "2025-01-10T00:00:00-03:00",
+                "end_date": "2025-01-17T15:00:00-03:00",
                 "patient_metrics": {
                     "total_patients": 35,
                     "active_patients": 33,
@@ -568,7 +568,7 @@ class DashboardPhysicianResponse(BaseModel):
                 },
                 "high_priority_alerts": [],
                 "top_risk_patients": [],
-                "generated_at": "2025-01-17T15:00:00Z",
+                "generated_at": "2025-01-17T15:00:00-03:00",
             }
         }
     )
@@ -624,8 +624,8 @@ class DashboardAdminResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "time_range": "month",
-                "start_date": "2024-12-17T00:00:00Z",
-                "end_date": "2025-01-17T15:00:00Z",
+                "start_date": "2024-12-17T00:00:00-03:00",
+                "end_date": "2025-01-17T15:00:00-03:00",
                 "patient_metrics": {
                     "total_patients": 450,
                     "active_patients": 420,
@@ -673,7 +673,7 @@ class DashboardAdminResponse(BaseModel):
                     "flow_completion_rate": 50.0,
                     "patient_active_rate": 93.3,
                 },
-                "generated_at": "2025-01-17T15:00:00Z",
+                "generated_at": "2025-01-17T15:00:00-03:00",
             }
         }
     )
@@ -715,8 +715,8 @@ class CustomDashboardResponse(BaseModel):
                     }
                 ],
                 "layout": {"columns": 4, "row_height": 100},
-                "created_at": "2025-01-10T10:00:00Z",
-                "updated_at": "2025-01-17T15:00:00Z",
+                "created_at": "2025-01-10T10:00:00-03:00",
+                "updated_at": "2025-01-17T15:00:00-03:00",
             }
         }
     )

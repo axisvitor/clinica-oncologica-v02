@@ -49,29 +49,17 @@ class MessageDirectionValidator:
             return value
 
         if isinstance(value, str):
-            # Handle both uppercase and lowercase values for backward compatibility
-            normalized_value = value.upper()
-
+            normalized_value = value.strip().lower()
             try:
                 return MessageDirection(normalized_value)
             except ValueError:
-                # Try lowercase for legacy data
-                try:
-                    legacy_value = value.lower()
-                    if legacy_value == "inbound":
-                        return MessageDirection.INBOUND
-                    elif legacy_value == "outbound":
-                        return MessageDirection.OUTBOUND
-                    else:
-                        raise ValueError(f"Invalid legacy value: {legacy_value}")
-                except ValueError:
-                    valid_values = [e.value for e in MessageDirection]
-                    raise EnumValidationError(
-                        f"Invalid MessageDirection value: '{value}'. Valid values are: {valid_values}",
-                        "MessageDirection",
-                        value,
-                        valid_values,
-                    )
+                valid_values = [e.value for e in MessageDirection]
+                raise EnumValidationError(
+                    f"Invalid MessageDirection value: '{value}'. Valid values are: {valid_values}",
+                    "MessageDirection",
+                    value,
+                    valid_values,
+                )
 
         raise EnumValidationError(
             f"MessageDirection value must be string or MessageDirection enum, got {type(value)}",

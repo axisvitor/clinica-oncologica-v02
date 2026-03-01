@@ -9,6 +9,7 @@ from app.database import Base
 import uuid
 import datetime
 
+from app.utils.timezone import now_sao_paulo
 class QueryCounter:
     """Helper to count queries during a test block."""
     def __init__(self):
@@ -109,7 +110,7 @@ class TestNPlusOneAudit:
                 db_session.add(t)
                 db_session.flush()
 
-                now = datetime.datetime.now(datetime.timezone.utc)
+                now = now_sao_paulo()
                 qs = QuizSession(
                     patient_id=p.id,
                     quiz_template_id=t.id,

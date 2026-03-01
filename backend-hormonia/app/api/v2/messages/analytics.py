@@ -25,6 +25,7 @@ from .helpers import (
     _extract_user_context,
     _get_cached_or_compute,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ async def get_delivery_rate_analytics(
     cache_key = f"analytics:delivery_rate:{user_id}:{days}"
 
     def compute_analytics():
-        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+        start_date = now_sao_paulo() - timedelta(days=days)
 
         query = db.query(Message).filter(
             Message.created_at >= start_date,
@@ -80,7 +81,7 @@ async def get_delivery_rate_analytics(
 
         return {
             "period_start": start_date.isoformat(),
-            "period_end": datetime.now(timezone.utc).isoformat(),
+            "period_end": now_sao_paulo().isoformat(),
             "total_sent": total_sent,
             "delivered": delivered,
             "failed": failed,
@@ -110,7 +111,7 @@ async def get_response_time_analytics(
     cache_key = f"analytics:response_time:{user_id}:{days}"
 
     def compute_analytics():
-        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+        start_date = now_sao_paulo() - timedelta(days=days)
 
         query = db.query(Message).filter(
             Message.created_at >= start_date,
@@ -129,7 +130,7 @@ async def get_response_time_analytics(
         if not messages:
             return {
                 "period_start": start_date.isoformat(),
-                "period_end": datetime.now(timezone.utc).isoformat(),
+                "period_end": now_sao_paulo().isoformat(),
                 "total_messages": 0,
                 "average_delivery_time_seconds": 0,
                 "average_read_time_seconds": 0,
@@ -153,7 +154,7 @@ async def get_response_time_analytics(
 
         return {
             "period_start": start_date.isoformat(),
-            "period_end": datetime.now(timezone.utc).isoformat(),
+            "period_end": now_sao_paulo().isoformat(),
             "total_messages": len(messages),
             "average_delivery_time_seconds": round(avg_delivery, 2),
             "average_read_time_seconds": round(avg_read, 2),

@@ -31,6 +31,7 @@ export interface RuntimeConfig {
   // AI Feature Flags
   VITE_AI_CHAT_ENABLED?: string;
   VITE_AI_ANALYTICS_ENABLED?: string;
+  VITE_AI_SUMMARY_ENABLED?: string;
   VITE_AI_INSIGHTS_ENABLED?: string;
   VITE_AI_RECOMMENDATIONS_ENABLED?: string;
 
@@ -73,11 +74,12 @@ const CONFIG: RuntimeConfig = {
   VITE_FIREBASE_APP_ID: import.meta.env['VITE_FIREBASE_APP_ID'] || '',
   VITE_FIREBASE_MEASUREMENT_ID: import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'] || '',
 
-  // AI Feature Flags
-  VITE_AI_CHAT_ENABLED: import.meta.env['VITE_AI_ENABLE_CHAT'] || 'true',
-  VITE_AI_ANALYTICS_ENABLED: import.meta.env['VITE_AI_ENABLE_ANALYTICS'] || 'true',
-  VITE_AI_INSIGHTS_ENABLED: import.meta.env['VITE_AI_ENABLE_INSIGHTS'] || 'true',
-  VITE_AI_RECOMMENDATIONS_ENABLED: import.meta.env['VITE_AI_ENABLE_RECOMMENDATIONS'] || 'true',
+  // AI Feature Flags (support legacy *_ENABLED and current ENABLE_* names)
+  VITE_AI_CHAT_ENABLED: import.meta.env['VITE_AI_CHAT_ENABLED'] || import.meta.env['VITE_AI_ENABLE_CHAT'] || 'true',
+  VITE_AI_ANALYTICS_ENABLED: import.meta.env['VITE_AI_ANALYTICS_ENABLED'] || import.meta.env['VITE_AI_ENABLE_ANALYTICS'] || 'true',
+  VITE_AI_SUMMARY_ENABLED: import.meta.env['VITE_AI_SUMMARY_ENABLED'] || import.meta.env['VITE_AI_ENABLE_SUMMARY'] || 'true',
+  VITE_AI_INSIGHTS_ENABLED: import.meta.env['VITE_AI_INSIGHTS_ENABLED'] || import.meta.env['VITE_AI_ENABLE_INSIGHTS'] || 'false',
+  VITE_AI_RECOMMENDATIONS_ENABLED: import.meta.env['VITE_AI_RECOMMENDATIONS_ENABLED'] || import.meta.env['VITE_AI_ENABLE_RECOMMENDATIONS'] || 'true',
 
   // Environment Settings
   VITE_ENVIRONMENT: import.meta.env['VITE_APP_ENVIRONMENT'] || 'development',

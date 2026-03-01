@@ -4,6 +4,7 @@ Comprehensive audit log management for compliance (HIPAA, LGPD).
 """
 
 import logging
+import base64
 import csv
 import io
 import json
@@ -12,17 +13,16 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
-from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import or_, desc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import or_, and_, desc, select
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.user import User
 from app.models.audit_log import AuditLog
 from app.services.audit import AuditService
 from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import cache_response
-from app.dependencies import get_request_context, RequestContext
+from app.utils.request_context import get_request_context, RequestContext
 from app.schemas.v2.admin_extensions import (
     AuditLogResponse,
     AuditLogListResponse,
@@ -38,13 +38,14 @@ from app.api.v2.dependencies import (
 from .constants import CACHE_TTL_AUDIT_LOGS, CACHE_TTL_AUDIT_SINGLE
 from .dependencies import get_admin_user, log_admin_extension_action
 from .utils import serialize_audit_log
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
 @router.get(
-    "/",
+    "",
     response_model=AuditLogListResponse,
     summary="List Audit Logs",
     description="Retrieve paginated list of audit logs with cursor-based pagination and comprehensive filters.",
@@ -68,7 +69,7 @@ async def list_audit_logs(
     start_date: Optional[datetime] = Query(None, description="Filter from date"),
     end_date: Optional[datetime] = Query(None, description="Filter to date"),
     search: Optional[str] = Query(None, description="Search in messages"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -95,37 +96,55 @@ async def list_audit_logs(
         field_list = get_field_selection(fields) if fields else None
 
         # Build base query
-        query = db.query(AuditLog)
+        stmt = select(AuditLog)
 
-        # Apply cursor pagination
+        # Apply cursor pagination (created_at DESC, id DESC)
         if cursor_data:
-            query = query.filter(AuditLog.id > cursor_data.get("id", 0))
+            cursor_id = cursor_data.get("id")
+            cursor_created_at = cursor_data.get("created_at")
+            if isinstance(cursor_created_at, str):
+                try:
+                    cursor_created_at = datetime.fromisoformat(cursor_created_at)
+                except ValueError:
+                    cursor_created_at = None
+            if cursor_created_at:
+                stmt = stmt.where(
+                    or_(
+                        AuditLog.created_at < cursor_created_at,
+                        and_(
+                            AuditLog.created_at == cursor_created_at,
+                            AuditLog.id < cursor_id,
+                        ),
+                    )
+                )
+            elif cursor_id:
+                stmt = stmt.where(AuditLog.id < cursor_id)
 
         # Apply filters
         if event_type:
-            query = query.filter(AuditLog.event_type == event_type)
+            stmt = stmt.where(AuditLog.event_type == event_type)
 
         if event_status:
-            query = query.filter(AuditLog.event_status == event_status)
+            stmt = stmt.where(AuditLog.event_status == event_status)
 
         if user_id:
-            query = query.filter(AuditLog.user_id == str(user_id))
+            stmt = stmt.where(AuditLog.user_id == str(user_id))
 
         if user_email:
-            query = query.filter(AuditLog.user_email.ilike(f"%{user_email}%"))
+            stmt = stmt.where(AuditLog.user_email.ilike(f"%{user_email}%"))
 
         if ip_address:
-            query = query.filter(AuditLog.ip_address == ip_address)
+            stmt = stmt.where(AuditLog.ip_address == ip_address)
 
         if start_date:
-            query = query.filter(AuditLog.created_at >= start_date)
+            stmt = stmt.where(AuditLog.created_at >= start_date)
 
         if end_date:
-            query = query.filter(AuditLog.created_at <= end_date)
+            stmt = stmt.where(AuditLog.created_at <= end_date)
 
         if search:
             search_pattern = f"%{search}%"
-            query = query.filter(
+            stmt = stmt.where(
                 or_(
                     AuditLog.message.ilike(search_pattern),
                     AuditLog.action.ilike(search_pattern),
@@ -133,11 +152,13 @@ async def list_audit_logs(
                 )
             )
 
-        # Order by created_at DESC (most recent first)
-        query = query.order_by(desc(AuditLog.created_at))
+        # Order by created_at DESC (most recent first), stable by id DESC
+        stmt = stmt.order_by(desc(AuditLog.created_at), desc(AuditLog.id))
 
         # Fetch limit + 1 to check if there's more
-        logs = query.limit(limit + 1).all()
+        stmt = stmt.limit(limit + 1)
+        logs_result = await db.execute(stmt)
+        logs = list(logs_result.scalars().all())
 
         # Check if there are more results
         has_more = len(logs) > limit
@@ -147,7 +168,14 @@ async def list_audit_logs(
         # Create next cursor
         next_cursor = None
         if has_more and logs:
-            next_cursor = create_cursor(logs[-1].id)
+            last_log = logs[-1]
+            cursor_payload = {
+                "id": str(last_log.id),
+                "created_at": last_log.created_at.isoformat(),
+            }
+            next_cursor = base64.b64encode(
+                json.dumps(cursor_payload).encode("utf-8")
+            ).decode("utf-8")
 
         # Serialize logs
         serialized_logs = [serialize_audit_log(log, field_list) for log in logs]
@@ -176,6 +204,8 @@ async def list_audit_logs(
             "total": None,  # Cursor pagination doesn't include total for performance
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error listing audit logs: {e}")
         raise HTTPException(
@@ -197,7 +227,7 @@ async def get_audit_log(
         None, description="Comma-separated fields to include"
     ),
     redact_sensitive: bool = Query(True, description="Redact sensitive data"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -220,7 +250,8 @@ async def get_audit_log(
         Detailed audit log information
     """
     try:
-        log = db.query(AuditLog).filter(AuditLog.id == log_id).first()
+        result = await db.execute(select(AuditLog).where(AuditLog.id == log_id))
+        log = result.scalar_one_or_none()
 
         if not log:
             raise HTTPException(
@@ -266,7 +297,7 @@ async def export_audit_logs(
     user_email: Optional[str] = Query(None),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -295,28 +326,30 @@ async def export_audit_logs(
     """
     try:
         # Build query with filters
-        query = db.query(AuditLog)
+        stmt = select(AuditLog)
 
         if event_type:
-            query = query.filter(AuditLog.event_type == event_type)
+            stmt = stmt.where(AuditLog.event_type == event_type)
 
         if event_status:
-            query = query.filter(AuditLog.event_status == event_status)
+            stmt = stmt.where(AuditLog.event_status == event_status)
 
         if user_email:
-            query = query.filter(AuditLog.user_email.ilike(f"%{user_email}%"))
+            stmt = stmt.where(AuditLog.user_email.ilike(f"%{user_email}%"))
 
         if start_date:
-            query = query.filter(AuditLog.created_at >= start_date)
+            stmt = stmt.where(AuditLog.created_at >= start_date)
 
         if end_date:
-            query = query.filter(AuditLog.created_at <= end_date)
+            stmt = stmt.where(AuditLog.created_at <= end_date)
 
         # Order by created_at
-        query = query.order_by(desc(AuditLog.created_at))
+        stmt = stmt.order_by(desc(AuditLog.created_at))
 
         # Fetch logs (limit to 10000 for safety)
-        logs = query.limit(10000).all()
+        stmt = stmt.limit(10000)
+        logs_result = await db.execute(stmt)
+        logs = list(logs_result.scalars().all())
 
         # Determine fields
         all_fields = [
@@ -386,12 +419,11 @@ async def export_audit_logs(
                     row[field] = value
                 writer.writerow(row)
 
-            output.seek(0)
-            return StreamingResponse(
-                iter([output.getvalue()]),
+            return Response(
+                content=output.getvalue(),
                 media_type="text/csv",
                 headers={
-                    "Content-Disposition": f"attachment; filename=audit_logs_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+                    "Content-Disposition": f"attachment; filename=audit_logs_export_{now_sao_paulo().strftime('%Y%m%d_%H%M%S')}.csv"
                 },
             )
 
@@ -417,7 +449,7 @@ async def export_audit_logs(
                 content=json.dumps(data, indent=2),
                 media_type="application/json",
                 headers={
-                    "Content-Disposition": f"attachment; filename=audit_logs_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+                    "Content-Disposition": f"attachment; filename=audit_logs_export_{now_sao_paulo().strftime('%Y%m%d_%H%M%S')}.json"
                 },
             )
 

@@ -12,7 +12,6 @@ Handles conversation-related operations: history, list, unread counts, mark as r
 """
 
 from typing import Optional, List
-from datetime import datetime, timezone
 from uuid import UUID
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -34,9 +33,14 @@ from ..dependencies import get_pagination_params
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from .helpers import (
     _extract_user_context,
+    _get_patient_with_access,
     _serialize_message,
-    _create_cursor,
+    _apply_message_created_cursor_filter,
+    _apply_uuid_id_cursor_filter,
+    _paginate_messages_query,
+    _paginate_query,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -63,25 +67,11 @@ async def get_conversation_history(
     ),
 ):
     """Get conversation history for a patient."""
-    try:
-        patient_uuid = UUID(patient_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format"
-        )
-
-    # Verify patient exists and user has access
-    patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
-    if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
-        )
-
-    role_enum, user_id = _extract_user_context(current_user)
-    if role_enum != UserRole.ADMIN and str(patient.doctor_id) != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
-        )
+    patient_uuid, _ = _get_patient_with_access(
+        db=db,
+        current_user=current_user,
+        patient_id=patient_id,
+    )
 
     cursor_data = pagination["cursor_data"]
     limit = pagination["limit"]
@@ -91,31 +81,13 @@ async def get_conversation_history(
     if include and "patient" in include:
         query = query.options(joinedload(Message.patient))
 
-    # Cursor pagination
-    if cursor_data and "id" in cursor_data:
-        cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
-        )
-        query = query.filter(
-            (Message.created_at < cursor_created_at)
-            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
-        )
-
-    total = None
-    if not cursor_data:
-        total = query.count()
-
-    query = query.order_by(Message.created_at.desc(), Message.id)
-    messages = query.limit(limit + 1).all()
-
-    has_more = len(messages) > limit
-    if has_more:
-        messages = messages[:limit]
-
-    next_cursor = None
-    if has_more and messages:
-        next_cursor = _create_cursor(messages[-1])
+    query = _apply_message_created_cursor_filter(query, cursor_data)
+    messages, has_more, next_cursor, total = _paginate_query(
+        query,
+        limit=limit,
+        cursor_data=cursor_data,
+        order_columns=(Message.created_at.desc(), Message.id),
+    )
 
     message_responses = [
         _serialize_message(msg, include_patient="patient" in (include or []))
@@ -159,25 +131,14 @@ async def list_conversations(
     query = query.join(Message, Patient.id == Message.patient_id, isouter=False)
     query = query.distinct(Patient.id)
 
-    # Cursor pagination
-    if cursor_data and "id" in cursor_data:
-        cursor_id = UUID(cursor_data["id"])
-        query = query.filter(Patient.id > cursor_id)
-
-    total = None
-    if not cursor_data:
-        total = query.count()
-
-    query = query.order_by(Patient.id)
-    patients = query.limit(limit + 1).all()
-
-    has_more = len(patients) > limit
-    if has_more:
-        patients = patients[:limit]
-
-    next_cursor = None
-    if has_more and patients:
-        next_cursor = _create_cursor(patients[-1], cursor_fields=["id"])
+    query = _apply_uuid_id_cursor_filter(query, Patient.id, cursor_data)
+    patients, has_more, next_cursor, total = _paginate_query(
+        query,
+        limit=limit,
+        cursor_data=cursor_data,
+        order_columns=(Patient.id,),
+        cursor_fields=["id"],
+    )
 
     # Build conversation responses using batch queries instead of N+1 pattern
     patient_ids = [p.id for p in patients]
@@ -276,25 +237,11 @@ async def get_unread_count(
     current_user=Depends(get_current_user_from_session),
 ):
     """Get unread message count for a patient."""
-    try:
-        patient_uuid = UUID(patient_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format"
-        )
-
-    # Verify patient exists and access
-    patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
-    if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
-        )
-
-    role_enum, user_id = _extract_user_context(current_user)
-    if role_enum != UserRole.ADMIN and str(patient.doctor_id) != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
-        )
+    patient_uuid, _ = _get_patient_with_access(
+        db=db,
+        current_user=current_user,
+        patient_id=patient_id,
+    )
 
     unread_count = (
         db.query(func.count(Message.id))
@@ -323,25 +270,11 @@ async def mark_conversation_read(
     current_user=Depends(get_current_user_from_session),
 ):
     """Mark all messages in a conversation as read."""
-    try:
-        patient_uuid = UUID(patient_id)
-    except ValueError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid patient ID format"
-        )
-
-    # Verify patient exists and access
-    patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
-    if not patient:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
-        )
-
-    role_enum, user_id = _extract_user_context(current_user)
-    if role_enum != UserRole.ADMIN and str(patient.doctor_id) != user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
-        )
+    patient_uuid, _ = _get_patient_with_access(
+        db=db,
+        current_user=current_user,
+        patient_id=patient_id,
+    )
 
     # Mark all inbound messages as read
     updated = (
@@ -351,7 +284,7 @@ async def mark_conversation_read(
             Message.direction == MessageDirection.INBOUND,
             Message.read_at.is_(None),
         )
-        .update({"read_at": datetime.now(timezone.utc)})
+        .update({"read_at": now_sao_paulo()})
     )
 
     db.commit()
@@ -391,38 +324,8 @@ async def search_messages(
         query = query.join(Patient, Message.patient_id == Patient.id)
         query = query.filter(Patient.doctor_id == user_uuid)
 
-    # Cursor pagination
-    if cursor_data and "id" in cursor_data:
-        cursor_id = UUID(cursor_data["id"])
-        cursor_created_at = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
-        )
-        query = query.filter(
-            (Message.created_at < cursor_created_at)
-            | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
-        )
-
-    total = None
-    if not cursor_data:
-        total = query.count()
-
-    query = query.order_by(Message.created_at.desc(), Message.id)
-    messages = query.limit(limit + 1).all()
-
-    has_more = len(messages) > limit
-    if has_more:
-        messages = messages[:limit]
-
-    next_cursor = None
-    if has_more and messages:
-        next_cursor = _create_cursor(messages[-1])
-
-    return {
-        "data": [_serialize_message(msg) for msg in messages],
-        "next_cursor": next_cursor,
-        "has_more": has_more,
-        "total": total,
-    }
+    query = _apply_message_created_cursor_filter(query, cursor_data)
+    return _paginate_messages_query(query, limit=limit, cursor_data=cursor_data)
 
 
 @router.post(
@@ -467,7 +370,7 @@ async def process_inbound_message(
         content=inbound_data.content,
         whatsapp_id=inbound_data.whatsapp_id,
         message_type=msg_type,
-        received_at=inbound_data.received_at or datetime.now(timezone.utc),
+        received_at=inbound_data.received_at or now_sao_paulo(),
         metadata=inbound_data.message_metadata or {},
     )
 

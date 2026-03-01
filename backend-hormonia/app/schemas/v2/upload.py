@@ -314,7 +314,7 @@ class UploadResponse(BaseModel):
                 "storage_provider": "local",
                 "storage_path": "uploads/images/20250107_143022_a1b2c3d4.jpg",
                 "uploaded_by": "456e7890-e89b-12d3-a456-426614174000",
-                "uploaded_at": "2025-01-07T14:30:22Z",
+                "uploaded_at": "2025-01-07T14:30:22-03:00",
                 "is_public": False,
                 "expires_at": None,
                 "custom_metadata": {
@@ -346,7 +346,7 @@ class DirectUploadResponse(BaseModel):
                     "policy": "eyJleHBpcmF0aW9uI...",
                     "signature": "abc123...",
                 },
-                "expires_at": "2025-01-07T15:30:22Z",
+                "expires_at": "2025-01-07T15:30:22-03:00",
                 "max_file_size": 10485760,
             }
         }

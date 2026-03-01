@@ -6,8 +6,10 @@ for patient onboarding, split into focused, maintainable components.
 
 Components:
     - orchestrator: Main SagaOrchestrator class
+    - metrics: Prometheus counters/histograms and phone-format helper
     - steps: Individual saga step implementations
     - compensation: Rollback/compensation logic
+    - compensation_handlers: Standalone compensation step handlers
     - persistence: Database operations
     - exceptions: Custom exception types
     - types: Type definitions and data structures
@@ -26,8 +28,10 @@ Architecture:
     app/orchestration/saga_orchestrator/
     ├── __init__.py          # Public API (this file)
     ├── orchestrator.py      # Main orchestrator class
+    ├── metrics.py           # Prometheus metrics and helpers
     ├── steps.py             # Step implementations
     ├── compensation.py      # Compensation logic
+    ├── compensation_handlers.py  # Compensation step handlers
     ├── persistence.py       # Database operations
     ├── exceptions.py        # Custom exceptions
     └── types.py             # Type definitions
@@ -64,10 +68,6 @@ from .types import (
     ResumeResult,
 )
 
-# Re-export SagaStatus enum for backward compatibility
-# (original saga_orchestrator.py imported this from enums)
-from app.models.enums import SagaStatus
-
 __all__ = [
     # Main class
     "SagaOrchestrator",
@@ -88,8 +88,6 @@ __all__ = [
     "FailedSagaSummary",
     "CompensationResult",
     "ResumeResult",
-    # Backward compatibility re-exports
-    "SagaStatus",
 ]
 
 __version__ = "2.0.0"

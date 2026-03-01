@@ -7,9 +7,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, renderHook, act, waitFor } from '@testing-library/react'
 import { useAuth } from '@/contexts/AuthContext'
-import { createWrapperWithProviders, mockUser, mockSession } from '../test-utils'
+import { createWrapperWithProviders, mockUser } from '../test-utils'
 import * as firebaseAuthService from '@/services/firebase-auth'
-import { firebaseAuth } from '@/lib/firebase-client'
+import { firebaseAuthLazy } from '@/lib/firebase-lazy'
 import { apiClient } from '@/lib/api-client'
 import { wsManager } from '@/lib/websocket'
 
@@ -18,13 +18,15 @@ vi.mock('@/services/firebase-auth', () => ({
   loginUser: vi.fn(),
   logoutUser: vi.fn(),
   logoutAllDevices: vi.fn(),
+  setSessionId: vi.fn(),
+  clearSessionId: vi.fn(),
 }))
 
 // Mock Firebase client
-vi.mock('@/lib/firebase-client', () => ({
-  firebaseAuth: {
+vi.mock('@/lib/firebase-lazy', () => ({
+  firebaseAuthLazy: {
     isConfigured: vi.fn(() => true),
-    onAuthStateChange: vi.fn(),
+    onAuthStateChanged: vi.fn(),
     onIdTokenChanged: vi.fn(),
     getCurrentUser: vi.fn(),
     signOut: vi.fn(),
@@ -45,8 +47,14 @@ vi.mock('@/lib/websocket', () => ({
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
     setAuthToken: vi.fn((token) => console.log('setAuthToken called with:', token)),
+    clearAuthToken: vi.fn(),
+    fetchCsrfToken: vi.fn(),
     auth: {
       me: vi.fn(),
+      checkAuth: vi.fn(),
+    },
+    dashboard: {
+      getMain: vi.fn(),
     },
   },
 }))
@@ -73,13 +81,14 @@ describe('Firebase Authentication Comprehensive Tests', () => {
     mockUnsubscribe = vi.fn()
 
     // Setup Firebase Auth mocks
-    vi.mocked(firebaseAuth.onAuthStateChange).mockReturnValue(mockUnsubscribe)
-    vi.mocked(firebaseAuth.onIdTokenChanged).mockReturnValue(mockUnsubscribe)
-    vi.mocked(firebaseAuth.getCurrentUser).mockResolvedValue(mockFirebaseUser)
-    vi.mocked(firebaseAuth.setPersistence).mockResolvedValue()
+    vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockReturnValue(mockUnsubscribe)
+    vi.mocked(firebaseAuthLazy.onIdTokenChanged).mockReturnValue(mockUnsubscribe)
+    vi.mocked(firebaseAuthLazy.getCurrentUser).mockResolvedValue(mockFirebaseUser)
+    vi.mocked(firebaseAuthLazy.setPersistence).mockResolvedValue()
 
     // Setup API client mock
     vi.mocked(apiClient.auth.me).mockResolvedValue({ data: mockUser })
+    vi.mocked(apiClient.auth.checkAuth).mockResolvedValue({ authenticated: false })
   })
 
   afterEach(() => {
@@ -90,7 +99,7 @@ describe('Firebase Authentication Comprehensive Tests', () => {
   describe('Firebase Authentication Flow', () => {
     it('should handle Firebase authentication state changes', async () => {
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -109,16 +118,21 @@ describe('Firebase Authentication Comprehensive Tests', () => {
         expect(result.current.isLoading).toBe(false)
         expect(result.current.isAuthenticated).toBe(true)
         expect(result.current.user).toEqual(mockUser)
-        expect(result.current.session?.access_token).toBe('firebase-token-123')
+        expect(result.current.session?.websocketToken).toBe('firebase-token-123')
       })
 
-      expect(apiClient.setAuthToken).toHaveBeenCalledWith('firebase-token-123')
       expect(wsManager.connect).toHaveBeenCalledWith('firebase-token-123')
     })
 
     it('should handle Firebase token refresh', async () => {
       let tokenRefreshHandler: any
-      vi.mocked(firebaseAuth.onIdTokenChanged).mockImplementation((handler) => {
+      let authStateHandler: any
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
+        authStateHandler = handler
+        return mockUnsubscribe
+      })
+
+      vi.mocked(firebaseAuthLazy.onIdTokenChanged).mockImplementation((handler) => {
         tokenRefreshHandler = handler
         return mockUnsubscribe
       })
@@ -131,20 +145,23 @@ describe('Firebase Authentication Comprehensive Tests', () => {
 
       // Simulate token refresh
       await act(async () => {
+        await authStateHandler(mockFirebaseUser)
+      })
+
+      await act(async () => {
         await tokenRefreshHandler(mockFirebaseUser)
       })
 
       await waitFor(() => {
-        expect(result.current.session?.access_token).toBe(newToken)
+        expect(result.current.session?.websocketToken).toBe(newToken)
       })
 
-      expect(apiClient.setAuthToken).toHaveBeenCalledWith(newToken)
       expect(wsManager.updateToken).toHaveBeenCalledWith(newToken)
     })
 
     it('should handle Firebase sign out', async () => {
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -208,7 +225,7 @@ describe('Firebase Authentication Comprehensive Tests', () => {
         await result.current.login('test@example.com', 'password123', true)
       })
 
-      expect(firebaseAuth.setPersistence).toHaveBeenCalledWith(true)
+      expect(firebaseAuthLazy.setPersistence).toHaveBeenCalledWith(true)
     })
 
     it('should handle Firebase authentication errors', async () => {
@@ -233,7 +250,7 @@ describe('Firebase Authentication Comprehensive Tests', () => {
 
     it('should handle persistence setting errors gracefully', async () => {
       const persistenceError = new Error('Persistence setting failed')
-      vi.mocked(firebaseAuth.setPersistence).mockRejectedValue(persistenceError)
+      vi.mocked(firebaseAuthLazy.setPersistence).mockRejectedValue(persistenceError)
       vi.mocked(firebaseAuthService.loginUser).mockResolvedValue({
         user: mockUser,
         session_id: 'cookie',
@@ -322,11 +339,11 @@ describe('Firebase Authentication Comprehensive Tests', () => {
       const token = await result.current.getFirebaseToken()
 
       expect(token).toBe('firebase-token-123')
-      expect(firebaseAuth.getCurrentUser).toHaveBeenCalled()
+      expect(firebaseAuthLazy.getCurrentUser).toHaveBeenCalled()
     })
 
     it('should return null when no Firebase user', async () => {
-      vi.mocked(firebaseAuth.getCurrentUser).mockResolvedValue(null)
+      vi.mocked(firebaseAuthLazy.getCurrentUser).mockResolvedValue(null)
 
       const wrapper = createWrapperWithProviders()
       const { result } = renderHook(() => useAuth(), { wrapper })
@@ -348,7 +365,6 @@ describe('Firebase Authentication Comprehensive Tests', () => {
       })
 
       expect(mockFirebaseUser.getIdToken).toHaveBeenCalledWith(true)
-      expect(apiClient.setAuthToken).toHaveBeenCalledWith(newToken)
     })
 
     it('should handle token refresh errors', async () => {
@@ -370,10 +386,10 @@ describe('Firebase Authentication Comprehensive Tests', () => {
     it('should handle backend user validation failure', async () => {
       // Backend rejects user
       vi.mocked(apiClient.auth.me).mockRejectedValue(new Error('Unauthorized'))
-      vi.mocked(firebaseAuth.signOut).mockResolvedValue()
+      vi.mocked(firebaseAuthLazy.signOut).mockResolvedValue({ error: null })
 
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -390,17 +406,17 @@ describe('Firebase Authentication Comprehensive Tests', () => {
         expect(result.current.user).toBe(null)
       })
 
-      expect(firebaseAuth.signOut).toHaveBeenCalled()
+      expect(firebaseAuthLazy.signOut).toHaveBeenCalled()
       expect(wsManager.disconnect).toHaveBeenCalled()
     })
 
     it('should handle missing user data from backend', async () => {
       // Backend returns empty response
       vi.mocked(apiClient.auth.me).mockResolvedValue({ data: null })
-      vi.mocked(firebaseAuth.signOut).mockResolvedValue()
+      vi.mocked(firebaseAuthLazy.signOut).mockResolvedValue({ error: null })
 
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -417,13 +433,13 @@ describe('Firebase Authentication Comprehensive Tests', () => {
         expect(result.current.user).toBe(null)
       })
 
-      expect(firebaseAuth.signOut).toHaveBeenCalled()
+      expect(firebaseAuthLazy.signOut).toHaveBeenCalled()
     })
   })
 
   describe('Firebase Configuration', () => {
     it('should handle Firebase not configured', async () => {
-      vi.mocked(firebaseAuth.isConfigured).mockReturnValue(false)
+      vi.mocked(firebaseAuthLazy.isConfigured).mockReturnValue(false)
 
       const wrapper = createWrapperWithProviders()
       const { result } = renderHook(() => useAuth(), { wrapper })
@@ -433,7 +449,7 @@ describe('Firebase Authentication Comprehensive Tests', () => {
         expect(result.current.isAuthenticated).toBe(false)
       })
 
-      expect(firebaseAuth.onAuthStateChange).not.toHaveBeenCalled()
+      expect(firebaseAuthLazy.onAuthStateChanged).not.toHaveBeenCalled()
     })
 
     it('should cleanup Firebase listeners on unmount', () => {
@@ -449,7 +465,7 @@ describe('Firebase Authentication Comprehensive Tests', () => {
   describe('WebSocket Integration', () => {
     it('should connect WebSocket on authentication', async () => {
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -466,7 +482,7 @@ describe('Firebase Authentication Comprehensive Tests', () => {
 
     it('should disconnect WebSocket on logout', async () => {
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -484,7 +500,7 @@ describe('Firebase Authentication Comprehensive Tests', () => {
     it('should update WebSocket token on refresh', async () => {
       const newToken = 'updated-ws-token-456'
       let tokenRefreshHandler: any
-      vi.mocked(firebaseAuth.onIdTokenChanged).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onIdTokenChanged).mockImplementation((handler) => {
         tokenRefreshHandler = handler
         return mockUnsubscribe
       })
@@ -507,7 +523,7 @@ describe('Firebase Authentication Comprehensive Tests', () => {
       mockFirebaseUser.getIdToken.mockRejectedValue(new Error('Token generation failed'))
 
       let authStateHandler: any
-      vi.mocked(firebaseAuth.onAuthStateChange).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onAuthStateChanged).mockImplementation((handler) => {
         authStateHandler = handler
         return mockUnsubscribe
       })
@@ -531,7 +547,7 @@ describe('Firebase Authentication Comprehensive Tests', () => {
     it('should handle token refresh errors gracefully', async () => {
       const refreshError = new Error('Token refresh failed')
       let tokenRefreshHandler: any
-      vi.mocked(firebaseAuth.onIdTokenChanged).mockImplementation((handler) => {
+      vi.mocked(firebaseAuthLazy.onIdTokenChanged).mockImplementation((handler) => {
         tokenRefreshHandler = handler
         return mockUnsubscribe
       })

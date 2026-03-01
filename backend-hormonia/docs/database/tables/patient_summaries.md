@@ -9,10 +9,10 @@
 | **generated_by** | `UUID` | ✅ | - |  | ➡️ [users]( users.md ).id |
 | **start_date** | `DATE` | ❌ | - |  |  |
 | **end_date** | `DATE` | ❌ | - |  |  |
-| **content** | `JSONB` | ❌ | `'{}'::jsonb` |  |  |
+| **content** | `JSONB` | ❌ | - |  |  |
 | **pdf_data** | `BYTEA` | ✅ | - |  |  |
 | **token_usage** | `INTEGER` | ✅ | - |  |  |
-| **model_used** | `VARCHAR(100)` | ✅ | `'gemini-2.5-flash-latest'::character varying` |  |  |
+| **model_used** | `VARCHAR(100)` | ✅ | - |  |  |
 | **generation_time_ms** | `INTEGER` | ✅ | - |  |  |
 | **created_at** | `TIMESTAMP` | ❌ | `now()` |  |  |
 | **updated_at** | `TIMESTAMP` | ❌ | `now()` |  |  |
@@ -21,6 +21,7 @@
 
 | Name | Unique | Columns |
 | :--- | :--- | :--- |
-| idx_patient_summaries_created_at | ❌ | `created_at` |
-| idx_patient_summaries_patient_id | ❌ | `patient_id` |
+| idx_patient_summaries_generated_at | ❌ | `created_at` |
 | idx_patient_summaries_patient_period | ❌ | `patient_id, start_date, end_date` |
+| ix_patient_summaries_id | ❌ | `id` |
+| ix_patient_summaries_patient_id | ❌ | `patient_id` |

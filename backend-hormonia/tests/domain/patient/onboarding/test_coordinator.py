@@ -16,6 +16,15 @@ from app.domain.patient.onboarding.coordinator import OnboardingCoordinator
 from app.models.patient import Patient
 from app.schemas.patient import PatientCreate
 from app.exceptions import ValidationError
+from app.utils.db_retry import reset_circuit_breaker
+
+
+@pytest.fixture(autouse=True)
+def _reset_db_circuit_breaker_state():
+    """Ensure global DB circuit breaker state does not leak across tests."""
+    reset_circuit_breaker()
+    yield
+    reset_circuit_breaker()
 
 
 @pytest.fixture
@@ -32,7 +41,7 @@ def mock_db():
 def mock_integrity_service():
     """Mock IntegrityService."""
     service = MagicMock()
-    service.validate_patient_data = AsyncMock(return_value=None)
+    service.validate_patient_data = MagicMock(return_value=None)
     service.generate_patient_hash = MagicMock(return_value="test_hash_123")
     return service
 

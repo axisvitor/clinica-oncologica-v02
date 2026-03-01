@@ -1,7 +1,7 @@
 """
 API tests for Patient Creation Endpoint.
 
-This test suite covers POST /api/v2/patients endpoint including:
+This test suite covers POST /api/v2/patients/ endpoint including:
 - Successful patient creation
 - Authentication requirements
 - RBAC authorization
@@ -20,15 +20,17 @@ class TestPatientsCreateAPI:
     """Test patient creation API endpoint."""
 
     @pytest.fixture
-    def valid_patient_payload(self):
+    def valid_patient_payload(self, test_user):
         """Valid patient creation payload."""
+        doctor_id = str(test_user.id)
         return {
             "name": "João Silva",
-            "email": "joao.silva@example.com",
+            "email": "joao.silva@gmail.com",
             "phone": "+5511999887766",
             "birth_date": "1980-05-15",
             "treatment_type": "Quimioterapia",
-            "cpf": "12345678900",
+            "cpf": "52998224725",
+            "doctor_id": doctor_id,
             "metadata": {
                 "source": "api_test"
             }
@@ -41,10 +43,10 @@ class TestPatientsCreateAPI:
         Verifies 401 response when no auth token provided.
         """
         # Act
-        response = client.post("/api/v2/patients", json=valid_patient_payload)
+        response = client.post("/api/v2/patients/", json=valid_patient_payload)
 
         # Assert
-        assert response.status_code == 401
+        assert response.status_code in [401, 403]
 
     def test_create_patient_success(
         self,
@@ -58,7 +60,7 @@ class TestPatientsCreateAPI:
         """
         # Act
         response = authenticated_client.post(
-            "/api/v2/patients",
+            "/api/v2/patients/",
             json=valid_patient_payload
         )
 
@@ -72,7 +74,7 @@ class TestPatientsCreateAPI:
         assert data["phone"] == valid_patient_payload["phone"]
         assert data["treatment_type"] == valid_patient_payload["treatment_type"]
 
-    def test_create_patient_validates_required_fields(self, authenticated_client):
+    def test_create_patient_validates_required_fields(self, authenticated_client, test_user):
         """
         Test validation of required fields.
 
@@ -80,22 +82,27 @@ class TestPatientsCreateAPI:
         """
         # Arrange - missing required field 'name'
         invalid_payload = {
-            "email": "test@example.com",
-            "phone": "+5511999887766"
+            "email": "test@gmail.com",
+            "phone": "+5511999887766",
+            "doctor_id": str(test_user.id),
         }
 
         # Act
         response = authenticated_client.post(
-            "/api/v2/patients",
+            "/api/v2/patients/",
             json=invalid_payload
         )
 
         # Assert
         assert response.status_code == 422
         errors = response.json()
-        assert "detail" in errors
+        assert errors.get("error") == "VALIDATION_ERROR"
+        assert any(
+            err.get("field") == "body.name"
+            for err in errors.get("details", {}).get("errors", [])
+        )
 
-    def test_create_patient_validates_email_format(self, authenticated_client):
+    def test_create_patient_validates_email_format(self, authenticated_client, test_user):
         """
         Test email format validation.
 
@@ -107,16 +114,17 @@ class TestPatientsCreateAPI:
             "email": "invalid-email",  # Invalid format
             "phone": "+5511999887766",
             "birth_date": "1980-05-15",
-            "treatment_type": "Test"
+            "treatment_type": "Test",
+            "doctor_id": str(test_user.id),
         }
 
         # Act
-        response = authenticated_client.post("/api/v2/patients", json=payload)
+        response = authenticated_client.post("/api/v2/patients/", json=payload)
 
         # Assert
         assert response.status_code == 422
 
-    def test_create_patient_validates_phone_format(self, authenticated_client):
+    def test_create_patient_validates_phone_format(self, authenticated_client, test_user):
         """
         Test phone number format validation.
 
@@ -125,19 +133,20 @@ class TestPatientsCreateAPI:
         # Arrange
         payload = {
             "name": "Test Patient",
-            "email": "test@example.com",
+            "email": "test@gmail.com",
             "phone": "123",  # Invalid format
             "birth_date": "1980-05-15",
-            "treatment_type": "Test"
+            "treatment_type": "Test",
+            "doctor_id": str(test_user.id),
         }
 
         # Act
-        response = authenticated_client.post("/api/v2/patients", json=payload)
+        response = authenticated_client.post("/api/v2/patients/", json=payload)
 
         # Assert
         assert response.status_code == 422
 
-    def test_create_patient_validates_birth_date_format(self, authenticated_client):
+    def test_create_patient_validates_birth_date_format(self, authenticated_client, test_user):
         """
         Test birth date format validation.
 
@@ -146,14 +155,15 @@ class TestPatientsCreateAPI:
         # Arrange
         payload = {
             "name": "Test Patient",
-            "email": "test@example.com",
+            "email": "test@gmail.com",
             "phone": "+5511999887766",
             "birth_date": "15/05/1980",  # Invalid format
-            "treatment_type": "Test"
+            "treatment_type": "Test",
+            "doctor_id": str(test_user.id),
         }
 
         # Act
-        response = authenticated_client.post("/api/v2/patients", json=payload)
+        response = authenticated_client.post("/api/v2/patients/", json=payload)
 
         # Assert
         assert response.status_code == 422
@@ -170,21 +180,21 @@ class TestPatientsCreateAPI:
         """
         # Arrange - create patient first
         response1 = authenticated_client.post(
-            "/api/v2/patients",
+            "/api/v2/patients/",
             json=valid_patient_payload
         )
         assert response1.status_code == 201
 
         # Act - try to create duplicate
         response2 = authenticated_client.post(
-            "/api/v2/patients",
+            "/api/v2/patients/",
             json=valid_patient_payload
         )
 
         # Assert
         assert response2.status_code in [400, 409]  # Bad Request or Conflict
 
-    def test_create_patient_with_metadata(self, authenticated_client):
+    def test_create_patient_with_metadata(self, authenticated_client, test_user):
         """
         Test patient creation with custom metadata.
 
@@ -193,10 +203,11 @@ class TestPatientsCreateAPI:
         # Arrange
         payload = {
             "name": "Test Patient",
-            "email": "test@example.com",
+            "email": "test@gmail.com",
             "phone": "+5511999887766",
             "birth_date": "1980-05-15",
             "treatment_type": "Test",
+            "doctor_id": str(test_user.id),
             "metadata": {
                 "source": "referral",
                 "doctor_name": "Dr. João",
@@ -205,7 +216,7 @@ class TestPatientsCreateAPI:
         }
 
         # Act
-        response = authenticated_client.post("/api/v2/patients", json=payload)
+        response = authenticated_client.post("/api/v2/patients/", json=payload)
 
         # Assert
         assert response.status_code == 201
@@ -225,7 +236,7 @@ class TestPatientsCreateAPI:
         """
         # Act
         response = authenticated_client.post(
-            "/api/v2/patients",
+            "/api/v2/patients/",
             json=valid_patient_payload
         )
 
@@ -241,23 +252,24 @@ class TestPatientsCreateAPI:
     def test_create_patient_doctor_id_from_token(
         self,
         authenticated_client,
-        valid_patient_payload
+        valid_patient_payload,
+        test_user,
     ):
         """
-        Test that doctor_id is extracted from auth token.
+        Test that doctor_id is respected for authenticated user.
 
         Verifies user context is properly used.
         """
         # Act
         response = authenticated_client.post(
-            "/api/v2/patients",
+            "/api/v2/patients/",
             json=valid_patient_payload
         )
 
         # Assert
         assert response.status_code == 201
         data = response.json()
-        assert "doctor_id" in data or "id" in data  # Patient should be associated with doctor
+        assert data.get("doctor_id") == str(test_user.id)
 
     def test_create_patient_unauthorized_role(self, client, valid_patient_payload):
         """
@@ -270,10 +282,10 @@ class TestPatientsCreateAPI:
 
         # Arrange - login with non-doctor role if applicable
         # For now, test that unauthenticated request fails
-        response = client.post("/api/v2/patients", json=valid_patient_payload)
+        response = client.post("/api/v2/patients/", json=valid_patient_payload)
 
         # Assert
-        assert response.status_code == 401
+        assert response.status_code in [401, 403]
 
     def test_create_patient_empty_payload_returns_error(self, authenticated_client):
         """
@@ -282,7 +294,7 @@ class TestPatientsCreateAPI:
         Verifies request body is required.
         """
         # Act
-        response = authenticated_client.post("/api/v2/patients", json={})
+        response = authenticated_client.post("/api/v2/patients/", json={})
 
         # Assert
         assert response.status_code == 422

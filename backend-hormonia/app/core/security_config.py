@@ -67,7 +67,7 @@ class DomainSecurityConfig(BaseModel):
     """Domain-based security configuration."""
 
     # Trusted domains for automatic role assignment
-    trusted_domains: List[str] = ["hormonia.io", "admin.local", "clinica.med.br"]
+    trusted_domains: List[str] = ["hormonia.io", "clinica.med.br"]
 
     # High-security domains requiring additional verification
     high_security_domains: List[str] = ["med.br", "saude.gov.br", "crm.org.br"]
@@ -451,7 +451,7 @@ SESSION_TIMEOUT_MINUTES=480
 MFA_ENABLED=false
 
 # Domain Security
-TRUSTED_DOMAINS=hormonia.io,admin.local,clinica.med.br
+TRUSTED_DOMAINS=hormonia.io,clinica.med.br
 BLOCKED_DOMAINS=tempmail.org,10minutemail.com
 
 # API Security

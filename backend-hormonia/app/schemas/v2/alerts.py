@@ -283,9 +283,9 @@ class AlertV2Response(AlertV2Base):
                 "status": "acknowledged",
                 "acknowledged": True,
                 "acknowledged_by": "323e4567-e89b-12d3-a456-426614174002",
-                "acknowledged_at": "2025-01-17T15:30:00Z",
-                "created_at": "2025-01-17T14:30:00Z",
-                "updated_at": "2025-01-17T15:30:00Z",
+                "acknowledged_at": "2025-01-17T15:30:00-03:00",
+                "created_at": "2025-01-17T14:30:00-03:00",
+                "updated_at": "2025-01-17T15:30:00-03:00",
                 "data": {"medication_name": "Anastrozole", "scheduled_time": "14:00"},
                 "patient": {
                     "id": "223e4567-e89b-12d3-a456-426614174001",
@@ -341,7 +341,7 @@ class PatientAlertSummaryV2(BaseModel):
                 "medium_alerts": 7,
                 "low_alerts": 3,
                 "recent_alerts_7d": 5,
-                "last_alert_at": "2025-01-17T14:30:00Z",
+                "last_alert_at": "2025-01-17T14:30:00-03:00",
                 "risk_score": 45.5,
                 "risk_level": "HIGH",
                 "risk_factors": [
@@ -433,7 +433,7 @@ class PatientRiskScoreV2(BaseModel):
                     "Consider escalating to specialist",
                     "Address 3 unresolved alerts",
                 ],
-                "calculated_at": "2025-01-17T15:00:00Z",
+                "calculated_at": "2025-01-17T15:00:00-03:00",
                 "alert_count_30d": 12,
                 "unresolved_count": 3,
             }
@@ -486,8 +486,8 @@ class AlertRuleV2(BaseModel):
                     "medications": ["Anastrozole", "Letrozole"],
                 },
                 "alert_template": "Patient missed {medication_name} at {scheduled_time}",
-                "created_at": "2025-01-01T10:00:00Z",
-                "updated_at": "2025-01-15T14:00:00Z",
+                "created_at": "2025-01-01T10:00:00-03:00",
+                "updated_at": "2025-01-15T14:00:00-03:00",
                 "created_by": "323e4567-e89b-12d3-a456-426614174002",
             }
         },
@@ -638,11 +638,11 @@ class AlertEscalationV2(BaseModel):
             "example": {
                 "alert_id": "123e4567-e89b-12d3-a456-426614174000",
                 "escalation_status": "escalated_to_specialist",
-                "escalated_at": "2025-01-17T15:30:00Z",
+                "escalated_at": "2025-01-17T15:30:00-03:00",
                 "escalated_by": "323e4567-e89b-12d3-a456-426614174002",
                 "escalated_to": "423e4567-e89b-12d3-a456-426614174003",
                 "escalation_notes": "Patient showing severe side effects, specialist review needed",
-                "resolution_deadline": "2025-01-17T18:00:00Z",
+                "resolution_deadline": "2025-01-17T18:00:00-03:00",
             }
         }
     )

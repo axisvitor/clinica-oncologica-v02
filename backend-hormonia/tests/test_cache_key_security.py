@@ -273,30 +273,6 @@ class TestSecurityImplications:
 class TestCacheKeyIntegration:
     """Integration tests for cache key behavior in real scenarios."""
 
-    @pytest.mark.asyncio
-    async def test_insights_endpoint_uses_user_specific_cache(self, async_client, auth_headers):
-        """
-        Verify insights endpoint creates user-specific cache keys.
-
-        NOTE: This is a placeholder for integration testing.
-        Actual implementation would require:
-        - Mock Redis client
-        - Mock current_user authentication
-        - Verify cache key format in Redis
-        """
-        # TODO: Implement with actual test client and mocked dependencies
-        pass
-
-    @pytest.mark.asyncio
-    async def test_humanize_endpoint_uses_user_specific_cache(self, async_client, auth_headers):
-        """
-        Verify humanize endpoint creates user-specific cache keys.
-
-        NOTE: This is a placeholder for integration testing.
-        """
-        # TODO: Implement with actual test client and mocked dependencies
-        pass
-
 
 # ============================================================================
 # Test Coverage Summary

@@ -3,6 +3,20 @@ import asyncio
 import threading
 from app.core.redis_manager import RedisManager
 
+
+@pytest.fixture(scope="module")
+def require_redis():
+    """Skip module when Redis infrastructure is not available."""
+    manager = RedisManager()
+    try:
+        client = manager.get_sync_client()
+        client.ping()
+    except Exception:
+        pytest.skip("Requires running Redis instance for reliability audit")
+    finally:
+        manager.close_sync()
+
+
 @pytest.mark.performance
 class TestRedisReliabilityAudit:
     """
@@ -10,7 +24,7 @@ class TestRedisReliabilityAudit:
     """
 
     @pytest.mark.asyncio
-    async def test_async_client_lifecycle(self):
+    async def test_async_client_lifecycle(self, require_redis):
         """Verify that async Redis client can be created, used, and closed."""
         manager = RedisManager()
         try:
@@ -21,7 +35,7 @@ class TestRedisReliabilityAudit:
         finally:
             await manager.close_all()
 
-    def test_sync_client_lifecycle(self):
+    def test_sync_client_lifecycle(self, require_redis):
         """Verify that sync Redis client can be created, used, and closed."""
         manager = RedisManager()
         try:
@@ -31,7 +45,7 @@ class TestRedisReliabilityAudit:
         finally:
             manager.close_sync()
 
-    def test_multithreaded_sync_access(self):
+    def test_multithreaded_sync_access(self, require_redis):
         """Verify thread-safety of the sync Redis client."""
         manager = RedisManager()
         client = manager.get_sync_client()
@@ -53,7 +67,7 @@ class TestRedisReliabilityAudit:
             
         manager.close_sync()
 
-    def test_client_compatibility_detection_sync(self):
+    def test_client_compatibility_detection_sync(self, require_redis):
         """Verify automatic client type detection in sync context."""
         manager = RedisManager()
         try:
@@ -67,7 +81,7 @@ class TestRedisReliabilityAudit:
             manager.close_sync()
             
     @pytest.mark.asyncio
-    async def test_concurrent_async_access(self):
+    async def test_concurrent_async_access(self, require_redis):
         """Verify connection pool stability under concurrent async load."""
         manager = RedisManager()
         try:

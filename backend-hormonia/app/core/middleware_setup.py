@@ -5,22 +5,58 @@ Configures essential middlewares for the FastAPI application.
 
 MIDDLEWARE EXECUTION ORDER (what request sees):
 1. CORS (handles preflight OPTIONS) - MUST BE FIRST
-2. Security Headers (HSTS, CSP, X-Frame-Options)
-3. Rate Limiting (Redis-backed, prevents abuse)
-4. CSRF Protection (Double Submit Cookie pattern)
-5. Request Logging (debug only)
-6. HTTP Response Caching (ETag + user-specific caching)
-7. Compression (response optimization)
+2. CORS Preflight Headers (OPTIONS without Access-Control-Request-Method)
+3. Security Headers (HSTS, CSP, X-Frame-Options)
+4. Rate Limiting (Redis-backed, prevents abuse)
+5. CSRF Protection (Double Submit Cookie pattern)
+6. Request Logging (debug only)
+7. HTTP Response Caching (ETag + user-specific caching)
+8. Compression (response optimization)
 
 NOTE: FastAPI executes middlewares in REVERSE order of addition.
       Middleware added LAST executes FIRST.
 """
+import time
+import os
+import sys
+from typing import Dict
 
 from fastapi import FastAPI
 from app.config import settings
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+# ==========================================================================
+# CRITICAL MIDDLEWARES TRACKING
+# ==========================================================================
+# Track loading status of critical security middlewares for health checks.
+# In production, all must be loaded or the application will fail to start.
+# ==========================================================================
+
+CRITICAL_MIDDLEWARES: Dict[str, bool] = {
+    "csrf": False,
+    "security_headers": False,
+    "rate_limiting": False,
+}
+
+
+def _is_test_environment() -> bool:
+    app_env = str(getattr(settings, "APP_ENVIRONMENT", "")).lower()
+    if app_env == "production":
+        return False
+
+    return bool(
+        "pytest" in sys.modules
+        or os.getenv("PYTEST_CURRENT_TEST")
+        or os.getenv("TESTING") == "1"
+        or app_env in ("test", "testing")
+    )
+
+
+def get_middleware_status() -> Dict[str, bool]:
+    """Return copy of critical middleware status for health checks."""
+    return CRITICAL_MIDDLEWARES.copy()
 
 
 def setup_middleware(app: FastAPI) -> None:
@@ -31,6 +67,47 @@ def setup_middleware(app: FastAPI) -> None:
     - First added = Last to execute
     - Last added = First to execute (CORS)
     """
+
+    # Test mode: keep middleware stack minimal and deterministic.
+    # Several BaseHTTP middlewares can deadlock under ASGI in-process transports.
+    if _is_test_environment():
+        csrf_secret = None
+        if hasattr(settings, "SECURITY_CSRF_SECRET_KEY"):
+            csrf_secret = settings.SECURITY_CSRF_SECRET_KEY
+            if hasattr(csrf_secret, "get_secret_value"):
+                csrf_secret = csrf_secret.get_secret_value()
+
+        if csrf_secret:
+            try:
+                from app.middleware.csrf import CSRFMiddleware
+
+                app.add_middleware(CSRFMiddleware)
+                CRITICAL_MIDDLEWARES["csrf"] = True
+                logger.info("[TEST] CSRF middleware added")
+            except ImportError as e:
+                logger.warning(f"[TEST] CSRF middleware unavailable: {e}")
+
+        try:
+            from app.middleware.security_headers import SecurityHeadersMiddleware
+
+            app.add_middleware(
+                SecurityHeadersMiddleware,
+                enable_hsts=False,
+                frame_options="DENY",
+                content_type_options="nosniff",
+                xss_protection="1; mode=block",
+                referrer_policy="strict-origin-when-cross-origin",
+            )
+            CRITICAL_MIDDLEWARES["security_headers"] = True
+            logger.info("[TEST] Security headers middleware added")
+        except ImportError as e:
+            logger.warning(f"[TEST] Security headers middleware unavailable: {e}")
+
+        from app.core.cors import configure_cors
+
+        configure_cors(app)
+        logger.info("[TEST] Minimal middleware stack enabled (CSRF + SecurityHeaders + CORS)")
+        return
 
     # ========================================================================
     # 1. COMPRESSION (added first, executes last)
@@ -87,8 +164,10 @@ def setup_middleware(app: FastAPI) -> None:
             logger.warning(f"Request logging middleware not available: {e}")
 
     # ========================================================================
-    # 4. CSRF PROTECTION
+    # 4. CSRF PROTECTION (fail-fast in production)
     # ========================================================================
+    is_production = settings.APP_ENVIRONMENT.lower() == "production"
+
     csrf_secret = None
     if hasattr(settings, "SECURITY_CSRF_SECRET_KEY"):
         csrf_secret = settings.SECURITY_CSRF_SECRET_KEY
@@ -100,43 +179,79 @@ def setup_middleware(app: FastAPI) -> None:
             from app.middleware.csrf import CSRFMiddleware
 
             app.add_middleware(CSRFMiddleware)
+            CRITICAL_MIDDLEWARES["csrf"] = True
             logger.info("[4/7] CSRF protection middleware added")
         except ImportError as e:
-            logger.warning(f"CSRF middleware not available: {e}")
+            logger.error(f"CSRF middleware failed to load: {e}")
+            if is_production:
+                raise RuntimeError(
+                    "CRITICAL: CSRF middleware failed to load in production. "
+                    "Ensure app.middleware.csrf module is available."
+                )
+            logger.warning("CSRF middleware not available in development mode")
     else:
         logger.warning("[4/7] CSRF protection DISABLED - Set SECURITY_CSRF_SECRET_KEY")
-
-    # ========================================================================
-    # 5. RATE LIMITING (Redis-backed)
-    # ========================================================================
-    try:
-        from app.core.redis_client import get_redis_client
-        from app.middleware.distributed_rate_limiter import RateLimitMiddleware
-
-        redis_client = get_redis_client()
-
-        if redis_client:
-            app.add_middleware(
-                RateLimitMiddleware,
-                redis=redis_client,
-                default_limit=100,
-                default_window=60,
+        if is_production:
+            raise RuntimeError(
+                "CRITICAL: CSRF secret not configured in production. "
+                "Set SECURITY_CSRF_SECRET_KEY environment variable."
             )
-            logger.info("[5/7] Rate limiting middleware added (Redis-backed)")
-        else:
-            logger.warning("[5/7] Rate limiting DISABLED - Redis not available")
-    except ImportError as e:
-        logger.warning(f"[5/7] Rate limiting not available: {e}")
-    except Exception as e:
-        logger.error(f"[5/7] Rate limiting error: {e}")
 
     # ========================================================================
-    # 6. SECURITY HEADERS
+    # 5. RATE LIMITING (Redis-backed, retry with exponential backoff)
+    # ========================================================================
+    max_retries = 3
+    rate_limiting_loaded = False
+
+    for attempt in range(max_retries):
+        try:
+            from app.core.redis_client import get_redis_client
+            from app.middleware.distributed_rate_limiter import RateLimitMiddleware
+
+            redis_client = get_redis_client()
+
+            if redis_client:
+                # Test Redis connection
+                redis_client.ping()
+
+                app.add_middleware(
+                    RateLimitMiddleware,
+                    redis=redis_client,
+                    default_limit=100,
+                    default_window=60,
+                )
+                CRITICAL_MIDDLEWARES["rate_limiting"] = True
+                rate_limiting_loaded = True
+                logger.info("[5/7] Rate limiting middleware added (Redis-backed)")
+                break
+            else:
+                raise ConnectionError("Redis client returned None")
+
+        except (ImportError, ConnectionError, Exception) as e:
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                logger.warning(
+                    f"Rate limiting attempt {attempt + 1}/{max_retries} failed: {e}. "
+                    f"Retrying in {wait_time}s..."
+                )
+                time.sleep(wait_time)
+            else:
+                logger.error(f"Rate limiting failed after {max_retries} attempts: {e}")
+                if is_production:
+                    raise RuntimeError(
+                        f"CRITICAL: Rate limiting failed after {max_retries} retries. "
+                        "Ensure Redis is available and properly configured."
+                    )
+                logger.warning("Rate limiting DISABLED in development mode")
+
+    if not rate_limiting_loaded:
+        logger.warning("[5/7] Rate limiting DISABLED - Redis not available")
+
+    # ========================================================================
+    # 6. SECURITY HEADERS (fail-fast in production)
     # ========================================================================
     try:
         from app.middleware.security_headers import SecurityHeadersMiddleware
-
-        is_production = settings.APP_ENVIRONMENT.lower() == "production"
 
         app.add_middleware(
             SecurityHeadersMiddleware,
@@ -158,29 +273,64 @@ def setup_middleware(app: FastAPI) -> None:
                 "accelerometer=()"
             ),
         )
+        CRITICAL_MIDDLEWARES["security_headers"] = True
         logger.info("[6/7] Security headers middleware added")
     except ImportError as e:
-        logger.warning(f"Security headers middleware not available: {e}")
+        logger.error(f"Security headers middleware failed to load: {e}")
+        if is_production:
+            raise RuntimeError(
+                "CRITICAL: Security headers middleware failed to load in production. "
+                "Ensure app.middleware.security_headers module is available."
+            )
+        logger.warning("Security headers middleware not available in development mode")
 
     # ========================================================================
-    # 7. LGPD COMPLIANCE (added seventh, executes second)
+    # 7. LGPD COMPLIANCE (added seventh, executes third)
     # ========================================================================
     try:
         from app.middleware.lgpd_middleware import LGPDMiddleware
 
         app.add_middleware(LGPDMiddleware, enable_ip_logging=True)
-        logger.info("[7/8] LGPD compliance middleware added")
+        logger.info("[7/9] LGPD compliance middleware added")
     except ImportError as e:
         logger.warning(f"LGPD middleware not available: {e}")
 
     # ========================================================================
-    # 8. CORS (added last, executes FIRST)
+    # 8. CORS PRE-FLIGHT HEADER FIXES (added eighth, executes second)
+    # ========================================================================
+    try:
+        from app.middleware.cors_preflight import CORSPreflightHeadersMiddleware
+
+        app.add_middleware(CORSPreflightHeadersMiddleware)
+        logger.info("[8/9] CORS preflight headers middleware added")
+    except ImportError as e:
+        logger.warning(f"CORS preflight middleware not available: {e}")
+
+    # ========================================================================
+    # 9. CORS (added last, executes FIRST)
     # ========================================================================
     from app.core.cors import configure_cors
 
     configure_cors(app)
-    logger.info("[8/8] CORS middleware added (executes FIRST)")
+    logger.info("[9/9] CORS middleware added (executes FIRST)")
+
+    # ========================================================================
+    # FINAL VALIDATION (production only)
+    # ========================================================================
+    if is_production:
+        failed_middlewares = [
+            name for name, loaded in CRITICAL_MIDDLEWARES.items()
+            if not loaded
+        ]
+        if failed_middlewares:
+            error_msg = (
+                f"CRITICAL: Failed to load essential middlewares: {', '.join(failed_middlewares)}. "
+                "Application cannot start without these security protections."
+            )
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+        logger.info("All critical middlewares loaded successfully")
 
     # Summary
-    env = "PRODUCTION" if settings.APP_ENVIRONMENT.lower() == "production" else "DEVELOPMENT"
+    env = "PRODUCTION" if is_production else "DEVELOPMENT"
     logger.info(f"Middleware setup complete - {env} mode with HTTP caching enabled")

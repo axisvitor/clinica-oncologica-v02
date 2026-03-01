@@ -41,7 +41,9 @@ def get_cors_config() -> dict:
 
 
 # =============================================================================
-# CSRF Exempt Paths (Single Source of Truth)
+# CSRF Exempt Paths (LEGACY - not used by CSRFMiddleware)
+# The actual CSRF middleware uses its own EXEMPT_PATHS in csrf.py.
+# Kept for backward compatibility with test_refactor_validation.py.
 # =============================================================================
 CSRF_EXEMPT_PATHS: Set[str] = {
     "/docs",
@@ -49,19 +51,21 @@ CSRF_EXEMPT_PATHS: Set[str] = {
     "/openapi.json",
     "/health",
     "/api/v2/auth/csrf-token",
+    "/api/v2/auth/logout",
     "/api/v2/auth/firebase/verify",
+    "/api/v2/enhanced-messages",
     "/webhooks/",
     "/api/public/",
     "/api/v2/quiz-extensions/monthly/public",
-    "/api/v2/monthly-quiz-public/monthly/public",
-    "/api/v2/monthly-quiz/monthly/public",
 }
 
 
 # =============================================================================
 # Rate Limit Configuration
 # =============================================================================
-RATE_LIMIT_WHITELIST_IPS: Set[str] = set()  # Add trusted IPs here
+# LEGACY: Always empty. The actual rate limiter (distributed_rate_limiter.py)
+# uses its own whitelist. Kept for backward compatibility.
+RATE_LIMIT_WHITELIST_IPS: Set[str] = set()
 
 RATE_LIMIT_EXEMPT_PATHS: Set[str] = {
     "/health",

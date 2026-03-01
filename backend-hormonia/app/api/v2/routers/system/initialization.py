@@ -16,18 +16,20 @@ import time
 
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.schemas.v2.system import (
     InitializationRequest,
     InitializationStatusResponse,
 )
 from app.dependencies.auth_dependencies import get_current_user_from_session
-from app.core.redis_client import get_async_redis_client
 from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.config import settings
-from app.api.v2.utils.auth_helpers import is_admin as _is_admin
+from app.utils.auth_helpers import is_admin as _is_admin
+from app.utils.timezone import now_sao_paulo
+from .helpers.auth import get_redis_client as _get_redis_client
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -41,20 +43,6 @@ _initialization_state = {
     "errors": [],
     "warnings": [],
 }
-
-
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-
-async def _get_redis_client():
-    """Get async Redis client for caching."""
-    try:
-        return await get_async_redis_client()
-    except Exception as e:
-        logger.warning(f"Failed to get Redis client: {e}")
-        return None
 
 
 # ============================================================================
@@ -84,7 +72,7 @@ async def initialize_system(
     request: Request,
     init_request: Optional[InitializationRequest] = None,
     current_user=Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Trigger comprehensive system initialization.
@@ -117,7 +105,7 @@ async def initialize_system(
     # Start initialization
     start_time = time.time()
     _initialization_state = {
-        "started_at": datetime.now(timezone.utc),
+        "started_at": now_sao_paulo(),
         "completed_at": None,
         "status": "in_progress",
         "components": {},
@@ -139,7 +127,7 @@ async def initialize_system(
             try:
                 if component == "database":
                     # Test database connection
-                    db.execute(text("SELECT 1"))
+                    await db.execute(text("SELECT 1"))
                     _initialization_state["components"]["database"] = "initialized"
 
                 elif component == "redis":
@@ -169,7 +157,7 @@ async def initialize_system(
                     {
                         "component": component,
                         "error_message": str(e),
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "timestamp": now_sao_paulo().isoformat(),
                         "recoverable": True,
                     }
                 )
@@ -187,7 +175,7 @@ async def initialize_system(
         else:
             _initialization_state["status"] = "completed"
 
-        _initialization_state["completed_at"] = datetime.now(timezone.utc)
+        _initialization_state["completed_at"] = now_sao_paulo()
         duration_ms = (time.time() - start_time) * 1000
         _initialization_state["duration_ms"] = duration_ms
 
@@ -200,12 +188,12 @@ async def initialize_system(
     except Exception as e:
         logger.error(f"System initialization failed: {e}", exc_info=True)
         _initialization_state["status"] = "failed"
-        _initialization_state["completed_at"] = datetime.now(timezone.utc)
+        _initialization_state["completed_at"] = now_sao_paulo()
         _initialization_state["errors"].append(
             {
                 "component": "system",
                 "error_message": str(e),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "recoverable": False,
             }
         )

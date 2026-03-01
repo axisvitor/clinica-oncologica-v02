@@ -5,6 +5,27 @@ Revises: 003_add_last_retry_at
 Create Date: 2025-11-07 11:00:00.000000
 
 Sprint 1 - Fix: Add optimistic locking to prevent race conditions in flow state updates
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 
 from alembic import op

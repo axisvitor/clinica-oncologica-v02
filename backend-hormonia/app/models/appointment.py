@@ -4,7 +4,7 @@ Appointment model for patient appointments.
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Boolean, Integer
+from sqlalchemy import Column, String, DateTime, ForeignKey, Text, Boolean, Integer, Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import relationship
 import enum
@@ -65,11 +65,29 @@ class Appointment(BaseModel):
     )
 
     # Appointment Details
-    appointment_type = Column(String(50), nullable=False, index=True)
-    status = Column(
-        String(50),
+    appointment_type = Column(
+        SAEnum(
+            AppointmentType,
+            name="appointment_type",
+            native_enum=True,
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
         nullable=False,
-        default=AppointmentStatus.SCHEDULED.value,
+        index=True,
+    )
+    status = Column(
+        SAEnum(
+            AppointmentStatus,
+            name="appointment_status",
+            native_enum=True,
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
+        nullable=False,
+        default=AppointmentStatus.SCHEDULED,
         index=True,
     )
 

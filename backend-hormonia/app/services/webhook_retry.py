@@ -42,6 +42,7 @@ from app.monitoring.metrics import (
     webhook_retry_failures,
     webhook_dlq_enqueued,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +84,7 @@ class WebhookRetryService:
         self.min_wait = min_wait or webhook_settings.WEBHOOK_RETRY_MIN_WAIT
         self.max_wait = max_wait or webhook_settings.WEBHOOK_RETRY_MAX_WAIT
         self.multiplier = multiplier or webhook_settings.WEBHOOK_RETRY_MULTIPLIER
-
-        # Track attempt number for metrics
+        # Backward-compatible state used by legacy tests/observers.
         self._current_attempt = 0
 
         logger.info(
@@ -94,15 +94,21 @@ class WebhookRetryService:
             f"max_wait={self.max_wait}s"
         )
 
-    @retry(
-        stop=stop_after_attempt(5),  # Will be overridden by instance config
-        wait=wait_exponential(multiplier=1, min=2, max=60),
-        retry=retry_if_exception_type(
-            (TimeoutError, ConnectionError, aiohttp.ClientError, asyncio.TimeoutError)
-        ),
-        before_sleep=before_sleep_log(logger, logging.WARNING),
-        after=after_log(logger, logging.INFO),
-    )
+    def _retry_wait_seconds(self, attempt_number: int) -> int:
+        """
+        Calculate exponential backoff delay after a failed attempt.
+
+        attempt_number is 1-based:
+            1 -> min_wait
+            2 -> min_wait * 2
+            3 -> min_wait * 4
+        """
+        base_wait = int(self.min_wait * self.multiplier)
+        if base_wait <= 0:
+            base_wait = int(self.min_wait) if self.min_wait else 1
+        delay = base_wait * (2 ** max(0, attempt_number - 1))
+        return min(delay, int(self.max_wait))
+
     async def process_webhook_with_retry(
         self, webhook_data: Dict[str, Any], processor_func: Optional[Callable] = None
     ) -> Dict[str, Any]:
@@ -128,71 +134,81 @@ class WebhookRetryService:
         Raises:
             RetryError: If all retries are exhausted
         """
-        self._current_attempt += 1
-        attempt_number = self._current_attempt
-
-        # Record retry attempt metric
-        webhook_retry_attempts.labels(attempt_number=attempt_number).inc()
-
         webhook_id = webhook_data.get("id", "unknown")
 
-        try:
-            # Process webhook
-            if processor_func:
-                result = await processor_func(webhook_data)
-            else:
-                result = await self._process_webhook_internal(webhook_data)
+        # Build a per-call retrying wrapper using instance config (no shared state)
+        retrying = retry(
+            stop=stop_after_attempt(self.max_retries),
+            wait=wait_exponential(
+                multiplier=self._retry_wait_seconds(1),
+                min=self._retry_wait_seconds(1),
+                max=self.max_wait,
+            ),
+            retry=retry_if_exception_type(
+                (TimeoutError, ConnectionError, aiohttp.ClientError, asyncio.TimeoutError)
+            ),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            after=after_log(logger, logging.INFO),
+            reraise=True,
+        )
 
-            # Record success
-            webhook_retry_success.labels(attempt_number=attempt_number).inc()
+        async def _attempt(webhook_data: Dict[str, Any]) -> Dict[str, Any]:
+            # Tenacity tracks attempt number internally via retry_state
+            attempt_number = _attempt.retry.statistics.get("attempt_number", 1)
+            self._current_attempt = attempt_number
 
-            logger.info(
-                f"Webhook {webhook_id} processed successfully on attempt {attempt_number}",
-                extra={
-                    "webhook_id": webhook_id,
-                    "attempt": attempt_number,
-                    "total_attempts": self.max_retries,
-                },
-            )
+            # Record retry attempt metric
+            webhook_retry_attempts.labels(attempt_number=attempt_number).inc()
 
-            # Reset attempt counter on success
-            self._current_attempt = 0
+            try:
+                if processor_func:
+                    result = await processor_func(webhook_data)
+                else:
+                    result = await self._process_webhook_internal(webhook_data)
 
-            return result
-
-        except Exception as e:
-            # Record failure
-            webhook_retry_failures.labels(
-                attempt_number=attempt_number, error_type=type(e).__name__
-            ).inc()
-
-            logger.warning(
-                f"Webhook {webhook_id} processing failed on attempt {attempt_number}: {e}",
-                extra={
-                    "webhook_id": webhook_id,
-                    "attempt": attempt_number,
-                    "error": str(e),
-                    "error_type": type(e).__name__,
-                },
-            )
-
-            # Check if we've exhausted retries
-            if attempt_number >= self.max_retries:
-                logger.error(
-                    f"Webhook {webhook_id} failed after {attempt_number} attempts",
-                    extra={"webhook_id": webhook_id, "final_error": str(e)},
-                )
-
-                # Send to DLQ
-                await self._send_to_dlq(webhook_data, error=str(e))
-
-                # Reset counter
+                webhook_retry_success.labels(attempt_number=attempt_number).inc()
                 self._current_attempt = 0
+                logger.info(
+                    f"Webhook {webhook_id} processed successfully on attempt {attempt_number}",
+                    extra={
+                        "webhook_id": webhook_id,
+                        "attempt": attempt_number,
+                        "total_attempts": self.max_retries,
+                    },
+                )
+                return result
 
+            except Exception as e:
+                webhook_retry_failures.labels(
+                    attempt_number=attempt_number, error_type=type(e).__name__
+                ).inc()
+
+                logger.warning(
+                    f"Webhook {webhook_id} processing failed on attempt {attempt_number}: {e}",
+                    extra={
+                        "webhook_id": webhook_id,
+                        "attempt": attempt_number,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
+                )
                 raise
 
-            # Re-raise for tenacity to retry
+        _attempt = retrying(_attempt)
+
+        try:
+            return await _attempt(webhook_data)
+        except Exception as e:
+            # All retries exhausted -- send to DLQ
+            logger.error(
+                f"Webhook {webhook_id} failed after {self.max_retries} attempts",
+                extra={"webhook_id": webhook_id, "final_error": str(e)},
+            )
+            await self._send_to_dlq(webhook_data, error=str(e))
             raise
+        finally:
+            # Avoid leaking attempt state across requests.
+            self._current_attempt = 0
 
     async def _process_webhook_internal(
         self, webhook_data: Dict[str, Any]
@@ -213,7 +229,7 @@ class WebhookRetryService:
         return {
             "status": "success",
             "webhook_id": webhook_data.get("id"),
-            "processed_at": datetime.now(timezone.utc).isoformat(),
+            "processed_at": now_sao_paulo().isoformat(),
         }
 
     async def _send_to_dlq(self, webhook_data: Dict[str, Any], error: str) -> None:
@@ -235,7 +251,7 @@ class WebhookRetryService:
             "webhook_data": webhook_data,
             "error": error,
             "retry_count": self.max_retries,
-            "failed_at": datetime.now(timezone.utc).isoformat(),
+            "failed_at": now_sao_paulo().isoformat(),
             "error_type": "max_retries_exhausted",
         }
 
@@ -270,16 +286,12 @@ class WebhookRetryService:
             "min_wait_seconds": self.min_wait,
             "max_wait_seconds": self.max_wait,
             "multiplier": self.multiplier,
-            "current_attempt": self._current_attempt,
             "retry_schedule": [
                 {
                     "attempt": i + 1,
-                    "wait_time": min(
-                        self.min_wait * (self.multiplier**i), self.max_wait
-                    ),
+                    "wait_time": self._retry_wait_seconds(i + 1),
                     "cumulative_wait": sum(
-                        min(self.min_wait * (self.multiplier**j), self.max_wait)
-                        for j in range(i)
+                        self._retry_wait_seconds(j + 1) for j in range(i)
                     ),
                 }
                 for i in range(self.max_retries)

@@ -27,7 +27,7 @@ This PR introduces comprehensive refactoring across backend and frontend, implem
   - `024_drop_plaintext_cpf.py` - Remove unencrypted CPF
   - `025_add_patient_idempotency_key.py` - Idempotent patient creation
   - `026_placeholder_reserved.py` - Migration sequence fix
-  - `027_consolidate_duplicate_migrations.py` - Cleanup duplicates
+  - `027_consolidate_duplicates.py` - Cleanup duplicates
   - `028_encrypt_email_phone_lgpd.py` - Email/Phone encryption
 
 - **LGPD Middleware**: Request logging with PII masking
@@ -94,7 +94,7 @@ ENCRYPTION_KEY=<min 32 characters>
     ↓
 026_placeholder_reserved (no-op)
     ↓
-027_consolidate_duplicate_migrations
+027_consolidate_duplicates
     ↓
 028_encrypt_email_phone_lgpd
 ```

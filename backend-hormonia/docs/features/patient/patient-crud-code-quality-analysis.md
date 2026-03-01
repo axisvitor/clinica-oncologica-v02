@@ -149,7 +149,7 @@ for patient in patients:
 # Lines 206-241: archive_patient
 patient.flow_state = FlowState.CANCELLED
 patient.patient_data["archived"] = True
-patient.patient_data["archived_at"] = datetime.now(timezone.utc).isoformat()
+patient.patient_data["archived_at"] = now_sao_paulo().isoformat()
 
 # ❌ PROBLEM: flag_modified called BEFORE try-catch
 flag_modified(patient, "patient_data")
@@ -173,7 +173,7 @@ try:
 
     patient.patient_data.update({
         "archived": True,
-        "archived_at": datetime.now(timezone.utc).isoformat(),
+        "archived_at": now_sao_paulo().isoformat(),
         "archived_by": str(user_id) if user_id else None,
     })
 

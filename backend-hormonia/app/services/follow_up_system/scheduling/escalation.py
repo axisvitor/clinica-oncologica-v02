@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from ..models import FollowUpAction
 from ..enums import NotificationChannel
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ class EscalationScheduler:
                 )
 
             # Mark action as executed
-            action.executed_at = datetime.now(timezone.utc)
+            action.executed_at = now_sao_paulo()
             action.status = "executed"
             action.execution_result = {
                 "notifications_sent": len(alert.notification_channels),
@@ -100,7 +101,7 @@ class EscalationScheduler:
             )
 
             # Mark as executed
-            action.executed_at = datetime.now(timezone.utc)
+            action.executed_at = now_sao_paulo()
             action.status = "executed"
 
             logger.info(

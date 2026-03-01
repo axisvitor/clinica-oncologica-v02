@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
 
 from app.exceptions import ExternalServiceError
+from app.utils.timezone import now_sao_paulo_naive
 
 
 class MessageType(str, Enum):
@@ -20,16 +21,6 @@ class MessageType(str, Enum):
     LIST = "list"
     MEDIA = "media"
     LOCATION = "location"
-
-
-class MessageStatus(str, Enum):
-    """Message delivery status."""
-
-    PENDING = "pending"
-    SENT = "sent"
-    DELIVERED = "delivered"
-    READ = "read"
-    FAILED = "failed"
 
 
 class TextMessage(BaseModel):
@@ -69,7 +60,7 @@ class WebhookEvent(BaseModel):
     event: str = Field(..., description="Event type")
     instance: str = Field(..., description="Instance name")
     data: Dict[str, Any] = Field(..., description="Event data")
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=now_sao_paulo_naive)
 
 
 class EvolutionAPIError(ExternalServiceError):

@@ -11,10 +11,10 @@ const mockPatients = [
     gender: 'male',
     treatment_type: 'chemotherapy',
     status: 'active',
-    created_at: '2023-01-01T00:00:00Z',
-    updated_at: '2023-01-01T00:00:00Z',
-    last_interaction: '2023-12-01T10:30:00Z',
-    next_appointment: '2023-12-15T14:00:00Z'
+    created_at: '2023-01-01T00:00:00-03:00',
+    updated_at: '2023-01-01T00:00:00-03:00',
+    last_interaction: '2023-12-01T10:30:00-03:00',
+    next_appointment: '2023-12-15T14:00:00-03:00'
   },
   {
     id: 'patient-2',
@@ -25,10 +25,10 @@ const mockPatients = [
     gender: 'female',
     treatment_type: 'radiotherapy',
     status: 'active',
-    created_at: '2023-01-02T00:00:00Z',
-    updated_at: '2023-01-02T00:00:00Z',
-    last_interaction: '2023-11-30T15:45:00Z',
-    next_appointment: '2023-12-20T09:00:00Z'
+    created_at: '2023-01-02T00:00:00-03:00',
+    updated_at: '2023-01-02T00:00:00-03:00',
+    last_interaction: '2023-11-30T15:45:00-03:00',
+    next_appointment: '2023-12-20T09:00:00-03:00'
   }
 ]
 
@@ -40,8 +40,8 @@ const mockMessages = [
     type: 'text',
     direction: 'outbound',
     status: 'delivered',
-    sent_at: '2023-12-01T10:00:00Z',
-    delivered_at: '2023-12-01T10:01:00Z'
+    sent_at: '2023-12-01T10:00:00-03:00',
+    delivered_at: '2023-12-01T10:01:00-03:00'
   },
   {
     id: 'message-2',
@@ -50,8 +50,8 @@ const mockMessages = [
     type: 'text',
     direction: 'inbound',
     status: 'received',
-    sent_at: '2023-12-01T10:30:00Z',
-    received_at: '2023-12-01T10:30:00Z'
+    sent_at: '2023-12-01T10:30:00-03:00',
+    received_at: '2023-12-01T10:30:00-03:00'
   }
 ]
 
@@ -75,7 +75,7 @@ const mockQuizzes = [
         required: true
       }
     ],
-    created_at: '2023-01-01T00:00:00Z'
+    created_at: '2023-01-01T00:00:00-03:00'
   }
 ]
 
@@ -86,7 +86,7 @@ const mockReports = [
     type: 'progress',
     title: 'Relatório de Progresso - João Silva',
     status: 'completed',
-    generated_at: '2023-12-01T00:00:00Z',
+    generated_at: '2023-12-01T00:00:00-03:00',
     data: {
       summary: 'Paciente mostra boa evolução no tratamento',
       metrics: {
@@ -298,14 +298,14 @@ export const handlers = [
         type: 'message_sent',
         title: 'Mensagem enviada',
         description: 'Como você está se sentindo hoje?',
-        timestamp: '2023-12-01T10:00:00Z'
+        timestamp: '2023-12-01T10:00:00-03:00'
       },
       {
         id: 'event-2',
         type: 'message_received',
         title: 'Resposta recebida',
         description: 'Estou me sentindo bem!',
-        timestamp: '2023-12-01T10:30:00Z'
+        timestamp: '2023-12-01T10:30:00-03:00'
       }
     ])
   }),

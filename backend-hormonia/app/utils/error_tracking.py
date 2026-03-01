@@ -12,6 +12,7 @@ from enum import Enum
 
 from app.utils.logging import get_logger
 from app.config import settings
+from app.utils.timezone import now_sao_paulo
 
 
 class ErrorSeverity(Enum):
@@ -78,7 +79,7 @@ class ErrorTracker:
         error_event = ErrorEvent(
             error_type=error_type,
             message=str(error),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             severity=severity,
             context=context or {},
             stack_trace=traceback.format_exc(),
@@ -190,7 +191,7 @@ class ErrorTracker:
     def _check_alert_conditions(self, error_event: ErrorEvent) -> None:
         """Check if alert conditions are met and send alerts."""
         error_type = error_event.error_type
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
 
         # Check if we've exceeded the alert threshold
         recent_errors_of_type = [
@@ -265,7 +266,7 @@ class ErrorTracker:
 
     def get_error_summary(self, hours: int = 24) -> dict[str, Any]:
         """Get error summary for the specified time period."""
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = now_sao_paulo() - timedelta(hours=hours)
 
         recent_errors = [e for e in self.recent_errors if e.timestamp >= cutoff_time]
 
@@ -316,12 +317,12 @@ class ErrorTracker:
             "total_errors": len(recent_errors),
             "unique_error_types": len(result),
             "errors_by_type": result,
-            "summary_generated_at": datetime.now(timezone.utc).isoformat(),
+            "summary_generated_at": now_sao_paulo().isoformat(),
         }
 
     def clear_old_errors(self, hours: int = 24) -> int:
         """Clear errors older than specified hours."""
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        cutoff_time = now_sao_paulo() - timedelta(hours=hours)
 
         original_count = len(self.recent_errors)
 

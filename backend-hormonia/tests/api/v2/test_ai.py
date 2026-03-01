@@ -18,10 +18,11 @@ from unittest.mock import patch, AsyncMock
 from fastapi import status
 from fastapi.testclient import TestClient
 
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.models.patient import Patient, FlowState
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Fixtures
 # ============================================================================
@@ -45,29 +46,23 @@ def mock_redis_client():
     return redis_mock
 
 
-@pytest.fixture
-def physician_user(db_session):
-    """Create physician user for testing."""
-    user = User(
-        id=uuid4(),
-        email="doctor@test.com",
-        name="Dr. Test",
-        role=UserRole.DOCTOR,
-        is_active=True,
-    )
-    db_session.add(user)
-    db_session.commit()
-    return user
+@pytest.fixture(autouse=True)
+def enable_ai_simulation(monkeypatch):
+    """Force simulation fallback to keep tests deterministic without LangGraph runtime."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "ALLOW_AI_SIMULATION", True)
+    monkeypatch.setattr(settings, "AI_GEMINI_API_KEY", None)
 
 
 @pytest.fixture
-def test_patient(db_session, physician_user):
+def test_patient(db_session, test_doctor_user):
     """Create test patient."""
     patient = Patient(
         id=uuid4(),
         name="Test Patient",
         phone="+5511999999999",
-        doctor_id=physician_user.id,
+        doctor_id=test_doctor_user.id,
         treatment_type="hormone_therapy",
         current_day=15,
         flow_state=FlowState.ACTIVE,
@@ -78,10 +73,9 @@ def test_patient(db_session, physician_user):
 
 
 @pytest.fixture
-def auth_headers(physician_user):
-    """Create authentication headers."""
-    # Would normally generate JWT token
-    return {"Authorization": f"Bearer test-token-{physician_user.id}"}
+def auth_headers(auth_headers_doctor):
+    """Use shared doctor auth fixture with dependency overrides."""
+    return auth_headers_doctor
 
 
 # ============================================================================
@@ -100,9 +94,9 @@ class TestHumanizeEndpoint:
         mock_redis_client
     ):
         """Test successful message humanization."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.post(
-                "/api/v2/ai/humanize",
+                "/api/v2/ai/humanize/",
                 json={
                     "message": "Time to take your medication",
                     "patient_id": str(test_patient.id),
@@ -143,15 +137,15 @@ class TestHumanizeEndpoint:
             },
             "cache_info": {
                 "hit": True,
-                "cached_at": datetime.utcnow().isoformat(),
+                "cached_at": now_sao_paulo_naive().isoformat(),
             },
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": now_sao_paulo_naive().isoformat(),
         }
         mock_redis_client.get = AsyncMock(return_value=str(cached_response))
 
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.post(
-                "/api/v2/ai/humanize",
+                "/api/v2/ai/humanize/",
                 json={
                     "message": "Test",
                     "message_type": "general",
@@ -170,9 +164,9 @@ class TestHumanizeEndpoint:
         mock_redis_client
     ):
         """Test humanize without patient context."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.post(
-                "/api/v2/ai/humanize",
+                "/api/v2/ai/humanize/",
                 json={
                     "message": "Hello",
                     "message_type": "general",
@@ -192,7 +186,7 @@ class TestHumanizeEndpoint:
     ):
         """Test humanize with invalid message type."""
         response = client.post(
-            "/api/v2/ai/humanize",
+            "/api/v2/ai/humanize/",
             json={
                 "message": "Test",
                 "message_type": "invalid_type",
@@ -210,7 +204,7 @@ class TestHumanizeEndpoint:
     ):
         """Test humanize with invalid tone."""
         response = client.post(
-            "/api/v2/ai/humanize",
+            "/api/v2/ai/humanize/",
             json={
                 "message": "Test",
                 "message_type": "general",
@@ -230,7 +224,7 @@ class TestHumanizeEndpoint:
         long_message = "x" * 2001  # Max is 2000
 
         response = client.post(
-            "/api/v2/ai/humanize",
+            "/api/v2/ai/humanize/",
             json={
                 "message": long_message,
                 "message_type": "general",
@@ -244,7 +238,7 @@ class TestHumanizeEndpoint:
     def test_humanize_unauthorized(self, client: TestClient):
         """Test humanize without authentication."""
         response = client.post(
-            "/api/v2/ai/humanize",
+            "/api/v2/ai/humanize/",
             json={
                 "message": "Test",
                 "message_type": "general",
@@ -262,9 +256,9 @@ class TestHumanizeEndpoint:
     ):
         """Test fallback response when AI service fails."""
         # Simulate AI service failure
-        with patch("app.api.v2.ai.get_redis_cache", side_effect=Exception("AI Error")):
+        with patch("app.api.v2.routers.ai.get_redis_cache", side_effect=Exception("AI Error")):
             response = client.post(
-                "/api/v2/ai/humanize",
+                "/api/v2/ai/humanize/",
                 json={
                     "message": "Test message",
                     "message_type": "general",
@@ -273,10 +267,10 @@ class TestHumanizeEndpoint:
                 headers=auth_headers,
             )
 
-        # Should return fallback (original message)
+        # Should return fallback simulation content
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["humanized_message"] == "Test message"
+        assert "Test message" in data["humanized_message"]
 
 
 class TestBatchHumanize:
@@ -289,7 +283,7 @@ class TestBatchHumanize:
         mock_redis_client
     ):
         """Test successful batch humanization."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.post(
                 "/api/v2/ai/humanize/batch",
                 json={
@@ -365,7 +359,7 @@ class TestCacheStats:
         mock_redis_client
     ):
         """Test successful cache stats retrieval."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.get(
                 "/api/v2/ai/humanize/cache-stats",
                 headers=auth_headers,
@@ -385,7 +379,7 @@ class TestCacheStats:
         auth_headers
     ):
         """Test cache stats when Redis is unavailable."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=None):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=None):
             response = client.get(
                 "/api/v2/ai/humanize/cache-stats",
                 headers=auth_headers,
@@ -410,7 +404,7 @@ class TestInsightsEndpoints:
         mock_redis_client
     ):
         """Test successful insights generation."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.post(
                 "/api/v2/ai/insights/generate",
                 json={
@@ -441,7 +435,7 @@ class TestInsightsEndpoints:
         mock_redis_client
     ):
         """Test GET insights by patient ID."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.get(
                 f"/api/v2/ai/insights/{test_patient.id}?days=30",
                 headers=auth_headers,
@@ -497,7 +491,7 @@ class TestInsightsEndpoints:
         mock_redis_client
     ):
         """Test insights with force refresh (skip cache)."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.post(
                 "/api/v2/ai/insights/generate",
                 json={
@@ -528,7 +522,7 @@ class TestSentimentAnalysis:
         mock_redis_client
     ):
         """Test successful sentiment analysis."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.post(
                 "/api/v2/ai/analyze/sentiment",
                 json={
@@ -555,7 +549,7 @@ class TestSentimentAnalysis:
         mock_redis_client
     ):
         """Test sentiment analysis with patient context."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.post(
                 "/api/v2/ai/analyze/sentiment",
                 json={
@@ -598,7 +592,7 @@ class TestRiskAnalysis:
         mock_redis_client
     ):
         """Test successful risk analysis."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.post(
                 "/api/v2/ai/analyze/risk",
                 json={
@@ -647,7 +641,7 @@ class TestResponseQuality:
         mock_redis_client
     ):
         """Test response quality analysis."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.post(
                 "/api/v2/ai/analyze/response",
                 json={
@@ -680,8 +674,8 @@ class TestHealthEndpoint:
         mock_redis_client
     ):
         """Test health check when all services are operational."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
-            response = client.get("/api/v2/ai/health")
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
+            response = client.get("/api/v2/ai/health/")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -694,8 +688,8 @@ class TestHealthEndpoint:
 
     def test_health_check_redis_down(self, client: TestClient):
         """Test health check when Redis is unavailable."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=None):
-            response = client.get("/api/v2/ai/health")
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=None):
+            response = client.get("/api/v2/ai/health/")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -712,9 +706,9 @@ class TestUsageStats:
         mock_redis_client
     ):
         """Test successful usage stats retrieval."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.get(
-                "/api/v2/ai/usage?period=day",
+                "/api/v2/ai/usage/?period=day",
                 headers=auth_headers,
             )
 
@@ -734,7 +728,7 @@ class TestUsageStats:
     ):
         """Test usage stats with invalid period."""
         response = client.get(
-            "/api/v2/ai/usage?period=invalid",
+            "/api/v2/ai/usage/?period=invalid",
             headers=auth_headers,
         )
 
@@ -746,9 +740,9 @@ class TestUsageStats:
         auth_headers
     ):
         """Test usage stats when Redis is unavailable."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=None):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=None):
             response = client.get(
-                "/api/v2/ai/usage?period=day",
+                "/api/v2/ai/usage/?period=day",
                 headers=auth_headers,
             )
 
@@ -766,30 +760,17 @@ class TestAuthorization:
     def test_patient_cannot_access_ai(
         self,
         client: TestClient,
-        db_session
+        auth_headers_patient
     ):
         """Test that patients cannot access AI endpoints."""
-        # Create patient user
-        patient_user = User(
-            id=uuid4(),
-            email="patient@test.com",
-            name="Patient User",
-            role=UserRole.PATIENT,
-            is_active=True,
-        )
-        db_session.add(patient_user)
-        db_session.commit()
-
-        patient_headers = {"Authorization": f"Bearer test-token-{patient_user.id}"}
-
         response = client.post(
-            "/api/v2/ai/humanize",
+            "/api/v2/ai/humanize/",
             json={
                 "message": "Test",
                 "message_type": "general",
                 "tone": "empathetic",
             },
-            headers=patient_headers,
+            headers=auth_headers_patient,
         )
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
@@ -797,32 +778,19 @@ class TestAuthorization:
     def test_admin_can_access_ai(
         self,
         client: TestClient,
-        db_session,
+        auth_headers_admin,
         mock_redis_client
     ):
         """Test that admins can access AI endpoints."""
-        # Create admin user
-        admin_user = User(
-            id=uuid4(),
-            email="admin@test.com",
-            name="Admin User",
-            role=UserRole.ADMIN,
-            is_active=True,
-        )
-        db_session.add(admin_user)
-        db_session.commit()
-
-        admin_headers = {"Authorization": f"Bearer test-token-{admin_user.id}"}
-
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             response = client.post(
-                "/api/v2/ai/humanize",
+                "/api/v2/ai/humanize/",
                 json={
                     "message": "Test",
                     "message_type": "general",
                     "tone": "empathetic",
                 },
-                headers=admin_headers,
+                headers=auth_headers_admin,
             )
 
         assert response.status_code == status.HTTP_200_OK
@@ -844,10 +812,10 @@ class TestAIIntegration:
         mock_redis_client
     ):
         """Test full workflow: humanize message then analyze sentiment."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             # 1. Humanize message
             humanize_response = client.post(
-                "/api/v2/ai/humanize",
+                "/api/v2/ai/humanize/",
                 json={
                     "message": "How are you feeling?",
                     "patient_id": str(test_patient.id),
@@ -881,11 +849,11 @@ class TestAIIntegration:
         mock_redis_client
     ):
         """Test that token usage is tracked correctly."""
-        with patch("app.api.v2.ai.get_redis_cache", return_value=mock_redis_client):
+        with patch("app.api.v2.routers.ai.get_redis_cache", return_value=mock_redis_client):
             # Make several API calls
             for i in range(3):
                 client.post(
-                    "/api/v2/ai/humanize",
+                    "/api/v2/ai/humanize/",
                     json={
                         "message": f"Test message {i}",
                         "message_type": "general",

@@ -90,15 +90,15 @@ Created comprehensive integration tests for all API connections with **extensive
 **Test File:** `api-connections.test.ts`
 
 **Endpoints Tested:**
-- ✅ `POST /api/v2/monthly-quiz/links` - Create quiz link
-- ✅ `POST /api/v2/monthly-quiz/links/bulk` - Bulk create quiz links
-- ✅ `GET /api/v2/monthly-quiz/links/:id/status` - Get link status
-- ✅ `GET /api/v2/monthly-quiz/stats/dashboard` - Get quiz stats
-- ✅ `GET /api/v2/monthly-quiz/templates` - List templates
-- ✅ `POST /api/v2/monthly-quiz/links/:id/resend` - Resend link
-- ✅ `POST /api/v2/monthly-quiz/links/:id/cancel` - Cancel link
-- ✅ `GET /api/v2/monthly-quiz/sessions/:id` - Get session
-- ✅ `GET /api/v2/monthly-quiz/sessions/:id/responses` - Get responses
+- ✅ `POST /api/v2/quiz-extensions/links` - Create quiz link
+- ✅ `POST /api/v2/quiz-extensions/links/bulk` - Bulk create quiz links
+- ✅ `GET /api/v2/quiz-extensions/links/:id/status` - Get link status
+- ✅ `GET /api/v2/quiz-extensions/stats/dashboard` - Get quiz stats
+- ✅ `GET /api/v2/quiz-extensions/templates` - List templates
+- ✅ `POST /api/v2/quiz-extensions/links/:id/resend` - Resend link
+- ✅ `POST /api/v2/quiz-extensions/links/:id/cancel` - Cancel link
+- ✅ `GET /api/v2/quiz-extensions/sessions/:id` - Get session
+- ✅ `GET /api/v2/quiz-extensions/sessions/:id/responses` - Get responses
 
 **Scenarios Covered:**
 - Single link creation

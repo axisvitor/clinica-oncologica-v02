@@ -23,6 +23,7 @@ from app.core.monthly_quiz_config import get_monthly_quiz_config
 from ..delivery.link_builder import LinkBuilder
 
 import logging
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +111,8 @@ class StatusQuery:
         )
         if session.status == "completed":
             status = QuizLinkStatus.USED
-        elif datetime.now(timezone.utc) > datetime.fromisoformat(
-            metadata.get("expires_at", datetime.now(timezone.utc).isoformat())
+        elif now_sao_paulo() > datetime.fromisoformat(
+            metadata.get("expires_at", now_sao_paulo().isoformat())
         ):
             status = QuizLinkStatus.EXPIRED
 
@@ -124,7 +125,7 @@ class StatusQuery:
             delivery_method=DeliveryMethod(metadata.get("delivery_method", "whatsapp")),
             status=status,
             expires_at=datetime.fromisoformat(
-                metadata.get("expires_at", datetime.now(timezone.utc).isoformat())
+                metadata.get("expires_at", now_sao_paulo().isoformat())
             ),
             created_at=session.started_at,
             accessed_at=datetime.fromisoformat(metadata["accessed_at"])
@@ -210,7 +211,7 @@ class StatusQuery:
         )
 
         active_links = []
-        current_time = datetime.now(timezone.utc)
+        current_time = now_sao_paulo()
 
         for session in sessions:
             metadata = session.session_metadata or {}
@@ -260,7 +261,7 @@ class StatusQuery:
 
         sessions = query.all()
         results = []
-        current_time = datetime.now(timezone.utc)
+        current_time = now_sao_paulo()
 
         for session in sessions:
             metadata = session.session_metadata or {}

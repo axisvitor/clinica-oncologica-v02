@@ -4,7 +4,7 @@ Comprehensive Unit Tests for RedisManager
 Tests Redis connection management, pooling, SSL/TLS configuration, and lifecycle.
 """
 import pytest
-import ssl
+import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 from redis.exceptions import ConnectionError
 
@@ -60,7 +60,7 @@ class TestRedisManagerInitialization:
         assert manager.socket_timeout == 5.0
         assert manager.socket_connect_timeout == 2.0
         assert manager.max_connections == 20
-        assert manager._async_client is None
+        assert len(manager._async_clients) == 0
         assert manager._sync_client is None
 
     @patch('app.core.redis_manager.manager.settings')
@@ -113,57 +113,6 @@ class TestRedisManagerInitialization:
         # DB isolation disabled, so DB number should not be in URL
         assert manager.db_number == 2
         assert manager.redis_url == "redis://localhost:6379/0"
-
-
-class TestSSLConfiguration:
-    """Test SSL/TLS configuration."""
-
-    @patch('app.core.redis_manager.manager.settings')
-    @patch('app.core.redis_manager.manager.REDIS_CA_CERT_PATH')
-    def test_create_ssl_context_with_verification(self, mock_cert_path, mock_settings):
-        """Test SSL context creation with certificate verification."""
-        mock_settings.REDIS_SSL_CERT_REQS = "required"
-        mock_cert_path.exists.return_value = True
-
-        from app.core.redis_manager.manager import RedisManager
-
-        manager = RedisManager()
-        ssl_context = manager._create_ssl_context()
-
-        assert ssl_context is not None
-        assert ssl_context.verify_mode == ssl.CERT_REQUIRED
-        assert ssl_context.check_hostname is True
-        assert ssl_context.minimum_version == ssl.TLSVersion.TLSv1_2
-
-    @patch('app.core.redis_manager.manager.settings')
-    def test_create_ssl_context_without_verification(self, mock_settings):
-        """Test SSL context creation without certificate verification."""
-        mock_settings.REDIS_SSL_CERT_REQS = "none"
-
-        from app.core.redis_manager.manager import RedisManager
-
-        manager = RedisManager()
-        ssl_context = manager._create_ssl_context()
-
-        assert ssl_context is not None
-        assert ssl_context.verify_mode == ssl.CERT_NONE
-        assert ssl_context.check_hostname is False
-        assert ssl_context.minimum_version == ssl.TLSVersion.TLSv1_2
-
-    @patch('app.core.redis_manager.manager.settings')
-    @patch('app.core.redis_manager.manager.REDIS_CA_CERT_PATH')
-    def test_create_ssl_context_fallback_to_system_certs(self, mock_cert_path, mock_settings):
-        """Test SSL context creation falls back to system certs when CA cert not found."""
-        mock_settings.REDIS_SSL_CERT_REQS = "required"
-        mock_cert_path.exists.return_value = False
-
-        from app.core.redis_manager.manager import RedisManager
-
-        manager = RedisManager()
-        ssl_context = manager._create_ssl_context()
-
-        assert ssl_context is not None
-        assert ssl_context.verify_mode == ssl.CERT_REQUIRED
 
 
 class TestAsyncClientManagement:
@@ -272,10 +221,10 @@ class TestAsyncClientManagement:
         manager = RedisManager()
         client = await manager.get_async_client()
 
-        # Verify SSL context was passed
+        # Verify SSL configuration was passed
         call_kwargs = mock_pool_class.from_url.call_args[1]
-        assert "ssl" in call_kwargs
-        assert isinstance(call_kwargs["ssl"], ssl.SSLContext)
+        assert "ssl_cert_reqs" in call_kwargs
+        assert call_kwargs["ssl_cert_reqs"] == "none"
 
         # Verify URL was converted to rediss://
         call_url = mock_pool_class.from_url.call_args[0][0]
@@ -368,10 +317,9 @@ class TestConnectionPoolWarmup:
         # Create mock async client
         mock_client = AsyncMock()
         mock_client.ping = AsyncMock(return_value=True)
-        manager._async_client = mock_client
 
         # Run warmup
-        await manager._warmup_connection_pool_async()
+        await manager._warmup_connection_pool_async(mock_client)
 
         # Verify PING was called the expected number of times
         assert mock_client.ping.call_count == 3
@@ -390,10 +338,9 @@ class TestConnectionPoolWarmup:
         # Create mock async client that fails
         mock_client = AsyncMock()
         mock_client.ping = AsyncMock(side_effect=Exception("Connection failed"))
-        manager._async_client = mock_client
 
         # Warmup should not raise exception
-        await manager._warmup_connection_pool_async()
+        await manager._warmup_connection_pool_async(mock_client)
 
 
 class TestConnectionCleanup:
@@ -410,18 +357,19 @@ class TestConnectionCleanup:
         # Create mock async client and pool
         mock_client = AsyncMock()
         mock_client.aclose = AsyncMock()
-        manager._async_client = mock_client
 
         mock_pool = AsyncMock()
         mock_pool.aclose = AsyncMock()
-        manager._async_pool = mock_pool
+        loop = asyncio.get_running_loop()
+        manager._async_clients[loop] = mock_client
+        manager._async_pools[loop] = mock_pool
 
         await manager.close_async()
 
         mock_client.aclose.assert_called_once()
         mock_pool.aclose.assert_called_once()
-        assert manager._async_client is None
-        assert manager._async_pool is None
+        assert len(manager._async_clients) == 0
+        assert len(manager._async_pools) == 0
 
     @patch('app.core.redis_manager.manager.settings')
     def test_close_sync_connections(self, mock_settings):
@@ -462,7 +410,8 @@ class TestPoolStatistics:
         from app.core.redis_manager.manager import RedisManager
 
         manager = RedisManager()
-        manager._async_pool = AsyncMock()
+        loop = asyncio.get_running_loop()
+        manager._async_pools[loop] = AsyncMock()
 
         stats = await manager.get_pool_stats_async()
 

@@ -6,6 +6,27 @@ Stores array of permission strings like ["patients:read", "patients:write"].
 Revision ID: 023_add_user_permissions
 Revises: 022_add_cursor_pagination_indexes
 Create Date: 2025-11-26
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa

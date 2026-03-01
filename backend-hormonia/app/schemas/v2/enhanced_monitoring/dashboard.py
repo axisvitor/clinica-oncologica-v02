@@ -54,7 +54,7 @@ class DashboardStatusResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "active_connections": 5,
                 "metrics_snapshot": {
                     "apm_error_rate": 2.5,
@@ -110,8 +110,8 @@ class GrafanaQueryRequest(BaseModel):
             "example": {
                 "targets": ["cpu_usage", "memory_usage"],
                 "range": {
-                    "from": "2025-11-07T11:00:00Z",
-                    "to": "2025-11-07T12:00:00Z",
+                    "from": "2025-11-07T11:00:00-03:00",
+                    "to": "2025-11-07T12:00:00-03:00",
                 },
                 "max_data_points": 1000,
             }
@@ -134,7 +134,7 @@ class GrafanaQueryResponse(BaseModel):
                         "datapoints": [[45.2, 1699363200000], [46.5, 1699363260000]],
                     }
                 ],
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
             }
         }
     )
@@ -208,7 +208,7 @@ class ServiceActionResponse(BaseModel):
             "example": {
                 "success": True,
                 "message": "Monitoring services started successfully",
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
             }
         }
     )
@@ -225,7 +225,7 @@ class StatsResetResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "message": "All monitoring statistics have been reset",
-                "timestamp": "2025-11-07T12:00:00Z",
+                "timestamp": "2025-11-07T12:00:00-03:00",
                 "reset_by": "admin-user-123",
             }
         }

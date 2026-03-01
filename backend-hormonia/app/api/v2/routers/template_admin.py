@@ -14,9 +14,10 @@ from fastapi import (
     Query,
     Request,
 )
-from sqlalchemy import or_
+from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.flow import FlowKind, FlowTemplateVersion
 from app.models.quiz import QuizTemplate
 from app.dependencies.auth_dependencies import get_current_user_from_session
@@ -31,7 +32,7 @@ from app.api.v2.templates_shared import (
     RATE_LIMIT_READ,
     RATE_LIMIT_SEARCH,
 )
-from app.utils.audit_logger import AuditLogger, AuditAction
+from app.monitoring.audit_logger import TemplateAuditLogger as AuditLogger, TemplateAuditAction as AuditAction
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ async def search_templates(
         None, description="Filter by type (flow, quiz)"
     ),
     limit: int = Query(20, ge=1, le=100, description="Results limit"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     """
@@ -67,10 +68,10 @@ async def search_templates(
 
         # Search flow templates
         if not template_type or template_type == "flow":
-            flow_query = (
-                db.query(FlowTemplateVersion)
+            flow_result = await db.execute(
+                select(FlowTemplateVersion)
                 .join(FlowKind)
-                .filter(
+                .where(
                     or_(
                         FlowTemplateVersion.template_name.ilike(f"%{q}%"),
                         FlowTemplateVersion.description.ilike(f"%{q}%"),
@@ -80,8 +81,9 @@ async def search_templates(
                 )
                 .limit(limit)
             )
+            flow_templates = flow_result.scalars().all()
 
-            for template in flow_query:
+            for template in flow_templates:
                 results.append(
                     {
                         "type": "flow",
@@ -94,9 +96,8 @@ async def search_templates(
 
         # Search quiz templates
         if not template_type or template_type == "quiz":
-            quiz_query = (
-                db.query(QuizTemplate)
-                .filter(
+            quiz_result = await db.execute(
+                select(QuizTemplate).where(
                     or_(
                         QuizTemplate.name.ilike(f"%{q}%"),
                         QuizTemplate.description.ilike(f"%{q}%"),
@@ -105,8 +106,9 @@ async def search_templates(
                 )
                 .limit(limit)
             )
+            quiz_templates = quiz_result.scalars().all()
 
-            for quiz in quiz_query:
+            for quiz in quiz_templates:
                 results.append(
                     {
                         "type": "quiz",

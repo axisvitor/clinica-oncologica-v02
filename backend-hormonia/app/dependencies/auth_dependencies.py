@@ -6,55 +6,38 @@ Dual authentication system:
 
 All Supabase fallback code has been removed.
 """
+"""
+MIGRATION STATUS: Phase 1 - Async Database Operations with Timeouts
+- ✅ _get_user_from_db_async() - New async function with timeout support
+- ✅ get_current_user_from_session() - Migrated to async DB with 5s timeout
+- ✅ get_current_user() - Migrated to async DB with 5s timeout
+- 🔜 Phase 2: Migrate other endpoints (user_repository, etc.)
+- 🔜 Phase 3: Remove deprecated sync functions
+"""
 
 from fastapi import Depends, HTTPException, status, Header, Cookie, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, List, Any, TYPE_CHECKING
-from datetime import datetime
+from datetime import datetime, timezone
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 import logging
 import asyncio
+import inspect
 import re
 
 if TYPE_CHECKING:
     from app.core.redis_manager import FirebaseRedisCache
 
 from app.models.user import User, UserRole
-from app.services import ServiceProvider
+if TYPE_CHECKING:
+    from app.service_provider import ServiceProvider
 from app.config import settings
-from app.core.database import SessionLocal
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
-
-# In-memory registry used by test fixtures to bypass Firebase validation.
-# SECURITY: This registry is ONLY used when APP_ENABLE_DEBUG=True
-# In production, test tokens are NEVER accepted
-
-def _is_test_mode_enabled() -> bool:
-    """Check if test/debug mode is enabled (NEVER in production)."""
-    app_env = getattr(settings, "APP_ENVIRONMENT", "development").lower()
-    debug_enabled = getattr(settings, "APP_ENABLE_DEBUG", False)
-    # SECURITY: Never allow test tokens in production
-    if app_env in ("production", "prod"):
-        return False
-    return debug_enabled
-
-# SECURITY: Fail fast in production - prevent TEST_TOKEN_REGISTRY from being created
-_app_environment = getattr(settings, "APP_ENVIRONMENT", "development").lower()
-if _app_environment in ("production", "prod"):
-    logger.critical(
-        "SECURITY VIOLATION: TEST_TOKEN_REGISTRY attempted initialization in production. "
-        "This is a development/testing utility and is FORBIDDEN in production environments."
-    )
-    raise RuntimeError(
-        "SECURITY ERROR: TEST_TOKEN_REGISTRY is forbidden in production. "
-        "This authentication bypass mechanism must not exist in production deployments. "
-        "Check APP_ENVIRONMENT configuration."
-    )
-
-# Only create registry in development/test environments
-TEST_TOKEN_REGISTRY: Optional[Dict[str, User]] = (
-    {} if _app_environment in ("development", "test", "dev", "testing") else None
-)
 
 security = HTTPBearer(auto_error=False)
 
@@ -88,8 +71,8 @@ except Exception as e:
 # CORE AUTHENTICATION DEPENDENCIES
 # =============================================================================
 
-# Firebase UID validation pattern: alphanumeric, 20-128 characters
-_FIREBASE_UID_PATTERN = re.compile(r'^[A-Za-z0-9]{20,128}$')
+# Firebase UID validation pattern (definitive contract)
+_FIREBASE_UID_STRICT_PATTERN = re.compile(r"^[A-Za-z0-9]{28}$")
 
 # Email validation pattern: basic RFC 5322 compliant pattern
 _EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
@@ -131,10 +114,9 @@ def _validate_email(email: str) -> None:
 
 def _validate_firebase_uid(firebase_uid: str) -> None:
     """
-    Validate Firebase UID format to prevent injection attacks.
+    Validate Firebase UID format to prevent injection attacks (SECURITY CRITICAL).
 
-    Firebase UIDs are typically 28 alphanumeric characters, but we allow 20-128
-    to accommodate different Firebase UID formats.
+    Definitive contract: Firebase UID must be exactly 28 alphanumeric characters.
 
     Args:
         firebase_uid: The Firebase UID to validate
@@ -142,37 +124,171 @@ def _validate_firebase_uid(firebase_uid: str) -> None:
     Raises:
         HTTPException: If the UID format is invalid
     """
-    if not firebase_uid:
+    if not firebase_uid or not isinstance(firebase_uid, str):
+        logger.error(
+            "SECURITY: Invalid Firebase UID type or empty value (type=%s)",
+            type(firebase_uid).__name__,
+        )
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Firebase UID is required"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Firebase UID (audit_id: firebase_uid_invalid)",
         )
 
-    if not isinstance(firebase_uid, str):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Firebase UID must be a string"
-        )
+    if _FIREBASE_UID_STRICT_PATTERN.match(firebase_uid):
+        return
 
-    if len(firebase_uid) > 128:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Firebase UID exceeds maximum length of 128 characters"
-        )
-
-    if not _FIREBASE_UID_PATTERN.match(firebase_uid):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Firebase UID format. Must be alphanumeric, 20-128 characters"
-        )
+    logger.error(
+        "SECURITY: Invalid Firebase UID format (strict) uid_prefix=%s length=%s",
+        firebase_uid[:8],
+        len(firebase_uid),
+    )
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid Firebase UID format (audit_id: firebase_uid_format)",
+    )
 
 
-def _get_service_provider():
+def _resolve_user_role(
+    firebase_custom_claims: Optional[Dict[str, Any]] = None,
+    db_role: Optional[UserRole] = None,
+    default_role: UserRole = UserRole.DOCTOR,
+) -> UserRole:
+    """
+    Resolve user role from multiple sources with priority hierarchy.
+
+    Priority:
+    1. Firebase custom claims (role or roles field)
+    2. Database role
+    3. Default role (DOCTOR)
+
+    Args:
+        firebase_custom_claims: Custom claims from Firebase token
+        db_role: Role from database User model
+        default_role: Fallback role if no other source available
+
+    Returns:
+        Resolved UserRole enum value
+    """
+    claims = firebase_custom_claims or {}
+    role_value = None
+
+    if isinstance(claims, dict):
+        if "role" in claims:
+            role_value = claims.get("role")
+        elif "roles" in claims:
+            role_value = claims.get("roles")
+
+    def _normalize_role(candidate: Any) -> Optional[UserRole]:
+        if isinstance(candidate, UserRole):
+            return candidate
+        if isinstance(candidate, str):
+            normalized = candidate.strip().lower()
+            if not normalized:
+                return None
+            try:
+                return UserRole(normalized)
+            except ValueError:
+                logger.warning(
+                    "Invalid role '%s' in Firebase custom claims", candidate
+                )
+                return None
+        return None
+
+    if role_value is not None:
+        if isinstance(role_value, (list, tuple, set)):
+            for entry in role_value:
+                resolved = _normalize_role(entry)
+                if resolved:
+                    logger.debug(
+                        "Resolved role from Firebase custom claims: %s",
+                        resolved.value,
+                    )
+                    return resolved
+            logger.warning(
+                "No valid roles found in Firebase custom claims list: %s", role_value
+            )
+        else:
+            resolved = _normalize_role(role_value)
+            if resolved:
+                logger.debug(
+                    "Resolved role from Firebase custom claims: %s",
+                    resolved.value,
+                )
+                return resolved
+
+    if db_role is not None:
+        if isinstance(db_role, UserRole):
+            logger.debug("Resolved role from database: %s", db_role.value)
+            return db_role
+        if isinstance(db_role, str):
+            try:
+                normalized_db_role = UserRole(db_role.lower())
+                logger.debug(
+                    "Resolved role from database: %s", normalized_db_role.value
+                )
+                return normalized_db_role
+            except ValueError:
+                logger.warning("Invalid database role '%s'", db_role)
+
+    logger.debug("Defaulting role to: %s", default_role.value)
+    return default_role
+
+
+def user_to_cache_dict(user: User) -> Dict[str, Any]:
+    """
+    Convert User model to cacheable dictionary.
+
+    Converts SQLAlchemy User model to a JSON-serializable dict suitable
+    for Redis caching. Handles enum conversion, timestamp formatting,
+    and field mapping.
+
+    Args:
+        user: User model instance from database
+
+    Returns:
+        Dict with serialized user data including:
+        - id (str): UUID converted to string
+        - firebase_uid (str): Firebase user identifier
+        - email (str): User email address
+        - full_name (str): User's full name
+        - role (str): User role as string value
+        - is_active (bool): Account active status
+        - created_at (str|None): ISO formatted creation timestamp
+        - updated_at (str|None): ISO formatted update timestamp
+        - last_login (str|None): ISO formatted last login timestamp
+
+    Example:
+        >>> user = User(id=uuid4(), email="doc@example.com", role=UserRole.DOCTOR)
+        >>> cache_dict = user_to_cache_dict(user)
+        >>> cache_dict["role"]
+        'doctor'
+    """
+    return {
+        "id": str(user.id),
+        "firebase_uid": user.firebase_uid,
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role.value if hasattr(user.role, "value") else str(user.role),
+        "is_active": user.is_active,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+        "last_login": user.firebase_last_sign_in.isoformat()
+        if user.firebase_last_sign_in
+        else None,
+    }
+
+
+async def _get_service_provider():
     """Lazy loader for ServiceProvider to avoid circular imports."""
     from app.dependencies import get_thread_safe_service_provider
 
-    # Yield from the actual generator function
-    yield from get_thread_safe_service_provider()
+    provider_stream = get_thread_safe_service_provider()
+    if inspect.isasyncgen(provider_stream):
+        async for provider in provider_stream:
+            yield provider
+    else:
+        for provider in provider_stream:
+            yield provider
 
 
 def get_permissions_for_role(role: str) -> List[str]:
@@ -244,6 +360,39 @@ def get_permissions_for_role(role: str) -> List[str]:
     return ["patients.read", "appointments.read"]
 
 
+class RedisAuthCacheAdapter:
+    """
+    Bridge object that preserves FirebaseRedisCache behavior while delegating
+    critical auth lookups to RedisManager methods.
+
+    This keeps legacy patch points used by tests that mock
+    RedisManager.get_session/get_user_by_uid.
+    """
+
+    def __init__(self, redis_manager, firebase_cache):
+        self._redis_manager = redis_manager
+        self._firebase_cache = firebase_cache
+        self.session_ttl = getattr(firebase_cache, "session_ttl", 86400)
+
+    async def get_session(self, session_id: str):
+        return await self._redis_manager.get_session(session_id)
+
+    async def get_user_by_uid(self, firebase_uid: str):
+        return await self._redis_manager.get_user_by_uid(firebase_uid)
+
+    async def create_session(self, *args, **kwargs):
+        return await self._redis_manager.create_session(*args, **kwargs)
+
+    async def cache_user_data(self, *args, **kwargs):
+        return await self._redis_manager.cache_user_data(*args, **kwargs)
+
+    async def update_session_activity(self, *args, **kwargs):
+        return await self._redis_manager.update_session_activity(*args, **kwargs)
+
+    def __getattr__(self, item):
+        return getattr(self._firebase_cache, item)
+
+
 async def get_redis_cache() -> "FirebaseRedisCache":
     """
     Dependency injection for FirebaseRedisCache with Redis client.
@@ -257,7 +406,8 @@ async def get_redis_cache() -> "FirebaseRedisCache":
         redis_manager = get_redis_manager()
         # Use sync client for FirebaseRedisCache as it mostly uses run_in_executor/to_thread
         redis_client = redis_manager.get_compatible_client("sync")
-        return FirebaseRedisCache(redis_client)
+        firebase_cache = FirebaseRedisCache(redis_client)
+        return RedisAuthCacheAdapter(redis_manager, firebase_cache)
     except Exception as e:
         import traceback
         import logging
@@ -306,9 +456,22 @@ class GenericRedisCache:
     async def delete_pattern(self, pattern: str) -> bool:
         """Delete all keys matching pattern."""
         try:
-            keys = self._client.keys(pattern)
-            if keys:
-                self._client.delete(*keys)
+            batch = []
+            for key in self._client.scan_iter(match=pattern, count=100):
+                batch.append(key)
+                if len(batch) >= 100:
+                    try:
+                        self._client.delete(*batch)
+                    except TypeError:
+                        for batch_key in batch:
+                            self._client.delete(batch_key)
+                    batch.clear()
+            if batch:
+                try:
+                    self._client.delete(*batch)
+                except TypeError:
+                    for batch_key in batch:
+                        self._client.delete(batch_key)
             return True
         except Exception:
             return False
@@ -369,26 +532,117 @@ async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
         )
 
 
-def _get_user_from_db(firebase_uid: str) -> Optional[User]:
-    """
-    Synchronous function to fetch a user from the database in a thread-safe manner.
-    Creates its own database session to avoid sharing sessions across threads.
-    """
-    with SessionLocal() as db:
-        from app.models.user import User
-        from sqlalchemy import select
+def _get_user_from_db_sync(firebase_uid: str, db: Session) -> Optional[User]:
+    """Fetch a user using an existing synchronous session."""
+    from sqlalchemy import select
 
-        stmt = select(User).where(User.firebase_uid == firebase_uid)
-        result = db.execute(stmt)
+    stmt = select(User).where(User.firebase_uid == firebase_uid)
+    result = db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+def _should_use_sync_db(services: "ServiceProvider") -> bool:
+    db = getattr(services, "db", None)
+    if db is None:
+        return False
+    if isinstance(db, AsyncSession):
+        return False
+    if isinstance(db, Session):
+        return True
+
+    try:
+        bind = db.get_bind()
+    except Exception:
+        return False
+    return bind is not None and getattr(bind.dialect, "name", None) == "sqlite"
+
+
+async def _get_user_from_db_async(
+    firebase_uid: str, session: AsyncSession
+) -> Optional[User]:
+    """
+    Async function to fetch user from database with retry on timeout.
+
+    Args:
+        firebase_uid: Firebase UID to search for
+        session: AsyncSession instance
+
+    Returns:
+        User model or None if not found
+    """
+    from sqlalchemy import select
+
+    stmt = select(User).where(User.firebase_uid == firebase_uid)
+
+    try:
+        result = await asyncio.wait_for(
+            session.execute(stmt),
+            timeout=settings.DB_QUERY_TIMEOUT_READ,
+        )
         return result.scalar_one_or_none()
+    except asyncio.TimeoutError:
+        await session.rollback()
+        logger.warning(
+            "Database query timeout for UID %s..., retrying with longer timeout",
+            firebase_uid[:8],
+        )
+
+        try:
+            result = await asyncio.wait_for(
+                session.execute(stmt),
+                timeout=settings.DB_QUERY_TIMEOUT_READ * 2,
+            )
+            logger.info(
+                "Database query succeeded on retry for UID %s...", firebase_uid[:8]
+            )
+            return result.scalar_one_or_none()
+        except asyncio.TimeoutError:
+            await session.rollback()
+            logger.error(
+                "Database query timeout after retry for UID %s...", firebase_uid[:8]
+            )
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="Database query timeout after retry",
+            )
+
+
+async def _get_user_from_db_by_session(
+    session_id: str, session: AsyncSession
+) -> Optional[User]:
+    """Fetch user from database by session ID (fallback path)."""
+    from uuid import UUID
+    from sqlalchemy import select
+    from app.models.session import Session as SessionModel
+
+    if not session_id or not isinstance(session_id, str):
+        logger.warning("Invalid session ID value for fallback lookup")
+        return None
+
+    base_stmt = (
+        select(User)
+        .join(SessionModel, SessionModel.user_id == User.id)
+        .where(SessionModel.is_active.is_(True))
+        .where(SessionModel.revoked_at.is_(None))
+        .where(SessionModel.expires_at > now_sao_paulo())
+    )
+
+    try:
+        session_uuid = UUID(session_id)
+        stmt = base_stmt.where(SessionModel.id == session_uuid)
+    except (ValueError, TypeError):
+        # Compatibility path for legacy callers that still pass session_token.
+        stmt = base_stmt.where(SessionModel.session_token == session_id)
+
+    result = await session.execute(stmt)
+    return result.scalar_one_or_none()
 
 
 async def get_current_user_from_session(
     request: Request,
-    session_cookie_id: str = Cookie(None, alias="session_id"),
+    session_cookie_id: str = Cookie(None, alias=settings.SESSION_COOKIE_NAME),
     x_session_id: str = Header(None, alias="X-Session-ID"),
     authorization: Optional[str] = Header(None),
-    services: Any = Depends(_get_service_provider),
     redis_cache: "FirebaseRedisCache" = Depends(get_redis_cache),
 ) -> Dict:
     """
@@ -404,13 +658,17 @@ async def get_current_user_from_session(
     3. If cache miss: Query PostgreSQL and repopulate cache
     4. Validate user is_active
     5. Return user dict with permissions
+    
+    Session ID priority (default):
+    1. Cookie (httpOnly)
+    2. X-Session-ID header
+    3. Authorization Bearer (fallback)
 
     Args:
         request: FastAPI request object
         session_cookie_id: Session ID from session_id cookie
         x_session_id: Session ID from X-Session-ID header
         authorization: Bearer token from Authorization header
-        services: Service provider with Redis and DB access
         redis_cache: Redis cache instance (injected)
 
     Returns:
@@ -430,17 +688,41 @@ async def get_current_user_from_session(
             f"auth_header: {'Bearer' if authorization and authorization.startswith('Bearer') else 'None'}"
         )
 
-        # Priority 1: Authorization Header (Bearer <session_id>)
-        if authorization and authorization.startswith("Bearer "):
-            final_session_id = authorization.split(" ")[1]
-        
-        # Priority 2: X-Session-ID Header
-        if not final_session_id and x_session_id:
-            final_session_id = x_session_id
-            
-        # Priority 3: Cookie
-        if not final_session_id and session_cookie_id:
-            final_session_id = session_cookie_id
+        session_source = None
+
+        if settings.ENABLE_COOKIE_PRIORITY:
+            # Priority 1: Cookie (httpOnly) - most secure for HTTP
+            if session_cookie_id:
+                final_session_id = session_cookie_id
+                session_source = "cookie"
+                logger.debug("Session ID from cookie (httpOnly)")
+            # Priority 2: X-Session-ID header - needed for WebSocket
+            elif x_session_id:
+                final_session_id = x_session_id
+                session_source = "x-session-id"
+                logger.debug("Session ID from X-Session-ID header")
+            # Priority 3: Authorization Bearer - fallback
+            elif authorization and authorization.startswith("Bearer "):
+                final_session_id = authorization.split(" ")[1]
+                session_source = "authorization"
+                logger.debug("Session ID from Authorization Bearer (fallback)")
+        else:
+            # Legacy priority: Authorization -> Header -> Cookie
+            if authorization and authorization.startswith("Bearer "):
+                final_session_id = authorization.split(" ")[1]
+                session_source = "authorization"
+                logger.debug("Session ID from Authorization Bearer")
+            elif x_session_id:
+                final_session_id = x_session_id
+                session_source = "x-session-id"
+                logger.debug("Session ID from X-Session-ID header")
+            elif session_cookie_id:
+                final_session_id = session_cookie_id
+                session_source = "cookie"
+                logger.debug("Session ID from cookie (httpOnly)")
+
+        if final_session_id:
+            logger.debug("Session ID resolved from %s", session_source)
 
         if not final_session_id:
             logger.warning("No session ID provided in any auth method (cookie, header, or Authorization)")
@@ -450,8 +732,172 @@ async def get_current_user_from_session(
                 headers={"WWW-Authenticate": "Session"},
             )
 
-        # Layer 1: Get session from Redis (~2-5ms)
-        session_data = await redis_cache.get_session(final_session_id)
+        # Layer 1: Get session from Redis with timeout (~2-5ms)
+        session_data = None
+        use_fallback = False
+        try:
+            session_data = await asyncio.wait_for(
+                redis_cache.get_session(final_session_id),
+                timeout=settings.REDIS_OPERATION_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Redis timeout for session %s..., falling back to PostgreSQL",
+                final_session_id[:8],
+            )
+            use_fallback = True
+        except Exception as e:
+            logger.error(
+                "Redis error for session %s...: %s. Falling back to PostgreSQL",
+                final_session_id[:8],
+                str(e),
+            )
+            use_fallback = True
+
+        if use_fallback:
+            try:
+                from app.database import get_async_session_factory
+
+                async_session_factory = get_async_session_factory()
+                async with async_session_factory() as async_session:
+                    try:
+                        fallback_user = await asyncio.wait_for(
+                            _get_user_from_db_by_session(final_session_id, async_session),
+                            timeout=settings.DB_QUERY_TIMEOUT_READ,
+                        )
+                    except Exception:
+                        await async_session.rollback()
+                        raise
+            except asyncio.TimeoutError:
+                logger.error(
+                    "Database timeout during fallback for session %s...",
+                    final_session_id[:8],
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please try again.",
+                )
+            except Exception as e:
+                logger.error(
+                    "Database error during fallback for session %s...: %s",
+                    final_session_id[:8],
+                    str(e),
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please try again.",
+                )
+
+            if not fallback_user:
+                logger.warning(
+                    "Invalid or expired session during fallback: %s...",
+                    final_session_id[:8],
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid or expired session. Please login again.",
+                    headers={"WWW-Authenticate": "Session"},
+                )
+
+            user_data = user_to_cache_dict(fallback_user)
+            if not user_data.get("is_active", False):
+                logger.warning(
+                    "Inactive user attempted access (fallback): %s",
+                    user_data.get("email"),
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User account is inactive",
+                )
+
+            firebase_uid = user_data.get("firebase_uid")
+            user_id = user_data.get("id")
+            if firebase_uid and user_id:
+                user_cache_ttl = 900
+                session_ttl = (
+                    getattr(settings, "SESSION_TTL_SECONDS", None)
+                    or getattr(settings, "FIREBASE_SESSION_TTL_SECONDS", None)
+                    or getattr(redis_cache, "session_ttl", 86400)
+                )
+                try:
+                    await asyncio.wait_for(
+                        redis_cache.cache_user_data(
+                            firebase_uid, user_data, ttl=user_cache_ttl
+                        ),
+                        timeout=settings.REDIS_OPERATION_TIMEOUT,
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "Redis timeout rehydrating user cache for fallback session %s...",
+                        final_session_id[:8],
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to rehydrate user cache for fallback session %s...: %s",
+                        final_session_id[:8],
+                        str(e),
+                    )
+
+                try:
+                    created = await asyncio.wait_for(
+                        redis_cache.create_session(
+                            session_id=final_session_id,
+                            user_id=user_id,
+                            firebase_uid=firebase_uid,
+                            ttl=session_ttl,
+                        ),
+                        timeout=settings.REDIS_OPERATION_TIMEOUT,
+                    )
+                    if not created:
+                        logger.warning(
+                            "Failed to rehydrate session cache for fallback session %s...",
+                            final_session_id[:8],
+                        )
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "Redis timeout rehydrating session cache for fallback session %s...",
+                        final_session_id[:8],
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to rehydrate session cache for fallback session %s...: %s",
+                        final_session_id[:8],
+                        str(e),
+                    )
+
+                try:
+                    await asyncio.wait_for(
+                        redis_cache.update_session_activity(
+                            session_id=final_session_id,
+                            extend_ttl=True,
+                            custom_ttl=session_ttl,
+                        ),
+                        timeout=settings.REDIS_OPERATION_TIMEOUT,
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "Redis timeout extending session TTL for fallback session %s...",
+                        final_session_id[:8],
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to extend session TTL for fallback session %s...: %s",
+                        final_session_id[:8],
+                        str(e),
+                    )
+
+            role = user_data.get("role", "doctor")
+            user_data["permissions"] = get_permissions_for_role(role)
+
+            request.state.user_id = user_data.get("id")
+            request.state.user_role = user_data.get("role")
+
+            logger.debug(
+                "Session validated via PostgreSQL fallback for user: %s (role: %s)",
+                user_data.get("email"),
+                role,
+            )
+            return user_data
 
         if not session_data:
             logger.warning(f"Invalid or expired session: {final_session_id[:8]}...")
@@ -463,10 +909,25 @@ async def get_current_user_from_session(
 
         # Update session activity to prevent expiration during active use
         # This extends the TTL and updates last_activity timestamp
-        await redis_cache.update_session_activity(
-            session_id=final_session_id,
-            extend_ttl=True,  # Reset Redis TTL to keep active users logged in
-        )
+        try:
+            await asyncio.wait_for(
+                redis_cache.update_session_activity(
+                    session_id=final_session_id,
+                    extend_ttl=True,  # Reset Redis TTL to keep active users logged in
+                ),
+                timeout=settings.REDIS_OPERATION_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Redis timeout updating session activity for %s... (non-critical, continuing)",
+                final_session_id[:8],
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to update session activity for %s...: %s (non-critical, continuing)",
+                final_session_id[:8],
+                str(e),
+            )
 
         firebase_uid = session_data.get("firebase_uid")
         if not firebase_uid:
@@ -477,24 +938,65 @@ async def get_current_user_from_session(
                 headers={"WWW-Authenticate": "Session"},
             )
 
-        # SECURITY FIX P0-1: Validate Firebase UID BEFORE cache lookup
-        # This prevents potential session hijacking if Redis is compromised
-        # Moving validation before cache ensures we never trust unchecked UIDs
+        # SECURITY CRITICAL: Validate Firebase UID BEFORE any cache/DB operation
+        # This prevents session hijacking if Redis is compromised
+        # Malformed UIDs could be used for cache poisoning or SQL injection
         _validate_firebase_uid(firebase_uid)
 
         # Layer 2: Get user from cache (~2-5ms on hit, ~50-100ms on miss)
-        # NOW SAFE: UID has been validated above
-        user_data = await redis_cache.get_user_by_uid(firebase_uid)
-
-        if not user_data:
-            # Cache miss: Query PostgreSQL and cache result
-            logger.info(
-                f"Cache miss for user: {firebase_uid[:8]}... Querying database."
+        # UID already validated above before any cache/DB access
+        try:
+            user_data = await asyncio.wait_for(
+                redis_cache.get_user_by_uid(firebase_uid),
+                timeout=settings.REDIS_OPERATION_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            logger.error(
+                f"Redis operation timeout after {settings.REDIS_OPERATION_TIMEOUT}s"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="User cache lookup timed out. Please try again.",
             )
 
-            # THREAD-SAFE FIX: Use asyncio.to_thread to run sync DB operation
-            # _get_user_from_db creates its own session to avoid thread-safety issues
-            user = await asyncio.to_thread(_get_user_from_db, firebase_uid)
+        if not user_data:
+            # Cache miss: Query PostgreSQL with timeout protection
+            logger.info(
+                f"Cache miss for user: {firebase_uid[:8]}... Querying database with {settings.DB_QUERY_TIMEOUT_READ}s timeout."
+            )
+
+            try:
+                # Get async session
+                from app.database import get_async_session_factory
+
+                async_session_factory = get_async_session_factory()
+                async with async_session_factory() as async_session:
+                    try:
+                        user = await _get_user_from_db_async(
+                            firebase_uid, async_session
+                        )
+                    except Exception:
+                        await async_session.rollback()
+                        raise
+            except asyncio.CancelledError:
+                logger.warning(
+                    f"Database query cancelled for firebase_uid={firebase_uid[:8]}..."
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please try again.",
+                )
+            except HTTPException:
+                # Preserve upstream timeout/auth semantics (e.g. 504 from DB retry logic)
+                raise
+            except Exception as e:
+                logger.error(
+                    f"Database error for firebase_uid={firebase_uid[:8]}...: {e}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Database temporarily unavailable. Please try again.",
+                )
 
             if not user:
                 logger.error(f"User not found in database: {firebase_uid[:8]}...")
@@ -505,24 +1007,22 @@ async def get_current_user_from_session(
                 )
 
             # Convert SQLAlchemy model to dict and cache
-            # CRITICAL FIX: Include timestamps required by UserV2Response schema
-            user_data = {
-                "firebase_uid": user.firebase_uid,
-                "email": user.email,
-                "full_name": user.full_name,
-                "role": "admin",  # TEMPORARY: Force admin role
-                "is_active": user.is_active,
-                "id": str(user.id),
-                # Add timestamps for UserV2Response schema compatibility
-                "created_at": user.created_at.isoformat() if user.created_at else None,
-                "updated_at": user.updated_at.isoformat() if user.updated_at else None,
-                "last_login": user.firebase_last_sign_in.isoformat()
-                if user.firebase_last_sign_in
-                else None,
-            }
+            user_data = user_to_cache_dict(user)
 
             # Cache for 15 minutes
-            await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
+            try:
+                await asyncio.wait_for(
+                    redis_cache.cache_user_data(firebase_uid, user_data, ttl=900),
+                    timeout=settings.REDIS_OPERATION_TIMEOUT,
+                )
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"Redis operation timeout after {settings.REDIS_OPERATION_TIMEOUT}s"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                    detail="User cache write timed out. Please try again.",
+                )
             logger.debug(f"Cached user data for: {firebase_uid[:8]}...")
 
         # Validate user is active
@@ -533,9 +1033,7 @@ async def get_current_user_from_session(
             )
 
         # Add permissions to user data
-        # NOTE: All users have admin access during initial production phase
-        role = "admin"
-        user_data["role"] = "admin"
+        role = user_data.get("role", "doctor")
         user_data["permissions"] = get_permissions_for_role(role)
 
         # Set request state for middleware access (LGPD, Audit, etc.)
@@ -591,22 +1089,47 @@ async def get_current_user_object_from_session(
                     pass # Keep as is or set to None
 
         # Handle role conversion
-        # NOTE: All users have admin access during initial production phase
-        user_dict["role"] = UserRole.ADMIN
+        role_value = user_dict.get("role")
+        if isinstance(role_value, str):
+            try:
+                user_dict["role"] = UserRole(role_value.lower())
+            except ValueError:
+                logger.warning(f"Invalid role '{role_value}', defaulting to DOCTOR")
+                user_dict["role"] = UserRole.DOCTOR
+        elif not isinstance(role_value, UserRole):
+            user_dict["role"] = UserRole.DOCTOR
 
-        return User(**user_dict)
+        # Filter keys to match User model columns to prevent TypeError
+        # This is CRITICAL because the cached user_dict might contain legacy keys
+        # or keys from other contexts (like Firebase claims) that aren't in the model.
+        from sqlalchemy import inspect
+        mapper = inspect(User)
+        allowed_keys = set(mapper.columns.keys())
+        
+        # Keep only keys that exist in the User model
+        filtered_user_dict = {
+            k: v for k, v in user_dict.items() 
+            if k in allowed_keys
+        }
+
+        return User(**filtered_user_dict)
     except Exception as e:
         logger.error(f"Failed to convert session data to User object: {e}")
+        # Log the keys that caused the issue for debugging
+        try:
+            logger.error(f"User dict keys: {list(user_data.keys())}")
+        except:
+            pass
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Session data error",
+            detail="Session data error - please try logging out and back in",
         )
 
 
 async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    services: ServiceProvider = Depends(_get_service_provider),
+    services: "ServiceProvider" = Depends(_get_service_provider),
 ) -> User:
     """
     Get current authenticated user by validating Firebase Auth token with Redis cache.
@@ -652,25 +1175,6 @@ async def get_current_user(
 
     token_value = credentials.credentials
 
-    allow_test_tokens = (
-        getattr(settings, "APP_ENABLE_DEBUG", False)
-        and getattr(settings, "APP_ENVIRONMENT", "development").lower() != "production"
-    )
-
-    # Check test token registry (only exists in non-production environments)
-    cached_local = None
-    if allow_test_tokens and TEST_TOKEN_REGISTRY is not None:
-        cached_local = TEST_TOKEN_REGISTRY.get(token_value)
-    if cached_local:
-        return cached_local
-
-    # Fast-path for local/testing tokens used by contract tests
-    if allow_test_tokens and TEST_TOKEN_REGISTRY is not None and token_value.startswith(("admin_token_", "test_token_")):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unregistered test token. Use TEST_TOKEN_REGISTRY in tests.",
-        )
-
     # Check if Firebase is configured
     if _firebase_service is None:
         raise HTTPException(
@@ -693,7 +1197,9 @@ async def get_current_user(
             logger.debug(f"✅ Token cache HIT for {cached_token.get('email')}")
             firebase_uid = cached_token["firebase_uid"]
 
-            # Validate Firebase UID format to prevent injection attacks
+            # SECURITY CRITICAL: Validate Firebase UID BEFORE any cache/DB operation
+            # This prevents session hijacking if Redis is compromised
+            # Malformed UIDs could be used for cache poisoning or SQL injection
             _validate_firebase_uid(firebase_uid)
 
             user_data = cached_token  # Temporary: will be replaced by Layer 2
@@ -703,7 +1209,9 @@ async def get_current_user(
             user_data = await _firebase_service.verify_token(token_value)
             firebase_uid = user_data["uid"]
 
-            # Validate Firebase UID format to prevent injection attacks
+            # SECURITY CRITICAL: Validate Firebase UID BEFORE any cache/DB operation
+            # This prevents session hijacking if Redis is compromised
+            # Malformed UIDs could be used for cache poisoning or SQL injection
             _validate_firebase_uid(firebase_uid)
 
             # Cache validated token (1 hour TTL)
@@ -735,33 +1243,50 @@ async def get_current_user(
             request.state.user_role = user.role.value if hasattr(user.role, "value") else str(user.role)
             return user
 
-        # MISS: Query PostgreSQL (100ms)
-        logger.debug(f"❌ User cache MISS - querying PostgreSQL for {firebase_uid}")
+        # MISS: Query PostgreSQL with timeout protection (100ms)
+        logger.debug(
+            f"❌ User cache MISS - querying PostgreSQL for {firebase_uid} with {settings.DB_QUERY_TIMEOUT_READ}s timeout"
+        )
 
-        # THREAD-SAFE FIX: Use asyncio.to_thread to run sync DB operation
-        # _get_user_from_db creates its own session to avoid thread-safety issues
-        user = await asyncio.to_thread(_get_user_from_db, firebase_uid)
+        try:
+            if _should_use_sync_db(services):
+                user = _get_user_from_db_sync(firebase_uid, services.db)
+            else:
+                # Get async session
+                from app.database import get_async_session_factory
+
+                async_session_factory = get_async_session_factory()
+                async with async_session_factory() as async_session:
+                    try:
+                        user = await _get_user_from_db_async(
+                            firebase_uid, async_session
+                        )
+                    except Exception:
+                        await async_session.rollback()
+                        raise
+        except asyncio.CancelledError:
+            logger.warning(
+                f"Database query cancelled for firebase_uid={firebase_uid[:8]}..."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database temporarily unavailable. Please try again.",
+            )
+        except Exception as e:
+            logger.error(
+                f"Database error for firebase_uid={firebase_uid[:8]}...: {e}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database temporarily unavailable. Please try again.",
+            )
 
         if user:
             # User exists - cache and return
             logger.debug(f"User found in database: {user.email}")
 
             # Cache user for 2 hours
-            # CRITICAL FIX: Include timestamps required by UserV2Response schema
-            user_dict = {
-                "id": str(user.id),
-                "firebase_uid": user.firebase_uid,
-                "email": user.email,
-                "full_name": user.full_name,
-                "role": "admin",  # TEMPORARY: Force admin role
-                "is_active": user.is_active,
-                # Add timestamps for UserV2Response schema compatibility
-                "created_at": user.created_at.isoformat() if user.created_at else None,
-                "updated_at": user.updated_at.isoformat() if user.updated_at else None,
-                "last_login": user.firebase_last_sign_in.isoformat()
-                if user.firebase_last_sign_in
-                else None,
-            }
+            user_dict = user_to_cache_dict(user)
             firebase_cache.cache_user(firebase_uid, user_dict)
             logger.info(f"💾 User cached for {firebase_uid}")
 
@@ -789,9 +1314,12 @@ async def get_current_user(
             _validate_email(email)
 
         # Extract role from Firebase custom claims or default to DOCTOR
-        # TEMPORARY: Force all users to admin role for development
-        firebase_role = "admin"  # user_data.get("role", "doctor").lower()
-        user_role = UserRole.ADMIN  # if firebase_role == "admin" else UserRole.DOCTOR
+        firebase_custom_claims = user_data.get("custom_claims", {})
+        user_role = _resolve_user_role(
+            firebase_custom_claims=firebase_custom_claims,
+            db_role=None,
+            default_role=UserRole.DOCTOR,
+        )
 
         user = User(
             firebase_uid=firebase_uid,
@@ -800,26 +1328,36 @@ async def get_current_user(
             is_active=True,
             role=user_role,  # From Firebase custom claims
         )
-        services.db.add(user)
-        services.db.commit()
-        services.db.refresh(user)
+        try:
+            bind = services.db.get_bind()
+            if bind and getattr(bind.dialect, "name", None) == "postgresql":
+                timeout_ms = max(1, int(settings.DB_QUERY_TIMEOUT_WRITE * 1000))
+                services.db.execute(
+                    text(
+                        "SELECT set_config('statement_timeout', :statement_timeout, true)"
+                    ),
+                    {"statement_timeout": f"{timeout_ms}ms"},
+                )
+            services.db.add(user)
+            services.db.commit()
+            services.db.refresh(user)
+        except DBAPIError as exc:
+            services.db.rollback()
+            if "statement timeout" in str(exc).lower():
+                logger.error(
+                    f"Database write timeout after {settings.DB_QUERY_TIMEOUT_WRITE}s for firebase_uid={firebase_uid[:8]}..."
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                    detail=f"Database operation timed out after {settings.DB_QUERY_TIMEOUT_WRITE}s. Please try again.",
+                )
+            raise
+        except Exception:
+            services.db.rollback()
+            raise
 
         # Cache new user
-        # CRITICAL FIX: Include timestamps required by UserV2Response schema
-        user_dict = {
-            "id": str(user.id),
-            "firebase_uid": user.firebase_uid,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": "admin",  # TEMPORARY: Force admin role
-            "is_active": user.is_active,
-            # Add timestamps for UserV2Response schema compatibility
-            "created_at": user.created_at.isoformat() if user.created_at else None,
-            "updated_at": user.updated_at.isoformat() if user.updated_at else None,
-            "last_login": user.firebase_last_sign_in.isoformat()
-            if user.firebase_last_sign_in
-            else None,
-        }
+        user_dict = user_to_cache_dict(user)
         firebase_cache.cache_user(firebase_uid, user_dict)
 
         logger.info(f"✅ New user created and cached: {user.email}")
@@ -855,17 +1393,22 @@ async def get_current_active_user(
 
 
 async def get_optional_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
         HTTPBearer(auto_error=False)
     ),
-    services: ServiceProvider = Depends(_get_service_provider),
+    services: "ServiceProvider" = Depends(_get_service_provider),
 ) -> Optional[User]:
-    """Get current user if authenticated, otherwise return None"""
+    """Get current user if authenticated, otherwise return None."""
     if credentials is None:
         return None
 
     try:
-        return await get_current_user(credentials, services)
+        return await get_current_user(
+            request=request,
+            credentials=credentials,
+            services=services,
+        )
     except HTTPException:
         return None
 
@@ -901,7 +1444,7 @@ async def get_doctor_user(
 
 
 async def get_current_user_websocket(
-    websocket, services: ServiceProvider = Depends(_get_service_provider)
+    websocket, services: "ServiceProvider" = Depends(_get_service_provider)
 ) -> Optional[User]:
     """Get current user from WebSocket connection validating Firebase token only"""
     try:

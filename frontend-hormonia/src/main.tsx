@@ -3,10 +3,41 @@ import ReactDOM from "react-dom/client";
 import App from "./App"; // App completo com autenticação
 import { ConfigProvider } from "@/lib/config-initializer";
 import { createLogger } from "@/lib/logger";
-import { captureException } from "@/monitoring/sentry";
 import './app/styles/index.css'
 
 const logger = createLogger('main');
+const sentryEnabled = Boolean(import.meta.env['VITE_SENTRY_DSN']);
+let sentryInitPromise: Promise<typeof import('@/monitoring/sentry')> | null = null;
+
+const loadSentry = () => {
+  if (!sentryEnabled) {
+    return Promise.resolve(null);
+  }
+
+  if (!sentryInitPromise) {
+    sentryInitPromise = import('@/monitoring/sentry');
+  }
+
+  return sentryInitPromise;
+};
+
+const scheduleSentryInit = () => {
+  void loadSentry().catch((error) => {
+    logger.warn('Failed to load Sentry', error);
+  });
+};
+
+if (sentryEnabled) {
+  const windowWithIdle = window as Window & {
+    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+  };
+
+  if (windowWithIdle.requestIdleCallback) {
+    windowWithIdle.requestIdleCallback(scheduleSentryInit, { timeout: 2000 });
+  } else {
+    setTimeout(scheduleSentryInit, 2000);
+  }
+}
 
 // Global error handling for unhandled promise rejections
 window.addEventListener('unhandledrejection', (event) => {
@@ -28,10 +59,21 @@ window.addEventListener('unhandledrejection', (event) => {
 
   // Critical errors: log and report to Sentry
   logger.error('Unhandled promise rejection:', event.reason);
-  captureException(event.reason instanceof Error ? event.reason : new Error(String(event.reason)), {
-    tags: { type: 'unhandled_rejection' },
-    extra: { originalReason: event.reason }
-  });
+  if (sentryEnabled) {
+    void loadSentry()
+      .then((sentryModule) => {
+        sentryModule?.captureException(
+          event.reason instanceof Error ? event.reason : new Error(String(event.reason)),
+          {
+            tags: { type: 'unhandled_rejection' },
+            extra: { originalReason: event.reason }
+          }
+        );
+      })
+      .catch((error) => {
+        logger.warn('Failed to report unhandled rejection', error);
+      });
+  }
 });
 
 const rootElement = document.getElementById("root");

@@ -33,7 +33,7 @@ def serialize_dlq_item(item: FailedMessage, fields: Optional[List[str]] = None) 
         "max_retries": item.max_retries,
         "next_retry_at": item.next_retry_at,
         "last_retry_at": item.last_retry_at,
-        "status": item.status,
+        "status": item.status.value if hasattr(item.status, "value") else item.status,
         "resolved_at": item.resolved_at,
         "dlq_metadata": item.dlq_metadata or {},
         "reviewed_by": item.reviewed_by,
@@ -43,7 +43,23 @@ def serialize_dlq_item(item: FailedMessage, fields: Optional[List[str]] = None) 
     }
 
     if fields:
-        data = apply_field_selection(data, fields)
+        selected = apply_field_selection(data, fields)
+        # Keep required response-model fields even when field selection is requested.
+        required_fields = {
+            "id",
+            "patient_id",
+            "phone_number",
+            "message_type",
+            "error_message",
+            "retry_count",
+            "max_retries",
+            "status",
+            "created_at",
+            "updated_at",
+        }
+        for key in required_fields:
+            selected.setdefault(key, data.get(key))
+        data = selected
 
     return data
 

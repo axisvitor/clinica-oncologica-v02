@@ -4,11 +4,12 @@ from uuid import UUID
 import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy.orm import joinedload
-from sqlalchemy import and_, desc, or_
+from sqlalchemy.orm import contains_eager, selectinload
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import and_, desc, func, or_, select, update
 
-from app.database import get_db
-from app.models.flow import FlowKind, FlowTemplateVersion
+from app.core.database.async_engine import get_async_db
+from app.models.flow import FlowKind, FlowTemplateVersion, PatientFlowState
 from app.schemas.v2.templates import (
     FlowTemplateV2Response,
     FlowTemplateV2List,
@@ -37,10 +38,34 @@ from app.api.v2.templates_shared import (
     RATE_LIMIT_READ,
     RATE_LIMIT_WRITE,
 )
-from app.utils.audit_logger import AuditLogger, AuditAction
+from app.monitoring.audit_logger import TemplateAuditLogger as AuditLogger, TemplateAuditAction as AuditAction
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def _normalize_steps_payload(steps):
+    if isinstance(steps, dict):
+        return steps
+    if isinstance(steps, list):
+        for item in steps:
+            if not isinstance(item, dict):
+                raise HTTPException(status_code=400, detail="Invalid steps payload")
+        return steps
+    raise HTTPException(status_code=400, detail="Invalid steps payload")
+
+
+def _is_content_update(payload: FlowTemplateV2Update) -> bool:
+    return any(
+        field is not None
+        for field in (
+            payload.template_name,
+            payload.description,
+            payload.steps,
+            payload.metadata,
+        )
+    )
 
 
 @router.get("/flows", response_model=FlowTemplateV2List, summary="List flow templates")
@@ -54,7 +79,7 @@ async def list_flow_templates(
     kind_key: Optional[str] = Query(None),
     fields: Optional[str] = Query(None),
     include: Optional[str] = Query(None),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
@@ -70,25 +95,25 @@ async def list_flow_templates(
         if cached:
             return cached
 
-        query = db.query(FlowTemplateVersion)
+        stmt = select(FlowTemplateVersion)
         if include and "kind" in include:
-            query = query.options(joinedload(FlowTemplateVersion.kind))
+            stmt = stmt.options(selectinload(FlowTemplateVersion.kind))
         else:
-            query = query.join(FlowKind)
+            stmt = stmt.join(FlowKind).options(contains_eager(FlowTemplateVersion.kind))
 
         if is_active is not None:
-            query = query.filter(FlowTemplateVersion.is_active == is_active)
+            stmt = stmt.where(FlowTemplateVersion.is_active == is_active)
         if is_draft is not None:
-            query = query.filter(FlowTemplateVersion.is_draft == is_draft)
+            stmt = stmt.where(FlowTemplateVersion.is_draft == is_draft)
         if kind_key:
-            query = query.filter(FlowKind.kind_key == kind_key)
+            stmt = stmt.where(FlowKind.kind_key == kind_key)
 
         if cursor:
             try:
                 cursor_data = json.loads(cursor)
                 cursor_id = UUID(cursor_data["id"])
                 cursor_created = datetime.fromisoformat(cursor_data["created_at"])
-                query = query.filter(
+                stmt = stmt.where(
                     or_(
                         FlowTemplateVersion.created_at < cursor_created,
                         and_(
@@ -100,10 +125,11 @@ async def list_flow_templates(
             except (json.JSONDecodeError, ValueError, TypeError, KeyError):
                 raise HTTPException(status_code=400, detail="Invalid cursor")
 
-        query = query.order_by(
+        stmt = stmt.order_by(
             desc(FlowTemplateVersion.created_at), desc(FlowTemplateVersion.id)
         )
-        templates = query.limit(limit + 1).all()
+        result = await db.execute(stmt.limit(limit + 1))
+        templates = result.unique().scalars().all()
 
         has_more = len(templates) > limit
         if has_more:
@@ -143,7 +169,7 @@ async def get_flow_template(
     request: Request,
     template_id: UUID,
     include: Optional[str] = Query(None),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
@@ -154,15 +180,14 @@ async def get_flow_template(
         if cached:
             return cached
 
-        query = db.query(FlowTemplateVersion).filter(
-            FlowTemplateVersion.id == template_id
-        )
+        stmt = select(FlowTemplateVersion).where(FlowTemplateVersion.id == template_id)
         if include and "kind" in include:
-            query = query.options(joinedload(FlowTemplateVersion.kind))
+            stmt = stmt.options(selectinload(FlowTemplateVersion.kind))
         else:
-            query = query.join(FlowKind)
+            stmt = stmt.join(FlowKind).options(contains_eager(FlowTemplateVersion.kind))
 
-        template = query.first()
+        result = await db.execute(stmt)
+        template = result.unique().scalar_one_or_none()
         if not template:
             raise HTTPException(status_code=404, detail="Not found")
 
@@ -181,7 +206,7 @@ async def get_flow_template(
 async def create_flow_template(
     request: Request,
     template: FlowTemplateV2Create,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
@@ -190,17 +215,17 @@ async def create_flow_template(
 
         flow_kind = None
         if template.flow_kind_id:
-            flow_kind = (
-                db.query(FlowKind).filter(FlowKind.id == template.flow_kind_id).first()
+            result = await db.execute(
+                select(FlowKind).where(FlowKind.id == template.flow_kind_id)
             )
+            flow_kind = result.scalar_one_or_none()
             if not flow_kind:
                 raise HTTPException(status_code=404, detail="Flow kind not found")
         elif template.kind_key:
-            flow_kind = (
-                db.query(FlowKind)
-                .filter(FlowKind.kind_key == template.kind_key)
-                .first()
+            result = await db.execute(
+                select(FlowKind).where(FlowKind.kind_key == template.kind_key)
             )
+            flow_kind = result.scalar_one_or_none()
             if not flow_kind:
                 flow_kind = FlowKind(
                     kind_key=template.kind_key,
@@ -209,38 +234,54 @@ async def create_flow_template(
                     is_active=True,
                 )
                 db.add(flow_kind)
-                db.flush()
+                await db.flush()
         else:
             raise HTTPException(
                 status_code=400, detail="flow_kind_id or kind_key required"
             )
 
-        existing = (
-            db.query(FlowTemplateVersion)
-            .filter(
-                FlowTemplateVersion.kind_id == flow_kind.id,
+        result = await db.execute(
+            select(FlowTemplateVersion).where(
+                FlowTemplateVersion.flow_kind_id == flow_kind.id,
                 FlowTemplateVersion.version_number == template.version_number,
             )
-            .first()
         )
+        existing = result.scalar_one_or_none()
         if existing:
             raise HTTPException(status_code=409, detail="Version exists")
 
+        normalized_steps = _normalize_steps_payload(template.steps)
+        is_active = template.is_active if template.is_active is not None else False
+        is_draft = template.is_draft if template.is_draft is not None else True
+        if is_active and is_draft:
+            is_draft = False
+        published_at = None if is_draft else now_sao_paulo()
+
         template_version = FlowTemplateVersion(
-            kind_id=flow_kind.id,
+            flow_kind_id=flow_kind.id,
             version_number=template.version_number,
             template_name=template.template_name or template.display_name,
             description=template.description,
-            messages=template.steps,
+            steps=normalized_steps,
             metadata_json=template.metadata or {},
-            is_active=template.is_active if template.is_active is not None else False,
-            is_draft=template.is_draft if template.is_draft is not None else True,
-            published_at=None if template.is_draft else datetime.now(timezone.utc),
+            is_active=is_active,
+            is_draft=is_draft,
+            published_at=published_at,
             created_by=user_uuid,
         )
         db.add(template_version)
-        db.commit()
-        db.refresh(template_version)
+        await db.flush()
+        if is_active:
+            await db.execute(
+                update(FlowTemplateVersion)
+                .where(
+                    FlowTemplateVersion.flow_kind_id == flow_kind.id,
+                    FlowTemplateVersion.id != template_version.id,
+                )
+                .values(is_active=False)
+            )
+        await db.commit()
+        await db.refresh(template_version)
         await _invalidate_template_cache("flow")
 
         # Audit log
@@ -259,18 +300,18 @@ async def create_flow_template(
             ip_address=request.client.host if request.client else None,
         )
 
-        template_version = (
-            db.query(FlowTemplateVersion)
-            .options(joinedload(FlowTemplateVersion.kind))
-            .filter(FlowTemplateVersion.id == template_version.id)
-            .first()
+        result = await db.execute(
+            select(FlowTemplateVersion)
+            .options(selectinload(FlowTemplateVersion.kind))
+            .where(FlowTemplateVersion.id == template_version.id)
         )
+        template_version = result.scalar_one_or_none()
 
         return _serialize_flow_template(template_version)
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error creating flow template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to create flow template")
 
@@ -281,41 +322,125 @@ async def update_flow_template(
     request: Request,
     template_id: UUID,
     updates: FlowTemplateV2Update,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
-        template = (
-            db.query(FlowTemplateVersion)
-            .filter(FlowTemplateVersion.id == template_id)
-            .first()
+        result = await db.execute(
+            select(FlowTemplateVersion).where(FlowTemplateVersion.id == template_id)
         )
+        template = result.scalar_one_or_none()
         if not template:
             raise HTTPException(status_code=404)
+
+        role, user_uuid = _extract_user_context(current_user)
+        normalized_steps = (
+            _normalize_steps_payload(updates.steps) if updates.steps is not None else None
+        )
+        if not template.is_draft and _is_content_update(updates):
+            if updates.description is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Changelog (description) is required for new versions",
+                )
+
+            result = await db.execute(
+                select(FlowTemplateVersion)
+                .where(FlowTemplateVersion.flow_kind_id == template.flow_kind_id)
+                .order_by(desc(FlowTemplateVersion.version_number))
+            )
+            latest_version = result.scalar_one_or_none()
+            new_version_number = (
+                latest_version.version_number + 1 if latest_version else template.version_number + 1
+            )
+
+            new_template = FlowTemplateVersion(
+                flow_kind_id=template.flow_kind_id,
+                version_number=new_version_number,
+                template_name=updates.template_name or template.template_name,
+                description=updates.description,
+                steps=normalized_steps if normalized_steps is not None else template.steps,
+                metadata_json=updates.metadata if updates.metadata is not None else template.metadata_json,
+                is_active=updates.is_active if updates.is_active is not None else False,
+                is_draft=True if updates.is_draft is None else updates.is_draft,
+                published_at=None,
+                created_by=user_uuid,
+            )
+            db.add(new_template)
+            await db.flush()
+            if new_template.is_active:
+                new_template.is_draft = False
+                new_template.published_at = now_sao_paulo()
+                await db.execute(
+                    update(FlowTemplateVersion)
+                    .where(
+                        FlowTemplateVersion.flow_kind_id == template.flow_kind_id,
+                        FlowTemplateVersion.id != new_template.id,
+                    )
+                    .values(is_active=False)
+                )
+            await db.commit()
+            await db.refresh(new_template)
+            await _invalidate_template_cache("flow")
+
+            AuditLogger.log(
+                action=AuditAction.CREATE,
+                resource_type="flow_template_version",
+                resource_id=str(new_template.id),
+                user_id=str(user_uuid),
+                user_role=role,
+                details={
+                    "source_template_id": str(template_id),
+                    "new_version_number": new_version_number,
+                    "is_draft": new_template.is_draft,
+                },
+                ip_address=request.client.host if request.client else None,
+            )
+
+            result = await db.execute(
+                select(FlowTemplateVersion)
+                .options(selectinload(FlowTemplateVersion.kind))
+                .where(FlowTemplateVersion.id == new_template.id)
+            )
+            new_template = result.scalar_one_or_none()
+            return _serialize_flow_template(new_template)
 
         if updates.template_name is not None:
             template.template_name = updates.template_name
         if updates.description is not None:
             template.description = updates.description
-        if updates.steps is not None:
-            template.messages = updates.steps
+        if normalized_steps is not None:
+            template.steps = normalized_steps
         if updates.metadata is not None:
             template.metadata_json = updates.metadata
         if updates.is_active is not None:
             template.is_active = updates.is_active
+            if updates.is_active:
+                await db.execute(
+                    update(FlowTemplateVersion)
+                    .where(
+                        FlowTemplateVersion.flow_kind_id == template.flow_kind_id,
+                        FlowTemplateVersion.id != template.id,
+                    )
+                    .values(is_active=False)
+                )
         if updates.is_draft is not None:
             if template.is_draft and not updates.is_draft:
-                template.published_at = datetime.now(timezone.utc)
+                template.published_at = now_sao_paulo()
             template.is_draft = updates.is_draft
+            if not template.is_draft and template.published_at is None:
+                template.published_at = now_sao_paulo()
+        if template.is_active and template.is_draft:
+            template.is_draft = False
+            template.published_at = template.published_at or now_sao_paulo()
 
-        template.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(template)
+        template.updated_at = now_sao_paulo()
+        await db.commit()
+        await db.refresh(template)
         await _invalidate_template_cache("flow", template_id)
 
         # Audit log
-        role, user_uuid = _extract_user_context(current_user)
         changes = {}
         if updates.template_name is not None:
             changes["template_name"] = updates.template_name
@@ -334,17 +459,17 @@ async def update_flow_template(
             ip_address=request.client.host if request.client else None,
         )
 
-        template = (
-            db.query(FlowTemplateVersion)
-            .options(joinedload(FlowTemplateVersion.kind))
-            .filter(FlowTemplateVersion.id == template_id)
-            .first()
+        result = await db.execute(
+            select(FlowTemplateVersion)
+            .options(selectinload(FlowTemplateVersion.kind))
+            .where(FlowTemplateVersion.id == template_id)
         )
+        template = result.scalar_one_or_none()
         return _serialize_flow_template(template)
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error updating flow template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to update flow template")
 
@@ -355,26 +480,39 @@ async def delete_flow_template(
     request: Request,
     template_id: UUID,
     soft_delete: bool = Query(True),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
-        template = (
-            db.query(FlowTemplateVersion)
-            .filter(FlowTemplateVersion.id == template_id)
-            .first()
+        result = await db.execute(
+            select(FlowTemplateVersion).where(FlowTemplateVersion.id == template_id)
         )
+        template = result.scalar_one_or_none()
         if not template:
             raise HTTPException(status_code=404)
 
+        result = await db.execute(
+            select(func.count())
+            .select_from(PatientFlowState)
+            .where(
+                PatientFlowState.flow_template_version_id == template.id,
+                PatientFlowState.completed_at.is_(None),
+            )
+        )
+        active_count = result.scalar_one()
+        if active_count > 0:
+            raise HTTPException(
+                status_code=400, detail="Template has active patients and cannot be deleted"
+            )
+
         if soft_delete:
             template.is_active = False
-            template.updated_at = datetime.now(timezone.utc)
-            db.commit()
+            template.updated_at = now_sao_paulo()
+            await db.commit()
         else:
-            db.delete(template)
-            db.commit()
+            await db.delete(template)
+            await db.commit()
 
         await _invalidate_template_cache("flow", template_id)
 
@@ -397,7 +535,7 @@ async def delete_flow_template(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error deleting flow template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to delete flow template")
 
@@ -412,38 +550,36 @@ async def duplicate_flow_template(
     request: Request,
     template_id: UUID,
     duplicate_data: FlowTemplateV2Duplicate,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
         role, user_uuid = _extract_user_context(current_user)
-        source = (
-            db.query(FlowTemplateVersion)
-            .filter(FlowTemplateVersion.id == template_id)
-            .first()
+        result = await db.execute(
+            select(FlowTemplateVersion).where(FlowTemplateVersion.id == template_id)
         )
+        source = result.scalar_one_or_none()
         if not source:
             raise HTTPException(status_code=404)
 
-        existing = (
-            db.query(FlowTemplateVersion)
-            .filter(
-                FlowTemplateVersion.kind_id == source.kind_id,
+        result = await db.execute(
+            select(FlowTemplateVersion).where(
+                FlowTemplateVersion.flow_kind_id == source.flow_kind_id,
                 FlowTemplateVersion.version_number == duplicate_data.new_version_number,
             )
-            .first()
         )
+        existing = result.scalar_one_or_none()
         if existing:
             raise HTTPException(status_code=409, detail="Version exists")
 
         new_template = FlowTemplateVersion(
-            kind_id=source.kind_id,
+            flow_kind_id=source.flow_kind_id,
             version_number=duplicate_data.new_version_number,
             template_name=duplicate_data.new_template_name
             or f"{source.template_name} (Copy)",
             description=duplicate_data.description or source.description,
-            messages=source.messages,
+            steps=source.steps,
             metadata_json=source.metadata_json.copy()
             if source.metadata_json
             else {},
@@ -453,8 +589,8 @@ async def duplicate_flow_template(
             created_by=user_uuid,
         )
         db.add(new_template)
-        db.commit()
-        db.refresh(new_template)
+        await db.commit()
+        await db.refresh(new_template)
         await _invalidate_template_cache("flow")
 
         # Audit log
@@ -472,17 +608,17 @@ async def duplicate_flow_template(
             ip_address=request.client.host if request.client else None,
         )
 
-        new_template = (
-            db.query(FlowTemplateVersion)
-            .options(joinedload(FlowTemplateVersion.kind))
-            .filter(FlowTemplateVersion.id == new_template.id)
-            .first()
+        result = await db.execute(
+            select(FlowTemplateVersion)
+            .options(selectinload(FlowTemplateVersion.kind))
+            .where(FlowTemplateVersion.id == new_template.id)
         )
+        new_template = result.scalar_one_or_none()
         return _serialize_flow_template(new_template)
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error duplicating flow template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to duplicate flow template")
 
@@ -492,7 +628,7 @@ async def duplicate_flow_template(
 async def list_flow_kinds(
     request: Request,
     is_active: Optional[bool] = Query(None),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
@@ -501,16 +637,52 @@ async def list_flow_kinds(
         if cached:
             return cached
 
-        query = db.query(FlowKind)
+        stmt = select(FlowKind)
         if is_active is not None:
-            query = query.filter(FlowKind.is_active == is_active)
-        flow_kinds = query.all()
+            stmt = stmt.where(FlowKind.is_active == is_active)
+        result = await db.execute(stmt)
+        flow_kinds = result.scalars().all()
 
         data = []
         for kind in flow_kinds:
-            # Simple stats query logic ...
-            # Keeping it simple for refactor
-            stats = {"total": 0, "published": 0, "draft": 0, "active_version": None}
+            stats = {
+                "total": (
+                    await db.execute(
+                        select(func.count())
+                        .select_from(FlowTemplateVersion)
+                        .where(FlowTemplateVersion.flow_kind_id == kind.id)
+                    )
+                ).scalar_one(),
+                "published": (
+                    await db.execute(
+                        select(func.count())
+                        .select_from(FlowTemplateVersion)
+                        .where(
+                            FlowTemplateVersion.flow_kind_id == kind.id,
+                            FlowTemplateVersion.is_draft.is_(False),
+                            FlowTemplateVersion.is_active.is_(True),
+                        )
+                    )
+                ).scalar_one(),
+                "draft": (
+                    await db.execute(
+                        select(func.count())
+                        .select_from(FlowTemplateVersion)
+                        .where(
+                            FlowTemplateVersion.flow_kind_id == kind.id,
+                            FlowTemplateVersion.is_draft.is_(True),
+                        )
+                    )
+                ).scalar_one(),
+                "active_version": (
+                    await db.execute(
+                        select(FlowTemplateVersion.id).where(
+                            FlowTemplateVersion.flow_kind_id == kind.id,
+                            FlowTemplateVersion.is_active.is_(True),
+                        )
+                    )
+                ).scalar_one_or_none(),
+            }
             data.append(_serialize_flow_kind(kind, stats))
 
         result = {"data": data, "total": len(data)}
@@ -526,14 +698,15 @@ async def list_flow_kinds(
 async def create_flow_kind(
     request: Request,
     kind_data: FlowKindV2Create,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
-        existing = (
-            db.query(FlowKind).filter(FlowKind.kind_key == kind_data.kind_key).first()
+        result = await db.execute(
+            select(FlowKind).where(FlowKind.kind_key == kind_data.kind_key)
         )
+        existing = result.scalar_one_or_none()
         if existing:
             raise HTTPException(status_code=409, detail="Kind exists")
 
@@ -544,8 +717,8 @@ async def create_flow_kind(
             is_active=kind_data.is_active if kind_data.is_active is not None else True,
         )
         db.add(flow_kind)
-        db.commit()
-        db.refresh(flow_kind)
+        await db.commit()
+        await db.refresh(flow_kind)
         await _invalidate_template_cache("flow_kinds")
 
         # Audit log
@@ -567,6 +740,6 @@ async def create_flow_kind(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error creating flow kind: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to create flow kind")

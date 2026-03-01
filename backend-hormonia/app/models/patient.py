@@ -18,12 +18,14 @@ from sqlalchemy import (
 )
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.orm import relationship, validates
-from typing import Dict, Any, Optional, TYPE_CHECKING
-from datetime import date, timedelta
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
+from datetime import date, timedelta, datetime
 
 from app.models.base import BaseModel
 from app.models.enums import FlowState  # Consolidated enum
+from app.utils.timezone import SAO_PAULO_TZ_NAME, SAO_PAULO_TZ
 
 if TYPE_CHECKING:
     pass
@@ -68,7 +70,9 @@ class Patient(BaseModel):
 
     # Basic information (matches Supabase schema exactly)
     # NOTE: doctor_id is now optional to allow patient creation without doctor assignment
-    doctor_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    doctor_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True
+    )
     # NOTE: phone and email plaintext columns REMOVED in migration 030 (LGPD compliance)
     # Use phone_encrypted/phone_hash and email_encrypted/email_hash instead
     name = Column(String, nullable=False)
@@ -116,8 +120,72 @@ class Patient(BaseModel):
     # Flexible metadata storage (matches Supabase column name)
     # Note: Using 'patient_data' as attribute name since 'metadata' is reserved by SQLAlchemy
     # Now only stores additional/dynamic fields not covered by dedicated columns
-    patient_data = Column("metadata", JSONB, nullable=True, default=dict)
-    # Legacy alias present in DB
+    patient_data = Column(
+        "metadata",
+        MutableDict.as_mutable(JSONB),
+        nullable=True,
+        default=dict,
+    )
+
+    def __init__(self, **kwargs):
+        # Canonical payload: use only `name` for patient identity.
+        super().__init__(**kwargs)
+        if self.flow_state is None:
+            self.flow_state = FlowState.ONBOARDING
+        if self.current_day is None:
+            self.current_day = 0
+
+    # Compatibility helper for tests treating model instances like dicts.
+    def __getitem__(self, key):
+        return getattr(self, key)
+
+    @property
+    def enrollment_date(self) -> Optional[datetime]:
+        data = self.patient_data or {}
+        value = data.get("enrollment_date")
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            return datetime.combine(value, datetime.min.time(), tzinfo=SAO_PAULO_TZ)
+        if isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value)
+                return parsed if parsed.tzinfo else parsed.replace(tzinfo=SAO_PAULO_TZ)
+            except ValueError:
+                pass
+        if self.treatment_start_date:
+            return datetime.combine(
+                self.treatment_start_date, datetime.min.time(), tzinfo=SAO_PAULO_TZ
+            )
+        return self.created_at
+
+    @enrollment_date.setter
+    def enrollment_date(self, value: Optional[datetime]) -> None:
+        data = dict(self.patient_data or {})
+        if value is None:
+            data["enrollment_date"] = None
+            self.patient_data = data
+            return
+
+        parsed: Optional[datetime]
+        if isinstance(value, datetime):
+            parsed = value
+        elif isinstance(value, date):
+            parsed = datetime.combine(value, datetime.min.time(), tzinfo=SAO_PAULO_TZ)
+        elif isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value)
+            except ValueError:
+                parsed = None
+        else:
+            parsed = None
+
+        if parsed:
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=SAO_PAULO_TZ)
+            data["enrollment_date"] = parsed.isoformat()
+            self.patient_data = data
+    # Alias present in DB
 
     # QW-004: Idempotency key for duplicate request prevention
     # Used to prevent duplicate patient creation from retried API requests
@@ -125,6 +193,11 @@ class Patient(BaseModel):
 
     # Soft delete support
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+    # LGPD Art. 18 — Opt-out / consent revocation flag
+    # Set when patient sends STOP/PARAR/CANCELAR via WhatsApp.
+    # Non-NULL value means all outbound messaging must be halted immediately.
+    messaging_stopped_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     doctor = relationship("User", back_populates="patients")
@@ -189,6 +262,11 @@ class Patient(BaseModel):
         "PatientSummary", back_populates="patient", lazy="select", passive_deletes=True
     )
 
+    # LGPD Data Access Request relationship (for DSAR tracking)
+    data_access_requests = relationship(
+        "DataAccessRequest", back_populates="patient", lazy="select", passive_deletes=True
+    )
+
     # Constraints and indexes to match DB uniques
     # After migrations 009, 020 (CPF encryption), 024 (CPF plaintext removal), 028 (email/phone encryption)
     #
@@ -251,7 +329,16 @@ class Patient(BaseModel):
         if value is None:
             return value
 
+        # Some call sites (tests and integration code) may provide datetime;
+        # normalize to date before age validation.
+        if isinstance(value, datetime):
+            value = value.date()
+
         today = date.today()
+
+        # Not in the future
+        if value > today:
+            raise ValueError(f"Birth date {value.isoformat()} cannot be in the future.")
 
         # Minimum 18 years old
         min_date = today - timedelta(days=int(18 * 365.25))
@@ -271,11 +358,30 @@ class Patient(BaseModel):
                 f"(indicates age of {age_years:.1f} years, over 120 years old)."
             )
 
-        # Not in the future
-        if value > today:
-            raise ValueError(f"Birth date {value.isoformat()} cannot be in the future.")
-
         return value
+
+    @validates("flow_state")
+    def validate_flow_state(
+        self, key, value: Optional[FlowState | str]
+    ) -> FlowState:
+        """Validate and normalize flow_state values at ORM layer."""
+        if value is None:
+            return FlowState.ONBOARDING
+
+        if isinstance(value, FlowState):
+            return value
+
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            try:
+                return FlowState(normalized)
+            except ValueError as exc:
+                allowed = ", ".join(state.value for state in FlowState)
+                raise ValueError(
+                    f"Invalid flow_state '{value}'. Allowed values: {allowed}"
+                ) from exc
+
+        raise ValueError("flow_state must be a FlowState enum or string")
 
     @validates("patient_data")
     def validate_metadata_schema(
@@ -291,11 +397,33 @@ class Patient(BaseModel):
         if value is None or value == {}:
             return value or {}
 
+        normalized = value
+        if isinstance(value, dict):
+            normalized = dict(value)
+            mapped_timezone = normalized.pop("timezone", None)
+            mapped_contact = normalized.pop("preferred_contact", None)
+            mapped_notes = normalized.pop("notes", None)
+
+            if mapped_timezone or mapped_contact:
+                preferences = dict(normalized.get("preferences") or {})
+                if mapped_timezone and "timezone" not in preferences:
+                    preferences["timezone"] = mapped_timezone
+                if mapped_contact and "communication_channel" not in preferences:
+                    preferences["communication_channel"] = mapped_contact
+                if preferences:
+                    normalized["preferences"] = preferences
+
+            if mapped_notes is not None:
+                custom_fields = dict(normalized.get("custom_fields") or {})
+                custom_fields.setdefault("notes", mapped_notes)
+                normalized["custom_fields"] = custom_fields
+
         # Import here to avoid circular dependency
         from app.utils.jsonb_validator import validate_patient_metadata
 
         try:
-            return validate_patient_metadata(value)
+            validate_patient_metadata(normalized)
+            return value
         except Exception as e:
             raise ValueError(f"Invalid metadata schema: {str(e)}")
 
@@ -532,16 +660,8 @@ class Patient(BaseModel):
 
     @property
     def timezone(self) -> str:
-        """Get patient timezone from metadata (default: America/Sao_Paulo)."""
-        if not self.patient_data:
-            return "America/Sao_Paulo"
-
-        preferences = self.patient_data.get("preferences")
-        if isinstance(preferences, dict) and preferences.get("timezone"):
-            return preferences.get("timezone")
-
-        legacy_timezone = self.patient_data.get("timezone")
-        return legacy_timezone or "America/Sao_Paulo"
+        """Get patient timezone (system-fixed to Sao Paulo)."""
+        return SAO_PAULO_TZ_NAME
 
     @timezone.setter
     def timezone(self, value: str):
@@ -556,6 +676,80 @@ class Patient(BaseModel):
         preferences["timezone"] = value
         self.patient_data["preferences"] = preferences
         self.patient_data.pop("timezone", None)
+
+    # =========================================================================
+    # PLATFORM SYNCHRONIZATION PROPERTIES (Stored in patient_data)
+    # =========================================================================
+
+    @property
+    def response_history(self) -> List[Dict[str, Any]]:
+        """Get response history from metadata."""
+        return self.get_metadata_field("response_history", [])
+
+    @response_history.setter
+    def response_history(self, value: List[Dict[str, Any]]):
+        """Set response history in metadata."""
+        self.set_metadata_field("response_history", value)
+
+    @property
+    def quiz_history(self) -> List[Dict[str, Any]]:
+        """Get quiz history from metadata."""
+        return self.get_metadata_field("quiz_history", [])
+
+    @quiz_history.setter
+    def quiz_history(self, value: List[Dict[str, Any]]):
+        """Set quiz history in metadata."""
+        self.set_metadata_field("quiz_history", value)
+
+    @property
+    def alert_history(self) -> List[Dict[str, Any]]:
+        """Get alert history from metadata."""
+        return self.get_metadata_field("alert_history", [])
+
+    @alert_history.setter
+    def alert_history(self, value: List[Dict[str, Any]]):
+        """Set alert history in metadata."""
+        self.set_metadata_field("alert_history", value)
+
+    @property
+    def flow_milestones(self) -> List[Dict[str, Any]]:
+        """Get flow milestones from metadata."""
+        return self.get_metadata_field("flow_milestones", [])
+
+    @flow_milestones.setter
+    def flow_milestones(self, value: List[Dict[str, Any]]):
+        """Set flow milestones in metadata."""
+        self.set_metadata_field("flow_milestones", value)
+
+    @property
+    def current_flow_type(self) -> Optional[str]:
+        """Get current flow type from metadata."""
+        return self.get_metadata_field("current_flow_type")
+
+    @current_flow_type.setter
+    def current_flow_type(self, value: Optional[str]):
+        """Set current flow type in metadata."""
+        self.set_metadata_field("current_flow_type", value)
+
+    @property
+    def last_quiz_completed(self) -> Optional[datetime]:
+        """Get last quiz completion date from metadata."""
+        val = self.get_metadata_field("last_quiz_completed")
+        if val and isinstance(val, str):
+            try:
+                return datetime.fromisoformat(val)
+            except ValueError:
+                return None
+        return val
+
+    @last_quiz_completed.setter
+    def last_quiz_completed(self, value: Optional[datetime]):
+        """Set last quiz completion date in metadata."""
+        if value and isinstance(value, datetime):
+            self.set_metadata_field("last_quiz_completed", value.isoformat())
+        else:
+            self.set_metadata_field("last_quiz_completed", value)
+
 
     def __repr__(self):
         # Use phone_hash for repr (phone column removed in migration 030)

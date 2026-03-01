@@ -298,7 +298,8 @@ class FlowStatus(str, Enum):
 
 
 # Type aliases for better documentation
-FlowStateData = dict[str, Union[str, int, float, bool, List[str], dict[str, Any]]]
+FlowStateValue = Union[str, int, float, bool, None, List[str], dict[str, Any]]
+FlowStateData = dict[str, FlowStateValue]
 
 
 # Base response model to reduce duplication
@@ -535,79 +536,6 @@ class FlowRuleResponse(BaseModel):
     priority: int
     is_active: bool
     description: Optional[str] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    created_by: UUID
-    updated_by: Optional[UUID] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ABTestVariant(BaseModel):
-    """Schema for A/B test variant."""
-
-    name: str = Field(..., description="Variant name")
-    template_id: UUID = Field(..., description="Template ID for this variant")
-    allocation_percentage: float = Field(
-        ..., ge=0, le=100, description="Percentage of patients for this variant"
-    )
-    description: Optional[str] = Field(None, description="Variant description")
-
-
-class ABTestConfigRequest(BaseModel):
-    """Schema for A/B test configuration requests."""
-
-    name: str = Field(..., min_length=1, max_length=100, description="Test name")
-    flow_type: str = Field(..., description="Flow type for testing")
-    variants: List[ABTestVariant] = Field(
-        ..., min_length=2, max_length=5, description="Test variants"
-    )
-    success_metrics: List[str] = Field(..., description="Metrics to measure success")
-    target_sample_size: int = Field(
-        ..., ge=10, description="Target number of participants"
-    )
-    duration_days: int = Field(..., ge=1, le=90, description="Test duration in days")
-    description: Optional[str] = Field(None, description="Test description")
-
-    @field_validator("variants")
-    @classmethod
-    def validate_variants(cls, v):
-        """Validate variant allocation percentages sum to 100."""
-        total_allocation = sum(variant.allocation_percentage for variant in v)
-        if (
-            abs(total_allocation - 100.0) > 0.01
-        ):  # Allow for small floating point errors
-            raise ValueError("Variant allocation percentages must sum to 100")
-        return v
-
-
-class ABTestResults(BaseModel):
-    """Schema for A/B test results."""
-
-    variant_name: str
-    participants: int
-    conversion_rate: float
-    engagement_score: float
-    statistical_significance: float
-    confidence_interval: List[float]
-
-
-class ABTestConfigResponse(BaseModel):
-    """Schema for A/B test configuration responses."""
-
-    id: UUID
-    name: str
-    flow_type: str
-    variants: List[ABTestVariant]
-    success_metrics: List[str]
-    target_sample_size: int
-    duration_days: int
-    description: Optional[str] = None
-    status: str  # active, paused, completed, cancelled
-    current_participants: int
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    results: Optional[List[ABTestResults]] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     created_by: UUID

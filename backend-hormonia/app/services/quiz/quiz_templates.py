@@ -16,12 +16,13 @@ from __future__ import annotations
 # Standard library imports
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 # Third-party imports
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Local application imports
@@ -34,6 +35,7 @@ from app.schemas.quiz import (
     QuizTemplateResponse,
     QuizValidationResult,
 )
+from app.utils.timezone import now_sao_paulo
 
 
 class TemplateLoader:
@@ -184,12 +186,21 @@ class TemplateVersionManager:
             NotFoundError: If original template not found.
             ValidationError: If version already exists.
         """
-        original = await self.repository.get(template_id)
+        original_result = await self.db.execute(
+            select(QuizTemplate).filter_by(id=template_id)
+        )
+        original = original_result.scalar_one_or_none()
         if not original:
             raise NotFoundError(f"Template {template_id} not found")
 
         # Check if version already exists
-        existing = self.repository.get_by_name_and_version(original.name, new_version)
+        existing_result = await self.db.execute(
+            select(QuizTemplate)
+            .where(QuizTemplate.name == original.name)
+            .where(QuizTemplate.version == new_version)
+            .limit(1)
+        )
+        existing = existing_result.scalar_one_or_none()
         if existing:
             raise ValidationError(f"Version {new_version} already exists")
 
@@ -201,28 +212,36 @@ class TemplateVersionManager:
             is_active=True,
         )
 
-        created = self.repository.create(new_template)
-        self.db.commit()
+        self.db.add(new_template)
+        await self.db.flush()
+        await self.db.refresh(new_template)
 
-        return QuizTemplateResponse.from_orm(created)
+        return QuizTemplateResponse.from_orm(new_template)
 
-    def get_versions(self, template_name: str) -> List[QuizTemplateResponse]:
-        """Get all versions of a template."""
-        templates = self.repository.get_all_versions(template_name)
-        return [QuizTemplateResponse.from_orm(t) for t in templates]
-
-    def get_latest_version(self, template_name: str) -> Optional[QuizTemplateResponse]:
-        """Get latest version of template."""
-        templates = self.repository.get_all_versions(template_name)
-        if not templates:
-            return None
-
-        # Sort by version (assuming semantic versioning)
-        sorted_templates = sorted(
-            templates, key=lambda t: tuple(map(int, t.version.split("."))), reverse=True
+    async def get_versions(self, template_name: str) -> List[QuizTemplateResponse]:
+        """Get all versions of a template (AsyncSession-safe path)."""
+        stmt = (
+            select(QuizTemplate)
+            .where(QuizTemplate.name == template_name)
+            .order_by(QuizTemplate.created_at.desc())
         )
+        templates = (await self.db.execute(stmt)).scalars().all()
+        return [QuizTemplateResponse.from_orm(template) for template in templates]
 
-        return QuizTemplateResponse.from_orm(sorted_templates[0])
+    async def get_latest_version(
+        self, template_name: str
+    ) -> Optional[QuizTemplateResponse]:
+        """Get latest version of template (AsyncSession-safe path)."""
+        stmt = (
+            select(QuizTemplate)
+            .where(QuizTemplate.name == template_name)
+            .order_by(QuizTemplate.created_at.desc())
+            .limit(1)
+        )
+        latest = (await self.db.execute(stmt)).scalar_one_or_none()
+        if latest:
+            return QuizTemplateResponse.from_orm(latest)
+        return None
 
 
 class TemplateCache:
@@ -253,7 +272,7 @@ class TemplateCache:
         cached_time = self._cache_times.get(template_id)
         if (
             cached_time
-            and (datetime.now(timezone.utc) - cached_time).total_seconds() > self._ttl_seconds
+            and (now_sao_paulo() - cached_time).total_seconds() > self._ttl_seconds
         ):
             self.invalidate(template_id)
             return None
@@ -263,7 +282,7 @@ class TemplateCache:
     def set(self, template_id: UUID, template: QuizTemplate) -> None:
         """Set template in cache."""
         self._cache[template_id] = template
-        self._cache_times[template_id] = datetime.now(timezone.utc)
+        self._cache_times[template_id] = now_sao_paulo()
 
     def invalidate(self, template_id: UUID) -> None:
         """Invalidate cache entry."""

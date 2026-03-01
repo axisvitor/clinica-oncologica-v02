@@ -13,14 +13,14 @@ export const mockUser = {
   role: 'admin',
   is_active: true,
   permissions: ['read:patients', 'write:patients', 'read:reports', 'write:reports'],
-  created_at: '2023-01-01T00:00:00Z'
+  created_at: '2023-01-01T00:00:00-03:00'
 }
 
 export const mockFirebaseUser = {
   id: 'test-user-id',
   email: 'test@example.com',
   getIdToken: vi.fn().mockResolvedValue('mock-firebase-token'),
-  created_at: '2023-01-01T00:00:00Z',
+  created_at: '2023-01-01T00:00:00-03:00',
   user_metadata: {
     full_name: 'Test User',
     role: 'admin',
@@ -190,8 +190,8 @@ export const createMockPatient = (overrides = {}) => ({
   gender: 'male',
   treatment_type: 'chemotherapy',
   status: 'active',
-  created_at: '2023-01-01T00:00:00Z',
-  updated_at: '2023-01-01T00:00:00Z',
+  created_at: '2023-01-01T00:00:00-03:00',
+  updated_at: '2023-01-01T00:00:00-03:00',
   ...overrides
 })
 
@@ -202,8 +202,8 @@ export const createMockMessage = (overrides = {}) => ({
   type: 'text',
   direction: 'outbound',
   status: 'delivered',
-  sent_at: '2023-01-01T00:00:00Z',
-  delivered_at: '2023-01-01T00:00:00Z',
+  sent_at: '2023-01-01T00:00:00-03:00',
+  delivered_at: '2023-01-01T00:00:00-03:00',
   ...overrides
 })
 
@@ -220,7 +220,7 @@ export const createMockQuiz = (overrides = {}) => ({
       required: true
     }
   ],
-  created_at: '2023-01-01T00:00:00Z',
+  created_at: '2023-01-01T00:00:00-03:00',
   ...overrides
 })
 
@@ -230,7 +230,7 @@ export const createMockReport = (overrides = {}) => ({
   type: 'progress',
   title: 'Progress Report',
   status: 'completed',
-  generated_at: '2023-01-01T00:00:00Z',
+  generated_at: '2023-01-01T00:00:00-03:00',
   data: {},
   ...overrides
 })

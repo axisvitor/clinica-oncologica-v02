@@ -4,6 +4,27 @@ Revision ID: 017_add_patient_soft_delete
 Revises: 016_validate_patient_metadata
 Create Date: 2025-10-27
 
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa
@@ -16,7 +37,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     """Add deleted_at column for soft delete functionality."""
     
     # Add deleted_at column
@@ -37,7 +58,7 @@ def upgrade():
     """)
 
 
-def downgrade():
+def downgrade() -> None:
     """Remove soft delete functionality."""
     
     # Drop indexes

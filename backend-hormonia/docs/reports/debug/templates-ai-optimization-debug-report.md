@@ -454,7 +454,7 @@ if len(template.steps) > 50:    # Why 50?
 
 ### 28. No Timezone Conversion
 **File:** `context_builder.py:61,145`
-**Problem:** Uses UTC but patients have timezone preferences
+**Problem:** Uses Sao Paulo but patients have timezone preferences
 
 ---
 

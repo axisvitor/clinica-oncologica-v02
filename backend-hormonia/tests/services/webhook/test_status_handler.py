@@ -4,10 +4,10 @@ Unit tests for StatusWebhookHandler.
 Tests delivery status update processing for WhatsApp messages.
 """
 import pytest
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock, AsyncMock, patch
 from uuid import uuid4
 
-from app.models.message import MessageStatus
+from app.models.message import MessageStatus, MessageDirection, MessageType
 
 
 class TestStatusWebhookHandler:
@@ -32,6 +32,33 @@ class TestStatusWebhookHandler:
         return store
 
     @pytest.fixture
+    def mock_redis(self):
+        """Create a mock Redis client."""
+        redis = AsyncMock()
+        redis.set = AsyncMock(return_value=True)
+        return redis
+
+    @pytest.fixture
+    def mock_get_async_redis(self, mock_redis):
+        """Patch async Redis getter."""
+        with patch(
+            "app.services.webhook.handlers.status_handler.get_async_redis",
+            new_callable=AsyncMock,
+        ) as mock_get:
+            mock_get.return_value = mock_redis
+            yield mock_get
+
+    @pytest.fixture
+    def mock_publish_ws(self):
+        """Patch websocket publish."""
+        with patch(
+            "app.services.webhook.handlers.status_handler.websocket_events_module.websocket_events",
+            new=Mock(),
+        ) as mock_ws:
+            mock_ws.broadcast_message_event = AsyncMock()
+            yield mock_ws
+
+    @pytest.fixture
     def handler(self, mock_db):
         """Create StatusWebhookHandler instance."""
         from app.services.webhook.handlers.status_handler import StatusWebhookHandler
@@ -41,27 +68,38 @@ class TestStatusWebhookHandler:
     def sample_status_event(self):
         """Sample status webhook event."""
         return {
-            "instance": "clinica-hormonia",
-            "event": "messages.update",
-            "data": {
-                "key": {
-                    "remoteJid": "5511987654321@s.whatsapp.net",
-                    "id": "whatsapp_msg_123"
-                },
-                "status": "READ"
-            }
+            "key": {"id": "whatsapp_msg_123"},
+            "update": {"status": "READ"},
         }
 
     @pytest.mark.asyncio
-    async def test_process_status_read(self, handler, mock_db, mock_webhook_store, sample_status_event):
+    async def test_process_status_read(
+        self,
+        handler,
+        mock_db,
+        mock_webhook_store,
+        mock_get_async_redis,
+        mock_publish_ws,
+        sample_status_event,
+    ):
         """Test processing READ status update."""
-        mock_message = Mock()
-        mock_message.id = uuid4()
-        mock_message.status = MessageStatus.DELIVERED
-        
-        mock_result = Mock()
-        mock_result.fetchone.return_value = mock_message
-        mock_db.execute.return_value = mock_result
+        previous_message = Mock()
+        previous_message.status = MessageStatus.DELIVERED
+
+        updated_message = Mock()
+        updated_message.id = uuid4()
+        updated_message.status = MessageStatus.READ
+        updated_message.direction = MessageDirection.OUTBOUND
+        updated_message.type = MessageType.TEXT
+        updated_message.patient_id = uuid4()
+        updated_message.whatsapp_id = "whatsapp_msg_123"
+
+        handler.message_service.get_message_by_whatsapp_id = Mock(
+            return_value=previous_message
+        )
+        handler.message_service.update_message_status_by_whatsapp_id = Mock(
+            return_value=updated_message
+        )
         
         result = await handler.process_status(sample_status_event, mock_webhook_store)
         
@@ -70,87 +108,122 @@ class TestStatusWebhookHandler:
         mock_webhook_store.mark_processed.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_process_status_delivered(self, handler, mock_db, mock_webhook_store):
+    async def test_process_status_delivered(
+        self,
+        handler,
+        mock_db,
+        mock_webhook_store,
+        mock_get_async_redis,
+        mock_publish_ws,
+    ):
         """Test processing DELIVERED status update."""
         event = {
-            "instance": "clinica-hormonia",
-            "data": {
-                "key": {"id": "whatsapp_msg_123"},
-                "status": "DELIVERED"
-            }
+            "key": {"id": "whatsapp_msg_123"},
+            "update": {"status": "DELIVERED"},
         }
         
-        mock_message = Mock()
-        mock_message.id = uuid4()
-        mock_message.status = MessageStatus.SENT
-        
-        mock_result = Mock()
-        mock_result.fetchone.return_value = mock_message
-        mock_db.execute.return_value = mock_result
+        handler.message_service.get_message_by_whatsapp_id = Mock(
+            return_value=Mock(status=MessageStatus.SENT)
+        )
+        handler.message_service.update_message_status_by_whatsapp_id = Mock(
+            return_value=Mock(
+                id=uuid4(),
+                status=MessageStatus.DELIVERED,
+                direction=MessageDirection.OUTBOUND,
+                type=MessageType.TEXT,
+                patient_id=uuid4(),
+                whatsapp_id="whatsapp_msg_123",
+            )
+        )
         
         result = await handler.process_status(event, mock_webhook_store)
         
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_process_status_sent(self, handler, mock_db, mock_webhook_store):
+    async def test_process_status_sent(
+        self,
+        handler,
+        mock_db,
+        mock_webhook_store,
+        mock_get_async_redis,
+        mock_publish_ws,
+    ):
         """Test processing SENT status update."""
         event = {
-            "instance": "clinica-hormonia",
-            "data": {
-                "key": {"id": "whatsapp_msg_123"},
-                "status": "SENT"
-            }
+            "key": {"id": "whatsapp_msg_123"},
+            "update": {"status": "SENT"},
         }
         
-        mock_message = Mock()
-        mock_message.id = uuid4()
-        mock_message.status = MessageStatus.PENDING
-        
-        mock_result = Mock()
-        mock_result.fetchone.return_value = mock_message
-        mock_db.execute.return_value = mock_result
+        handler.message_service.get_message_by_whatsapp_id = Mock(
+            return_value=Mock(status=MessageStatus.PENDING)
+        )
+        handler.message_service.update_message_status_by_whatsapp_id = Mock(
+            return_value=Mock(
+                id=uuid4(),
+                status=MessageStatus.SENT,
+                direction=MessageDirection.OUTBOUND,
+                type=MessageType.TEXT,
+                patient_id=uuid4(),
+                whatsapp_id="whatsapp_msg_123",
+            )
+        )
         
         result = await handler.process_status(event, mock_webhook_store)
         
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_process_status_failed(self, handler, mock_db, mock_webhook_store):
+    async def test_process_status_failed(
+        self,
+        handler,
+        mock_db,
+        mock_webhook_store,
+        mock_get_async_redis,
+        mock_publish_ws,
+    ):
         """Test processing FAILED status update."""
         event = {
-            "instance": "clinica-hormonia",
-            "data": {
-                "key": {"id": "whatsapp_msg_123"},
-                "status": "FAILED"
-            }
+            "key": {"id": "whatsapp_msg_123"},
+            "update": {"status": "FAILED"},
         }
         
-        mock_message = Mock()
-        mock_message.id = uuid4()
-        mock_message.status = MessageStatus.SENT
-        
-        mock_result = Mock()
-        mock_result.fetchone.return_value = mock_message
-        mock_db.execute.return_value = mock_result
+        handler.message_service.get_message_by_whatsapp_id = Mock(
+            return_value=Mock(status=MessageStatus.SENT)
+        )
+        handler.message_service.update_message_status_by_whatsapp_id = Mock(
+            return_value=Mock(
+                id=uuid4(),
+                status=MessageStatus.FAILED,
+                direction=MessageDirection.OUTBOUND,
+                type=MessageType.TEXT,
+                patient_id=uuid4(),
+                whatsapp_id="whatsapp_msg_123",
+            )
+        )
         
         result = await handler.process_status(event, mock_webhook_store)
         
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_process_status_message_not_found(self, handler, mock_db, mock_webhook_store):
+    async def test_process_status_message_not_found(
+        self,
+        handler,
+        mock_db,
+        mock_webhook_store,
+        mock_get_async_redis,
+    ):
         """Test status update for non-existent message."""
         event = {
-            "data": {
-                "key": {"id": "nonexistent_msg"},
-                "status": "READ"
-            }
+            "key": {"id": "nonexistent_msg"},
+            "update": {"status": "READ"},
         }
-        
-        mock_result = Mock()
-        mock_result.fetchone.return_value = None
-        mock_db.execute.return_value = mock_result
+
+        handler.message_service.get_message_by_whatsapp_id = Mock(return_value=None)
+        handler.message_service.update_message_status_by_whatsapp_id = Mock(
+            return_value=None
+        )
         
         result = await handler.process_status(event, mock_webhook_store)
         
@@ -158,7 +231,7 @@ class TestStatusWebhookHandler:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_process_status_missing_data(self, handler, mock_webhook_store):
+    async def test_process_status_missing_data(self, handler, mock_webhook_store, mock_get_async_redis):
         """Test handling of missing data in webhook."""
         event = {"instance": "clinica-hormonia"}
         
@@ -167,22 +240,28 @@ class TestStatusWebhookHandler:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_process_status_without_webhook_store(self, handler, mock_db):
+    async def test_process_status_without_webhook_store(
+        self, handler, mock_db, mock_get_async_redis, mock_publish_ws
+    ):
         """Test processing status without webhook persistence."""
         event = {
-            "data": {
-                "key": {"id": "whatsapp_msg_123"},
-                "status": "READ"
-            }
+            "key": {"id": "whatsapp_msg_123"},
+            "update": {"status": "READ"},
         }
-        
-        mock_message = Mock()
-        mock_message.id = uuid4()
-        mock_message.status = MessageStatus.DELIVERED
-        
-        mock_result = Mock()
-        mock_result.fetchone.return_value = mock_message
-        mock_db.execute.return_value = mock_result
+
+        handler.message_service.get_message_by_whatsapp_id = Mock(
+            return_value=Mock(status=MessageStatus.DELIVERED)
+        )
+        handler.message_service.update_message_status_by_whatsapp_id = Mock(
+            return_value=Mock(
+                id=uuid4(),
+                status=MessageStatus.READ,
+                direction=MessageDirection.OUTBOUND,
+                type=MessageType.TEXT,
+                patient_id=uuid4(),
+                whatsapp_id="whatsapp_msg_123",
+            )
+        )
         
         result = await handler.process_status(event, webhook_store=None)
         

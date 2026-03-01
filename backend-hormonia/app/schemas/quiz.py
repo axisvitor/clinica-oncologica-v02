@@ -158,6 +158,10 @@ class QuizResponseCreate(BaseModel):
 
     patient_id: UUID = Field(..., description="Patient ID")
     quiz_template_id: UUID = Field(..., description="Quiz template ID")
+    quiz_session_id: Optional[UUID] = Field(
+        None,
+        description="Quiz session ID (recommended for conversational/session flows)",
+    )
     question_id: str = Field(..., description="Question ID")
     question_text: str = Field(..., description="Question text")
     response_type: QuestionType = Field(..., description="Response type")
@@ -215,10 +219,11 @@ class QuizResponseResponse(BaseModel):
     id: UUID = Field(..., description="Response ID")
     patient_id: UUID = Field(..., description="Patient ID")
     quiz_template_id: UUID = Field(..., description="Quiz template ID")
+    quiz_session_id: Optional[UUID] = Field(None, description="Quiz session ID")
     question_id: str = Field(..., description="Question ID")
     question_text: str = Field(..., description="Question text")
     response_type: str = Field(..., description="Response type")
-    response_value: str = Field(..., description="Response value")
+    response_value: Any = Field(..., description="Response value")
     response_metadata: dict[str, Any] = Field(..., description="Response metadata")
     responded_at: datetime = Field(..., description="Response timestamp")
     created_at: datetime = Field(..., description="Creation timestamp")

@@ -1670,8 +1670,13 @@ class TestClientInitialization:
     """Tests for client initialization."""
 
     @pytest.mark.asyncio
-    async def test_client_default_values(self, mock_settings):
+    async def test_client_default_values(self, mock_settings, monkeypatch):
         """Test client uses default values from settings."""
+        monkeypatch.delenv("WHATSAPP_EVOLUTION_API_URL", raising=False)
+        monkeypatch.delenv("WHATSAPP_EVOLUTION_INSTANCE_NAME", raising=False)
+        monkeypatch.delenv("WHATSAPP_EVOLUTION_API_KEY", raising=False)
+        monkeypatch.delenv("WHATSAPP_EVOLUTION_WEBHOOK_SECRET", raising=False)
+
         client = EvolutionClient()
 
         assert client.instance_name == "test_instance"

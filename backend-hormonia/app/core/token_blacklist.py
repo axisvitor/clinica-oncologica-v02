@@ -32,9 +32,10 @@ from uuid import uuid4
 import jwt
 from pydantic import BaseModel, Field
 
-from app.core.redis_unified import get_redis_client
+from app.core.redis_manager import get_sync_redis_client as get_redis_client
 from app.core.security_config import get_security_config
 from app.utils.logging import get_logger
+from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -92,7 +93,7 @@ class BlacklistStats(BaseModel):
     blacklisted_today: int = 0
     access_tokens: int = 0
     refresh_tokens: int = 0
-    reason_counts: Dict[str, int] = {}
+    reason_counts: Dict[str, int] = Field(default_factory=dict)
     cleanup_runs: int = 0
     last_cleanup: Optional[datetime] = None
 
@@ -212,6 +213,78 @@ class TokenBlacklistManager:
         """Create Redis key for blacklisted token."""
         return f"{self.config.blacklist_prefix}:{token_hash}"
 
+    def _create_token_id_blacklist_key(self, token_id: str) -> str:
+        """Create Redis key for jti-based blacklisted token."""
+        return f"token:blacklist:{token_id}"
+
+    def _get_active_token_keys(self, user_id: str) -> List[str]:
+        """Get active token index keys for a user."""
+        pattern = f"token:active:{user_id}:*"
+        normalized_keys = []
+        if hasattr(self.redis, "scan_iter"):
+            keys_iter = self.redis.scan_iter(
+                match=pattern, count=self.config.bulk_operation_size
+            )
+            for key in keys_iter:
+                if isinstance(key, (bytes, bytearray)):
+                    normalized_keys.append(key.decode("utf-8"))
+                else:
+                    normalized_keys.append(str(key))
+            return normalized_keys
+
+        if hasattr(self.redis, "scan"):
+            cursor = 0
+            while True:
+                cursor, batch = self.redis.scan(
+                    cursor=cursor, match=pattern, count=self.config.bulk_operation_size
+                )
+                for key in batch:
+                    if isinstance(key, (bytes, bytearray)):
+                        normalized_keys.append(key.decode("utf-8"))
+                    else:
+                        normalized_keys.append(str(key))
+                if cursor in (0, "0"):
+                    break
+            return normalized_keys
+
+        logger.warning(
+            "Redis client does not support SCAN for active token key lookup",
+            extra={"user_id": user_id},
+        )
+
+        return normalized_keys
+
+    def _get_ttl_from_exp(self, exp_value: Any) -> Optional[int]:
+        """Calculate TTL from exp claim/value."""
+        try:
+            if exp_value is None:
+                return None
+
+            if isinstance(exp_value, datetime):
+                exp_dt = exp_value
+            elif isinstance(exp_value, (int, float)):
+                exp_dt = datetime.fromtimestamp(float(exp_value), timezone.utc)
+            elif isinstance(exp_value, str):
+                exp_text = exp_value.strip()
+                if not exp_text:
+                    return None
+                if exp_text.isdigit():
+                    exp_dt = datetime.fromtimestamp(float(exp_text), timezone.utc)
+                else:
+                    exp_dt = datetime.fromisoformat(exp_text.replace("Z", "+00:00"))
+            else:
+                return None
+
+            if exp_dt.tzinfo is None:
+                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+
+            ttl = int(exp_dt.timestamp() - time.time())
+            return ttl if ttl > 0 else None
+
+        except Exception as e:
+            logger.warning(f"Failed to parse token exp for TTL: {e}")
+            return None
+
     def _create_audit_key(self, operation_id: str) -> str:
         """Create Redis key for audit log entry."""
         return f"{self.config.audit_prefix}:{operation_id}"
@@ -225,7 +298,7 @@ class TokenBlacklistManager:
             audit_id = str(uuid4())
             audit_data = {
                 "operation": operation,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "token_metadata": token_metadata.dict(),
                 "audit_id": audit_id,
             }
@@ -261,7 +334,7 @@ class TokenBlacklistManager:
                 stats.total_blacklisted += 1
 
                 # Check if today
-                today = datetime.now(timezone.utc).date()
+                today = now_sao_paulo().date()
                 if token_metadata.blacklisted_at.date() == today:
                     stats.blacklisted_today += 1
 
@@ -277,7 +350,7 @@ class TokenBlacklistManager:
 
             elif operation == "cleanup":
                 stats.cleanup_runs += 1
-                stats.last_cleanup = datetime.now(timezone.utc)
+                stats.last_cleanup = now_sao_paulo()
 
             # Store updated stats
             self.redis.setex(
@@ -336,16 +409,16 @@ class TokenBlacklistManager:
             token_type = "refresh" if claims.get("type") == "refresh" else "access"
 
             # Create metadata
-            now = datetime.now(timezone.utc)
+            now = now_sao_paulo()
             token_metadata = TokenMetadata(
                 token_id=claims.get("jti", token_hash[:16]),
                 user_id=user_id or claims.get("sub"),
                 token_type=token_type,
                 issued_at=datetime.fromtimestamp(
-                    claims.get("iat", time.time()), timezone.utc
+                    claims.get("iat", time.time()), SAO_PAULO_TZ
                 ),
                 expires_at=datetime.fromtimestamp(
-                    claims.get("exp", time.time() + 3600), timezone.utc
+                    claims.get("exp", time.time() + 3600), SAO_PAULO_TZ
                 ),
                 blacklisted_at=now,
                 reason=reason,
@@ -399,8 +472,20 @@ class TokenBlacklistManager:
 
             if is_blacklisted:
                 logger.debug(f"Token is blacklisted: {token_hash[:16]}...")
+                return True
 
-            return bool(is_blacklisted)
+            claims = self._parse_token_claims(token)
+            token_id = claims.get("jti") if claims else None
+            if not token_id:
+                return False
+
+            token_id_blacklist_key = self._create_token_id_blacklist_key(str(token_id))
+            token_id_blacklisted = self.redis.exists(token_id_blacklist_key)
+
+            if token_id_blacklisted:
+                logger.debug(f"Token id is blacklisted: {token_id}")
+
+            return bool(token_id_blacklisted)
 
         except Exception as e:
             logger.error(f"Failed to check token blacklist status: {e}")
@@ -450,7 +535,7 @@ class TokenBlacklistManager:
                             continue
 
                         # Create metadata
-                        now = datetime.now(timezone.utc)
+                        now = now_sao_paulo()
                         token_type = (
                             "refresh" if claims.get("type") == "refresh" else "access"
                         )
@@ -460,10 +545,10 @@ class TokenBlacklistManager:
                             user_id=token_data.get("user_id") or claims.get("sub"),
                             token_type=token_type,
                             issued_at=datetime.fromtimestamp(
-                                claims.get("iat", time.time()), timezone.utc
+                                claims.get("iat", time.time()), SAO_PAULO_TZ
                             ),
                             expires_at=datetime.fromtimestamp(
-                                claims.get("exp", time.time() + 3600), timezone.utc
+                                claims.get("exp", time.time() + 3600), SAO_PAULO_TZ
                             ),
                             blacklisted_at=now,
                             reason=token_data.get("reason", "bulk_revoke"),
@@ -516,10 +601,6 @@ class TokenBlacklistManager:
         """
         Revoke all tokens for a specific user.
 
-        Note: This requires maintaining a user-to-token mapping,
-        which is not implemented in this basic version.
-        In production, you would need to store token-to-user mappings.
-
         Args:
             user_id: User ID whose tokens to revoke
             reason: Reason for revocation
@@ -528,12 +609,114 @@ class TokenBlacklistManager:
         Returns:
             Number of tokens revoked
         """
-        logger.warning(
-            f"User token revocation requested for user {user_id}, "
-            "but user-to-token mapping is not implemented in this version. "
-            "Consider implementing token-to-user index for this functionality."
+        revoked_count = 0
+        excluded_jti = set()
+        excluded_hashes = set()
+
+        for token in exclude_tokens or []:
+            if not token:
+                continue
+
+            normalized_token = (
+                token.replace("Bearer ", "", 1)
+                if isinstance(token, str) and token.startswith("Bearer ")
+                else token
+            )
+
+            if not isinstance(normalized_token, str) or not normalized_token.strip():
+                continue
+
+            excluded_hashes.add(self._hash_token(normalized_token))
+
+            claims = self._parse_token_claims(normalized_token)
+            if claims and claims.get("jti"):
+                excluded_jti.add(str(claims["jti"]))
+
+        try:
+            active_keys = self._get_active_token_keys(user_id)
+        except Exception as e:
+            logger.error(f"Failed to list active tokens for user {user_id}: {e}")
+            return 0
+
+        for active_key in active_keys:
+            try:
+                raw_session = self.redis.get(active_key)
+                if raw_session is None:
+                    continue
+
+                if isinstance(raw_session, (bytes, bytearray)):
+                    raw_session = raw_session.decode("utf-8")
+
+                session_data: Dict[str, Any] = {}
+                if isinstance(raw_session, str):
+                    try:
+                        parsed = json.loads(raw_session)
+                        if isinstance(parsed, dict):
+                            session_data = parsed
+                    except json.JSONDecodeError:
+                        logger.warning(
+                            f"Invalid active token payload for key {active_key}"
+                        )
+                elif isinstance(raw_session, dict):
+                    session_data = raw_session
+
+                token_id = session_data.get("jti")
+                if not token_id:
+                    token_id = active_key.rsplit(":", 1)[-1]
+                token_id = str(token_id) if token_id else None
+
+                token_hash = session_data.get("token_hash")
+                if not token_hash and isinstance(session_data.get("token"), str):
+                    token_hash = self._hash_token(session_data["token"])
+                token_hash = str(token_hash) if token_hash else None
+
+                if token_id and token_id in excluded_jti:
+                    continue
+                if token_hash and token_hash in excluded_hashes:
+                    continue
+
+                ttl = None
+                if hasattr(self.redis, "ttl"):
+                    try:
+                        ttl_raw = self.redis.ttl(active_key)
+                        if isinstance(ttl_raw, (int, float)) and ttl_raw > 0:
+                            ttl = int(ttl_raw)
+                    except Exception as ttl_error:
+                        logger.warning(
+                            f"Failed to read TTL for active key {active_key}: {ttl_error}"
+                        )
+
+                if ttl is None:
+                    ttl = self._get_ttl_from_exp(session_data.get("exp"))
+
+                if not token_id:
+                    logger.warning(
+                        f"Skipping active token without jti for user {user_id}: {active_key}"
+                    )
+                    continue
+
+                if ttl is None or ttl <= 0:
+                    # Active key is stale/expired; clean up without counting as revocation.
+                    self.redis.delete(active_key)
+                    continue
+
+                token_id_blacklist_key = self._create_token_id_blacklist_key(token_id)
+                self.redis.setex(token_id_blacklist_key, ttl, reason)
+
+                self.redis.delete(active_key)
+                revoked_count += 1
+
+            except Exception as e:
+                logger.error(
+                    f"Failed to revoke active token for user {user_id} "
+                    f"(key={active_key}): {e}"
+                )
+
+        logger.info(
+            f"Revoked {revoked_count} active token(s) for user {user_id} "
+            f"(excluded_jti={len(excluded_jti)}, excluded_hashes={len(excluded_hashes)})"
         )
-        return 0
+        return revoked_count
 
     def cleanup_expired_tokens(self) -> int:
         """
@@ -554,9 +737,9 @@ class TokenBlacklistManager:
                 TokenMetadata(
                     token_id="cleanup",
                     token_type="system",
-                    issued_at=datetime.now(timezone.utc),
-                    expires_at=datetime.now(timezone.utc),
-                    blacklisted_at=datetime.now(timezone.utc),
+                    issued_at=now_sao_paulo(),
+                    expires_at=now_sao_paulo(),
+                    blacklisted_at=now_sao_paulo(),
                     reason="cleanup",
                 ),
             )

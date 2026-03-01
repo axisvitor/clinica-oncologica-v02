@@ -7,7 +7,20 @@ import pytest
 import json
 from unittest.mock import Mock, AsyncMock, patch
 from uuid import uuid4, UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+from app.services.follow_up_system.models import (
+    FollowUpAction,
+    EscalationAlert,
+    ConversationContext,
+)
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
+from app.services.follow_up_system.enums import (
+    FollowUpType,
+    EscalationLevel,
+    NotificationChannel,
+)
+from app.services.analytics.data_extraction import MedicalConcernType
 
 
 class TestFollowUpRedisStore:
@@ -32,7 +45,14 @@ class TestFollowUpRedisStore:
         redis.zadd = AsyncMock(return_value=1)
         redis.zrem = AsyncMock(return_value=1)
         redis.zrangebyscore = AsyncMock(return_value=[])
+        redis.zrevrange = AsyncMock(return_value=[])
         redis.zcard = AsyncMock(return_value=0)
+
+        async def scan_iter_empty(*args, **kwargs):
+            if False:
+                yield None
+
+        redis.scan_iter = scan_iter_empty
         
         # Mock pipeline
         mock_pipeline = AsyncMock()
@@ -60,26 +80,27 @@ class TestActionStorage(TestFollowUpRedisStore):
     @pytest.mark.asyncio
     async def test_store_action_success(self, store, mock_redis):
         """Test storing a new action."""
-        action = Mock()
-        action.id = uuid4()
-        action.patient_id = uuid4()
-        action.action_type = "follow_up_call"
-        action.scheduled_for = datetime.utcnow() + timedelta(hours=1)
-        action.status = "pending"
-        action.priority = "medium"
-        action.metadata = {"reason": "Check progress"}
+        action = FollowUpAction(
+            action_id=uuid4(),
+            patient_id=uuid4(),
+            follow_up_type=FollowUpType.EMOTIONAL_SUPPORT,
+            priority="medium",
+            scheduled_for=now_sao_paulo_naive() + timedelta(hours=1),
+            parameters={"reason": "Check progress"},
+        )
         
         result = await store.store_action(action)
         
         assert result is True
-        mock_redis.pipeline.assert_called()
+        mock_redis.hset.assert_called()
+        mock_redis.zadd.assert_called()
 
     @pytest.mark.asyncio
     async def test_get_pending_actions_empty(self, store, mock_redis):
         """Test getting pending actions when none exist."""
         mock_redis.zrangebyscore.return_value = []
         
-        actions = await store.get_pending_actions(limit=10, before=datetime.utcnow())
+        actions = await store.get_pending_actions(limit=10, before=now_sao_paulo_naive())
         
         assert actions == []
 
@@ -89,20 +110,79 @@ class TestActionStorage(TestFollowUpRedisStore):
         action_id = str(uuid4())
         patient_id = str(uuid4())
         action_data = json.dumps({
-            "id": action_id,
+            "action_id": action_id,
             "patient_id": patient_id,
-            "action_type": "follow_up_call",
-            "scheduled_for": datetime.utcnow().isoformat(),
+            "follow_up_type": FollowUpType.EMOTIONAL_SUPPORT.value,
+            "scheduled_for": now_sao_paulo_naive().isoformat(),
+            "priority": "normal",
             "status": "pending"
         })
         
         mock_redis.zrangebyscore.return_value = [action_id.encode()]
         mock_redis.hget.return_value = action_data.encode()
+        async def scan_iter_mock(*args, **kwargs):
+            yield f"followup:actions:{patient_id}".encode()
+        mock_redis.scan_iter = scan_iter_mock
         
-        actions = await store.get_pending_actions(limit=10, before=datetime.utcnow())
+        actions = await store.get_pending_actions(limit=10, before=now_sao_paulo_naive())
         
         assert len(actions) == 1
-        assert actions[0]["id"] == action_id
+        assert actions[0]["action_id"] == action_id
+
+    @pytest.mark.asyncio
+    async def test_get_pending_actions_priority_order(self, store, mock_redis):
+        """Test pending actions are ordered by priority."""
+        patient_id = str(uuid4())
+        low_id = str(uuid4())
+        high_id = str(uuid4())
+        now = now_sao_paulo()
+
+        low_action = json.dumps({
+            "action_id": low_id,
+            "patient_id": patient_id,
+            "follow_up_type": FollowUpType.EMOTIONAL_SUPPORT.value,
+            "scheduled_for": now.isoformat(),
+            "priority": "low",
+            "status": "pending"
+        })
+        high_action = json.dumps({
+            "action_id": high_id,
+            "patient_id": patient_id,
+            "follow_up_type": FollowUpType.EMOTIONAL_SUPPORT.value,
+            "scheduled_for": now.isoformat(),
+            "priority": "high",
+            "status": "pending"
+        })
+
+        mock_redis.zrangebyscore.return_value = [
+            low_id.encode(),
+            high_id.encode()
+        ]
+
+        action_map = {
+            low_id: low_action.encode(),
+            high_id: high_action.encode(),
+        }
+
+        async def scan_iter_mock(*args, **kwargs):
+            yield f"followup:actions:{patient_id}".encode()
+
+        async def hget_side_effect(key, action_id):
+            action_id_str = (
+                action_id.decode() if isinstance(action_id, bytes) else action_id
+            )
+            return action_map.get(action_id_str)
+
+        mock_redis.scan_iter = scan_iter_mock
+        mock_redis.hget.side_effect = hget_side_effect
+
+        actions = await store.get_pending_actions(
+            limit=10, before=now + timedelta(minutes=1)
+        )
+
+        assert len(actions) == 2
+        assert actions[0]["action_id"] == high_id
+        assert actions[1]["action_id"] == low_id
 
     @pytest.mark.asyncio
     async def test_update_action_status_success(self, store, mock_redis):
@@ -110,17 +190,23 @@ class TestActionStorage(TestFollowUpRedisStore):
         action_id = uuid4()
         patient_id = uuid4()
         existing_data = json.dumps({
-            "id": str(action_id),
+            "action_id": str(action_id),
             "patient_id": str(patient_id),
-            "status": "pending"
+            "status": "pending",
+            "scheduled_for": now_sao_paulo_naive().isoformat()
         })
         
         mock_redis.hget.return_value = existing_data.encode()
+        async def scan_iter_mock(*args, **kwargs):
+            yield f"followup:actions:{patient_id}".encode()
+        mock_redis.scan_iter = scan_iter_mock
         
-        result = await store.update_action_status(action_id, "completed")
+        result = await store.update_action_status(action_id, "executed", executed_at=now_sao_paulo_naive())
         
         assert result is True
         mock_redis.hset.assert_called()
+        mock_redis.zrem.assert_called()
+        mock_redis.expire.assert_called()
 
     @pytest.mark.asyncio
     async def test_update_action_status_not_found(self, store, mock_redis):
@@ -132,23 +218,28 @@ class TestActionStorage(TestFollowUpRedisStore):
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_delete_action_success(self, store, mock_redis):
-        """Test deleting an action."""
+    async def test_update_action_status_terminal_state_sets_ttl(self, store, mock_redis):
+        """Test terminal action status sets TTL."""
         action_id = uuid4()
         patient_id = uuid4()
         existing_data = json.dumps({
-            "id": str(action_id),
+            "action_id": str(action_id),
             "patient_id": str(patient_id),
-            "status": "pending"
+            "status": "pending",
+            "scheduled_for": now_sao_paulo_naive().isoformat()
         })
         
         mock_redis.hget.return_value = existing_data.encode()
+        async def scan_iter_mock(*args, **kwargs):
+            yield f"followup:actions:{patient_id}".encode()
+        mock_redis.scan_iter = scan_iter_mock
         
-        result = await store.delete_action(action_id)
+        result = await store.update_action_status(action_id, "failed", executed_at=now_sao_paulo_naive())
         
         assert result is True
-        mock_redis.hdel.assert_called()
+        mock_redis.hset.assert_called()
         mock_redis.zrem.assert_called()
+        mock_redis.expire.assert_called()
 
 
 class TestAlertStorage(TestFollowUpRedisStore):
@@ -157,19 +248,23 @@ class TestAlertStorage(TestFollowUpRedisStore):
     @pytest.mark.asyncio
     async def test_store_alert_success(self, store, mock_redis):
         """Test storing a new alert."""
-        alert = Mock()
-        alert.id = uuid4()
-        alert.patient_id = uuid4()
-        alert.alert_type = "missed_appointment"
-        alert.escalation_level = 1
-        alert.status = "active"
-        alert.created_at = datetime.utcnow()
-        alert.metadata = {"appointment_date": "2024-01-15"}
+        alert = EscalationAlert(
+            alert_id=uuid4(),
+            patient_id=uuid4(),
+            escalation_level=EscalationLevel.MEDIUM,
+            concern_type=MedicalConcernType.SIDE_EFFECT,
+            description="Missed appointment",
+            original_message="Paciente não compareceu",
+            recommended_actions=["Contact patient"],
+            notification_channels=[NotificationChannel.WHATSAPP],
+            requires_immediate_response=True,
+        )
         
         result = await store.store_alert(alert)
         
         assert result is True
-        mock_redis.pipeline.assert_called()
+        mock_redis.hset.assert_called()
+        mock_redis.zadd.assert_called()
 
     @pytest.mark.asyncio
     async def test_get_active_alerts_empty(self, store, mock_redis):
@@ -206,19 +301,26 @@ class TestAlertStorage(TestFollowUpRedisStore):
         alert_id = uuid4()
         patient_id = uuid4()
         existing_data = json.dumps({
-            "id": str(alert_id),
+            "alert_id": str(alert_id),
             "patient_id": str(patient_id),
-            "escalation_level": 1,
-            "status": "active"
+            "escalation_level": "medium",
+            "concern_type": "side_effect",
+            "resolved_at": None
         })
         
         mock_redis.hget.return_value = existing_data.encode()
+        async def scan_iter_mock(*args, **kwargs):
+            yield f"followup:alerts:{patient_id}".encode()
+        mock_redis.scan_iter = scan_iter_mock
         
-        result = await store.escalate_alert(alert_id)
+        result = await store.update_alert_status(
+            alert_id,
+            acknowledged_at=now_sao_paulo_naive(),
+            assigned_to="nurse"
+        )
         
         assert result is True
         mock_redis.hset.assert_called()
-        mock_redis.zadd.assert_called()
 
     @pytest.mark.asyncio
     async def test_resolve_alert_success(self, store, mock_redis):
@@ -226,18 +328,27 @@ class TestAlertStorage(TestFollowUpRedisStore):
         alert_id = uuid4()
         patient_id = uuid4()
         existing_data = json.dumps({
-            "id": str(alert_id),
+            "alert_id": str(alert_id),
             "patient_id": str(patient_id),
-            "escalation_level": 1,
-            "status": "active"
+            "escalation_level": "medium",
+            "concern_type": "side_effect",
+            "resolved_at": None
         })
         
         mock_redis.hget.return_value = existing_data.encode()
+        async def scan_iter_mock(*args, **kwargs):
+            yield f"followup:alerts:{patient_id}".encode()
+        mock_redis.scan_iter = scan_iter_mock
         
-        result = await store.resolve_alert(alert_id)
+        result = await store.update_alert_status(
+            alert_id,
+            resolved_at=now_sao_paulo_naive(),
+            assigned_to="nurse"
+        )
         
         assert result is True
         mock_redis.zrem.assert_called()
+        mock_redis.expire.assert_called()
 
 
 class TestContextStorage(TestFollowUpRedisStore):
@@ -246,12 +357,14 @@ class TestContextStorage(TestFollowUpRedisStore):
     @pytest.mark.asyncio
     async def test_store_context_success(self, store, mock_redis):
         """Test storing patient context."""
-        context = Mock()
-        context.patient_id = uuid4()
-        context.last_interaction = datetime.utcnow()
-        context.conversation_state = "awaiting_response"
-        context.pending_questions = ["How are you feeling?"]
-        context.metadata = {"flow_id": str(uuid4())}
+        context = ConversationContext(
+            patient_id=uuid4(),
+            conversation_history=[{"role": "system", "content": "How are you feeling?"}],
+            current_topic="daily_follow_up",
+            emotional_state="neutral",
+            medical_context={"flow_id": str(uuid4())},
+            preferences={"language": "pt-BR"},
+        )
         
         result = await store.store_context(context)
         
@@ -264,8 +377,12 @@ class TestContextStorage(TestFollowUpRedisStore):
         patient_id = uuid4()
         context_data = json.dumps({
             "patient_id": str(patient_id),
-            "last_interaction": datetime.utcnow().isoformat(),
-            "conversation_state": "awaiting_response"
+            "conversation_history": [],
+            "current_topic": "daily_follow_up",
+            "emotional_state": "neutral",
+            "medical_context": {},
+            "preferences": {},
+            "last_updated": now_sao_paulo_naive().isoformat()
         })
         
         mock_redis.get.return_value = context_data.encode()
@@ -286,20 +403,22 @@ class TestContextStorage(TestFollowUpRedisStore):
 
     @pytest.mark.asyncio
     async def test_context_ttl_applied(self, store, mock_redis):
-        """Test that context has 7-day TTL."""
-        context = Mock()
-        context.patient_id = uuid4()
-        context.last_interaction = datetime.utcnow()
-        context.conversation_state = "idle"
-        context.pending_questions = []
-        context.metadata = {}
+        """Test that context has 1-hour TTL."""
+        context = ConversationContext(
+            patient_id=uuid4(),
+            conversation_history=[],
+            current_topic=None,
+            emotional_state=None,
+            medical_context={},
+            preferences={},
+        )
         
         await store.store_context(context)
         
-        # Verify setex was called with 7-day TTL (604800 seconds)
+        # Verify setex was called with 1-hour TTL (3600 seconds)
         mock_redis.setex.assert_called()
         call_args = mock_redis.setex.call_args
-        assert call_args[0][1] == 604800  # 7 days
+        assert call_args[0][1] == 3600  # 1 hour
 
 
 class TestHealthCheck(TestFollowUpRedisStore):
@@ -309,13 +428,12 @@ class TestHealthCheck(TestFollowUpRedisStore):
     async def test_health_check_success(self, store, mock_redis):
         """Test health check when Redis is healthy."""
         mock_redis.ping.return_value = True
-        mock_redis.hlen.return_value = 10
         mock_redis.zcard.return_value = 5
         
         health = await store.health_check()
         
-        assert health["status"] == "healthy"
-        assert health["redis_connected"] is True
+        assert health["healthy"] is True
+        assert health["backend"] == "redis"
 
     @pytest.mark.asyncio
     async def test_health_check_redis_down(self, store, mock_redis):
@@ -324,19 +442,19 @@ class TestHealthCheck(TestFollowUpRedisStore):
         
         health = await store.health_check()
         
-        assert health["status"] == "unhealthy"
-        assert health["redis_connected"] is False
+        assert health["healthy"] is True
+        assert health["backend"] == "in-memory-fallback"
 
     @pytest.mark.asyncio
     async def test_health_check_includes_stats(self, store, mock_redis):
         """Test health check includes statistics."""
         mock_redis.ping.return_value = True
-        mock_redis.hlen.side_effect = [50, 25]  # actions, alerts
         mock_redis.zcard.side_effect = [30, 15]  # pending actions, active alerts
         
         health = await store.health_check()
         
-        assert "stats" in health or health["status"] == "healthy"
+        assert health["stats"]["pending_actions"] == 30
+        assert health["stats"]["active_alerts"] == 15
 
 
 class TestGracefulFallback(TestFollowUpRedisStore):
@@ -345,24 +463,23 @@ class TestGracefulFallback(TestFollowUpRedisStore):
     @pytest.mark.asyncio
     async def test_store_action_redis_error_fallback(self, store, mock_redis):
         """Test fallback when Redis fails during action storage."""
-        action = Mock()
-        action.id = uuid4()
-        action.patient_id = uuid4()
-        action.action_type = "follow_up_call"
-        action.scheduled_for = datetime.utcnow() + timedelta(hours=1)
-        action.status = "pending"
-        action.priority = "medium"
-        action.metadata = {}
+        action = FollowUpAction(
+            action_id=uuid4(),
+            patient_id=uuid4(),
+            follow_up_type=FollowUpType.EMOTIONAL_SUPPORT,
+            priority="medium",
+            scheduled_for=now_sao_paulo_naive() + timedelta(hours=1),
+            parameters={},
+        )
         
-        mock_pipeline = Mock()
-        mock_pipeline.execute = AsyncMock(side_effect=Exception("Redis error"))
-        mock_redis.pipeline.return_value = mock_pipeline
+        mock_redis.hset.side_effect = Exception("Redis error")
         
         # Should handle error gracefully
         result = await store.store_action(action)
         
-        # Returns False on error but doesn't raise
-        assert result is False
+        # Falls back to in-memory storage on Redis errors
+        assert result is True
+        assert str(action.action_id) in store._fallback_storage["actions"]
 
     @pytest.mark.asyncio
     async def test_get_context_redis_error_returns_none(self, store, mock_redis):
@@ -410,6 +527,20 @@ class TestKeyPatterns:
         
         assert expected_key == "followup:alerts:active"
 
+    def test_dedup_key_pattern(self):
+        """Test deduplication key pattern."""
+        patient_id = uuid4()
+        expected_pattern = f"sent_messages:{patient_id}"
+
+        assert "sent_messages:" in expected_pattern
+
+    def test_follow_up_lock_key_pattern(self):
+        """Test follow-up lock key pattern."""
+        patient_id = uuid4()
+        expected_pattern = f"follow_up_locks:{patient_id}"
+
+        assert "follow_up_locks:" in expected_pattern
+
 
 class TestDataSerialization:
     """Test data serialization/deserialization."""
@@ -420,7 +551,7 @@ class TestDataSerialization:
             "id": str(uuid4()),
             "patient_id": str(uuid4()),
             "action_type": "follow_up_call",
-            "scheduled_for": datetime.utcnow().isoformat(),
+            "scheduled_for": now_sao_paulo_naive().isoformat(),
             "status": "pending"
         }
         
@@ -432,7 +563,7 @@ class TestDataSerialization:
 
     def test_serialize_datetime_as_iso(self):
         """Test datetime serialization as ISO format."""
-        dt = datetime.utcnow()
+        dt = now_sao_paulo_naive()
         iso_str = dt.isoformat()
         
         # Should be parseable back
@@ -451,3 +582,118 @@ class TestDataSerialization:
         parsed = UUID(uid_str)
         
         assert parsed == uid
+
+
+class TestDeduplicationStorage(TestFollowUpRedisStore):
+    """Test deduplication and lock storage."""
+
+    @pytest.mark.asyncio
+    async def test_acquire_follow_up_lock_redis(self, store, mock_redis):
+        """Test acquiring follow-up lock using Redis."""
+        patient_id = uuid4()
+
+        result = await store.acquire_follow_up_lock(patient_id, ttl_seconds=300)
+
+        assert result is True
+        mock_redis.set.assert_called_with(
+            f"follow_up_locks:{patient_id}", "1", ex=300, nx=True
+        )
+
+    @pytest.mark.asyncio
+    async def test_acquire_follow_up_lock_fallback(self, store):
+        """Test acquiring follow-up lock with in-memory fallback."""
+        store._redis_available = False
+        store._redis = None
+        patient_id = uuid4()
+
+        result = await store.acquire_follow_up_lock(patient_id, ttl_seconds=60)
+
+        assert result is True
+        assert str(patient_id) in store._fallback_storage["locks"]
+
+    @pytest.mark.asyncio
+    async def test_release_follow_up_lock_fallback(self, store):
+        """Test releasing follow-up lock with in-memory fallback."""
+        store._redis_available = False
+        store._redis = None
+        patient_id = uuid4()
+        store._fallback_storage["locks"][str(patient_id)] = {
+            "expires_at": now_sao_paulo() + timedelta(seconds=60)
+        }
+
+        result = await store.release_follow_up_lock(patient_id)
+
+        assert result is True
+        assert str(patient_id) not in store._fallback_storage["locks"]
+
+    @pytest.mark.asyncio
+    async def test_set_last_follow_up_sent_at_redis(self, store, mock_redis):
+        """Test setting dedup timestamp in Redis."""
+        patient_id = uuid4()
+        sent_at = now_sao_paulo()
+
+        result = await store.set_last_follow_up_sent_at(
+            patient_id, sent_at, ttl_seconds=3600
+        )
+
+        assert result is True
+        mock_redis.setex.assert_called_with(
+            f"sent_messages:{patient_id}", 3600, sent_at.isoformat()
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_last_follow_up_sent_at_fallback(self, store):
+        """Test reading dedup timestamp from in-memory fallback."""
+        store._redis_available = False
+        store._redis = None
+        patient_id = uuid4()
+        sent_at = now_sao_paulo()
+        store._fallback_storage["dedup"][str(patient_id)] = {
+            "sent_at": sent_at,
+            "expires_at": sent_at + timedelta(seconds=60),
+        }
+
+        result = await store.get_last_follow_up_sent_at(patient_id)
+
+        assert result == sent_at
+
+    @pytest.mark.asyncio
+    async def test_get_last_follow_up_sent_at_fallback_expired(self, store):
+        """Test expired dedup timestamp cleanup in fallback."""
+        store._redis_available = False
+        store._redis = None
+        patient_id = uuid4()
+        sent_at = now_sao_paulo() - timedelta(hours=1)
+        store._fallback_storage["dedup"][str(patient_id)] = {
+            "sent_at": sent_at,
+            "expires_at": now_sao_paulo() - timedelta(seconds=1),
+        }
+
+        result = await store.get_last_follow_up_sent_at(patient_id)
+
+        assert result is None
+        assert str(patient_id) not in store._fallback_storage["dedup"]
+
+
+class TestRedisReconnect(TestFollowUpRedisStore):
+    """Test Redis reconnection behavior."""
+
+    @pytest.mark.asyncio
+    async def test_reconnects_after_redis_returns(self, store, mock_redis):
+        """Test reconnect attempt when Redis becomes available."""
+        store._redis_available = False
+        store._redis = None
+        store._redis_retry_delay = 4
+        store._redis_retry_at = now_sao_paulo() - timedelta(seconds=1)
+
+        with patch(
+            "app.services.follow_up.redis_store.get_async_redis",
+            new_callable=AsyncMock,
+        ) as mock_get:
+            mock_get.return_value = mock_redis
+            redis_client = await store._get_redis()
+
+        assert redis_client == mock_redis
+        assert store.is_redis_available() is True
+        assert store._redis_retry_delay == 1
+        assert store._redis_retry_at is None

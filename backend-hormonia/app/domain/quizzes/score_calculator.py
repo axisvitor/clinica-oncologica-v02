@@ -24,6 +24,17 @@ class ScoreCalculator:
     def __init__(self, db: Session):
         self.db = db
 
+    @staticmethod
+    def _has_answer_value(response_value: Any) -> bool:
+        """Check whether a response should count as answered."""
+        if response_value is None:
+            return False
+        if isinstance(response_value, str):
+            return len(response_value.strip()) > 0
+        if isinstance(response_value, (list, tuple, set, dict)):
+            return len(response_value) > 0
+        return True
+
     async def calculate_score(self, session_id: UUID) -> float:
         """
         Calculate score for a completed quiz session.
@@ -215,7 +226,9 @@ class ScoreCalculator:
 
         # Calculate statistics
         total_questions = len(responses)
-        answered_questions = len([r for r in responses if r.response_value])
+        answered_questions = len(
+            [r for r in responses if self._has_answer_value(r.response_value)]
+        )
 
         scores = []
         for response in responses:

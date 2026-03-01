@@ -23,6 +23,8 @@ class FileService:
         Returns:
             str: File identifier or path
         """
+        _ = file_data  # Placeholder signature keeps raw bytes input for compatibility.
+
         # Placeholder implementation
         return f"file_{filename}"
 

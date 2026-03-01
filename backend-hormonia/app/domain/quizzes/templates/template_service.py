@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ class QuizTemplateService:
         cache_key = f"quiz:{template_name}"
         if cache_key in self._templates_cache:
             cached_template, cached_time = self._templates_cache[cache_key]
-            if datetime.now(timezone.utc) - cached_time < self._cache_ttl:
+            if now_sao_paulo() - cached_time < self._cache_ttl:
                 logger.debug(f"Returning cached quiz template: {template_name}")
                 return cached_template
             else:
@@ -254,24 +255,38 @@ class QuizTemplateService:
                 return False
 
         # Validate question type
-        valid_types = ["multiple_choice", "scale", "open_text", "yes_no"]
-        if question["type"] not in valid_types:
-            logger.error(f"Question {index} has invalid type: {question['type']}")
+        question_type = question.get("type")
+        valid_types = [
+            "multiple_choice",
+            "single_choice",
+            "scale",
+            "open_text",
+            "free_text",
+            "yes_no",
+            "numeric",
+            "number",
+            "date",
+            "boolean",
+        ]
+        if question_type not in valid_types:
+            logger.error(f"Question {index} has invalid type: {question_type}")
             return False
 
         # Validate options for multiple choice
-        if question["type"] == "multiple_choice":
+        if question_type in ["multiple_choice", "single_choice"]:
             if "options" not in question or not isinstance(question["options"], list):
                 logger.error(f"Multiple choice question {index} must have options")
                 return False
 
             for opt_idx, option in enumerate(question["options"]):
-                if not isinstance(option, dict) or "text" not in option:
+                if not isinstance(option, dict) or (
+                    "text" not in option and "label" not in option
+                ):
                     logger.error(f"Question {index} option {opt_idx} is invalid")
                     return False
 
         # Validate scale questions
-        if question["type"] == "scale":
+        if question_type == "scale":
             if "validation_rules" in question:
                 for rule in question["validation_rules"]:
                     if rule.get("type") == "range":
@@ -313,7 +328,7 @@ class QuizTemplateService:
 
     def _cache_template(self, cache_key: str, template_data: Dict[str, Any]) -> None:
         """Cache template with TTL management."""
-        self._templates_cache[cache_key] = (template_data, datetime.now(timezone.utc))
+        self._templates_cache[cache_key] = (template_data, now_sao_paulo())
         logger.debug(f"Cached quiz template: {cache_key}")
 
     def refresh_cache(self):
@@ -323,7 +338,7 @@ class QuizTemplateService:
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache statistics for monitoring."""
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         expired_count = sum(
             1
             for _, cached_time in self._templates_cache.values()

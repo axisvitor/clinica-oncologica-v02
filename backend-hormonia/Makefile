@@ -7,7 +7,13 @@ help:
 	@echo "Available commands:"
 	@echo "  install     - Install Python dependencies"
 	@echo "  dev         - Start development server"
+	@echo "  staging-api-local-evolution    - API em staging com Evolution local (real)"
+	@echo "  staging-worker-local-evolution - Worker em staging com Evolution local (real)"
+	@echo "  staging-beat-local-evolution   - Beat em staging com Evolution local (real)"
 	@echo "  test        - Run tests"
+	@echo "  test-fast   - Run fast test subset (skip slow/integration/performance)"
+	@echo "  test-unit   - Run unit tests in parallel (xdist)"
+	@echo "  test-all    - Run full test suite"
 	@echo "  clean       - Clean Python cache files"
 	@echo "  docker-up   - Start Docker services (Redis, Celery)"
 	@echo "  docker-down - Stop Docker services"
@@ -25,13 +31,31 @@ install:
 dev:
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
+staging-api-local-evolution:
+	APP_ENVIRONMENT=staging WHATSAPP_EVOLUTION_USE_MOCK=false WHATSAPP_EVOLUTION_API_URL=http://127.0.0.1:8080 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+staging-worker-local-evolution:
+	APP_ENVIRONMENT=staging WHATSAPP_EVOLUTION_USE_MOCK=false WHATSAPP_EVOLUTION_API_URL=http://127.0.0.1:8080 celery -A app.celery_app worker --loglevel=info
+
+staging-beat-local-evolution:
+	APP_ENVIRONMENT=staging WHATSAPP_EVOLUTION_USE_MOCK=false WHATSAPP_EVOLUTION_API_URL=http://127.0.0.1:8080 celery -A app.celery_app beat --loglevel=info
+
 # Run tests
 test:
 	pytest
 
+test-fast:
+	pytest -m "not slow and not integration and not performance"
+
+test-unit:
+	pytest -n auto -m "unit and not slow"
+
+test-all:
+	pytest
+
 # Run tests with coverage
 test-cov:
-	pytest --cov=app --cov-report=html
+	pytest --cov=app --cov-report=html --cov-report=term-missing
 
 # Clean Python cache files
 clean:

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.notification import Notification, NotificationType, NotificationPriority
 from app.repositories.base import BaseRepository
+from app.utils.timezone import now_sao_paulo
 
 
 class NotificationRepository(BaseRepository[Notification]):
@@ -37,6 +38,28 @@ class NotificationRepository(BaseRepository[Notification]):
 
     def __init__(self, db: Session):
         super().__init__(db, Notification)
+
+    def _run_filtered_query(
+        self,
+        filters,
+        *,
+        skip: int,
+        limit: int,
+        eager_load: bool,
+    ) -> List[Notification]:
+        """Execute a filtered notification query with optional eager loading."""
+        query = self.db.query(Notification).filter(and_(*filters))
+        if eager_load:
+            query = query.options(
+                selectinload(Notification.user),
+                selectinload(Notification.related_patient),
+            )
+        return (
+            query.order_by(Notification.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
 
     def get_by_id(self, id: UUID, eager_load: bool = True) -> Optional[Notification]:
         """
@@ -144,8 +167,8 @@ class NotificationRepository(BaseRepository[Notification]):
         query = self.db.query(Notification).filter(
             and_(
                 Notification.user_id == user_id,
-                not Notification.is_read,
-                not Notification.is_archived,
+                Notification.is_read.is_(False),
+                Notification.is_archived.is_(False),
             )
         )
 
@@ -220,19 +243,11 @@ class NotificationRepository(BaseRepository[Notification]):
         if user_id:
             filters.append(Notification.user_id == user_id)
 
-        query = self.db.query(Notification).filter(and_(*filters))
-
-        if eager_load:
-            query = query.options(
-                selectinload(Notification.user),
-                selectinload(Notification.related_patient),
-            )
-
-        return (
-            query.order_by(Notification.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
+        return self._run_filtered_query(
+            filters,
+            skip=skip,
+            limit=limit,
+            eager_load=eager_load,
         )
 
     def get_by_priority(
@@ -256,24 +271,19 @@ class NotificationRepository(BaseRepository[Notification]):
         Returns:
             List of notifications with relationships pre-loaded
         """
-        filters = [Notification.priority == priority, not Notification.is_archived]
+        filters = [
+            Notification.priority == priority,
+            Notification.is_archived.is_(False),
+        ]
 
         if user_id:
             filters.append(Notification.user_id == user_id)
 
-        query = self.db.query(Notification).filter(and_(*filters))
-
-        if eager_load:
-            query = query.options(
-                selectinload(Notification.user),
-                selectinload(Notification.related_patient),
-            )
-
-        return (
-            query.order_by(Notification.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
+        return self._run_filtered_query(
+            filters,
+            skip=skip,
+            limit=limit,
+            eager_load=eager_load,
         )
 
     def mark_as_read(self, notification_id: UUID) -> Optional[Notification]:
@@ -290,7 +300,7 @@ class NotificationRepository(BaseRepository[Notification]):
 
         if notification:
             notification.is_read = True
-            notification.read_at = datetime.now(timezone.utc)
+            notification.read_at = now_sao_paulo()
             self.db.commit()
             self.db.refresh(notification)
 
@@ -306,10 +316,12 @@ class NotificationRepository(BaseRepository[Notification]):
         Returns:
             Number of notifications updated
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         count = (
             self.db.query(Notification)
-            .filter(and_(Notification.user_id == user_id, not Notification.is_read))
+            .filter(
+                and_(Notification.user_id == user_id, Notification.is_read.is_(False))
+            )
             .update({"is_read": True, "read_at": now})
         )
 
@@ -330,7 +342,7 @@ class NotificationRepository(BaseRepository[Notification]):
 
         if notification:
             notification.is_archived = True
-            notification.archived_at = datetime.now(timezone.utc)
+            notification.archived_at = now_sao_paulo()
             self.db.commit()
             self.db.refresh(notification)
 
@@ -346,7 +358,7 @@ class NotificationRepository(BaseRepository[Notification]):
         Returns:
             List of expired notifications
         """
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo()
         query = self.db.query(Notification).filter(
             and_(Notification.expires_at.isnot(None), Notification.expires_at <= now)
         )

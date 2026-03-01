@@ -7,7 +7,7 @@ Handles password resets, updates, and temporary password generation.
 import logging
 from typing import Optional
 from uuid import UUID
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from fastapi import HTTPException, status
 
 from app.models.user import User
@@ -18,6 +18,7 @@ from .schemas import (
     UserPasswordUpdateRequest,
 )
 from .validators import generate_temporary_password
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,7 @@ class PasswordManagementMixin:
         """
         # Check admin permissions
         self._check_admin_permissions(admin_user, "reset_password")
+        _ = request_info
 
         user = await self.get_user_by_id(reset_request.user_id)
         if not user:
@@ -66,7 +68,7 @@ class PasswordManagementMixin:
             user.hashed_password = hashed_password
 
             # Set expiration for temporary password (24 hours)
-            expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+            expires_at = now_sao_paulo() + timedelta(hours=24)
 
             self.db.commit()
 
@@ -130,6 +132,7 @@ class PasswordManagementMixin:
         """Update user password with enhanced validation."""
         # Check admin permissions
         self._check_admin_permissions(admin_user, "update_password")
+        _ = request_info
 
         user = await self.get_user_by_id(user_id)
         if not user:

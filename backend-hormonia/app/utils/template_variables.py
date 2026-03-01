@@ -7,6 +7,12 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 
+from app.agents.patient.flow_coordinator.constants import (
+    DEFAULT_QUIZ_TRIGGER_DAY,
+    MONTHLY_CYCLE_DAYS,
+    MONTHLY_CYCLE_START_DAY,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -145,7 +151,7 @@ class TemplateVariableProcessor:
                 except (ValueError, TypeError) as e:
                     logger.debug(f"Failed to calculate progress percentage: {e}")
 
-        # Calculate next quiz date (monthly on day 15)
+        # Calculate next quiz date (monthly flow: day 30 of each 30-day cycle)
         if "{next_quiz_date}" in content:
             current_day = cls._get_context_value(
                 context, ["current_day", "treatment_day", "patient_data.current_day"]
@@ -153,14 +159,15 @@ class TemplateVariableProcessor:
             if current_day:
                 try:
                     current = int(current_day)
-                    # After day 45, quizzes are monthly on day 15
-                    if current > 45:
-                        days_in_cycle = (current - 45) % 30
+                    # Monthly phase starts on day 46 (after onboarding + follow-up).
+                    if current >= MONTHLY_CYCLE_START_DAY:
+                        day_in_cycle = (
+                            (current - MONTHLY_CYCLE_START_DAY)
+                            % MONTHLY_CYCLE_DAYS
+                        ) + 1
                         days_until_quiz = (
-                            15 - days_in_cycle
-                            if days_in_cycle < 15
-                            else 45 - days_in_cycle
-                        )
+                            DEFAULT_QUIZ_TRIGGER_DAY - day_in_cycle
+                        ) % MONTHLY_CYCLE_DAYS
                         next_date = datetime.now() + timedelta(days=days_until_quiz)
                         content = content.replace(
                             "{next_quiz_date}", next_date.strftime("%d/%m/%Y")

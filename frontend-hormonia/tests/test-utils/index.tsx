@@ -8,7 +8,7 @@ import { render, RenderOptions } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { vi } from 'vitest'
-import { AuthProvider } from '@/src/contexts/AuthContext'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 // Mock user types
 export const mockUser = {

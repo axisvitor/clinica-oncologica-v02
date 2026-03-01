@@ -7,6 +7,7 @@ from app.repositories.appointment import AppointmentRepository
 from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
 from app.schemas.v2.appointment import AppointmentV2Create, AppointmentV2Update
 from app.utils.db_retry import with_db_retry
+from app.utils.timezone import now_sao_paulo
 
 
 class AppointmentService:
@@ -88,9 +89,9 @@ class AppointmentService:
 
             # Auto-timestamps
             if new_status == AppointmentStatus.COMPLETED:
-                update_data["completed_at"] = datetime.now(timezone.utc)
+                update_data["completed_at"] = now_sao_paulo()
             elif new_status == AppointmentStatus.CANCELLED:
-                update_data["cancelled_at"] = datetime.now(timezone.utc)
+                update_data["cancelled_at"] = now_sao_paulo()
 
         # Type conversion
         if "appointment_type" in update_data:
@@ -126,7 +127,7 @@ class AppointmentService:
             raise ValueError(f"Cannot cancel appointment with status {current_status}")
 
         appt.status = AppointmentStatus.CANCELLED
-        appt.cancelled_at = datetime.now(timezone.utc)
+        appt.cancelled_at = now_sao_paulo()
         self.db.commit()
         self.db.refresh(appt)
         return appt
@@ -149,7 +150,7 @@ class AppointmentService:
             )
 
         appt.status = AppointmentStatus.COMPLETED
-        appt.completed_at = datetime.now(timezone.utc)
+        appt.completed_at = now_sao_paulo()
         if notes:
             appt.post_appointment_notes = notes
 

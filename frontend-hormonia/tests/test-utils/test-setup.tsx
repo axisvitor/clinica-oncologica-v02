@@ -182,8 +182,8 @@ export const createMockQuiz = (overrides: any = {}) => ({
       required: true,
     },
   ],
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z',
+  created_at: '2024-01-01T00:00:00-03:00',
+  updated_at: '2024-01-01T00:00:00-03:00',
   ...overrides,
 })
 
@@ -198,8 +198,8 @@ export const createMockPatient = (overrides: any = {}) => ({
   treatment_type: 'Terapia Hormonal Feminina',
   treatment_start_date: '2024-01-01',
   status: 'active',
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2024-01-01T00:00:00Z',
+  created_at: '2024-01-01T00:00:00-03:00',
+  updated_at: '2024-01-01T00:00:00-03:00',
   ...overrides,
 })
 
@@ -221,8 +221,8 @@ export const createMockQuizSession = (overrides: any = {}) => ({
       required: true,
     },
   ],
-  created_at: '2024-01-01T00:00:00Z',
-  expires_at: '2024-01-08T00:00:00Z',
+  created_at: '2024-01-01T00:00:00-03:00',
+  expires_at: '2024-01-08T00:00:00-03:00',
   ...overrides,
 })
 

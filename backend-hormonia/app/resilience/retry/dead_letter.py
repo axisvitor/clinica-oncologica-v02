@@ -190,7 +190,7 @@ class DeadLetterQueue:
 
         # Add back to queue after backoff delay
         def requeue_after_delay():
-            time.sleep(self.retry_backoff)
+            threading.Event().wait(self.retry_backoff)
             try:
                 self._queue.put_nowait(message.id)
                 self._requeued_messages += 1
@@ -303,7 +303,7 @@ class DeadLetterQueue:
 
             except Exception as e:
                 logger.error(f"Error in dead letter queue processing: {str(e)}")
-                time.sleep(1.0)
+                self._stop_processing.wait(1.0)
 
     def _cleanup_if_needed(self):
         """Cleanup old messages if needed"""

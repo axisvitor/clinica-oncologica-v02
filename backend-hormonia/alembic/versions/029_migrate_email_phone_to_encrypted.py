@@ -48,6 +48,27 @@ Rollback Safety:
 - Plaintext columns remain unchanged
 - Can rollback by clearing encrypted columns
 - Original data preserved until migration 030
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa
@@ -69,7 +90,7 @@ depends_on = None
 BATCH_SIZE = 1000
 
 
-def upgrade():
+def upgrade() -> None:
     """
     Migrate plaintext email and phone data to encrypted columns.
 
@@ -272,7 +293,7 @@ def upgrade():
         raise
 
 
-def downgrade():
+def downgrade() -> None:
     """
     Rollback email and phone encryption migration.
 

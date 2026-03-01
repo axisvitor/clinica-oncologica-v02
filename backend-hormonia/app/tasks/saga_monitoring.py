@@ -8,22 +8,23 @@ This module implements monitoring tasks to detect and alert on saga anomalies:
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import List, Dict, Any
 
-from celery import shared_task
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_scoped_session
+from app.task_queue import task_queue as celery_app
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
 from app.models.enums import SagaStatus
 from app.core.monitoring_config import capture_message, capture_exception
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="app.tasks.saga_monitoring.check_orphaned_sagas")
+@celery_app.task(name="app.tasks.saga_monitoring.check_orphaned_sagas")
 def check_orphaned_sagas() -> dict:
     """
     Check for orphaned sagas that are stuck in non-terminal states.
@@ -36,155 +37,153 @@ def check_orphaned_sagas() -> dict:
     Returns:
         dict: Summary of orphaned sagas found and alerts sent
     """
-    db = next(get_db())
+    with get_scoped_session() as db:
+        try:
+            logger.info("Starting orphaned saga detection...")
 
-    try:
-        logger.info("Starting orphaned saga detection...")
+            # Define terminal states
+            terminal_states = [
+                SagaStatus.COMPLETED,
+                SagaStatus.FAILED,
+                SagaStatus.COMPENSATED,
+            ]
 
-        # Define terminal states
-        terminal_states = [
-            SagaStatus.COMPLETED,
-            SagaStatus.FAILED,
-            SagaStatus.COMPENSATED,
-        ]
+            # Define threshold for orphan detection (4 hours - reduced from 24h for faster detection)
+            # Healthcare context requires faster intervention for stuck sagas
+            orphan_threshold = now_sao_paulo() - timedelta(hours=4)
 
-        # Define threshold for orphan detection (4 hours - reduced from 24h for faster detection)
-        # Healthcare context requires faster intervention for stuck sagas
-        orphan_threshold = datetime.now(timezone.utc) - timedelta(hours=4)
-
-        # Query for orphaned sagas
-        orphaned_sagas = (
-            db.query(PatientOnboardingSaga)
-            .filter(
-                and_(
-                    PatientOnboardingSaga.created_at < orphan_threshold,
-                    PatientOnboardingSaga.status.notin_(terminal_states),
+            # Query for orphaned sagas
+            orphaned_sagas = (
+                db.query(PatientOnboardingSaga)
+                .filter(
+                    and_(
+                        PatientOnboardingSaga.created_at < orphan_threshold,
+                        PatientOnboardingSaga.status.notin_(terminal_states),
+                    )
                 )
+                .all()
             )
-            .all()
-        )
 
-        if not orphaned_sagas:
-            logger.info("No orphaned sagas detected")
+            if not orphaned_sagas:
+                logger.info("No orphaned sagas detected")
+                return {
+                    "status": "success",
+                    "message": "No orphaned sagas found",
+                    "count": 0,
+                }
+
+            logger.warning(f"Found {len(orphaned_sagas)} orphaned sagas")
+
+            # Send alerts for each orphaned saga
+            for saga in orphaned_sagas:
+                _alert_orphaned_saga(saga, db)
+
+            # Log summary
+            summary = _generate_orphan_summary(orphaned_sagas)
+
+            logger.warning(
+                f"Orphaned saga detection complete: {len(orphaned_sagas)} sagas found"
+            )
+
+            # Send summary to monitoring
+            capture_message(
+                f"Orphaned sagas detected: {len(orphaned_sagas)}",
+                level="warning",
+                extra={
+                    "orphan_count": len(orphaned_sagas),
+                    "summary": summary,
+                },
+            )
+
             return {
                 "status": "success",
-                "message": "No orphaned sagas found",
-                "count": 0,
+                "message": f"Found {len(orphaned_sagas)} orphaned sagas",
+                "count": len(orphaned_sagas),
+                "summary": summary,
             }
 
-        logger.warning(f"Found {len(orphaned_sagas)} orphaned sagas")
-
-        # Send alerts for each orphaned saga
-        for saga in orphaned_sagas:
-            _alert_orphaned_saga(saga, db)
-
-        # Log summary
-        summary = _generate_orphan_summary(orphaned_sagas)
-
-        logger.warning(
-            f"Orphaned saga detection complete: {len(orphaned_sagas)} sagas found"
-        )
-
-        # Send summary to monitoring
-        capture_message(
-            f"Orphaned sagas detected: {len(orphaned_sagas)}",
-            level="warning",
-            extra={
-                "orphan_count": len(orphaned_sagas),
-                "summary": summary,
-            },
-        )
-
-        return {
-            "status": "success",
-            "message": f"Found {len(orphaned_sagas)} orphaned sagas",
-            "count": len(orphaned_sagas),
-            "summary": summary,
-        }
-
-    except Exception as e:
-        logger.error(f"Error checking for orphaned sagas: {e}", exc_info=True)
-        capture_exception(e)
-        return {
-            "status": "error",
-            "message": str(e),
-        }
-
-    finally:
-        db.close()
+        except Exception as e:
+            logger.error(f"Error checking for orphaned sagas: {e}", exc_info=True)
+            capture_exception(e)
+            return {
+                "status": "error",
+                "message": str(e),
+            }
 
 
-@shared_task(name="app.tasks.saga_monitoring.check_long_running_sagas")
+@celery_app.task(name="app.tasks.saga_monitoring.check_long_running_sagas")
 def check_long_running_sagas() -> dict:
     """
     Check for sagas that are taking unusually long to complete.
 
     A long-running saga is one that:
-    - Is still in STARTED or IN_PROGRESS state
+    - Is still in STARTED/IN_PROGRESS or step states
     - Has been running for more than 30 minutes
 
     Returns:
         dict: Summary of long-running sagas found
     """
-    db = next(get_db())
+    with get_scoped_session() as db:
+        try:
+            logger.info("Starting long-running saga detection...")
 
-    try:
-        logger.info("Starting long-running saga detection...")
+            # Define threshold for long-running detection (30 minutes)
+            long_running_threshold = now_sao_paulo() - timedelta(minutes=30)
 
-        # Define threshold for long-running detection (30 minutes)
-        long_running_threshold = datetime.now(timezone.utc) - timedelta(minutes=30)
-
-        # Query for long-running sagas
-        long_running_sagas = (
-            db.query(PatientOnboardingSaga)
-            .filter(
-                and_(
-                    PatientOnboardingSaga.started_at < long_running_threshold,
-                    PatientOnboardingSaga.status.in_(
-                        [SagaStatus.STARTED, SagaStatus.IN_PROGRESS]
-                    ),
-                    PatientOnboardingSaga.completed_at.is_(None),
+            # Query for long-running sagas
+            long_running_sagas = (
+                db.query(PatientOnboardingSaga)
+                .filter(
+                    and_(
+                        PatientOnboardingSaga.started_at < long_running_threshold,
+                        PatientOnboardingSaga.status.in_(
+                            [
+                                SagaStatus.STARTED,
+                                SagaStatus.IN_PROGRESS,
+                                SagaStatus.STEP_1_PATIENT_CREATED,
+                                SagaStatus.STEP_3_FLOW_INITIALIZED,
+                                SagaStatus.STEP_4_MESSAGE_SENT,
+                            ]
+                        ),
+                        PatientOnboardingSaga.completed_at.is_(None),
+                    )
                 )
+                .all()
             )
-            .all()
-        )
 
-        if not long_running_sagas:
-            logger.info("No long-running sagas detected")
+            if not long_running_sagas:
+                logger.info("No long-running sagas detected")
+                return {
+                    "status": "success",
+                    "message": "No long-running sagas found",
+                    "count": 0,
+                }
+
+            logger.warning(f"Found {len(long_running_sagas)} long-running sagas")
+
+            # Send alerts
+            for saga in long_running_sagas:
+                duration = (now_sao_paulo() - saga.started_at).total_seconds() / 60
+                logger.warning(
+                    f"Long-running saga detected: {saga.id} (running for {duration:.1f} minutes)"
+                )
+
             return {
                 "status": "success",
-                "message": "No long-running sagas found",
-                "count": 0,
+                "message": f"Found {len(long_running_sagas)} long-running sagas",
+                "count": len(long_running_sagas),
             }
 
-        logger.warning(f"Found {len(long_running_sagas)} long-running sagas")
-
-        # Send alerts
-        for saga in long_running_sagas:
-            duration = (datetime.now(timezone.utc) - saga.started_at).total_seconds() / 60
-            logger.warning(
-                f"Long-running saga detected: {saga.id} (running for {duration:.1f} minutes)"
-            )
-
-        return {
-            "status": "success",
-            "message": f"Found {len(long_running_sagas)} long-running sagas",
-            "count": len(long_running_sagas),
-        }
-
-    except Exception as e:
-        logger.error(f"Error checking for long-running sagas: {e}", exc_info=True)
-        capture_exception(e)
-        return {
-            "status": "error",
-            "message": str(e),
-        }
-
-    finally:
-        db.close()
+        except Exception as e:
+            logger.error(f"Error checking for long-running sagas: {e}", exc_info=True)
+            capture_exception(e)
+            return {
+                "status": "error",
+                "message": str(e),
+            }
 
 
-@shared_task(name="app.tasks.saga_monitoring.generate_saga_metrics")
+@celery_app.task(name="app.tasks.saga_monitoring.generate_saga_metrics")
 def generate_saga_metrics() -> dict:
     """
     Generate saga execution metrics for monitoring dashboards.
@@ -199,93 +198,89 @@ def generate_saga_metrics() -> dict:
     Returns:
         dict: Saga metrics
     """
-    db = next(get_db())
+    with get_scoped_session() as db:
+        try:
+            logger.info("Generating saga metrics...")
 
-    try:
-        logger.info("Generating saga metrics...")
+            # Define time window (last 24 hours)
+            time_window = now_sao_paulo() - timedelta(hours=24)
 
-        # Define time window (last 24 hours)
-        time_window = datetime.now(timezone.utc) - timedelta(hours=24)
+            # Query sagas in time window
+            recent_sagas = (
+                db.query(PatientOnboardingSaga)
+                .filter(PatientOnboardingSaga.created_at >= time_window)
+                .all()
+            )
 
-        # Query sagas in time window
-        recent_sagas = (
-            db.query(PatientOnboardingSaga)
-            .filter(PatientOnboardingSaga.created_at >= time_window)
-            .all()
-        )
+            if not recent_sagas:
+                return {
+                    "status": "success",
+                    "message": "No recent sagas to analyze",
+                    "metrics": {},
+                }
 
-        if not recent_sagas:
-            return {
-                "status": "success",
-                "message": "No recent sagas to analyze",
-                "metrics": {},
+            # Calculate metrics
+            total_sagas = len(recent_sagas)
+            completed_sagas = len(
+                [s for s in recent_sagas if s.status == SagaStatus.COMPLETED]
+            )
+            failed_sagas = len([s for s in recent_sagas if s.status == SagaStatus.FAILED])
+            compensated_sagas = len(
+                [s for s in recent_sagas if s.status == SagaStatus.COMPENSATED]
+            )
+            retried_sagas = len([s for s in recent_sagas if s.retry_count > 0])
+
+            # Calculate rates
+            success_rate = (completed_sagas / total_sagas * 100) if total_sagas > 0 else 0
+            retry_rate = (retried_sagas / total_sagas * 100) if total_sagas > 0 else 0
+            compensation_rate = (
+                (compensated_sagas / total_sagas * 100) if total_sagas > 0 else 0
+            )
+
+            # Calculate average execution time (for completed sagas)
+            completed_with_time = [
+                s
+                for s in recent_sagas
+                if s.status == SagaStatus.COMPLETED and s.completed_at
+            ]
+            if completed_with_time:
+                avg_execution_time = sum(
+                    [
+                        (s.completed_at - s.started_at).total_seconds()
+                        for s in completed_with_time
+                    ]
+                ) / len(completed_with_time)
+            else:
+                avg_execution_time = 0
+
+            metrics = {
+                "time_window_hours": 24,
+                "total_sagas": total_sagas,
+                "completed": completed_sagas,
+                "failed": failed_sagas,
+                "compensated": compensated_sagas,
+                "retried": retried_sagas,
+                "success_rate_percent": round(success_rate, 2),
+                "retry_rate_percent": round(retry_rate, 2),
+                "compensation_rate_percent": round(compensation_rate, 2),
+                "avg_execution_time_seconds": round(avg_execution_time, 2),
             }
 
-        # Calculate metrics
-        total_sagas = len(recent_sagas)
-        completed_sagas = len(
-            [s for s in recent_sagas if s.status == SagaStatus.COMPLETED]
-        )
-        failed_sagas = len([s for s in recent_sagas if s.status == SagaStatus.FAILED])
-        compensated_sagas = len(
-            [s for s in recent_sagas if s.status == SagaStatus.COMPENSATED]
-        )
-        retried_sagas = len([s for s in recent_sagas if s.retry_count > 0])
+            logger.info(f"Saga metrics generated: {metrics}")
 
-        # Calculate rates
-        success_rate = (completed_sagas / total_sagas * 100) if total_sagas > 0 else 0
-        retry_rate = (retried_sagas / total_sagas * 100) if total_sagas > 0 else 0
-        compensation_rate = (
-            (compensated_sagas / total_sagas * 100) if total_sagas > 0 else 0
-        )
+            return {
+                "status": "success",
+                "message": "Saga metrics generated",
+                "metrics": metrics,
+            }
 
-        # Calculate average execution time (for completed sagas)
-        completed_with_time = [
-            s
-            for s in recent_sagas
-            if s.status == SagaStatus.COMPLETED and s.completed_at
-        ]
-        if completed_with_time:
-            avg_execution_time = sum(
-                [
-                    (s.completed_at - s.started_at).total_seconds()
-                    for s in completed_with_time
-                ]
-            ) / len(completed_with_time)
-        else:
-            avg_execution_time = 0
-
-        metrics = {
-            "time_window_hours": 24,
-            "total_sagas": total_sagas,
-            "completed": completed_sagas,
-            "failed": failed_sagas,
-            "compensated": compensated_sagas,
-            "retried": retried_sagas,
-            "success_rate_percent": round(success_rate, 2),
-            "retry_rate_percent": round(retry_rate, 2),
-            "compensation_rate_percent": round(compensation_rate, 2),
-            "avg_execution_time_seconds": round(avg_execution_time, 2),
-        }
-
-        logger.info(f"Saga metrics generated: {metrics}")
-
-        return {
-            "status": "success",
-            "message": "Saga metrics generated",
-            "metrics": metrics,
-        }
-
-    except Exception as e:
-        logger.error(f"Error generating saga metrics: {e}", exc_info=True)
-        capture_exception(e)
-        return {
-            "status": "error",
-            "message": str(e),
-        }
-
-    finally:
-        db.close()
+        except Exception as e:
+            logger.error(f"Error generating saga metrics: {e}", exc_info=True)
+            capture_exception(e)
+            return {
+                "status": "error",
+                "message": str(e),
+            }
 
 
 # ============================================================================
@@ -302,7 +297,7 @@ def _alert_orphaned_saga(saga: PatientOnboardingSaga, db: Session) -> None:
         db: Database session
     """
     try:
-        duration = (datetime.now(timezone.utc) - saga.created_at).total_seconds() / 3600
+        duration = (now_sao_paulo() - saga.created_at).total_seconds() / 3600
 
         logger.error(
             f"ORPHANED SAGA DETECTED: {saga.id} "
@@ -383,7 +378,7 @@ def _generate_orphan_summary(sagas: List[PatientOnboardingSaga]) -> Dict[str, An
         "oldest_saga_age_hours": round(
             max(
                 [
-                    (datetime.now(timezone.utc) - s.created_at).total_seconds() / 3600
+                    (now_sao_paulo() - s.created_at).total_seconds() / 3600
                     for s in sagas
                 ]
             ),

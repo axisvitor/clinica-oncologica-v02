@@ -1852,7 +1852,7 @@ This report provides comprehensive performance analysis of all P0 (Priority 0 - 
 - **Status:** ✅ PRODUCTION READY
 - **Impact:** Database query performance
 - **Files Modified:** 11 models + 28 indexes
-- **Migration:** `010_add_missing_foreign_key_and_composite_indexes_p0_performance.py`
+- **Migration:** `010_missing_indexes.py`
 
 ### P0.2: Async/Sync Event Loop Fix
 - **ID:** ISSUE-002
@@ -2501,7 +2501,7 @@ Performance: <2ms | Status: ✅ MEETS TARGET
 
 ```yaml
 Status: ✅ PRODUCTION READY
-Migration: 010_add_missing_foreign_key_and_composite_indexes_p0_performance.py
+Migration: 010_missing_indexes.py
 Deployment Type: Non-blocking (uses CONCURRENTLY)
 Downtime Required: Zero
 

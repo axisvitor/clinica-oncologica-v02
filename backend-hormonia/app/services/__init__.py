@@ -1,171 +1,103 @@
-"""Services module exports.
+"""Service package exports with lazy loading.
 
-This module provides the central service layer for the Hormonia Backend System.
-
-Service Architecture:
---------------------
-- ServiceProvider: Thread-safe, request-scoped dependency injection container
-  located in app/service_provider.py. Each HTTP request gets its own
-  ServiceProvider instance with isolated database session and Redis client.
-
-- Individual services are lazy-loaded through ServiceProvider properties
-  to optimize memory usage and startup time.
-
-Thread Safety:
--------------
-The ServiceProvider uses request-scoping (one instance per FastAPI request)
-rather than thread-local storage. This ensures:
-- No shared state between concurrent requests
-- Proper database session isolation
-- Clean resource lifecycle management
-
-Usage:
------
-    # In route handlers or dependencies:
-    from app.service_provider import ServiceProvider
-    # OR for backwards compatibility:
-    from app.services import ServiceProvider
-
-    def get_patient(services: ServiceProvider = Depends(get_thread_safe_service_provider)):
-        return services.patient_service.get_patient(patient_id)
+This module intentionally avoids eager imports to prevent circular-import
+cascades during worker/task bootstrap (Celery + AI clients + flow services).
+Consumers can keep using `from app.services import <Symbol>`.
 """
 
-# ServiceProvider - Import from dedicated module (avoids package/module shadowing)
-# This import is safe because app.service_provider uses lazy imports internally
-from app.service_provider import ServiceProvider
+from __future__ import annotations
 
-# Core Services
-from .auth import AuthService
-from app.domain.messaging.core import MessageService
-from .quiz import QuizTemplateService, QuizSessionService, QuizResponseService
+from importlib import import_module
+from typing import Dict, Tuple
 
-# Flow Services
-from .flow import FlowEngine  # Consolidated Flow Engine
-from .flow_template import FlowTemplateService
-from .enhanced_flow_engine import EnhancedFlowEngine
-from .state_machine import StateMachine
+_SERVICE_EXPORTS: Dict[str, Tuple[str, str]] = {
+    # Core services
+    "AuthService": ("app.services.auth", "AuthService"),
+    "MessageService": ("app.domain.messaging.core", "MessageService"),
+    "QuizTemplateService": ("app.services.quiz", "QuizTemplateService"),
+    "QuizSessionService": ("app.services.quiz", "QuizSessionService"),
+    "QuizResponseService": ("app.services.quiz", "QuizResponseService"),
+    # Flow services
+    "FlowEngine": ("app.services.flow", "FlowEngine"),
+    "FlowTemplateService": ("app.services.flow_template", "FlowTemplateService"),
+    "EnhancedFlowEngine": ("app.services.enhanced_flow_engine", "EnhancedFlowEngine"),
+    "StateMachine": ("app.services.state_machine", "StateMachine"),
+    # AI services
+    "PatientContext": ("app.services.ai", "PatientContext"),
+    # Alert services
+    "AlertManager": ("app.services.alerts", "AlertManager"),
+    "AlertProcessor": ("app.services.alerts", "AlertProcessor"),
+    # Analytics services
+    "AnalyticsService": ("app.domain.analytics.analytics_service", "AnalyticsService"),
+    "FlowAnalyticsService": ("app.services.analytics", "FlowAnalyticsService"),
+    "AdminStatsService": ("app.services.analytics", "AdminStatsService"),
+    "DataAggregator": ("app.services.analytics", "DataAggregator"),
+    "DataExtractionService": ("app.services.analytics", "DataExtractionService"),
+    "EnhancedAnalyticsService": ("app.services.analytics", "EnhancedAnalyticsService"),
+    "MedicoStatsService": ("app.services.analytics", "MedicoStatsService"),
+    "MetricsCollector": ("app.services.analytics", "MetricsCollector"),
+    "MetricsRedisStorage": ("app.services.analytics", "MetricsRedisStorage"),
+    "PerformanceMetricsCollector": (
+        "app.services.analytics",
+        "PerformanceMetricsCollector",
+    ),
+    # Admin services
+    "AdminUserService": ("app.services.admin", "AdminUserService"),
+    "UserProvisioningService": ("app.services.admin", "UserProvisioningService"),
+    # Integration services
+    "HiveMindIntegrationService": (
+        "app.services.hive_mind_integration",
+        "HiveMindIntegrationService",
+    ),
+    "PlatformSynchronizationService": (
+        "app.services.platform_synchronization",
+        "PlatformSynchronizationService",
+    ),
+    "WebhookProcessor": ("app.services.webhook_processor", "WebhookProcessor"),
+    # Messaging services
+    "websocket_events": ("app.services.websocket_events", "websocket_events"),
+    "UnifiedWebSocketConnectionManager": (
+        "app.services.websocket",
+        "UnifiedWebSocketConnectionManager",
+    ),
+    # Utility services
+    "EnhancedTemplateLoader": (
+        "app.services.template_loader_pkg",
+        "EnhancedTemplateLoader",
+    ),
+    "LocalizationService": ("app.services.localization", "LocalizationService"),
+    # Reporting services
+    "ReportService": ("app.services.reporting", "ReportService"),
+    "EnhancedReportsService": ("app.services.reporting", "EnhancedReportsService"),
+    "QuizReportGenerator": ("app.services.reporting", "QuizReportGenerator"),
+    # Monitoring services
+    "PerformanceMonitoringService": (
+        "app.services.performance_monitoring",
+        "PerformanceMonitoringService",
+    ),
+    "FlowMonitoringService": ("app.services.flow_monitoring", "FlowMonitoringService"),
+    "DataCorruptionDetector": ("app.services.data_corruption", "DataCorruptionDetector"),
+    # Error handling services
+    "ErrorRecoveryService": ("app.services.error_recovery", "ErrorRecoveryService"),
+    "AutomatedRecoveryService": (
+        "app.services.automated_recovery_pkg",
+        "AutomatedRecoveryService",
+    ),
+    "CriticalErrorEscalationService": (
+        "app.services.critical_error_escalation_pkg",
+        "CriticalErrorEscalationService",
+    ),
+}
 
-# AI Services
-from .ai import AIHumanizer, SentimentAnalyzer, PatientContext
-
-# Alert & Notification Services (unified architecture)
-from .alerts import (
-    AlertManager,
-    AlertManagerAdapter,
-    AlertProcessor,
-)
+__all__ = sorted(_SERVICE_EXPORTS.keys())
 
 
-# Analytics Services
-from app.domain.analytics.analytics_service import AnalyticsService
-from .analytics import (
-    FlowAnalyticsService,
-    ABTestingAnalyticsService,
-    AdminStatsService,
-    DataAggregator,
-    DataExtractionService,
-    EnhancedAnalyticsService,
-    MedicoStatsService,
-    MetricsCollector,
-    MetricsRedisStorage,
-    PerformanceMetricsCollector,
-)
+def __getattr__(name: str):
+    if name not in _SERVICE_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-# Admin Services
-from .admin import AdminUserService, UserProvisioningService
-
-# Integration Services
-from .hive_mind_integration import (
-    HiveMindIntegrationService,
-)  # Circular import resolved with lazy imports
-from .platform_synchronization import PlatformSynchronizationService
-from .webhook_processor import WebhookProcessor
-
-# Messaging Services
-from .websocket_events import websocket_events
-from .websocket import UnifiedWebSocketConnectionManager
-
-
-# Utility Services
-from .template_loader import EnhancedTemplateLoader
-from .localization import LocalizationService
-from .audit_trail import AuditTrailService
-
-# Reporting Services
-from .reporting import ReportService, EnhancedReportsService, QuizReportGenerator
-
-# Monitoring Services
-from .performance_monitoring import PerformanceMonitoringService
-from .flow_monitoring import FlowMonitoringService
-from .data_corruption import DataCorruptionDetector
-
-# Error Handling Services
-from .error_recovery import ErrorRecoveryService
-from .automated_recovery import AutomatedRecoveryService
-from .critical_error_escalation import CriticalErrorEscalationService
-
-# Note: ServiceProvider is now in app.service_provider module
-# It is re-exported here for backwards compatibility
-
-__all__ = [
-    # ServiceProvider (re-exported from app.service_provider)
-    "ServiceProvider",
-    # Core Services
-    "AuthService",
-    "PatientService",
-    "MessageService",
-    "QuizTemplateService",
-    "QuizSessionService",
-    "QuizResponseService",
-    # Flow Services
-    "FlowEngine",
-    "FlowTemplateService",
-    "EnhancedFlowEngine",
-    "StateMachine",
-    # AI Services
-    "AIHumanizer",
-    "SentimentAnalyzer",
-    "PatientContext",
-    # Alert Services
-    "AlertManager",
-    "AlertManagerAdapter",
-    "AlertProcessor",
-    # Analytics Services
-    "AnalyticsService",
-    "FlowAnalyticsService",
-    "ABTestingAnalyticsService",
-    "AdminStatsService",
-    "DataAggregator",
-    "DataExtractionService",
-    "EnhancedAnalyticsService",
-    "MedicoStatsService",
-    "MetricsCollector",
-    "MetricsRedisStorage",
-    "PerformanceMetricsCollector",
-    # Admin Services
-    "AdminUserService",
-    "UserProvisioningService",
-    # Integration Services
-    "HiveMindIntegrationService",  # Circular import resolved with lazy imports
-    "PlatformSynchronizationService",
-    "WebhookProcessor",
-    # Messaging Services
-    "websocket_events",
-    "UnifiedWebSocketConnectionManager",
-    # Utility Services
-    "EnhancedTemplateLoader",
-    "LocalizationService",
-    "AuditTrailService",
-    # Reporting Services
-    "ReportService",
-    "EnhancedReportsService",
-    "QuizReportGenerator",
-    # Monitoring Services
-    "PerformanceMonitoringService",
-    "FlowMonitoringService",
-    "DataCorruptionDetector",
-    # Error Handling Services
-    "ErrorRecoveryService",
-    "AutomatedRecoveryService",
-    "CriticalErrorEscalationService",
-]
+    module_path, attr_name = _SERVICE_EXPORTS[name]
+    module = import_module(module_path)
+    value = getattr(module, attr_name)
+    globals()[name] = value
+    return value

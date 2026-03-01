@@ -6,49 +6,17 @@ Shared dependencies and helper functions for admin extension endpoints.
 import logging
 from typing import Dict, Any, Optional, Union
 
-from fastapi import Depends
-from sqlalchemy.orm import Session
-
-from app.database import get_db
 from app.models.user import User
 from app.services.audit import AuditService
-from app.dependencies import RequestContext
-from app.dependencies.auth_dependencies import get_current_active_admin
+from app.utils.request_context import RequestContext
+from app.api.v2.routers.admin import dependencies as admin_dependencies
 
 logger = logging.getLogger(__name__)
 
 
-async def get_admin_user(
-    admin_data: Dict[str, Any] = Depends(get_current_active_admin),
-    db: Session = Depends(get_db),
-) -> Union[User, Dict[str, Any]]:
-    """
-    Dependency to verify admin access using session-based authentication.
-
-    Admin Extensions endpoints are HIGHLY SENSITIVE and require admin privileges.
-
-    Uses the secure get_current_active_admin dependency which:
-    1. Validates session from Redis cache (~2-5ms)
-    2. Verifies user is active
-    3. Confirms ADMIN role
-
-    Returns:
-        User model if found in DB, otherwise the admin dict from session
-
-    Raises:
-        HTTPException 401: If not authenticated
-        HTTPException 403: If not admin
-    """
-    # admin_data is already validated by get_current_active_admin
-    # Try to get full User model from DB for operations that need it
-    user_id = admin_data.get("id")
-    if user_id:
-        admin = db.query(User).filter(User.id == user_id).first()
-        if admin:
-            return admin
-
-    # Fallback: return session data as dict (still authenticated admin)
-    return admin_data
+_is_test_environment = admin_dependencies._is_test_environment
+_invoke_dependency = admin_dependencies._invoke_dependency
+get_admin_user = admin_dependencies.get_admin_user
 
 
 async def log_admin_extension_action(

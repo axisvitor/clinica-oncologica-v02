@@ -4,6 +4,24 @@ Comprehensive scripts for system initialization, validation, and health checking
 
 ## Scripts Overview
 
+### 0. Staging com Evolution Local (`run_staging_with_local_evolution.sh`)
+
+Executa componentes do backend com separação explícita de ambiente:
+- Sistema oncológico em `staging`
+- Evolution API local real (`http://127.0.0.1:8080`)
+- Mock explícito desativado (`WHATSAPP_EVOLUTION_USE_MOCK=false`)
+
+```bash
+# API
+./scripts/run_staging_with_local_evolution.sh api
+
+# Worker
+./scripts/run_staging_with_local_evolution.sh worker
+
+# Beat
+./scripts/run_staging_with_local_evolution.sh beat
+```
+
 ### 1. System Initialization (`init_system.py`)
 
 Complete system initialization with comprehensive checks.

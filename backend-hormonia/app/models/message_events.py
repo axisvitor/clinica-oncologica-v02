@@ -14,12 +14,15 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     text,
+    Enum as SAEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.models.base import BaseModel
+from app.models.message import MessageStatus
+from app.utils.timezone import now_sao_paulo
 
 
 class MessageStatusEvent(BaseModel):
@@ -45,11 +48,28 @@ class MessageStatusEvent(BaseModel):
 
     # Status tracking
     status = Column(
-        String(50), nullable=False, index=True
-    )  # sent, delivered, read, failed
+        SAEnum(
+            MessageStatus,
+            name="message_status",
+            native_enum=True,
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
+        nullable=False,
+        index=True,
+    )
     previous_status = Column(
-        String(50), nullable=True
-    )  # Previous status for audit trail
+        SAEnum(
+            MessageStatus,
+            name="message_status",
+            native_enum=True,
+            create_type=False,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+            validate_strings=True,
+        ),
+        nullable=True,
+    )
 
     # WhatsApp integration
     whatsapp_id = Column(String(255), nullable=True, index=True)  # WhatsApp message ID
@@ -220,4 +240,4 @@ class EvolutionWebhookEvent(BaseModel):
             return False
         from datetime import datetime, timezone
 
-        return datetime.now(timezone.utc) >= self.next_retry_at
+        return now_sao_paulo() >= self.next_retry_at

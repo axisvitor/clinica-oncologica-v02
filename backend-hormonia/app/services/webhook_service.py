@@ -45,10 +45,11 @@ from app.schemas.v2.webhooks import (
 )
 from app.config import settings
 from app.services.webhook_processor import WebhookProcessor
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.utils.logging import get_logger
 from app.schemas.v2.common import CursorEncoder
 from app.services.webhook.idempotency import AtomicWebhookIdempotency
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -58,7 +59,7 @@ MAX_TIMESTAMP_AGE_SECONDS = 300
 IDEMPOTENCY_WINDOW_HOURS = 2  # 2 hours is sufficient for retry windows
 REDIS_TTL_WEBHOOK_CONFIG = 600
 REDIS_TTL_WEBHOOK_STATS = 900
-REDIS_TTL_IDEMPOTENCY = 86400
+REDIS_TTL_IDEMPOTENCY = 7200
 RETRY_BASE_DELAY = 2
 RETRY_MAX_DELAY = 300
 
@@ -162,10 +163,10 @@ class WebhookService:
 
             except Exception as e:
                 logger.warning(
-                    f"Atomic idempotency check failed, falling back to legacy: {e}"
+                    f"Atomic idempotency check failed, using Redis direct path: {e}"
                 )
 
-        # Legacy fallback: Try simple SET NX
+        # Redis direct path: Try simple SET NX
         redis = await self._get_redis()
         if redis:
             try:
@@ -187,7 +188,7 @@ class WebhookService:
 
         # WA-006: DB fallback for reliability
         try:
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=IDEMPOTENCY_WINDOW_HOURS)
+            cutoff_time = now_sao_paulo() - timedelta(hours=IDEMPOTENCY_WINDOW_HOURS)
             existing = self.db.execute(
                 select(WebhookEvent).where(
                     WebhookEvent.event_id == webhook_id,
@@ -201,9 +202,16 @@ class WebhookService:
                 )
                 return False
         except Exception as e:
-            logger.error(f"DB idempotency check failed: {e}")
-            # Fail open: allow event if both Redis and DB fail
-            return True
+            logger.error(
+                (
+                    "DB idempotency check failed; denying webhook processing "
+                    "(fail-closed)"
+                ),
+                extra={"webhook_id": webhook_id, "event_type": event_type},
+                exc_info=True,
+            )
+            # Fail closed: deny processing when idempotency backend is unavailable.
+            return False
 
         return True
 
@@ -456,7 +464,7 @@ class WebhookService:
         last_24h = (
             self.db.query(func.count(WebhookDelivery.id))
             .filter(
-                WebhookDelivery.created_at >= datetime.now(timezone.utc) - timedelta(hours=24)
+                WebhookDelivery.created_at >= now_sao_paulo() - timedelta(hours=24)
             )
             .scalar()
             or 0
@@ -489,7 +497,7 @@ class WebhookService:
             self.db.query(func.count(WebhookDelivery.id))
             .filter(
                 WebhookDelivery.webhook_id == webhook_id,
-                WebhookDelivery.created_at >= datetime.now(timezone.utc) - timedelta(hours=24),
+                WebhookDelivery.created_at >= now_sao_paulo() - timedelta(hours=24),
             )
             .scalar()
             or 0
@@ -500,7 +508,7 @@ class WebhookService:
             .filter(
                 WebhookDelivery.webhook_id == webhook_id,
                 WebhookDelivery.status == "success",
-                WebhookDelivery.created_at >= datetime.now(timezone.utc) - timedelta(hours=24),
+                WebhookDelivery.created_at >= now_sao_paulo() - timedelta(hours=24),
             )
             .scalar()
             or 0
@@ -515,7 +523,7 @@ class WebhookService:
             .filter(
                 WebhookDelivery.webhook_id == webhook_id,
                 WebhookDelivery.status == "failed",
-                WebhookDelivery.created_at >= datetime.now(timezone.utc) - timedelta(hours=1),
+                WebhookDelivery.created_at >= now_sao_paulo() - timedelta(hours=1),
             )
             .scalar()
             or 0
@@ -764,7 +772,7 @@ class WebhookService:
             action=action,
             event_type=event_type,
             details=details,
-            created_at=datetime.now(timezone.utc),
+            created_at=now_sao_paulo(),
         )
         self.db.add(log)
 
@@ -795,7 +803,7 @@ class WebhookService:
                 if response.is_success:
                     delivery.status = "success"
                     webhook.success_count += 1
-                    webhook.last_triggered_at = datetime.now(timezone.utc)
+                    webhook.last_triggered_at = now_sao_paulo()
                 else:
                     delivery.status = "failed"
                     delivery.error = f"HTTP {response.status_code}"
@@ -807,6 +815,6 @@ class WebhookService:
             delivery.response_time_ms = (time.time() - start_time) * 1000
             webhook.failure_count += 1
 
-        delivery.completed_at = datetime.now(timezone.utc)
+        delivery.completed_at = now_sao_paulo()
         self.db.commit()
         return delivery.status == "success"

@@ -9,7 +9,7 @@ Implementação do Sprint 0 - Configuração de Monitoramento
 import os
 import logging
 from typing import Optional, Dict, Any
-from datetime import datetime, timezone
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +148,7 @@ def _before_send_filter(
 
     Remove informações sensíveis como senhas, tokens, etc.
     """
+    _ = hint
     # Lista de chaves sensíveis para remover
     sensitive_keys = [
         "password",
@@ -217,7 +218,7 @@ def capture_exception(
                     scope.set_extra(key, value)
 
             # Adicionar timestamp
-            scope.set_extra("captured_at", datetime.now(timezone.utc).isoformat())
+            scope.set_extra("captured_at", now_sao_paulo().isoformat())
 
             # Definir nível
             scope.level = level

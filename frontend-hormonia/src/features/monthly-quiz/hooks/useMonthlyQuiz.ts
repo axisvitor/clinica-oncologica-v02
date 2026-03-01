@@ -165,9 +165,9 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
 
     try {
       // Backend expects GET with token query param at /monthly/public/current
-      // Mounted at /api/v2/monthly-quiz-public
+      // Mounted at /api/v2/quiz-extensions
       const response = await apiClient.request<MonthlyQuizAccess>(
-        `/api/v2/monthly-quiz-public/monthly/public/current?token=${encodeURIComponent(token)}`,
+        `/api/v2/quiz-extensions/monthly/public/current?token=${encodeURIComponent(token)}`,
         {
           method: 'GET'
         }
@@ -193,13 +193,13 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
 
     try {
       // Backend expects POST at /monthly/public/{quiz_id}/submit
-      // Mounted at /api/v2/monthly-quiz-public
+      // Mounted at /api/v2/quiz-extensions
       if (!submitData.quiz_id) {
         throw new Error('Quiz ID is required for submission');
       }
 
       const response = await apiClient.request<{ success: boolean; message: string }>(
-        `/api/v2/monthly-quiz-public/monthly/public/${submitData.quiz_id}/submit`,
+        `/api/v2/quiz-extensions/monthly/public/${submitData.quiz_id}/submit`,
         {
           method: 'POST',
           body: JSON.stringify(submitData)

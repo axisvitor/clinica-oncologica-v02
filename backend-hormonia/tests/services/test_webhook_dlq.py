@@ -15,9 +15,10 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 from app.services.webhook_dlq import WebhookDLQ, get_webhook_dlq
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 @pytest.fixture
 async def dlq_service(db_session):
     """Create DLQ service instance."""
@@ -88,7 +89,7 @@ class TestWebhookDLQ:
         retry_2 = dlq_service._calculate_next_retry(2)
         retry_3 = dlq_service._calculate_next_retry(3)
 
-        now = datetime.utcnow()
+        now = now_sao_paulo_naive()
 
         # Verify exponential backoff
         assert (retry_0 - now).total_seconds() == pytest.approx(60, abs=1)  # 60s
@@ -115,9 +116,9 @@ class TestWebhookDLQ:
             "error": "Test error",
             "retry_count": 0,
             "max_retries": 5,
-            "timestamp": datetime.utcnow().isoformat(),
-            "added_to_dlq_at": datetime.utcnow().isoformat(),
-            "next_retry_at": (datetime.utcnow() - timedelta(seconds=10)).isoformat()  # Past
+            "timestamp": now_sao_paulo_naive().isoformat(),
+            "added_to_dlq_at": now_sao_paulo_naive().isoformat(),
+            "next_retry_at": (now_sao_paulo_naive() - timedelta(seconds=10)).isoformat()  # Past
         }
 
         dlq_key = "webhook:dlq:message.received"
@@ -152,9 +153,9 @@ class TestWebhookDLQ:
             "error": "Test error",
             "retry_count": 0,
             "max_retries": 5,
-            "timestamp": datetime.utcnow().isoformat(),
-            "added_to_dlq_at": datetime.utcnow().isoformat(),
-            "next_retry_at": (datetime.utcnow() - timedelta(seconds=10)).isoformat()
+            "timestamp": now_sao_paulo_naive().isoformat(),
+            "added_to_dlq_at": now_sao_paulo_naive().isoformat(),
+            "next_retry_at": (now_sao_paulo_naive() - timedelta(seconds=10)).isoformat()
         }
 
         dlq_key = "webhook:dlq:message.received"
@@ -193,9 +194,9 @@ class TestWebhookDLQ:
             "error": "Test error",
             "retry_count": 4,  # One below max
             "max_retries": 5,
-            "timestamp": datetime.utcnow().isoformat(),
-            "added_to_dlq_at": datetime.utcnow().isoformat(),
-            "next_retry_at": (datetime.utcnow() - timedelta(seconds=10)).isoformat()
+            "timestamp": now_sao_paulo_naive().isoformat(),
+            "added_to_dlq_at": now_sao_paulo_naive().isoformat(),
+            "next_retry_at": (now_sao_paulo_naive() - timedelta(seconds=10)).isoformat()
         }
 
         dlq_key = "webhook:dlq:message.received"
@@ -229,9 +230,9 @@ class TestWebhookDLQ:
                 "error": "Test",
                 "retry_count": 0,
                 "max_retries": 5,
-                "timestamp": datetime.utcnow().isoformat(),
-                "added_to_dlq_at": datetime.utcnow().isoformat(),
-                "next_retry_at": datetime.utcnow().isoformat()
+                "timestamp": now_sao_paulo_naive().isoformat(),
+                "added_to_dlq_at": now_sao_paulo_naive().isoformat(),
+                "next_retry_at": now_sao_paulo_naive().isoformat()
             }
             await redis_client.rpush(f"webhook:dlq:{event_type}", json.dumps(event))
 
@@ -299,9 +300,9 @@ class TestDLQRetryLogic:
             "error": "Test",
             "retry_count": 0,
             "max_retries": 5,
-            "timestamp": datetime.utcnow().isoformat(),
-            "added_to_dlq_at": datetime.utcnow().isoformat(),
-            "next_retry_at": (datetime.utcnow() + timedelta(hours=1)).isoformat()  # Future
+            "timestamp": now_sao_paulo_naive().isoformat(),
+            "added_to_dlq_at": now_sao_paulo_naive().isoformat(),
+            "next_retry_at": (now_sao_paulo_naive() + timedelta(hours=1)).isoformat()  # Future
         }
 
         dlq_key = "webhook:dlq:message.received"

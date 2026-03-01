@@ -3,7 +3,7 @@ name: Load Testing
 on:
   # Run weekly on Sunday nights
   schedule:
-    - cron: '0 2 * * 0'  # Every Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'  # Every Sunday at 2 AM Sao Paulo
 
   # Allow manual triggering
   workflow_dispatch:

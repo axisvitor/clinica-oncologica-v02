@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { FlowDesignerDialog } from './FlowDesignerDialog';
+import { FlowTemplateVersionsDialog } from './FlowTemplateVersionsDialog';
 import type { FlowTemplate } from '@/hooks/useTemplates';
 import { useTemplates } from '@/hooks/useTemplates';
 import { useToast } from '@/components/ui/use-toast';
@@ -22,6 +23,7 @@ export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
   const { toast } = useToast();
   const { deleteFlowTemplate } = useTemplates();
   const [showEditor, setShowEditor] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
   const [editMode, setEditMode] = useState<'edit' | 'version' | null>(null);
 
   const handleEdit = () => {
@@ -85,6 +87,9 @@ export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
               <Button variant="outline" size="sm" onClick={handleNewVersion}>
                 Nova Versão
               </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowVersions(true)}>
+                Versões
+              </Button>
               <Button variant="outline" size="sm" onClick={handleDelete}>
                 Desativar
               </Button>
@@ -102,6 +107,12 @@ export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
           setShowEditor(false);
           setEditMode(null);
         }}
+      />
+
+      <FlowTemplateVersionsDialog
+        open={showVersions}
+        onOpenChange={setShowVersions}
+        template={template}
       />
     </>
   );

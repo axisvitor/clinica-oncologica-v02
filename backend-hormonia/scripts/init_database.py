@@ -73,7 +73,7 @@ class DatabaseInitializer:
         """Validate database connection"""
         logger.info("\n[1/5] Validating database connection...")
 
-        from app.core.database import AsyncSessionLocal
+        from app.database import AsyncSessionLocal
         from sqlalchemy import text
 
         try:
@@ -104,7 +104,7 @@ class DatabaseInitializer:
             logger.info("Aborted by user")
             sys.exit(0)
 
-        from app.core.database import Base, engine
+        from app.database import Base, engine
 
         try:
             # Drop all tables
@@ -163,7 +163,7 @@ class DatabaseInitializer:
         """Seed initial data"""
         logger.info("\n[4/5] Seeding initial data...")
 
-        from app.core.database import AsyncSessionLocal
+        from app.database import AsyncSessionLocal
         from sqlalchemy import text
 
         try:
@@ -194,7 +194,7 @@ class DatabaseInitializer:
         """Validate database schema integrity"""
         logger.info("\n[5/5] Validating schema integrity...")
 
-        from app.core.database import AsyncSessionLocal
+        from app.database import AsyncSessionLocal
         from sqlalchemy import text
 
         try:
@@ -206,7 +206,15 @@ class DatabaseInitializer:
                     WHERE table_schema = 'public'
                     ORDER BY table_name
                 """))
-                tables = [row[0] for row in result]
+                table_rows = result.fetchall() if hasattr(result, "fetchall") else list(result)
+                tables: list[str] = []
+                for row in table_rows:
+                    if isinstance(row, (tuple, list)) and row:
+                        tables.append(str(row[0]))
+                    elif hasattr(row, "table_name"):
+                        tables.append(str(getattr(row, "table_name")))
+                    elif row is not None:
+                        tables.append(str(row))
 
                 logger.info(f"✓ Found {len(tables)} tables")
                 for table in tables:

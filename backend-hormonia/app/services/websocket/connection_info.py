@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 from fastapi import WebSocket
+from app.utils.timezone import now_sao_paulo_naive
 
 
 class ConnectionState(Enum):
@@ -42,8 +43,9 @@ class ConnectionInfo:
     display_name: Optional[str] = None
 
     # Connection Metadata
-    connected_at: datetime = field(default_factory=datetime.utcnow)
-    last_activity: datetime = field(default_factory=datetime.utcnow)
+    connected_at: datetime = field(default_factory=now_sao_paulo_naive)
+    last_activity: datetime = field(default_factory=now_sao_paulo_naive)
+    last_heartbeat: datetime = field(default_factory=now_sao_paulo_naive)
     authenticated_at: Optional[datetime] = None
 
     # Metrics
@@ -62,7 +64,9 @@ class ConnectionInfo:
 
     def update_activity(self):
         """Update last activity timestamp."""
-        self.last_activity = datetime.now(timezone.utc)
+        now = now_sao_paulo_naive()
+        self.last_activity = now
+        self.last_heartbeat = now
 
     def record_message_sent(self, size_bytes: int = 0):
         """Record a sent message."""

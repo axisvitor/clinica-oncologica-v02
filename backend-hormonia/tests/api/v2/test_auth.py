@@ -27,9 +27,16 @@ from app.models.session import Session as SessionModel
 from app.models.notification import Notification, NotificationType
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+
+@pytest.fixture
+def test_user(test_doctor_user: User) -> User:
+    """Align auth tests with the default v2 authenticated doctor fixture."""
+    return test_doctor_user
 
 def create_test_session(
     db: Session,
@@ -56,9 +63,9 @@ def create_test_session(
         user_id=user.id,
         session_token=f"test_token_{uuid4().hex}",
         is_active=is_active,
-        created_at=kwargs.get('created_at', datetime.utcnow()),
-        expires_at=kwargs.get('expires_at', datetime.utcnow() + timedelta(days=expires_in_days)),
-        last_activity=kwargs.get('last_activity', datetime.utcnow()),
+        created_at=kwargs.get('created_at', now_sao_paulo_naive()),
+        expires_at=kwargs.get('expires_at', now_sao_paulo_naive() + timedelta(days=expires_in_days)),
+        last_activity=kwargs.get('last_activity', now_sao_paulo_naive()),
         ip_address=kwargs.get('ip_address', '192.168.1.1'),
         user_agent=kwargs.get('user_agent', 'Mozilla/5.0 Test Browser'),
         revoked_at=kwargs.get('revoked_at'),
@@ -98,8 +105,8 @@ def create_test_notification(
         notification_type=notification_type,
         is_read=is_read,
         read_at=kwargs.get('read_at'),
-        created_at=kwargs.get('created_at', datetime.utcnow()),
-        updated_at=kwargs.get('updated_at', datetime.utcnow()),
+        created_at=kwargs.get('created_at', now_sao_paulo_naive()),
+        updated_at=kwargs.get('updated_at', now_sao_paulo_naive()),
         notification_metadata=kwargs.get('notification_metadata', {}),
         action_url=kwargs.get('action_url'),
     )
@@ -131,7 +138,7 @@ class TestUserProfile:
     ):
         """Test successfully getting current user profile"""
         # Mock Redis to return None (cache miss)
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -154,7 +161,7 @@ class TestUserProfile:
         mock_redis
     ):
         """Test getting user profile with field selection"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -185,13 +192,13 @@ class TestUserProfile:
             name="Test Patient",
             email="patient@test.com",
             doctor_id=test_user.id,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=now_sao_paulo_naive(),
+            updated_at=now_sao_paulo_naive()
         )
         db_session.add(patient)
         db_session.commit()
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -218,7 +225,7 @@ class TestUserProfile:
             "preferences": {}
         }
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=json.dumps(cached_data))
 
             response = client.get("/api/v2/auth/me", headers=auth_headers)
@@ -278,13 +285,13 @@ class TestUserProfile:
                 name=f"Patient {i}",
                 email=f"patient{i}@test.com",
                 doctor_id=test_user.id,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=now_sao_paulo_naive(),
+                updated_at=now_sao_paulo_naive()
             )
             db_session.add(patient)
         db_session.commit()
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -313,7 +320,7 @@ class TestUserProfile:
                 title=f"Notification {i}"
             )
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -333,7 +340,7 @@ class TestUserProfile:
         mock_redis
     ):
         """Test user profile for different user roles"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -385,7 +392,7 @@ class TestSessionManagement:
             session = create_test_session(
                 db_session,
                 test_user,
-                created_at=datetime.utcnow() - timedelta(hours=i)
+                created_at=now_sao_paulo_naive() - timedelta(hours=i)
             )
             sessions.append(session)
 
@@ -427,7 +434,7 @@ class TestSessionManagement:
             create_test_session(
                 db_session,
                 test_user,
-                created_at=datetime.utcnow() - timedelta(minutes=i)
+                created_at=now_sao_paulo_naive() - timedelta(minutes=i)
             )
 
         # Get first page with limit=5
@@ -536,7 +543,7 @@ class TestSessionManagement:
         """Test verifying a valid session"""
         create_test_session(db_session, test_user)
 
-        response = client.post("/api/v2/auth/verify-session", headers=auth_headers)
+        response = client.get("/api/v2/auth/verify-session", headers=auth_headers)
 
         assert response.status_code == 200
         data = response.json()
@@ -556,21 +563,21 @@ class TestSessionManagement:
         create_test_session(
             db_session,
             test_user,
-            expires_at=datetime.utcnow() - timedelta(hours=1)
+            expires_at=now_sao_paulo_naive() - timedelta(hours=1)
         )
 
-        response = client.post("/api/v2/auth/verify-session", headers=auth_headers)
+        response = client.get("/api/v2/auth/verify-session", headers=auth_headers)
 
         assert response.status_code == 401
 
     def test_verify_session_invalid(self, client: TestClient, test_user: User, auth_headers: dict):
         """Test verifying with no active session"""
-        response = client.post("/api/v2/auth/verify-session", headers=auth_headers)
+        response = client.get("/api/v2/auth/verify-session", headers=auth_headers)
         assert response.status_code == 401
 
     def test_verify_session_missing_token(self, client: TestClient):
         """Test verifying session without authentication token"""
-        response = client.post("/api/v2/auth/verify-session")
+        response = client.get("/api/v2/auth/verify-session")
         assert response.status_code == 401
 
     def test_session_cleanup_on_logout(
@@ -635,7 +642,7 @@ class TestUserPreferences:
         mock_redis
     ):
         """Test successfully getting user preferences"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -661,7 +668,7 @@ class TestUserPreferences:
         mock_redis
     ):
         """Test getting default preferences for new user"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -688,10 +695,10 @@ class TestUserPreferences:
                 "language": "en-US",
                 "theme": "dark"
             },
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": now_sao_paulo_naive().isoformat()
         }
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=json.dumps(cached_prefs))
 
             response = client.get("/api/v2/auth/preferences", headers=auth_headers)
@@ -722,7 +729,7 @@ class TestUserPreferences:
             "marketing_consent": False
         }
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.put(
@@ -791,7 +798,7 @@ class TestUserPreferences:
             "theme": "dark"
         }
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.put(
@@ -818,7 +825,7 @@ class TestUserPreferences:
             "language": "en-US"
         }
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.patch(
@@ -842,7 +849,7 @@ class TestUserPreferences:
         mock_redis
     ):
         """Test updating a single preference field"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.patch(
@@ -898,7 +905,7 @@ class TestUserPreferences:
         mock_redis
     ):
         """Test handling concurrent preference updates"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             # First update
@@ -971,7 +978,7 @@ class TestNotifications:
                 db_session,
                 test_user,
                 title=f"Notification {i}",
-                created_at=datetime.utcnow() - timedelta(minutes=i)
+                created_at=now_sao_paulo_naive() - timedelta(minutes=i)
             )
 
         # Get first page
@@ -1095,7 +1102,7 @@ class TestNotifications:
         """Test marking a single notification as read"""
         notification = create_test_notification(db_session, test_user, is_read=False)
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.post(
@@ -1129,7 +1136,7 @@ class TestNotifications:
             notif = create_test_notification(db_session, test_user, is_read=False)
             notification_ids.append(str(notif.id))
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.post(
@@ -1169,7 +1176,7 @@ class TestNotifications:
         mock_redis
     ):
         """Test marking notifications with invalid IDs"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             response = client.post(
@@ -1188,7 +1195,7 @@ class TestNotifications:
         mock_redis
     ):
         """Test marking non-existent notifications"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             fake_id = str(uuid4())
@@ -1219,7 +1226,7 @@ class TestNotifications:
         for i in range(2):
             create_test_notification(db_session, test_user, is_read=True)
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -1240,7 +1247,7 @@ class TestNotifications:
         mock_redis
     ):
         """Test getting unread count from cache"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value="5")
 
             response = client.get(
@@ -1260,7 +1267,7 @@ class TestNotifications:
         mock_redis
     ):
         """Test unread count when user has no unread notifications"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -1376,281 +1383,34 @@ class TestNotifications:
 
 
 # ============================================================================
-# Password Management Tests
+# Legacy Password Endpoint Removal Tests
 # ============================================================================
 
-class TestPasswordManagement:
-    """Test suite for password management endpoints"""
+class TestLegacyPasswordEndpointsRemoved:
+    """Legacy password endpoints should no longer exist."""
 
-    def test_change_password_success(
+    @pytest.mark.parametrize(
+        "path,payload",
+        [
+            (
+                "/api/v2/auth/password/change",
+                {"current_password": "old", "new_password": "NewSecureP@ssw0rd123"},
+            ),
+            ("/api/v2/auth/password/reset", {"email": "test@example.com"}),
+            (
+                "/api/v2/auth/password/reset/confirm",
+                {"token": "reset_token_123", "new_password": "NewSecureP@ssw0rd123"},
+            ),
+        ],
+    )
+    def test_legacy_password_routes_return_404(
         self,
         client: TestClient,
-        test_user: User,
-        auth_headers: dict
+        path: str,
+        payload: dict,
     ):
-        """Test changing password (legacy endpoint)"""
-        payload = {
-            "current_password": "testpass123",
-            "new_password": "NewSecureP@ssw0rd123"
-        }
-
-        response = client.post(
-            "/api/v2/auth/password/change",
-            json=payload,
-            headers=auth_headers
-        )
-
-        # This endpoint is deprecated, should return message
-        assert response.status_code == 200
-        data = response.json()
-        assert "message" in data
-
-    def test_change_password_invalid_current(
-        self,
-        client: TestClient,
-        test_user: User,
-        auth_headers: dict
-    ):
-        """Test changing password with invalid current password"""
-        payload = {
-            "current_password": "wrongpassword",
-            "new_password": "NewSecureP@ssw0rd123"
-        }
-
-        response = client.post(
-            "/api/v2/auth/password/change",
-            json=payload,
-            headers=auth_headers
-        )
-
-        # Deprecated endpoint
-        assert response.status_code == 200
-
-    def test_change_password_weak_new(
-        self,
-        client: TestClient,
-        test_user: User,
-        auth_headers: dict
-    ):
-        """Test changing password with weak new password"""
-        payload = {
-            "current_password": "testpass123",
-            "new_password": "weak"
-        }
-
-        response = client.post(
-            "/api/v2/auth/password/change",
-            json=payload,
-            headers=auth_headers
-        )
-
-        # Should fail validation
-        assert response.status_code == 422
-
-    def test_change_password_same_as_current(
-        self,
-        client: TestClient,
-        test_user: User,
-        auth_headers: dict
-    ):
-        """Test changing password to same as current"""
-        payload = {
-            "current_password": "testpass123",
-            "new_password": "testpass123"
-        }
-
-        response = client.post(
-            "/api/v2/auth/password/change",
-            json=payload,
-            headers=auth_headers
-        )
-
-        # Deprecated endpoint should return 200
-        assert response.status_code == 200
-
-    def test_change_password_rate_limited(
-        self,
-        client: TestClient,
-        test_user: User,
-        auth_headers: dict
-    ):
-        """Test rate limiting on password change (5/hour)"""
-        payload = {
-            "current_password": "testpass123",
-            "new_password": "NewSecureP@ssw0rd123"
-        }
-
-        response = client.post(
-            "/api/v2/auth/password/change",
-            json=payload,
-            headers=auth_headers
-        )
-
-        assert response.status_code in [200, 429]
-
-    def test_reset_password_request_success(self, client: TestClient):
-        """Test requesting password reset"""
-        payload = {"email": "test@example.com"}
-
-        response = client.post(
-            "/api/v2/auth/password/reset",
-            json=payload
-        )
-
-        # Always returns success for security
-        assert response.status_code == 200
-        data = response.json()
-        assert data["success"] is True
-
-    def test_reset_password_invalid_email(self, client: TestClient):
-        """Test password reset with invalid email format"""
-        payload = {"email": "not-an-email"}
-
-        response = client.post(
-            "/api/v2/auth/password/reset",
-            json=payload
-        )
-
-        assert response.status_code == 422
-
-    def test_reset_password_rate_limited(self, client: TestClient):
-        """Test rate limiting on password reset (3/hour)"""
-        payload = {"email": "test@example.com"}
-
-        response = client.post(
-            "/api/v2/auth/password/reset",
-            json=payload
-        )
-
-        assert response.status_code in [200, 429]
-
-    def test_reset_password_email_sent(self, client: TestClient):
-        """Test password reset always returns success"""
-        # Test with non-existent email (should still return success)
-        payload = {"email": "nonexistent@example.com"}
-
-        response = client.post(
-            "/api/v2/auth/password/reset",
-            json=payload
-        )
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "message" in data
-
-    def test_reset_password_confirm_success(self, client: TestClient):
-        """Test confirming password reset"""
-        payload = {
-            "token": "reset_token_123",
-            "new_password": "NewSecureP@ssw0rd123"
-        }
-
-        response = client.post(
-            "/api/v2/auth/password/reset/confirm",
-            json=payload
-        )
-
-        # Deprecated endpoint
-        assert response.status_code == 200
-
-    def test_reset_password_confirm_expired_token(self, client: TestClient):
-        """Test confirming reset with expired token"""
-        payload = {
-            "token": "expired_token",
-            "new_password": "NewSecureP@ssw0rd123"
-        }
-
-        response = client.post(
-            "/api/v2/auth/password/reset/confirm",
-            json=payload
-        )
-
-        # Deprecated endpoint returns 200
-        assert response.status_code == 200
-
-    def test_reset_password_confirm_invalid_token(self, client: TestClient):
-        """Test confirming reset with invalid token"""
-        payload = {
-            "token": "invalid_token",
-            "new_password": "NewSecureP@ssw0rd123"
-        }
-
-        response = client.post(
-            "/api/v2/auth/password/reset/confirm",
-            json=payload
-        )
-
-        assert response.status_code == 200
-
-    def test_reset_password_confirm_weak_password(self, client: TestClient):
-        """Test confirming reset with weak password"""
-        payload = {
-            "token": "valid_token",
-            "new_password": "weak"
-        }
-
-        response = client.post(
-            "/api/v2/auth/password/reset/confirm",
-            json=payload
-        )
-
-        # Should fail validation
-        assert response.status_code == 422
-
-    @pytest.mark.parametrize("password,should_pass", [
-        ("Abc123!@", True),  # Valid
-        ("short", False),  # Too short
-        ("NoNumbers!", False),  # No numbers
-        ("nospecial123", False),  # No special chars
-        ("NOLOWER123!", False),  # No lowercase
-        ("noupper123!", False),  # No uppercase
-        ("ValidP@ss123", True),  # Valid
-    ])
-    def test_password_validation_rules(
-        self,
-        client: TestClient,
-        test_user: User,
-        auth_headers: dict,
-        password: str,
-        should_pass: bool
-    ):
-        """Test password validation rules"""
-        payload = {
-            "current_password": "testpass123",
-            "new_password": password
-        }
-
-        response = client.post(
-            "/api/v2/auth/password/change",
-            json=payload,
-            headers=auth_headers
-        )
-
-        if should_pass:
-            assert response.status_code == 200
-        else:
-            assert response.status_code == 422
-
-    def test_password_history_check(
-        self,
-        client: TestClient,
-        test_user: User,
-        auth_headers: dict
-    ):
-        """Test that password history is checked (if implemented)"""
-        # This is a placeholder test for future implementation
-        payload = {
-            "current_password": "testpass123",
-            "new_password": "NewSecureP@ssw0rd123"
-        }
-
-        response = client.post(
-            "/api/v2/auth/password/change",
-            json=payload,
-            headers=auth_headers
-        )
-
-        assert response.status_code == 200
+        response = client.post(path, json=payload)
+        assert response.status_code == 404
 
 
 # ============================================================================
@@ -1662,38 +1422,34 @@ class TestFirebaseAndHealth:
 
     def test_firebase_verify_valid_token(self, client: TestClient, mock_redis):
         """Test verifying valid Firebase token"""
-        payload = {"id_token": "valid_firebase_token_123"}
+        payload = {"id_token": "valid.firebase.token"}
         
-        # Mock Firebase service
-        with patch('app.api.v2.routers.auth._firebase_service') as mock_service:
-            mock_service.verify_token = AsyncMock(return_value={
-                "uid": "firebase_uid_123",
+        with patch('app.api.v2.routers.auth.verify_token', new_callable=AsyncMock) as mock_verify:
+            mock_verify.return_value = {
+                "uid": "AbCdEfGhIjKlMnOpQrStUvWxYz12",
                 "email": "test@example.com",
                 "name": "Test User",
                 "picture": "http://example.com/pic.jpg"
-            })
-            
-            with patch('app.api.v2.routers.auth.get_redis_client', return_value=mock_redis):
-                mock_redis.setex = AsyncMock(return_value=True)
-                
-                response = client.post(
-                    "/api/v2/auth/firebase/verify",
-                    json=payload
-                )
+            }
 
-                assert response.status_code == 200
-                data = response.json()
-                assert data["valid"] is True
-                assert "session_id" in data
-                assert "user" in data
-                assert data["user"]["email"] == "test@example.com"
+            response = client.post(
+                "/api/v2/auth/firebase/verify",
+                json=payload
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["valid"] is True
+            assert "session_id" in data
+            assert "user" in data
+            assert data["user"]["email"] == "test@example.com"
 
     def test_firebase_verify_invalid_token(self, client: TestClient):
         """Test verifying invalid Firebase token"""
-        payload = {"id_token": "invalid_token"}
+        payload = {"id_token": "invalid.firebase.token"}
 
-        with patch('app.api.v2.routers.auth._firebase_service') as mock_service:
-            mock_service.verify_token = AsyncMock(side_effect=Exception("Invalid token"))
+        with patch('app.api.v2.routers.auth.verify_token', new_callable=AsyncMock) as mock_verify:
+            mock_verify.side_effect = ValueError("Invalid token")
             
             response = client.post(
                 "/api/v2/auth/firebase/verify",
@@ -1706,10 +1462,10 @@ class TestFirebaseAndHealth:
 
     def test_firebase_verify_expired_token(self, client: TestClient):
         """Test verifying expired Firebase token"""
-        payload = {"id_token": "expired_token"}
+        payload = {"id_token": "expired.firebase.token"}
 
-        with patch('app.api.v2.routers.auth._firebase_service') as mock_service:
-            mock_service.verify_token = AsyncMock(side_effect=Exception("Token expired"))
+        with patch('app.api.v2.routers.auth.verify_token', new_callable=AsyncMock) as mock_verify:
+            mock_verify.side_effect = ValueError("Token expired")
 
             response = client.post(
                 "/api/v2/auth/firebase/verify",
@@ -1720,52 +1476,44 @@ class TestFirebaseAndHealth:
 
     def test_firebase_verify_creates_session(self, client: TestClient, mock_redis):
         """Test that Firebase verification creates a session"""
-        payload = {"id_token": "valid_token"}
+        payload = {"id_token": "valid.firebase.token"}
 
-        with patch('app.api.v2.routers.auth._firebase_service') as mock_service:
-            mock_service.verify_token = AsyncMock(return_value={
-                "uid": "firebase_uid_session",
+        with patch('app.api.v2.routers.auth.verify_token', new_callable=AsyncMock) as mock_verify:
+            mock_verify.return_value = {
+                "uid": "BcDeFgHiJkLmNoPqRsTuVwXyZa34",
                 "email": "session@example.com"
-            })
-            
-            with patch('app.api.v2.routers.auth.get_redis_client', return_value=mock_redis):
-                mock_redis.setex = AsyncMock(return_value=True)
+            }
 
-                response = client.post(
-                    "/api/v2/auth/firebase/verify",
-                    json=payload
-                )
+            response = client.post(
+                "/api/v2/auth/firebase/verify",
+                json=payload
+            )
 
-                assert response.status_code == 200
-                data = response.json()
-                assert "session_id" in data
-                # Verify Redis was called to store session
-                assert mock_redis.setex.called
+            assert response.status_code == 200
+            data = response.json()
+            assert "session_id" in data
 
     def test_firebase_verify_updates_user(self, client: TestClient, mock_redis):
         """Test that Firebase verification updates user data"""
-        payload = {"id_token": "valid_token"}
+        payload = {"id_token": "valid.firebase.token"}
 
-        with patch('app.api.v2.routers.auth._firebase_service') as mock_service:
-            mock_service.verify_token = AsyncMock(return_value={
-                "uid": "firebase_uid_update",
+        with patch('app.api.v2.routers.auth.verify_token', new_callable=AsyncMock) as mock_verify:
+            mock_verify.return_value = {
+                "uid": "CdEfGhIjKlMnOpQrStUvWxYzAb56",
                 "email": "update@example.com",
                 "name": "Updated Name",
                 "picture": "http://new.pic"
-            })
-            
-            with patch('app.api.v2.routers.auth.get_redis_client', return_value=mock_redis):
-                mock_redis.setex = AsyncMock(return_value=True)
+            }
 
-                response = client.post(
-                    "/api/v2/auth/firebase/verify",
-                    json=payload
-                )
+            response = client.post(
+                "/api/v2/auth/firebase/verify",
+                json=payload
+            )
 
-                assert response.status_code == 200
-                data = response.json()
-                assert data["user"]["full_name"] == "Updated Name"
-                assert data["user"]["photo_url"] == "http://new.pic"
+            assert response.status_code == 200
+            data = response.json()
+            assert data["user"]["full_name"] == "Updated Name"
+            assert data["user"]["photo_url"] == "http://new.pic"
 
     def test_health_check_all_healthy(
         self,
@@ -1774,7 +1522,7 @@ class TestFirebaseAndHealth:
         mock_redis
     ):
         """Test health check when all services are healthy"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.ping = AsyncMock(return_value=True)
 
             response = client.get("/api/v2/auth/health")
@@ -1791,7 +1539,7 @@ class TestFirebaseAndHealth:
         db_session: Session
     ):
         """Test health check when Redis is unavailable"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=None):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=None):
             response = client.get("/api/v2/auth/health")
 
             assert response.status_code == 200
@@ -1812,7 +1560,7 @@ class TestFirebaseAndHealth:
         mock_redis
     ):
         """Test health check shows Firebase status"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.ping = AsyncMock(return_value=True)
 
             response = client.get("/api/v2/auth/health")
@@ -1859,7 +1607,7 @@ class TestCacheAndPerformance:
             "email": test_user.email
         })
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=cached_data)
 
             response = client.get("/api/v2/auth/me", headers=auth_headers)
@@ -1877,7 +1625,7 @@ class TestCacheAndPerformance:
         mock_redis
     ):
         """Test cache invalidation on data update"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.delete = AsyncMock(return_value=1)
 
             # Update preferences (should invalidate cache)
@@ -1899,7 +1647,7 @@ class TestCacheAndPerformance:
         mock_redis
     ):
         """Test Redis cache TTL expiration"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)  # Expired
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -1922,7 +1670,7 @@ class TestCacheAndPerformance:
             create_test_notification(
                 db_session,
                 test_user,
-                created_at=datetime.utcnow() - timedelta(minutes=i)
+                created_at=now_sao_paulo_naive() - timedelta(minutes=i)
             )
 
         # Get first page
@@ -1953,13 +1701,13 @@ class TestCacheAndPerformance:
                 name=f"Patient {i}",
                 email=f"patient{i}@test.com",
                 doctor_id=test_user.id,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
+                created_at=now_sao_paulo_naive(),
+                updated_at=now_sao_paulo_naive()
             )
             db_session.add(patient)
         db_session.commit()
 
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -1989,7 +1737,7 @@ class TestCacheAndPerformance:
         mock_redis
     ):
         """Test handling concurrent requests"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 
@@ -2028,7 +1776,7 @@ class TestCacheAndPerformance:
         mock_redis
     ):
         """Test field selection reduces payload size"""
-        with patch('app.api.v2.auth._get_redis_client', return_value=mock_redis):
+        with patch('app.api.v2.routers.users._get_redis_client', return_value=mock_redis):
             mock_redis.get = AsyncMock(return_value=None)
             mock_redis.setex = AsyncMock(return_value=True)
 

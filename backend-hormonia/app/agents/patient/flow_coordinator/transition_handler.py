@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
+
 # Standard library
 import logging
-from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 # Third-party
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.services.enhanced_flow_engine import FlowType
 
 from .models import FlowContext
+from app.utils.timezone import now_sao_paulo
 
 
 class TransitionHandler:
@@ -38,23 +40,38 @@ class TransitionHandler:
     async def transition_flow_phase(self, context: FlowContext):
         """Transition patient to different flow phase."""
         if context.flow_state:
+            previous_flow_type = context.flow_state.flow_type
+
             # Update flow state to monthly recurring
             context.flow_state.state_data = context.flow_state.state_data or {}
             context.flow_state.state_data.update(
                 {
                     "phase_transition": {
                         "from": "daily_intensive",
-                        "to": "monthly_recurring",
-                        "transitioned_at": datetime.now(timezone.utc).isoformat(),
+                        "to": "quiz_mensal",
+                        "transitioned_at": now_sao_paulo().isoformat(),
                         "transitioned_by": self.agent_id,
                     }
                 }
             )
 
             # Change flow type
-            context.flow_state.flow_type = FlowType.MONTHLY_RECURRING.value
+            context.flow_state.flow_type = FlowType.QUIZ_MENSAL.value
 
             self.db_session.commit()
+
+            self.logger.info(
+                "flow_transition_executed",
+                extra={
+                    "audit": True,
+                    "transition_type": "phase_change",
+                    "patient_id": str(context.patient_id) if context.patient_id else None,
+                    "from_phase": previous_flow_type,
+                    "to_phase": FlowType.QUIZ_MENSAL.value,
+                    "trigger": "automated",
+                    "agent_id": self.agent_id,
+                },
+            )
 
     async def optimize_timing(self, context: FlowContext) -> Dict[str, Any]:
         """Optimize message timing for better engagement."""
@@ -73,7 +90,7 @@ class TransitionHandler:
                 {
                     "optimized_timing": optimized_timing,
                     "timing_optimized_by": self.agent_id,
-                    "timing_optimized_at": datetime.now(timezone.utc).isoformat(),
+                    "timing_optimized_at": now_sao_paulo().isoformat(),
                 }
             )
 
@@ -93,7 +110,7 @@ class TransitionHandler:
                 else "normal",
                 "content_focus": await self._determine_content_focus(context),
                 "personalized_by": self.agent_id,
-                "personalized_at": datetime.now(timezone.utc).isoformat(),
+                "personalized_at": now_sao_paulo().isoformat(),
             }
 
             context.flow_state.state_data = context.flow_state.state_data or {}
@@ -129,13 +146,25 @@ class TransitionHandler:
             context.flow_state.state_data.update(
                 {
                     "flow_paused": True,
-                    "paused_at": datetime.now(timezone.utc).isoformat(),
+                    "paused_at": now_sao_paulo().isoformat(),
                     "paused_by": self.agent_id,
                     "pause_reason": "patient_request_or_medical_indication",
                 }
             )
 
             self.db_session.commit()
+
+            self.logger.info(
+                "flow_transition_executed",
+                extra={
+                    "audit": True,
+                    "transition_type": "pause",
+                    "patient_id": str(context.patient_id) if context.patient_id else None,
+                    "flow_type": context.flow_state.flow_type,
+                    "trigger": "automated",
+                    "agent_id": self.agent_id,
+                },
+            )
 
     async def resume_flow(self, context: FlowContext):
         """Resume paused flow."""
@@ -144,9 +173,21 @@ class TransitionHandler:
             context.flow_state.state_data.update(
                 {
                     "flow_paused": False,
-                    "resumed_at": datetime.now(timezone.utc).isoformat(),
+                    "resumed_at": now_sao_paulo().isoformat(),
                     "resumed_by": self.agent_id,
                 }
             )
 
             self.db_session.commit()
+
+            self.logger.info(
+                "flow_transition_executed",
+                extra={
+                    "audit": True,
+                    "transition_type": "resume",
+                    "patient_id": str(context.patient_id) if context.patient_id else None,
+                    "flow_type": context.flow_state.flow_type,
+                    "trigger": "automated",
+                    "agent_id": self.agent_id,
+                },
+            )

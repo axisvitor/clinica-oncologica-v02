@@ -261,7 +261,7 @@ export function createAppointmentsApi(client: ApiClientCore) {
      *   patient_id: 'patient-123',
      *   practitioner_id: 'doctor-456',
      *   appointment_type: 'consultation',
-     *   scheduled_at: '2025-11-20T10:00:00Z',
+     *   scheduled_at: '2025-11-20T10:00:00-03:00',
      *   duration_minutes: 30,
      *   pre_appointment_notes: 'First consultation'
      * })
@@ -282,7 +282,7 @@ export function createAppointmentsApi(client: ApiClientCore) {
      * ```typescript
      * // Reschedule appointment
      * const updated = await api.appointments.update('appointment-123', {
-     *   scheduled_at: '2025-11-21T14:00:00Z'
+     *   scheduled_at: '2025-11-21T14:00:00-03:00'
      * })
      *
      * // Update status
@@ -376,7 +376,7 @@ export function createAppointmentsApi(client: ApiClientCore) {
      * ```typescript
      * const conflicts = await api.appointments.checkConflicts({
      *   practitioner_id: 'doctor-456',
-     *   scheduled_at: '2025-11-20T10:00:00Z',
+     *   scheduled_at: '2025-11-20T10:00:00-03:00',
      *   duration_minutes: 30
      * })
      *
@@ -387,7 +387,7 @@ export function createAppointmentsApi(client: ApiClientCore) {
      * // When editing an appointment, exclude it from conflict check
      * const conflicts = await api.appointments.checkConflicts({
      *   practitioner_id: 'doctor-456',
-     *   scheduled_at: '2025-11-20T10:00:00Z',
+     *   scheduled_at: '2025-11-20T10:00:00-03:00',
      *   duration_minutes: 30,
      *   exclude_appointment_id: 'appointment-123'
      * })

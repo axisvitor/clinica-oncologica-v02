@@ -151,7 +151,7 @@ CORS Configuration Validation
 Configuration:
   API URL: http://localhost:8000
   Frontend URL: http://localhost:5173
-  Timestamp: 2025-01-16 10:30:45 UTC
+  Timestamp: 2025-01-16 10:30:45 Sao Paulo
 
 ℹ INFO: API is reachable
 ✓ PASS: API is reachable
@@ -365,7 +365,7 @@ grep -A 10 "add_middleware" backend-hormonia/app/main.py
 ## CORS Validation Results
 
 **Environment:** Local
-**Timestamp:** 2025-01-16T10:30:45Z
+**Timestamp:** 2025-01-16T10:30:45-03:00
 
 ### Summary
 - **Total Tests:** 8

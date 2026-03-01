@@ -13,8 +13,6 @@ import asyncio
 import time
 from typing import Any, Dict, Optional, Tuple
 
-from app.services.ai.cache_layer import CacheLayer, CacheStrategy
-
 _analytics_cache_singleton: Optional["AnalyticsCache"] = None
 
 
@@ -29,7 +27,7 @@ def _normalize_filters(
 class AnalyticsCache:
     """In-memory analytics cache with optional TTL support."""
 
-    def __init__(self, cache_layer: Optional[CacheLayer] = None):
+    def __init__(self, cache_layer: Optional[Any] = None):
         self.cache_layer = cache_layer
         self._lock = asyncio.Lock()
         self._metrics: Dict[Tuple[str, Optional[str]], Dict[str, Any]] = {}
@@ -127,10 +125,11 @@ class AnalyticsCache:
         metric: str,
         data: Dict[str, Any],
         filters: Optional[Dict[str, Any]] = None,
+        period: Optional[str] = None,
         group_by: Optional[str] = None,
         ttl: Optional[int] = None,
     ) -> bool:
-        key = (namespace, metric, _normalize_filters(filters), group_by)
+        key = (namespace, metric, _normalize_filters(filters), period, group_by)
         await self._set_entry(self._aggregations, key, data, ttl)
         return True
 
@@ -139,9 +138,10 @@ class AnalyticsCache:
         namespace: str,
         metric: str,
         filters: Optional[Dict[str, Any]] = None,
+        period: Optional[str] = None,
         group_by: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        key = (namespace, metric, _normalize_filters(filters), group_by)
+        key = (namespace, metric, _normalize_filters(filters), period, group_by)
         return await self._get_entry(self._aggregations, key)
 
     async def invalidate_aggregations(self, namespace: str) -> int:
@@ -173,11 +173,8 @@ class AnalyticsCache:
         return total
 
     async def get_cache_stats(self) -> Dict[str, Any]:
-        strategy = (
-            self.cache_layer.strategy.value
-            if self.cache_layer and isinstance(self.cache_layer.strategy, CacheStrategy)
-            else "memory"
-        )
+        strategy_obj = getattr(self.cache_layer, "strategy", None)
+        strategy = getattr(strategy_obj, "value", strategy_obj) or "memory"
         async with self._lock:
             namespaces = {
                 "metrics": len(self._metrics),

@@ -36,8 +36,8 @@ export const mockQuizTemplate = {
     }
   ],
   is_active: true,
-  created_at: '2025-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z'
+  created_at: '2025-01-01T00:00:00-03:00',
+  updated_at: '2025-01-01T00:00:00-03:00'
 }
 
 export const mockQuizTemplates = [
@@ -84,8 +84,8 @@ export const mockPatient = {
   medical_record_number: 'MRN12345',
   diagnosis: 'Câncer de mama',
   treatment_stage: 'Em tratamento',
-  created_at: '2024-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z'
+  created_at: '2024-01-01T00:00:00-03:00',
+  updated_at: '2025-01-01T00:00:00-03:00'
 }
 
 export const mockPatients = [
@@ -109,7 +109,7 @@ export const mockUserProfile = {
   role: 'doctor',
   is_active: true,
   permissions: ['read:patients', 'write:patients', 'read:quiz', 'write:quiz'],
-  created_at: '2023-01-01T00:00:00Z'
+  created_at: '2023-01-01T00:00:00-03:00'
 }
 
 export const mockUserPreferences = {
@@ -146,7 +146,7 @@ export const mockQuizResponse = {
     q2: 'yes',
     q3: 'Sentindo cansaço excessivo'
   },
-  completed_at: '2025-01-15T10:30:00Z',
+  completed_at: '2025-01-15T10:30:00-03:00',
   completion_time_seconds: 180
 }
 

@@ -25,11 +25,12 @@ def setup_sentry() -> None:
     - SENTRY_TRACES_SAMPLE_RATE: Performance monitoring sample rate (0.0-1.0)
     """
     sentry_dsn = (
-        settings.MONITORING_SENTRY_DSN if hasattr(settings, "SENTRY_DSN") else None
+        getattr(settings, "MONITORING_SENTRY_DSN", None)
+        or getattr(settings, "SENTRY_DSN", None)
     )
 
     if not sentry_dsn:
-        logger.info("⚠️  Sentry not configured (SENTRY_DSN not set)")
+        logger.info("⚠️  Sentry not configured (MONITORING_SENTRY_DSN/SENTRY_DSN not set)")
         return
 
     try:
@@ -95,6 +96,7 @@ def _sentry_before_send(event, hint):
     Returns:
         Modified event or None to drop the event
     """
+    _ = hint
     # Filter out health check errors
     if "request" in event:
         url = event["request"].get("url", "")

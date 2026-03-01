@@ -82,7 +82,7 @@ class OnboardingCoordinator:
         integrity_service: "PatientIntegrityService",
         validation_service: "ValidationService",
         saga_orchestrator: Optional["SagaOrchestrator"],
-        notification_service: "NotificationService",
+        notification_service: Optional["NotificationService"],
         completion_service: "CompletionService",
         creation_service: Optional["CreationService"] = None,
     ):

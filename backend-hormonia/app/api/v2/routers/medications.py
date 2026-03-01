@@ -5,10 +5,12 @@ import logging
 import json
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
-from sqlalchemy.orm import joinedload
 from sqlalchemy import and_, func, or_
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from app.models.medication import Medication
 from app.models.patient import Patient
 from app.models.user import UserRole
@@ -18,36 +20,28 @@ from app.schemas.v2.medication import (
     MedicationV2Create,
     MedicationV2Update,
 )
-from app.api.v2.dependencies import (
-    get_pagination_params,
-    get_field_selection,
-    get_eager_load_params,
-    apply_field_selection,
-)
-from app.api.v2.patients_utils import (
-    _get_current_user_simple,
-    _extract_user_context,
-    _ensure_uuid,
-)
-from app.api.v2.utils.auth_helpers import is_admin
+from app.api.v2.dependencies import apply_field_selection
+from app.api.v2.dependencies import get_eager_load_params
+from app.api.v2.dependencies import get_field_selection
+from app.api.v2.dependencies import get_pagination_params
+from app.api.v2.patients_utils import _ensure_uuid
+from app.api.v2.patients_utils import _extract_user_context
+from app.api.v2.patients_utils import _get_current_user_simple
+from app.utils.auth_helpers import is_admin
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_redis_cache,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def _is_admin(current_user) -> bool:
-    """Check if current user is admin."""
-    return is_admin(current_user)
-
-
 def _ensure_medication_access(
     current_user, medication_prescribed_by_id, patient_doctor_id
 ):
-    if _is_admin(current_user):
+    if is_admin(current_user):
         return
     _, user_id = _extract_user_context(current_user)
     user_uuid = _ensure_uuid(user_id)
@@ -55,6 +49,31 @@ def _ensure_medication_access(
         raise HTTPException(status_code=403, detail="No permissions")
     if user_uuid != medication_prescribed_by_id and user_uuid != patient_doctor_id:
         raise HTTPException(status_code=403, detail="Not enough permissions")
+
+
+async def _resolve_medication_for_mutation(
+    *,
+    medication_id: str,
+    db: AsyncSession,
+    current_user,
+) -> tuple[UUID, Medication]:
+    """Parse medication ID, load record and enforce RBAC for mutating operations."""
+    try:
+        mid = UUID(medication_id)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid medication_id UUID") from exc
+
+    med_result = await db.execute(select(Medication).where(Medication.id == mid))
+    med = med_result.scalar_one_or_none()
+    if not med:
+        raise HTTPException(status_code=404)
+
+    patient_result = await db.execute(select(Patient).where(Patient.id == med.patient_id))
+    patient = patient_result.scalar_one_or_none()
+    if patient:
+        _ensure_medication_access(current_user, med.prescribed_by_id, patient.doctor_id)
+
+    return mid, med
 
 
 def _serialize_medication(medication) -> Optional[dict]:
@@ -102,7 +121,7 @@ class MedicationStatsResponse(BaseModel):
 
 @router.get("", response_model=MedicationV2List, summary="List medications")
 async def list_medications(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
     pagination=Depends(get_pagination_params),
@@ -128,14 +147,14 @@ async def list_medications(
     except Exception as e:
         logger.debug(f"Cache read failed (non-critical): {e}")
 
-    query = db.query(Medication)
+    stmt = select(Medication)
     if include:
         if "patient" in include:
-            query = query.options(joinedload(Medication.patient))
+            stmt = stmt.options(selectinload(Medication.patient))
         if "prescribed_by" in include:
-            query = query.options(joinedload(Medication.prescribed_by))
+            stmt = stmt.options(selectinload(Medication.prescribed_by))
         if "treatment" in include:
-            query = query.options(joinedload(Medication.treatment))
+            stmt = stmt.options(selectinload(Medication.treatment))
 
     filters = [Medication.deleted_at.is_(None)]
     current_user_uuid = _ensure_uuid(user_id)
@@ -152,7 +171,7 @@ async def list_medications(
 
     if cursor_data and "id" in cursor_data:
         cid = UUID(cursor_data["id"])
-        cdate = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cdate = datetime.fromisoformat(cursor_data["created_at"])
         filters.append(
             or_(
                 Medication.created_at < cdate,
@@ -182,14 +201,18 @@ async def list_medications(
     if route:
         filters.append(Medication.route.ilike(f"%{route.strip()}%"))
 
-    query = query.filter(and_(*filters))
+    stmt = stmt.where(and_(*filters))
 
     total = None
     if not cursor_data:
-        total = db.query(func.count(Medication.id)).filter(and_(*filters)).scalar()
+        count_result = await db.execute(
+            select(func.count(Medication.id)).where(and_(*filters))
+        )
+        total = count_result.scalar()
 
-    query = query.order_by(Medication.created_at.desc(), Medication.id)
-    medications = query.limit(limit + 1).all()
+    stmt = stmt.order_by(Medication.created_at.desc(), Medication.id)
+    med_result = await db.execute(stmt.limit(limit + 1))
+    medications = list(med_result.scalars().all())
 
     has_more = len(medications) > limit
     if has_more:
@@ -248,7 +271,7 @@ async def list_medications(
 @router.get("/active", response_model=MedicationV2List)
 async def list_active_medications(
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
     pagination=Depends(get_pagination_params),
@@ -279,13 +302,13 @@ async def list_active_medications(
         except (ValueError, TypeError):
             raise HTTPException(status_code=400, detail="Invalid patient_id UUID")
 
-    query = (
-        db.query(Medication)
-        .filter(and_(*filters))
+    active_result = await db.execute(
+        select(Medication)
+        .where(and_(*filters))
         .order_by(Medication.created_at.desc(), Medication.id)
         .limit(limit + 1)
     )
-    medications = query.all()
+    medications = list(active_result.scalars().all())
 
     has_more = len(medications) > limit
     if has_more:
@@ -305,36 +328,38 @@ async def list_active_medications(
 async def search_medications(
     q: str = Query(..., min_length=1),
     limit: int = Query(20, ge=1, le=50),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     role_enum, user_id = _extract_user_context(current_user)
     current_user_uuid = _ensure_uuid(user_id)
-    query = db.query(Medication).filter(Medication.deleted_at.is_(None))
+    search_filters = [Medication.deleted_at.is_(None)]
 
     if role_enum != UserRole.ADMIN:
         if not current_user_uuid:
             raise HTTPException(status_code=403)
-        query = query.filter(
+        search_filters.append(
             or_(
                 Medication.prescribed_by_id == current_user_uuid,
                 Medication.patient.has(Patient.doctor_id == current_user_uuid),
             )
         )
 
-    medications = (
-        query.filter(Medication.name.ilike(f"%{q}%"))
+    search_filters.append(Medication.name.ilike(f"%{q}%"))
+    search_result = await db.execute(
+        select(Medication)
+        .where(and_(*search_filters))
         .order_by(Medication.created_at.desc())
         .limit(limit)
-        .all()
     )
+    medications = list(search_result.scalars().all())
     return [_serialize_medication(m) for m in medications]
 
 
 @router.get("/{medication_id}", response_model=MedicationV2Response)
 async def get_medication(
     medication_id: str,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
     fields: Optional[List[str]] = Depends(get_field_selection),
@@ -345,22 +370,26 @@ async def get_medication(
     except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid medication_id UUID")
 
-    query = db.query(Medication)
+    get_stmt = select(Medication).where(
+        Medication.id == mid, Medication.deleted_at.is_(None)
+    )
     if include:
         if "patient" in include:
-            query = query.options(joinedload(Medication.patient))
+            get_stmt = get_stmt.options(selectinload(Medication.patient))
         if "prescribed_by" in include:
-            query = query.options(joinedload(Medication.prescribed_by))
+            get_stmt = get_stmt.options(selectinload(Medication.prescribed_by))
         if "treatment" in include:
-            query = query.options(joinedload(Medication.treatment))
+            get_stmt = get_stmt.options(selectinload(Medication.treatment))
 
-    medication = query.filter(
-        Medication.id == mid, Medication.deleted_at.is_(None)
-    ).first()
+    med_get_result = await db.execute(get_stmt)
+    medication = med_get_result.scalar_one_or_none()
     if not medication:
         raise HTTPException(status_code=404)
 
-    patient = db.query(Patient).get(medication.patient_id)
+    patient_get_result = await db.execute(
+        select(Patient).where(Patient.id == medication.patient_id)
+    )
+    patient = patient_get_result.scalar_one_or_none()
     if not patient:
         raise HTTPException(status_code=404)
     _ensure_medication_access(
@@ -376,7 +405,7 @@ async def get_medication(
 @router.post("", response_model=MedicationV2Response, status_code=201)
 async def create_medication(
     medication_data: MedicationV2Create,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(_get_current_user_simple),
     redis_cache=Depends(get_redis_cache),
 ):
@@ -387,7 +416,8 @@ async def create_medication(
 
     # RBAC and Existence checks (Simplified for brevity, assuming Service or Repo helps, but permissions are critical here)
     # Ideally move RBAC to dependency or service decorator
-    patient = db.query(Patient).get(pid)
+    create_patient_result = await db.execute(select(Patient).where(Patient.id == pid))
+    patient = create_patient_result.scalar_one_or_none()
     if not patient:
         raise HTTPException(status_code=404)
 
@@ -411,16 +441,22 @@ async def create_medication(
         except (ValueError, TypeError):
             raise HTTPException(status_code=400, detail="Invalid treatment_id UUID")
 
-    from app.services.medication_service import MedicationService
-    from app.repositories.medication import MedicationRepository
-
-    repo = MedicationRepository(db)
-    service = MedicationService(db, repo)
-
     try:
-        new_med = service.create_medication(medication_data, prescribed_by, tid)
+        create_data = medication_data.model_dump(
+            exclude={"patient_id", "prescribed_by_id", "treatment_id"}
+        )
+        new_med = Medication(
+            **create_data,
+            patient_id=pid,
+            prescribed_by_id=prescribed_by,
+            treatment_id=tid,
+        )
+        db.add(new_med)
+        await db.commit()
+        await db.refresh(new_med)
     except Exception as e:
         logger.error(f"Error creating medication: {e}", exc_info=True)
+        await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create medication")
 
     try:
@@ -435,39 +471,38 @@ async def create_medication(
 async def update_medication(
     medication_id: str,
     medication_data: MedicationV2Update,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
 ):
-    try:
-        mid = UUID(medication_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid medication_id UUID")
-
-    from app.services.medication_service import MedicationService
-    from app.repositories.medication import MedicationRepository
-
-    repo = MedicationRepository(db)
-    service = MedicationService(db, repo)
-
-    med = repo.get_by_id(mid)
-    if not med:
-        raise HTTPException(status_code=404)
-
-    # Permission check
-    # This part is tricky because repo.get_by_id might not load patient if eager_load=False default?
-    # We need to ensure access. Let's assume we fetch it if needed or trust service.
-    # But service doesn't check auth usually.
-    # Let's fetch patient manually for Auth check if med.patient not loaded
-    patient_id = med.patient_id
-    patient = db.query(Patient).get(patient_id)
-    if patient:
-        _ensure_medication_access(current_user, med.prescribed_by_id, patient.doctor_id)
+    mid, _ = await _resolve_medication_for_mutation(
+        medication_id=medication_id,
+        db=db,
+        current_user=current_user,
+    )
 
     try:
-        updated = service.update_medication(mid, medication_data)
+        med_result = await db.execute(select(Medication).where(Medication.id == mid))
+        updated = med_result.scalar_one_or_none()
+        if not updated:
+            raise HTTPException(status_code=404)
+
+        update_data = medication_data.model_dump(exclude_unset=True)
+        if "prescribed_by_id" in update_data and update_data["prescribed_by_id"]:
+            update_data["prescribed_by_id"] = UUID(update_data["prescribed_by_id"])
+        if "treatment_id" in update_data and update_data["treatment_id"]:
+            update_data["treatment_id"] = UUID(update_data["treatment_id"])
+
+        for key, value in update_data.items():
+            setattr(updated, key, value)
+
+        await db.commit()
+        await db.refresh(updated)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating medication: {e}", exc_info=True)
+        await db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update medication")
 
     try:
@@ -480,29 +515,23 @@ async def update_medication(
 @router.delete("/{medication_id}", status_code=204)
 async def delete_medication(
     medication_id: str,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
 ):
+    _, medication = await _resolve_medication_for_mutation(
+        medication_id=medication_id,
+        db=db,
+        current_user=current_user,
+    )
+
     try:
-        mid = UUID(medication_id)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid medication_id UUID")
+        medication.is_active = False
+        medication.deleted_at = now_sao_paulo()
+        await db.commit()
+    except Exception as e:
+        logger.error(f"Error deleting medication: {e}", exc_info=True)
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete medication")
 
-    from app.services.medication_service import MedicationService
-    from app.repositories.medication import MedicationRepository
-
-    repo = MedicationRepository(db)
-    service = MedicationService(db, repo)
-
-    med = repo.get_by_id(mid)
-    if not med:
-        raise HTTPException(status_code=404)
-
-    # Permission check
-    patient = db.query(Patient).get(med.patient_id)
-    if patient:
-        _ensure_medication_access(current_user, med.prescribed_by_id, patient.doctor_id)
-
-    service.delete_medication(mid)
     return None

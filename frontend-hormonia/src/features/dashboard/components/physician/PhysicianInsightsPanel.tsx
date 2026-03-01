@@ -27,7 +27,20 @@ export function PhysicianInsightsPanel({ isLoading, insights, recommendations }:
         <CardContent className="pt-6">
           <div className="flex items-center justify-center">
             <LoadingSpinner size="lg" />
-            <p className="ml-3 text-muted-foreground">Carregando insights...</p>
+            <p className="ml-3 text-muted-foreground">Carregando análises...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if ((!insights || insights.length === 0) && (!recommendations || recommendations.length === 0)) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center text-muted-foreground">
+            <Lightbulb className="mx-auto h-8 w-8 mb-2" />
+            <p>Análises automatizadas disponíveis apenas no contexto do paciente.</p>
           </div>
         </CardContent>
       </Card>
@@ -41,10 +54,10 @@ export function PhysicianInsightsPanel({ isLoading, insights, recommendations }:
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Lightbulb className="h-5 w-5" />
-            Insights Principais
+            Análises principais
           </CardTitle>
           <CardDescription>
-            Padrões e recomendações detectadas pela IA
+            Padrões e recomendações detectadas automaticamente
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

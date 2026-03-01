@@ -9,6 +9,7 @@ from uuid import UUID
 
 from .enums import FollowUpType, EscalationLevel, NotificationChannel
 from app.services.analytics.data_extraction import MedicalConcernType
+from app.utils.timezone import now_sao_paulo
 
 
 class FollowUpAction:
@@ -31,7 +32,7 @@ class FollowUpAction:
         self.scheduled_for = scheduled_for
         self.parameters = parameters
         self.created_by = created_by
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = now_sao_paulo()
         self.executed_at: Optional[datetime] = None
         self.execution_result: Optional[dict[str, Any]] = None
         self.status = "pending"
@@ -61,7 +62,7 @@ class EscalationAlert:
         self.recommended_actions = recommended_actions
         self.notification_channels = notification_channels
         self.requires_immediate_response = requires_immediate_response
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = now_sao_paulo()
         self.acknowledged_at: Optional[datetime] = None
         self.resolved_at: Optional[datetime] = None
         self.assigned_to: Optional[str] = None
@@ -85,7 +86,7 @@ class ConversationContext:
         self.emotional_state = emotional_state
         self.medical_context = medical_context
         self.preferences = preferences
-        self.last_updated = datetime.now(timezone.utc)
+        self.last_updated = now_sao_paulo()
 
 
 class ProviderNotification:
@@ -106,6 +107,6 @@ class ProviderNotification:
         self.content = content
         self.channels = channels
         self.priority = priority
-        self.created_at = datetime.now(timezone.utc)
+        self.created_at = now_sao_paulo()
         self.sent_at: Optional[datetime] = None
         self.status = "pending"

@@ -2,7 +2,7 @@
 Enhanced Message Management Schemas for API v2
 
 Advanced messaging schemas with template management, scheduling, analytics,
-A/B testing, and performance tracking.
+and performance tracking.
 """
 
 from typing import Optional, List, Dict, Any
@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from .common import CursorPaginatedResponse
 from .messages import MessageTypeV2
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive, to_sao_paulo
 
 
 # ============================================================================
@@ -50,16 +51,6 @@ class RecurrenceType(str, Enum):
     WEEKLY = "weekly"
     MONTHLY = "monthly"
     CUSTOM = "custom"
-
-
-class ABTestStatus(str, Enum):
-    """A/B test status"""
-
-    DRAFT = "draft"
-    RUNNING = "running"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
 
 
 class DeliveryOptimizationStrategy(str, Enum):
@@ -268,8 +259,8 @@ class MessageTemplateV2Response(BaseModel):
                 "status": "active",
                 "is_active": True,
                 "usage_count": 145,
-                "created_at": "2025-01-01T10:00:00Z",
-                "updated_at": "2025-11-07T10:00:00Z",
+                "created_at": "2025-01-01T10:00:00-03:00",
+                "updated_at": "2025-11-07T10:00:00-03:00",
             }
         },
     )
@@ -343,7 +334,7 @@ class RecurrenceRuleV2(BaseModel):
                 "interval": 1,
                 "days_of_week": [1, 3, 5],
                 "time_of_day": "09:00",
-                "end_date": "2025-12-31T00:00:00Z",
+                "end_date": "2025-12-31T00:00:00-03:00",
                 "max_occurrences": 50,
             }
         }
@@ -374,7 +365,12 @@ class ScheduledMessageV2Create(BaseModel):
     @classmethod
     def validate_scheduled_for(cls, v: datetime) -> datetime:
         """Validate scheduled time is in the future"""
-        if v <= datetime.now(timezone.utc):
+        if v.tzinfo is None:
+            if v <= now_sao_paulo_naive():
+                raise ValueError("Scheduled time must be in the future")
+            return v
+
+        if to_sao_paulo(v) <= now_sao_paulo():
             raise ValueError("Scheduled time must be in the future")
         return v
 
@@ -383,7 +379,7 @@ class ScheduledMessageV2Create(BaseModel):
             "example": {
                 "patient_id": "pat_456def",
                 "content": "Lembre-se da consulta amanhã!",
-                "scheduled_for": "2025-11-08T09:00:00Z",
+                "scheduled_for": "2025-11-08T09:00:00-03:00",
                 "template_id": "tpl_123",
                 "template_variables": {"patient_name": "João"},
                 "recurrence": {
@@ -430,12 +426,12 @@ class ScheduledMessageV2Response(BaseModel):
                 "patient_id": "pat_456def",
                 "content": "Daily reminder message",
                 "type": "text",
-                "scheduled_for": "2025-11-08T09:00:00Z",
+                "scheduled_for": "2025-11-08T09:00:00-03:00",
                 "status": "sent",
                 "occurrences_sent": 3,
-                "next_occurrence": "2025-11-11T09:00:00Z",
-                "created_at": "2025-11-07T10:00:00Z",
-                "updated_at": "2025-11-10T09:00:15Z",
+                "next_occurrence": "2025-11-11T09:00:00-03:00",
+                "created_at": "2025-11-07T10:00:00-03:00",
+                "updated_at": "2025-11-10T09:00:15-03:00",
             }
         },
     )
@@ -456,175 +452,6 @@ class ScheduledMessageV2List(CursorPaginatedResponse[ScheduledMessageV2Response]
                 "total": 45,
                 "total_pending": 30,
                 "total_recurring": 10,
-            }
-        }
-    )
-
-
-# ============================================================================
-# A/B Testing
-# ============================================================================
-
-
-class ABTestVariantV2(BaseModel):
-    """A/B test variant"""
-
-    name: str = Field(..., description="Variant name (e.g., 'A', 'B', 'Control')")
-    content: str = Field(
-        ..., min_length=1, max_length=4096, description="Message content"
-    )
-    template_id: Optional[str] = None
-    weight: float = Field(..., ge=0, le=100, description="Traffic percentage (0-100)")
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "name": "Variant A",
-                "content": "Olá! Lembre-se da sua consulta amanhã.",
-                "weight": 50.0,
-            }
-        }
-    )
-
-
-class ABTestV2Create(BaseModel):
-    """Create an A/B test"""
-
-    name: str = Field(..., min_length=3, max_length=100, description="Test name")
-    description: Optional[str] = Field(None, max_length=500)
-    variants: List[ABTestVariantV2] = Field(
-        ..., min_items=2, description="Test variants"
-    )
-    patient_ids: List[str] = Field(..., min_items=1, description="Target patients")
-    start_date: datetime
-    end_date: datetime
-    success_metric: str = Field(
-        ..., description="Metric to optimize: delivery_rate, read_rate, response_rate"
-    )
-    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
-
-    @field_validator("variants")
-    @classmethod
-    def validate_variants_weight(
-        cls, v: List[ABTestVariantV2]
-    ) -> List[ABTestVariantV2]:
-        """Validate that variant weights sum to 100"""
-        total_weight = sum(variant.weight for variant in v)
-        if abs(total_weight - 100.0) > 0.01:  # Allow small floating point errors
-            raise ValueError(f"Variant weights must sum to 100, got {total_weight}")
-        return v
-
-    @field_validator("end_date")
-    @classmethod
-    def validate_dates(cls, v: datetime, values) -> datetime:
-        """Validate end date is after start date"""
-        start_date = values.data.get("start_date")
-        if start_date and v <= start_date:
-            raise ValueError("End date must be after start date")
-        return v
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "name": "Reminder Message Test",
-                "description": "Testing different reminder message formats",
-                "variants": [
-                    {
-                        "name": "Short",
-                        "content": "Consulta amanhã às 14h",
-                        "weight": 50.0,
-                    },
-                    {
-                        "name": "Detailed",
-                        "content": "Olá! Lembre-se da sua consulta amanhã às 14h com Dr. Silva.",
-                        "weight": 50.0,
-                    },
-                ],
-                "patient_ids": ["pat_1", "pat_2", "pat_3"],
-                "start_date": "2025-11-08T00:00:00Z",
-                "end_date": "2025-11-15T23:59:59Z",
-                "success_metric": "read_rate",
-            }
-        }
-    )
-
-
-class ABTestResultsV2(BaseModel):
-    """A/B test results"""
-
-    variant_name: str
-    messages_sent: int
-    messages_delivered: int
-    messages_read: int
-    responses_received: int
-    delivery_rate: float = Field(..., ge=0, le=100)
-    read_rate: float = Field(..., ge=0, le=100)
-    response_rate: float = Field(..., ge=0, le=100)
-    average_response_time_minutes: Optional[float] = None
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "variant_name": "Variant A",
-                "messages_sent": 100,
-                "messages_delivered": 98,
-                "messages_read": 85,
-                "responses_received": 42,
-                "delivery_rate": 98.0,
-                "read_rate": 86.7,
-                "response_rate": 49.4,
-                "average_response_time_minutes": 35.2,
-            }
-        }
-    )
-
-
-class ABTestV2Response(BaseModel):
-    """A/B test response"""
-
-    id: str
-    name: str
-    description: Optional[str]
-    variants: List[ABTestVariantV2]
-    status: ABTestStatus
-    start_date: datetime
-    end_date: datetime
-    success_metric: str
-    results: Optional[List[ABTestResultsV2]] = None
-    winning_variant: Optional[str] = Field(None, description="Name of winning variant")
-    confidence_level: Optional[float] = Field(
-        None, ge=0, le=100, description="Statistical confidence"
-    )
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(
-        from_attributes=True,
-        json_schema_extra={
-            "example": {
-                "id": "test_123abc",
-                "name": "Reminder Message Test",
-                "status": "completed",
-                "winning_variant": "Variant A",
-                "confidence_level": 95.5,
-            }
-        },
-    )
-
-
-class ABTestV2List(CursorPaginatedResponse[ABTestV2Response]):
-    """Paginated list of A/B tests"""
-
-    total_running: int = Field(0, description="Total running tests")
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "data": [],
-                "next_cursor": None,
-                "has_more": False,
-                "total": 15,
-                "total_running": 3,
             }
         }
     )
@@ -656,10 +483,10 @@ class MessageEngagementV2Response(BaseModel):
             "example": {
                 "message_id": "msg_123abc",
                 "patient_id": "pat_456def",
-                "sent_at": "2025-11-07T10:00:00Z",
-                "delivered_at": "2025-11-07T10:00:03Z",
-                "read_at": "2025-11-07T10:05:00Z",
-                "responded_at": "2025-11-07T10:15:00Z",
+                "sent_at": "2025-11-07T10:00:00-03:00",
+                "delivered_at": "2025-11-07T10:00:03-03:00",
+                "read_at": "2025-11-07T10:05:00-03:00",
+                "responded_at": "2025-11-07T10:15:00-03:00",
                 "delivery_time_seconds": 3.2,
                 "read_time_seconds": 297.0,
                 "response_time_seconds": 900.0,
@@ -696,8 +523,8 @@ class MessagePerformanceV2Response(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "period_start": "2025-11-01T00:00:00Z",
-                "period_end": "2025-11-07T23:59:59Z",
+                "period_start": "2025-11-01T00:00:00-03:00",
+                "period_end": "2025-11-07T23:59:59-03:00",
                 "total_messages": 450,
                 "sent_count": 450,
                 "delivered_count": 442,
@@ -771,7 +598,7 @@ class BulkMessageV2Create(BaseModel):
                 "patient_ids": ["pat_1", "pat_2", "pat_3"],
                 "content": "Lembrete: consulta esta semana!",
                 "type": "text",
-                "scheduled_for": "2025-11-08T09:00:00Z",
+                "scheduled_for": "2025-11-08T09:00:00-03:00",
                 "optimization_strategy": "rate_limited",
                 "batch_size": 50,
                 "delay_between_batches_seconds": 10,
@@ -799,7 +626,7 @@ class BulkMessageV2Response(BaseModel):
                 "scheduled_count": 98,
                 "failed_count": 2,
                 "failed_patients": ["pat_invalid1", "pat_invalid2"],
-                "estimated_completion": "2025-11-08T09:15:00Z",
+                "estimated_completion": "2025-11-08T09:15:00-03:00",
                 "status": "processing",
             }
         }
@@ -831,8 +658,8 @@ class BulkJobStatusV2Response(BaseModel):
                 "successful": 64,
                 "failed": 1,
                 "progress_percentage": 65.0,
-                "started_at": "2025-11-08T09:00:00Z",
-                "estimated_completion": "2025-11-08T09:10:00Z",
+                "started_at": "2025-11-08T09:00:00-03:00",
+                "estimated_completion": "2025-11-08T09:10:00-03:00",
             }
         }
     )

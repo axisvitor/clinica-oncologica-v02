@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models.user import User
 from app.services.audit import AuditService
-from app.middleware.admin_permissions import get_client_info
+from app.dependencies.admin_permissions import get_client_info
 
 logger = logging.getLogger(__name__)
 

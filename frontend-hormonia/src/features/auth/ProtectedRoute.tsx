@@ -1,9 +1,7 @@
 import React, { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/app/providers/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle } from "lucide-react";
 import {
   getRolePermissions,
   isAdmin,
@@ -13,16 +11,6 @@ import {
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  /**
-   * @deprecated Use requiredPermission instead. Will be removed in next version.
-   * Required role for accessing this route (legacy)
-   */
-  requiredRole?: string;
-  /**
-   * @deprecated Use requiredPermission instead. Will be removed in next version.
-   * Multiple roles (any match) for accessing this route (legacy)
-   */
-  requiredRoles?: string[];
   /**
    * Required permission key from RolePermissions
    * @example "canAccessAdmin", "canManageUsers", "canManagePatients"
@@ -63,18 +51,21 @@ interface ProtectedRouteProps {
  */
 export function ProtectedRoute({
   children,
-  requiredRole,
-  requiredRoles,
   requiredPermission,
-  redirectTo: _redirectTo = "/unauthorized",
+  redirectTo = "/unauthorized",
 }: ProtectedRouteProps) {
-  const { isAuthenticated, isInitializing, user } = useAuth();
+  const auth = useAuth();
+  const { isAuthenticated, isInitializing, user } = auth;
   const location = useLocation();
+  const isLoading = isInitializing || (auth as { isLoading?: boolean }).isLoading || false;
 
   // Show loading spinner while checking authentication
-  if (isInitializing) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div
+        data-testid="loading-spinner"
+        className="flex items-center justify-center min-h-screen"
+      >
         <LoadingSpinner size="lg" />
       </div>
     );
@@ -90,119 +81,19 @@ export function ProtectedRoute({
 
   // Permission-based access control (NEW - Preferred)
   if (requiredPermission) {
-    const permissions = getRolePermissions(userRole);
-
-    if (!permissions[requiredPermission]) {
+    const rolePermissions = getRolePermissions(userRole);
+    const permissionKey = String(requiredPermission);
+    const hasRoleScopedPermission = Object.prototype.hasOwnProperty.call(rolePermissions, permissionKey);
+    const hasAccess = hasRoleScopedPermission
+      ? Boolean(rolePermissions[requiredPermission])
+      : auth.hasPermission(permissionKey);
+    if (!hasAccess) {
       return (
-        <div className="container mx-auto p-6">
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Acesso Negado</AlertTitle>
-            <AlertDescription>
-              Você não tem permissão para acessar esta página.
-              {user && (
-                <>
-                  <br />
-                  <span className="text-sm mt-2 block">
-                    Sua role: <strong>{userRole}</strong>
-                  </span>
-                  <span className="text-sm block">
-                    Permissão necessária: <strong>{requiredPermission}</strong>
-                  </span>
-                </>
-              )}
-            </AlertDescription>
-          </Alert>
-        </div>
-      );
-    }
-  }
-
-  // Legacy: Single role check (DEPRECATED)
-  if (requiredRole) {
-    const normalizedRequired = requiredRole.toLowerCase();
-    const normalizedUser = userRole.toLowerCase();
-
-    // Map legacy roles to new system
-    const isAuthorized =
-      normalizedUser === normalizedRequired ||
-      // Legacy role mappings
-      (normalizedRequired === "physician" && isDoctor(userRole)) ||
-      (normalizedRequired === "super_admin" && isAdmin(userRole)) ||
-      // Admin has access to everything
-      isAdmin(userRole);
-
-    if (!isAuthorized) {
-      return (
-        <div className="container mx-auto p-6">
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Acesso Negado</AlertTitle>
-            <AlertDescription>
-              Você não tem permissão para acessar esta página.
-              {user && (
-                <>
-                  <br />
-                  <span className="text-sm mt-2 block">
-                    Role necessária: <strong>{requiredRole}</strong>
-                  </span>
-                  <span className="text-sm block">
-                    Sua role atual: <strong>{userRole}</strong>
-                  </span>
-                  <span className="text-xs mt-2 block text-muted-foreground">
-                    ⚠️ Este componente usa API legada. Migre para requiredPermission.
-                  </span>
-                </>
-              )}
-            </AlertDescription>
-          </Alert>
-        </div>
-      );
-    }
-  }
-
-  // Legacy: Multiple roles check (DEPRECATED)
-  if (requiredRoles && requiredRoles.length > 0) {
-    const normalizedUser = userRole.toLowerCase();
-
-    const isAuthorized = requiredRoles.some((role) => {
-      const normalizedRequired = role.toLowerCase();
-
-      return (
-        normalizedUser === normalizedRequired ||
-        // Legacy role mappings
-        (normalizedRequired === "physician" && isDoctor(userRole)) ||
-        (normalizedRequired === "super_admin" && isAdmin(userRole)) ||
-        // Admin has access to everything
-        isAdmin(userRole)
-      );
-    });
-
-    if (!isAuthorized) {
-      return (
-        <div className="container mx-auto p-6">
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Acesso Negado</AlertTitle>
-            <AlertDescription>
-              Você não tem permissão para acessar esta página.
-              {user && (
-                <>
-                  <br />
-                  <span className="text-sm mt-2 block">
-                    Roles necessárias: <strong>{requiredRoles.join(", ")}</strong>
-                  </span>
-                  <span className="text-sm block">
-                    Sua role atual: <strong>{userRole}</strong>
-                  </span>
-                  <span className="text-xs mt-2 block text-muted-foreground">
-                    ⚠️ Este componente usa API legada. Migre para requiredPermission.
-                  </span>
-                </>
-              )}
-            </AlertDescription>
-          </Alert>
-        </div>
+        <Navigate
+          to={redirectTo}
+          state={{ from: location, requiredPermission, userRole }}
+          replace
+        />
       );
     }
   }

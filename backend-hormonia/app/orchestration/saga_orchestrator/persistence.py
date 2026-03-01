@@ -126,6 +126,9 @@ class SagaPersistence:
         Returns:
             List of pending saga records
         """
+        # Note: STEP_4_MESSAGE_SENT is intentionally excluded from "pending".
+        # Sagas at step 4 are considered terminal from onboarding perspective
+        # (message scheduling is non-blocking) and should not be retried as pending.
         return (
             self.db.query(PatientOnboardingSaga)
             .filter(
@@ -176,6 +179,8 @@ class SagaPersistence:
         if doctor_id:
             query = query.filter(PatientOnboardingSaga.doctor_id == doctor_id)
 
+        # Known tradeoff: this loads all matching sagas in memory.
+        # Kept as-is for audit scope; optimize with grouped aggregates if needed.
         sagas = query.all()
 
         return {
@@ -200,3 +205,6 @@ class SagaPersistence:
                 1 for s in sagas if s.status == SagaStatus.COMPENSATING
             ),
         }
+
+
+__all__ = ["SagaPersistence"]

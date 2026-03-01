@@ -7,8 +7,10 @@ import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import and_, desc, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.quiz import QuizTemplate
 from app.schemas.v2.templates import (
     QuizTemplateV2Response,
@@ -32,7 +34,8 @@ from app.api.v2.templates_shared import (
     RATE_LIMIT_READ,
     RATE_LIMIT_WRITE,
 )
-from app.utils.audit_logger import AuditLogger, AuditAction
+from app.monitoring.audit_logger import TemplateAuditLogger as AuditLogger, TemplateAuditAction as AuditAction
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -65,7 +68,7 @@ async def list_quiz_templates(
     is_active: Optional[bool] = Query(None),
     category: Optional[str] = Query(None),
     fields: Optional[str] = Query(None),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
@@ -80,18 +83,18 @@ async def list_quiz_templates(
         if cached:
             return cached
 
-        query = db.query(QuizTemplate)
+        query = select(QuizTemplate)
         if is_active is not None:
-            query = query.filter(QuizTemplate.is_active == is_active)
+            query = query.where(QuizTemplate.is_active == is_active)
         if category:
-            query = query.filter(QuizTemplate.category == category)
+            query = query.where(QuizTemplate.category == category)
 
         if cursor:
             try:
                 cursor_data = json.loads(cursor)
                 cursor_id = UUID(cursor_data["id"])
                 cursor_created = datetime.fromisoformat(cursor_data["created_at"])
-                query = query.filter(
+                query = query.where(
                     or_(
                         QuizTemplate.created_at < cursor_created,
                         and_(
@@ -103,8 +106,11 @@ async def list_quiz_templates(
             except (json.JSONDecodeError, ValueError, TypeError, KeyError):
                 raise HTTPException(status_code=400, detail="Invalid cursor")
 
-        query = query.order_by(desc(QuizTemplate.created_at), desc(QuizTemplate.id))
-        templates = query.limit(limit + 1).all()
+        query = query.order_by(desc(QuizTemplate.created_at), desc(QuizTemplate.id)).limit(
+            limit + 1
+        )
+        result = await db.execute(query)
+        templates = result.scalars().all()
 
         has_more = len(templates) > limit
         if has_more:
@@ -142,12 +148,12 @@ async def list_quiz_templates(
 async def get_quiz_template(
     request: Request,
     template_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
-        query = db.query(QuizTemplate).filter(QuizTemplate.id == template_id)
-        template = query.first()
+        result = await db.execute(select(QuizTemplate).where(QuizTemplate.id == template_id))
+        template = result.scalar_one_or_none()
         if not template:
             raise HTTPException(status_code=404)
         return _serialize_quiz_template(template)
@@ -163,7 +169,7 @@ async def get_quiz_template(
 async def create_quiz_template(
     request: Request,
     template: QuizTemplateV2Create,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
@@ -183,8 +189,8 @@ async def create_quiz_template(
             else False,
         )
         db.add(new_template)
-        db.commit()
-        db.refresh(new_template)
+        await db.commit()
+        await db.refresh(new_template)
         await _invalidate_template_cache("quiz")
 
         # Audit log
@@ -207,7 +213,7 @@ async def create_quiz_template(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error creating quiz template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to create quiz template")
 
@@ -218,12 +224,13 @@ async def update_quiz_template(
     request: Request,
     template_id: UUID,
     updates: QuizTemplateV2Update,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
-        template = db.query(QuizTemplate).get(template_id)
+        result = await db.execute(select(QuizTemplate).where(QuizTemplate.id == template_id))
+        template = result.scalar_one_or_none()
         if not template:
             raise HTTPException(status_code=404)
 
@@ -248,9 +255,9 @@ async def update_quiz_template(
         if updates.randomize_questions is not None:
             template.randomize_questions = updates.randomize_questions
 
-        template.updated_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(template)
+        template.updated_at = now_sao_paulo()
+        await db.commit()
+        await db.refresh(template)
         await _invalidate_template_cache("quiz", template_id)
 
         # Audit log
@@ -277,7 +284,7 @@ async def update_quiz_template(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error updating quiz template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to update quiz template")
 
@@ -286,16 +293,17 @@ async def update_quiz_template(
 async def delete_quiz_template(
     request: Request,
     template_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
-        template = db.query(QuizTemplate).get(template_id)
+        result = await db.execute(select(QuizTemplate).where(QuizTemplate.id == template_id))
+        template = result.scalar_one_or_none()
         if not template:
             raise HTTPException(status_code=404)
-        db.delete(template)
-        db.commit()
+        await db.delete(template)
+        await db.commit()
         await _invalidate_template_cache("quiz", template_id)
 
         # Audit log
@@ -314,7 +322,7 @@ async def delete_quiz_template(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error deleting quiz template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to delete quiz template")
 
@@ -328,12 +336,13 @@ async def duplicate_quiz_template(
     request: Request,
     template_id: UUID,
     duplicate_data: QuizTemplateV2Duplicate,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: Dict = Depends(get_current_user_from_session),
 ):
     try:
         _check_write_permission(current_user)
-        source = db.query(QuizTemplate).get(template_id)
+        result = await db.execute(select(QuizTemplate).where(QuizTemplate.id == template_id))
+        source = result.scalar_one_or_none()
         if not source:
             raise HTTPException(status_code=404)
 
@@ -350,8 +359,8 @@ async def duplicate_quiz_template(
             randomize_questions=source.randomize_questions,
         )
         db.add(new_template)
-        db.commit()
-        db.refresh(new_template)
+        await db.commit()
+        await db.refresh(new_template)
         await _invalidate_template_cache("quiz")
 
         # Audit log
@@ -374,6 +383,6 @@ async def duplicate_quiz_template(
     except HTTPException:
         raise
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Error duplicating quiz template: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to duplicate quiz template")

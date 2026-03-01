@@ -10,10 +10,10 @@ from typing import Any, List
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.dependencies.auth_dependencies import get_current_user
+from app.core.database.async_engine import get_async_db
 from app.models.user import User
 from app.schemas.v2.health import (
     RedisHealth,
@@ -22,6 +22,9 @@ from app.schemas.v2.health import (
     HealthStatus,
 )
 from app.config import settings
+from .compat import call_health_attr, get_current_user_compat
+from app.utils.timezone import now_sao_paulo
+from app.core.redis_manager import get_redis_manager
 
 
 logger = logging.getLogger(__name__)
@@ -76,10 +79,23 @@ async def check_redis_health() -> RedisHealth:
         )
 
 
-async def check_worker_health(db: Any) -> WorkerHealth:
+async def _read_avg_task_duration() -> float:
+    """Read rolling average task duration from Redis. Returns 0.0 on error or empty."""
+    try:
+        client = await get_redis_manager().get_async_client()
+        samples = await client.lrange("celery:metrics:avg_task_duration", 0, -1)
+        if not samples:
+            return 0.0
+        durations = [float(s) for s in samples]
+        return round(sum(durations) / len(durations), 3)
+    except Exception:
+        return 0.0
+
+
+async def check_worker_health(db: AsyncSession) -> WorkerHealth:
     """Check background worker health."""
     try:
-        from app.celery_app import celery_app
+        from app.task_queue import task_queue as celery_app
 
         inspect = celery_app.control.inspect(timeout=2.0)
         active_workers_dict = inspect.active()
@@ -94,23 +110,21 @@ async def check_worker_health(db: Any) -> WorkerHealth:
         # Get failed tasks from database
         from app.models.message import Message, MessageStatus
 
-        failed_tasks_24h = (
-            db.query(Message)
-            .filter(
+        failed_result = await db.execute(
+            select(func.count(Message.id)).where(
                 Message.status == MessageStatus.FAILED,
-                Message.updated_at >= datetime.now(timezone.utc) - timedelta(hours=24),
+                Message.updated_at >= now_sao_paulo() - timedelta(hours=24),
             )
-            .count()
         )
+        failed_tasks_24h = failed_result.scalar() or 0
 
         # Get pending tasks
-        pending_tasks = (
-            db.query(Message)
-            .filter(
+        pending_result = await db.execute(
+            select(func.count(Message.id)).where(
                 Message.status.in_([MessageStatus.PENDING, MessageStatus.SCHEDULED])
             )
-            .count()
         )
+        pending_tasks = pending_result.scalar() or 0
 
         worker_status = HealthStatus.HEALTHY
         if active_workers == 0:
@@ -125,7 +139,7 @@ async def check_worker_health(db: Any) -> WorkerHealth:
             failed_tasks_24h=failed_tasks_24h,
             pending_tasks=pending_tasks,
             queue_size=active_tasks + pending_tasks,
-            avg_task_duration_seconds=2.5,  # TODO: Calculate actual average
+            avg_task_duration_seconds=await _read_avg_task_duration(),
         )
     except Exception as e:
         logger.warning(f"Worker health check failed: {e}")
@@ -159,7 +173,7 @@ async def check_external_services() -> List[ExternalServiceHealth]:
                     name="Evolution API",
                     status=HealthStatus.HEALTHY,
                     latency_ms=round(latency_ms, 2),
-                    last_check=datetime.now(timezone.utc),
+                    last_check=now_sao_paulo(),
                     error_message=None,
                 )
             )
@@ -169,7 +183,7 @@ async def check_external_services() -> List[ExternalServiceHealth]:
                     name="Evolution API",
                     status=HealthStatus.DEGRADED,
                     latency_ms=None,
-                    last_check=datetime.now(timezone.utc),
+                    last_check=now_sao_paulo(),
                     error_message=str(e),
                 )
             )
@@ -179,7 +193,7 @@ async def check_external_services() -> List[ExternalServiceHealth]:
 
 @router.get("/redis", response_model=RedisHealth)
 async def redis_health_check(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_compat),
 ) -> RedisHealth:
     """
     Redis/cache health check (Authenticated).
@@ -187,12 +201,13 @@ async def redis_health_check(
     Returns detailed Redis health metrics.
     Cached for 1 minute.
     """
-    return await check_redis_health()
+    return await call_health_attr("check_redis_health", check_redis_health)
 
 
 @router.get("/workers", response_model=WorkerHealth)
 async def worker_health_check(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user_compat),
 ) -> WorkerHealth:
     """
     Background worker health check (Authenticated).
@@ -200,12 +215,12 @@ async def worker_health_check(
     Returns detailed worker health metrics.
     Cached for 1 minute.
     """
-    return await check_worker_health(db)
+    return await call_health_attr("check_worker_health", check_worker_health, db)
 
 
 @router.get("/external", response_model=List[ExternalServiceHealth])
 async def external_services_health_check(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_compat),
 ) -> List[ExternalServiceHealth]:
     """
     External services health check (Authenticated).
@@ -213,4 +228,4 @@ async def external_services_health_check(
     Returns health status of external API dependencies.
     Cached for 2 minutes.
     """
-    return await check_external_services()
+    return await call_health_attr("check_external_services", check_external_services)

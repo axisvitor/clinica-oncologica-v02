@@ -197,7 +197,7 @@ def test_quiz_audit_mixin():
         patient_id=patient_id,
         session_id=session_id,
         delivery_method="email",
-        expires_at=datetime.utcnow()
+        expires_at=now_sao_paulo()
     )
     assert log.event_type is not None
     assert log.event_metadata['delivery_method'] == "email"

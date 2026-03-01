@@ -3,12 +3,13 @@ Data models and enums for response processing.
 """
 
 from typing import List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID
 from dataclasses import dataclass, field
 
 from app.services.ai import ConcernLevel
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 
 
 class ResponseType(str, Enum):
@@ -35,6 +36,8 @@ class ResponseProcessorConfig:
     enable_ai_processing: bool = True
     enable_pattern_extraction: bool = True
     enable_sentiment_analysis: bool = True
+    # When True, allow natural-language text even if it doesn't match strict formats/options.
+    lenient_validation: bool = True
 
 
 @dataclass
@@ -45,6 +48,10 @@ class ResponseValidationResult:
     response_type: ResponseType
     extracted_value: Any = None
     validation_errors: List[str] = field(default_factory=list)
+
+
+def _utc_now() -> datetime:
+    return now_sao_paulo()
 
 
 @dataclass
@@ -59,8 +66,11 @@ class StructuredResponse:
     medical_concerns: List[str]
     concern_level: ConcernLevel
     requires_attention: bool
+    response_category: Optional[Any] = None
+    patient_preferences: List[Any] = field(default_factory=list)
+    severity_score: int = 0
     confidence_score: float = 0.0
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=_utc_now)
 
 
 @dataclass
@@ -83,7 +93,7 @@ class ResponseProcessingResult:
     follow_up_message: Optional[str] = None
     state_updates: Optional[dict[str, Any]] = None
     escalation_required: bool = False
-    processed_at: datetime = field(default_factory=datetime.utcnow)
+    processed_at: datetime = field(default_factory=now_sao_paulo_naive)
 
 
 @dataclass
@@ -95,7 +105,7 @@ class InboundMessage:
     whatsapp_id: str
     message_type: Any = None  # MessageType from models
     metadata: dict[str, Any] = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=now_sao_paulo_naive)
 
 
 @dataclass

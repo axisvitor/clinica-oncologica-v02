@@ -14,7 +14,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.user import UserRole
 from app.schemas.v2.tasks import (
     TaskV2Response,
@@ -31,16 +31,21 @@ from app.api.v2.dependencies import (
 )
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
-from app.celery_app import celery_app
+from app.task_queue import (
+    task_queue as celery_app,
+    update_task as update_stored_task,
+)
+from app.api.v2.routers import tasks as tasks_module
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies import (
     _get_current_user_simple,
     _extract_user_role,
-    _get_task_from_celery,
-    _register_task,
+    _get_task_or_404,
+    _get_task_with_celery_data,
     _serialize_task,
-    task_registry,
 )
+from ..registry import hydrate_registry_from_store
 from ..utils import (
     CACHE_TTL_ACTIVE_TASKS,
     CACHE_TTL_TASK_HISTORY,
@@ -62,7 +67,7 @@ async def list_tasks(
     user_id: Optional[UUID] = Query(None, description="Filter by user ID"),
     start_date: Optional[datetime] = Query(None, description="Filter tasks from date"),
     end_date: Optional[datetime] = Query(None, description="Filter tasks to date"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> TaskV2List:
@@ -98,22 +103,29 @@ async def list_tasks(
             logger.debug(f"Cache hit for tasks list: {cache_key}")
             return TaskV2List(**cached_data)
 
-        # Get tasks from registry
         role = _extract_user_role(current_user)
         current_user_id = UUID(current_user.get("id"))
 
+        # Merge persisted task metadata (Dragonfly/Redis) to avoid process-local
+        # blind spots from in-memory registry only.
+        hydrate_registry_from_store()
+
+        raw_tasks = []
+        for celery_task_id, task_data in tasks_module.task_registry.items():
+            raw_tasks.append(_get_task_with_celery_data(celery_task_id, task_data))
+
         tasks = []
-        for celery_task_id, task_data in task_registry.items():
-            # Apply RBAC filtering
+        for task_data in raw_tasks:
             task_user_id = task_data.get("user_id")
             if role != UserRole.ADMIN:
                 if not task_user_id or UUID(task_user_id) != current_user_id:
                     continue
 
-            # Apply filters
             if status:
                 task_status = task_data.get("status")
-                if task_status and task_status != status:
+                if hasattr(task_status, "value"):
+                    task_status = task_status.value
+                if task_status and str(task_status) != status.value:
                     continue
 
             if task_type:
@@ -130,21 +142,37 @@ async def list_tasks(
 
             if start_date:
                 task_created = task_data.get("created_at")
+                if isinstance(task_created, str):
+                    try:
+                        task_created = datetime.fromisoformat(task_created)
+                    except ValueError:
+                        task_created = None
                 if isinstance(task_created, datetime) and task_created < start_date:
                     continue
 
             if end_date:
                 task_created = task_data.get("created_at")
+                if isinstance(task_created, str):
+                    try:
+                        task_created = datetime.fromisoformat(task_created)
+                    except ValueError:
+                        task_created = None
                 if isinstance(task_created, datetime) and task_created > end_date:
                     continue
 
-            # Get fresh data from Celery
-            celery_data = _get_task_from_celery(celery_task_id)
-            merged_data = {**task_data, **celery_data}
-            tasks.append(merged_data)
+            tasks.append(task_data)
 
         # Sort by created_at
-        tasks.sort(key=lambda x: x.get("created_at", datetime.min), reverse=True)
+        def _sort_key(item: Dict[str, Any]) -> datetime:
+            created = item.get("created_at")
+            if isinstance(created, str):
+                try:
+                    created = datetime.fromisoformat(created)
+                except ValueError:
+                    created = None
+            return created if isinstance(created, datetime) else datetime.min
+
+        tasks.sort(key=_sort_key, reverse=True)
 
         # Apply pagination
         start_index = 0
@@ -194,7 +222,7 @@ async def get_task(
     task_id: str,
     request: Request,
     fields: Optional[List[str]] = Depends(get_field_selection),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
@@ -218,20 +246,7 @@ async def get_task(
             logger.debug(f"Cache hit for task: {cache_key}")
             return cached_data
 
-        # Find task in registry
-        celery_task_id = None
-        task_data = None
-
-        for cid, data in task_registry.items():
-            if data.get("id") == task_id:
-                celery_task_id = cid
-                task_data = data
-                break
-
-        if not task_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
-            )
+        celery_task_id, task_data = _get_task_or_404(task_id)
 
         # Check RBAC
         role = _extract_user_role(current_user)
@@ -245,18 +260,20 @@ async def get_task(
                 )
 
         # Get fresh data from Celery
-        celery_data = _get_task_from_celery(celery_task_id)
-        merged_data = {**task_data, **celery_data}
+        merged_data = _get_task_with_celery_data(celery_task_id, task_data)
 
         # Serialize
         data = _serialize_task(merged_data, fields)
 
         # Cache the result (short TTL for active tasks)
         cache_ttl = CACHE_TTL_ACTIVE_TASKS
-        if merged_data.get("status") in [
-            TaskStatus.SUCCESS,
-            TaskStatus.FAILURE,
-            TaskStatus.CANCELLED,
+        status_value = merged_data.get("status")
+        if hasattr(status_value, "value"):
+            status_value = status_value.value
+        if status_value in [
+            TaskStatus.SUCCESS.value,
+            TaskStatus.FAILURE.value,
+            TaskStatus.CANCELLED.value,
         ]:
             cache_ttl = CACHE_TTL_TASK_HISTORY
 
@@ -279,7 +296,7 @@ async def get_task(
 async def create_task(
     task_data: TaskV2Create,
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
@@ -320,7 +337,7 @@ async def create_task(
         )
 
         # Register task
-        task_id = _register_task(
+        task_id = tasks_module._register_task(
             celery_task.id,
             task_data.task_name,
             task_data.task_type,
@@ -330,7 +347,7 @@ async def create_task(
         )
 
         # Update registry with additional info
-        task_registry[celery_task.id].update(
+        tasks_module.task_registry[celery_task.id].update(
             {
                 "description": task_data.description,
                 "retry_config": task_data.retry_config.dict()
@@ -339,6 +356,17 @@ async def create_task(
                 "timeout_seconds": task_data.timeout_seconds,
                 "scheduled_at": task_data.schedule_at,
             }
+        )
+        update_stored_task(
+            task_id,
+            {
+                "description": task_data.description,
+                "retry_config": task_data.retry_config.dict()
+                if task_data.retry_config
+                else None,
+                "timeout_seconds": task_data.timeout_seconds,
+                "scheduled_at": task_data.schedule_at,
+            },
         )
 
         # Invalidate list cache
@@ -350,9 +378,8 @@ async def create_task(
         )
 
         # Get and return task data
-        task_info = task_registry[celery_task.id]
-        celery_data = _get_task_from_celery(celery_task.id)
-        merged_data = {**task_info, **celery_data}
+        task_info = tasks_module.task_registry[celery_task.id]
+        merged_data = _get_task_with_celery_data(celery_task.id, task_info)
 
         return _serialize_task(merged_data)
 

@@ -12,6 +12,7 @@ import statistics
 from collections import deque
 import numpy as np
 from scipy import stats as scipy_stats
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +202,7 @@ class CapacityPlanner:
             self.resource_history[resource_type] = deque(maxlen=1000)
 
         self.resource_history[resource_type].append(
-            {"value": value, "timestamp": timestamp or datetime.now(timezone.utc)}
+            {"value": value, "timestamp": timestamp or now_sao_paulo()}
         )
 
     async def generate_forecast(self, resource_type: str) -> Optional[ResourceForecast]:
@@ -236,7 +237,7 @@ class CapacityPlanner:
             forecast_7d=forecast_7d[167] if len(forecast_7d) > 167 else values[-1],
             trend=trend,
             confidence_score=confidence,
-            forecast_timestamp=datetime.now(timezone.utc),
+            forecast_timestamp=now_sao_paulo(),
         )
 
     def _determine_trend(self, data: List[float]) -> TrendDirection:
@@ -293,7 +294,7 @@ class CapacityPlanner:
             remaining_capacity = capacity - forecast.current_value
             days_to_exhaustion = remaining_capacity / growth_rate
             if days_to_exhaustion > 0:
-                projected_exhaustion = datetime.now(timezone.utc) + timedelta(
+                projected_exhaustion = now_sao_paulo() + timedelta(
                     days=days_to_exhaustion
                 )
                 days_until_exhaustion = int(days_to_exhaustion)
@@ -420,7 +421,7 @@ class CapacityPlanner:
     async def generate_capacity_report(self) -> Dict[str, Any]:
         """Generate comprehensive capacity planning report"""
         report = {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": now_sao_paulo().isoformat(),
             "resources": {},
             "summary": {
                 "total_resources": len(self.resource_history),

@@ -1,472 +1,245 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { CreatePatientDialog } from '@/components/patients/CreatePatientDialog'
+import { CreatePatientDialog } from '@/features/patients/dialogs/CreatePatientDialog'
+import { useAuth } from '@/app/providers/AuthContext'
+import { usePatientForm } from '@/features/patients/dialogs/hooks/usePatientForm'
 
-// Mock API client
-const mockCreatePatient = vi.fn()
-vi.mock('../../lib/api-client', () => ({
+const hoisted = vi.hoisted(() => ({
+  mockToast: vi.fn(),
+  mockAdminUsersList: vi.fn(),
+  mockUsePatientForm: vi.fn(),
+  latestPatientFormProps: null as Record<string, unknown> | null,
+}))
+
+vi.mock('@/components/ui/dialog', () => ({
+  Dialog: ({ children, open, onOpenChange }: any) => (
+    open ? (
+      <div data-testid="dialog-root">
+        <button data-testid="dialog-close" onClick={() => onOpenChange(false)}>Close</button>
+        {children}
+      </div>
+    ) : null
+  ),
+  DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
+  DialogDescription: ({ children }: any) => <div>{children}</div>,
+  DialogHeader: ({ children }: any) => <div>{children}</div>,
+  DialogTitle: ({ children }: any) => <h2>{children}</h2>,
+}))
+
+vi.mock('@/components/ui/use-toast', () => ({
+  useToast: () => ({ toast: hoisted.mockToast }),
+}))
+
+vi.mock('@/app/providers/AuthContext', () => ({
+  useAuth: vi.fn(),
+}))
+
+vi.mock('@/lib/api-client', () => ({
   apiClient: {
-    patients: {
-      create: mockCreatePatient,
+    adminUsers: {
+      list: hoisted.mockAdminUsersList,
     },
   },
 }))
 
-// Mock UI components
-vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ children, open, onOpenChange }: any) =>
-    open ? <div data-testid="dialog" onClick={() => onOpenChange?.(false)}>{children}</div> : null,
-  DialogContent: ({ children }: any) => <div data-testid="dialog-content">{children}</div>,
-  DialogDescription: ({ children }: any) => <div data-testid="dialog-description">{children}</div>,
-  DialogFooter: ({ children }: any) => <div data-testid="dialog-footer">{children}</div>,
-  DialogHeader: ({ children }: any) => <div data-testid="dialog-header">{children}</div>,
-  DialogTitle: ({ children }: any) => <h2 data-testid="dialog-title">{children}</h2>,
+vi.mock('@/features/patients/dialogs/hooks/usePatientForm', () => ({
+  usePatientForm: hoisted.mockUsePatientForm,
 }))
 
-vi.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled, type, variant }: any) => (
-    <button
-      data-testid={variant === 'outline' ? 'cancel-button' : 'submit-button'}
-      onClick={onClick}
-      disabled={disabled}
-      type={type}
-    >
-      {children}
-    </button>
-  ),
+vi.mock('@/features/patients/dialogs/components/PatientForm', () => ({
+  PatientForm: (props: any) => {
+    hoisted.latestPatientFormProps = props
+
+    return (
+      <div data-testid="patient-form">
+        <button
+          data-testid="patient-submit"
+          onClick={() => props.onSubmit({
+            name: 'Paciente Teste',
+            phone: '+55 11 99999-9999',
+            treatment_type: 'Terapia Hormonal Feminina',
+            timezone: 'America/Sao_Paulo',
+          })}
+        >
+          Submit
+        </button>
+        <button data-testid="patient-cancel" onClick={props.onCancel}>Cancel</button>
+      </div>
+    )
+  },
 }))
 
-vi.mock('@/components/ui/input', () => ({
-  Input: ({ id, placeholder, type, ...props }: any) => (
-    <input
-      data-testid={`input-${id}`}
-      placeholder={placeholder}
-      type={type}
-      {...props}
-    />
-  ),
-}))
+const mockedUseAuth = vi.mocked(useAuth)
+const mockedUsePatientForm = vi.mocked(usePatientForm)
 
-vi.mock('@/components/ui/label', () => ({
-  Label: ({ children, htmlFor }: any) => (
-    <label data-testid={`label-${htmlFor}`}>{children}</label>
-  ),
-}))
+function renderWithQueryClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
 
-vi.mock('@/components/ui/textarea', () => ({
-  Textarea: ({ id, placeholder, ...props }: any) => (
-    <textarea
-      data-testid={`textarea-${id}`}
-      placeholder={placeholder}
-      {...props}
-    />
-  ),
-}))
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {ui}
+    </QueryClientProvider>
+  )
+}
 
-vi.mock('@/components/ui/select', () => ({
-  Select: ({ children, onValueChange }: any) => (
-    <div data-testid="select" onClick={() => onValueChange?.('Terapia Hormonal Feminina')}>
-      {children}
-    </div>
-  ),
-  SelectContent: ({ children }: any) => <div data-testid="select-content">{children}</div>,
-  SelectItem: ({ children, value }: any) => (
-    <div data-testid={`select-item-${value}`}>{children}</div>
-  ),
-  SelectTrigger: ({ children }: any) => <div data-testid="select-trigger">{children}</div>,
-  SelectValue: ({ placeholder }: any) => <div data-testid="select-value">{placeholder}</div>,
-}))
-
-vi.mock('@/components/ui/use-toast', () => ({
-  useToast: () => ({
-    toast: vi.fn(),
-  }),
-}))
-
-vi.mock('../ui/loading-spinner', () => ({
-  LoadingSpinner: ({ size, className }: any) => (
-    <div data-testid="loading-spinner" data-size={size} className={className}>
-      Loading...
-    </div>
-  ),
-}))
-
-// Mock react-hook-form
-const mockRegister = vi.fn()
-const mockHandleSubmit = vi.fn()
-const mockReset = vi.fn()
-const mockSetValue = vi.fn()
-const mockWatch = vi.fn()
-
-vi.mock('react-hook-form', () => ({
-  useForm: () => ({
-    register: mockRegister,
-    handleSubmit: mockHandleSubmit,
-    formState: { errors: {} },
-    reset: mockReset,
-    setValue: mockSetValue,
-    watch: mockWatch,
-  }),
-}))
-
-vi.mock('@hookform/resolvers/zod', () => ({
-  zodResolver: () => vi.fn(),
-}))
-
-describe('CreatePatientDialog', () => {
-  const defaultProps = {
-    open: true,
-    onOpenChange: vi.fn(),
-  }
-
-  let queryClient: QueryClient
-
+describe('CreatePatientDialog (canonical)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
+    hoisted.latestPatientFormProps = null
+
+    hoisted.mockAdminUsersList.mockResolvedValue([])
+    mockedUseAuth.mockReturnValue({
+      user: {
+        id: 'doctor-1',
+        role: 'doctor',
+        full_name: 'Dr. Teste',
+        email: 'doctor@example.com',
       },
-    })
-    mockCreatePatient.mockResolvedValue({ id: '1', name: 'Test Patient' })
-    mockHandleSubmit.mockImplementation((fn) => (e) => {
-      e?.preventDefault()
-      fn({
-        name: 'Test Patient',
-        phone: '+55 11 99999-9999',
-        email: 'test@example.com',
-        birth_date: '1990-01-01',
-        treatment_type: 'Terapia Hormonal Feminina',
-        treatment_start_date: '2024-01-01',
-        notes: 'Test notes',
-      })
+    } as ReturnType<typeof useAuth>)
+
+    mockedUsePatientForm.mockReturnValue({
+      form: {},
+      onSubmit: vi.fn(),
+      isPending: false,
+      reset: vi.fn(),
+      resetIdempotencyKey: vi.fn(),
     })
   })
 
-  const renderWithQueryClient = (component: React.ReactElement) => {
-    return render(
-      <QueryClientProvider client={queryClient}>
-        {component}
-      </QueryClientProvider>
+  it('renders dialog and uses current doctor id for non-admin user', () => {
+    renderWithQueryClient(
+      <CreatePatientDialog open={true} onOpenChange={vi.fn()} />
     )
-  }
 
-  describe('Rendering', () => {
-    it('should render dialog when open', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      expect(screen.getByTestId('dialog')).toBeInTheDocument()
-      expect(screen.getByTestId('dialog-title')).toHaveTextContent('Novo Paciente')
-      expect(screen.getByTestId('dialog-description')).toHaveTextContent(
-        'Adicione um novo paciente ao sistema de terapia hormonal.'
-      )
-    })
-
-    it('should not render dialog when closed', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} open={false} />)
-
-      expect(screen.queryByTestId('dialog')).not.toBeInTheDocument()
-    })
+    expect(screen.getByText('Novo Paciente')).toBeInTheDocument()
+    expect(mockedUsePatientForm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'create',
+        doctorId: 'doctor-1',
+      })
+    )
+    expect(hoisted.mockAdminUsersList).not.toHaveBeenCalled()
   })
 
-  describe('Form Fields', () => {
-    it('should render all required form fields', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
+  it('loads doctor options for admin users and forwards them to PatientForm', async () => {
+    mockedUseAuth.mockReturnValue({
+      user: {
+        id: 'admin-1',
+        role: 'admin',
+        full_name: 'Admin One',
+        email: 'admin@example.com',
+      },
+    } as ReturnType<typeof useAuth>)
 
-      // Required fields
-      expect(screen.getByTestId('input-name')).toBeInTheDocument()
-      expect(screen.getByTestId('input-phone')).toBeInTheDocument()
-      expect(screen.getByTestId('select')).toBeInTheDocument()
+    hoisted.mockAdminUsersList.mockResolvedValue([
+      { id: 'doctor-9', full_name: 'Dr. Silva', email: 'silva@example.com' },
+    ])
 
-      // Optional fields
-      expect(screen.getByTestId('input-email')).toBeInTheDocument()
-      expect(screen.getByTestId('input-birth_date')).toBeInTheDocument()
-      expect(screen.getByTestId('input-treatment_start_date')).toBeInTheDocument()
-      expect(screen.getByTestId('textarea-notes')).toBeInTheDocument()
-    })
+    renderWithQueryClient(
+      <CreatePatientDialog open={true} onOpenChange={vi.fn()} />
+    )
 
-    it('should display correct field labels', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      expect(screen.getByTestId('label-name')).toHaveTextContent('Nome completo *')
-      expect(screen.getByTestId('label-phone')).toHaveTextContent('Telefone *')
-      expect(screen.getByTestId('label-email')).toHaveTextContent('Email')
-      expect(screen.getByTestId('label-birth_date')).toHaveTextContent('Data de nascimento')
-      expect(screen.getByTestId('label-treatment_type')).toHaveTextContent('Tipo de tratamento *')
-      expect(screen.getByTestId('label-treatment_start_date')).toHaveTextContent('Data de início do tratamento')
-      expect(screen.getByTestId('label-notes')).toHaveTextContent('Observações')
-    })
-
-    it('should have correct input types and placeholders', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      expect(screen.getByTestId('input-name')).toHaveAttribute('placeholder', 'Nome do paciente')
-      expect(screen.getByTestId('input-phone')).toHaveAttribute('placeholder', '+55 11 99999-9999')
-      expect(screen.getByTestId('input-email')).toHaveAttribute('type', 'email')
-      expect(screen.getByTestId('input-email')).toHaveAttribute('placeholder', 'email@exemplo.com')
-      expect(screen.getByTestId('input-birth_date')).toHaveAttribute('type', 'date')
-      expect(screen.getByTestId('input-treatment_start_date')).toHaveAttribute('type', 'date')
-      expect(screen.getByTestId('textarea-notes')).toHaveAttribute(
-        'placeholder',
-        'Observações sobre o paciente ou tratamento...'
+    await waitFor(() => {
+      expect(hoisted.mockAdminUsersList).toHaveBeenCalled()
+      expect(hoisted.latestPatientFormProps).not.toBeNull()
+      expect((hoisted.latestPatientFormProps as any).isAdmin).toBe(true)
+      expect((hoisted.latestPatientFormProps as any).doctorOptions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'admin-1' }),
+          expect.objectContaining({ id: 'doctor-9', label: 'Dr. Silva' }),
+        ])
       )
     })
   })
 
-  describe('Treatment Type Selection', () => {
-    it('should render treatment type options', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
+  it('prevents admin submission without selected doctor and shows destructive toast', async () => {
+    const user = userEvent.setup()
+    const formOnSubmit = vi.fn()
 
-      expect(screen.getByTestId('select-value')).toHaveTextContent('Selecione o tratamento')
-      expect(screen.getByTestId('select-item-Terapia Hormonal Feminina')).toBeInTheDocument()
-      expect(screen.getByTestId('select-item-Terapia Hormonal Masculina')).toBeInTheDocument()
-      expect(screen.getByTestId('select-item-Reposição Hormonal')).toBeInTheDocument()
-      expect(screen.getByTestId('select-item-Tratamento Personalizado')).toBeInTheDocument()
+    mockedUseAuth.mockReturnValue({
+      user: {
+        id: '',
+        role: 'admin',
+        full_name: 'Admin Sem ID',
+        email: 'admin@example.com',
+      },
+    } as ReturnType<typeof useAuth>)
+
+    hoisted.mockAdminUsersList.mockResolvedValue([])
+    mockedUsePatientForm.mockReturnValue({
+      form: {},
+      onSubmit: formOnSubmit,
+      isPending: false,
+      reset: vi.fn(),
+      resetIdempotencyKey: vi.fn(),
     })
 
-    it('should handle treatment type selection', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
+    renderWithQueryClient(
+      <CreatePatientDialog open={true} onOpenChange={vi.fn()} />
+    )
 
-      const select = screen.getByTestId('select')
-      fireEvent.click(select)
+    await user.click(screen.getByTestId('patient-submit'))
 
-      expect(mockSetValue).toHaveBeenCalledWith('treatment_type', 'Terapia Hormonal Feminina')
-    })
+    expect(formOnSubmit).not.toHaveBeenCalled()
+    expect(hoisted.mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Selecione o médico responsável',
+        variant: 'destructive',
+      })
+    )
   })
 
-  describe('Form Submission', () => {
-    it('should call create patient API with correct data', async () => {
-      const { toast } = require('@/components/ui/use-toast').useToast()
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
+  it('resets idempotency key and closes dialog when onOpenChange is triggered', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const resetIdempotencyKey = vi.fn()
 
-      const form = screen.getByRole('form')
-      fireEvent.submit(form)
-
-      await waitFor(() => {
-        expect(mockCreatePatient).toHaveBeenCalledWith({
-          name: 'Test Patient',
-          phone: '+55 11 99999-9999',
-          treatment_type: 'Terapia Hormonal Feminina',
-          email: 'test@example.com',
-          birth_date: '1990-01-01',
-          treatment_start_date: '2024-01-01',
-          notes: 'Test notes',
-        })
-      })
-
-      expect(toast).toHaveBeenCalledWith({
-        title: 'Paciente criado com sucesso',
-        description: 'O novo paciente foi adicionado ao sistema.',
-      })
+    mockedUsePatientForm.mockReturnValue({
+      form: {},
+      onSubmit: vi.fn(),
+      isPending: false,
+      reset: vi.fn(),
+      resetIdempotencyKey,
     })
 
-    it('should clean optional empty fields before submission', async () => {
-      mockHandleSubmit.mockImplementation((fn) => (e) => {
-        e?.preventDefault()
-        fn({
-          name: 'Test Patient',
-          phone: '+55 11 99999-9999',
-          email: '', // Empty email
-          treatment_type: 'Terapia Hormonal Feminina',
-        })
-      })
+    renderWithQueryClient(
+      <CreatePatientDialog open={true} onOpenChange={onOpenChange} />
+    )
 
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
+    await user.click(screen.getByTestId('dialog-close'))
 
-      const form = screen.getByRole('form')
-      fireEvent.submit(form)
-
-      await waitFor(() => {
-        expect(mockCreatePatient).toHaveBeenCalledWith({
-          name: 'Test Patient',
-          phone: '+55 11 99999-9999',
-          treatment_type: 'Terapia Hormonal Feminina',
-          // email should be excluded since it's empty
-        })
-      })
-    })
-
-    it('should reset form and close dialog on successful submission', async () => {
-      const onOpenChange = vi.fn()
-      renderWithQueryClient(
-        <CreatePatientDialog {...defaultProps} onOpenChange={onOpenChange} />
-      )
-
-      const form = screen.getByRole('form')
-      fireEvent.submit(form)
-
-      await waitFor(() => {
-        expect(mockReset).toHaveBeenCalled()
-        expect(onOpenChange).toHaveBeenCalledWith(false)
-      })
-    })
-
-    it('should show loading state during submission', async () => {
-      mockCreatePatient.mockImplementation(
-        () => new Promise(resolve => setTimeout(resolve, 100))
-      )
-
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      const form = screen.getByRole('form')
-      fireEvent.submit(form)
-
-      expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
-      expect(screen.getByText('Criando...')).toBeInTheDocument()
-      expect(screen.getByTestId('submit-button')).toBeDisabled()
-      expect(screen.getByTestId('cancel-button')).toBeDisabled()
-
-      await waitFor(() => {
-        expect(mockCreatePatient).toHaveBeenCalled()
-      })
-    })
-
-    it('should handle submission errors', async () => {
-      const error = { data: { message: 'Patient already exists' } }
-      mockCreatePatient.mockRejectedValue(error)
-      const { toast } = require('@/components/ui/use-toast').useToast()
-
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      const form = screen.getByRole('form')
-      fireEvent.submit(form)
-
-      await waitFor(() => {
-        expect(toast).toHaveBeenCalledWith({
-          title: 'Erro ao criar paciente',
-          description: 'Patient already exists',
-          variant: 'destructive'
-        })
-      })
-    })
-
-    it('should handle unknown errors gracefully', async () => {
-      mockCreatePatient.mockRejectedValue(new Error('Unknown error'))
-      const { toast } = require('@/components/ui/use-toast').useToast()
-
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      const form = screen.getByRole('form')
-      fireEvent.submit(form)
-
-      await waitFor(() => {
-        expect(toast).toHaveBeenCalledWith({
-          title: 'Erro ao criar paciente',
-          description: 'Ocorreu um erro inesperado.',
-          variant: 'destructive'
-        })
-      })
-    })
+    expect(resetIdempotencyKey).toHaveBeenCalled()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  describe('Dialog Interactions', () => {
-    it('should reset form and close dialog when cancel button is clicked', () => {
-      const onOpenChange = vi.fn()
-      renderWithQueryClient(
-        <CreatePatientDialog {...defaultProps} onOpenChange={onOpenChange} />
-      )
+  it('resets idempotency key and closes dialog when PatientForm cancel is clicked', async () => {
+    const user = userEvent.setup()
+    const onOpenChange = vi.fn()
+    const resetIdempotencyKey = vi.fn()
 
-      fireEvent.click(screen.getByTestId('cancel-button'))
-
-      expect(mockReset).toHaveBeenCalled()
-      expect(onOpenChange).toHaveBeenCalledWith(false)
+    mockedUsePatientForm.mockReturnValue({
+      form: {},
+      onSubmit: vi.fn(),
+      isPending: false,
+      reset: vi.fn(),
+      resetIdempotencyKey,
     })
 
-    it('should reset form when dialog is closed', () => {
-      const onOpenChange = vi.fn()
-      renderWithQueryClient(
-        <CreatePatientDialog {...defaultProps} onOpenChange={onOpenChange} />
-      )
+    renderWithQueryClient(
+      <CreatePatientDialog open={true} onOpenChange={onOpenChange} />
+    )
 
-      // Simulate dialog close
-      fireEvent.click(screen.getByTestId('dialog'))
+    await user.click(screen.getByTestId('patient-cancel'))
 
-      expect(mockReset).toHaveBeenCalled()
-    })
-  })
-
-  describe('Form Validation', () => {
-    it('should register form fields with react-hook-form', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      expect(mockRegister).toHaveBeenCalledWith('name')
-      expect(mockRegister).toHaveBeenCalledWith('phone')
-      expect(mockRegister).toHaveBeenCalledWith('email')
-      expect(mockRegister).toHaveBeenCalledWith('birth_date')
-      expect(mockRegister).toHaveBeenCalledWith('treatment_start_date')
-      expect(mockRegister).toHaveBeenCalledWith('notes')
-    })
-
-    it('should display validation errors when present', () => {
-      const mockUseForm = require('react-hook-form').useForm
-      mockUseForm.mockReturnValue({
-        ...mockUseForm(),
-        formState: {
-          errors: {
-            name: { message: 'Nome é obrigatório' },
-            phone: { message: 'Telefone inválido' },
-            email: { message: 'Email inválido' },
-            treatment_type: { message: 'Selecione um tratamento' },
-          },
-        },
-      })
-
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      expect(screen.getByText('Nome é obrigatório')).toBeInTheDocument()
-      expect(screen.getByText('Telefone inválido')).toBeInTheDocument()
-      expect(screen.getByText('Email inválido')).toBeInTheDocument()
-      expect(screen.getByText('Selecione um tratamento')).toBeInTheDocument()
-    })
-  })
-
-  describe('Action Buttons', () => {
-    it('should render cancel and submit buttons', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      expect(screen.getByTestId('cancel-button')).toHaveTextContent('Cancelar')
-      expect(screen.getByTestId('submit-button')).toHaveTextContent('Criar Paciente')
-    })
-
-    it('should have correct button types', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      expect(screen.getByTestId('cancel-button')).toHaveAttribute('type', 'button')
-      expect(screen.getByTestId('submit-button')).toHaveAttribute('type', 'submit')
-    })
-
-    it('should disable buttons during submission', () => {
-      mockCreatePatient.mockImplementation(
-        () => new Promise(resolve => setTimeout(resolve, 100))
-      )
-
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      const form = screen.getByRole('form')
-      fireEvent.submit(form)
-
-      expect(screen.getByTestId('cancel-button')).toBeDisabled()
-      expect(screen.getByTestId('submit-button')).toBeDisabled()
-    })
-  })
-
-  describe('Accessibility', () => {
-    it('should have proper form structure', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      expect(screen.getByRole('form')).toBeInTheDocument()
-    })
-
-    it('should have proper label associations', () => {
-      renderWithQueryClient(<CreatePatientDialog {...defaultProps} />)
-
-      expect(screen.getByTestId('label-name')).toBeInTheDocument()
-      expect(screen.getByTestId('label-phone')).toBeInTheDocument()
-      expect(screen.getByTestId('label-email')).toBeInTheDocument()
-    })
+    expect(resetIdempotencyKey).toHaveBeenCalled()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 })

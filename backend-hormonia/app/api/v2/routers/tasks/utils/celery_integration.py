@@ -17,7 +17,8 @@ from celery import states
 from fastapi import HTTPException, status
 
 from app.schemas.v2.tasks import TaskStatus, TaskType, TaskPriority
-from app.celery_app import celery_app
+from app.task_queue import store_task
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,8 @@ def _get_task_from_celery(
         HTTPException: If task retrieval fails
     """
     try:
+        from app.celery_app import celery_app
+
         result = AsyncResult(task_id, app=celery_app)
 
         task_data = {
@@ -118,16 +121,21 @@ def _register_task(
     """
     task_id = str(uuid4())
 
-    task_registry[celery_task_id] = {
+    task_payload = {
         "id": task_id,
+        "celery_task_id": celery_task_id,
         "task_name": task_name,
         "task_type": task_type.value,
         "priority": priority.value,
         "user_id": str(user_id) if user_id else None,
         "metadata": metadata or {},
-        "created_at": datetime.now(timezone.utc),
+        "created_at": now_sao_paulo(),
         "retry_count": 0,
         "logs": [],
     }
+    task_registry[celery_task_id] = task_payload
+    # Persist canonical task metadata so API lookup keeps working across
+    # processes/workers (Dragonfly/Redis-backed store).
+    store_task(task_payload)
 
     return task_id

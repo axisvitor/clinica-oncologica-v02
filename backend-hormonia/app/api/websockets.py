@@ -19,6 +19,7 @@ from app.schemas.websocket import (
     WebSocketEventType,
     create_websocket_message,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -467,8 +468,8 @@ async def patient_websocket(
         # Store the connection in manager
         get_connection_manager().active_connections[connection_id] = websocket
         get_connection_manager().connection_metadata[connection_id] = {
-            "connected_at": datetime.now(timezone.utc),
-            "last_ping": datetime.now(timezone.utc),
+            "connected_at": now_sao_paulo(),
+            "last_ping": now_sao_paulo(),
             "user_id": None,
             "patient_id": None,
             "authenticated": False,

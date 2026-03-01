@@ -1,0 +1,207 @@
+╔════════════════════════════════════════════════════════════════╗
+║           PYTHON SYNTAX VALIDATION RESULTS                    ║
+║         Generated: 2025-12-25                                 ║
+╚════════════════════════════════════════════════════════════════╝
+
+
+=== MISSING FILES CHECK ===
+
+=== SYNTAX COMPILATION CHECK ===
+
+=== IMPORT RESOLUTION CHECK ===
+2026-01-26 00:51:43 - app.utils.rate_limiter - INFO - ✅ Rate limiting ENABLED with Redis backend
+2026-01-26 00:51:43 - app.utils.rate_limiter - INFO -    Global limit: 60 requests/minute
+2026-01-26 00:51:43 - app.utils.rate_limiter - INFO -    Auth limit: 10 requests/minute
+2026-01-26 00:51:43 - app.utils.rate_limiter - INFO -    Rate limit storage: redis://10.109.61.19:6379/0
+2026-01-26 00:51:43 - app.api.v2.router - INFO - Debug endpoints disabled (production mode)
+Checking critical function signatures...
+
+get_current_user_simple:
+  Return annotation: typing.Dict[str, typing.Any]
+  ✓ All parameters typed
+
+serialize_patient:
+  Return annotation: typing.Optional[typing.Dict[str, typing.Any]]
+  ✓ All parameters typed
+
+parse_flow_state_filter:
+  Return annotation: <enum 'FlowState'>
+  ✓ All parameters typed
+
+=== OVERALL HEALTH CHECK ===
+2026-01-26 00:51:46 - app.utils.security - INFO - Using builtin bcrypt backend
+2026-01-26 00:51:46 - app.utils.key_validation.validators - INFO - ✅ CSRF secret validation passed: length=43, entropy=4.99 bits/char, unique_chars=34
+2026-01-26 00:51:46 - app.config.settings.security - INFO - ✅ CSRF secret validation passed
+2026-01-26 00:51:46 - app.core.database_config - INFO - Database pool configuration: environment=production, workers=4, pool_size=10, max_overflow=10, total_per_worker=20, total_all_workers=80
+2026-01-26 00:51:46 - app.core.database_config - INFO - ✅ Connection pool within safe limits: 80/80 connections
+2026-01-26 00:51:46 - app.core.database_config - INFO - ✅ Pool configuration validation passed
+2026-01-26 00:51:46 - app.database - INFO - 🔧 Initializing database with environment-aware pool: environment=production, pool_size=10, max_overflow=10, total_max=20
+2026-01-26 00:51:52 - app.services.websocket_heartbeat - INFO - WebSocket heartbeat manager initialized
+2026-01-26 00:51:52 - app.services.websocket_heartbeat - INFO - WebSocket heartbeat manager initialized
+2026-01-26 00:51:52 - app.services.websocket.connection_manager - INFO - UnifiedWebSocketConnectionManager initialized
+2026-01-26 00:52:00 - app.core.tracing - INFO - Distributed tracing initialized for clinica-oncologica
+2026-01-26 00:52:02 - app.services.firebase_auth_service - INFO - Firebase Admin SDK initialized successfully for project: clinica-oncologica-hosting
+2026-01-26 00:52:02 - app.dependencies.auth_dependencies - INFO - Firebase Authentication enabled
+Analyzing codebase statistics...
+Total Python files: 1172
+Total lines of code: 338,264
+Async functions: 3378
+Sync functions: 5790
+Classes defined: 2629
+2026-01-26 00:52:03 - app.services.websocket_service - INFO - WebSocketConnectionManager initialized
+2026-01-26 00:52:06 - app.resilience.health.checker - INFO - Health checker initialized with cache TTL: 30.0s
+2026-01-26 00:52:06 - app.resilience.rate_limit.token_bucket - INFO - Token bucket manager initialized
+2026-01-26 00:52:07 - app.resilience.metrics.collector - INFO - Metrics collector initialized (retention=3600s, interval=60s)
+2026-01-26 00:52:14 - app.api.v2.router - INFO - Debug endpoints disabled (production mode)
+Testing critical imports...
+✓ app.models.enums
+✓ app.api.v2.routers.patients
+✓ app.agents.patient
+✓ app.config.settings.base
+✓ app.services.ai.ai_service
+
+All critical imports successful!
+
+=== TYPE HINTS CHECK ===
+Checking type hints in critical functions...
+
+Function: get_current_user_simple
+  ✓ All parameters have type hints
+  ✓ Return type specified
+
+Function: extract_user_context
+  ✓ All parameters have type hints
+  ✓ Return type specified
+
+Function: serialize_patient
+  ✓ All parameters have type hints
+  ✓ Return type specified
+
+=== ENUM CONSISTENCY CHECK ===
+2026-01-26 00:52:19 - app.utils.rate_limiter - INFO - ✅ Rate limiting ENABLED with Redis backend
+2026-01-26 00:52:19 - app.utils.rate_limiter - INFO -    Global limit: 60 requests/minute
+2026-01-26 00:52:19 - app.utils.rate_limiter - INFO -    Auth limit: 10 requests/minute
+2026-01-26 00:52:19 - app.utils.rate_limiter - INFO -    Rate limit storage: redis://10.109.61.19:6379/0
+2026-01-26 00:52:22 - app.utils.security - INFO - Using builtin bcrypt backend
+2026-01-26 00:52:22 - app.utils.key_validation.validators - INFO - ✅ CSRF secret validation passed: length=43, entropy=4.99 bits/char, unique_chars=34
+2026-01-26 00:52:22 - app.config.settings.security - INFO - ✅ CSRF secret validation passed
+2026-01-26 00:52:22 - app.core.database_config - INFO - Database pool configuration: environment=production, workers=4, pool_size=10, max_overflow=10, total_per_worker=20, total_all_workers=80
+2026-01-26 00:52:22 - app.core.database_config - INFO - ✅ Connection pool within safe limits: 80/80 connections
+2026-01-26 00:52:22 - app.core.database_config - INFO - ✅ Pool configuration validation passed
+2026-01-26 00:52:22 - app.database - INFO - 🔧 Initializing database with environment-aware pool: environment=production, pool_size=10, max_overflow=10, total_max=20
+FlowState enum values:
+  ONBOARDING: 'onboarding' (lowercase)
+  ACTIVE: 'active' (lowercase)
+  PAUSED: 'paused' (lowercase)
+  COMPLETED: 'completed' (lowercase)
+  INACTIVE: 'inactive' (lowercase)
+  CANCELLED: 'cancelled' (lowercase)
+
+SagaStatus enum values:
+  STARTED: 'STARTED' (UPPERCASE)
+  IN_PROGRESS: 'IN_PROGRESS' (UPPERCASE)
+  STEP_1_PATIENT_CREATED: 'STEP_1_PATIENT_CREATED' (UPPERCASE)
+  STEP_2_FIREBASE_USER_CREATED: 'STEP_2_FIREBASE_USER_CREATED' (UPPERCASE)
+  STEP_3_FLOW_INITIALIZED: 'STEP_3_FLOW_INITIALIZED' (UPPERCASE)
+  STEP_4_MESSAGE_SENT: 'STEP_4_MESSAGE_SENT' (UPPERCASE)
+  COMPLETED: 'COMPLETED' (UPPERCASE)
+  COMPLETED_WITH_WARNINGS: 'COMPLETED_WITH_WARNINGS' (UPPERCASE)
+  FAILED: 'FAILED' (UPPERCASE)
+  COMPENSATING: 'COMPENSATING' (UPPERCASE)
+  COMPENSATED: 'COMPENSATED' (UPPERCASE)
+  RETRY_SCHEDULED: 'RETRY_SCHEDULED' (UPPERCASE)
+  CLEANED_UP: 'CLEANED_UP' (UPPERCASE)
+
+Consistency Check:
+✓ FlowState values are consistent in case
+✓ SagaStatus values are consistent
+⚠ FlowState and SagaStatus use different case formats
+
+=== CIRCULAR IMPORTS CHECK ===
+2026-01-26 00:52:26 - app.utils.rate_limiter - INFO - ✅ Rate limiting ENABLED with Redis backend
+2026-01-26 00:52:26 - app.utils.rate_limiter - INFO -    Global limit: 60 requests/minute
+2026-01-26 00:52:26 - app.utils.rate_limiter - INFO -    Auth limit: 10 requests/minute
+2026-01-26 00:52:26 - app.utils.rate_limiter - INFO -    Rate limit storage: redis://10.109.61.19:6379/0
+2026-01-26 00:52:29 - app.utils.security - INFO - Using builtin bcrypt backend
+2026-01-26 00:52:29 - app.utils.key_validation.validators - INFO - ✅ CSRF secret validation passed: length=43, entropy=4.99 bits/char, unique_chars=34
+2026-01-26 00:52:29 - app.config.settings.security - INFO - ✅ CSRF secret validation passed
+2026-01-26 00:52:29 - app.core.database_config - INFO - Database pool configuration: environment=production, workers=4, pool_size=10, max_overflow=10, total_per_worker=20, total_all_workers=80
+2026-01-26 00:52:29 - app.core.database_config - INFO - ✅ Connection pool within safe limits: 80/80 connections
+2026-01-26 00:52:29 - app.core.database_config - INFO - ✅ Pool configuration validation passed
+2026-01-26 00:52:29 - app.database - INFO - 🔧 Initializing database with environment-aware pool: environment=production, pool_size=10, max_overflow=10, total_max=20
+2026-01-26 00:52:35 - app.services.websocket_heartbeat - INFO - WebSocket heartbeat manager initialized
+2026-01-26 00:52:35 - app.services.websocket_heartbeat - INFO - WebSocket heartbeat manager initialized
+2026-01-26 00:52:35 - app.services.websocket.connection_manager - INFO - UnifiedWebSocketConnectionManager initialized
+2026-01-26 00:52:43 - app.core.tracing - INFO - Distributed tracing initialized for clinica-oncologica
+2026-01-26 00:52:47 - app.services.firebase_auth_service - INFO - Firebase Admin SDK initialized successfully for project: clinica-oncologica-hosting
+2026-01-26 00:52:47 - app.dependencies.auth_dependencies - INFO - Firebase Authentication enabled
+2026-01-26 00:52:48 - app.services.websocket_service - INFO - WebSocketConnectionManager initialized
+2026-01-26 00:52:51 - app.resilience.health.checker - INFO - Health checker initialized with cache TTL: 30.0s
+2026-01-26 00:52:51 - app.resilience.rate_limit.token_bucket - INFO - Token bucket manager initialized
+2026-01-26 00:52:51 - app.resilience.metrics.collector - INFO - Metrics collector initialized (retention=3600s, interval=60s)
+2026-01-26 00:53:00 - app.api.v2.router - INFO - Debug endpoints disabled (production mode)
+Testing for circular imports...
+✓ app.api.v2.routers.patients
+✓ app.agents.patient
+✓ app.services.ai.ai_service
+✓ app.services.patient.crud_service
+✓ app.repositories.patient.base
+
+No circular imports detected!
+
+=== ASYNC/SYNC MIXING CHECK ===
+Checking for sync operations in async functions...
+✓ No obvious sync/async mixing detected
+
+=== PYDANTIC V2 MIGRATION CHECK ===
+Checking Pydantic import patterns...
+✓ No Pydantic v1 imports found
+
+Verifying v2 patterns in settings:
+✓ app/config/settings/base.py
+✓ app/core/monthly_quiz_config.py
+
+=== FUNCTION SIGNATURE CHECK ===
+2026-01-26 00:53:15 - app.utils.rate_limiter - INFO - ✅ Rate limiting ENABLED with Redis backend
+2026-01-26 00:53:15 - app.utils.rate_limiter - INFO -    Global limit: 60 requests/minute
+2026-01-26 00:53:15 - app.utils.rate_limiter - INFO -    Auth limit: 10 requests/minute
+2026-01-26 00:53:15 - app.utils.rate_limiter - INFO -    Rate limit storage: redis://10.109.61.19:6379/0
+2026-01-26 00:53:18 - app.utils.security - INFO - Using builtin bcrypt backend
+2026-01-26 00:53:19 - app.utils.key_validation.validators - INFO - ✅ CSRF secret validation passed: length=43, entropy=4.99 bits/char, unique_chars=34
+2026-01-26 00:53:19 - app.config.settings.security - INFO - ✅ CSRF secret validation passed
+2026-01-26 00:53:19 - app.core.database_config - INFO - Database pool configuration: environment=production, workers=4, pool_size=10, max_overflow=10, total_per_worker=20, total_all_workers=80
+2026-01-26 00:53:19 - app.core.database_config - INFO - ✅ Connection pool within safe limits: 80/80 connections
+2026-01-26 00:53:19 - app.core.database_config - INFO - ✅ Pool configuration validation passed
+2026-01-26 00:53:19 - app.database - INFO - 🔧 Initializing database with environment-aware pool: environment=production, pool_size=10, max_overflow=10, total_max=20
+2026-01-26 00:53:26 - app.services.websocket_heartbeat - INFO - WebSocket heartbeat manager initialized
+2026-01-26 00:53:26 - app.services.websocket_heartbeat - INFO - WebSocket heartbeat manager initialized
+2026-01-26 00:53:26 - app.services.websocket.connection_manager - INFO - UnifiedWebSocketConnectionManager initialized
+2026-01-26 00:53:35 - app.core.tracing - INFO - Distributed tracing initialized for clinica-oncologica
+2026-01-26 00:53:38 - app.services.firebase_auth_service - INFO - Firebase Admin SDK initialized successfully for project: clinica-oncologica-hosting
+2026-01-26 00:53:38 - app.dependencies.auth_dependencies - INFO - Firebase Authentication enabled
+2026-01-26 00:53:39 - app.services.websocket_service - INFO - WebSocketConnectionManager initialized
+2026-01-26 00:53:43 - app.resilience.health.checker - INFO - Health checker initialized with cache TTL: 30.0s
+2026-01-26 00:53:43 - app.resilience.rate_limit.token_bucket - INFO - Token bucket manager initialized
+2026-01-26 00:53:43 - app.resilience.metrics.collector - INFO - Metrics collector initialized (retention=3600s, interval=60s)
+2026-01-26 00:53:53 - app.api.v2.router - INFO - Debug endpoints disabled (production mode)
+Checking critical function signatures...
+
+get_current_user_simple:
+  Return annotation: typing.Dict[str, typing.Any]
+  ✓ All parameters typed
+
+serialize_patient:
+  Return annotation: typing.Optional[typing.Dict[str, typing.Any]]
+  ✓ All parameters typed
+
+parse_flow_state_filter:
+  Return annotation: <enum 'FlowState'>
+  ✓ All parameters typed
+
+=== OVERALL HEALTH CHECK ===
+Analyzing codebase statistics...
+Total Python files: 1172
+Total lines of code: 338,264
+Async functions: 3378
+Sync functions: 5790
+Classes defined: 2629

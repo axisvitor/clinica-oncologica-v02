@@ -12,6 +12,7 @@ import os
 import sys
 from datetime import datetime, timezone, timedelta
 
+from app.utils.timezone import now_sao_paulo
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import create_engine, text
@@ -25,7 +26,7 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine)
 
 # Import application modules
-from app.services.template_loader import EnhancedTemplateLoader, TemplateLoadError
+from app.services.template_loader_pkg import EnhancedTemplateLoader, TemplateLoadError
 
 
 def test_template_loading(db):
@@ -37,9 +38,9 @@ def test_template_loading(db):
     loader = EnhancedTemplateLoader(db=db)
     
     flow_types = [
-        ("initial_15_days", "Primeiros 15 Dias"),
-        ("days_16_45", "Dias 16-45"),
-        ("monthly_recurring", "Manutenção Mensal"),
+        ("onboarding", "Primeiros 15 Dias"),
+        ("daily_follow_up", "Dias 16-45"),
+        ("quiz_mensal", "Manutenção Mensal"),
     ]
     
     results = {}
@@ -75,14 +76,14 @@ def test_message_generation(db):
     
     # Test cases: flow_type, day
     test_cases = [
-        ("initial_15_days", 2, "Primeiro contato após boas-vindas"),
-        ("initial_15_days", 7, "Uma semana de tratamento"),
-        ("initial_15_days", 15, "Conclusão da fase inicial"),
-        ("days_16_45", 16, "Início da fase de engajamento"),
-        ("days_16_45", 30, "Metade da fase de engajamento"),
-        ("days_16_45", 45, "Preparação para quiz mensal"),
-        ("monthly_recurring", 1, "Boas-vindas do ciclo mensal"),
-        ("monthly_recurring", 30, "Disparo do quiz mensal"),
+        ("onboarding", 2, "Primeiro contato após boas-vindas"),
+        ("onboarding", 7, "Uma semana de tratamento"),
+        ("onboarding", 15, "Conclusão da fase inicial"),
+        ("daily_follow_up", 16, "Início da fase de engajamento"),
+        ("daily_follow_up", 30, "Metade da fase de engajamento"),
+        ("daily_follow_up", 45, "Preparação para quiz mensal"),
+        ("quiz_mensal", 1, "Boas-vindas do ciclo mensal"),
+        ("quiz_mensal", 30, "Disparo do quiz mensal"),
     ]
     
     results = []
@@ -116,12 +117,12 @@ def test_flow_state_transitions():
     
     # Simulate patient journey through days
     transitions = [
-        (1, "initial_15_days", "Paciente cadastrado, inicia fase inicial"),
-        (15, "initial_15_days", "Último dia da fase inicial"),
-        (16, "days_16_45", "Transição para fase de engajamento"),
-        (45, "days_16_45", "Último dia antes do quiz"),
-        (46, "monthly_recurring", "Transição para fase mensal"),
-        (76, "monthly_recurring", "Segundo mês de acompanhamento"),
+        (1, "onboarding", "Paciente cadastrado, inicia fase inicial"),
+        (15, "onboarding", "Último dia da fase inicial"),
+        (16, "daily_follow_up", "Transição para fase de engajamento"),
+        (45, "daily_follow_up", "Último dia antes do quiz"),
+        (46, "quiz_mensal", "Transição para fase mensal"),
+        (76, "quiz_mensal", "Segundo mês de acompanhamento"),
     ]
     
     print("\n📅 Simulação de jornada do paciente:")
@@ -130,11 +131,11 @@ def test_flow_state_transitions():
     for day, expected_phase, description in transitions:
         # Determine phase based on day
         if day <= 15:
-            actual_phase = "initial_15_days"
+            actual_phase = "onboarding"
         elif day <= 45:
-            actual_phase = "days_16_45"
+            actual_phase = "daily_follow_up"
         else:
-            actual_phase = "monthly_recurring"
+            actual_phase = "quiz_mensal"
         
         status = "✅" if actual_phase == expected_phase else "❌"
         print(f"{status} Dia {day:3d}: {actual_phase:20s} | {description}")
@@ -187,7 +188,7 @@ def simulate_patient_journey(db):
     patient = {
         "name": "Maria Silva (Teste)",
         "phone": "+5511999999999",
-        "enrollment_date": datetime.now(timezone.utc) - timedelta(days=0),
+        "enrollment_date": now_sao_paulo() - timedelta(days=0),
         "treatment_type": "hormone_therapy",
     }
     
@@ -203,13 +204,13 @@ def simulate_patient_journey(db):
     for day in key_days:
         # Determine current phase
         if day <= 15:
-            phase = "initial_15_days"
+            phase = "onboarding"
             phase_name = "Fase Inicial"
         elif day <= 45:
-            phase = "days_16_45"
+            phase = "daily_follow_up"
             phase_name = "Fase de Engajamento"
         else:
-            phase = "monthly_recurring"
+            phase = "quiz_mensal"
             phase_name = "Fase Mensal"
         
         # Try to get message for this day

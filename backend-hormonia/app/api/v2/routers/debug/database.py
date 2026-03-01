@@ -12,8 +12,10 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import engine
+from app.core.database.async_engine import get_async_db
 from app.models.user import User
 from app.utils.rate_limiter import limiter
 from app.schemas.v2.debug import (
@@ -28,10 +30,12 @@ from app.schemas.v2.debug import (
 
 from .common import (
     check_debug_enabled,
+    require_debug_enabled,
     get_admin_user,
     log_debug_operation,
     sanitize_sql_query,
 )
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -44,6 +48,7 @@ logger = logging.getLogger(__name__)
 
 @router.get(
     "/database",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Get database diagnostics",
     description="""
@@ -59,7 +64,9 @@ logger = logging.getLogger(__name__)
 )
 @limiter.limit("5/minute")
 async def get_database_diagnostics(
-    request: Request, admin_user: User = Depends(get_admin_user), db=Depends(get_db)
+    request: Request,
+    admin_user: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Get database connection diagnostics.
@@ -72,7 +79,7 @@ async def get_database_diagnostics(
         # Test database connection
         start_time = time.time()
         try:
-            db.execute(text("SELECT 1"))
+            await db.execute(text("SELECT 1"))
             response_time_ms = (time.time() - start_time) * 1000
             connected = True
             db_status = ConnectionStatus.HEALTHY
@@ -87,7 +94,6 @@ async def get_database_diagnostics(
         # Get pool info if available
         pool_info = None
         try:
-            engine = db.get_bind()
             pool = engine.pool
             pool_info = DatabasePoolInfo(
                 size=pool.size(),
@@ -104,7 +110,7 @@ async def get_database_diagnostics(
             pool_info=pool_info,
             response_time_ms=response_time_ms,
             error=error_msg,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
         # Audit log
@@ -124,7 +130,7 @@ async def get_database_diagnostics(
             success=True,
             data=diagnostics.dict(),
             audit_logged=True,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
     except Exception as e:
@@ -137,6 +143,7 @@ async def get_database_diagnostics(
 
 @router.post(
     "/test-query",
+    dependencies=[Depends(require_debug_enabled)],
     response_model=DebugResponse,
     summary="Test SQL query execution",
     description="""
@@ -156,7 +163,7 @@ async def test_sql_query(
     request: Request,
     query_request: TestQueryRequest,
     admin_user: User = Depends(get_admin_user),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Test SQL query execution with safety checks.
@@ -178,12 +185,14 @@ async def test_sql_query(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Timeout must be between 0.1 and 3600 seconds"
                 )
-            # Use parameterized query with bindparam for SET statement
-            # PostgreSQL SET LOCAL with parameter binding via format_map
-            db.execute(text("SET LOCAL statement_timeout = :timeout_ms"), {"timeout_ms": timeout_ms})
+            # Use set_config with parameter binding to avoid SQL interpolation.
+            await db.execute(
+                text("SELECT set_config('statement_timeout', :statement_timeout, true)"),
+                {"statement_timeout": f"{timeout_ms}ms"},
+            )
 
             # Execute query
-            result = db.execute(text(query_request.query))
+            result = await db.execute(text(query_request.query))
             rows = result.fetchmany(10)  # Limit to 10 rows
             execution_time_ms = (time.time() - start_time) * 1000
 
@@ -239,7 +248,7 @@ async def test_sql_query(
             success=test_result.success,
             data=test_result.dict(),
             audit_logged=True,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
     except Exception as e:

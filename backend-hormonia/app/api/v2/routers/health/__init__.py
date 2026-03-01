@@ -29,7 +29,7 @@ Module Structure:
 
 from fastapi import APIRouter
 
-from .core import router as core_router
+from .core import router as core_router, basic_health_check
 from .database_health import router as database_router
 from .service_health import router as service_router
 from .storage_external import router as storage_router
@@ -39,6 +39,8 @@ from .monitoring import router as monitoring_router
 from .test import router as test_router
 
 # Import health check functions for backward compatibility
+from app.database import get_db
+from app.dependencies.auth_dependencies import get_current_user, get_admin_user
 from .database_health import check_database_health
 from .service_health import (
     check_redis_health,
@@ -62,10 +64,21 @@ router.include_router(platform_router)
 router.include_router(monitoring_router)
 router.include_router(test_router)
 
+# Compatibility alias for clients/tests that call /api/v2/health without trailing slash.
+router.add_api_route(
+    "",
+    basic_health_check,
+    methods=["GET"],
+    include_in_schema=False,
+)
+
 
 # Export commonly used functions for backward compatibility
 __all__ = [
     "router",
+    "get_db",
+    "get_current_user",
+    "get_admin_user",
     "check_database_health",
     "check_redis_health",
     "check_worker_health",

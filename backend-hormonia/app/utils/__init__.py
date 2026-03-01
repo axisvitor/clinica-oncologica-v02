@@ -12,9 +12,9 @@ from app.utils.template_sanitizer import (
     TemplateSanitizer,
     get_template_sanitizer,
 )
-from app.utils.input_sanitizer import InputSanitizer
+from app.utils.input_sanitization import InputSanitizer
 from app.utils.input_sanitization import sanitize_input, get_sanitizer
-from app.utils.pii_masking import (
+from app.utils.pii_redaction import (
     mask_cpf,
     mask_phone,
     mask_email,
@@ -61,10 +61,6 @@ from app.utils.database_optimization import (
 # =============================================================================
 # Audit & Logging
 # =============================================================================
-from app.utils.audit_logger import (
-    AuditLogger,
-    AuditAction,
-)
 from app.utils.logging import get_logger, setup_logging
 from app.utils.structured_logger import StructuredLogger
 
@@ -78,7 +74,7 @@ from app.utils.security import (
     create_access_token,
     verify_token,
 )
-from app.utils.security_validation import (
+from app.utils.key_validation import (
     validate_csrf_secret,
     validate_secret_key,
     validate_key_strength,
@@ -151,3 +147,20 @@ __all__ = [
 __version__ = "2.0.0"
 __author__ = "Backend Team"
 __description__ = "Core utility module with commonly used functions and classes"
+
+
+def __getattr__(name: str):
+    """
+    Lazily resolve heavyweight audit symbols to avoid import cycles during startup.
+    """
+    if name in {"AuditLogger", "AuditAction"}:
+        from app.monitoring.audit_logger import (
+            TemplateAuditLogger,
+            TemplateAuditAction,
+        )
+
+        if name == "AuditLogger":
+            return TemplateAuditLogger
+        return TemplateAuditAction
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

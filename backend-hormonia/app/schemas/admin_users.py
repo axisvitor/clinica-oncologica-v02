@@ -31,6 +31,24 @@ class UserRole(str, enum.Enum):
 # Core User Schemas
 
 
+def _validate_phone_number_format(value: Optional[str]) -> Optional[str]:
+    """Validate and normalize phone number shape for admin user schemas."""
+    if value is None:
+        return value
+
+    cleaned = "".join(c for c in value if c.isdigit() or c in "+()-. ")
+    digits_only = (
+        cleaned.replace(" ", "")
+        .replace("-", "")
+        .replace("(", "")
+        .replace(")", "")
+        .replace("+", "")
+    )
+    if len(digits_only) < 10:
+        raise ValueError("Phone number must contain at least 10 digits")
+    return value
+
+
 class UserCreate(BaseModel):
     """Schema for creating a new user."""
 
@@ -62,21 +80,7 @@ class UserCreate(BaseModel):
     @classmethod
     def validate_phone_number(cls, v):
         """Validate phone number format."""
-        if v is not None:
-            # Remove common phone number characters for validation
-            cleaned = "".join(c for c in v if c.isdigit() or c in "+()-. ")
-            if (
-                len(
-                    cleaned.replace(" ", "")
-                    .replace("-", "")
-                    .replace("(", "")
-                    .replace(")", "")
-                    .replace("+", "")
-                )
-                < 10
-            ):
-                raise ValueError("Phone number must contain at least 10 digits")
-        return v
+        return _validate_phone_number_format(v)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -108,21 +112,7 @@ class UserUpdate(BaseModel):
     @classmethod
     def validate_phone_number(cls, v):
         """Validate phone number format."""
-        if v is not None:
-            # Remove common phone number characters for validation
-            cleaned = "".join(c for c in v if c.isdigit() or c in "+()-. ")
-            if (
-                len(
-                    cleaned.replace(" ", "")
-                    .replace("-", "")
-                    .replace("(", "")
-                    .replace(")", "")
-                    .replace("+", "")
-                )
-                < 10
-            ):
-                raise ValueError("Phone number must contain at least 10 digits")
-        return v
+        return _validate_phone_number_format(v)
 
     @model_validator(mode="after")
     def validate_at_least_one_field(self):
@@ -172,10 +162,10 @@ class UserResponse(BaseModel):
                 "role": "doctor",
                 "phone_number": "+55 11 99999-9999",
                 "is_active": True,
-                "created_at": "2024-01-15T10:30:00Z",
-                "updated_at": "2024-01-15T10:30:00Z",
+                "created_at": "2024-01-15T10:30:00-03:00",
+                "updated_at": "2024-01-15T10:30:00-03:00",
                 "total_patients": 25,
-                "last_login": "2024-01-20T14:30:00Z",
+                "last_login": "2024-01-20T14:30:00-03:00",
             }
         },
     )
@@ -197,10 +187,10 @@ class UserListResponse(PaginatedResponse):
                         "role": "doctor",
                         "phone_number": "+55 11 99999-9999",
                         "is_active": True,
-                        "created_at": "2024-01-15T10:30:00Z",
-                        "updated_at": "2024-01-15T10:30:00Z",
+                        "created_at": "2024-01-15T10:30:00-03:00",
+                        "updated_at": "2024-01-15T10:30:00-03:00",
                         "total_patients": 25,
-                        "last_login": "2024-01-20T14:30:00Z",
+                        "last_login": "2024-01-20T14:30:00-03:00",
                     }
                 ],
                 "total": 150,
@@ -329,7 +319,7 @@ class UserFilter(BaseModel):
                 "name": "João",
                 "role": "doctor",
                 "is_active": True,
-                "created_after": "2024-01-01T00:00:00Z",
+                "created_after": "2024-01-01T00:00:00-03:00",
                 "has_patients": True,
             }
         }
@@ -386,9 +376,9 @@ class UserActivityResponse(BaseModel):
         json_schema_extra={
             "example": {
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
-                "last_login": "2024-01-20T14:30:00Z",
+                "last_login": "2024-01-20T14:30:00-03:00",
                 "login_count": 45,
-                "last_activity": "2024-01-20T16:45:00Z",
+                "last_activity": "2024-01-20T16:45:00-03:00",
                 "active_sessions": 1,
             }
         },

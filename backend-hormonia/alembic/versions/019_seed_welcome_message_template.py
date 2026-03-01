@@ -5,6 +5,27 @@ Revises: 27ee28e62ff8
 Create Date: 2025-11-22 21:45:00.000000
 
 Seeds the welcome message template used in the patient onboarding saga.
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+IMPACT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa
@@ -12,6 +33,7 @@ from sqlalchemy.dialects.postgresql import UUID
 import uuid
 from datetime import datetime
 
+from app.utils.timezone import now_sao_paulo_naive
 # revision identifiers, used by Alembic.
 revision = '019_seed_welcome_message_template'
 down_revision = '27ee28e62ff8'
@@ -45,15 +67,14 @@ def upgrade() -> None:
                 'variables': '["patient_name"]',  # JSON string
                 'message_type': 'text',
                 'is_active': True,
-                'created_at': datetime.utcnow(),
-                'updated_at': datetime.utcnow()
+                'created_at': now_sao_paulo_naive(),
+                'updated_at': now_sao_paulo_naive()
             }
         )
         print(f"✅ Created template: {TEMPLATE_NAME} (ID: {WELCOME_TEMPLATE_ID})")
     else:
         print(f"ℹ️  Template '{TEMPLATE_NAME}' already exists, skipping...")
 
-    conn.commit()
 
 def downgrade() -> None:
     """Remove seeded welcome message template."""
@@ -64,5 +85,4 @@ def downgrade() -> None:
         {'name': TEMPLATE_NAME}
     )
     
-    conn.commit()
     print(f"✅ Template '{TEMPLATE_NAME}' removed!")

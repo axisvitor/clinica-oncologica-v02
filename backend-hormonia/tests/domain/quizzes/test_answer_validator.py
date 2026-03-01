@@ -22,6 +22,7 @@ from unittest.mock import Mock, patch
 from typing import Dict, Any
 
 
+from app.utils.timezone import now_sao_paulo
 # ============================================================================
 # FIXTURES
 # ============================================================================
@@ -608,8 +609,8 @@ class TestValidateDate:
             "2025-12-31",
             "2020-02-29",  # Leap year
             "2025-01-15T10:30:00",
-            "2025-01-15T10:30:00+00:00",
-            "2025-01-15T10:30:00Z",
+            "2025-01-15T10:30:00-03:00",
+            "2025-01-15T10:30:00-03:00",
         ],
     )
     def test_accepts_valid_iso_dates(self, answer_validator, date_question, valid_date):
@@ -830,7 +831,7 @@ class TestValidateResponseTiming:
 
     def test_accepts_normal_timing(self, answer_validator):
         """Test that normal response timing is accepted."""
-        session_start = datetime.now(timezone.utc) - timedelta(seconds=5)
+        session_start = now_sao_paulo() - timedelta(seconds=5)
         result = answer_validator.validate_response_timing(session_start)
         assert result is True
 
@@ -838,14 +839,14 @@ class TestValidateResponseTiming:
         """Test that submissions faster than min_time are rejected."""
         from app.exceptions import ValidationError
 
-        session_start = datetime.now(timezone.utc) - timedelta(seconds=1)
+        session_start = now_sao_paulo() - timedelta(seconds=1)
         with pytest.raises(ValidationError) as exc_info:
             answer_validator.validate_response_timing(session_start, min_time_seconds=2)
         assert "too quickly" in str(exc_info.value)
 
     def test_respects_custom_min_time(self, answer_validator):
         """Test that custom min_time_seconds is respected."""
-        session_start = datetime.now(timezone.utc) - timedelta(seconds=10)
+        session_start = now_sao_paulo() - timedelta(seconds=10)
         result = answer_validator.validate_response_timing(
             session_start, min_time_seconds=5
         )
@@ -857,13 +858,13 @@ class TestValidateResponseTiming:
 
         # At exactly 2 seconds, elapsed < min_time_seconds is False
         # but if elapsed = 1.99, it should be rejected
-        session_start = datetime.now(timezone.utc) - timedelta(seconds=1.5)
+        session_start = now_sao_paulo() - timedelta(seconds=1.5)
         with pytest.raises(ValidationError):
             answer_validator.validate_response_timing(session_start, min_time_seconds=2)
 
     def test_accepts_long_duration(self, answer_validator):
         """Test that long durations are accepted."""
-        session_start = datetime.now(timezone.utc) - timedelta(hours=1)
+        session_start = now_sao_paulo() - timedelta(hours=1)
         result = answer_validator.validate_response_timing(session_start)
         assert result is True
 
@@ -1150,7 +1151,7 @@ class TestAnswerValidatorIntegration:
 
     def test_validation_with_timing_check(self, answer_validator, open_text_question):
         """Test validation with timing check."""
-        session_start = datetime.now(timezone.utc) - timedelta(seconds=10)
+        session_start = now_sao_paulo() - timedelta(seconds=10)
 
         # Timing check
         assert answer_validator.validate_response_timing(session_start) is True

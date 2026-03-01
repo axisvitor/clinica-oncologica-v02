@@ -89,23 +89,28 @@ export const QuestionarioCard = React.memo<QuestionarioCardProps>(({
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <MoreHorizontal className="h-4 w-4" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                aria-label="Abrir menu de ações"
+              >
+                <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Ações</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
-                <Eye className="h-4 w-4 mr-2" />
+                <Eye className="h-4 w-4 mr-2" aria-hidden="true" />
                 Visualizar
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onEdit(template)}>
-                <Edit className="h-4 w-4 mr-2" />
+                <Edit className="h-4 w-4 mr-2" aria-hidden="true" />
                 Editar
               </DropdownMenuItem>
               <DropdownMenuItem>
-                <BarChart3 className="h-4 w-4 mr-2" />
+                <BarChart3 className="h-4 w-4 mr-2" aria-hidden="true" />
                 Relatórios
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -113,7 +118,7 @@ export const QuestionarioCard = React.memo<QuestionarioCardProps>(({
                 className="text-destructive"
                 onClick={() => onDelete(template.id)}
               >
-                <Trash2 className="h-4 w-4 mr-2" />
+                <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
                 Desativar
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -133,14 +138,14 @@ export const QuestionarioCard = React.memo<QuestionarioCardProps>(({
         <div className="grid grid-cols-2 gap-3 sm:gap-4 text-sm">
           <div className="space-y-1">
             <div className="flex items-center gap-1">
-              <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
               <span className="font-medium">{analytics.total_responses || 0}</span>
             </div>
             <p className="text-xs text-muted-foreground">Respostas</p>
           </div>
           <div className="space-y-1">
             <div className="flex items-center gap-1">
-              <TrendingUp className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <TrendingUp className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
               <span className="font-medium">{(analytics.completion_rate || 0).toFixed(1)}%</span>
             </div>
             <p className="text-xs text-muted-foreground">Taxa de Conclusão</p>
@@ -150,7 +155,7 @@ export const QuestionarioCard = React.memo<QuestionarioCardProps>(({
         {analytics.average_completion_time && (
           <div className="text-sm">
             <div className="flex items-center gap-1">
-              <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
               <span className="font-medium">{Math.round(analytics.average_completion_time)} min</span>
             </div>
             <p className="text-xs text-muted-foreground mt-1">Tempo Médio</p>
@@ -161,7 +166,7 @@ export const QuestionarioCard = React.memo<QuestionarioCardProps>(({
       <CardFooter className="pt-0 px-4 sm:px-6 pb-4 sm:pb-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-2 sm:gap-0 text-xs text-muted-foreground">
           <div className="flex items-center gap-1">
-            <Calendar className="h-3 w-3 flex-shrink-0" />
+            <Calendar className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
             <span>{new Date(template.created_at).toLocaleDateString('pt-BR')}</span>
           </div>
           <span className="sm:text-right">v{template.version}</span>

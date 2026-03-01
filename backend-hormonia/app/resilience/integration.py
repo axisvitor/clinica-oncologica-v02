@@ -21,6 +21,7 @@ from .health import (
 )
 from .rate_limit import create_rate_limit_middleware
 from .metrics import metrics_collector, create_metrics_blueprint
+from .metrics_setup import initialize_metrics_collection
 from .config import config_manager, ResilienceConfig
 
 logger = logging.getLogger(__name__)
@@ -133,14 +134,7 @@ class ResilienceManager:
 
     def _init_metrics(self):
         """Initialize metrics collection"""
-        if not self.config or not self.config.metrics_enabled:
-            return
-
-        # Configure metrics collector
-        metrics_collector.retention_period = self.config.metrics_retention_hours * 3600
-        metrics_collector.collection_interval = self.config.metrics_collection_interval
-
-        logger.info("Metrics collection initialized")
+        initialize_metrics_collection(self.config, logger)
 
     def _register_blueprints(self):
         """Register Flask blueprints"""

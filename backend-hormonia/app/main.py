@@ -1,3 +1,28 @@
+import os
+
+if os.getenv("LANGGRAPH_AUDIT") == "1":
+    import ast
+    import pathlib
+
+    _AUDIT_PATTERNS = {
+        "langgraph",
+        "app.ai.langgraph",
+    }
+    _hits = []
+    for _p in pathlib.Path("app").rglob("*.py"):
+        try:
+            _tree = ast.parse(_p.read_bytes())
+        except SyntaxError:
+            continue
+        for _node in ast.walk(_tree):
+            if isinstance(_node, (ast.Import, ast.ImportFrom)):
+                _mod = getattr(_node, "module", None) or ""
+                _names = [alias.name for alias in getattr(_node, "names", [])]
+                if any(_pat in (_mod + " " + " ".join(_names)) for _pat in _AUDIT_PATTERNS):
+                    _hits.append(str(_p))
+                    break
+    print("LANGGRAPH AUDIT:", sorted(set(_hits)))
+
 """
 FastAPI application entry point for Hormonia Backend System.
 
@@ -8,15 +33,18 @@ Clean, minimal main.py that delegates all concerns to specialized modules:
 - Lifespan manager handles startup/shutdown lifecycle
 - Monitoring setup handles observability
 
-Last deployment: 2025-12-20T16:50:00Z
+Last deployment: 2025-12-20T16:50:00-03:00
 """
 
 import logging
 import sys
 from dotenv import load_dotenv
 
-# Load environment variables from .env file immediately
-load_dotenv(override=True)
+# Load environment variables from .env for local/dev only (skip for pytest and prod)
+if "pytest" not in sys.modules and "PYTEST_CURRENT_TEST" not in os.environ:
+    app_env = os.environ.get("APP_ENVIRONMENT", "").lower()
+    if app_env not in ("production", "prod"):
+        load_dotenv(override=False)
 
 # Early diagnostic logging - helps identify startup issues
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -25,6 +53,7 @@ _startup_logger.info("=== MAIN.PY LOADING - FastAPI Entry Point ===")
 
 from app.core.application_factory import create_application
 from app.config import settings
+from app.utils.timezone import now_sao_paulo
 
 # Create application instance using factory pattern with appropriate mode
 deployment_mode = "development" if settings.APP_ENABLE_DEBUG else "production"
@@ -42,7 +71,7 @@ async def root_health_check():
 
     return {
         "status": "healthy",
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": now_sao_paulo().isoformat(),
         "version": "2.0.0",
         "environment": settings.APP_ENVIRONMENT,
     }

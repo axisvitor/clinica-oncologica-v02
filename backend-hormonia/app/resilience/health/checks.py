@@ -346,9 +346,16 @@ class RedisHealthCheck(HealthCheck):
 
         try:
             import redis.asyncio as redis
+            from app.core.redis_manager import get_redis_connection_kwargs
 
             # Create Redis client
-            redis_client = redis.from_url(self.redis_url)
+            connection_kwargs = get_redis_connection_kwargs(
+                mode="async",
+                decode_responses=True,
+                socket_timeout=self.timeout,
+                socket_connect_timeout=self.timeout,
+            )
+            redis_client = redis.from_url(self.redis_url, **connection_kwargs)
 
             # Test ping
             ping_start = time.time()

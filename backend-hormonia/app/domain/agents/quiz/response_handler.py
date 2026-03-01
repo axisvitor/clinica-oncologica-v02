@@ -9,7 +9,7 @@ from __future__ import annotations
 # Standard library imports
 import logging
 import re
-from datetime import datetime, timezone
+from inspect import isawaitable
 from typing import TYPE_CHECKING, Any, Dict, Optional
 from uuid import UUID
 
@@ -18,11 +18,17 @@ from sqlalchemy.orm import Session
 
 # Local application imports
 from app.agents.base import MessagePriority
+from app.agents.registry import ALERT_ANALYZER_ID, PATIENT_MONITOR_ID, FLOW_COORDINATOR_ID
 from app.schemas.quiz import QuestionType, QuizResponseCreate
 from app.services.quiz import QuizResponseService, QuizSessionService
+from app.services.ai.guardrails import OutputKind
+from app.services.ai.output_profiles import MESSAGE_STANDARD
+from app.domain.quizzes.integration.flow_integration.utils import process_quiz_response_with_debounce
+from app.utils.thread_ids import sanitize_thread_component
+from app.utils.timezone import now_sao_paulo
 
 if TYPE_CHECKING:
-    from app.domain.agents.quiz.session_coordinator import QuizContext
+    from app.domain.agents.quiz.types import QuizContext
 
 
 class ResponseHandler:
@@ -90,136 +96,306 @@ class ResponseHandler:
 
         HIGH-005 FIX: Implements debouncing to prevent duplicate responses.
         """
-        patient_id = UUID(payload["patient_id"])
+        try:
+            patient_id = UUID(str(payload["patient_id"]))
+        except (KeyError, TypeError, ValueError):
+            return {
+                "success": False,
+                "action": "error",
+                "error": "Invalid or missing patient_id",
+            }
         response_text = payload["response_text"]
-        message_metadata = payload.get("message_metadata", {})
+        message_metadata = dict(payload.get("message_metadata", {}))
 
-        # Get active session
         active_session = self.quiz_session_service.get_active_session(patient_id)
         if not active_session:
             return {"success": False, "error": "No active quiz session"}
 
-        # HIGH-005 FIX: Add debounce check
-        from app.services.quiz_response_debounce import get_quiz_debouncer
+        current_question_id = str(getattr(active_session, "current_question", "unknown"))
 
-        debouncer = get_quiz_debouncer(debounce_window_seconds=3)
-
-        # Get current question ID
-        current_question_id = (
-            active_session.current_question
-            if hasattr(active_session, "current_question")
-            and active_session.current_question
-            else str(active_session.current_question_index)
-            if hasattr(active_session, "current_question_index")
-            else "unknown"
+        context = await self._build_context_safe(
+            build_context_callback, patient_id, active_session
         )
 
-        # Check debounce
-        should_process = await debouncer.should_process_response(
-            session_id=active_session.id,
-            question_id=current_question_id,
-            message_metadata=message_metadata,
-        )
+        try:
+            result = await process_quiz_response_with_debounce(
+                self.db_session,
+                patient_id=patient_id,
+                quiz_session_id=active_session.id,
+                current_question_id=str(current_question_id),
+                response_text=response_text,
+                message_metadata=message_metadata,
+                debounce_window_seconds=3,
+            )
+        except Exception as exc:
+            self._logger.error(
+                "Primary quiz response flow failed, activating fallback: %s",
+                exc,
+            )
+            result = {"success": False, "action": "error", "error": str(exc)}
 
-        if not should_process:
-            # Response debounced
-            self._logger.info(
-                f"Response debounced for patient {patient_id}",
-                extra={
-                    "patient_id": str(patient_id),
-                    "session_id": str(active_session.id),
-                    "question_id": current_question_id,
-                    "agent_id": self.agent_id,
-                },
+        action = result.get("action")
+
+        # Keep debounce behavior unchanged.
+        if action == "debounced":
+            return result
+
+        # Re-enable callback-driven orchestration (next question/completion/clarification).
+        if action == "request_clarification":
+            await self._invoke_callback(
+                send_clarification_callback,
+                context,
+                result.get("error", "Não consegui entender sua resposta."),
             )
             return {
                 "success": False,
-                "action": "debounced",
-                "message": "Response ignored - within debounce window",
+                "action": "clarification_requested",
+                "error": result.get("error"),
             }
 
-        # Build context
-        context = await build_context_callback(patient_id, "current")
+        if action in {"next_question", "quiz_completed", "complete_session"}:
+            if action == "next_question":
+                if context is not None:
+                    next_question_index = result.get("question_index")
+                    try:
+                        if next_question_index is not None:
+                            context.current_question = max(int(next_question_index), 0)
+                    except (TypeError, ValueError):
+                        pass
 
-        # Process response with AI and swarm intelligence
-        processing_result = await self.process_response_with_swarm(
-            context, response_text
-        )
+                # Skip callback only when upstream flow explicitly reports
+                # it already dispatched the next question.
+                if not result.get("next_question_sent", False):
+                    await self._invoke_callback(send_next_question_callback, context)
+            else:
+                await self._invoke_callback(complete_session_callback, context)
+            return result
 
-        if not processing_result["valid"]:
-            # Send clarification message
-            await send_clarification_callback(context, processing_result["error"])
+        # Fallback path when AI or integration flow fails.
+        if action == "error" or not result.get("success", False):
+            return await self._process_quiz_response_fallback(
+                context=context,
+                active_session=active_session,
+                response_text=response_text,
+                send_next_question_callback=send_next_question_callback,
+                complete_session_callback=complete_session_callback,
+                send_clarification_callback=send_clarification_callback,
+                original_result=result,
+            )
+
+        return result
+
+    async def _build_context_safe(
+        self,
+        build_context_callback,
+        patient_id: UUID,
+        active_session: Any,
+    ) -> Optional["QuizContext"]:
+        """Build quiz context from canonical callback signature."""
+        if not build_context_callback:
+            return None
+
+        context: Optional["QuizContext"] = None
+        try:
+            maybe_context = build_context_callback(patient_id, "current")
+            context = await maybe_context if isawaitable(maybe_context) else maybe_context
+        except Exception as exc:
+            self._logger.error("Failed to build quiz context: %s", exc)
+            return None
+
+        if context is None:
+            return None
+
+        if getattr(context, "session", None) is None:
+            context.session = active_session
+
+        try:
+            context.current_question = int(
+                getattr(active_session, "current_question", 0) or 0
+            )
+        except (TypeError, ValueError):
+            context.current_question = 0
+
+        return context
+
+    async def _invoke_callback(self, callback, *args):
+        """Invoke callback supporting sync or async callables."""
+        if not callback:
+            return None
+
+        # Skip context-based callbacks when context is unavailable.
+        if args and args[0] is None:
+            return None
+
+        result = callback(*args)
+        return await result if isawaitable(result) else result
+
+    async def _process_quiz_response_fallback(
+        self,
+        *,
+        context: Optional["QuizContext"],
+        active_session: Any,
+        response_text: str,
+        send_next_question_callback,
+        complete_session_callback,
+        send_clarification_callback,
+        original_result: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Local fallback when canonical response flow fails.
+
+        This path keeps quiz progression working even when AI/integration layers fail.
+        """
+        if context is None:
             return {
                 "success": False,
-                "action": "clarification_requested",
-                "error": processing_result["error"],
+                "action": "error",
+                "error": original_result.get(
+                    "error", "Unable to process response without quiz context"
+                ),
             }
 
-        # Store response
-        response_data = QuizResponseCreate(
-            patient_id=patient_id,
-            quiz_template_id=active_session.quiz_template_id,
-            question_id=processing_result["question_id"],
-            question_text=processing_result["question_text"],
-            response_type=processing_result["response_type"],
-            response_value=processing_result["processed_value"],
-            response_metadata={
-                "original_text": response_text,
-                "ai_processed": processing_result.get("ai_processed", False),
-                "confidence_score": processing_result.get("confidence", 1.0),
-                "swarm_analysis": processing_result.get("swarm_analysis", {}),
-                "processed_by_agent": self.agent_id,
-            },
-            responded_at=datetime.now(timezone.utc),
-        )
+        template = getattr(context, "template", None)
+        questions = getattr(template, "questions", None) if template else None
+        if not isinstance(questions, list) or not questions:
+            return {
+                "success": False,
+                "action": "error",
+                "error": "Quiz template unavailable for active session",
+            }
 
-        response = await self.quiz_response_service.create_response(response_data)
-
-        # Update knowledge graph
-        if self.knowledge_graph and response:
-            try:
-                await self.knowledge_graph.add_quiz_response_node(response)
-            except Exception as e:
-                self._logger.error(f"Failed to update knowledge graph: {e}")
-
-        # Determine next action
-        if context.current_question_index >= len(context.template.questions) - 1:
-            # Complete quiz
-            await complete_session_callback(context)
-
-            # HIGH-005 FIX: Clear debounce state on completion
-            from app.services.quiz_response_debounce import get_quiz_debouncer
-
-            debouncer = get_quiz_debouncer()
-            await debouncer.clear_debounce(active_session.id)
-
+        current_index = max(int(getattr(context, "current_question", 0) or 0), 0)
+        if current_index >= len(questions):
+            await self._invoke_callback(complete_session_callback, context)
             return {
                 "success": True,
                 "action": "quiz_completed",
-                "session_id": str(active_session.id),
+                "session_id": str(getattr(active_session, "id", "")),
+                "fallback": True,
             }
-        else:
-            # Advance to next question
-            self.quiz_session_service.advance_session(active_session.id)
 
-            # Send next question (with potential adaptation)
-            next_context = await build_context_callback(patient_id, "current")
-            await send_next_question_callback(next_context)
+        processed = await self.process_response_with_swarm(context, response_text)
+        if not processed.get("valid"):
+            error_msg = processed.get("error") or original_result.get(
+                "error", "Não consegui entender sua resposta."
+            )
+            await self._invoke_callback(send_clarification_callback, context, error_msg)
+            return {
+                "success": False,
+                "action": "clarification_requested",
+                "error": error_msg,
+                "fallback": True,
+            }
 
+        current_question = questions[current_index]
+        self._persist_fallback_response(
+            context=context,
+            active_session=active_session,
+            question=current_question,
+            current_index=current_index,
+            response_text=response_text,
+            processed_response=processed,
+        )
+
+        is_last_question = current_index >= len(questions) - 1
+        if is_last_question:
+            await self._invoke_callback(complete_session_callback, context)
             return {
                 "success": True,
-                "action": "next_question",
-                "question_index": context.current_question_index + 1,
+                "action": "quiz_completed",
+                "session_id": str(getattr(active_session, "id", "")),
+                "fallback": True,
             }
+
+        try:
+            advanced_session = self.quiz_session_service.advance_session(active_session.id)
+            if advanced_session and hasattr(advanced_session, "current_question"):
+                context.current_question = int(
+                    getattr(advanced_session, "current_question", current_index + 1)
+                    or current_index + 1
+                )
+            else:
+                context.current_question = current_index + 1
+        except Exception as exc:
+            self._logger.warning("Failed to advance session in fallback path: %s", exc)
+            context.current_question = current_index + 1
+
+        await self._invoke_callback(send_next_question_callback, context)
+        return {
+            "success": True,
+            "action": "next_question",
+            "question_index": context.current_question,
+            "fallback": True,
+        }
+
+    def _persist_fallback_response(
+        self,
+        *,
+        context: "QuizContext",
+        active_session: Any,
+        question: Dict[str, Any],
+        current_index: int,
+        response_text: str,
+        processed_response: Dict[str, Any],
+    ) -> None:
+        """Persist response when fallback processing succeeds."""
+        try:
+            response_type = str(question.get("type", QuestionType.OPEN_TEXT.value))
+            valid_types = {item.value for item in QuestionType}
+            if response_type not in valid_types:
+                raise ValueError(f"Unsupported question type for fallback save: {response_type}")
+            processed_value = processed_response.get("processed_value")
+            if processed_value is None:
+                processed_value = ""
+
+            response_data = QuizResponseCreate(
+                patient_id=context.patient_id,
+                quiz_template_id=active_session.quiz_template_id,
+                quiz_session_id=active_session.id,
+                question_id=question.get("id", f"q_{current_index}"),
+                question_text=question.get("text", f"Pergunta {current_index + 1}"),
+                response_type=response_type,
+                response_value=processed_value,
+                response_metadata={
+                    "fallback_mode": True,
+                    "original_text": response_text,
+                    "processed_value": processed_value,
+                    "question_index": current_index,
+                    "confidence": processed_response.get("confidence"),
+                },
+                responded_at=now_sao_paulo(),
+            )
+            self.quiz_response_service.create_response(response_data)
+        except Exception as exc:
+            self._logger.error("Failed to persist fallback quiz response: %s", exc)
+
+    async def _invoke_interpretation_graph(self, prompt: str, thread_id: str) -> str:
+        """Helper to call Gemini for interpretation. Phase 8 (AI-03): direct generate_content()."""
+        from app.ai.client import get_gemini_client
+        client = get_gemini_client()
+        return await client.generate_content(
+            prompt,
+            output_kind=OutputKind.MESSAGE,
+            profile=MESSAGE_STANDARD,
+        )
 
     async def process_response_with_swarm(
         self, context: "QuizContext", response_text: str
     ) -> Dict[str, Any]:
         """Process response with swarm intelligence and AI analysis."""
-        if context.current_question_index >= len(context.template.questions):
+        template = getattr(context, "template", None)
+        questions = getattr(template, "questions", None) if template else None
+        if not isinstance(questions, list) or not questions:
+            return {
+                "valid": False,
+                "error": "Quiz template unavailable for active session",
+            }
+
+        current_index = max(int(getattr(context, "current_question", 0) or 0), 0)
+        if current_index >= len(questions):
             return {"valid": False, "error": "No active question"}
 
-        current_question = context.template.questions[context.current_question_index]
+        current_question = questions[current_index]
 
         # Basic processing
         basic_result = await self.basic_response_processing(
@@ -231,9 +407,16 @@ class ResponseHandler:
             basic_result.get("confidence", 1.0)
             < self.ai_interpretation_confidence_threshold
         ):
-            ai_result = await self.ai_enhanced_processing(
-                current_question, response_text, context
-            )
+            ai_result = None
+            try:
+                ai_result = await self.ai_enhanced_processing(
+                    current_question, response_text, context
+                )
+            except Exception as exc:
+                self._logger.warning(
+                    "AI enhancement failed; keeping deterministic processing: %s",
+                    exc,
+                )
 
             if ai_result and ai_result.get("confidence", 0) > basic_result.get(
                 "confidence", 0
@@ -293,9 +476,12 @@ class ResponseHandler:
 
             # Direct text match
             for option in options:
+                option_text = option.get("text") or option.get("label") or ""
+                if not option_text:
+                    continue
                 if (
-                    response_text.lower() in option["text"].lower()
-                    or option["text"].lower() in response_text.lower()
+                    response_text.lower() in option_text.lower()
+                    or option_text.lower() in response_text.lower()
                 ):
                     return {
                         "valid": True,
@@ -344,14 +530,29 @@ class ResponseHandler:
 
             question_type = question["type"]
 
+            recent_lines = []
+            recent_responses = context.responses_so_far[-5:] if context.responses_so_far else []
+            for idx, resp in enumerate(recent_responses, start=1):
+                question_label = resp.get("question_text") or resp.get("question_id") or "Pergunta"
+                value_label = resp.get("processed_value")
+                recent_lines.append(f"{idx}. {question_label}: {value_label}")
+
+            recent_block = (
+                "\nContexto recente (últimas respostas):\n" + "\n".join(recent_lines)
+                if recent_lines
+                else ""
+            )
+
             if question_type == QuestionType.SCALE.value:
+                patient_name = getattr(getattr(context, "patient_data", None), "name", "Paciente")
                 prompt = f"""
                 Analise a resposta do paciente para uma pergunta de escala de 1 a 5:
 
                 Pergunta: {question["text"]}
                 Resposta: "{response_text}"
+                {recent_block}
 
-                Contexto do paciente: {context.patient_data.name} está em tratamento de terapia hormonal.
+                Contexto do paciente: {patient_name} está em tratamento de terapia hormonal.
 
                 Escala:
                 1 = Muito ruim/baixo/negativo
@@ -362,12 +563,18 @@ class ResponseHandler:
 
                 Retorne apenas o número (1-5) que melhor representa a resposta.
                 Se não conseguir interpretar, retorne "INVALID".
+
+                Regras de saída (obrigatório):
+                - Responda apenas com "1", "2", "3", "4", "5" ou "INVALID"
+                - Não inclua explicações, raciocínios ou meta-comentários
+                - Não mencione prompt, instruções, políticas ou sistema
+                - Não use markdown ou blocos de código
                 """
 
             elif question_type == QuestionType.MULTIPLE_CHOICE.value:
                 options_text = "\n".join(
                     [
-                        f"- {opt['value']}: {opt['text']}"
+                        f"- {opt.get('value')}: {opt.get('text') or opt.get('label')}"
                         for opt in question.get("options", [])
                     ]
                 )
@@ -377,21 +584,33 @@ class ResponseHandler:
 
                 Pergunta: {question["text"]}
                 Resposta: "{response_text}"
+                {recent_block}
 
                 Opções disponíveis:
                 {options_text}
 
                 Retorne apenas o valor (value) da opção que melhor corresponde.
                 Se não conseguir determinar, retorne "INVALID".
+
+                Regras de saída (obrigatório):
+                - Responda apenas com o value da opção ou "INVALID"
+                - Não inclua explicações, raciocínios ou meta-comentários
+                - Não mencione prompt, instruções, políticas ou sistema
+                - Não use markdown ou blocos de código
                 """
             else:
                 return None
 
-            # Get AI response
-            ai_response = await self.gemini_client.generate_content(prompt)
+            # Use helper to call LangGraph
+            ai_response = await self._invoke_interpretation_graph(
+                prompt,
+                thread_id=self._build_interpretation_thread_id(context, question),
+            )
 
-            if not ai_response or ai_response.strip() == "INVALID":
-                return None
+            if not ai_response:
+                raise ValueError("AI returned empty response")
+            if ai_response.strip() == "INVALID":
+                raise ValueError("AI could not interpret response")
 
             # Validate AI response
             if question_type == QuestionType.SCALE.value:
@@ -416,11 +635,25 @@ class ResponseHandler:
                         "ai_interpreted": True,
                     }
 
-            return None
+            raise ValueError("AI response did not match any valid option")
 
         except Exception as e:
             self._logger.error(f"AI response processing failed: {e}")
             return None
+
+    def _build_interpretation_thread_id(
+        self, context: "QuizContext", question: Dict[str, Any]
+    ) -> str:
+        """Build deterministic thread_id for quiz interpretation graph calls."""
+        patient_key = sanitize_thread_component(context.patient_id)
+        session_key = sanitize_thread_component(getattr(context.session, "id", None))
+        question_key = sanitize_thread_component(
+            question.get("id", context.current_question)
+        )
+        return (
+            f"quiz:interpretation:"
+            f"patient:{patient_key}:session:{session_key}:question:{question_key}"
+        )
 
     async def request_swarm_analysis(
         self,
@@ -436,10 +669,21 @@ class ResponseHandler:
 
             # Request analysis from relevant agents
             analysis_requests = {
-                "mood_analysis": "alert_analyzer_agent",
-                "medical_significance": "patient_monitor_agent",
-                "flow_impact": "flow_coordinator_agent",
+                "mood_analysis": ALERT_ANALYZER_ID,
+                "medical_significance": PATIENT_MONITOR_ID,
+                "flow_impact": FLOW_COORDINATOR_ID,
             }
+
+            template = getattr(context, "template", None)
+            questions = getattr(template, "questions", None) if template else None
+            current_index = max(
+                int(getattr(context, "current_question", 0) or 0), 0
+            )
+            question_context = (
+                questions[current_index]
+                if isinstance(questions, list) and current_index < len(questions)
+                else {}
+            )
 
             swarm_analysis = {}
 
@@ -452,9 +696,7 @@ class ResponseHandler:
                         {
                             "patient_id": str(context.patient_id),
                             "response_text": response_text,
-                            "question_context": context.template.questions[
-                                context.current_question_index
-                            ],
+                            "question_context": question_context,
                             "basic_processing": basic_result,
                             "analysis_type": analysis_type,
                         },

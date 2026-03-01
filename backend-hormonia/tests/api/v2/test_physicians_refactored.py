@@ -21,7 +21,8 @@ from sqlalchemy.orm import Session
 from app.models.user import User, UserRole
 from app.models.patient import Patient, FlowState
 from app.models.message import Message, MessageDirection, MessageStatus
-from app.models.appointment import Appointment, AppointmentStatus
+from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.api.v2.routers.physicians.services import (
     PhysicianStatisticsService,
     PhysicianAvailabilityService,
@@ -64,8 +65,9 @@ def patients(db: Session, physician: User) -> list[Patient]:
         patient = Patient(
             id=uuid4(),
             doctor_id=physician.id,
+            name=f"Patient {i}",
             flow_state=FlowState.ACTIVE if i < 3 else FlowState.CANCELLED,
-            created_at=datetime.utcnow(),
+            created_at=now_sao_paulo_naive(),
         )
         db.add(patient)
         patients.append(patient)
@@ -120,7 +122,7 @@ class TestBaseUtilities:
         self, db: Session, physician: User, patients: list[Patient]
     ):
         """Test patient can view assigned physician."""
-        patient_user = {"id": str(patients[0].id), "role": UserRole.PATIENT}
+        patient_user = {"id": str(patients[0].id), "role": "patient"}
 
         result = validate_physician_access(
             physician.id, patient_user, db, allow_patient_view=True
@@ -175,7 +177,8 @@ class TestPhysicianStatisticsService:
                     direction=MessageDirection.INBOUND,
                     status=MessageStatus.DELIVERED,
                     content="Test message",
-                    created_at=datetime.utcnow(),
+                    idempotency_key=f"phys-ref-in-{patient.id}-{uuid4()}",
+                    created_at=now_sao_paulo_naive(),
                 )
                 db.add(msg)
 
@@ -186,7 +189,8 @@ class TestPhysicianStatisticsService:
                 direction=MessageDirection.OUTBOUND,
                 status=MessageStatus.DELIVERED,
                 content="Response",
-                created_at=datetime.utcnow(),
+                idempotency_key=f"phys-ref-out-{patient.id}-{uuid4()}",
+                created_at=now_sao_paulo_naive(),
             )
             db.add(msg)
 
@@ -276,11 +280,12 @@ class TestPhysicianAvailabilityService:
                 id=uuid4(),
                 practitioner_id=physician.id,
                 patient_id=patients[i].id,
+                appointment_type=AppointmentType.CONSULTATION,
                 scheduled_at=datetime.combine(
                     today + timedelta(days=i),
                     datetime.min.time()
                 ),
-                status=AppointmentStatus.SCHEDULED.value,
+                status=AppointmentStatus.SCHEDULED,
             )
             db.add(appt)
 
@@ -302,7 +307,7 @@ class TestPhysicianAvailabilityService:
         """Test availability check with no conflicts."""
         service = PhysicianAvailabilityService(db)
 
-        requested_datetime = datetime.utcnow() + timedelta(days=1)
+        requested_datetime = now_sao_paulo_naive() + timedelta(days=1)
         is_available = service.is_available(
             physician.id, requested_datetime, duration_minutes=30
         )
@@ -313,15 +318,16 @@ class TestPhysicianAvailabilityService:
         self, db: Session, physician: User, patients: list[Patient]
     ):
         """Test availability check with conflicting appointment."""
-        requested_datetime = datetime.utcnow() + timedelta(days=1)
+        requested_datetime = now_sao_paulo_naive() + timedelta(days=1)
 
         # Create conflicting appointment
         appt = Appointment(
             id=uuid4(),
             practitioner_id=physician.id,
             patient_id=patients[0].id,
+            appointment_type=AppointmentType.CONSULTATION,
             scheduled_at=requested_datetime,
-            status=AppointmentStatus.SCHEDULED.value,
+            status=AppointmentStatus.SCHEDULED,
         )
         db.add(appt)
         db.commit()

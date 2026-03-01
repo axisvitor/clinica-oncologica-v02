@@ -28,6 +28,7 @@ This file serves as the primary context for the Gemini agent working on the `cli
 ### Backend (`/backend-hormonia`)
 *   **Install:** `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
 *   **Run Dev:** `uvicorn app.main:app --reload --port 8000`
+*   **Run Full System (Worker/Beat):** [See Running Backend Guide](docs/guides/running_backend.md)
 *   **Migrations:** `alembic upgrade head`
 *   **Test:** `pytest`
 *   **Lint/Format:** `ruff check .` (implied from typical python setups, though not explicitly in scripts, verify if needed)
@@ -51,7 +52,7 @@ This file serves as the primary context for the Gemini agent working on the `cli
 
 Each service requires its own `.env` file based on the `.env.example` provided in its respective directory.
 
-*   **Backend:** Requires `DATABASE_URL`, `REDIS_URL`, `ENCRYPTION_KEY` (32 chars), `HASH_SALT` (32 chars), `CSRF_SECRET_KEY` (32 chars).
+*   **Backend:** Requires `DATABASE_URL`, `REDIS_URL`, `SECURITY_SECRET_KEY`, `SECURITY_CSRF_SECRET_KEY`, `PHI_ENCRYPTION_KEY` (base64), `ENCRYPTION_KEY_CURRENT` (Fernet), and `HASH_SALT` (hex).
 *   **Frontend:** Requires `VITE_API_URL` and Firebase config.
 
 ## 5. Directory Structure Key
@@ -70,3 +71,16 @@ Each service requires its own `.env` file based on the `.env.example` provided i
 *   **Dependencies:** Do NOT run `npm install` in the root. Go to the specific service directory first.
 *   **Python Version:** Strictly Python 3.13+.
 *   **Node Version:** Node 20+.
+
+## 7. Recent Changes (2026-01-04)
+
+### Backend
+*   **SagaOrchestrator:** Consolidated to single modular implementation (`app/orchestration/saga_orchestrator/`). Legacy file archived.
+*   **Phone Normalization:** Standardized to E.164 format across all services.
+*   **Quiz Security:** Added token exp/type validation, secure cookie (environment-conditional), fixed `answered_questions` increment bug.
+*   **Quiz Tables:** Dropped unused tables (quiz_sessions_v2, quiz_template_versions_v2, quiz_questions, etc.).
+*   **Celery Tasks:** Fixed AsyncSession usage in `send_scheduled_message`.
+*   **Patient Activation:** CompletionService now properly activates patients after flow initialization.
+
+### Frontend (quiz-mensal-interface)
+*   **Empty Quiz Handling:** Added guards for empty questions array with user-friendly error state.

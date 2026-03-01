@@ -12,7 +12,7 @@ File: backend-hormonia/tests/security/test_low_001_pii_masking.py
 import pytest
 from uuid import uuid4
 
-from app.utils.pii_masking import (
+from app.utils.pii_redaction import (
     mask_cpf,
     mask_phone,
     mask_email,

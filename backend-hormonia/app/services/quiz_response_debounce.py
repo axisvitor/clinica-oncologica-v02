@@ -14,7 +14,8 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from uuid import UUID
 
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -273,7 +274,7 @@ class QuizResponseDebouncer:
         import json
 
         data = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
             "metadata": message_metadata or {},
         }
 

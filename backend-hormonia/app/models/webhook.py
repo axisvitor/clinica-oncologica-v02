@@ -4,6 +4,7 @@ Stores webhook configurations, delivery history, and activity logs.
 """
 
 from datetime import datetime
+import sqlalchemy as sa
 from sqlalchemy import (
     Column,
     String,
@@ -20,6 +21,7 @@ from sqlalchemy.orm import relationship
 from uuid import uuid4
 
 from app.models.base import Base
+from app.utils.timezone import now_sao_paulo_naive
 
 # Note: Webhook models use Base (not BaseModel) because they have custom
 # id/timestamp columns that differ from BaseModel's standard fields.
@@ -35,11 +37,25 @@ class WebhookEndpoint(Base):
 
     __tablename__ = "webhook_endpoints"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
     url = Column(String(2048), nullable=False, comment="Target URL")
     description = Column(String(500), nullable=True)
     status = Column(
-        String(20),
+        sa.Enum(
+            "active",
+            "inactive",
+            "paused",
+            "error",
+            name="webhook_endpoint_status",
+            native_enum=True,
+            create_type=False,
+            validate_strings=True,
+        ),
         default="active",
         nullable=False,
         comment="active, inactive, paused, error",
@@ -66,12 +82,12 @@ class WebhookEndpoint(Base):
 
     # Metadata
     created_at = Column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=now_sao_paulo_naive, nullable=False
     )
     updated_at = Column(
         DateTime(timezone=True),
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=now_sao_paulo_naive,
+        onupdate=now_sao_paulo_naive,
         nullable=False,
     )
 
@@ -94,7 +110,12 @@ class WebhookDelivery(Base):
 
     __tablename__ = "webhook_deliveries"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
     webhook_id = Column(
         UUID(as_uuid=True),
         ForeignKey("webhook_endpoints.id", ondelete="CASCADE"),
@@ -107,7 +128,18 @@ class WebhookDelivery(Base):
 
     # Delivery details
     status = Column(
-        String(20), nullable=False, comment="pending, success, failed, retrying"
+        sa.Enum(
+            "pending",
+            "success",
+            "failed",
+            "retrying",
+            name="webhook_delivery_status",
+            native_enum=True,
+            create_type=False,
+            validate_strings=True,
+        ),
+        nullable=False,
+        comment="pending, success, failed, retrying",
     )
     attempt = Column(Integer, default=1, nullable=False)
     status_code = Column(Integer, nullable=True)
@@ -117,7 +149,7 @@ class WebhookDelivery(Base):
 
     # Timing
     created_at = Column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=now_sao_paulo_naive, nullable=False
     )
     completed_at = Column(DateTime(timezone=True), nullable=True)
     next_retry_at = Column(DateTime(timezone=True), nullable=True)
@@ -140,7 +172,12 @@ class WebhookLog(Base):
 
     __tablename__ = "webhook_logs"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+        server_default=sa.text("gen_random_uuid()"),
+    )
     webhook_id = Column(
         UUID(as_uuid=True),
         ForeignKey("webhook_endpoints.id", ondelete="CASCADE"),
@@ -154,7 +191,7 @@ class WebhookLog(Base):
     details = Column(JSONB, nullable=True)
 
     created_at = Column(
-        DateTime(timezone=True), default=datetime.utcnow, nullable=False
+        DateTime(timezone=True), default=now_sao_paulo_naive, nullable=False
     )
 
     # Relationships

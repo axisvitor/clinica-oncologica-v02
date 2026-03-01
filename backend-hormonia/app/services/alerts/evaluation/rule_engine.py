@@ -15,6 +15,7 @@ from ..types import (
     AlertRuleType,
     AlertEvaluation,
 )
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -309,7 +310,7 @@ class RuleEngine:
                 raise ValueError(f"Cannot update field: {field}")
             setattr(rule, field, value)
 
-        rule.updated_at = datetime.now(timezone.utc)
+        rule.updated_at = now_sao_paulo()
 
         logger.info(f"Updated rule {rule_id}: {list(updates.keys())}")
 

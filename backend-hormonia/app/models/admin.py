@@ -70,7 +70,7 @@ class SystemStatsResponse(BaseModel):
                     "total_users": 125,
                     "connections": 12,
                 },
-                "timestamp": "2025-10-06T14:30:00.000Z",
+                "timestamp": "2025-10-06T14:30:00.000-03:00",
             }
         }
     )

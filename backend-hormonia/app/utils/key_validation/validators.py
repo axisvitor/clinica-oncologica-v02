@@ -25,6 +25,38 @@ from .distribution import analyze_character_distribution
 logger = logging.getLogger(__name__)
 
 
+def _count_sequential_runs(value: str, min_run: int = 3) -> int:
+    """Count increasing alphanumeric runs (e.g., abc, 123)."""
+    if len(value) < min_run:
+        return 0
+
+    def _is_step(prev_char: str, curr_char: str) -> bool:
+        if prev_char.isdigit() and curr_char.isdigit():
+            return ord(curr_char) == ord(prev_char) + 1
+        if prev_char.isalpha() and curr_char.isalpha():
+            return ord(curr_char) == ord(prev_char) + 1
+        return False
+
+    runs = 0
+    idx = 0
+    end = len(value)
+
+    while idx < end - 1:
+        run_len = 1
+        cursor = idx
+        while cursor + 1 < end and _is_step(value[cursor], value[cursor + 1]):
+            run_len += 1
+            cursor += 1
+
+        if run_len >= min_run:
+            runs += 1
+            idx = cursor + 1
+        else:
+            idx += 1
+
+    return runs
+
+
 def validate_secret_entropy(
     secret: str,
     min_bits: int = MIN_ENTROPY_PRODUCTION,
@@ -146,8 +178,11 @@ def validate_key_strength(
         issues.append("Contains repeated patterns")
         recommendations.append("Avoid repeated character sequences")
 
-    # Check for sequential characters
-    if re.search(r"(abc|bcd|cde|123|234|345|678|789)", key.lower()):
+    # Check for sequential characters.
+    # Use density so very long random keys are not penalized for incidental sequences.
+    sequential_runs = _count_sequential_runs(key.lower(), min_run=3)
+    sequential_density = sequential_runs / max(1, key_length // 3)
+    if sequential_runs >= 2 and (sequential_density >= 0.1 or key_length <= 64):
         issues.append("Contains sequential characters")
         recommendations.append("Avoid sequential patterns (abc, 123, etc.)")
 

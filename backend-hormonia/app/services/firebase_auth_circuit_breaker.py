@@ -18,10 +18,16 @@ Date: 2025-11-16
 import logging
 from typing import Optional, Dict, Any
 import firebase_admin
-from firebase_admin import credentials, auth
 from fastapi import HTTPException, status
 
-from app.core.circuit_breaker_enhanced import ServiceType, get_circuit_breaker_manager
+from app.resilience.circuit_breaker.enhanced import (
+    ServiceType,
+    get_circuit_breaker_manager,
+)
+from app.services.firebase_auth_shared import (
+    serialize_user_record,
+    verify_token_and_build_user_info,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +78,7 @@ class FirebaseAuthServiceWithCircuitBreaker:
                 "token_uri": "https://oauth2.googleapis.com/token",
             }
 
-            cred = credentials.Certificate(cred_dict)
+            cred = firebase_admin.credentials.Certificate(cred_dict)
 
             # Initialize Firebase Admin SDK
             if not firebase_admin._apps:
@@ -131,84 +137,13 @@ class FirebaseAuthServiceWithCircuitBreaker:
 
         # Wrap Firebase API call with circuit breaker
         async def _verify():
-            try:
-                # Verify the Firebase ID token
-                decoded_token = auth.verify_id_token(token, check_revoked=True)
-
-                # Extract custom claims
-                reserved_claims = {
-                    "iss",
-                    "aud",
-                    "auth_time",
-                    "user_id",
-                    "sub",
-                    "iat",
-                    "exp",
-                    "firebase",
-                    "uid",
-                    "email",
-                    "email_verified",
-                    "phone_number",
-                    "name",
-                    "picture",
-                    "identities",
-                }
-                custom_claims = {
-                    k: v for k, v in decoded_token.items() if k not in reserved_claims
-                }
-
-                # Extract user information
-                user_info = {
-                    "uid": decoded_token.get("uid"),
-                    "email": decoded_token.get("email"),
-                    "email_verified": decoded_token.get("email_verified", False),
-                    "name": decoded_token.get("name"),
-                    "picture": decoded_token.get("picture"),
-                    "custom_claims": custom_claims,
-                    "auth_time": decoded_token.get("auth_time"),
-                    "exp": decoded_token.get("exp"),
-                }
-
-                logger.debug(
-                    f"Successfully verified token for user: {user_info['email']}"
-                )
-                return user_info
-
-            except auth.ExpiredIdTokenError:
-                logger.warning("Expired token attempted")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token has expired",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-
-            except auth.RevokedIdTokenError:
-                logger.warning("Revoked token attempted")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token has been revoked",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-
-            except auth.InvalidIdTokenError as e:
-                logger.warning(f"Invalid token: {str(e)}")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid authentication token",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-
-            except auth.UserDisabledError:
-                logger.warning("Disabled user attempted authentication")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="User account has been disabled",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-
-            except Exception as e:
-                logger.error(f"Unexpected error verifying token: {str(e)}")
-                raise
+            user_info = verify_token_and_build_user_info(
+                token,
+                logger=logger,
+                propagate_unexpected=True,
+            )
+            logger.debug(f"Successfully verified token for user: {user_info['email']}")
+            return user_info
 
         # Call through circuit breaker
         return await self.breaker.call(_verify, fallback=fallback_verify)
@@ -232,32 +167,13 @@ class FirebaseAuthServiceWithCircuitBreaker:
 
         async def _get_user():
             try:
-                user_record = auth.get_user(uid)
-
-                user_data = {
-                    "uid": user_record.uid,
-                    "email": user_record.email,
-                    "email_verified": user_record.email_verified,
-                    "display_name": user_record.display_name,
-                    "photo_url": user_record.photo_url,
-                    "disabled": user_record.disabled,
-                    "custom_claims": user_record.custom_claims or {},
-                    "provider_data": [
-                        {
-                            "provider_id": provider.provider_id,
-                            "uid": provider.uid,
-                            "email": provider.email,
-                        }
-                        for provider in user_record.provider_data
-                    ],
-                    "created_at": user_record.user_metadata.creation_timestamp,
-                    "last_sign_in": user_record.user_metadata.last_sign_in_timestamp,
-                }
+                user_record = firebase_admin.auth.get_user(uid)
+                user_data = serialize_user_record(user_record)
 
                 logger.debug(f"Retrieved user data for UID: {uid}")
                 return user_data
 
-            except auth.UserNotFoundError:
+            except firebase_admin.auth.UserNotFoundError:
                 logger.warning(f"User not found: {uid}")
                 return None
 
@@ -285,7 +201,7 @@ class FirebaseAuthServiceWithCircuitBreaker:
 
         async def _set_claims():
             try:
-                auth.set_custom_user_claims(uid, claims)
+                firebase_admin.auth.set_custom_user_claims(uid, claims)
                 logger.info(f"Set custom claims for user {uid}: {claims}")
                 return True
 

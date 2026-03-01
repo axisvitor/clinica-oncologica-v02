@@ -7,15 +7,29 @@ Handles expired quiz session cleanup and flow resumption.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from typing import Any
 from uuid import UUID
-from datetime import datetime, timezone
-from celery import current_app as celery_app
+from app.task_queue import task_queue as celery_app
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_
 
-from app.database import get_db
+from app.database import get_scoped_session
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_MAX_AGE_HOURS = 48
+_MAX_MAX_AGE_HOURS = 24 * 30  # 30 days
+
+
+def _sanitize_max_age_hours(max_age_hours: int) -> int:
+    """Clamp cleanup window to a safe range."""
+    try:
+        hours = int(max_age_hours)
+    except (TypeError, ValueError):
+        return _DEFAULT_MAX_AGE_HOURS
+    return max(1, min(hours, _MAX_MAX_AGE_HOURS))
 
 
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=60)
@@ -44,20 +58,31 @@ def cleanup_expired_quiz_sessions_task(self, max_age_hours: int = 48) -> dict[st
         Exception: If cleanup fails after all retries
     """
     try:
-        with next(get_db()) as db:
+        max_age_hours = _sanitize_max_age_hours(max_age_hours)
+        with get_scoped_session() as db:
             from app.models.quiz import QuizSession
             from app.models.patient import Patient
 
-            current_time = datetime.now(timezone.utc)
+            current_time = now_sao_paulo()
+            max_age_cutoff = current_time - timedelta(hours=max_age_hours)
 
             # Query sessions that are expired
             expired_sessions = (
                 db.query(QuizSession)
                 .filter(
                     QuizSession.status == "started",
-                    QuizSession.expiration_date.isnot(None),
-                    QuizSession.expiration_date <= current_time,
+                    or_(
+                        and_(
+                            QuizSession.expiration_date.isnot(None),
+                            QuizSession.expiration_date <= current_time,
+                        ),
+                        and_(
+                            QuizSession.expiration_date.is_(None),
+                            QuizSession.started_at <= max_age_cutoff,
+                        ),
+                    ),
                 )
+                .with_for_update(skip_locked=True)
                 .all()
             )
 
@@ -76,17 +101,20 @@ def cleanup_expired_quiz_sessions_task(self, max_age_hours: int = 48) -> dict[st
                         .first()
                     )
 
-                    # Mark session as expired (SQLAlchemy handles Column[T] to T conversion)
+                    # Always persist expiration state even if side-effects fail later.
                     session.status = "expired"  # type: ignore[assignment]
                     session.completed_at = current_time  # type: ignore[assignment]
 
-                    # Update session metadata with expiration info
-                    if session.session_metadata is None:
-                        session.session_metadata = {}
-                    session.session_metadata.update(
+                    # Reassign JSON field to ensure SQLAlchemy detects mutation.
+                    session_metadata = dict(session.session_metadata or {})
+                    session_metadata.update(
                         {
                             "expired_at": current_time.isoformat(),
+                            # Keep canonical reason for backward compatibility.
                             "expiration_reason": "timeout",
+                            "expiration_source": (
+                                "expiration_date" if session.expiration_date else "max_age"
+                            ),
                             "original_expiration_date": session.expiration_date.isoformat()
                             if session.expiration_date
                             else None,
@@ -95,34 +123,57 @@ def cleanup_expired_quiz_sessions_task(self, max_age_hours: int = 48) -> dict[st
                         }
                     )
 
-                    cleanup_count += 1
-
-                    # Notify doctor about expired session
-                    notification_sent = _notify_doctor_of_expired_session(
-                        db=db, session=session, patient=patient
-                    )
+                    notification_sent = False
+                    try:
+                        notification_sent = _notify_doctor_of_expired_session(
+                            db=db, session=session, patient=patient
+                        )
+                    except Exception as notify_exc:
+                        errors += 1
+                        logger.error(
+                            "Error notifying doctor for session %s: %s",
+                            session.id,
+                            notify_exc,
+                            exc_info=True,
+                        )
+                        notification_sent = False
 
                     if notification_sent:
                         notifications_sent += 1
+                    else:
+                        session_metadata["doctor_notification_pending"] = True
 
-                    # Resume patient flow (SQLAlchemy Column[UUID] converts to UUID at runtime)
-                    flow_resumed = _resume_patient_flow_after_expiration(
-                        db=db,
-                        patient_id=session.patient_id,  # type: ignore[arg-type]
-                        quiz_session_id=session.id,  # type: ignore[arg-type]
-                    )
+                    flow_resumed = False
+                    try:
+                        flow_resumed = _resume_patient_flow_after_expiration(
+                            db=db,
+                            patient_id=session.patient_id,  # type: ignore[arg-type]
+                            quiz_session_id=session.id,  # type: ignore[arg-type]
+                        )
+                    except Exception as flow_exc:
+                        errors += 1
+                        logger.error(
+                            "Error resuming patient flow for session %s: %s",
+                            session.id,
+                            flow_exc,
+                            exc_info=True,
+                        )
+                        flow_resumed = False
 
                     if flow_resumed:
                         flows_resumed += 1
+                    else:
+                        session_metadata["flow_resume_pending"] = True
+
+                    session.session_metadata = session_metadata
+                    cleanup_count += 1
 
                     # Track session details
                     session_details.append(
                         {
                             "session_id": str(session.id),
                             "patient_id": str(session.patient_id),
-                            "patient_name": f"{patient.first_name} {patient.last_name}"
-                            if patient
-                            else "Unknown",
+                            "patient_name": patient.name if patient and patient.name else "Unknown",
                             "started_at": session.started_at.isoformat(),
                             "expired_at": current_time.isoformat(),
                             "questions_answered": session.answered_questions or 0,
@@ -183,47 +234,38 @@ def _notify_doctor_of_expired_session(db: Session, session, patient) -> bool:
         bool: True if notification was sent successfully
     """
     try:
-        # Use consolidated alert system (QW-020: Legacy alert system archived)
-        from app.services.alerts import AlertManagerAdapter
+        from app.models.alert import Alert, AlertSeverity
 
-        alert_service = AlertManagerAdapter(db)
-
-        # Create alert for healthcare providers
-        patient_name = (
-            f"{patient.first_name} {patient.last_name}"
-            if patient
-            else "Unknown Patient"
-        )
+        patient_name = patient.name if patient and patient.name else "Unknown Patient"
         questions_answered = session.answered_questions or 0
         total_questions = session.total_questions or 0
         completion_rate = (
             (questions_answered / total_questions * 100) if total_questions > 0 else 0
         )
 
-        alert_data = {
-            "patient_id": session.patient_id,
-            "alert_type": "quiz_expired",
-            "priority": "medium",
-            "title": "Quiz Session Expired",
-            "message": (
-                f"Quiz session for {patient_name} has expired without completion. "
+        alert = Alert(
+            patient_id=session.patient_id,
+            alert_type="quiz_expired",
+            severity=AlertSeverity.MEDIUM,
+            description=(
+                f"Quiz Session Expired: Quiz session for {patient_name} has expired without completion. "
                 f"Patient answered {questions_answered} of {total_questions} questions ({completion_rate:.0f}%). "
                 f"Session started at {session.started_at.strftime('%Y-%m-%d %H:%M')}."
             ),
-            "metadata": {
+            data={
                 "quiz_session_id": str(session.id),
                 "quiz_template_id": str(session.quiz_template_id),
                 "started_at": session.started_at.isoformat(),
-                "expired_at": datetime.now(timezone.utc).isoformat(),
+                "expired_at": now_sao_paulo().isoformat(),
                 "questions_answered": questions_answered,
                 "total_questions": total_questions,
                 "completion_rate": completion_rate,
-                "requires_follow_up": completion_rate
-                < 50,  # Flag for follow-up if less than 50% complete
+                "requires_follow_up": completion_rate < 50,
             },
-        }
-
-        alert_service.create_alert(alert_data)  # type: ignore[attr-defined]
+            acknowledged=False,
+        )
+        db.add(alert)
+        db.flush()
         logger.info(f"Doctor notification sent for expired session {session.id}")
         return True
 
@@ -261,20 +303,19 @@ def _resume_patient_flow_after_expiration(
             return False
 
         # Update flow state to resume normal flow
-        if flow_state.state_data is None:
-            flow_state.state_data = {}
-
-        flow_state.state_data.update(
+        state_data = dict(flow_state.state_data or {})
+        state_data.update(
             {
                 "quiz_expired": True,
                 "expired_quiz_session_id": str(quiz_session_id),
-                "flow_resumed_at": datetime.now(timezone.utc).isoformat(),
+                "flow_resumed_at": now_sao_paulo().isoformat(),
                 "waiting_for_quiz": False,  # Clear quiz waiting flag
             }
         )
+        flow_state.state_data = state_data
 
         # Mark flow as ready to continue
-        flow_state.last_message_at = datetime.now(timezone.utc)
+        flow_state.last_message_at = now_sao_paulo()
 
         db.flush()
         logger.info(

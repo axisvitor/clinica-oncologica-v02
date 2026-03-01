@@ -1,5 +1,6 @@
 import pytest
-from app.core.permissions import Permission, RolePermissions, ROLE_DEFINITIONS
+
+from app.core.permissions import Permission, PermissionChecker, ROLE_DEFINITIONS
 from app.models.user import UserRole
 
 @pytest.mark.security
@@ -45,13 +46,13 @@ class TestRBACAuditVerification:
     def test_role_permissions_has_permission_utility(self):
         """Verify the utility function for permission checking works correctly."""
         # Admin should have PATIENT_READ
-        assert RolePermissions.has_permission(UserRole.ADMIN, Permission.PATIENT_READ)
-        
+        assert PermissionChecker.has_permission(UserRole.ADMIN, Permission.PATIENT_READ)
+
         # Doctor should have PATIENT_READ
-        assert RolePermissions.has_permission(UserRole.DOCTOR, Permission.PATIENT_READ)
-        
+        assert PermissionChecker.has_permission(UserRole.DOCTOR, Permission.PATIENT_READ)
+
         # Doctor should NOT have ADMIN_PANEL
-        assert not RolePermissions.has_permission(UserRole.DOCTOR, Permission.ADMIN_PANEL)
+        assert not PermissionChecker.has_permission(UserRole.DOCTOR, Permission.ADMIN_PANEL)
 
     def test_patient_sensitive_data_access(self):
         """
@@ -60,6 +61,8 @@ class TestRBACAuditVerification:
         or it's restricted to DOCTOR.
         Audit check: Ensure ADMIN can access if required for support.
         """
-        has_access = RolePermissions.has_permission(UserRole.ADMIN, Permission.PATIENT_SENSITIVE_DATA)
+        has_access = PermissionChecker.has_permission(
+            UserRole.ADMIN, Permission.PATIENT_SENSITIVE_DATA
+        )
         # If this fails, we documented a gap in ADMIN capabilities
         assert has_access, "ADMIN should have PATIENT_SENSITIVE_DATA permission for system support"

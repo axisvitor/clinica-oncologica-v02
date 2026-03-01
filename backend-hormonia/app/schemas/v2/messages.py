@@ -9,6 +9,8 @@ from enum import Enum
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 from .common import CursorPaginatedResponse
+from app.schemas.validators.phone import validate_phone_e164
+from app.utils.timezone import now_sao_paulo
 
 
 # ============================================================================
@@ -143,7 +145,7 @@ class MessageV2Create(MessageV2Base):
                 "content": "Olá! Lembre-se de tomar seu medicamento hoje às 9h.",
                 "type": "text",
                 "direction": "outbound",
-                "scheduled_for": "2025-11-08T09:00:00Z",
+                "scheduled_for": "2025-11-08T09:00:00-03:00",
                 "priority": "normal",
                 "message_metadata": {"campaign": "medication_reminder", "flow_day": 7},
             }
@@ -163,7 +165,7 @@ class MessageV2Update(BaseModel):
         json_schema_extra={
             "example": {
                 "content": "Updated message content",
-                "scheduled_for": "2025-11-08T10:00:00Z",
+                "scheduled_for": "2025-11-08T10:00:00-03:00",
             }
         }
     )
@@ -207,12 +209,12 @@ class MessageV2Response(MessageV2Base):
                 "type": "text",
                 "direction": "outbound",
                 "status": "delivered",
-                "scheduled_for": "2025-11-08T09:00:00Z",
-                "sent_at": "2025-11-08T09:00:05Z",
-                "delivered_at": "2025-11-08T09:00:08Z",
+                "scheduled_for": "2025-11-08T09:00:00-03:00",
+                "sent_at": "2025-11-08T09:00:05-03:00",
+                "delivered_at": "2025-11-08T09:00:08-03:00",
                 "whatsapp_id": "wamid.HBgNNTU5ODc2NTQzMjEwFQIAEhgUM0E...",
-                "created_at": "2025-11-07T10:00:00Z",
-                "updated_at": "2025-11-08T09:00:08Z",
+                "created_at": "2025-11-07T10:00:00-03:00",
+                "updated_at": "2025-11-08T09:00:08-03:00",
                 "patient": {
                     "id": "pat_456def",
                     "name": "João Silva",
@@ -237,7 +239,7 @@ class MessageV2List(CursorPaginatedResponse[MessageV2Response]):
                         "content": "Hello message",
                         "type": "text",
                         "status": "delivered",
-                        "created_at": "2025-11-07T10:00:00Z",
+                        "created_at": "2025-11-07T10:00:00-03:00",
                     }
                 ],
                 "next_cursor": "eyJpZCI6Im1zZ18xMjNhYmMifQ==",
@@ -281,7 +283,7 @@ class ConversationV2Response(BaseModel):
                     }
                 ],
                 "unread_count": 2,
-                "last_message_at": "2025-11-07T10:30:00Z",
+                "last_message_at": "2025-11-07T10:30:00-03:00",
                 "messaging_mode": "conversational",
             }
         }
@@ -302,7 +304,7 @@ class ConversationV2List(CursorPaginatedResponse[ConversationV2Response]):
                     {
                         "patient_id": "pat_456",
                         "unread_count": 2,
-                        "last_message_at": "2025-11-07T10:30:00Z",
+                        "last_message_at": "2025-11-07T10:30:00-03:00",
                     }
                 ],
                 "next_cursor": "eyJpZCI6InBhdF80NTYifQ==",
@@ -353,9 +355,9 @@ class SendMessageV2Response(BaseModel):
                 "message": {
                     "id": "msg_123abc",
                     "status": "sent",
-                    "sent_at": "2025-11-07T10:00:00Z",
+                    "sent_at": "2025-11-07T10:00:00-03:00",
                 },
-                "estimated_delivery": "2025-11-07T10:00:03Z",
+                "estimated_delivery": "2025-11-07T10:00:03-03:00",
             }
         }
     )
@@ -374,7 +376,7 @@ class ScheduleMessageV2Request(BaseModel):
     @classmethod
     def validate_scheduled_for(cls, v):
         """Validate scheduled time is in the future"""
-        if v <= datetime.now(timezone.utc):
+        if v <= now_sao_paulo():
             raise ValueError("Scheduled time must be in the future")
         return v
 
@@ -383,7 +385,7 @@ class ScheduleMessageV2Request(BaseModel):
             "example": {
                 "patient_id": "pat_456def",
                 "content": "Lembre-se da consulta amanhã às 14h!",
-                "scheduled_for": "2025-11-08T08:00:00Z",
+                "scheduled_for": "2025-11-08T08:00:00-03:00",
                 "type": "text",
             }
         }
@@ -404,7 +406,7 @@ class ScheduleMessageV2Response(BaseModel):
                 "message": {
                     "id": "msg_123abc",
                     "status": "scheduled",
-                    "scheduled_for": "2025-11-08T08:00:00Z",
+                    "scheduled_for": "2025-11-08T08:00:00-03:00",
                 },
                 "can_cancel": True,
             }
@@ -427,7 +429,7 @@ class CancelMessageV2Response(BaseModel):
                 "success": True,
                 "message_id": "msg_123abc",
                 "previous_status": "scheduled",
-                "cancelled_at": "2025-11-07T10:30:00Z",
+                "cancelled_at": "2025-11-07T10:30:00-03:00",
                 "message": "Message cancelled successfully",
             }
         }
@@ -482,7 +484,7 @@ class MessageStatsV2Response(BaseModel):
                 "delivery_rate": 95.6,
                 "read_rate": 88.4,
                 "average_response_time_minutes": 32.5,
-                "last_message_at": "2025-11-07T10:00:00Z",
+                "last_message_at": "2025-11-07T10:00:00-03:00",
             }
         }
     )
@@ -500,8 +502,8 @@ class MessageStatusDistributionV2Response(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "period_start": "2025-11-01T00:00:00Z",
-                "period_end": "2025-11-07T23:59:59Z",
+                "period_start": "2025-11-01T00:00:00-03:00",
+                "period_end": "2025-11-07T23:59:59-03:00",
                 "status_counts": {
                     "sent": 234,
                     "delivered": 228,
@@ -533,7 +535,7 @@ class FailedMessageV2Response(MessageV2Response):
                 "failure_reason": "Phone number is not registered on WhatsApp",
                 "can_retry": False,
                 "retry_count": 3,
-                "failed_at": "2025-11-07T10:05:00Z",
+                "failed_at": "2025-11-07T10:05:00-03:00",
             }
         }
     )
@@ -584,15 +586,8 @@ class InboundMessageV2Request(BaseModel):
     @field_validator("patient_phone")
     @classmethod
     def validate_phone(cls, v):
-        """Validate phone number format"""
-        # Basic E.164 validation
-        if not v.startswith("+"):
-            raise ValueError("Phone must be in E.164 format (starting with +)")
-        if not v[1:].isdigit():
-            raise ValueError("Phone must contain only digits after +")
-        if len(v) < 10 or len(v) > 16:
-            raise ValueError("Phone must be 10-16 characters")
-        return v
+        """Validate phone number format via canonical E.164 validator."""
+        return validate_phone_e164(v, allow_none=False)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -601,7 +596,7 @@ class InboundMessageV2Request(BaseModel):
                 "content": "Sim, estou tomando o medicamento corretamente.",
                 "whatsapp_id": "wamid.HBgNNTU5ODc2NTQzMjEwFQIAEhgUM0E...",
                 "type": "text",
-                "received_at": "2025-11-07T10:30:00Z",
+                "received_at": "2025-11-07T10:30:00-03:00",
                 "message_metadata": {"from_name": "João Silva", "media_url": None},
             }
         }
@@ -663,7 +658,7 @@ class BulkMessageV2Request(BaseModel):
                 "patient_ids": ["pat_456def", "pat_789ghi", "pat_012jkl"],
                 "content": "Lembrete: Consulta agendada para esta semana.",
                 "type": "text",
-                "scheduled_for": "2025-11-08T09:00:00Z",
+                "scheduled_for": "2025-11-08T09:00:00-03:00",
                 "message_metadata": {
                     "campaign": "weekly_reminder",
                     "batch_id": "batch_123",
@@ -695,7 +690,7 @@ class BulkMessageV2Response(BaseModel):
                 "scheduled_count": 98,
                 "failed_count": 2,
                 "failed_patients": ["pat_invalid1", "pat_invalid2"],
-                "estimated_completion": "2025-11-08T09:15:00Z",
+                "estimated_completion": "2025-11-08T09:15:00-03:00",
             }
         }
     )
@@ -732,8 +727,8 @@ class MessageTemplateV2Response(BaseModel):
                 "category": "reminder",
                 "language": "pt_BR",
                 "is_active": True,
-                "created_at": "2025-01-01T10:00:00Z",
-                "updated_at": "2025-11-07T10:00:00Z",
+                "created_at": "2025-01-01T10:00:00-03:00",
+                "updated_at": "2025-11-07T10:00:00-03:00",
             }
         },
     )

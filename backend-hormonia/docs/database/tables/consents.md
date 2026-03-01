@@ -6,8 +6,8 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **patient_id** | `UUID` | ❌ | - |  | ➡️ [patients]( patients.md ).id |
 | **consented_by_id** | `UUID` | ✅ | - |  | ➡️ [users]( users.md ).id |
-| **consent_type** | `VARCHAR(13)` | ❌ | - |  |  |
-| **status** | `VARCHAR(7)` | ❌ | - |  |  |
+| **consent_type** | `ENUM(consenttype)` | ❌ | - |  |  |
+| **status** | `ENUM(consentstatus)` | ❌ | - |  |  |
 | **title** | `VARCHAR(200)` | ❌ | - |  |  |
 | **description** | `TEXT` | ❌ | - |  |  |
 | **legal_text** | `TEXT` | ✅ | - |  |  |

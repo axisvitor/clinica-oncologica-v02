@@ -15,17 +15,13 @@ from app.services.cache.specialized.query_cache import (
     QueryCache,
     get_query_cache,
 )
-from app.services.ai.cache_layer import CacheLayer, CacheStrategy
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 
 
 @pytest.fixture
 async def query_cache():
     """Create query cache instance for testing."""
-    cache_layer = CacheLayer(strategy=CacheStrategy.MEMORY)
-    await cache_layer.initialize()
-    cache = QueryCache(cache_layer=cache_layer)
-    yield cache
-    await cache_layer.close()
+    yield QueryCache()
 
 
 @pytest.fixture
@@ -35,7 +31,7 @@ def sample_entity():
         "id": str(uuid4()),
         "name": "John Doe",
         "email": "john@example.com",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": now_sao_paulo_naive().isoformat(),
     }
 
 

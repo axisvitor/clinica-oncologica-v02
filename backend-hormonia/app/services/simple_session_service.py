@@ -1,8 +1,8 @@
 """
-Simple Synchronous Session Service for Quiz Authentication
+Simple Synchronous Session Service for legacy cookie-based quiz sessions
 
 Provides basic Redis-backed session management with synchronous operations.
-Used by quiz_auth.py for cookie-based authentication.
+Kept for backwards compatibility with legacy flows.
 
 Features:
 - Synchronous Redis operations (compatible with SessionLocal)

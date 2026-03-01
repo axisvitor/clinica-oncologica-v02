@@ -1,14 +1,15 @@
+# DDD service agent - no LLM calls, not a pydantic-ai migration target.
 """
 Base Agent class for Hive-Mind system.
 
 Provides core functionality for all agents including communication,
-memory access, consensus participation, and Claude-Flow integration.
+memory access, peer coordination, and Claude-Flow integration.
 """
 
 import asyncio
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional, Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from uuid import uuid4
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -16,6 +17,7 @@ from enum import Enum
 from sqlalchemy.orm import Session
 
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 
 class AgentStatus(Enum):
@@ -119,7 +121,6 @@ class BaseAgent(ABC):
     - Memory system integration
     - Performance metrics
     - Claude-Flow hooks
-    - Consensus participation
     - Error handling and recovery
     """
 
@@ -148,8 +149,8 @@ class BaseAgent(ABC):
 
         # Agent state
         self.status = AgentStatus.INITIALIZING
-        self.created_at = datetime.now(timezone.utc)
-        self.last_heartbeat = datetime.now(timezone.utc)
+        self.created_at = now_sao_paulo()
+        self.last_heartbeat = now_sao_paulo()
 
         # Configuration
         self.config = kwargs
@@ -163,11 +164,10 @@ class BaseAgent(ABC):
 
         # Metrics
         self.metrics = AgentMetrics()
-        self.start_time = datetime.now(timezone.utc)
+        self.start_time = now_sao_paulo()
 
         # Memory and coordination
         self.memory_store = {}
-        self.consensus_votes = {}
         self.peer_agents = {}
 
         # Logging
@@ -292,7 +292,7 @@ class BaseAgent(ABC):
             message_type=message_type,
             payload=payload,
             priority=priority,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
             requires_response=requires_response,
             correlation_id=correlation_id,
         )
@@ -384,7 +384,7 @@ class BaseAgent(ABC):
     # Default message handlers
     async def _handle_ping(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Handle ping message."""
-        self.last_heartbeat = datetime.now(timezone.utc)
+        self.last_heartbeat = now_sao_paulo()
         return {"pong": True, "timestamp": self.last_heartbeat.isoformat()}
 
     async def _handle_status_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -392,14 +392,14 @@ class BaseAgent(ABC):
         return {
             "agent_id": self.agent_id,
             "status": self.status.value,
-            "uptime": (datetime.now(timezone.utc) - self.start_time).total_seconds(),
-            "active_tasks": len(self.active_tasks),
+            "uptime": (now_sao_paulo() - self.start_time).total_seconds(),
+            "active_tasks": self._foreground_active_task_count(),
             "capabilities": await self.get_capabilities(),
         }
 
     async def _handle_metrics_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Handle metrics request."""
-        self.metrics.uptime = datetime.now(timezone.utc) - self.start_time
+        self.metrics.uptime = now_sao_paulo() - self.start_time
         self.metrics.last_activity = self.last_heartbeat
         return asdict(self.metrics)
 
@@ -413,7 +413,7 @@ class BaseAgent(ABC):
             return {"accepted": False, "reason": "Task validation failed"}
 
         # Check capacity
-        if len(self.active_tasks) >= self.max_concurrent_tasks:
+        if self._foreground_active_task_count() >= self.max_concurrent_tasks:
             return {"accepted": False, "reason": "At capacity"}
 
         # Accept and schedule task
@@ -425,7 +425,7 @@ class BaseAgent(ABC):
     # Task execution
     async def _execute_task(self, task_id: str, task_data: Dict[str, Any]):
         """Execute assigned task with error handling and metrics."""
-        start_time = datetime.now(timezone.utc)
+        start_time = now_sao_paulo()
 
         try:
             self.logger.info(f"Executing task {task_id}")
@@ -440,7 +440,7 @@ class BaseAgent(ABC):
 
             # Update metrics
             self.metrics.tasks_completed += 1
-            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds()
+            execution_time = (now_sao_paulo() - start_time).total_seconds()
             self._update_average_response_time(execution_time)
 
             # Run Claude-Flow post-task hook
@@ -489,7 +489,7 @@ class BaseAgent(ABC):
                 swarm_manager = await get_swarm_manager()
                 await swarm_manager.agent_heartbeat(self.agent_id)
 
-                self.last_heartbeat = datetime.now(timezone.utc)
+                self.last_heartbeat = now_sao_paulo()
 
                 # Wait for next heartbeat
                 await asyncio.sleep(self.heartbeat_interval)
@@ -538,6 +538,14 @@ class BaseAgent(ABC):
                 current_total + execution_time
             ) / total_tasks
 
+    def _foreground_active_task_count(self) -> int:
+        """Count only foreground (non-background) running tasks."""
+        return sum(
+            1
+            for task_id, task in self.active_tasks.items()
+            if not str(task_id).startswith("_") and not task.done()
+        )
+
     def get_agent_info(self) -> Dict[str, Any]:
         """Get comprehensive agent information."""
         return {
@@ -547,7 +555,7 @@ class BaseAgent(ABC):
             "status": self.status.value,
             "created_at": self.created_at.isoformat(),
             "last_heartbeat": self.last_heartbeat.isoformat(),
-            "active_tasks": len(self.active_tasks),
+            "active_tasks": self._foreground_active_task_count(),
             "metrics": asdict(self.metrics),
             "config": self.config,
         }

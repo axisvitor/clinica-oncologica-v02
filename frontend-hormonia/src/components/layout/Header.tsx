@@ -52,13 +52,17 @@ export function Header({ onMenuClick }: HeaderProps) {
         {/* Search - hidden on mobile, shown on md+ */}
         <div className="hidden md:flex flex-1 max-w-md">
           <div className="relative w-full">
+            <label htmlFor="global-search-desktop" className="sr-only">
+              Buscar
+            </label>
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               id="global-search-desktop"
               name="q"
               type="search"
-              placeholder="Buscar pacientes, mensagens..."
+              placeholder="Buscar pacientes, mensagens…"
               className="pl-10 bg-gray-50 border-gray-200"
+              autoComplete="off"
             />
           </div>
         </div>
@@ -146,9 +150,10 @@ export function Header({ onMenuClick }: HeaderProps) {
                 id="global-search-mobile"
                 name="q"
                 type="search"
-                placeholder="Buscar pacientes, mensagens..."
+                placeholder="Ex.: Maria Silva…"
                 className="pl-10 bg-gray-50 border-gray-200 h-11"
-                autoFocus
+                autoComplete="off"
+                aria-label="Buscar"
               />
             </div>
             <Button
@@ -162,7 +167,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             </Button>
           </div>
           <div className="p-4">
-            <p className="text-sm text-gray-500">Digite para buscar pacientes, mensagens ou relatórios...</p>
+            <p className="text-sm text-gray-500">Digite para buscar pacientes, mensagens ou relatórios…</p>
           </div>
         </div>
       )}

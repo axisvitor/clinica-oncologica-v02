@@ -181,8 +181,8 @@ class TestPatientV2ClinicalFields:
         data = {
             "id": uuid4(),
             "doctor_id": uuid4(),
-            "created_at": "2025-01-01T10:00:00Z",
-            "updated_at": "2025-01-15T14:30:00Z",
+            "created_at": "2025-01-01T10:00:00-03:00",
+            "updated_at": "2025-01-15T14:30:00-03:00",
             "current_day": 12,
             "flow_state": FlowState.ACTIVE,
             "name": "João Silva",

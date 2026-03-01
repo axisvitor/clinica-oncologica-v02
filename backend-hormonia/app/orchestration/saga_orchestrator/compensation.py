@@ -6,22 +6,23 @@ implementing the compensating transaction pattern for distributed systems.
 """
 
 import asyncio
-import json
+import inspect
 import logging
 from typing import Optional, List, Tuple, Any
-from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy.orm import Session
-
 from app.models.patient_onboarding_saga import PatientOnboardingSaga
-from app.models.message import Message, MessageStatus
-from app.models.flow import PatientFlowState
 from app.models.enums import SagaStatus
-from app.repositories.patient import PatientRepository
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError
+from app.repositories.patient import PatientRepository  # Backward-compat patch target
 
 from .exceptions import SagaCompensationError
+from .compensation_handlers import (
+    compensate_message,
+    compensate_flow,
+    compensate_patient,
+    track_compensation_failure,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,13 +40,23 @@ class SagaCompensator:
 
     def __init__(
         self,
-        db: Session,
-        patient_repo: PatientRepository,
+        db: Any,  # AsyncSession (typed as Any for backward compat with orchestrator)
+        patient_repo: Any = None,  # Kept for backward compat; used by orchestrator wiring
         redis_client: Optional[Any] = None,
     ):
         self.db = db
         self.patient_repo = patient_repo
         self.redis = redis_client
+
+    async def _db_commit(self) -> None:
+        result = self.db.commit()
+        if inspect.isawaitable(result):
+            await result
+
+    async def _db_rollback(self) -> None:
+        result = self.db.rollback()
+        if inspect.isawaitable(result):
+            await result
 
     async def compensate_saga(self, saga: PatientOnboardingSaga) -> None:
         """
@@ -111,6 +122,7 @@ class SagaCompensator:
                     compensation_errors=compensation_errors,
                 )
 
+            # Step 2 (Firebase user creation) deprecated - skipped in compensation.
             # Step 1 Compensation: Delete Patient
             if saga.current_step >= 1 and saga.patient_id:
                 await self._compensate_step_with_retry(
@@ -121,10 +133,18 @@ class SagaCompensator:
                     compensation_errors=compensation_errors,
                 )
 
-            saga.status = SagaStatus.FAILED
+            if compensation_errors:
+                saga.status = SagaStatus.FAILED
+            else:
+                # Compensation completed successfully: avoid retry pipelines
+                # picking this saga as a regular FAILED item again.
+                saga.status = SagaStatus.COMPENSATED
+                saga.error_message = None
+                saga.error_type = None
+                saga.failed_at = None
 
             try:
-                self.db.commit()
+                await self._db_commit()
                 logger.info(
                     f"Saga {saga.id}: Compensation transaction committed successfully"
                 )
@@ -134,7 +154,7 @@ class SagaCompensator:
                     f"{commit_error}",
                     exc_info=True,
                 )
-                self.db.rollback()
+                await self._db_rollback()
                 await self._track_compensation_failure(saga.id, 0, commit_error)
                 raise SagaCompensationError(
                     f"Saga {saga.id}: Failed to commit compensation transaction",
@@ -198,7 +218,8 @@ class SagaCompensator:
                 return
             except Exception as e:
                 last_error = e
-                wait_time = (2**attempt) * 0.5
+                # Backoff: 1s, 2s, 4s (spec: 1/2/4s)
+                wait_time = (2**attempt) * 1.0
                 logger.warning(
                     f"Saga {saga.id}: {step_name} compensation attempt "
                     f"{attempt + 1}/{max_retries} failed: {e}. "
@@ -206,6 +227,7 @@ class SagaCompensator:
                 )
                 if attempt < max_retries - 1:
                     await asyncio.sleep(wait_time)
+
 
         logger.error(
             f"Saga {saga.id}: {step_name} compensation failed after "
@@ -216,191 +238,18 @@ class SagaCompensator:
         await self._track_compensation_failure(saga.id, step_num, last_error)
 
     async def _compensate_message(self, saga: PatientOnboardingSaga) -> None:
-        """
-        Compensate Step 4: Mark welcome message as cancelled.
-
-        Note: WhatsApp messages cannot be unsent, but we mark as cancelled
-        in our database for audit trail and to prevent retries.
-
-        FIX P1-008: Made idempotent - checks if already compensated.
-        """
-        try:
-            compensated_steps = (
-                saga.step_data.get("compensated_steps", []) if saga.step_data else []
-            )
-            if "message" in compensated_steps:
-                logger.info(
-                    f"Saga {saga.id}: Message compensation already done, skipping"
-                )
-                return
-
-            messages = (
-                self.db.query(Message)
-                .filter(
-                    Message.patient_id == saga.patient_id,
-                    Message.message_metadata["saga_id"].astext == str(saga.id),
-                    Message.status != MessageStatus.CANCELLED,
-                )
-                .all()
-            )
-
-            for message in messages:
-                message.status = MessageStatus.CANCELLED
-                message.message_metadata = {
-                    **(message.message_metadata or {}),
-                    "cancelled_by": "saga_compensation",
-                    "cancelled_at": datetime.now(timezone.utc).isoformat(),
-                }
-
-            saga.step_data = {
-                **(saga.step_data or {}),
-                "compensated_steps": compensated_steps + ["message"],
-            }
-
-            if messages:
-                logger.info(
-                    f"Saga {saga.id}: Marked {len(messages)} message(s) as cancelled"
-                )
-            else:
-                logger.info(
-                    f"Saga {saga.id}: No messages found to compensate (or already done)"
-                )
-
-        except Exception as e:
-            logger.error(f"Saga {saga.id}: Message compensation error: {e}")
-            raise
+        await compensate_message(self.db, saga)
 
     async def _compensate_flow(self, saga: PatientOnboardingSaga) -> None:
-        """
-        Compensate Step 3: Delete or deactivate flow state.
-
-        FIX P1-008: Made idempotent - checks if already compensated.
-        """
-        try:
-            compensated_steps = (
-                saga.step_data.get("compensated_steps", []) if saga.step_data else []
-            )
-            if "flow" in compensated_steps:
-                logger.info(
-                    f"Saga {saga.id}: Flow compensation already done, skipping"
-                )
-                return
-
-            if not saga.patient_id:
-                logger.info(f"Saga {saga.id}: No patient_id to compensate flow")
-                saga.step_data = {
-                    **(saga.step_data or {}),
-                    "compensated_steps": compensated_steps + ["flow"],
-                }
-                return
-
-            flow_states = (
-                self.db.query(PatientFlowState)
-                .filter(PatientFlowState.patient_id == saga.patient_id)
-                .all()
-            )
-
-            for flow_state in flow_states:
-                self.db.delete(flow_state)
-
-            saga.step_data = {
-                **(saga.step_data or {}),
-                "compensated_steps": compensated_steps + ["flow"],
-            }
-
-            if flow_states:
-                logger.info(
-                    f"Saga {saga.id}: Deleted {len(flow_states)} flow state(s)"
-                )
-            else:
-                logger.info(
-                    f"Saga {saga.id}: No flow states found to compensate (or already done)"
-                )
-
-        except Exception as e:
-            logger.error(f"Saga {saga.id}: Flow compensation error: {e}")
-            raise
+        await compensate_flow(self.db, saga)
 
     async def _compensate_patient(self, saga: PatientOnboardingSaga) -> None:
-        """
-        Compensate Step 1: Delete patient record.
-
-        This is a hard delete since the patient was never fully onboarded.
-
-        FIX P1-008: Made idempotent - checks if already compensated.
-        """
-        try:
-            compensated_steps = (
-                saga.step_data.get("compensated_steps", []) if saga.step_data else []
-            )
-            if "patient" in compensated_steps:
-                logger.info(
-                    f"Saga {saga.id}: Patient compensation already done, skipping"
-                )
-                return
-
-            if not saga.patient_id:
-                logger.info(f"Saga {saga.id}: No patient_id to compensate")
-                saga.step_data = {
-                    **(saga.step_data or {}),
-                    "compensated_steps": compensated_steps + ["patient"],
-                }
-                return
-
-            patient = self.patient_repo.get_by_id(saga.patient_id)
-            if not patient:
-                logger.info(
-                    f"Saga {saga.id}: Patient {saga.patient_id} already deleted"
-                )
-                saga.step_data = {
-                    **(saga.step_data or {}),
-                    "compensated_steps": compensated_steps + ["patient"],
-                }
-                return
-
-            self.db.delete(patient)
-
-            saga.step_data = {
-                **(saga.step_data or {}),
-                "compensated_steps": compensated_steps + ["patient"],
-            }
-
-            logger.info(f"Saga {saga.id}: Deleted patient {saga.patient_id}")
-
-        except Exception as e:
-            logger.error(f"Saga {saga.id}: Patient compensation error: {e}")
-            raise
+        await compensate_patient(self.db, saga)
 
     async def _track_compensation_failure(
         self, saga_id: UUID, step: int, error: Exception
     ) -> None:
-        """
-        Track compensation failures for audit and manual recovery.
+        await track_compensation_failure(self.db, self.redis, saga_id, step, error)
 
-        QW-002: Proper error tracking for compensation failures.
 
-        Args:
-            saga_id: UUID of the saga
-            step: Step number that failed
-            error: Exception that occurred
-        """
-        try:
-            if self.redis:
-                failure_key = f"saga:compensation_failure:{saga_id}"
-                failure_data = {
-                    "saga_id": str(saga_id),
-                    "step": step,
-                    "error": str(error),
-                    "error_type": type(error).__name__,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-                self.redis.setex(
-                    failure_key, 86400 * 7, json.dumps(failure_data)
-                )
-                logger.warning(
-                    f"Compensation failure tracked in Redis: {failure_key}"
-                )
-        except Exception as redis_error:
-            logger.error(
-                f"Failed to track compensation failure in Redis: {redis_error}"
-            )
+__all__ = ["SagaCompensator"]

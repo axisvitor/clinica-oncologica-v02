@@ -303,7 +303,7 @@ class MetricsCollector:
 
             except Exception as e:
                 logger.error(f"Error in metrics collection loop: {e}")
-                time.sleep(5)
+                self._stop_collection.wait(5)
 
     def get_current_metrics(self) -> ResilienceMetrics:
         """Get current metrics"""

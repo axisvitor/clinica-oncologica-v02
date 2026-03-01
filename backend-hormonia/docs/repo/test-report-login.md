@@ -134,8 +134,8 @@ Expected response:
 {
   "session_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
   "user_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-  "created_at": "2025-12-10T13:00:00Z",
-  "expires_at": "2025-12-15T13:00:00Z",
+  "created_at": "2025-12-10T13:00:00-03:00",
+  "expires_at": "2025-12-15T13:00:00-03:00",
   "ip_address": "127.0.0.1",
   "user_agent": "Mozilla/5.0...",
   "is_current": true,
@@ -146,8 +146,8 @@ Expected response:
     "full_name": "Admin User",
     "role": "admin",
     "is_active": true,
-    "created_at": "2025-01-01T10:00:00Z",
-    "updated_at": "2025-12-10T13:00:00Z"
+    "created_at": "2025-01-01T10:00:00-03:00",
+    "updated_at": "2025-12-10T13:00:00-03:00"
   }
 }
 ```

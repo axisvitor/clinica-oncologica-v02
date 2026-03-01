@@ -41,6 +41,7 @@ from sqlalchemy import select
 from app.models.message import Message, MessageStatus, MessageDirection, MessageType
 from app.models.patient import Patient
 from app.integrations.evolution import EvolutionClient
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ class IdempotentMessageSender:
     def redis(self) -> Redis:
         """Lazy-load Redis client if not provided."""
         if self._redis is None:
-            from app.core.redis_unified import get_sync_redis
+            from app.core.redis_manager import get_sync_redis_client as get_sync_redis
             self._redis = get_sync_redis()
         return self._redis
 
@@ -129,7 +130,7 @@ class IdempotentMessageSender:
         """
         # Use current time if not provided (minute precision)
         if timestamp is None:
-            timestamp = datetime.now(timezone.utc)
+            timestamp = now_sao_paulo()
 
         # Round timestamp to minute for some tolerance
         timestamp_str = timestamp.strftime("%Y%m%d%H%M")
@@ -405,7 +406,7 @@ class IdempotentMessageSender:
             if evolution_response and evolution_response.get("key", {}).get("id"):
                 message.whatsapp_id = evolution_response["key"]["id"]
                 message.status = MessageStatus.SENT
-                message.sent_at = datetime.now(timezone.utc)
+                message.sent_at = now_sao_paulo()
                 logger.info(
                     f"Message {message.id} sent successfully "
                     f"(whatsapp_id: {message.whatsapp_id})"
@@ -413,7 +414,7 @@ class IdempotentMessageSender:
             else:
                 # Sending initiated but no immediate confirmation
                 message.status = MessageStatus.SENT
-                message.sent_at = datetime.now(timezone.utc)
+                message.sent_at = now_sao_paulo()
                 logger.warning(f"Message {message.id} sent but no whatsapp_id received")
 
             # Commit transaction
@@ -432,11 +433,11 @@ class IdempotentMessageSender:
             message.status = MessageStatus.FAILED
             message.failure_reason = str(e)
             message.retry_count += 1
-            message.last_retry_at = datetime.now(timezone.utc)
+            message.last_retry_at = now_sao_paulo()
 
             # Calculate next retry (exponential backoff)
             retry_delay = min(300, 60 * (2**message.retry_count))  # Max 5 minutes
-            message.next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=retry_delay)
+            message.next_retry_at = now_sao_paulo() + timedelta(seconds=retry_delay)
 
             self.db.commit()
 

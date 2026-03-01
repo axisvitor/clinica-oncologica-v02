@@ -14,9 +14,9 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import HTTPException, status
-import redis.asyncio as redis
+from sqlalchemy import select
 
-from app.config import settings
+from app.core.redis_manager import get_cache_redis_manager
 from app.utils.logging import get_logger
 
 from .config import RATE_LIMIT_SMALL_FILE, RATE_LIMIT_LARGE_FILE
@@ -24,16 +24,17 @@ from .config import RATE_LIMIT_SMALL_FILE, RATE_LIMIT_LARGE_FILE
 logger = get_logger(__name__)
 
 
-async def get_redis_client() -> Optional[redis.Redis]:
-    """Get Redis client for caching."""
+async def get_redis_client():
+    """Get Redis client for caching via centralized RedisManager.
+
+    Uses ``get_cache_redis_manager()`` (DB 1) instead of creating a
+    standalone ``redis.from_url()`` connection.  This ensures consistent
+    SSL/TLS settings, connection pooling, and DB isolation across the
+    entire application.
+    """
     try:
-        client = redis.from_url(
-            settings.REDIS_URL,
-            decode_responses=True,
-            socket_connect_timeout=5,
-            socket_timeout=5,
-            max_connections=20,
-        )
+        manager = get_cache_redis_manager()
+        client = await manager.get_async_client()
         await client.ping()
         return client
     except Exception as e:
@@ -51,7 +52,7 @@ def generate_cache_key(prefix: str, **kwargs) -> str:
 
 
 async def check_rate_limit(
-    redis_client: Optional[redis.Redis],
+    redis_client,
     user_id: UUID,
     file_size: int,
 ) -> bool:
@@ -105,7 +106,7 @@ async def check_user_quota(
     db,
     user_id: UUID,
     file_size: int,
-    redis_client: Optional[redis.Redis] = None,
+    redis_client=None,
 ) -> bool:
     """
     Check if user has quota for upload.
@@ -130,7 +131,8 @@ async def check_user_quota(
         quota_service = await get_quota_service(redis_client)
 
         # Get user tier (from User model)
-        user = db.query(User).filter(User.id == user_id).first()
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
         user_tier = getattr(user, "tier", "free") if user else "free"
 
         # Check quota

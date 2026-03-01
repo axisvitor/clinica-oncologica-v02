@@ -256,7 +256,7 @@ __all__ = [
 Files (27 total):
 - core/date_utils.py
 - core/permissions.py
-- middleware/enhanced_error_handler.py
+- middleware/enhanced_error_handler.py (removed in tombstone cleanup on 2026-02-10)
 - monitoring/business_metrics.py
 - schemas/flow.py
 - schemas/websocket.py

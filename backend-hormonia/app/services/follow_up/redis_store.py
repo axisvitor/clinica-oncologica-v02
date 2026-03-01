@@ -9,9 +9,13 @@ Replaces in-memory dictionaries with persistent Redis storage:
 Key patterns:
 - followup:actions:{patient_id} - Hash storing patient's actions
 - followup:actions:pending - Sorted Set by scheduled_for timestamp
+- followup:action_index:{action_id} - Reverse index: action_id -> patient_id (O(1))
 - followup:alerts:{patient_id} - Hash storing patient's alerts
 - followup:alerts:active - Sorted Set by escalation level
-- followup:context:{patient_id} - String (JSON) with 7-day TTL
+- followup:alert_index:{alert_id} - Reverse index: alert_id -> patient_id (O(1))
+- followup:context:{patient_id} - String (JSON) with 1-hour TTL
+- sent_messages:{patient_id} - String (ISO timestamp) with TTL for deduplication
+- follow_up_locks:{patient_id} - String lock to avoid concurrent sends
 """
 
 import json
@@ -20,14 +24,28 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from app.core.redis_unified import get_async_redis
+from app.core.redis_manager import get_async_redis_client as get_async_redis
 
 logger = logging.getLogger(__name__)
 
 # TTL constants
-CONTEXT_TTL_SECONDS = 7 * 24 * 60 * 60  # 7 days
+CONTEXT_TTL_SECONDS = 60 * 60  # 1 hour
 ACTION_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 days for completed actions
 ALERT_TTL_SECONDS = 90 * 24 * 60 * 60  # 90 days for resolved alerts
+DEDUP_LOCK_TTL_SECONDS = 5 * 60  # 5 minutes lock for follow-up deduplication
+PENDING_ACTIONS_FETCH_MULTIPLIER = 5
+
+# Reverse index TTL should outlive the data it points to
+INDEX_TTL_SECONDS = 120 * 24 * 60 * 60  # 120 days
+
+# Priority ordering (lower rank = higher priority)
+PRIORITY_RANKS = {
+    "critical": 0,
+    "high": 1,
+    "medium": 2,
+    "normal": 3,
+    "low": 4,
+}
 
 # Escalation level scores for sorted set
 ESCALATION_SCORES = {
@@ -52,16 +70,54 @@ class FollowUpRedisStore:
         """Initialize Redis store with fallback storage."""
         self._redis = None
         self._redis_available = True
+        self._redis_retry_delay = 1
+        self._redis_retry_max_delay = 30
+        self._redis_retry_at: Optional[datetime] = None
 
         # Fallback in-memory storage (used if Redis unavailable)
-        self._fallback_storage = {"actions": {}, "alerts": {}, "contexts": {}}
+        self._fallback_storage = {
+            "actions": {},
+            "alerts": {},
+            "contexts": {},
+            "dedup": {},
+            "locks": {},
+        }
 
         logger.info("FollowUpRedisStore initialized")
 
+    def _schedule_redis_retry(self, now: datetime) -> None:
+        delay = max(self._redis_retry_delay, 1)
+        self._redis_retry_at = now + timedelta(seconds=delay)
+        self._redis_retry_delay = min(delay * 2, self._redis_retry_max_delay)
+
+    async def _attempt_reconnect(self, now: datetime):
+        try:
+            self._redis = await get_async_redis()
+            await self._redis.ping()
+            self._redis_available = True
+            self._redis_retry_delay = 1
+            self._redis_retry_at = None
+            logger.info("Redis reconnected for follow-up store")
+            return self._redis
+        except Exception as e:
+            logger.warning(
+                f"Redis still unavailable, retrying later: {e}",
+                extra={"error": str(e)},
+            )
+            self._redis_available = False
+            self._redis = None
+            self._schedule_redis_retry(now)
+            return None
+
     async def _get_redis(self):
         """Get Redis client with availability check."""
+        now = datetime.now(timezone.utc)
         if not self._redis_available:
-            return None
+            if self._redis_retry_at is None:
+                return None
+            if now < self._redis_retry_at:
+                return None
+            return await self._attempt_reconnect(now)
 
         try:
             if self._redis is None:
@@ -75,7 +131,91 @@ class FollowUpRedisStore:
                 extra={"error": str(e)},
             )
             self._redis_available = False
+            self._redis = None
+            self._schedule_redis_retry(now)
             return None
+
+    def is_redis_available(self) -> bool:
+        """Return cached Redis availability status."""
+        return self._redis_available
+
+    def _get_dedup_key(self, patient_id: UUID) -> str:
+        """Return Redis key for follow-up message deduplication."""
+        return f"sent_messages:{patient_id}"
+
+    def _get_lock_key(self, patient_id: UUID) -> str:
+        """Return Redis key for follow-up send lock."""
+        return f"follow_up_locks:{patient_id}"
+
+    def _get_priority_rank(self, priority: Optional[str]) -> int:
+        """Return numeric rank for priority sorting."""
+        if not priority:
+            return len(PRIORITY_RANKS)
+        return PRIORITY_RANKS.get(str(priority).lower(), len(PRIORITY_RANKS))
+
+    def _get_scheduled_for_timestamp(self, scheduled_for: Optional[str]) -> float:
+        """Parse scheduled_for timestamp safely."""
+        if not scheduled_for:
+            return 0.0
+        try:
+            parsed = datetime.fromisoformat(scheduled_for)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.timestamp()
+        except ValueError:
+            return 0.0
+
+    @staticmethod
+    def _action_index_key(action_id) -> str:
+        """Return Redis key for action reverse index."""
+        return f"followup:action_index:{action_id}"
+
+    @staticmethod
+    def _alert_index_key(alert_id) -> str:
+        """Return Redis key for alert reverse index."""
+        return f"followup:alert_index:{alert_id}"
+
+    async def _resolve_patient_for_action(
+        self, redis, action_id_str: str,
+    ) -> Optional[str]:
+        """Resolve patient_id for an action via reverse index, with scan fallback."""
+        patient_id = await redis.get(self._action_index_key(action_id_str))
+        if patient_id:
+            return patient_id.decode() if isinstance(patient_id, bytes) else patient_id
+
+        # Migration fallback: scan to find, then backfill the index
+        async for key in redis.scan_iter(match="followup:actions:*"):
+            key_str = key.decode() if isinstance(key, bytes) else key
+            if key_str == "followup:actions:pending":
+                continue
+            if await redis.hget(key, action_id_str):
+                pid = key_str.rsplit(":", 1)[-1]
+                await redis.setex(
+                    self._action_index_key(action_id_str), INDEX_TTL_SECONDS, pid,
+                )
+                return pid
+        return None
+
+    async def _resolve_patient_for_alert(
+        self, redis, alert_id_str: str,
+    ) -> Optional[str]:
+        """Resolve patient_id for an alert via reverse index, with scan fallback."""
+        patient_id = await redis.get(self._alert_index_key(alert_id_str))
+        if patient_id:
+            return patient_id.decode() if isinstance(patient_id, bytes) else patient_id
+
+        # Migration fallback: scan to find, then backfill the index
+        async for key in redis.scan_iter(match="followup:alerts:*"):
+            key_str = key.decode() if isinstance(key, bytes) else key
+            if key_str == "followup:alerts:active":
+                continue
+            if await redis.hget(key, alert_id_str):
+                pid = key_str.rsplit(":", 1)[-1]
+                await redis.setex(
+                    self._alert_index_key(alert_id_str), INDEX_TTL_SECONDS, pid,
+                )
+                return pid
+        return None
 
     # =========================================================================
     # ACTION STORAGE
@@ -114,8 +254,13 @@ class FollowUpRedisStore:
             if redis:
                 # Store in patient's action hash
                 action_key = f"followup:actions:{action.patient_id}"
-                await redis.hset(
-                    action_key, str(action.action_id), json.dumps(action_data)
+                aid_str = str(action.action_id)
+                pid_str = str(action.patient_id)
+                await redis.hset(action_key, aid_str, json.dumps(action_data))
+
+                # Write reverse index: action_id -> patient_id
+                await redis.setex(
+                    self._action_index_key(aid_str), INDEX_TTL_SECONDS, pid_str,
                 )
 
                 # Add to pending sorted set if pending
@@ -169,8 +314,13 @@ class FollowUpRedisStore:
             if redis:
                 # Get action IDs from sorted set
                 max_score = before.timestamp()
+                fetch_limit = max(limit * PENDING_ACTIONS_FETCH_MULTIPLIER, limit)
                 action_ids = await redis.zrangebyscore(
-                    "followup:actions:pending", min=0, max=max_score, start=0, num=limit
+                    "followup:actions:pending",
+                    min=0,
+                    max=max_score,
+                    start=0,
+                    num=fetch_limit,
                 )
 
                 actions = []
@@ -180,19 +330,28 @@ class FollowUpRedisStore:
                         if isinstance(action_id, bytes)
                         else action_id
                     )
-                    # We need to find which patient this action belongs to
-                    # This is a limitation - we might need a reverse index
-                    # For now, scan all patient keys (not ideal for large scale)
-                    pattern = "followup:actions:*"
-                    async for key in redis.scan_iter(match=pattern):
-                        if key == b"followup:actions:pending":
-                            continue
-                        action_data = await redis.hget(key, action_id_str)
-                        if action_data:
-                            actions.append(json.loads(action_data))
-                            break
+                    # O(1) lookup via reverse index
+                    patient_id = await self._resolve_patient_for_action(
+                        redis, action_id_str,
+                    )
+                    if not patient_id:
+                        continue
+                    action_data = await redis.hget(
+                        f"followup:actions:{patient_id}", action_id_str,
+                    )
+                    if action_data:
+                        actions.append(json.loads(action_data))
 
-                return actions[:limit]
+                sorted_actions = sorted(
+                    actions,
+                    key=lambda action: (
+                        self._get_priority_rank(action.get("priority")),
+                        self._get_scheduled_for_timestamp(
+                            action.get("scheduled_for")
+                        ),
+                    ),
+                )
+                return sorted_actions[:limit]
             else:
                 # Fallback: filter in-memory storage
                 now_ts = before.timestamp()
@@ -203,7 +362,16 @@ class FollowUpRedisStore:
                     and datetime.fromisoformat(action["scheduled_for"]).timestamp()
                     <= now_ts
                 ]
-                return sorted(pending, key=lambda x: x["scheduled_for"])[:limit]
+                sorted_pending = sorted(
+                    pending,
+                    key=lambda action: (
+                        self._get_priority_rank(action.get("priority")),
+                        self._get_scheduled_for_timestamp(
+                            action.get("scheduled_for")
+                        ),
+                    ),
+                )
+                return sorted_pending[:limit]
 
         except Exception as e:
             logger.error(f"Failed to get pending actions: {e}", exc_info=True)
@@ -231,30 +399,36 @@ class FollowUpRedisStore:
         try:
             redis = await self._get_redis()
             if redis:
+                aid_str = str(action_id)
                 # Remove from pending set
-                await redis.zrem("followup:actions:pending", str(action_id))
+                await redis.zrem("followup:actions:pending", aid_str)
 
-                # Find and update the action in patient hash
-                pattern = "followup:actions:*"
-                async for key in redis.scan_iter(match=pattern):
-                    if key == b"followup:actions:pending":
-                        continue
-                    action_data = await redis.hget(key, str(action_id))
-                    if action_data:
-                        data = json.loads(action_data)
-                        data["status"] = status
-                        if executed_at:
-                            data["executed_at"] = executed_at.isoformat()
-                        if execution_result:
-                            data["execution_result"] = execution_result
-                        await redis.hset(key, str(action_id), json.dumps(data))
+                # O(1) lookup via reverse index
+                patient_id = await self._resolve_patient_for_action(redis, aid_str)
+                if not patient_id:
+                    return False
 
-                        # Set TTL on completed actions
-                        if status in ["executed", "failed"]:
-                            await redis.expire(key, ACTION_TTL_SECONDS)
+                action_key = f"followup:actions:{patient_id}"
+                raw = await redis.hget(action_key, aid_str)
+                if not raw:
+                    return False
 
-                        return True
-                return False
+                data = json.loads(raw)
+                data["status"] = status
+                if executed_at:
+                    data["executed_at"] = executed_at.isoformat()
+                if execution_result:
+                    data["execution_result"] = execution_result
+                await redis.hset(action_key, aid_str, json.dumps(data))
+
+                # Set TTL on completed actions and their reverse index
+                if status in ("executed", "completed", "failed"):
+                    await redis.expire(action_key, ACTION_TTL_SECONDS)
+                    await redis.expire(
+                        self._action_index_key(aid_str), ACTION_TTL_SECONDS,
+                    )
+
+                return True
             else:
                 # Fallback
                 if str(action_id) in self._fallback_storage["actions"]:
@@ -269,6 +443,80 @@ class FollowUpRedisStore:
 
         except Exception as e:
             logger.error(f"Failed to update action status: {e}", exc_info=True)
+            return False
+
+    async def claim_pending_action(
+        self, action_id: UUID, in_progress_at: Optional[datetime] = None
+    ) -> bool:
+        """
+        Atomically claim a pending action for execution.
+
+        This prevents two workers from executing the same pending action.
+
+        Args:
+            action_id: Action UUID
+            in_progress_at: Optional claim timestamp
+
+        Returns:
+            True if the action was claimed, False if already claimed/executed
+        """
+        try:
+            if in_progress_at is None:
+                in_progress_at = datetime.now(timezone.utc)
+
+            aid_str = str(action_id)
+            redis = await self._get_redis()
+            if redis:
+                patient_id = await self._resolve_patient_for_action(redis, aid_str)
+                if not patient_id:
+                    return False
+
+                action_key = f"followup:actions:{patient_id}"
+                claim_script = """
+                    local action_key = KEYS[1]
+                    local pending_key = KEYS[2]
+                    local action_id = ARGV[1]
+                    local in_progress_at = ARGV[2]
+
+                    local raw = redis.call('HGET', action_key, action_id)
+                    if not raw then
+                        return 0
+                    end
+
+                    local data = cjson.decode(raw)
+                    if data['status'] ~= 'pending' then
+                        return 0
+                    end
+
+                    data['status'] = 'in_progress'
+                    data['in_progress_at'] = in_progress_at
+
+                    redis.call('HSET', action_key, action_id, cjson.encode(data))
+                    redis.call('ZREM', pending_key, action_id)
+                    return 1
+                """
+
+                result = await redis.eval(
+                    claim_script,
+                    2,
+                    action_key,
+                    "followup:actions:pending",
+                    aid_str,
+                    in_progress_at.isoformat(),
+                )
+                return bool(result)
+
+            # Fallback storage
+            action = self._fallback_storage["actions"].get(aid_str)
+            if not action or action.get("status") != "pending":
+                return False
+
+            action["status"] = "in_progress"
+            action["in_progress_at"] = in_progress_at.isoformat()
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to claim pending action: {e}", exc_info=True)
             return False
 
     # =========================================================================
@@ -317,7 +565,14 @@ class FollowUpRedisStore:
             if redis:
                 # Store in patient's alert hash
                 alert_key = f"followup:alerts:{alert.patient_id}"
-                await redis.hset(alert_key, str(alert.alert_id), json.dumps(alert_data))
+                alid_str = str(alert.alert_id)
+                pid_str = str(alert.patient_id)
+                await redis.hset(alert_key, alid_str, json.dumps(alert_data))
+
+                # Write reverse index: alert_id -> patient_id
+                await redis.setex(
+                    self._alert_index_key(alid_str), INDEX_TTL_SECONDS, pid_str,
+                )
 
                 # Add to active sorted set if not resolved
                 if not alert.resolved_at:
@@ -382,15 +637,17 @@ class FollowUpRedisStore:
                             if isinstance(alert_id, bytes)
                             else alert_id
                         )
-                        # Find the alert data
-                        pattern = "followup:alerts:*"
-                        async for key in redis.scan_iter(match=pattern):
-                            if key == b"followup:alerts:active":
-                                continue
-                            alert_data = await redis.hget(key, alert_id_str)
-                            if alert_data:
-                                alerts.append(json.loads(alert_data))
-                                break
+                        # O(1) lookup via reverse index
+                        pid = await self._resolve_patient_for_alert(
+                            redis, alert_id_str,
+                        )
+                        if not pid:
+                            continue
+                        alert_data = await redis.hget(
+                            f"followup:alerts:{pid}", alert_id_str,
+                        )
+                        if alert_data:
+                            alerts.append(json.loads(alert_data))
                     return alerts
             else:
                 # Fallback
@@ -427,27 +684,33 @@ class FollowUpRedisStore:
         try:
             redis = await self._get_redis()
             if redis:
-                # Find and update the alert
-                pattern = "followup:alerts:*"
-                async for key in redis.scan_iter(match=pattern):
-                    if key == b"followup:alerts:active":
-                        continue
-                    alert_data = await redis.hget(key, str(alert_id))
-                    if alert_data:
-                        data = json.loads(alert_data)
-                        if acknowledged_at:
-                            data["acknowledged_at"] = acknowledged_at.isoformat()
-                        if resolved_at:
-                            data["resolved_at"] = resolved_at.isoformat()
-                            # Remove from active set
-                            await redis.zrem("followup:alerts:active", str(alert_id))
-                            # Set TTL on resolved alerts
-                            await redis.expire(key, ALERT_TTL_SECONDS)
-                        if assigned_to:
-                            data["assigned_to"] = assigned_to
-                        await redis.hset(key, str(alert_id), json.dumps(data))
-                        return True
-                return False
+                alid_str = str(alert_id)
+                # O(1) lookup via reverse index
+                pid = await self._resolve_patient_for_alert(redis, alid_str)
+                if not pid:
+                    return False
+
+                alert_key = f"followup:alerts:{pid}"
+                raw = await redis.hget(alert_key, alid_str)
+                if not raw:
+                    return False
+
+                data = json.loads(raw)
+                if acknowledged_at:
+                    data["acknowledged_at"] = acknowledged_at.isoformat()
+                if resolved_at:
+                    data["resolved_at"] = resolved_at.isoformat()
+                    # Remove from active set
+                    await redis.zrem("followup:alerts:active", alid_str)
+                    # Set TTL on resolved alerts and their reverse index
+                    await redis.expire(alert_key, ALERT_TTL_SECONDS)
+                    await redis.expire(
+                        self._alert_index_key(alid_str), ALERT_TTL_SECONDS,
+                    )
+                if assigned_to:
+                    data["assigned_to"] = assigned_to
+                await redis.hset(alert_key, alid_str, json.dumps(data))
+                return True
             else:
                 # Fallback
                 if str(alert_id) in self._fallback_storage["alerts"]:
@@ -471,7 +734,7 @@ class FollowUpRedisStore:
 
     async def store_context(self, context: Any) -> bool:
         """
-        Store conversation context with 7-day TTL.
+        Store conversation context with 1-hour TTL.
 
         Args:
             context: ConversationContext instance
@@ -497,7 +760,7 @@ class FollowUpRedisStore:
                     context_key, CONTEXT_TTL_SECONDS, json.dumps(context_data)
                 )
                 logger.debug(
-                    "Stored context in Redis with 7-day TTL",
+                    "Stored context in Redis with 1-hour TTL",
                     extra={"patient_id": str(context.patient_id)},
                 )
                 return True
@@ -545,6 +808,141 @@ class FollowUpRedisStore:
         except Exception as e:
             logger.error(f"Failed to get context: {e}", exc_info=True)
             return None
+
+    # =========================================================================
+    # DEDUPLICATION & LOCKS
+    # =========================================================================
+
+    async def acquire_follow_up_lock(
+        self, patient_id: UUID, ttl_seconds: int = DEDUP_LOCK_TTL_SECONDS
+    ) -> bool:
+        """
+        Acquire a short-lived lock to prevent concurrent follow-up sends.
+
+        Args:
+            patient_id: Patient UUID
+            ttl_seconds: Lock TTL in seconds
+
+        Returns:
+            True if lock acquired, False otherwise
+        """
+        lock_key = self._get_lock_key(patient_id)
+        now = datetime.now(timezone.utc)
+        expires_at = now + timedelta(seconds=ttl_seconds)
+
+        try:
+            redis = await self._get_redis()
+            if redis:
+                result = await redis.set(lock_key, "1", ex=ttl_seconds, nx=True)
+                return bool(result)
+
+            # Fallback to in-memory lock
+            existing = self._fallback_storage["locks"].get(str(patient_id))
+            if existing and existing["expires_at"] > now:
+                return False
+
+            self._fallback_storage["locks"][str(patient_id)] = {
+                "expires_at": expires_at
+            }
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to acquire follow-up lock: {e}", exc_info=True)
+            return False
+
+    async def release_follow_up_lock(self, patient_id: UUID) -> bool:
+        """
+        Release follow-up send lock.
+
+        Args:
+            patient_id: Patient UUID
+
+        Returns:
+            True if lock released, False otherwise
+        """
+        lock_key = self._get_lock_key(patient_id)
+        try:
+            redis = await self._get_redis()
+            if redis:
+                await redis.delete(lock_key)
+                return True
+
+            if str(patient_id) in self._fallback_storage["locks"]:
+                del self._fallback_storage["locks"][str(patient_id)]
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to release follow-up lock: {e}", exc_info=True)
+            return False
+
+    async def get_last_follow_up_sent_at(
+        self, patient_id: UUID
+    ) -> Optional[datetime]:
+        """
+        Get timestamp of the last follow-up message sent to patient.
+
+        Args:
+            patient_id: Patient UUID
+
+        Returns:
+            Datetime of last follow-up message or None
+        """
+        dedup_key = self._get_dedup_key(patient_id)
+        try:
+            redis = await self._get_redis()
+            if redis:
+                value = await redis.get(dedup_key)
+                if value:
+                    if isinstance(value, bytes):
+                        value = value.decode()
+                    parsed = datetime.fromisoformat(value)
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=timezone.utc)
+                    return parsed
+                return None
+
+            # Fallback to in-memory dedup cache
+            stored = self._fallback_storage["dedup"].get(str(patient_id))
+            if stored:
+                if stored["expires_at"] > datetime.now(timezone.utc):
+                    return stored["sent_at"]
+                del self._fallback_storage["dedup"][str(patient_id)]
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to get follow-up dedup timestamp: {e}", exc_info=True)
+            return None
+
+    async def set_last_follow_up_sent_at(
+        self, patient_id: UUID, sent_at: datetime, ttl_seconds: int
+    ) -> bool:
+        """
+        Set follow-up message sent timestamp with TTL.
+
+        Args:
+            patient_id: Patient UUID
+            sent_at: Timestamp of the follow-up message
+            ttl_seconds: TTL in seconds
+
+        Returns:
+            True if stored successfully
+        """
+        dedup_key = self._get_dedup_key(patient_id)
+        try:
+            redis = await self._get_redis()
+            if redis:
+                await redis.setex(dedup_key, ttl_seconds, sent_at.isoformat())
+                return True
+
+            self._fallback_storage["dedup"][str(patient_id)] = {
+                "sent_at": sent_at,
+                "expires_at": datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
+            }
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to set follow-up dedup timestamp: {e}", exc_info=True)
+            return False
 
     # =========================================================================
     # HEALTH CHECK
@@ -617,7 +1015,7 @@ class FollowUpRedisStore:
         """
         try:
             now = datetime.now(timezone.utc)
-            cleaned = {"contexts": 0}
+            cleaned = {"contexts": 0, "dedup": 0, "locks": 0}
 
             # Clean expired contexts from fallback storage
             expired_contexts = [
@@ -629,14 +1027,34 @@ class FollowUpRedisStore:
                 del self._fallback_storage["contexts"][patient_id]
                 cleaned["contexts"] += 1
 
-            if cleaned["contexts"] > 0:
+            # Clean expired dedup entries
+            expired_dedup = [
+                patient_id
+                for patient_id, stored in self._fallback_storage["dedup"].items()
+                if stored["expires_at"] < now
+            ]
+            for patient_id in expired_dedup:
+                del self._fallback_storage["dedup"][patient_id]
+                cleaned["dedup"] += 1
+
+            # Clean expired locks
+            expired_locks = [
+                patient_id
+                for patient_id, stored in self._fallback_storage["locks"].items()
+                if stored["expires_at"] < now
+            ]
+            for patient_id in expired_locks:
+                del self._fallback_storage["locks"][patient_id]
+                cleaned["locks"] += 1
+
+            if any(value > 0 for value in cleaned.values()):
                 logger.info(
                     "Cleaned up expired fallback data",
-                    extra={"cleaned_contexts": cleaned["contexts"]},
+                    extra={"cleaned": cleaned},
                 )
 
             return cleaned
 
         except Exception as e:
             logger.error(f"Failed to cleanup expired data: {e}", exc_info=True)
-            return {"contexts": 0}
+            return {"contexts": 0, "dedup": 0, "locks": 0}

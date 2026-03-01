@@ -5,9 +5,10 @@ Shared dependencies for roles endpoints including admin authentication.
 
 import logging
 from fastapi import Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.user import User
 from app.dependencies.auth_dependencies import get_current_user_from_session
 
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 async def get_admin_user(
     current_user: dict = Depends(get_current_user_from_session),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ) -> User:
     """
     Dependency to verify admin access using session-based authentication.
@@ -50,9 +51,10 @@ async def get_admin_user(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
         )
 
-    user = (
-        db.query(User).filter(User.firebase_uid == firebase_uid, User.is_active).first()
+    result = await db.execute(
+        select(User).where(User.firebase_uid == firebase_uid, User.is_active)
     )
+    user = result.scalar_one_or_none()
 
     if not user:
         raise HTTPException(

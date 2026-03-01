@@ -9,7 +9,7 @@
  * - id, patient_id, flow_type, status, current_day, ...
  */
 
-import type { FlowState } from '@/lib/api-client/types'
+import type { FlowState, FlowStatus, FlowType } from '@/lib/api-client/types'
 
 interface FlowAdvancementResult {
   current_day: number
@@ -18,16 +18,19 @@ interface FlowAdvancementResult {
   completion_percentage?: number
 }
 
+interface BackendFlowState {
+  id: string
+  patient_id: string
+  flow_type: string
+  status: string
+  metadata?: Record<string, unknown>
+  created_at?: string
+  updated_at?: string
+  template_id?: string
+}
+
 interface BackendFlowResponse {
-  flow_state: {
-    id: string
-    patient_id: string
-    flow_type: string
-    status: string
-    metadata?: Record<string, unknown>
-    created_at?: string
-    updated_at?: string
-  }
+  flow_state: BackendFlowState
   advancement_result?: FlowAdvancementResult
 }
 
@@ -40,9 +43,9 @@ export function mapFlowResponse(backendResponse: BackendFlowResponse): FlowState
   return {
     id: flow_state.id,
     patient_id: flow_state.patient_id,
-    template_id: (flow_state as any).template_id || 'default-template',
-    flow_type: flow_state.flow_type as any, // Cast to FlowType enum
-    status: flow_state.status as any, // Cast to FlowStatus enum
+    template_id: flow_state.template_id || 'default-template',
+    flow_type: flow_state.flow_type as FlowType, // Cast to FlowType enum
+    status: flow_state.status as FlowStatus, // Cast to FlowStatus enum
     current_day: advancement_result?.current_day || 0,
     enrollment_date: flow_state.created_at || new Date().toISOString(),
     state_data: flow_state.metadata || {},
@@ -69,21 +72,24 @@ export function mapFlowResponse(backendResponse: BackendFlowResponse): FlowState
 /**
  * Type guard to check if response matches nested backend structure
  */
-export function isNestedFlowResponse(data: any): data is BackendFlowResponse {
+export function isNestedFlowResponse(data: unknown): data is BackendFlowResponse {
+  if (!data || typeof data !== 'object') {
+    return false
+  }
+
+  const candidate = data as { flow_state?: { id?: unknown; patient_id?: unknown } }
   return (
-    data &&
-    typeof data === 'object' &&
-    data.flow_state &&
-    typeof data.flow_state === 'object' &&
-    typeof data.flow_state.id === 'string' &&
-    typeof data.flow_state.patient_id === 'string'
+    typeof candidate.flow_state === 'object' &&
+    candidate.flow_state !== null &&
+    typeof candidate.flow_state.id === 'string' &&
+    typeof candidate.flow_state.patient_id === 'string'
   )
 }
 
 /**
  * Smart mapper that handles both nested and flat responses
  */
-export function smartMapFlowResponse(response: any): FlowState {
+export function smartMapFlowResponse(response: unknown): FlowState {
   if (isNestedFlowResponse(response)) {
     return mapFlowResponse(response)
   }

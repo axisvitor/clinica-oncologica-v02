@@ -16,6 +16,24 @@ Impact:
 - Column rename is backward compatible at database level
 - Application code already uses 'file_metadata' in the model
 - No data migration needed - just column rename
+
+WHY:
+- Not recorded (legacy migration).
+
+WHAT:
+- Not recorded (legacy migration).
+
+BENCHMARK:
+- Not recorded (legacy migration).
+
+ROLLBACK:
+- Not recorded (legacy migration).
+
+RELATED:
+- Not recorded (legacy migration).
+
+MIGRATION TYPE:
+- Not recorded (legacy migration).
 """
 from alembic import op
 import sqlalchemy as sa
@@ -28,7 +46,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade():
+def upgrade() -> None:
     """
     Rename uploads.metadata to uploads.file_metadata
 
@@ -83,7 +101,7 @@ def upgrade():
             print("⚠️  Neither 'metadata' nor 'file_metadata' found - check table structure")
 
 
-def downgrade():
+def downgrade() -> None:
     """
     Rename uploads.file_metadata back to uploads.metadata
 

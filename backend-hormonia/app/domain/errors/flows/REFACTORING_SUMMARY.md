@@ -168,19 +168,16 @@ from app.domain.errors.flows import FlowErrorHandler
 └── error_handler.py               (361 lines)
 ```
 
-### Backward Compatibility
-```
-/home/user/clinica-oncologica-v02/backend-hormonia/app/services/
-└── flow_error_handler.py          (132 lines - DEPRECATED WRAPPER)
-```
+### Migration Status
+Compatibility wrappers were removed. The canonical modules under
+`app.domain.errors.flows` are now the single source of truth.
 
 ## Next Steps
 
 ### For Developers
-1. Update imports to use new `app.domain.errors.flows` path
-2. Run tests to verify backward compatibility
-3. Update documentation to reference new module structure
-4. Consider removing deprecated wrapper after migration period
+1. Keep imports on `app.domain.errors.flows`
+2. Run tests after touching error/retry/recovery paths
+3. Keep docs aligned with canonical module structure
 
 ### For Testing
 1. Test error classification with various exception types
@@ -188,21 +185,20 @@ from app.domain.errors.flows import FlowErrorHandler
 3. Test recovery strategy execution
 4. Validate statistics collection and caching
 5. Check WebSocket event publishing
-6. Test backward compatibility wrapper
+6. Ensure no wrapper import regressions are reintroduced
 
 ## Migration Timeline
 
-**Phase 1 (Current):** Backward compatibility wrapper in place
-**Phase 2:** Update all imports in codebase
-**Phase 3:** Remove deprecated wrapper after migration period
-**Phase 4:** Update tests to reference new modules
+**Phase 1:** Update all imports in codebase
+**Phase 2:** Remove deprecated wrapper modules
+**Phase 3 (Current):** Canonical-only architecture enforced
 
 ## Success Metrics
 
 ✅ All original functionality preserved
-✅ Backward compatibility maintained
+✅ Compatibility wrappers removed
 ✅ Code organization improved (5 focused modules)
 ✅ Average module size reduced to ~256 lines
 ✅ Clear separation of concerns established
 ✅ Public API well-documented
-✅ Deprecation warnings in place for migration
+✅ Legacy wrapper regressions blocked by tests

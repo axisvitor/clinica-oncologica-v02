@@ -30,7 +30,7 @@ export const MOCK_QUIZ_TEMPLATES: MockQuizTemplate[] = [
     description: 'Questionário para acompanhamento mensal de sintomas',
     questions: [],
     is_active: true,
-    created_at: '2024-01-01T00:00:00Z'
+    created_at: '2024-01-01T00:00:00-03:00'
   },
   {
     id: 'quiz-template-002',
@@ -38,7 +38,7 @@ export const MOCK_QUIZ_TEMPLATES: MockQuizTemplate[] = [
     description: 'Avaliação de qualidade de vida durante tratamento',
     questions: [],
     is_active: true,
-    created_at: '2024-01-01T00:00:00Z'
+    created_at: '2024-01-01T00:00:00-03:00'
   }
 ]
 
@@ -49,9 +49,9 @@ export const MOCK_QUIZ_SESSIONS: MockQuizSession[] = [
     quiz_template_id: 'quiz-template-001',
     status: 'completed',
     link: 'https://sistema.com/quiz/session-001',
-    created_at: '2024-09-01T10:00:00Z',
-    expires_at: '2024-09-08T10:00:00Z',
-    completed_at: '2024-09-02T14:30:00Z',
+    created_at: '2024-09-01T10:00:00-03:00',
+    expires_at: '2024-09-08T10:00:00-03:00',
+    completed_at: '2024-09-02T14:30:00-03:00',
     score: 85
   },
   {
@@ -60,9 +60,9 @@ export const MOCK_QUIZ_SESSIONS: MockQuizSession[] = [
     quiz_template_id: 'quiz-template-001',
     status: 'completed',
     link: 'https://sistema.com/quiz/session-002',
-    created_at: '2024-09-01T10:00:00Z',
-    expires_at: '2024-09-08T10:00:00Z',
-    completed_at: '2024-09-03T09:15:00Z',
+    created_at: '2024-09-01T10:00:00-03:00',
+    expires_at: '2024-09-08T10:00:00-03:00',
+    completed_at: '2024-09-03T09:15:00-03:00',
     score: 92
   },
   {
@@ -71,8 +71,8 @@ export const MOCK_QUIZ_SESSIONS: MockQuizSession[] = [
     quiz_template_id: 'quiz-template-001',
     status: 'pending',
     link: 'https://sistema.com/quiz/session-003',
-    created_at: '2024-10-01T10:00:00Z',
-    expires_at: '2024-10-08T10:00:00Z'
+    created_at: '2024-10-01T10:00:00-03:00',
+    expires_at: '2024-10-08T10:00:00-03:00'
   }
 ]
 

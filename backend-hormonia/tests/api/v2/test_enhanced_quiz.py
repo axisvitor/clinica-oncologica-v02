@@ -13,6 +13,7 @@ from app.models.quiz import QuizSession, QuizTemplate
 from app.models.patient import Patient
 
 
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 class TestEnhancedQuizAnalytics:
     """Test suite for enhanced quiz analytics endpoint."""
 
@@ -42,8 +43,8 @@ class TestEnhancedQuizAnalytics:
 
     def test_get_analytics_with_date_filter(self, client: TestClient, db: Session, auth_headers: dict):
         """Test analytics with date filtering."""
-        start_date = (datetime.utcnow() - timedelta(days=30)).isoformat()
-        end_date = datetime.utcnow().isoformat()
+        start_date = (now_sao_paulo_naive() - timedelta(days=30)).isoformat()
+        end_date = now_sao_paulo_naive().isoformat()
 
         response = client.get(
             f"/api/v2/enhanced-quiz/analytics?start_date={start_date}&end_date={end_date}",
@@ -250,7 +251,7 @@ class TestAdaptiveQuizFlow:
             patient_id=patient.id,
             quiz_template_id=template.id,
             status="started",
-            started_at=datetime.utcnow()
+            started_at=now_sao_paulo_naive()
         )
         db.add(session)
         db.commit()
@@ -261,7 +262,7 @@ class TestAdaptiveQuizFlow:
             "current_question_id": "q1",
             "response_value": 8,
             "response_metadata": {
-                "answered_at": datetime.utcnow().isoformat()
+                "answered_at": now_sao_paulo_naive().isoformat()
             }
         }
 
@@ -281,12 +282,6 @@ class TestAdaptiveQuizFlow:
         assert isinstance(data["alerts"], list)
         assert 0 <= data["progress_percentage"] <= 100
 
-    def test_adaptive_flow_triggers_alert(self, client: TestClient, db: Session, auth_headers: dict):
-        """Test adaptive flow triggers alerts based on conditions."""
-        # This would require a session with a template that has branching rules
-        # For now, testing the structure
-        pass
-
     def test_adaptive_flow_session_not_found(self, client: TestClient, db: Session, auth_headers: dict):
         """Test adaptive flow with non-existent session."""
         flow_request = {
@@ -302,12 +297,6 @@ class TestAdaptiveQuizFlow:
         )
 
         assert response.status_code == 404
-
-    def test_adaptive_flow_completes_quiz(self, client: TestClient, db: Session, auth_headers: dict):
-        """Test adaptive flow marks quiz as completed when no more questions."""
-        # Would require a session with a single question
-        pass
-
 
 class TestRiskScoring:
     """Test suite for risk scoring."""
@@ -328,8 +317,8 @@ class TestRiskScoring:
             patient_id=patient.id,
             quiz_template_id=template.id,
             status="completed",
-            started_at=datetime.utcnow() - timedelta(hours=1),
-            completed_at=datetime.utcnow()
+            started_at=now_sao_paulo_naive() - timedelta(hours=1),
+            completed_at=now_sao_paulo_naive()
         )
         db.add(session)
         db.commit()
@@ -381,11 +370,6 @@ class TestRiskScoring:
         )
 
         assert response.status_code == 404
-
-    def test_risk_scoring_no_completed_quizzes(self, client: TestClient, db: Session, auth_headers: dict):
-        """Test risk scoring with patient who has no completed quizzes."""
-        # Would create a patient with no sessions and expect specific response
-        pass
 
     def test_risk_scoring_with_historical_data(self, client: TestClient, db: Session, auth_headers: dict):
         """Test risk scoring includes historical scores."""
@@ -507,8 +491,8 @@ class TestPerformanceMetrics:
 
     def test_performance_metrics_with_date_range(self, client: TestClient, db: Session, auth_headers: dict):
         """Test performance metrics with custom date range."""
-        start_date = (datetime.utcnow() - timedelta(days=60)).isoformat()
-        end_date = datetime.utcnow().isoformat()
+        start_date = (now_sao_paulo_naive() - timedelta(days=60)).isoformat()
+        end_date = now_sao_paulo_naive().isoformat()
 
         response = client.get(
             f"/api/v2/enhanced-quiz/performance-metrics?start_date={start_date}&end_date={end_date}",
@@ -659,8 +643,8 @@ class TestQuizExport:
         """Test successful PDF export."""
         export_request = {
             "format": "pdf",
-            "start_date": (datetime.utcnow() - timedelta(days=30)).isoformat(),
-            "end_date": datetime.utcnow().isoformat(),
+            "start_date": (now_sao_paulo_naive() - timedelta(days=30)).isoformat(),
+            "end_date": now_sao_paulo_naive().isoformat(),
             "include_responses": True,
             "include_analytics": True
         }
@@ -769,23 +753,6 @@ class TestQuizExport:
 class TestScoringAlgorithms:
     """Test suite for scoring algorithms."""
 
-    def test_risk_score_calculation_low_risk(self):
-        """Test risk score calculation for low risk responses."""
-        # Unit test for _calculate_risk_score function
-        # Would test with mock responses indicating low risk
-        pass
-
-    def test_risk_score_calculation_high_risk(self):
-        """Test risk score calculation for high risk responses."""
-        # Unit test for _calculate_risk_score function
-        # Would test with mock responses indicating high risk
-        pass
-
-    def test_branching_condition_evaluation(self):
-        """Test branching condition evaluation logic."""
-        # Unit test for _evaluate_branching_condition function
-        pass
-
 
 class TestCaching:
     """Test suite for caching functionality."""
@@ -803,36 +770,9 @@ class TestCaching:
         # Results should be identical
         assert response1.json() == response2.json()
 
-    def test_cache_invalidation(self, client: TestClient, db: Session, auth_headers: dict):
-        """Test cache invalidation on data changes."""
-        # This would require creating new data and verifying cache updates
-        pass
-
-
 class TestRateLimiting:
     """Test suite for rate limiting."""
-
-    def test_rate_limit_respected(self, client: TestClient, db: Session, auth_headers: dict):
-        """Test that rate limits are enforced."""
-        # Would make multiple rapid requests and verify rate limiting
-        # Note: This may be skipped in unit tests to avoid delays
-        pass
 
 
 class TestRBAC:
     """Test suite for role-based access control."""
-
-    def test_admin_access_all_analytics(self, client: TestClient, db: Session):
-        """Test that admin can access all analytics."""
-        # Would require admin auth headers
-        pass
-
-    def test_doctor_access_own_patients_only(self, client: TestClient, db: Session):
-        """Test that doctors can only access their own patients."""
-        # Would require doctor auth headers and test patient access
-        pass
-
-    def test_unauthorized_bulk_operations(self, client: TestClient, db: Session):
-        """Test that unauthorized users cannot perform bulk operations."""
-        # Would test without auth or with patient-role auth
-        pass

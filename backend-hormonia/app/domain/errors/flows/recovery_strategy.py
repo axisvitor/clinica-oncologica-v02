@@ -5,8 +5,9 @@ Each strategy handles a specific type of error recovery approach.
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 
 from app.models.message import Message, MessageType, MessageDirection, MessageStatus
@@ -21,6 +22,7 @@ from .classifier import (
     ErrorHandlerConstants,
 )
 from .retry_manager import ErrorRecord, RecoveryResult
+from app.utils.timezone import now_sao_paulo
 
 if TYPE_CHECKING:
     from .error_handler import FlowErrorHandler
@@ -59,7 +61,7 @@ class ExponentialBackoffRetry(RecoveryAction):
         delay_index = min(error_record.recovery_attempts, len(delays) - 1)
         delay_seconds = delays[delay_index]
 
-        next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+        next_retry_at = now_sao_paulo() + timedelta(seconds=delay_seconds)
 
         # Schedule retry
         await context.retry_manager.schedule_retry(error_record, next_retry_at)
@@ -93,7 +95,7 @@ class LinearBackoffRetry(RecoveryAction):
 
         # Fixed delay for linear backoff
         delay_seconds = ErrorHandlerConstants.DEFAULT_LINEAR_DELAY
-        next_retry_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+        next_retry_at = now_sao_paulo() + timedelta(seconds=delay_seconds)
 
         # Schedule retry
         await context.retry_manager.schedule_retry(error_record, next_retry_at)
@@ -145,21 +147,21 @@ class FallbackMessageAction(RecoveryAction):
                     "error_id": error_record.id,
                 },
                 status=MessageStatus.PENDING,
-                scheduled_for=datetime.now(timezone.utc),
+                scheduled_for=now_sao_paulo(),
             )
 
             context.db.add(fallback_message)
             context.db.commit()
 
             # Send via message sender
-            from app.domain.messaging.delivery import MessageSender
+            from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSender
 
-            message_sender = MessageSender(context.db)
+            message_sender = IdempotentMessageSender(context.db)
             success = await message_sender.send_message(fallback_message)
 
             if success:
                 error_record.resolved = True
-                error_record.resolved_at = datetime.now(timezone.utc)
+                error_record.resolved_at = now_sao_paulo()
 
                 return RecoveryResult(
                     success=True,
@@ -226,14 +228,14 @@ class SkipAndContinueAction(RecoveryAction):
                         {
                             "operation": error_context.operation,
                             "error_id": error_record.id,
-                            "skipped_at": datetime.now(timezone.utc).isoformat(),
+                            "skipped_at": now_sao_paulo().isoformat(),
                         }
                     )
 
                     context.db.commit()
 
             error_record.resolved = True
-            error_record.resolved_at = datetime.now(timezone.utc)
+            error_record.resolved_at = now_sao_paulo()
 
             return RecoveryResult(
                 success=True,
@@ -273,13 +275,13 @@ class PauseFlowAction(RecoveryAction):
                     flow_state.state_data["pause_reason"] = (
                         f"Error recovery: {error_record.error_type}"
                     )
-                    flow_state.state_data["paused_at"] = datetime.now(timezone.utc).isoformat()
+                    flow_state.state_data["paused_at"] = now_sao_paulo().isoformat()
                     flow_state.state_data["error_id"] = error_record.id
 
                     context.db.commit()
 
                     # Schedule resume
-                    resume_at = datetime.now(timezone.utc) + timedelta(
+                    resume_at = now_sao_paulo() + timedelta(
                         hours=ErrorHandlerConstants.FLOW_RESUME_DELAY_HOURS
                     )
                     await context.retry_manager.schedule_flow_resume(
@@ -322,24 +324,30 @@ class ResetFlowAction(RecoveryAction):
                     backup_data = {
                         "original_state": flow_state.state_data,
                         "reset_reason": error_record.error_type,
-                        "reset_at": datetime.now(timezone.utc).isoformat(),
+                        "reset_at": now_sao_paulo().isoformat(),
                         "error_id": error_record.id,
                     }
+
+                    current_step = flow_state.current_step
+                    try:
+                        current_step_int = (
+                            int(current_step) if current_step is not None else 1
+                        )
+                    except (TypeError, ValueError):
+                        current_step_int = 1
 
                     # Reset to safe state
                     flow_state.state_data = {
                         "reset": True,
                         "backup": backup_data,
-                        "current_step": max(
-                            1, flow_state.current_step - 1
-                        ),  # Go back one step
+                        "current_step": max(1, current_step_int - 1),
                         "reset_recovery": True,
                     }
 
                     context.db.commit()
 
                     error_record.resolved = True
-                    error_record.resolved_at = datetime.now(timezone.utc)
+                    error_record.resolved_at = now_sao_paulo()
 
             return RecoveryResult(
                 success=True,
@@ -383,15 +391,24 @@ class EscalateManualAction(RecoveryAction):
             }
 
             # Publish escalation event
-            await websocket_events.publish_alert_event(
-                event_type=WebSocketEventType.ALERT_CREATED,
-                patient_id=error_record.context.patient_id,
-                alert_type="flow_error_escalation",
-                priority="high"
+            escalation_message = (
+                f"Flow error requires manual intervention: {error_record.error_type}"
+            )
+            alert_data = {
+                "alert_id": str(uuid4()),
+                "patient_id": str(error_record.context.patient_id),
+                "alert_type": "flow_error_escalation",
+                "severity": "high"
                 if error_record.severity == ErrorSeverity.CRITICAL
                 else "medium",
-                message=f"Flow error requires manual intervention: {error_record.error_type}",
-                metadata=escalation_data,
+                "title": escalation_message,
+                "description": escalation_message,
+                "metadata": escalation_data,
+            }
+
+            await websocket_events.broadcast_alert_event(
+                event_type=WebSocketEventType.ALERT_CREATED,
+                alert_data=alert_data,
             )
 
             return RecoveryResult(

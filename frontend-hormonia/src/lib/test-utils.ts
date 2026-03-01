@@ -8,15 +8,15 @@ import 'vitest'
 declare module 'vitest' {
   // @ts-ignore - Extending Vitest's Assertion interface with jest-dom matchers
   interface Assertion {
-    toBeInTheDocument(): any
-    toHaveClass(className: string): any
-    toHaveAttribute(attr: string, value?: string): any
-    toBeVisible(): any
-    toBeDisabled(): any
-    toBeEnabled(): any
-    toHaveValue(value: string | number): any
-    toHaveTextContent(text: string): any
-    toBeChecked(): any
+    toBeInTheDocument(): void
+    toHaveClass(className: string): void
+    toHaveAttribute(attr: string, value?: string): void
+    toBeVisible(): void
+    toBeDisabled(): void
+    toBeEnabled(): void
+    toHaveValue(value: string | number): void
+    toHaveTextContent(text: string): void
+    toBeChecked(): void
   }
 }
 

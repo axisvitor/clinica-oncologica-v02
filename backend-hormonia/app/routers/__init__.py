@@ -1,9 +1,9 @@
 """
-App Routers - Session-based and Quiz authentication modules
+App Routers - legacy compatibility package
 
-This package contains specialized authentication routers:
+This package intentionally keeps only compatibility-safe routers:
 - auth_session: Session-based authentication with Firebase + Redis
-- quiz_auth: Quiz-specific authentication with httpOnly cookies
+- health: basic readiness/liveness endpoints
 """
 
 # Empty __init__.py to make this a valid Python package

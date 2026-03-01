@@ -33,6 +33,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import type { Patient, QuizSession, QuizTemplate } from '@/types/api'
+import type { QuizLink } from '@/lib/api-client/monthly-quiz'
 
 export function QuizPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
@@ -165,7 +167,7 @@ export function QuizPage() {
                     <SelectValue placeholder="Selecione um paciente" />
                   </SelectTrigger>
                   <SelectContent>
-                    {patientsData?.items?.map((patient) => (
+                    {patientsData?.items?.map((patient: Patient) => (
                       <SelectItem key={patient.id} value={patient.id}>
                         {patient.name}
                       </SelectItem>
@@ -181,7 +183,7 @@ export function QuizPage() {
                     <SelectValue placeholder="Selecione um template" />
                   </SelectTrigger>
                   <SelectContent>
-                    {templatesData?.items?.map((template) => (
+                    {templatesData?.items?.map((template: QuizTemplate) => (
                       <SelectItem key={template.id} value={template.id}>
                         {template.name}
                       </SelectItem>
@@ -310,7 +312,7 @@ export function QuizPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {templatesData?.items?.map((template) => (
+              {templatesData?.items?.map((template: QuizTemplate) => (
                 <Card key={template.id} className="hover:shadow-md transition-shadow">
                   <CardHeader>
                     <CardTitle className="text-lg">{template.name}</CardTitle>
@@ -386,11 +388,11 @@ export function QuizPage() {
               </TableHeader>
               <TableBody>
                 {activeLinks
-                  .filter((link) => {
+                  .filter((link: QuizLink) => {
                     if (linkStatusFilter === 'all') return true
                     return link.status === linkStatusFilter
                   })
-                  .map((link) => (
+                  .map((link: QuizLink) => (
                     <TableRow key={link.id}>
                       <TableCell>
                         <div>
@@ -477,7 +479,7 @@ export function QuizPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sessionsData?.items?.map((session) => (
+                {sessionsData?.items?.map((session: QuizSession) => (
                   <TableRow key={session.id}>
                     <TableCell>
                       <div>

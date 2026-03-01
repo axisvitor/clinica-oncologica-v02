@@ -37,7 +37,7 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def mock_localization_service():
     """Mock localization service for testing."""
-    with patch('app.api.v2.localization.get_localization_service') as mock:
+    with patch('app.api.v2.routers.localization.get_localization_service') as mock:
         service = MagicMock()
 
         # Mock translations
@@ -154,9 +154,9 @@ class TestListLanguages:
         patient_user_data: Dict[str, Any]
     ):
         """Test basic language listing."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.get(
@@ -182,9 +182,9 @@ class TestListLanguages:
         patient_user_data: Dict[str, Any]
     ):
         """Test filtering languages by enabled status."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.get(
@@ -207,9 +207,9 @@ class TestListLanguages:
         patient_user_data: Dict[str, Any]
     ):
         """Test field selection for language list."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.get(
@@ -234,9 +234,9 @@ class TestListLanguages:
         patient_user_data: Dict[str, Any]
     ):
         """Test Redis caching for language list."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 # First request - should cache
@@ -273,9 +273,9 @@ class TestGetTranslations:
         patient_user_data: Dict[str, Any]
     ):
         """Test getting translations for a language."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.get(
@@ -300,9 +300,9 @@ class TestGetTranslations:
         patient_user_data: Dict[str, Any]
     ):
         """Test getting translations for invalid language."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.get(
@@ -322,9 +322,9 @@ class TestGetTranslations:
         patient_user_data: Dict[str, Any]
     ):
         """Test filtering translations by namespace."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.get(
@@ -347,9 +347,9 @@ class TestGetTranslations:
         patient_user_data: Dict[str, Any]
     ):
         """Test searching translations."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.get(
@@ -382,9 +382,9 @@ class TestGetTranslationByKey:
         patient_user_data: Dict[str, Any]
     ):
         """Test getting a specific translation by key."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.get(
@@ -412,9 +412,9 @@ class TestGetTranslationByKey:
         patient_user_data: Dict[str, Any]
     ):
         """Test fallback chain for missing translations."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 # Request translation that only exists in fallback language
@@ -439,9 +439,9 @@ class TestGetTranslationByKey:
         patient_user_data: Dict[str, Any]
     ):
         """Test variable substitution in translations."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 variables = json.dumps({"name": "John", "count": 5})
@@ -464,9 +464,9 @@ class TestGetTranslationByKey:
         patient_user_data: Dict[str, Any]
     ):
         """Test pluralization in translations."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 # Test with count = 1 (singular)
@@ -498,9 +498,9 @@ class TestGetTranslationByKey:
         patient_user_data: Dict[str, Any]
     ):
         """Test context-aware translations (formal/informal)."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 # Test with formal context
@@ -522,9 +522,9 @@ class TestGetTranslationByKey:
         patient_user_data: Dict[str, Any]
     ):
         """Test error handling for invalid variables JSON."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.get(
@@ -552,9 +552,9 @@ class TestUpdateTranslation:
         admin_user_data: Dict[str, Any]
     ):
         """Test updating translation as admin."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=admin_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.put(
@@ -576,9 +576,9 @@ class TestUpdateTranslation:
         patient_user_data: Dict[str, Any]
     ):
         """Test updating translation as non-admin (should fail)."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.put(
@@ -598,9 +598,9 @@ class TestUpdateTranslation:
         admin_user_data: Dict[str, Any]
     ):
         """Test updating translation for invalid language."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=admin_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.put(
@@ -620,9 +620,9 @@ class TestUpdateTranslation:
         admin_user_data: Dict[str, Any]
     ):
         """Test cache invalidation after translation update."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=admin_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 # Get translation to cache it
@@ -656,9 +656,9 @@ class TestUserLanguagePreference:
         patient_user_data: Dict[str, Any]
     ):
         """Test getting user language preference."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.get(
@@ -682,9 +682,9 @@ class TestUserLanguagePreference:
         patient_user_data: Dict[str, Any]
     ):
         """Test setting user language preference."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.put(
@@ -707,9 +707,9 @@ class TestUserLanguagePreference:
         patient_user_data: Dict[str, Any]
     ):
         """Test setting invalid language preference."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.put(
@@ -729,9 +729,9 @@ class TestUserLanguagePreference:
         patient_user_data: Dict[str, Any]
     ):
         """Test caching of user language preferences."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 # Set preference
@@ -861,9 +861,9 @@ class TestLocalizationRBAC:
         patient_user_data: Dict[str, Any]
     ):
         """Test that all authenticated users can read translations."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 # Patient should be able to read languages
@@ -891,9 +891,9 @@ class TestLocalizationRBAC:
     ):
         """Test that only admins can write translations."""
         # Patient attempt (should fail)
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.put(
@@ -904,9 +904,9 @@ class TestLocalizationRBAC:
                 assert response.status_code == 403
 
         # Admin attempt (should succeed)
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=admin_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.put(
@@ -938,9 +938,9 @@ class TestLocalizationPerformance:
             f"key_{i}": f"value_{i}" for i in range(1000)
         }
 
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 response = client.get(
@@ -960,9 +960,9 @@ class TestLocalizationPerformance:
         admin_user_data: Dict[str, Any]
     ):
         """Test handling Unicode characters in translations."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=admin_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 unicode_text = "Olá! Você está usando ñ, ç, é, ã, õ 🌟"
@@ -984,9 +984,9 @@ class TestLocalizationPerformance:
         patient_user_data: Dict[str, Any]
     ):
         """Test handling empty translation key."""
-        with patch('app.api.v2.localization._get_current_user_simple',
+        with patch('app.api.v2.routers.localization._get_current_user_simple',
                    return_value=AsyncMock(return_value=patient_user_data)):
-            with patch('app.api.v2.localization.get_redis_cache',
+            with patch('app.api.v2.routers.localization.get_redis_cache',
                        return_value=mock_redis_cache):
 
                 # Empty key should return error or handle gracefully

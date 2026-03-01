@@ -1,14 +1,34 @@
-"""Script to analyze database table usage in codebase"""
-import sys
+"""Script to analyze database table usage in codebase."""
 import os
+import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import inspect
-from app.database import engine, Base
-# Import all models to ensure they are registered in Base.metadata
+from sqlalchemy import create_engine, inspect
+from app.database import Base
+import app.models  # noqa: F401 - ensure all models are registered
+
+
+def _get_docs_engine():
+    db_url = os.getenv("DOCS_DATABASE_URL")
+    if not db_url:
+        raise SystemExit(
+            "DOCS_DATABASE_URL not set. Refusing to run to avoid using the wrong DB."
+        )
+
+    connect_args = {}
+    if db_url.startswith(("postgresql://", "postgresql+psycopg://")):
+        connect_args["options"] = (
+            "-c default_transaction_read_only=on "
+            "-c statement_timeout=5000 "
+            "-c lock_timeout=1000"
+        )
+
+    return create_engine(db_url, connect_args=connect_args)
 
 def analyze_usage():
+    engine = _get_docs_engine()
     inspector = inspect(engine)
     db_tables = set(inspector.get_table_names())
     

@@ -12,23 +12,28 @@ Features:
 - Field selection and eager loading support
 """
 
+import csv
+import io
 import logging
-from typing import Optional
+from datetime import datetime
+from typing import Optional, Dict, Any, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
-from sqlalchemy import or_
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
+from fastapi.responses import JSONResponse
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel, Field
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.user import User, UserRole
-from app.repositories.user import UserRepository
 from app.utils.security import get_password_hash
 from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import (
     cache_response,
     invalidate_user_cache,
 )
-from app.dependencies import get_request_context, RequestContext
+from app.utils.request_context import get_request_context, RequestContext
 from app.schemas.v2.admin import (
     UserCreateRequest,
     UserUpdateRequest,
@@ -52,6 +57,95 @@ from app.api.v2.dependencies import (
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+class BulkUserUpdateRequest(BaseModel):
+    """Schema for bulk updating users."""
+
+    user_ids: List[UUID] = Field(..., min_length=1)
+    updates: Dict[str, Any] = Field(default_factory=dict)
+
+
+class BulkUserDeleteRequest(BaseModel):
+    """Schema for bulk deleting (deactivating) users."""
+
+    user_ids: List[UUID] = Field(..., min_length=1)
+    reason: Optional[str] = None
+
+
+class ExportUsersRequest(BaseModel):
+    """Schema for exporting users."""
+
+    format: str = Field(..., description="Export format: csv or json")
+    fields: Optional[List[str]] = None
+
+
+class UserSearchRequest(BaseModel):
+    """Schema for searching users."""
+
+    query: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+    created_after: Optional[datetime] = None
+    created_before: Optional[datetime] = None
+
+
+def _normalize_bulk_updates(updates: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(updates)
+
+    if "email" in normalized and isinstance(normalized["email"], str):
+        normalized["email"] = normalized["email"].lower()
+
+    if "role" in normalized and isinstance(normalized["role"], str):
+        try:
+            normalized["role"] = UserRole(normalized["role"].lower())
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid role. Valid roles: admin, doctor",
+            )
+
+    return normalized
+
+
+def _apply_user_filters(
+    stmt,
+    role: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    search: Optional[str] = None,
+    created_after: Optional[datetime] = None,
+    created_before: Optional[datetime] = None,
+):
+    """Apply common user filters to a query."""
+    if role:
+        try:
+            role_enum = UserRole(role.lower())
+            stmt = stmt.where(User.role == role_enum)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid role: {role}. Valid roles: admin, doctor",
+            )
+
+    if is_active is not None:
+        stmt = stmt.where(User.is_active.is_(is_active))
+
+    if search:
+        search_pattern = f"%{search}%"
+        stmt = stmt.where(
+            or_(
+                User.email.ilike(search_pattern),
+                User.full_name.ilike(search_pattern),
+            )
+        )
+
+    if created_after:
+        stmt = stmt.where(User.created_at >= created_after)
+
+    if created_before:
+        stmt = stmt.where(User.created_at <= created_before)
+
+    return stmt
 
 
 # ============================================================================
@@ -79,7 +173,7 @@ async def list_users(
     role: Optional[str] = Query(None, description="Filter by role"),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
     search: Optional[str] = Query(None, description="Search in email and full_name"),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -96,57 +190,56 @@ async def list_users(
     try:
         # Determine pagination mode
         use_cursor = cursor is not None
-        effective_limit = limit if use_cursor else size
+        limit_provided = "limit" in request.query_params
+        effective_limit = limit if use_cursor or limit_provided else size
 
         # Parse field selection
         field_list = get_field_selection(fields) if fields else None
 
         # Build base query
-        query = db.query(User)
+        query = select(User)
 
         # Apply cursor pagination if using cursor mode
         if use_cursor:
             pagination = get_pagination_params(cursor, effective_limit)
             cursor_data = pagination.get("cursor_data")
             if cursor_data:
-                query = query.filter(User.id > cursor_data.get("id", 0))
+                query = query.where(User.id > cursor_data.get("id", 0))
 
-        # Apply filters
-        if role:
-            try:
-                role_enum = UserRole(role.lower())
-                query = query.filter(User.role == role_enum)
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid role: {role}. Valid roles: admin, doctor",
-                )
-
-        if is_active is not None:
-            query = query.filter(User.is_active == is_active)
-
-        if search:
-            search_pattern = f"%{search}%"
-            query = query.filter(
-                or_(
-                    User.email.ilike(search_pattern),
-                    User.full_name.ilike(search_pattern),
-                )
-            )
+        query = _apply_user_filters(query, role=role, is_active=is_active, search=search)
 
         # Order by ID for consistent pagination
         query = query.order_by(User.id)
 
         # Get total count for offset-based pagination
         total = None
+        total_pages = None
+        has_next = None
+        has_previous = None
+        page_value = None
+        size_value = None
         if not use_cursor:
-            total = query.count()
+            total_query = _apply_user_filters(
+                select(func.count(User.id)), role=role, is_active=is_active, search=search
+            )
+            total_result = await db.execute(total_query)
+            total = total_result.scalar() or 0
             # Apply offset
-            offset = (page - 1) * size
+            offset = (page - 1) * effective_limit
             query = query.offset(offset)
+            page_value = page
+            size_value = effective_limit
+            total_pages = (
+                int((total + effective_limit - 1) / effective_limit)
+                if effective_limit
+                else 0
+            )
+            has_next = page_value < total_pages if total_pages is not None else None
+            has_previous = page_value > 1 if page_value is not None else None
 
         # Fetch limit + 1 to check if there's more
-        users = query.limit(effective_limit + 1).all()
+        users_result = await db.execute(query.limit(effective_limit + 1))
+        users = users_result.scalars().all()
 
         # Check if there are more results
         has_more = len(users) > effective_limit
@@ -182,9 +275,16 @@ async def list_users(
 
         return {
             "data": serialized_users,
+            "items": serialized_users,
+            "users": serialized_users,
             "next_cursor": next_cursor,
             "has_more": has_more,
             "total": total,
+            "page": page_value,
+            "size": size_value,
+            "total_pages": total_pages,
+            "has_next": has_next,
+            "has_previous": has_previous,
         }
 
     except HTTPException:
@@ -207,7 +307,7 @@ async def list_users(
 
 
 @router.get(
-    "/users/{user_id}",
+    "/users/{user_id:uuid}",
     response_model=UserResponse,
     summary="Get User Details",
     description="Retrieve detailed information about a specific user. Cached for 10 minutes.",
@@ -218,7 +318,7 @@ async def get_user(
     fields: Optional[str] = Query(
         None, description="Comma-separated fields to include"
     ),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -231,9 +331,8 @@ async def get_user(
     - Audit logging
     """
     try:
-        user_repo = UserRepository(db)
-
-        user = user_repo.get(user_id)
+        result = await db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -275,7 +374,7 @@ async def get_user(
 async def create_user(
     request: Request,
     user_data: UserCreateRequest,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -289,10 +388,11 @@ async def create_user(
     - Audit logging
     """
     try:
-        user_repo = UserRepository(db)
-
         # Check if email already exists
-        existing_user = user_repo.get_by_email(user_data.email.lower())
+        existing_result = await db.execute(
+            select(User).where(User.email == user_data.email.lower())
+        )
+        existing_user = existing_result.scalar_one_or_none()
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -309,17 +409,16 @@ async def create_user(
         role_enum = UserRole(user_data.role.lower())
 
         # Create user
-        new_user = user_repo.create(
-            {
-                "email": user_data.email.lower(),
-                "hashed_password": hashed_password,
-                "full_name": user_data.full_name,
-                "role": role_enum,
-                "is_active": user_data.is_active,
-            }
+        new_user = User(
+            email=user_data.email.lower(),
+            hashed_password=hashed_password,
+            full_name=user_data.full_name,
+            role=role_enum,
+            is_active=user_data.is_active,
         )
-        db.commit()
-        db.refresh(new_user)
+        db.add(new_user)
+        await db.commit()
+        await db.refresh(new_user)
 
         # Log action
         await _log_admin_action(
@@ -342,7 +441,7 @@ async def create_user(
         raise
     except Exception as e:
         logger.error(f"Error creating user: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating user: {str(e)}",
@@ -355,7 +454,7 @@ async def create_user(
 
 
 @router.put(
-    "/users/{user_id}",
+    "/users/{user_id:uuid}",
     response_model=UserResponse,
     summary="Update User",
     description="Update user information with cache invalidation.",
@@ -365,7 +464,7 @@ async def update_user(
     request: Request,
     user_id: UUID,
     user_data: UserUpdateRequest,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -379,10 +478,9 @@ async def update_user(
     - Change tracking and audit logging
     """
     try:
-        user_repo = UserRepository(db)
-
         # Get existing user
-        user = user_repo.get(user_id)
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
@@ -394,7 +492,10 @@ async def update_user(
 
         if user_data.email and user_data.email.lower() != user.email:
             # Check email uniqueness
-            existing = user_repo.get_by_email(user_data.email.lower())
+            existing_result = await db.execute(
+                select(User).where(User.email == user_data.email.lower())
+            )
+            existing = existing_result.scalar_one_or_none()
             if existing and existing.id != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -419,8 +520,9 @@ async def update_user(
 
         # Apply updates
         if update_data:
-            user_repo.update(user_id, update_data)
-            db.commit()
+            for key, value in update_data.items():
+                setattr(user, key, value)
+            await db.commit()
 
             # Invalidate cache
             invalidate_user_cache(str(user_id))
@@ -438,14 +540,14 @@ async def update_user(
             logger.info(f"Admin {admin_user.email} updated user {user.email}")
 
         # Refresh and return
-        db.refresh(user)
+        await db.refresh(user)
         return _serialize_user(user)
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error updating user {user_id}: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error updating user: {str(e)}",
@@ -458,7 +560,7 @@ async def update_user(
 
 
 @router.delete(
-    "/users/{user_id}",
+    "/users/{user_id:uuid}",
     response_model=UserActionResponse,
     summary="Delete User (Soft Delete)",
     description="Soft delete (deactivate) a user account.",
@@ -467,7 +569,7 @@ async def update_user(
 async def delete_user(
     request: Request,
     user_id: UUID,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -481,8 +583,6 @@ async def delete_user(
     - Audit logging
     """
     try:
-        user_repo = UserRepository(db)
-
         # Prevent self-deletion
         if user_id == admin_user.id:
             raise HTTPException(
@@ -490,15 +590,16 @@ async def delete_user(
                 detail="Cannot delete your own account",
             )
 
-        user = user_repo.get(user_id)
+        user_result = await db.execute(select(User).where(User.id == user_id))
+        user = user_result.scalar_one_or_none()
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
         # Soft delete (deactivate)
-        user_repo.update(user_id, {"is_active": False})
-        db.commit()
+        user.is_active = False
+        await db.commit()
 
         # Invalidate cache
         invalidate_user_cache(str(user_id))
@@ -523,8 +624,337 @@ async def delete_user(
         raise
     except Exception as e:
         logger.error(f"Error deleting user {user_id}: {e}")
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error deleting user",
         )
+
+
+# ============================================================================
+# ENDPOINT 6: BULK UPDATE USERS
+# ============================================================================
+
+
+@router.post(
+    "/users/bulk-update",
+    summary="Bulk update users",
+    description="Update multiple users in a single request.",
+)
+@limiter.limit("10/hour")
+async def bulk_update_users(
+    request: Request,
+    bulk_data: BulkUserUpdateRequest,
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: User = Depends(get_admin_user),
+    context: RequestContext = Depends(get_request_context),
+):
+    """Bulk update users with basic validation."""
+    if len(bulk_data.user_ids) > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bulk update limit exceeded (max 100 users)",
+        )
+
+    errors = []
+    success_count = 0
+    normalized_updates = _normalize_bulk_updates(bulk_data.updates)
+
+    try:
+        for user_id in bulk_data.user_ids:
+            user_result = await db.execute(select(User).where(User.id == user_id))
+            user = user_result.scalar_one_or_none()
+            if not user:
+                errors.append({"user_id": str(user_id), "error": "User not found"})
+                continue
+            for key, value in normalized_updates.items():
+                setattr(user, key, value)
+            success_count += 1
+
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+    for user_id in bulk_data.user_ids:
+        invalidate_user_cache(str(user_id))
+
+    await _log_admin_action(
+        db,
+        "bulk_update_users",
+        admin_user,
+        context,
+        additional_data={"successful": success_count, "failed": len(errors)},
+    )
+
+    return {
+        "success": len(errors) == 0,
+        "successful": success_count,
+        "failed": len(errors),
+        "errors": errors,
+    }
+
+
+# ============================================================================
+# ENDPOINT 7: BULK DELETE USERS
+# ============================================================================
+
+
+@router.post(
+    "/users/bulk-delete",
+    summary="Bulk delete users",
+    description="Soft delete (deactivate) multiple users.",
+)
+@limiter.limit("10/hour")
+async def bulk_delete_users(
+    request: Request,
+    bulk_data: BulkUserDeleteRequest,
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: User = Depends(get_admin_user),
+    context: RequestContext = Depends(get_request_context),
+):
+    """Bulk deactivate users with safety checks."""
+    if len(bulk_data.user_ids) > 50:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bulk delete limit exceeded (max 50 users)",
+        )
+
+    if admin_user.id in bulk_data.user_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account",
+        )
+
+    errors = []
+    success_count = 0
+
+    try:
+        for user_id in bulk_data.user_ids:
+            user_result = await db.execute(select(User).where(User.id == user_id))
+            user = user_result.scalar_one_or_none()
+            if not user:
+                errors.append({"user_id": str(user_id), "error": "User not found"})
+                continue
+            user.is_active = False
+            success_count += 1
+
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+    for user_id in bulk_data.user_ids:
+        invalidate_user_cache(str(user_id))
+
+    await _log_admin_action(
+        db,
+        "bulk_delete_users",
+        admin_user,
+        context,
+        additional_data={"successful": success_count, "failed": len(errors)},
+    )
+
+    return {
+        "success": len(errors) == 0,
+        "successful": success_count,
+        "failed": len(errors),
+        "errors": errors,
+    }
+
+
+# ============================================================================
+# ENDPOINT 8: EXPORT USERS
+# ============================================================================
+
+
+@router.post(
+    "/users/export",
+    summary="Export users",
+    description="Export users in CSV or JSON format.",
+)
+@limiter.limit("5/minute")
+async def export_users(
+    request: Request,
+    export_request: ExportUsersRequest,
+    role: Optional[str] = Query(None, description="Filter by role"),
+    is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    search: Optional[str] = Query(None, description="Search by name or email"),
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: User = Depends(get_admin_user),
+    context: RequestContext = Depends(get_request_context),
+):
+    """Export users with optional filters."""
+    query = _apply_user_filters(select(User), role=role, is_active=is_active, search=search)
+    users_result = await db.execute(query.order_by(User.id))
+    users = users_result.scalars().all()
+
+    fields = export_request.fields or [
+        "id",
+        "email",
+        "full_name",
+        "role",
+        "is_active",
+    ]
+
+    def _normalize_value(value):
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, UUID):
+            return str(value)
+        return value
+
+    rows = []
+    for user in users:
+        data = _serialize_user(user)
+        row = {field: _normalize_value(data.get(field)) for field in fields}
+        rows.append(row)
+
+    await _log_admin_action(
+        db,
+        "export_users",
+        admin_user,
+        context,
+        additional_data={
+            "format": export_request.format,
+            "count": len(rows),
+            "filters": {"role": role, "is_active": is_active, "search": search},
+        },
+    )
+
+    export_format = export_request.format.lower()
+    if export_format == "csv":
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+        return Response(content=output.getvalue(), media_type="text/csv")
+
+    if export_format == "json":
+        return JSONResponse(content=rows, media_type="application/json")
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Unsupported export format",
+    )
+
+
+# ============================================================================
+# ENDPOINT 9: SEARCH USERS
+# ============================================================================
+
+
+@router.post(
+    "/users/search",
+    response_model=UserListResponse,
+    summary="Search users",
+    description="Search users with filters and date ranges.",
+)
+@limiter.limit("30/minute")
+async def search_users(
+    request: Request,
+    search_data: UserSearchRequest,
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: User = Depends(get_admin_user),
+    context: RequestContext = Depends(get_request_context),
+):
+    """Search users with flexible filters."""
+    query = _apply_user_filters(
+        select(User),
+        role=search_data.role,
+        is_active=search_data.is_active,
+        search=search_data.query,
+        created_after=search_data.created_after,
+        created_before=search_data.created_before,
+    )
+
+    users_result = await db.execute(query.order_by(User.id))
+    users = users_result.scalars().all()
+    serialized_users = [_serialize_user(user) for user in users]
+
+    await _log_admin_action(
+        db,
+        "search_users",
+        admin_user,
+        context,
+        additional_data={"count": len(serialized_users)},
+    )
+
+    return {
+        "data": serialized_users,
+        "items": serialized_users,
+        "users": serialized_users,
+        "next_cursor": None,
+        "has_more": False,
+        "total": len(serialized_users),
+    }
+
+
+# ============================================================================
+# ENDPOINT 10: LIST ACTIVE USERS
+# ============================================================================
+
+
+@router.get(
+    "/users/active",
+    response_model=UserListResponse,
+    summary="List active users",
+    description="List all active users.",
+)
+@limiter.limit("30/minute")
+async def list_active_users(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: User = Depends(get_admin_user),
+    context: RequestContext = Depends(get_request_context),
+):
+    """List active users."""
+    users_result = await db.execute(
+        select(User).where(User.is_active.is_(True)).order_by(User.id)
+    )
+    users = users_result.scalars().all()
+    serialized_users = [_serialize_user(user) for user in users]
+
+    return {
+        "data": serialized_users,
+        "items": serialized_users,
+        "users": serialized_users,
+        "next_cursor": None,
+        "has_more": False,
+        "total": len(serialized_users),
+    }
+
+
+# ============================================================================
+# ENDPOINT 11: LIST INACTIVE USERS
+# ============================================================================
+
+
+@router.get(
+    "/users/inactive",
+    response_model=UserListResponse,
+    summary="List inactive users",
+    description="List all inactive users.",
+)
+@limiter.limit("30/minute")
+async def list_inactive_users(
+    request: Request,
+    db: AsyncSession = Depends(get_async_db),
+    admin_user: User = Depends(get_admin_user),
+    context: RequestContext = Depends(get_request_context),
+):
+    """List inactive users."""
+    users_result = await db.execute(
+        select(User).where(User.is_active.is_(False)).order_by(User.id)
+    )
+    users = users_result.scalars().all()
+    serialized_users = [_serialize_user(user) for user in users]
+
+    return {
+        "data": serialized_users,
+        "items": serialized_users,
+        "users": serialized_users,
+        "next_cursor": None,
+        "has_more": False,
+        "total": len(serialized_users),
+    }

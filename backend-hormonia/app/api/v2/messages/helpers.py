@@ -3,21 +3,29 @@ Messages API v2 - Helper Functions
 Shared utility functions for all message router modules.
 """
 
-from typing import Optional, List, Tuple, Any
+from typing import Optional, List, Tuple, Any, Mapping, Sequence
 from datetime import datetime
 from uuid import UUID
 import json
 import base64
 import logging
 from fastapi import HTTPException, status, Cookie, Header, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, Query
 
 from app.database import get_db
-from app.models.user import User, UserRole
+from app.models.user import UserRole
 from app.models.message import Message
+from app.models.patient import Patient
 from app.dependencies.auth_dependencies import get_redis_cache
+from app.api.v2.auth_session_shared import (
+    resolve_session_id,
+    get_user_data_from_session,
+)
+from app.api.v2.patients_shared_helpers import extract_user_context_sync
 
 logger = logging.getLogger(__name__)
+CursorData = Optional[Mapping[str, Any]]
+PaginatedResult = Tuple[List[Any], bool, Optional[str], Optional[int]]
 
 
 async def _get_current_user_simple(
@@ -27,76 +35,125 @@ async def _get_current_user_simple(
     redis_cache=Depends(get_redis_cache),
 ):
     """Simplified session validation."""
-    final_session_id = session_cookie_id or x_session_id
+    final_session_id = resolve_session_id(
+        x_session_id=x_session_id,
+        session_cookie_id=session_cookie_id,
+    )
     if not final_session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
         )
-
-    session_data = await redis_cache.get_session(final_session_id)
-    if not session_data:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
-        )
-
-    firebase_uid = session_data.get("firebase_uid")
-    if not firebase_uid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
-        )
-
-    user_data = await redis_cache.get_user_by_uid(firebase_uid)
-    if not user_data:
-        user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
-            )
-        user_data = {
-            "id": str(user.id),
-            "firebase_uid": user.firebase_uid,
-            "email": user.email,
-            "full_name": user.full_name,
-            "role": user.role.value if hasattr(user.role, "value") else str(user.role),
-            "is_active": user.is_active,
-        }
-        await redis_cache.cache_user_data(firebase_uid, user_data, ttl=900)
-
-    if not user_data.get("is_active", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
-        )
-
-    return user_data
+    return await get_user_data_from_session(
+        session_id=final_session_id,
+        db=db,
+        redis_cache=redis_cache,
+    )
 
 
 def _extract_user_context(current_user) -> Tuple[Optional[UserRole], Optional[str]]:
     """Extract user role and ID from current_user."""
-    role = None
-    user_id = None
+    return extract_user_context_sync(current_user)
 
-    if isinstance(current_user, dict):
-        role = current_user.get("role")
-        user_id = current_user.get("id")
-    else:
-        user_id = getattr(current_user, "id", None)
-        role = getattr(current_user, "role", None)
 
-    if isinstance(role, UserRole):
-        role_enum = role
-    elif isinstance(role, str):
-        try:
-            role_enum = UserRole(role.lower())
-        except ValueError:
-            role_enum = None
-    else:
-        role_enum = None
+def _get_patient_with_access(
+    *,
+    db: Session,
+    current_user: Any,
+    patient_id: str,
+) -> Tuple[UUID, Patient]:
+    """Parse patient UUID, ensure patient exists and enforce RBAC access."""
+    try:
+        patient_uuid = UUID(patient_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid patient ID format",
+        ) from exc
 
-    if user_id is not None:
-        user_id = str(user_id)
+    patient = db.query(Patient).filter(Patient.id == patient_uuid).first()
+    if not patient:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Patient not found",
+        )
 
-    return role_enum, user_id
+    role_enum, user_id = _extract_user_context(current_user)
+    if role_enum != UserRole.ADMIN and str(patient.doctor_id) != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+
+    return patient_uuid, patient
+
+
+def _parse_message_uuid(message_id: str) -> UUID:
+    """Parse message UUID from path parameter or raise 400."""
+    try:
+        return UUID(message_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid message ID format"
+        ) from exc
+
+
+def _load_message_with_access(
+    *,
+    db: Session,
+    current_user: Any,
+    message_id: str,
+    message_service: Any,
+) -> Tuple[UUID, Message, Optional[str]]:
+    """Load message by ID and enforce RBAC on related patient."""
+    msg_uuid = _parse_message_uuid(message_id)
+    message = message_service.get_message(msg_uuid)
+
+    if not message:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Message not found"
+        )
+
+    role_enum, user_id = _extract_user_context(current_user)
+    if role_enum != UserRole.ADMIN:
+        patient = db.query(Patient).filter(Patient.id == message.patient_id).first()
+        if not patient or str(patient.doctor_id) != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
+            )
+
+    return msg_uuid, message, user_id
+
+
+def _build_message_page_response(
+    messages: Sequence[Message],
+    *,
+    has_more: bool,
+    next_cursor: Optional[str],
+    total: Optional[int],
+) -> dict:
+    """Standard paginated response payload for message list endpoints."""
+    return {
+        "data": [_serialize_message(msg) for msg in messages],
+        "next_cursor": next_cursor,
+        "has_more": has_more,
+        "total": total,
+    }
+
+
+def _paginate_messages_query(query: Query, *, limit: int, cursor_data: CursorData) -> dict:
+    """Paginate message query and return standard response payload."""
+    messages, has_more, next_cursor, total = _paginate_query(
+        query,
+        limit=limit,
+        cursor_data=cursor_data,
+        order_columns=(Message.created_at.desc(), Message.id),
+    )
+    return _build_message_page_response(
+        messages,
+        has_more=has_more,
+        next_cursor=next_cursor,
+        total=total,
+    )
 
 
 def _is_admin(current_user) -> bool:
@@ -179,6 +236,80 @@ def _create_cursor(last_item: Any, cursor_fields: Optional[List[str]] = None) ->
 
     cursor_json = json.dumps(cursor_data)
     return base64.b64encode(cursor_json.encode("utf-8")).decode("utf-8")
+
+
+def _parse_cursor_uuid(value: Any) -> UUID:
+    """Parse cursor value into UUID while accepting UUID or string inputs."""
+    if isinstance(value, UUID):
+        return value
+    return UUID(str(value))
+
+
+def _parse_cursor_datetime(value: Any) -> datetime:
+    """Parse cursor value into datetime while accepting datetime or ISO strings."""
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def _apply_message_created_cursor_filter(
+    query: Query, cursor_data: CursorData
+) -> Query:
+    """
+    Apply cursor filter for message timelines ordered by (created_at DESC, id ASC).
+    """
+    if not cursor_data or "id" not in cursor_data:
+        return query
+
+    cursor_created_at_raw = cursor_data.get("created_at")
+    if cursor_created_at_raw is None:
+        return query
+
+    cursor_id = _parse_cursor_uuid(cursor_data["id"])
+    cursor_created_at = _parse_cursor_datetime(cursor_created_at_raw)
+    return query.filter(
+        (Message.created_at < cursor_created_at)
+        | ((Message.created_at == cursor_created_at) & (Message.id > cursor_id))
+    )
+
+
+def _apply_uuid_id_cursor_filter(
+    query: Query, id_column: Any, cursor_data: CursorData
+) -> Query:
+    """Apply simple UUID `id > cursor_id` filtering for cursor-based pagination."""
+    if not cursor_data or "id" not in cursor_data:
+        return query
+
+    cursor_id = _parse_cursor_uuid(cursor_data["id"])
+    return query.filter(id_column > cursor_id)
+
+
+def _paginate_query(
+    query: Query,
+    *,
+    limit: int,
+    cursor_data: CursorData,
+    order_columns: Sequence[Any],
+    cursor_fields: Optional[List[str]] = None,
+) -> PaginatedResult:
+    """
+    Execute common cursor pagination flow.
+
+    Returns:
+        (items, has_more, next_cursor, total)
+    """
+    total = None if cursor_data else query.count()
+
+    items = query.order_by(*order_columns).limit(limit + 1).all()
+    has_more = len(items) > limit
+    if has_more:
+        items = items[:limit]
+
+    next_cursor = None
+    if has_more and items:
+        next_cursor = _create_cursor(items[-1], cursor_fields=cursor_fields)
+
+    return items, has_more, next_cursor, total
 
 
 async def _get_cached_or_compute(

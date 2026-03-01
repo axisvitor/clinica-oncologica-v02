@@ -25,10 +25,8 @@ from ..dependencies import (
     get_pagination_params,
     get_eager_load_params,
 )
-from app.dependencies import (
-    get_current_user,
-    get_flow_management_service,
-)
+from app.dependencies.auth_dependencies import get_current_user
+from app.dependencies.service_dependencies import get_flow_management_service
 from app.services.flow_management import FlowManagementService
 from app.repositories.patient import PatientRepository
 from app.exceptions import (
@@ -39,22 +37,11 @@ from app.exceptions import (
     flow_operation_exception,
     internal_server_exception,
 )
-import base64
-import json
+from .cursor import _create_cursor
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-
-def _create_cursor(item_id: str, created_at: datetime) -> str:
-    """Create cursor for pagination"""
-    cursor_data = {"id": str(item_id), "created_at": created_at.isoformat()}
-    return base64.b64encode(json.dumps(cursor_data).encode()).decode()
 
 
 # ============================================================================
@@ -203,7 +190,7 @@ async def pause_patient_flow(
         return FlowPauseV2Response(
             success=True,
             patient_id=str(patient_id),
-            paused_at=pause_result.get("paused_at", datetime.now(timezone.utc)),
+            paused_at=pause_result.get("paused_at", now_sao_paulo()),
             reason=reason,
             auto_resume_at=pause_result.get("auto_resume_at"),
             message=pause_result.get("message", "Flow paused successfully"),
@@ -251,7 +238,7 @@ async def resume_patient_flow(
         return FlowResumeV2Response(
             success=True,
             patient_id=str(patient_id),
-            resumed_at=resume_result.get("resumed_at", datetime.now(timezone.utc)),
+            resumed_at=resume_result.get("resumed_at", now_sao_paulo()),
             paused_duration_hours=resume_result.get("paused_duration_hours", 0.0),
             next_message_at=resume_result.get("next_message_at"),
             message=resume_result.get("message", "Flow resumed successfully"),
@@ -318,7 +305,7 @@ async def get_patient_flow_history(
         if cursor_data and "id" in cursor_data:
             cursor_id = UUID(cursor_data["id"])
             cursor_created = datetime.fromisoformat(
-                cursor_data["created_at"].replace("Z", "+00:00")
+                cursor_data["created_at"]
             )
             query = query.filter(
                 (FlowStateModel.created_at < cursor_created)

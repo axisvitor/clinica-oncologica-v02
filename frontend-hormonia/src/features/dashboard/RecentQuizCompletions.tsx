@@ -134,7 +134,7 @@ export function RecentQuizCompletions() {
                 to={`/patients/${session.patient_id}?tab=quiz-responses`}
                 className="block"
               >
-                <div className="flex items-start gap-3 p-3 rounded-lg border hover:border-blue-300 hover:bg-blue-50 transition-all cursor-pointer">
+                <div className="flex items-start gap-3 p-3 rounded-lg border hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer">
                   <div className="flex-shrink-0 mt-1">
                     <CheckCircle className="h-5 w-5 text-green-600" />
                   </div>

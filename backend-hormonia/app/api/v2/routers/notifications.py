@@ -4,11 +4,12 @@ import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.notification import Notification
-from app.api.v2.dependencies import get_pagination_params
+from app.api.v2.dependencies import get_pagination_params_async
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 
@@ -18,6 +19,9 @@ from app.schemas.v2.auth import (
     NotificationMarkReadRequest,
     NotificationMarkReadResponse,
 )
+from app.utils.auth_helpers import extract_user_id as _extract_user_id
+from app.utils.timezone import now_sao_paulo
+from app.api.v2.routers import users as users_router_module
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -25,17 +29,10 @@ logger = logging.getLogger(__name__)
 CACHE_TTL_UNREAD_COUNT = 60  # 1 minute
 
 
-def _extract_user_id(current_user) -> str:
-    if isinstance(current_user, dict):
-        return current_user.get("id")
-    return str(getattr(current_user, "id", None))
-
-
 async def _get_redis_client():
     try:
-        from app.core.redis_client import get_async_redis_client
-
-        return await get_async_redis_client()
+        # Reuse users router provider so auth tests can patch one shared path.
+        return await users_router_module._get_redis_client()
     except Exception as e:
         logger.warning(f"Failed to get Redis client: {e}")
         return None
@@ -66,8 +63,8 @@ def _serialize_notification(notification: Notification) -> dict:
 async def list_notifications(
     request: Request,
     current_user=Depends(get_current_user_from_session),
-    db=Depends(get_db),
-    pagination=Depends(get_pagination_params),
+    db: AsyncSession = Depends(get_async_db),
+    pagination=Depends(get_pagination_params_async),
     unread_only: bool = Query(False, description="Show only unread notifications"),
 ):
     user_id = _extract_user_id(current_user)
@@ -79,21 +76,21 @@ async def list_notifications(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID format")
 
-    # Build query
+    # Build filters
     filters = [Notification.user_id == user_uuid]
 
     if unread_only:
-        filters.append(not Notification.is_read)
+        filters.append(Notification.is_read.is_(False))
 
-    query = db.query(Notification).filter(and_(*filters))
+    stmt = select(Notification).where(and_(*filters))
 
     # Apply cursor pagination
     if cursor_data and "id" in cursor_data:
         cursor_id = UUID(cursor_data["id"])
         cursor_created = datetime.fromisoformat(
-            cursor_data["created_at"].replace("Z", "+00:00")
+            cursor_data["created_at"]
         )
-        query = query.filter(
+        stmt = stmt.where(
             or_(
                 Notification.created_at < cursor_created,
                 and_(
@@ -106,18 +103,23 @@ async def list_notifications(
     # Get total count (only on first page)
     total = None
     if not cursor_data:
-        total = query.count()
+        count_result = await db.execute(
+            select(func.count(Notification.id)).where(and_(*filters))
+        )
+        total = count_result.scalar()
 
     # Get unread count
-    unread_count = (
-        db.query(func.count(Notification.id))
-        .filter(Notification.user_id == user_uuid, not Notification.is_read)
-        .scalar()
+    unread_result = await db.execute(
+        select(func.count(Notification.id)).where(
+            Notification.user_id == user_uuid, Notification.is_read.is_(False)
+        )
     )
+    unread_count = unread_result.scalar() or 0
 
     # Order and limit
-    query = query.order_by(Notification.created_at.desc(), Notification.id)
-    notifications = query.limit(limit + 1).all()
+    stmt = stmt.order_by(Notification.created_at.desc(), Notification.id)
+    notifications_result = await db.execute(stmt.limit(limit + 1))
+    notifications = list(notifications_result.scalars().all())
 
     # Check if there are more results
     has_more = len(notifications) > limit
@@ -140,6 +142,7 @@ async def list_notifications(
 
     return {
         "data": notification_responses,
+        "items": notification_responses,
         "next_cursor": next_cursor,
         "has_more": has_more,
         "total": total,
@@ -157,7 +160,7 @@ async def mark_notifications_read(
     request: Request,
     payload: NotificationMarkReadRequest,
     current_user=Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     user_id = _extract_user_id(current_user)
 
@@ -168,23 +171,22 @@ async def mark_notifications_read(
         raise HTTPException(status_code=400, detail="Invalid ID format")
 
     # Get notifications belonging to user
-    notifications = (
-        db.query(Notification)
-        .filter(
+    mark_result = await db.execute(
+        select(Notification).where(
             Notification.id.in_(notification_uuids), Notification.user_id == user_uuid
         )
-        .all()
     )
+    notifications = list(mark_result.scalars().all())
 
     # Mark as read
     marked_count = 0
     for notification in notifications:
         if not notification.is_read:
             notification.is_read = True
-            notification.read_at = datetime.now(timezone.utc)
+            notification.read_at = now_sao_paulo()
             marked_count += 1
 
-    db.commit()
+    await db.commit()
 
     # Invalidate unread count cache
     redis = await _get_redis_client()
@@ -202,7 +204,7 @@ async def mark_notifications_read(
 async def get_unread_count(
     request: Request,
     current_user=Depends(get_current_user_from_session),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     user_id = _extract_user_id(current_user)
 
@@ -224,11 +226,12 @@ async def get_unread_count(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid user ID format")
 
-    count = (
-        db.query(func.count(Notification.id))
-        .filter(Notification.user_id == user_uuid, not Notification.is_read)
-        .scalar()
+    unread_count_result = await db.execute(
+        select(func.count(Notification.id)).where(
+            Notification.user_id == user_uuid, Notification.is_read.is_(False)
+        )
     )
+    count = unread_count_result.scalar() or 0
 
     # Cache the result
     if redis:

@@ -29,8 +29,8 @@ describe('PatientCard Component', () => {
     phone: '+5511999999999',
     status: 'active',
     treatment_type: 'chemotherapy',
-    last_interaction: '2023-12-01T10:30:00Z',
-    next_appointment: '2023-12-15T14:00:00Z'
+    last_interaction: '2023-12-01T10:30:00-03:00',
+    next_appointment: '2023-12-15T14:00:00-03:00'
   })
 
   const defaultProps = {

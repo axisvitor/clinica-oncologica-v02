@@ -13,6 +13,7 @@ All sub-modules are combined into a single router with proper tags.
 """
 
 from fastapi import APIRouter
+import psutil
 
 # Import sub-routers
 from .config import router as config_router
@@ -21,6 +22,7 @@ from .initialization import router as initialization_router
 from .components import router as components_router
 from .metrics import router as metrics_router
 from .validation import router as validation_router
+from .helpers import _get_redis_client, _build_api_urls, _check_component_health
 
 # Create combined router with system prefix (handled by parent router)
 router = APIRouter(tags=["system"])
@@ -39,4 +41,8 @@ router.include_router(validation_router, tags=["system-validation"])
 # Export router and key functions
 __all__ = [
     "router",
+    "_get_redis_client",
+    "_build_api_urls",
+    "_check_component_health",
+    "psutil",
 ]

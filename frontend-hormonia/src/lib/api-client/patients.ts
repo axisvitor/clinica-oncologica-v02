@@ -94,6 +94,116 @@ export interface PatientStats {
   by_doctor?: Record<string, number>
 }
 
+type BackendTimelineEvent = {
+  id?: string
+  patient_id?: string
+  type?: string
+  event?: string
+  event_type?: string
+  title?: string
+  description?: string
+  details?: string
+  date?: string
+  timestamp?: string
+  created_at?: string
+  metadata?: Record<string, unknown>
+}
+
+const normalizeTimelineDate = (value?: unknown): string | undefined => {
+  if (value instanceof Date) {
+    return value.toISOString()
+  }
+  if (typeof value === 'number') {
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? undefined : date.toISOString()
+  }
+  if (typeof value !== 'string') {
+    return undefined
+  }
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return undefined
+  }
+  return trimmed.replace(/(\.\d{3})\d+/, '$1')
+}
+
+const normalizeTimelineEventType = (rawType?: string): TimelineEvent['event_type'] => {
+  const normalized = (rawType || '').toLowerCase()
+  if (!normalized) {
+    return 'system'
+  }
+  if (normalized.includes('message')) {
+    return 'message'
+  }
+  if (normalized.includes('appointment')) {
+    return 'appointment'
+  }
+  if (normalized.includes('note')) {
+    return 'note'
+  }
+  if (normalized.includes('quiz')) {
+    return 'quiz'
+  }
+  if (normalized.includes('alert')) {
+    return 'alert'
+  }
+  if (normalized.includes('report')) {
+    return 'report'
+  }
+  if (
+    normalized.includes('flow') ||
+    normalized.includes('saga') ||
+    normalized.includes('patient') ||
+    normalized.includes('status_change') ||
+    normalized.includes('treatment_start') ||
+    normalized.includes('archived') ||
+    normalized.includes('created')
+  ) {
+    return 'flow_change'
+  }
+  return 'system'
+}
+
+const getTimelineDate = (event: BackendTimelineEvent): string | undefined => {
+  const metadata = event.metadata ?? {}
+  const candidates: Array<unknown> = [
+    event.timestamp,
+    event.created_at,
+    event.date,
+    metadata['timestamp'],
+    metadata['created_at'],
+    metadata['date']
+  ]
+  for (const candidate of candidates) {
+    const normalized = normalizeTimelineDate(candidate)
+    if (normalized) {
+      return normalized
+    }
+  }
+  return undefined
+}
+
+const normalizeTimelineEvent = (
+  event: BackendTimelineEvent,
+  patientId: string,
+  index: number
+): TimelineEvent => {
+  const eventType = normalizeTimelineEventType(event.type ?? event.event_type ?? event.event)
+  const createdAt = getTimelineDate(event) ?? ''
+  const title = event.title ?? event.type ?? event.event ?? 'Evento'
+  const description = event.description ?? event.details ?? ''
+
+  return {
+    id: event.id ?? `${patientId}-${eventType}-${index}`,
+    patient_id: event.patient_id ?? patientId,
+    event_type: eventType,
+    title,
+    description,
+    metadata: event.metadata ?? {},
+    created_at: createdAt
+  }
+}
+
 
 
 /**
@@ -255,7 +365,18 @@ export function createPatientsApi(client: ApiClientCore) {
      * Get patient timeline
      */
     timeline: async (patientId: string): Promise<{ events: TimelineEvent[] }> => {
-      return client.get<{ events: TimelineEvent[] }>(`/api/v2/patients/${patientId}/timeline`)
+      const response = await client.get<{
+        patient_id?: string
+        events?: BackendTimelineEvent[]
+        items?: BackendTimelineEvent[]
+      }>(`/api/v2/patients/${patientId}/timeline`)
+      const rawEvents = Array.isArray(response?.events)
+        ? response.events
+        : (response?.items ?? [])
+      const resolvedPatientId = response?.patient_id ?? patientId
+      return {
+        events: rawEvents.map((event, index) => normalizeTimelineEvent(event, resolvedPatientId, index))
+      }
     },
 
 
@@ -294,7 +415,7 @@ export function createPatientsApi(client: ApiClientCore) {
         {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include'
         }
@@ -323,7 +444,7 @@ export function createPatientsApi(client: ApiClientCore) {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include',
           body: formData
@@ -387,7 +508,7 @@ export function createPatientsApi(client: ApiClientCore) {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include',
           body: formData
@@ -431,7 +552,7 @@ export function createPatientsApi(client: ApiClientCore) {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include',
           body: formData
@@ -455,7 +576,7 @@ export function createPatientsApi(client: ApiClientCore) {
         {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${client.getAuthToken()}`
+            ...client.getSessionHeaders(),
           },
           credentials: 'include'
         }

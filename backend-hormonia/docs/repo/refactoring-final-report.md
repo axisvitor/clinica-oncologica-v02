@@ -943,7 +943,7 @@ app/api/v2/routers/analytics/
 ```
 app/services/lgpd_encryption_service.py
 app/middleware/lgpd_middleware.py
-alembic/versions/027_consolidate_duplicate_migrations.py
+alembic/versions/027_consolidate_duplicates.py
 alembic/versions/028_encrypt_email_phone_lgpd.py
 alembic/versions/025_add_patient_idempotency_key.py
 ```

@@ -7,12 +7,11 @@ Endpoints:
 """
 
 from typing import Dict, Any
-from datetime import datetime, timezone
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.user import UserRole
 from app.schemas.v2.tasks import (
     TaskV2Response,
@@ -23,16 +22,20 @@ from app.schemas.v2.tasks import (
 )
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.utils.rate_limiter import limiter
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
+from app.api.v2.routers import tasks as tasks_module
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..dependencies import (
     _get_current_user_simple,
     _extract_user_role,
-    _get_task_from_celery,
+    _get_task_or_404,
+    _get_task_with_celery_data,
     _serialize_task,
-    task_registry,
 )
+from ..registry import update_task as update_registry_task
 from ..utils import _calculate_retry_delay
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -44,7 +47,7 @@ async def cancel_task(
     task_id: str,
     cancel_data: TaskV2Cancel,
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
@@ -59,20 +62,7 @@ async def cancel_task(
     Rate limit: 30 requests/minute
     """
     try:
-        # Find task
-        celery_task_id = None
-        task_data = None
-
-        for cid, data in task_registry.items():
-            if data.get("id") == task_id:
-                celery_task_id = cid
-                task_data = data
-                break
-
-        if not task_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
-            )
+        celery_task_id, task_data = _get_task_or_404(task_id)
 
         # Check RBAC
         role = _extract_user_role(current_user)
@@ -85,26 +75,23 @@ async def cancel_task(
                     detail="You do not have access to this task",
                 )
 
-        # Cancel in Celery
         celery_app.control.revoke(
             celery_task_id,
             terminate=cancel_data.force,
             signal="SIGKILL" if cancel_data.force else "SIGTERM",
         )
 
-        # Update registry
-        task_registry[celery_task_id].update(
-            {
-                "status": TaskStatus.CANCELLED,
-                "completed_at": datetime.now(timezone.utc),
-                "metadata": {
-                    **task_data.get("metadata", {}),
-                    "cancellation_reason": cancel_data.reason,
-                    "cancelled_by": current_user.get("id"),
-                    "forced": cancel_data.force,
-                },
-            }
-        )
+        update_payload = {
+            "status": TaskStatus.CANCELLED.value,
+            "completed_at": now_sao_paulo(),
+            "metadata": {
+                **task_data.get("metadata", {}),
+                "cancellation_reason": cancel_data.reason,
+                "cancelled_by": current_user.get("id"),
+                "forced": cancel_data.force,
+            },
+        }
+        update_registry_task(celery_task_id, update_payload)
 
         # Invalidate caches
         await redis_cache.delete(f"task:{task_id}:*")
@@ -117,8 +104,9 @@ async def cancel_task(
         )
 
         # Get updated data
-        celery_data = _get_task_from_celery(celery_task_id)
-        merged_data = {**task_registry[celery_task_id], **celery_data}
+        merged_data = _get_task_with_celery_data(
+            celery_task_id, tasks_module.task_registry[celery_task_id]
+        )
 
         return _serialize_task(merged_data)
 
@@ -138,7 +126,7 @@ async def retry_task(
     task_id: str,
     retry_data: TaskV2Retry,
     request: Request,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
     current_user: Dict = Depends(_get_current_user_simple),
 ) -> Dict[str, Any]:
@@ -154,20 +142,7 @@ async def retry_task(
     Rate limit: 30 requests/minute
     """
     try:
-        # Find task
-        celery_task_id = None
-        task_data = None
-
-        for cid, data in task_registry.items():
-            if data.get("id") == task_id:
-                celery_task_id = cid
-                task_data = data
-                break
-
-        if not task_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
-            )
+        celery_task_id, task_data = _get_task_or_404(task_id)
 
         # Check RBAC
         role = _extract_user_role(current_user)
@@ -182,7 +157,9 @@ async def retry_task(
 
         # Check if task can be retried
         current_status = task_data.get("status")
-        if current_status not in [TaskStatus.FAILURE, TaskStatus.RETRY]:
+        if hasattr(current_status, "value"):
+            current_status = current_status.value
+        if str(current_status) not in [TaskStatus.FAILURE.value, TaskStatus.RETRY.value]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Cannot retry task in {current_status} status",
@@ -214,19 +191,18 @@ async def retry_task(
         # Retry the task
         # Note: In a real implementation, you would requeue the original task
         # For now, we'll update the status
-        task_registry[celery_task_id].update(
-            {
-                "status": TaskStatus.RETRY,
-                "retry_count": retry_count + 1,
-                "metadata": {
-                    **task_data.get("metadata", {}),
-                    "manual_retry": True,
-                    "retry_notes": retry_data.notes,
-                    "retried_by": current_user.get("id"),
-                    "retried_at": datetime.now(timezone.utc).isoformat(),
-                },
-            }
-        )
+        update_payload = {
+            "status": TaskStatus.RETRY.value,
+            "retry_count": retry_count + 1,
+            "metadata": {
+                **task_data.get("metadata", {}),
+                "manual_retry": True,
+                "retry_notes": retry_data.notes,
+                "retried_by": current_user.get("id"),
+                "retried_at": now_sao_paulo().isoformat(),
+            },
+        }
+        update_registry_task(celery_task_id, update_payload)
 
         # Invalidate caches
         await redis_cache.delete(f"task:{task_id}:*")
@@ -239,7 +215,7 @@ async def retry_task(
         )
 
         # Get updated data
-        merged_data = task_registry[celery_task_id]
+        merged_data = tasks_module.task_registry[celery_task_id]
 
         return _serialize_task(merged_data)
 

@@ -6,12 +6,20 @@ all handle versions consistently using the centralized version utilities.
 """
 
 import pytest
+import importlib
 from unittest.mock import Mock, patch
 
-from app.services.template_loader import EnhancedTemplateLoader
+from app.services.template_loader_pkg import EnhancedTemplateLoader
 from app.services.versioned_template_loader import VersionedTemplateLoader
-from app.services.flow.templates.validator import FlowTemplateValidator
 from app.utils.version_utils import normalize_version, to_int_version
+
+try:
+    FlowTemplateValidator = getattr(
+        importlib.import_module("app.services.flow.templates.validator"),
+        "FlowTemplateValidator",
+    )
+except ImportError:  # Tombstoned in Phase 16
+    FlowTemplateValidator = None
 
 
 class TestEnhancedTemplateLoaderVersioning:
@@ -25,8 +33,8 @@ class TestEnhancedTemplateLoaderVersioning:
     @pytest.fixture
     def loader(self, mock_db):
         """Create template loader with mocked dependencies."""
-        with patch('app.services.template_loader.FlowKindRepository'), \
-             patch('app.services.template_loader.FlowTemplateVersionRepository'):
+        with patch('app.services.template_loader_pkg.loader.FlowKindRepository'), \
+             patch('app.services.template_loader_pkg.loader.FlowTemplateVersionRepository'):
             return EnhancedTemplateLoader(mock_db)
 
     def test_semantic_version_to_int_conversion(self, loader):
@@ -35,11 +43,11 @@ class TestEnhancedTemplateLoaderVersioning:
         loader.template_version_repo.get_by_flow_type_and_version = Mock(return_value=None)
 
         # Load with semantic version
-        loader._load_from_database("initial_15_days", "1.2.3")
+        loader._load_from_database("onboarding", "1.2.3")
 
         # Verify it converts to integer major version for DB query
         loader.template_version_repo.get_by_flow_type_and_version.assert_called_with(
-            "initial_15_days", 1
+            "onboarding", 1
         )
 
     def test_integer_version_passthrough(self, loader):
@@ -47,11 +55,11 @@ class TestEnhancedTemplateLoaderVersioning:
         loader.template_version_repo.get_by_flow_type_and_version = Mock(return_value=None)
 
         # Load with integer version
-        loader._load_from_database("initial_15_days", "5")
+        loader._load_from_database("onboarding", "5")
 
         # Verify it uses the integer
         loader.template_version_repo.get_by_flow_type_and_version.assert_called_with(
-            "initial_15_days", 5
+            "onboarding", 5
         )
 
     def test_parse_db_template_normalizes_version(self, loader):
@@ -183,12 +191,17 @@ class TestVersionedTemplateLoaderVersioning:
             assert len(version.split(".")) == 3
 
 
+@pytest.mark.skipif(
+    FlowTemplateValidator is None,
+    reason="app.services.flow.templates tombstoned in Phase 16 (Dead Code Removal)",
+)
 class TestFlowTemplateValidatorVersioning:
     """Test FlowTemplateValidator version handling."""
 
     @pytest.fixture
     def validator(self):
         """Create validator instance."""
+        assert FlowTemplateValidator is not None
         return FlowTemplateValidator()
 
     def test_validates_semantic_version_format(self, validator):
@@ -294,7 +307,7 @@ class TestVersionMigrationScenarios:
 
     def test_version_cache_key_generation(self):
         """Test generating consistent cache keys across version formats."""
-        flow_type = "initial_15_days"
+        flow_type = "onboarding"
 
         # Different version formats
         versions = [1, "1", "1.0.0"]
@@ -307,4 +320,4 @@ class TestVersionMigrationScenarios:
 
         # All should normalize to same key
         assert len(set(cache_keys)) == 1
-        assert cache_keys[0] == "initial_15_days:1.0.0"
+        assert cache_keys[0] == "onboarding:1.0.0"

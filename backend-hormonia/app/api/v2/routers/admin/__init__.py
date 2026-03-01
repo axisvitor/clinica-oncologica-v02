@@ -28,7 +28,7 @@ from .utils import (
 )
 
 # Import sub-routers
-from . import users, actions, activity, stats
+from . import users, actions, activity, stats, compensation, roles
 
 # Create the combined router
 router = APIRouter()
@@ -38,6 +38,8 @@ router.include_router(stats.router, tags=["admin-stats-v2"])
 router.include_router(users.router, tags=["admin-users-v2"])
 router.include_router(actions.router, tags=["admin-actions-v2"])
 router.include_router(activity.router, tags=["admin-activity-v2"])
+router.include_router(compensation.router, tags=["admin-compensation-v2"])
+router.include_router(roles.router, tags=["admin-roles-v2"])
 
 __all__ = [
     "router",

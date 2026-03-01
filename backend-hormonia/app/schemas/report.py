@@ -7,6 +7,7 @@ from typing import List, Optional, Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
+from app.utils.timezone import now_sao_paulo_naive
 
 
 class ReportSectionSchema(BaseModel):
@@ -200,7 +201,7 @@ class AnalyticsResponse(BaseModel):
     )
     system_analytics: SystemAnalytics = Field(..., description="System-wide analytics")
     generated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Analytics generation timestamp"
+        default_factory=now_sao_paulo_naive, description="Analytics generation timestamp"
     )
 
 
@@ -272,7 +273,7 @@ class DashboardResponse(BaseModel):
     )
 
     generated_at: datetime = Field(
-        default_factory=datetime.utcnow, description="Dashboard generation timestamp"
+        default_factory=now_sao_paulo_naive, description="Dashboard generation timestamp"
     )
 
 

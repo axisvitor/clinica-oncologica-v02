@@ -8,10 +8,10 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
-from app.dependencies.auth_dependencies import get_current_user
+from app.core.database.async_engine import get_async_db
 from app.models.user import User
 from app.models.system_health import (
     SystemHealthSnapshot,
@@ -27,6 +27,8 @@ from app.schemas.v2.health import (
     HealthAlert,
     AlertLevel,
 )
+from .compat import get_current_user_compat
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -35,21 +37,22 @@ router = APIRouter()
 
 @router.get("/history", response_model=HealthHistory)
 async def health_history_endpoint(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user_compat),
+    db: AsyncSession = Depends(get_async_db),
 ) -> HealthHistory:
     """
     Health check history for last 24 hours (Authenticated).
 
     Returns historical health data from database.
     """
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    since = now_sao_paulo() - timedelta(hours=24)
 
-    snapshots = (
-        db.query(SystemHealthSnapshot)
-        .filter(SystemHealthSnapshot.created_at >= since)
+    result = await db.execute(
+        select(SystemHealthSnapshot)
+        .where(SystemHealthSnapshot.created_at >= since)
         .order_by(SystemHealthSnapshot.created_at.asc())
-        .all()
     )
+    snapshots = result.scalars().all()
 
     entries = []
     total_checks = len(snapshots)
@@ -87,21 +90,22 @@ async def health_history_endpoint(
 
 @router.get("/incidents", response_model=HealthIncidentsResponse)
 async def health_incidents_endpoint(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user_compat),
+    db: AsyncSession = Depends(get_async_db),
 ) -> HealthIncidentsResponse:
     """
     Health incidents log (Authenticated).
 
     Returns recent health incidents from database.
     """
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
-    incidents_db = (
-        db.query(SystemIncident)
-        .filter(SystemIncident.updated_at >= since)
+    since = now_sao_paulo() - timedelta(hours=24)
+    incidents_result = await db.execute(
+        select(SystemIncident)
+        .where(SystemIncident.updated_at >= since)
         .order_by(SystemIncident.created_at.desc())
         .limit(50)
-        .all()
     )
+    incidents_db = incidents_result.scalars().all()
 
     incidents = []
     active_count = 0
@@ -144,7 +148,8 @@ async def health_incidents_endpoint(
 
 @router.get("/alerts", response_model=HealthAlertsResponse)
 async def health_alerts_endpoint(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_user_compat),
+    db: AsyncSession = Depends(get_async_db),
 ) -> HealthAlertsResponse:
     """
     Active health alerts (Authenticated).
@@ -152,15 +157,14 @@ async def health_alerts_endpoint(
     Returns active incidents as alerts.
     """
     # Active or investigating
-    active_incidents = (
-        db.query(SystemIncident)
-        .filter(
+    alerts_result = await db.execute(
+        select(SystemIncident).where(
             SystemIncident.status.in_(
                 [ModelIncidentStatus.ACTIVE, ModelIncidentStatus.INVESTIGATING]
             )
         )
-        .all()
     )
+    active_incidents = alerts_result.scalars().all()
 
     alerts = []
     critical = 0

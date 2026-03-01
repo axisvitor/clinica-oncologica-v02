@@ -50,9 +50,9 @@ def get_allowed_origins() -> List[str]:
                 "Set CORS_FRONTEND_URL or CORS_ALLOWED_ORIGINS environment variable."
             )
 
-    # Development fallback if no origins configured
-    if not origins and not is_production():
-        origins = [
+    # Development defaults (merged with explicit origins)
+    if not is_production():
+        dev_origins = [
             "http://localhost:3000",
             "http://localhost:3001",
             "http://localhost:5173",
@@ -66,7 +66,14 @@ def get_allowed_origins() -> List[str]:
             "http://127.0.0.1:5175",
             "http://127.0.0.1:5176",
         ]
-        logger.warning("Using default localhost origins for development")
+        if origins:
+            extra = [origin for origin in dev_origins if origin not in origins]
+            if extra:
+                origins = origins + extra
+                logger.info("Added default localhost origins for development")
+        else:
+            origins = dev_origins
+            logger.warning("Using default localhost origins for development")
 
     return origins
 
@@ -92,22 +99,24 @@ def configure_cors(app: FastAPI) -> None:
     else:
         logger.warning("[CORS] No origins configured! All CORS requests will be blocked.")
 
-    # Allowed headers for CORS requests (validated in settings)
-    # Use headers from settings to enable centralized validation
-    allowed_headers = getattr(
-        settings,
-        "CORS_ALLOWED_HEADERS",
-        [
-            "Content-Type",
-            "Authorization",
-            "Accept",
-            "Origin",
-            "X-Requested-With",
-            "X-CSRF-Token",
-            "X-CSRFToken",
-            "X-XSRF-Token",
-        ],
-    )
+    # Allowed headers for CORS requests (validated in settings).
+    default_allowed_headers = [
+        "Content-Type",
+        "Authorization",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+        "X-CSRF-Token",
+        "X-CSRFToken",
+        "X-XSRF-Token",
+        "X-Session-ID",
+        "X-Idempotency-Key",
+    ]
+    configured_headers = getattr(settings, "CORS_ALLOWED_HEADERS", None)
+    if isinstance(configured_headers, (list, tuple, set)) and configured_headers:
+        allowed_headers = list(configured_headers)
+    else:
+        allowed_headers = default_allowed_headers
 
     # Headers exposed to JavaScript
     expose_headers = [

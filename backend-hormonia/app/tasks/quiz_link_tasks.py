@@ -10,19 +10,84 @@ Handles:
 
 from __future__ import annotations
 
+import hashlib
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any
+import re
+from datetime import datetime, timedelta
+from typing import Dict, Any, Optional
 from uuid import UUID
 
 
-from app.celery_app import celery_app
+from app.task_queue import task_queue as celery_app
 from app.tasks.base import BaseTask, get_db_session
+from app.core.distributed_lock import get_distributed_lock
 from app.domain.quizzes.resilience import QuizLinkResilienceService, FailureReason
 from app.services.monthly_quiz_message_integration import MonthlyQuizMessageIntegration
-from app.core.monthly_quiz_config import get_monthly_quiz_config
+from app.domain.quizzes.delivery import LinkBuilder
+from app.domain.quizzes.session.factory import generate_unique_short_code
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_LIMIT = 100
+_MAX_LIMIT = 500
+
+
+def _sanitize_limit(limit: int) -> int:
+    """Clamp list-processing limits to prevent oversized scans."""
+    try:
+        value = int(limit)
+    except (TypeError, ValueError):
+        return _DEFAULT_LIMIT
+    return max(1, min(value, _MAX_LIMIT))
+
+
+def _token_fingerprint(token: str) -> str:
+    """Return non-reversible token fingerprint for diagnostics."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+
+
+def _sanitize_error_message(error: Exception | str) -> str:
+    """Redact sensitive token/url patterns from persisted error messages."""
+    message = str(error)
+    message = re.sub(
+        r"([?&](?:token|access_token|code)=)[^&\s]+",
+        r"\1[REDACTED]",
+        message,
+        flags=re.IGNORECASE,
+    )
+    message = re.sub(
+        r"(token\s*[:=]\s*)[A-Za-z0-9._\-]{8,}",
+        r"\1[REDACTED]",
+        message,
+        flags=re.IGNORECASE,
+    )
+    if len(message) > 400:
+        return f"{message[:397]}..."
+    return message
+
+
+def _sanitize_dlq_record(record: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return a safe summary for DLQ responses without leaking sensitive payloads."""
+    if not isinstance(record, dict):
+        return None
+
+    safe_record: dict[str, Any] = {}
+    for key in (
+        "reason",
+        "retry_count",
+        "is_regenerated",
+        "token_fingerprint",
+        "created_at",
+        "timestamp",
+    ):
+        if key in record:
+            safe_record[key] = record[key]
+
+    if "error" in record:
+        safe_record["error"] = _sanitize_error_message(record["error"])
+
+    return safe_record
 
 
 class QuizLinkTask(BaseTask):
@@ -49,6 +114,7 @@ def check_expired_links(self, limit: int = 100) -> Dict[str, Any]:
         Dictionary with processing results
     """
     task_logger = self.get_task_logger()
+    limit = _sanitize_limit(limit)
     task_logger.info(f"Starting check_expired_links task (limit: {limit})")
 
     try:
@@ -139,7 +205,6 @@ def rotate_expired_token(
                 send_quiz_reminder.delay(
                     session_id=session_id,
                     patient_id=patient_id,
-                    token=result["new_token"],
                     is_regenerated=True,
                 )
                 task_logger.info(f"Token regenerated for session {session_id}")
@@ -167,7 +232,7 @@ def rotate_expired_token(
                 resilience_service.track_failure(
                     session_id=UUID(session_id),
                     reason=FailureReason.TOKEN_EXPIRED,
-                    details={"error": str(e)},
+                    details={"error": _sanitize_error_message(e)},
                 )
         except Exception as track_error:
             task_logger.error(f"Failed to track failure: {track_error}")
@@ -186,7 +251,7 @@ def send_quiz_reminder(
     self,
     session_id: str,
     patient_id: str,
-    token: str,
+    token: Optional[str] = None,
     is_regenerated: bool = False,
     retry_count: int = 0,
 ) -> Dict[str, Any]:
@@ -196,7 +261,7 @@ def send_quiz_reminder(
     Args:
         session_id: Quiz session ID
         patient_id: Patient ID
-        token: Quiz access token
+        token: Quiz access token (optional, fetched internally when omitted)
         is_regenerated: Whether this is a regenerated link
         retry_count: Current retry attempt
 
@@ -209,9 +274,28 @@ def send_quiz_reminder(
         f"(retry: {retry_count}/{3})"
     )
 
-    config = get_monthly_quiz_config()
+    lock = get_distributed_lock()
+    lock_key = f"quiz:reminder:session:{session_id}"
+    lock_id = None
+    lock_guard_enabled = True
 
     try:
+        try:
+            lock_id = lock.try_acquire_sync(lock_key, ttl=120)
+        except Exception as lock_error:
+            task_logger.warning(
+                "Failed to acquire distributed reminder lock (%s), proceeding without lock",
+                lock_error,
+            )
+            lock_guard_enabled = False
+
+        if lock_guard_enabled and lock_id is None:
+            return self.create_success_result(
+                session_id=session_id,
+                status="skipped_locked",
+                idempotent=True,
+            )
+
         with get_db_session() as db:
             resilience_service = QuizLinkResilienceService(db)
             message_integration = MonthlyQuizMessageIntegration(db)
@@ -220,9 +304,57 @@ def send_quiz_reminder(
             session = resilience_service.session_repository.get(UUID(session_id))
             if not session:
                 raise ValueError(f"Session {session_id} not found")
+            if str(session.patient_id) != patient_id:
+                raise ValueError(
+                    f"Session/patient mismatch for session {session_id}"
+                )
+
+            # Never require secret token to be carried in Celery payload.
+            if not token:
+                from asgiref.sync import async_to_sync
+                from app.services.quiz.quiz_service import MonthlyQuizService
+
+                quiz_service = MonthlyQuizService(db)
+                quiz_link = async_to_sync(quiz_service.get_quiz_link_status)(
+                    UUID(session_id)
+                )
+                if quiz_link.status.value != "active" or not quiz_link.token:
+                    raise ValueError(
+                        f"No active quiz token available for session {session_id}"
+                    )
+                token = quiz_link.token
 
             metadata = session.session_metadata or {}
             preferred_channel = metadata.get("delivery_method", "whatsapp")
+            last_reminder_at = metadata.get("last_reminder_sent_at")
+            last_reminder_hash = metadata.get("last_reminder_token_hash")
+            current_token_hash = _token_fingerprint(token)
+
+            if (
+                not is_regenerated
+                and isinstance(last_reminder_at, str)
+                and last_reminder_hash == current_token_hash
+            ):
+                try:
+                    last_reminder_dt = datetime.fromisoformat(last_reminder_at)
+                    if last_reminder_dt.tzinfo is None:
+                        last_reminder_dt = last_reminder_dt.replace(
+                            tzinfo=now_sao_paulo().tzinfo
+                        )
+                    elapsed = now_sao_paulo() - last_reminder_dt
+                    if elapsed.total_seconds() < 15 * 60:
+                        task_logger.info(
+                            "Skipping duplicate reminder for session %s (elapsed=%ss)",
+                            session_id,
+                            int(elapsed.total_seconds()),
+                        )
+                        return self.create_success_result(
+                            session_id=session_id,
+                            status="duplicate_skipped",
+                            idempotent=True,
+                        )
+                except ValueError:
+                    pass
 
             # Check circuit breaker
             should_use_alt, alt_channel = (
@@ -231,8 +363,18 @@ def send_quiz_reminder(
 
             delivery_channel = alt_channel if should_use_alt else preferred_channel
 
-            # Build message
-            link_url = f"{config.MONTHLY_QUIZ_BASE_URL}?token={token}"
+            # Build message (prefer short link)
+            metadata = session.session_metadata or {}
+            short_code = metadata.get("short_code")
+            if not short_code:
+                short_code = generate_unique_short_code(db)
+                metadata["short_code"] = short_code
+                session.session_metadata = metadata
+                db.commit()
+                db.refresh(session)
+
+            link_builder = LinkBuilder()
+            link_url = link_builder.build_preferred_link(token, short_code)
 
             message_type = "regenerated_reminder" if is_regenerated else "reminder"
 
@@ -260,6 +402,22 @@ def send_quiz_reminder(
             if not result.get("success"):
                 raise Exception(f"Failed to send message: {result.get('error')}")
 
+            metadata = dict(session.session_metadata or {})
+            sent_at = now_sao_paulo()
+            metadata.update(
+                {
+                    "last_reminder_sent_at": sent_at.isoformat(),
+                    "last_reminder_token_hash": current_token_hash,
+                    "last_reminder_type": message_type,
+                    "last_reminder_channel": delivery_channel,
+                    # Backward-compatible reminder metadata used by trigger tasks.
+                    "last_link_reminder_at": sent_at.isoformat(),
+                    "last_link_reminder_type": message_type,
+                }
+            )
+            session.session_metadata = metadata
+            db.commit()
+
             task_logger.info(
                 f"Quiz reminder sent successfully for session {session_id} "
                 f"via {delivery_channel}"
@@ -282,7 +440,7 @@ def send_quiz_reminder(
                     session_id=UUID(session_id),
                     reason=FailureReason.DELIVERY_FAILED,
                     details={
-                        "error": str(e),
+                        "error": _sanitize_error_message(e),
                         "retry_count": retry_count,
                         "channel": delivery_channel
                         if "delivery_channel" in locals()
@@ -301,7 +459,7 @@ def send_quiz_reminder(
             )
 
             send_quiz_reminder.apply_async(
-                args=(session_id, patient_id, token, is_regenerated, retry_count + 1),
+                args=(session_id, patient_id, None, is_regenerated, retry_count + 1),
                 countdown=retry_delay,
             )
 
@@ -324,16 +482,30 @@ def send_quiz_reminder(
                         payload={
                             "session_id": session_id,
                             "patient_id": patient_id,
-                            "token": token,
+                            "token_fingerprint": _token_fingerprint(token)
+                            if token
+                            else None,
                             "is_regenerated": is_regenerated,
                             "retry_count": retry_count,
-                            "error": str(e),
+                            "error": _sanitize_error_message(e),
                         },
                     )
             except Exception as dlq_error:
                 task_logger.error(f"Failed to create DLQ record: {dlq_error}")
 
-            return self.create_error_result(error=str(e), max_retries_exceeded=True)
+            return self.create_error_result(
+                error=_sanitize_error_message(e), max_retries_exceeded=True
+            )
+    finally:
+        if lock_guard_enabled and lock_id:
+            try:
+                lock.release_sync(lock_key, lock_id)
+            except Exception as release_error:
+                task_logger.warning(
+                    "Failed to release distributed reminder lock for session %s: %s",
+                    session_id,
+                    release_error,
+                )
 
 
 @celery_app.task(
@@ -403,6 +575,7 @@ def process_dead_letter_queue(self, limit: int = 50) -> Dict[str, Any]:
         Dictionary with processing results
     """
     task_logger = self.get_task_logger()
+    limit = _sanitize_limit(limit)
     task_logger.info(f"Starting process_dead_letter_queue (limit: {limit})")
 
     try:
@@ -436,7 +609,9 @@ def process_dead_letter_queue(self, limit: int = 50) -> Dict[str, Any]:
                             "session_id": str(session.id),
                             "patient_id": str(session.patient_id),
                             "dlq_count": len(dlq_records),
-                            "latest_failure": dlq_records[-1] if dlq_records else None,
+                            "latest_failure": _sanitize_dlq_record(
+                                dlq_records[-1] if dlq_records else None
+                            ),
                         }
                     )
 
@@ -472,7 +647,7 @@ def monitor_resilience_metrics(self) -> Dict[str, Any]:
             resilience_service = QuizLinkResilienceService(db)
 
             # Calculate metrics for last 24 hours
-            end_date = datetime.now(timezone.utc)
+            end_date = now_sao_paulo()
             start_date = end_date - timedelta(hours=24)
 
             metrics = resilience_service.get_resilience_metrics(

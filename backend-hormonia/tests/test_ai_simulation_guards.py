@@ -6,7 +6,7 @@ when ALLOW_AI_SIMULATION is set to False.
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi import HTTPException
 from uuid import uuid4
 
@@ -72,8 +72,8 @@ class TestAISimulationGuards:
                     mock_request, request, mock_background_tasks, mock_user, mock_db
                 )
 
-            assert exc_info.value.status_code == 501
-            assert "AI service not configured" in exc_info.value.detail
+            assert exc_info.value.status_code == 502
+            assert "simulation fallback is disabled" in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_humanize_blocked_in_production(
@@ -84,7 +84,7 @@ class TestAISimulationGuards:
             message="Please take your medication",
             patient_id=uuid4(),
             message_type="reminder",
-            tone="friendly",
+            tone="empathetic",
             use_cache=False,
         )
 
@@ -94,17 +94,17 @@ class TestAISimulationGuards:
 
             # Mock Redis and patient service
             with patch(
-                "app.api.v2.routers.ai.humanize.get_redis_cache"
-            ) as mock_redis:
-                mock_redis.return_value = MagicMock()
+                "app.api.v2.routers.ai.humanize.get_redis_cache",
+                new=AsyncMock(return_value=MagicMock()),
+            ):
 
                 with pytest.raises(HTTPException) as exc_info:
                     await humanize_message(
                         mock_request, request, mock_background_tasks, mock_user, mock_db
                     )
 
-                assert exc_info.value.status_code == 501
-                assert "AI service not configured" in exc_info.value.detail
+                assert exc_info.value.status_code == 502
+                assert "simulation fallback is disabled" in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_sentiment_blocked_in_production(
@@ -123,11 +123,11 @@ class TestAISimulationGuards:
 
             with pytest.raises(HTTPException) as exc_info:
                 await analyze_sentiment(
-                    mock_request, request, mock_background_tasks, mock_user, mock_db
+                    mock_request, request, mock_background_tasks, mock_user
                 )
 
-            assert exc_info.value.status_code == 501
-            assert "AI service not configured" in exc_info.value.detail
+            assert exc_info.value.status_code == 502
+            assert "simulation fallback is disabled" in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_risk_blocked_in_production(
@@ -153,8 +153,8 @@ class TestAISimulationGuards:
                         mock_request, request, mock_background_tasks, mock_user, mock_db
                     )
 
-                assert exc_info.value.status_code == 501
-                assert "AI service not configured" in exc_info.value.detail
+                assert exc_info.value.status_code == 502
+                assert "simulation fallback is disabled" in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_response_quality_blocked_in_production(
@@ -174,8 +174,8 @@ class TestAISimulationGuards:
                     mock_request, request, mock_background_tasks, mock_user
                 )
 
-            assert exc_info.value.status_code == 501
-            assert "AI service not configured" in exc_info.value.detail
+            assert exc_info.value.status_code == 502
+            assert "simulation fallback is disabled" in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_simulation_allowed_in_development(
@@ -193,12 +193,14 @@ class TestAISimulationGuards:
             mock_settings.ALLOW_AI_SIMULATION = True
 
             # Mock Redis
-            with patch("app.api.v2.routers.ai.analysis.get_redis_cache") as mock_redis:
-                mock_redis.return_value = MagicMock()
+            with patch(
+                "app.api.v2.routers.ai.analysis.get_redis_cache",
+                new=AsyncMock(return_value=MagicMock()),
+            ):
 
                 # Should not raise exception in development
                 response = await analyze_sentiment(
-                    mock_request, request, mock_background_tasks, mock_user, mock_db
+                    mock_request, request, mock_background_tasks, mock_user
                 )
 
                 assert response is not None
@@ -218,8 +220,10 @@ class TestAISimulationGuards:
             mock_settings.ALLOW_AI_SIMULATION = True  # Explicit override
 
             # Mock Redis
-            with patch("app.api.v2.routers.ai.analysis.get_redis_cache") as mock_redis:
-                mock_redis.return_value = MagicMock()
+            with patch(
+                "app.api.v2.routers.ai.analysis.get_redis_cache",
+                new=AsyncMock(return_value=MagicMock()),
+            ):
 
                 # Should work with override, but log warning
                 response = await analyze_response_quality(
@@ -235,11 +239,17 @@ class TestConfigurationValidation:
 
     def test_allow_ai_simulation_default(self):
         """Test ALLOW_AI_SIMULATION has correct default value."""
+        import os
         from app.config.settings import settings
 
-        # In development, simulation should be allowed by default
+        # In development, simulation should default to True unless explicitly overridden.
         if settings.APP_ENVIRONMENT == "development":
-            assert settings.ALLOW_AI_SIMULATION is True
+            env_value = os.environ.get("ALLOW_AI_SIMULATION")
+            if env_value is None:
+                assert settings.ALLOW_AI_SIMULATION is True
+            else:
+                expected = env_value.lower() not in ("false", "0", "no", "off", "")
+                assert settings.ALLOW_AI_SIMULATION is expected
 
     def test_production_validation_warning(self):
         """Test production configuration validation logs warning when simulation enabled."""

@@ -11,7 +11,7 @@ Complete LGPD compliance implementation for email/phone encryption and migration
 ## 📋 Implementation Checklist
 
 ### ✅ 1. Migration 027 - Consolidate Duplicates
-**File:** `/alembic/versions/027_consolidate_duplicate_migrations.py`
+**File:** `/alembic/versions/027_consolidate_duplicates.py`
 
 **Purpose:** Documentation-only migration to mark duplicate migrations (013, 022) for future cleanup.
 
@@ -132,7 +132,7 @@ app.add_middleware(LGPDMiddleware, enable_ip_logging=True)
   "method": "GET",
   "path": "/api/v1/patients/456",
   "ip_address": "192.168.1.100",
-  "timestamp": "2025-11-26T15:30:00Z",
+  "timestamp": "2025-11-26T15:30:00-03:00",
   "user_agent": "Mozilla/5.0..."
 }
 ```
@@ -228,7 +228,7 @@ if deleted:
   "event": "patient_hard_delete",
   "patient_id": "123-456...",
   "reason": "LGPD Art. 16 - Patient requested data deletion",
-  "timestamp": "2025-11-26T20:00:00Z",
+  "timestamp": "2025-11-26T20:00:00-03:00",
   "compliance_article": "LGPD Art. 16 (Right to deletion)"
 }
 ```
@@ -314,12 +314,9 @@ Ensure these are set:
 
 ```bash
 # For encryption (already configured)
-ENCRYPTION_KEY=<your-32-byte-key>
-ENCRYPTION_SALT=<your-salt>
-HASH_SALT=<your-hash-salt>
-
-# For PHI encryption
 PHI_ENCRYPTION_KEY=<your-phi-key>
+ENCRYPTION_KEY_CURRENT=<your-fernet-key>
+HASH_SALT=<your-hash-salt>
 ```
 
 ### 3. Add Middleware to Application
@@ -480,7 +477,7 @@ ALTER TABLE patients DROP COLUMN phone;
 ## 📁 Files Created/Modified
 
 ### Created (6 files)
-1. `/alembic/versions/027_consolidate_duplicate_migrations.py` - 2.5 KB
+1. `/alembic/versions/027_consolidate_duplicates.py` - 2.5 KB
 2. `/alembic/versions/028_encrypt_email_phone_lgpd.py` - 5.2 KB
 3. `/app/middleware/lgpd_middleware.py` - 7.4 KB
 4. `/app/services/lgpd_encryption_service.py` - 14 KB

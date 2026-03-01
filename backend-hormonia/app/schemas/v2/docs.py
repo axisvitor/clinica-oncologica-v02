@@ -154,8 +154,8 @@ class GuideResponse(BaseModel):
                 "category": "basics",
                 "tags": ["basics", "quickstart"],
                 "order": 1,
-                "created_at": "2025-01-01T00:00:00Z",
-                "updated_at": "2025-01-17T00:00:00Z",
+                "created_at": "2025-01-01T00:00:00-03:00",
+                "updated_at": "2025-01-17T00:00:00-03:00",
             }
         }
     )
@@ -185,8 +185,8 @@ class GuideDetail(GuideResponse):
                         "title": "Authentication",
                     }
                 ],
-                "created_at": "2025-01-01T00:00:00Z",
-                "updated_at": "2025-01-17T00:00:00Z",
+                "created_at": "2025-01-01T00:00:00-03:00",
+                "updated_at": "2025-01-17T00:00:00-03:00",
             }
         }
     )
@@ -235,7 +235,7 @@ class CodeExampleResponse(BaseModel):
                 "language": "python",
                 "tags": ["python", "pagination"],
                 "endpoint": "/api/v2/patients",
-                "created_at": "2025-01-01T00:00:00Z",
+                "created_at": "2025-01-01T00:00:00-03:00",
             }
         }
     )
@@ -265,7 +265,7 @@ class CodeExampleDetail(CodeExampleResponse):
                         "language": "python",
                     }
                 ],
-                "created_at": "2025-01-01T00:00:00Z",
+                "created_at": "2025-01-01T00:00:00-03:00",
             }
         }
     )
@@ -452,7 +452,7 @@ class DocumentationStatsResponse(BaseModel):
                 "total_examples": 10,
                 "categories": ["Patients", "Authentication"],
                 "languages": ["python", "javascript", "curl"],
-                "last_updated": "2025-01-17T15:00:00Z",
+                "last_updated": "2025-01-17T15:00:00-03:00",
             }
         }
     )

@@ -29,11 +29,14 @@ skips = ["B101", "B601"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --strict-markers --cov=app --cov-report=html --cov-report=term-missing"
+addopts = "-ra -q --strict-markers"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+asyncio_mode = "auto"
+norecursedirs = [".git", ".tox", "dist", "build", "*.egg", "__pycache__", ".venv", "venv"]
+filterwarnings = ["ignore::DeprecationWarning", "ignore::PendingDeprecationWarning"]
 markers = [
     "api: API integration tests",
     "unit: Unit tests",
@@ -44,6 +47,8 @@ markers = [
     "crud: CRUD tests",
     "quiz: Quiz tests",
     "patient: Patient tests",
+    "patients: Patients tests",
+    "routes: Route validation tests",
     "security: Security tests",
     "critical: Critical tests",
     "p0: P0 priority tests",

@@ -32,8 +32,8 @@ export const MOCK_FLOWS: MockFlow[] = [
     status: 'active',
     current_day: 15,
     total_days: 90,
-    started_at: '2024-09-15T10:00:00Z',
-    last_activity: '2024-10-01T14:30:00Z'
+    started_at: '2024-09-15T10:00:00-03:00',
+    last_activity: '2024-10-01T14:30:00-03:00'
   },
   {
     id: 'flow-002',
@@ -42,8 +42,8 @@ export const MOCK_FLOWS: MockFlow[] = [
     status: 'active',
     current_day: 20,
     total_days: 60,
-    started_at: '2024-09-10T09:00:00Z',
-    last_activity: '2024-09-30T16:00:00Z'
+    started_at: '2024-09-10T09:00:00-03:00',
+    last_activity: '2024-09-30T16:00:00-03:00'
   },
   {
     id: 'flow-003',
@@ -52,8 +52,8 @@ export const MOCK_FLOWS: MockFlow[] = [
     status: 'paused',
     current_day: 10,
     total_days: 45,
-    started_at: '2024-09-20T11:00:00Z',
-    last_activity: '2024-09-28T10:15:00Z'
+    started_at: '2024-09-20T11:00:00-03:00',
+    last_activity: '2024-09-28T10:15:00-03:00'
   },
   {
     id: 'flow-004',
@@ -62,8 +62,8 @@ export const MOCK_FLOWS: MockFlow[] = [
     status: 'active',
     current_day: 30,
     total_days: 120,
-    started_at: '2024-08-25T14:00:00Z',
-    last_activity: '2024-09-28T13:45:00Z'
+    started_at: '2024-08-25T14:00:00-03:00',
+    last_activity: '2024-09-28T13:45:00-03:00'
   },
   {
     id: 'flow-005',
@@ -72,8 +72,8 @@ export const MOCK_FLOWS: MockFlow[] = [
     status: 'active',
     current_day: 25,
     total_days: 90,
-    started_at: '2024-09-05T08:30:00Z',
-    last_activity: '2024-10-01T09:00:00Z'
+    started_at: '2024-09-05T08:30:00-03:00',
+    last_activity: '2024-10-01T09:00:00-03:00'
   },
   {
     id: 'flow-006',
@@ -82,9 +82,9 @@ export const MOCK_FLOWS: MockFlow[] = [
     status: 'completed',
     current_day: 60,
     total_days: 60,
-    started_at: '2024-07-01T10:00:00Z',
-    completed_at: '2024-08-30T15:20:00Z',
-    last_activity: '2024-08-30T15:20:00Z'
+    started_at: '2024-07-01T10:00:00-03:00',
+    completed_at: '2024-08-30T15:20:00-03:00',
+    last_activity: '2024-08-30T15:20:00-03:00'
   }
 ]
 
@@ -96,7 +96,7 @@ export const MOCK_FLOW_TEMPLATES: MockFlowTemplate[] = [
     type: 'quimioterapia',
     duration_days: 90,
     is_active: true,
-    created_at: '2024-01-01T00:00:00Z'
+    created_at: '2024-01-01T00:00:00-03:00'
   },
   {
     id: 'template-002',
@@ -105,7 +105,7 @@ export const MOCK_FLOW_TEMPLATES: MockFlowTemplate[] = [
     type: 'radioterapia',
     duration_days: 60,
     is_active: true,
-    created_at: '2024-01-01T00:00:00Z'
+    created_at: '2024-01-01T00:00:00-03:00'
   },
   {
     id: 'template-003',
@@ -114,7 +114,7 @@ export const MOCK_FLOW_TEMPLATES: MockFlowTemplate[] = [
     type: 'pos_cirurgia',
     duration_days: 45,
     is_active: true,
-    created_at: '2024-01-01T00:00:00Z'
+    created_at: '2024-01-01T00:00:00-03:00'
   },
   {
     id: 'template-004',
@@ -123,7 +123,7 @@ export const MOCK_FLOW_TEMPLATES: MockFlowTemplate[] = [
     type: 'imunoterapia',
     duration_days: 120,
     is_active: true,
-    created_at: '2024-01-01T00:00:00Z'
+    created_at: '2024-01-01T00:00:00-03:00'
   }
 ]
 

@@ -222,9 +222,9 @@ logger.error(f"Query failed: {error}")
 ### Track Metrics
 ```python
 # Track query performance
-start = datetime.utcnow()
+start = now_sao_paulo()
 result = await expensive_query()
-duration = (datetime.utcnow() - start).total_seconds()
+duration = (now_sao_paulo() - start).total_seconds()
 
 if duration > 1.0:
     logger.warning(f"Slow analytics query: {duration}s")

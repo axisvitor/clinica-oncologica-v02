@@ -70,7 +70,10 @@ REDIS_URL=redis://default:6V7Bg9HKlUuxhXtbpnS4ygeiPKB3WQsR@redis-14149.c322.us-e
 AI_GEMINI_API_KEY=AIzaSyBg8v_IuE16HjtCBF2VBlDUpQE55IDzs18
 FIREBASE_ADMIN_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
 SECURITY_SECRET_KEY=TVj0AS9r2O7FaF7uUri4NtUMOEqyK8jf74nrWdgTwZWcNGsYZvhXJd9nMn4UzeAgzbusLuklRgegN8cvCuj8uQ
-AUTH_JWT_SECRET_KEY=mYEeH00AvOtRUzpnqSDRerjFT4N-e5a1ywO-G5RCpwrHGH2Wktpx69qrMmCce9Lj8Tagsi_yTRHmpZg6JvX4oQ
+SECURITY_CSRF_SECRET_KEY=CHANGE_THIS_TO_SECURE_VALUE
+PHI_ENCRYPTION_KEY=CHANGE_THIS_TO_BASE64_KEY
+ENCRYPTION_KEY_CURRENT=CHANGE_THIS_TO_FERNET_KEY
+HASH_SALT=CHANGE_THIS_TO_HEX_SALT
 ```
 
 **Required Actions:**
@@ -80,7 +83,10 @@ AUTH_JWT_SECRET_KEY=mYEeH00AvOtRUzpnqSDRerjFT4N-e5a1ywO-G5RCpwrHGH2Wktpx69qrMmCc
    # New secret key
    python -c "import secrets; print(secrets.token_urlsafe(64))"
 
-   # New encryption key
+   # New PHI encryption key (AES-256-GCM)
+   python -c "import os, base64; print(base64.b64encode(os.urandom(32)).decode())"
+
+   # New Fernet key (legacy encryption)
    python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
    ```
 3. Update database password in AWS RDS
@@ -107,17 +113,17 @@ AUTH_JWT_SECRET_KEY=mYEeH00AvOtRUzpnqSDRerjFT4N-e5a1ywO-G5RCpwrHGH2Wktpx69qrMmCc
 
 | Template Variable | Code Expects | Impact |
 |------------------|--------------|---------|
-| `ENCRYPTION_KEY_CURRENT` | `SECURITY_ENCRYPTION_KEY` | Encryption fails |
-| `REDIS_CACHE_DB` | `REDIS_CACHE_DB_NUMBER` | Wrong database used |
-| `REDIS_MAX_CONNECTIONS` | `REDIS_POOL_MAX_CONNECTIONS` | Pool config ignored |
-| `AUTH_SESSION_*` | `SESSION_*` | Session security disabled |
-| `AUTH_JWT_ALGORITHM` | `SECURITY_ALGORITHM` | JWT verification fails |
+| `SECURITY_ENCRYPTION_KEY` (legacy) | `ENCRYPTION_KEY_CURRENT` | Legacy fallback ignored |
+| `REDIS_MAX_CONNECTIONS` (legacy) | `REDIS_POOL_MAX_CONNECTIONS` | Pool config ignored |
+| `AUTH_SESSION_*` (legacy) | `SESSION_*` | Session security disabled |
+| `AUTH_JWT_ALGORITHM` (legacy) | `SECURITY_ALGORITHM` | JWT verification fails |
 
 **Required Fix:**
 ```bash
 # Update .env.railway.template
-SECURITY_ENCRYPTION_KEY=...              # NOT ENCRYPTION_KEY_CURRENT
-REDIS_CACHE_DB_NUMBER=1                  # NOT REDIS_CACHE_DB
+ENCRYPTION_KEY_CURRENT=...               # Not SECURITY_ENCRYPTION_KEY
+PHI_ENCRYPTION_KEY=...                   # Required for AES-GCM encryption
+REDIS_CACHE_DB_NUMBER=1
 REDIS_POOL_MAX_CONNECTIONS=25            # NOT REDIS_MAX_CONNECTIONS
 SESSION_ENABLE_COOKIE_SECURE=true        # NOT AUTH_SESSION_*
 SECURITY_ALGORITHM=HS256                 # NOT AUTH_JWT_ALGORITHM
@@ -184,7 +190,7 @@ DATABASE_POOL_MAX_OVERFLOW=40
 
 # .env.railway.template
 DATABASE_POOL_SIZE=10           # Too low for production
-DATABASE_MAX_OVERFLOW=20
+DATABASE_POOL_MAX_OVERFLOW=20
 ```
 
 **Fix:** Use 30/40 for development, 20/30 for production
@@ -201,10 +207,10 @@ REDIS_POOL_MAX_CONNECTIONS=25
 REDIS_POOL_MAX_CONNECTIONS=50
 
 # .env.railway.template - 10 connections (too low)
-REDIS_MAX_CONNECTIONS=10
+REDIS_POOL_MAX_CONNECTIONS=10
 ```
 
-**Fix:** Standardize to 50 (dev), 30 (prod), fix variable name
+**Fix:** Standardize to 50 (dev), 30 (prod)
 
 ---
 
@@ -441,7 +447,9 @@ AI_GEMINI_MODEL=gemini-2.0-flash-exp
 
 ```bash
 # FIX VARIABLE NAMES
-SECURITY_ENCRYPTION_KEY=...                      # Not ENCRYPTION_KEY_CURRENT
+ENCRYPTION_KEY_CURRENT=...                       # Not SECURITY_ENCRYPTION_KEY
+PHI_ENCRYPTION_KEY=...
+HASH_SALT=...
 REDIS_CACHE_DB_NUMBER=1                          # Not REDIS_CACHE_DB
 REDIS_BROKER_DB_NUMBER=0
 REDIS_SESSION_DB_NUMBER=2
@@ -451,7 +459,7 @@ REDIS_POOL_MAX_CONNECTIONS=25                    # Not REDIS_MAX_CONNECTIONS
 # FIX SESSION VARIABLES
 SESSION_ENABLE_COOKIE_SECURE=true                # Not AUTH_SESSION_*
 SESSION_ENABLE_COOKIE_HTTPONLY=true
-SESSION_COOKIE_SAMESITE=Strict
+SESSION_COOKIE_SAMESITE=lax
 SESSION_COOKIE_NAME=session_id
 SESSION_COOKIE_PATH=/
 SESSION_COOKIE_MAX_AGE_SECONDS=28800
@@ -459,7 +467,7 @@ SESSION_COOKIE_MAX_AGE_SECONDS=28800
 # FIX SECURITY
 SECURITY_ALGORITHM=HS256                         # Not AUTH_JWT_ALGORITHM
 SECURITY_SECRET_KEY=...                          # Main secret
-AUTH_JWT_SECRET_KEY=...                          # Separate JWT secret
+SECURITY_CSRF_SECRET_KEY=...
 
 # ADD MISSING SECTIONS
 # [Add all CACHE_* variables]

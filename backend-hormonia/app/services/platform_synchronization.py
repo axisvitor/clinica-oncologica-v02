@@ -6,7 +6,7 @@ Handles patient record updates, audit trails, and cross-platform data consistenc
 import logging
 from typing import Any, List, Optional
 from datetime import datetime, timedelta, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 import json
 
 from redis import Redis
@@ -19,6 +19,7 @@ from app.repositories.patient import PatientRepository
 from app.repositories.flow import FlowStateRepository
 from app.services.websocket_events import WebSocketEventService
 from app.schemas.websocket import WebSocketEventType
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +113,7 @@ class PlatformSynchronizationService:
                     {
                         "patient_id": str(patient_id),
                         "updates_applied": updates_applied,
-                        "last_sync": datetime.now(timezone.utc).isoformat(),
+                        "last_sync": now_sao_paulo().isoformat(),
                     },
                 )
 
@@ -126,6 +127,55 @@ class PlatformSynchronizationService:
             self.db.rollback()
             return False
 
+    async def sync_patient_record_update(
+        self, patient_id: UUID, flow_interaction_data: dict[str, Any]
+    ) -> bool:
+        """
+        Backwards-compatible wrapper for single interaction syncs.
+
+        Accepts legacy payload shapes and maps them to the interaction list
+        expected by sync_patient_record_updates.
+        """
+        if not flow_interaction_data:
+            logger.warning("sync_patient_record_update called with empty payload")
+            return False
+
+        interactions: List[dict[str, Any]] = []
+
+        def _add_interaction(interaction_type: str, data: dict[str, Any]) -> None:
+            interactions.append(
+                {
+                    "type": interaction_type,
+                    "data": data,
+                    "timestamp": data.get("timestamp")
+                    if isinstance(data, dict)
+                    else now_sao_paulo().isoformat(),
+                }
+            )
+
+        if "flow_advancement" in flow_interaction_data:
+            _add_interaction(
+                "flow_progression", flow_interaction_data["flow_advancement"]
+            )
+        if "patient_response" in flow_interaction_data:
+            _add_interaction(
+                "message_response", flow_interaction_data["patient_response"]
+            )
+        if "quiz_completion" in flow_interaction_data:
+            _add_interaction(
+                "quiz_completion", flow_interaction_data["quiz_completion"]
+            )
+        if "alert_triggered" in flow_interaction_data:
+            _add_interaction(
+                "alert_triggered", flow_interaction_data["alert_triggered"]
+            )
+
+        if not interactions:
+            # Fallback: treat entire payload as a generic message response
+            _add_interaction("message_response", flow_interaction_data)
+
+        return await self.sync_patient_record_updates(patient_id, interactions)
+
     async def create_audit_trail_entry(
         self,
         entity_type: str,
@@ -138,22 +188,22 @@ class PlatformSynchronizationService:
         """Create audit trail entry for platform logging."""
         try:
             audit_entry = {
-                "id": str(UUID()),
+                "id": str(uuid4()),
                 "entity_type": entity_type,
                 "entity_id": str(entity_id),
                 "action": action,
                 "changes": changes,
                 "user_id": str(user_id) if user_id else None,
                 "source_system": source_system,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "ip_address": None,  # Would be populated from request context
                 "user_agent": None,  # Would be populated from request context
             }
 
             # Store in Redis for immediate access
-            audit_key = f"audit:{entity_type}:{entity_id}:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
-            await self.redis.lpush(audit_key, json.dumps(audit_entry))
-            await self.redis.expire(
+            audit_key = f"audit:{entity_type}:{entity_id}:{now_sao_paulo().strftime('%Y%m%d')}"
+            self.redis.lpush(audit_key, json.dumps(audit_entry))
+            self.redis.expire(
                 audit_key, 86400 * self.sync_config["audit_retention_days"]
             )
 
@@ -173,7 +223,7 @@ class PlatformSynchronizationService:
         """Validate data consistency across platform components."""
         try:
             consistency_report = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "checks_performed": 0,
                 "inconsistencies_found": 0,
                 "issues": [],
@@ -211,7 +261,7 @@ class PlatformSynchronizationService:
         except Exception as e:
             logger.error(f"Error validating cross-platform consistency: {e}")
             return {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
                 "error": str(e),
                 "checks_performed": 0,
                 "inconsistencies_found": 0,
@@ -238,13 +288,13 @@ class PlatformSynchronizationService:
             current_permissions["flow_system"] = flow_perms
 
             user.permissions = current_permissions
-            user.updated_at = datetime.now(timezone.utc)
+            user.updated_at = now_sao_paulo()
 
             self.db.commit()
 
             # Cache permissions in Redis for fast access
             permission_key = f"user_permissions:{user_id}"
-            await self.redis.setex(
+            self.redis.setex(
                 permission_key,
                 3600,  # 1 hour cache
                 json.dumps(current_permissions),
@@ -273,7 +323,7 @@ class PlatformSynchronizationService:
         """Run periodic synchronization tasks."""
         try:
             sync_results = {
-                "started_at": datetime.now(timezone.utc).isoformat(),
+                "started_at": now_sao_paulo().isoformat(),
                 "tasks_completed": 0,
                 "tasks_failed": 0,
                 "results": {},
@@ -308,7 +358,7 @@ class PlatformSynchronizationService:
             else:
                 sync_results["tasks_failed"] += 1
 
-            sync_results["completed_at"] = datetime.now(timezone.utc).isoformat()
+            sync_results["completed_at"] = now_sao_paulo().isoformat()
 
             # Store sync results
             await self._store_sync_results(sync_results)
@@ -318,7 +368,7 @@ class PlatformSynchronizationService:
         except Exception as e:
             logger.error(f"Error in periodic synchronization: {e}")
             return {
-                "started_at": datetime.now(timezone.utc).isoformat(),
+                "started_at": now_sao_paulo().isoformat(),
                 "error": str(e),
                 "tasks_completed": 0,
                 "tasks_failed": 1,
@@ -331,7 +381,7 @@ class PlatformSynchronizationService:
         """Extract relevant data from flow interaction."""
         return {
             "interaction_id": interaction.get("id"),
-            "timestamp": interaction.get("timestamp", datetime.now(timezone.utc).isoformat()),
+            "timestamp": interaction.get("timestamp", now_sao_paulo().isoformat()),
             "data": interaction.get("data", {}),
             "metadata": interaction.get("metadata", {}),
         }
@@ -360,7 +410,7 @@ class PlatformSynchronizationService:
                 )
                 patient.flow_milestones = milestones
 
-            patient.updated_at = datetime.now(timezone.utc)
+            patient.updated_at = now_sao_paulo()
 
         except Exception as e:
             logger.error(f"Error updating patient flow status: {e}")
@@ -384,7 +434,7 @@ class PlatformSynchronizationService:
 
             # Keep only last 100 responses
             patient.response_history = responses[-100:]
-            patient.updated_at = datetime.now(timezone.utc)
+            patient.updated_at = now_sao_paulo()
 
         except Exception as e:
             logger.error(f"Error updating patient response data: {e}")
@@ -411,7 +461,7 @@ class PlatformSynchronizationService:
             patient.last_quiz_completed = datetime.fromisoformat(
                 interaction_data["timestamp"]
             )
-            patient.updated_at = datetime.now(timezone.utc)
+            patient.updated_at = now_sao_paulo()
 
         except Exception as e:
             logger.error(f"Error updating patient quiz data: {e}")
@@ -435,7 +485,7 @@ class PlatformSynchronizationService:
             )
 
             patient.alert_history = alerts
-            patient.updated_at = datetime.now(timezone.utc)
+            patient.updated_at = now_sao_paulo()
 
         except Exception as e:
             logger.error(f"Error updating patient alert status: {e}")
@@ -462,7 +512,7 @@ class PlatformSynchronizationService:
             # This would integrate with your actual audit table
             # For now, store in Redis as backup
             audit_key = f"audit_db:{audit_entry['id']}"
-            await self.redis.setex(audit_key, 86400 * 365, json.dumps(audit_entry))
+            self.redis.setex(audit_key, 86400 * 365, json.dumps(audit_entry))
 
         except Exception as e:
             logger.error(f"Error storing audit entry in database: {e}")
@@ -521,9 +571,15 @@ class PlatformSynchronizationService:
 
         try:
             # Check for messages without corresponding flow states
+            from app.models.message import Message
+
             orphaned_messages = (
-                self.db.query(FlowMessage)
-                .outerjoin(FlowState)
+                self.db.query(Message)
+                .outerjoin(
+                    FlowState,
+                    (FlowState.patient_id == Message.patient_id)
+                    & (FlowState.completed_at.is_(None)),
+                )
                 .filter(FlowState.id.is_(None))
                 .limit(100)
                 .all()
@@ -559,15 +615,15 @@ class PlatformSynchronizationService:
             # Check for recent flow state changes without audit entries
             recent_flows = (
                 self.db.query(FlowState)
-                .filter(FlowState.updated_at >= datetime.now(timezone.utc) - timedelta(hours=24))
+                .filter(FlowState.updated_at >= now_sao_paulo() - timedelta(hours=24))
                 .all()
             )
 
             for flow in recent_flows:
                 audit_key = (
-                    f"audit:flow_state:{flow.id}:{datetime.now(timezone.utc).strftime('%Y%m%d')}"
+                    f"audit:flow_state:{flow.id}:{now_sao_paulo().strftime('%Y%m%d')}"
                 )
-                audit_entries = await self.redis.lrange(audit_key, 0, -1)
+                audit_entries = self.redis.lrange(audit_key, 0, -1)
 
                 if not audit_entries:
                     issues.append(
@@ -594,7 +650,7 @@ class PlatformSynchronizationService:
 
         try:
             # Check Redis sync queue depth
-            sync_queue_depth = await self.redis.llen("sync_queue")
+            sync_queue_depth = self.redis.llen("sync_queue")
 
             if sync_queue_depth > 100:
                 issues.append(
@@ -606,10 +662,10 @@ class PlatformSynchronizationService:
                 )
 
             # Check last sync timestamp
-            last_sync = await self.redis.get("last_sync_timestamp")
+            last_sync = self.redis.get("last_sync_timestamp")
             if last_sync:
                 last_sync_time = datetime.fromisoformat(last_sync.decode())
-                lag_minutes = (datetime.now(timezone.utc) - last_sync_time).total_seconds() / 60
+                lag_minutes = (now_sao_paulo() - last_sync_time).total_seconds() / 60
 
                 if lag_minutes > 30:  # 30 minutes lag threshold
                     issues.append(
@@ -637,9 +693,9 @@ class PlatformSynchronizationService:
         """Store consistency report."""
         try:
             report_key = (
-                f"consistency_report:{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+                f"consistency_report:{now_sao_paulo().strftime('%Y%m%d_%H%M%S')}"
             )
-            await self.redis.setex(report_key, 86400 * 7, json.dumps(report))
+            self.redis.setex(report_key, 86400 * 7, json.dumps(report))
 
         except Exception as e:
             logger.error(f"Error storing consistency report: {e}")
@@ -648,7 +704,7 @@ class PlatformSynchronizationService:
         """Sync pending patient updates."""
         try:
             # Get pending updates from sync queue
-            pending_updates = await self.redis.lrange(
+            pending_updates = self.redis.lrange(
                 "patient_sync_queue", 0, self.sync_config["batch_size"] - 1
             )
 
@@ -668,7 +724,7 @@ class PlatformSynchronizationService:
                     if success:
                         synced_count += 1
                         # Remove from queue
-                        await self.redis.lrem("patient_sync_queue", 1, update_data)
+                        self.redis.lrem("patient_sync_queue", 1, update_data)
                     else:
                         failed_count += 1
 
@@ -691,7 +747,7 @@ class PlatformSynchronizationService:
         """Sync pending audit entries."""
         try:
             # Get pending audit entries
-            pending_audits = await self.redis.lrange(
+            pending_audits = self.redis.lrange(
                 "audit_sync_queue", 0, self.sync_config["batch_size"] - 1
             )
 
@@ -705,7 +761,7 @@ class PlatformSynchronizationService:
 
                     synced_count += 1
                     # Remove from queue
-                    await self.redis.lrem("audit_sync_queue", 1, audit_data)
+                    self.redis.lrem("audit_sync_queue", 1, audit_data)
 
                 except Exception as e:
                     logger.error(f"Error syncing audit entry: {e}")
@@ -728,8 +784,8 @@ class PlatformSynchronizationService:
             cleaned_count = 0
 
             # Clean up old consistency reports
-            report_keys = await self.redis.keys("consistency_report:*")
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
+            report_keys = list(self.redis.scan_iter(match="consistency_report:*", count=100))
+            cutoff_date = now_sao_paulo() - timedelta(days=30)
 
             for key in report_keys:
                 try:
@@ -738,19 +794,19 @@ class PlatformSynchronizationService:
                     report_date = datetime.strptime(date_str, "%Y%m%d_%H%M%S")
 
                     if report_date < cutoff_date:
-                        await self.redis.delete(key)
+                        self.redis.delete(key)
                         cleaned_count += 1
 
                 except Exception as e:
                     logger.error(f"Error cleaning up report key {key}: {e}")
 
             # Clean up old audit entries
-            audit_keys = await self.redis.keys("audit_db:*")
+            audit_keys = list(self.redis.scan_iter(match="audit_db:*", count=100))
             for key in audit_keys:
                 try:
-                    ttl = await self.redis.ttl(key)
+                    ttl = self.redis.ttl(key)
                     if ttl == -1:  # No expiration set
-                        await self.redis.expire(
+                        self.redis.expire(
                             key, 86400 * 365
                         )  # Set 1 year expiration
 
@@ -766,11 +822,11 @@ class PlatformSynchronizationService:
     async def _store_sync_results(self, results: dict[str, Any]) -> None:
         """Store synchronization results."""
         try:
-            results_key = f"sync_results:{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
-            await self.redis.setex(results_key, 86400 * 7, json.dumps(results))
+            results_key = f"sync_results:{now_sao_paulo().strftime('%Y%m%d_%H%M%S')}"
+            self.redis.setex(results_key, 86400 * 7, json.dumps(results))
 
             # Update last sync timestamp
-            await self.redis.set("last_sync_timestamp", datetime.now(timezone.utc).isoformat())
+            self.redis.set("last_sync_timestamp", now_sao_paulo().isoformat())
 
         except Exception as e:
             logger.error(f"Error storing sync results: {e}")
@@ -779,13 +835,13 @@ class PlatformSynchronizationService:
 # Service factory function
 def get_platform_sync_service(db: Any) -> PlatformSynchronizationService:
     """Factory function to create PlatformSynchronizationService instance."""
-    from redis import Redis
+    from app.core.redis_manager import get_sync_redis_client as get_sync_redis
     from app.repositories.patient import PatientRepository
     from app.repositories.flow import FlowStateRepository
     from app.services.websocket_events import WebSocketEventService
 
     # Initialize dependencies
-    redis = Redis(host="localhost", port=6379, db=0)
+    redis = get_sync_redis()
     patient_repository = PatientRepository(db)
     flow_repository = FlowStateRepository(db)
     websocket_service = WebSocketEventService(redis)

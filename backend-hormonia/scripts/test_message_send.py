@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 async def test_async_engine():
     """Test that async engine can be created and connect."""
-    from app.core.database import get_async_session_factory, get_async_engine
+    from app.database import get_async_session_factory, get_async_engine
     
     print("\n=== TEST 1: Async Engine Creation ===")
     try:
@@ -30,7 +30,7 @@ async def test_async_engine():
 
 async def test_async_session():
     """Test that async session can connect to DB."""
-    from app.core.database import get_async_session_factory
+    from app.database import get_async_session_factory
     from sqlalchemy import text
     
     print("\n=== TEST 2: Async Session Connection ===")
@@ -49,7 +49,7 @@ async def test_async_session():
 
 async def test_message_fetch():
     """Test that we can fetch a message from DB."""
-    from app.core.database import get_async_session_factory
+    from app.database import get_async_session_factory
     from sqlalchemy import select
     from app.models.message import Message
     
@@ -80,7 +80,7 @@ async def test_message_fetch():
 
 async def test_unified_whatsapp_service(message):
     """Test UnifiedWhatsAppService initialization and send."""
-    from app.core.database import get_async_session_factory
+    from app.database import get_async_session_factory
     from app.services.unified_whatsapp_service import UnifiedWhatsAppService
     
     print("\n=== TEST 4: UnifiedWhatsAppService ===")

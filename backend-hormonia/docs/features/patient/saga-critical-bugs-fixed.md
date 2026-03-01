@@ -51,7 +51,7 @@ self.db.rollback()
 saga.status = SagaStatus.FAILED  # ❌ Detached object error!
 saga.error_message = str(e)
 saga.error_type = type(e).__name__
-saga.failed_at = datetime.now(timezone.utc)
+saga.failed_at = now_sao_paulo()
 self.db.commit()
 ```
 
@@ -73,7 +73,7 @@ if not saga:
 saga.status = SagaStatus.FAILED
 saga.error_message = str(e)
 saga.error_type = type(e).__name__
-saga.failed_at = datetime.now(timezone.utc)
+saga.failed_at = now_sao_paulo()
 self.db.commit()
 ```
 

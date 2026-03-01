@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { ErrorFallback } from './ErrorFallback';
 import { logger } from '@/lib/logger';
+import { apiClient } from '@/lib/api-client';
 
 export interface ErrorBoundaryProps {
   children: ReactNode;
@@ -126,29 +127,30 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       // Send to backend error tracking
-      fetch('/api/v2/errors/client', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+      const payload = {
+        error: {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
         },
-        body: JSON.stringify({
-          error: {
-            message: error.message,
-            stack: error.stack,
-            name: error.name
-          },
-          errorInfo: {
-            componentStack: errorInfo.componentStack
-          },
-          level,
-          errorId: this.state.errorId,
-          url: window.location.href,
-          userAgent: navigator.userAgent,
-          timestamp: new Date().toISOString()
+        errorInfo: {
+          componentStack: errorInfo.componentStack,
+        },
+        level,
+        errorId: this.state.errorId,
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        timestamp: new Date().toISOString(),
+      };
+
+      void apiClient
+        .request("/api/v2/errors/client", {
+          method: "POST",
+          body: JSON.stringify(payload),
         })
-      }).catch(reportError => {
-        logger.error('Failed to report error to backend', reportError);
-      });
+        .catch(reportError => {
+          logger.error("Failed to report error to backend", reportError);
+        });
     } catch (reportError) {
       logger.error('Error reporting failed', reportError);
     }

@@ -18,6 +18,7 @@ from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.httpx import HttpxIntegration
 from fastapi import Request
 from sqlalchemy.orm import Session
+from app.utils.timezone import now_sao_paulo
 
 # Environment configuration
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
@@ -141,7 +142,7 @@ class SentryConfig:
                 "id": user_id,
                 "email": email,
                 "role": role,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             }
         )
 
@@ -243,7 +244,7 @@ def monitor_quiz_session(session_id: str, user_id: str, quiz_type: str) -> None:
                 "session_id": session_id,
                 "user_id": user_id,
                 "quiz_type": quiz_type,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             },
         )
 
@@ -260,7 +261,7 @@ def monitor_patient_interaction(
                 "patient_id": patient_id,
                 "interaction_type": interaction_type,
                 "metadata": metadata or {},
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": now_sao_paulo().isoformat(),
             },
         )
 

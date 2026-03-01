@@ -193,11 +193,9 @@
 **( ) Sim, normalmente**  
  **( ) Tenho sentido menos prazer que antes**  
  **( ) Não tive relações nos últimos 30 dias**  
- **( )** Não tem desejo de iniciar, porém tem prazer até o final da relação 
-
-(  ) Não tem prazer em nenhum momento
-
-(  )Sente aversão a relação sexual
+ **( ) Não tem desejo de iniciar, porém tem prazer até o final da relação**  
+ **( ) Não tem prazer em nenhum momento**  
+ **( ) Sente aversão a relação sexual**
 
 ---
 
@@ -587,4 +585,3 @@
 **14.5. Estamos sempre buscando melhorar sua experiência, fique live para escrever abaixo o que você acha que faltou, o que pode melhorar ou alguma ideia que você tenha para aumentar a qualidade da sua experiência com nossa assistente.**
 
 ---
-

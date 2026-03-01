@@ -13,7 +13,7 @@ import logging
 from fastapi import HTTPException, status
 
 from app.models.user import UserRole
-from app.core.permissions import Permission, RolePermissions
+from app.core.permissions import Permission, PermissionChecker
 
 logger = logging.getLogger(__name__)
 
@@ -102,10 +102,14 @@ def require_permission(*permissions: Permission):
                 )
 
             user_role = _get_user_role(current_user)
+            try:
+                user_role_enum = UserRole(user_role)
+            except ValueError:
+                user_role_enum = None
 
             # Check if user has any of the required permissions
-            has_permission = any(
-                RolePermissions.has_permission(user_role, perm) for perm in permissions
+            has_permission = bool(user_role_enum) and any(
+                PermissionChecker.has_permission(user_role_enum, perm) for perm in permissions
             )
 
             if not has_permission:

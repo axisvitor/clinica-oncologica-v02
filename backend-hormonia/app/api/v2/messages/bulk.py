@@ -21,6 +21,7 @@ from app.schemas.v2.messages import (
 from app.dependencies.auth_dependencies import get_current_user_from_session
 from app.utils.rate_limiter import limiter
 from .helpers import _extract_user_context
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ async def bulk_send_messages(
 
     # Create messages for valid patients
     message_service = MessageService(db)
-    batch_id = f"batch_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+    batch_id = f"batch_{now_sao_paulo().strftime('%Y%m%d%H%M%S')}"
 
     scheduled_count = 0
     for patient_uuid in patient_uuids:
@@ -77,7 +78,7 @@ async def bulk_send_messages(
             message_service.schedule_message(
                 patient_id=patient_uuid,
                 content=bulk_request.content,
-                scheduled_for=bulk_request.scheduled_for or datetime.now(timezone.utc),
+                scheduled_for=bulk_request.scheduled_for or now_sao_paulo(),
                 message_type=MessageType.TEXT,
                 message_metadata=metadata,
             )
@@ -94,7 +95,7 @@ async def bulk_send_messages(
         "failed_count": len(failed_patients),
         "failed_patients": failed_patients,
         "estimated_completion": (
-            bulk_request.scheduled_for or datetime.now(timezone.utc) + timedelta(minutes=5)
+            bulk_request.scheduled_for or now_sao_paulo() + timedelta(minutes=5)
         ).isoformat()
         if scheduled_count > 0
         else None,

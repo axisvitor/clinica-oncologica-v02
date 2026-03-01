@@ -5,9 +5,9 @@ WhatsApp message service with queue management and retry logic.
 import asyncio
 import json
 import logging
-import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List
+from urllib.parse import urlparse, urlunparse
 from uuid import uuid4
 import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,20 +22,51 @@ from ..models.message import (
     MessageStatus,
     MessageType,
 )
-from app.services.circuit_breaker import CircuitBreaker, CircuitOpenError
+from app.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
 from app.core.tracing import get_tracer, trace
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError, LockKeys
+from app.config import settings
+from app.core.redis_manager import get_async_redis_client, get_redis_connection_kwargs
+from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_redis_url(redis_url: str) -> str:
+    """Normalize Redis URL so equivalent URLs compare consistently."""
+    parsed = urlparse(redis_url)
+    if not parsed.scheme or not parsed.netloc:
+        return redis_url
+
+    normalized_path = parsed.path
+    if not normalized_path or normalized_path == "/":
+        normalized_path = "/0"
+
+    return urlunparse(parsed._replace(path=normalized_path))
+
+
+def _coerce_redis_url_scheme(redis_url: str) -> str:
+    """Normalize Redis URL scheme to match REDIS_ENABLE_SSL setting."""
+    if not redis_url:
+        return redis_url
+
+    if getattr(settings, "REDIS_ENABLE_SSL", False) and redis_url.startswith("redis://"):
+        return "rediss://" + redis_url[8:]
+
+    if (not getattr(settings, "REDIS_ENABLE_SSL", False)) and redis_url.startswith("rediss://"):
+        return "redis://" + redis_url[9:]
+
+    return redis_url
 
 
 class MessageQueue:
     """Redis-based message queue for reliable delivery."""
 
     def __init__(self, redis_url: Optional[str] = None):
-        # Use REDIS_URL from environment (Redis Cloud URL)
-        self.redis_url = redis_url or os.getenv("REDIS_URL")
+        # Use REDIS_URL from settings (Redis Cloud URL)
+        self.redis_url = redis_url or settings.REDIS_URL
         self.redis_client: Optional[redis.Redis] = None
+        self._uses_shared_client = False
         self.queue_name = "whatsapp:messages"
         self.retry_queue_name = "whatsapp:messages:retry"
         self.dlq_name = "whatsapp:messages:dlq"  # Dead letter queue
@@ -43,12 +74,40 @@ class MessageQueue:
     async def connect(self):
         """Connect to Redis."""
         if not self.redis_client:
-            self.redis_client = redis.from_url(self.redis_url)
+            if _normalize_redis_url(self.redis_url) == _normalize_redis_url(settings.REDIS_URL):
+                self.redis_client = await get_async_redis_client()
+                self._uses_shared_client = True
+            else:
+                connection_kwargs = get_redis_connection_kwargs(
+                    mode="async",
+                    decode_responses=getattr(settings, "REDIS_ENABLE_DECODE_RESPONSES", True),
+                    socket_timeout=getattr(settings, "REDIS_SOCKET_TIMEOUT_SECONDS", 10.0),
+                    socket_connect_timeout=getattr(
+                        settings, "REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS", 5.0
+                    ),
+                    max_connections=getattr(settings, "REDIS_POOL_MAX_CONNECTIONS", 20),
+                    retry_on_timeout=getattr(settings, "REDIS_ENABLE_RETRY_ON_TIMEOUT", True),
+                )
+                self.redis_client = redis.from_url(
+                    _coerce_redis_url_scheme(self.redis_url), **connection_kwargs
+                )
+                self._uses_shared_client = False
 
     async def disconnect(self):
         """Disconnect from Redis."""
+        if not self.redis_client:
+            return
+
+        # Shared client lifecycle is managed by RedisManager at application scope.
+        if self._uses_shared_client:
+            self.redis_client = None
+            self._uses_shared_client = False
+            return
+
         if self.redis_client:
             await self.redis_client.aclose()  # Redis 5.x uses aclose() for async
+            self.redis_client = None
+            self._uses_shared_client = False
 
     async def enqueue_message(
         self, message_data: Dict[str, Any], priority: int = 0, delay_seconds: int = 0
@@ -60,14 +119,14 @@ class MessageQueue:
             "id": str(uuid4()),
             "data": message_data,
             "priority": priority,
-            "enqueued_at": datetime.now(timezone.utc).isoformat(),
+            "enqueued_at": now_sao_paulo().isoformat(),
             "retry_count": 0,
             "max_retries": 3,
         }
 
         if delay_seconds > 0:
             # Schedule for future processing
-            execute_at = datetime.now(timezone.utc) + timedelta(seconds=delay_seconds)
+            execute_at = now_sao_paulo() + timedelta(seconds=delay_seconds)
             await self.redis_client.zadd(
                 f"{self.queue_name}:scheduled",
                 {json.dumps(message_payload): execute_at.timestamp()},
@@ -88,6 +147,16 @@ class MessageQueue:
             redis.ConnectionError: If Redis is unavailable (caller should handle)
         """
         await self.connect()
+
+        # Ensure blocking timeout stays below socket timeout to prevent Redis timeouts.
+        socket_timeout = getattr(settings, "REDIS_SOCKET_TIMEOUT_SECONDS", None)
+        if socket_timeout:
+            try:
+                safe_timeout = max(1, int(float(socket_timeout)) - 1)
+                if timeout > safe_timeout:
+                    timeout = safe_timeout
+            except (TypeError, ValueError):
+                pass
 
         # First check for scheduled messages that are ready
         try:
@@ -131,7 +200,7 @@ class MessageQueue:
             await self.redis_client.lpush(
                 self.dlq_name,
                 json.dumps(
-                    {**message_payload, "failed_at": datetime.now(timezone.utc).isoformat()}
+                    {**message_payload, "failed_at": now_sao_paulo().isoformat()}
                 ),
             )
             logger.error(
@@ -147,12 +216,12 @@ class MessageQueue:
 
         # Calculate exponential backoff delay
         backoff_delay = delay_seconds * (2 ** (retry_count - 1))
-        execute_at = datetime.now(timezone.utc) + timedelta(seconds=backoff_delay)
+        execute_at = now_sao_paulo() + timedelta(seconds=backoff_delay)
 
         retry_payload = {
             **message_payload,
             "retry_count": retry_count,
-            "retried_at": datetime.now(timezone.utc).isoformat(),
+            "retried_at": now_sao_paulo().isoformat(),
         }
 
         await self.redis_client.zadd(
@@ -174,7 +243,7 @@ class MessageQueue:
 
     async def _process_scheduled_messages(self):
         """Move ready scheduled messages to main queue."""
-        now = datetime.now(timezone.utc).timestamp()
+        now = now_sao_paulo().timestamp()
 
         # Process main scheduled queue
         ready_messages = await self.redis_client.zrangebyscore(
@@ -250,6 +319,9 @@ class WhatsAppMessageService:
         if not is_valid:
             raise ValueError(f"Invalid phone number: {formatted_number}")
 
+        # Ensure we send using the normalized number (prevents mismatched delivery)
+        request = request.copy(update={"to": formatted_number})
+
         # Create message record
         message_id = str(uuid4())
         message = WhatsAppMessage(
@@ -282,8 +354,83 @@ class WhatsAppMessageService:
             id=message_id,
             status=MessageStatus.PENDING,
             message="Message queued for delivery",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
+
+    async def process_queue_batch(self, max_messages: int = 100) -> Dict[str, int]:
+        """
+        Process a bounded number of queue messages.
+
+        This is used by HTTP endpoints and one-off batch jobs where an unmanaged
+        infinite worker loop is not acceptable.
+        """
+        if max_messages < 1:
+            raise ValueError("max_messages must be >= 1")
+
+        processed = 0
+        failed = 0
+        retried = 0
+        empty_polls = 0
+
+        consecutive_redis_errors = 0
+        max_consecutive_redis_errors = 3
+
+        for _ in range(max_messages):
+            try:
+                message_payload = await self.message_queue.dequeue_message(timeout=1)
+                consecutive_redis_errors = 0
+            except (redis.ConnectionError, redis.TimeoutError) as redis_err:
+                consecutive_redis_errors += 1
+                logger.error(
+                    "Redis error while processing queue batch (attempt %s/%s): %s",
+                    consecutive_redis_errors,
+                    max_consecutive_redis_errors,
+                    redis_err,
+                )
+                if consecutive_redis_errors >= max_consecutive_redis_errors:
+                    raise
+                await asyncio.sleep(min(2**consecutive_redis_errors, 5))
+                continue
+
+            if not message_payload:
+                empty_polls += 1
+                break
+
+            try:
+                await self._process_message(message_payload)
+                processed += 1
+            except Exception as process_error:
+                failed += 1
+                logger.error(
+                    "Error processing queued message %s in batch: %s",
+                    message_payload.get("id"),
+                    process_error,
+                    exc_info=True,
+                )
+                try:
+                    was_retried = await self.message_queue.retry_message(message_payload)
+                    if was_retried:
+                        retried += 1
+                except Exception as retry_error:
+                    logger.error(
+                        "Failed to schedule retry for message %s: %s",
+                        message_payload.get("id"),
+                        retry_error,
+                        exc_info=True,
+                    )
+
+        queue_stats = await self.message_queue.get_queue_stats()
+        return {
+            "processed": processed,
+            "failed": failed,
+            "retried": retried,
+            "empty_polls": empty_polls,
+            "max_messages": max_messages,
+            "queue_pending": queue_stats.get("pending", 0),
+            "queue_scheduled": queue_stats.get("scheduled", 0),
+            "queue_retry_scheduled": queue_stats.get("retry_scheduled", 0),
+            "queue_dead_letter": queue_stats.get("dead_letter", 0),
+        }
 
     async def process_message_queue(self):
         """Process messages from queue with proper error handling."""
@@ -405,7 +552,7 @@ class WhatsAppMessageService:
             # Update message status to failed
             message.status = MessageStatus.FAILED
             message.error_message = str(e)
-            message.failed_at = datetime.now(timezone.utc)
+            message.failed_at = now_sao_paulo_naive()
             await self.db_session.commit()
 
             # Sync failure status to domain if handler is present
@@ -456,7 +603,7 @@ class WhatsAppMessageService:
             # Update message with Evolution API response
             message.external_id = response.external_id
             message.status = MessageStatus.SENT
-            message.sent_at = datetime.now(timezone.utc)
+            message.sent_at = now_sao_paulo_naive()
 
             logger.info(f"Message {message.id} sent successfully")
 
@@ -499,7 +646,7 @@ class WhatsAppMessageService:
             message.error_message = error_message
 
         # Update timestamp based on status
-        now = datetime.now(timezone.utc)
+        now = now_sao_paulo_naive()
         if status == MessageStatus.DELIVERED:
             message.delivered_at = now
         elif status == MessageStatus.READ:
@@ -620,7 +767,7 @@ class WhatsAppMessageService:
                     existing_contact.profile_picture_url = (
                         contact_response.profile_picture_url
                     )
-                    existing_contact.updated_at = datetime.now(timezone.utc)
+                    existing_contact.updated_at = now_sao_paulo_naive()
                 else:
                     # Create new contact
                     contact = WhatsAppContact(

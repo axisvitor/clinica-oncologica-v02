@@ -5,13 +5,24 @@
  * response times, and overall system health indicators.
  */
 import React, { Suspense } from 'react';
+import { AreaChart, BarChart, RadialBarChart, ComposedChart } from './recharts-shared'
 import {
-  Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar, RadialBarChart, RadialBar,
-  ComposedChart, Cell
-} from '@/components/ui/charts/LazyRechartsComponents';
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Area,
+  Bar,
+  RadialBar,
+  Cell
+} from './recharts-shared'
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
 import { ChartSkeleton } from '@/components/ui/chart-skeleton';
+import { MetricBarChartCard } from './MetricBarChartCard';
+import { OverviewRadialChart } from './OverviewRadialChart';
 
 interface SystemHealthData {
   cpu_usage: number;
@@ -127,38 +138,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
     // Simple overview chart
     return (
       <div className="space-y-4">
-        <div className="h-64">
-          <Suspense fallback={<ChartSkeleton />}>
-          <ResponsiveContainer width="100%" height="100%">
-            <RadialBarChart
-              cx="50%"
-              cy="50%"
-              innerRadius="20%"
-              outerRadius="90%"
-              data={systemOverview}
-              startAngle={180}
-              endAngle={0}
-            >
-              <RadialBar
-                label={{ position: 'insideStart', fill: '#fff', fontSize: 12 }}
-                background
-                dataKey="value"
-              />
-              <Legend
-                iconSize={10}
-                width={120}
-                height={140}
-                layout="vertical"
-                verticalAlign="middle"
-                align="right"
-              />
-              <Tooltip
-                formatter={(value: ValueType) => [`${Number(value).toFixed(1)}%`, 'Uso']}
-              />
-            </RadialBarChart>
-          </ResponsiveContainer>
-          </Suspense>
-        </div>
+        <OverviewRadialChart data={systemOverview} valueKey="value" tooltipLabel="Uso" />
 
         <div className="grid grid-cols-3 gap-4 text-center">
           <div className="bg-green-50 p-3 rounded-lg">
@@ -241,7 +221,7 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
                   border: '1px solid #E5E7EB',
                   borderRadius: '8px'
                 }}
-                formatter={(value: ValueType, name: NameType, item) => {
+                formatter={(value: ValueType, name: NameType, item: { payload?: { resource: string } }) => {
                   const payload = item.payload as { resource: string };
                   return [`${Number(value).toFixed(1)}%`, `Uso de ${payload.resource}`];
                 }}
@@ -277,52 +257,25 @@ export const SystemHealthChart: React.FC<SystemHealthChartProps> = ({
       </div>
 
       {/* Performance Metrics */}
-      <div className="space-y-2">
-        <h4 className="font-semibold text-lg">Metricas de Performance</h4>
-        <div className="h-64">
-          <Suspense fallback={<ChartSkeleton />}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={performanceMetrics}
-              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-              <XAxis
-                dataKey="metric"
-                tick={{ fontSize: 12 }}
-                stroke="#6B7280"
-                angle={-45}
-                textAnchor="end"
-                height={80}
-              />
-              <YAxis
-                tick={{ fontSize: 12 }}
-                stroke="#6B7280"
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #E5E7EB',
-                  borderRadius: '8px'
-                }}
-                formatter={(value: ValueType, name: NameType, item) => {
-                  const payload = item.payload as { unit: string; metric: string };
-                  return [
-                    `${Number(value).toFixed(payload.unit === 'ms' ? 0 : 2)}${payload.unit}`,
-                    payload.metric
-                  ];
-                }}
-              />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                {performanceMetrics.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          </Suspense>
-        </div>
-      </div>
+      <MetricBarChartCard
+        title="Metricas de Performance"
+        data={performanceMetrics}
+        xDataKey="metric"
+        yDataKey="value"
+        xAxisHeight={80}
+        tooltipFormatter={(
+          value: ValueType,
+          _name: NameType,
+          item: { payload?: { unit: string; metric: string } }
+        ) => {
+          const payload = item.payload as { unit: string; metric: string };
+          return [
+            `${Number(value).toFixed(payload.unit === 'ms' ? 0 : 2)}${payload.unit}`,
+            payload.metric
+          ];
+        }}
+        getBarColor={(entry) => entry.color as string}
+      />
 
       {/* Resource Details Grid */}
       <div className="grid md:grid-cols-3 gap-6">

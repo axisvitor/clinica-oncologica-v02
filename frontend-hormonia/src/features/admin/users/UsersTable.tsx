@@ -495,30 +495,54 @@ export function UsersTable({
                   <span className="sr-only">Selecionar</span>
                 </div>
               )}
-              <div className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('full_name')}>
+              <button
+                type="button"
+                className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100 text-left"
+                onClick={() => handleSort('full_name')}
+              >
                 <span>Usuário</span>
                 {getSortIcon('full_name')}
-              </div>
-              <div className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('role')}>
+              </button>
+              <button
+                type="button"
+                className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100 text-left"
+                onClick={() => handleSort('role')}
+              >
                 <span>Função</span>
                 {getSortIcon('role')}
-              </div>
-              <div className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('is_active')}>
+              </button>
+              <button
+                type="button"
+                className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100 text-left"
+                onClick={() => handleSort('is_active')}
+              >
                 <span>Status</span>
                 {getSortIcon('is_active')}
-              </div>
-              <div className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('two_factor_enabled')}>
+              </button>
+              <button
+                type="button"
+                className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100 text-left"
+                onClick={() => handleSort('two_factor_enabled')}
+              >
                 <span>2FA</span>
                 {getSortIcon('two_factor_enabled')}
-              </div>
-              <div className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('failed_login_attempts')}>
+              </button>
+              <button
+                type="button"
+                className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100 text-left"
+                onClick={() => handleSort('failed_login_attempts')}
+              >
                 <span>Tentativas Falhas</span>
                 {getSortIcon('failed_login_attempts')}
-              </div>
-              <div className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100" onClick={() => handleSort('last_login')}>
+              </button>
+              <button
+                type="button"
+                className="px-4 py-3 flex items-center space-x-1 cursor-pointer hover:bg-gray-100 text-left"
+                onClick={() => handleSort('last_login')}
+              >
                 <span>Último Login</span>
                 {getSortIcon('last_login')}
-              </div>
+              </button>
               <div className="px-4 py-3 w-[70px]">Ações</div>
           </div>
 

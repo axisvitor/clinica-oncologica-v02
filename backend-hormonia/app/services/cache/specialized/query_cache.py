@@ -13,8 +13,6 @@ import time
 from typing import Any, Dict, Optional, Tuple, List
 from uuid import UUID
 
-from app.services.ai.cache_layer import CacheLayer
-
 _query_cache_singleton: Optional["QueryCache"] = None
 
 
@@ -40,10 +38,18 @@ def _normalize_sorting(
     return tuple(sorted(sorting.items()))
 
 
+def _normalize_group_by(group_by: Optional[Any]) -> Optional[Any]:
+    if group_by is None:
+        return None
+    if isinstance(group_by, list):
+        return tuple(group_by)
+    return group_by
+
+
 class QueryCache:
     """Async in-memory query cache with entity/list/search helpers."""
 
-    def __init__(self, cache_layer: Optional[CacheLayer] = None):
+    def __init__(self, cache_layer: Optional[Any] = None):
         self.cache_layer = cache_layer
         self._lock = asyncio.Lock()
         self._entities: Dict[
@@ -100,6 +106,15 @@ class QueryCache:
                 for key in self._entities
                 if key[0] == entity_type and key[1] == entity_key
             ]
+        deleted = 0
+        for key in keys:
+            if await self._delete_entry(self._entities, key):
+                deleted += 1
+        return deleted
+
+    async def invalidate_entities(self, entity_type: str) -> int:
+        async with self._lock:
+            keys = [key for key in self._entities if key[0] == entity_type]
         deleted = 0
         for key in keys:
             if await self._delete_entry(self._entities, key):
@@ -167,10 +182,15 @@ class QueryCache:
         data: Dict[str, Any],
         *,
         filters: Optional[Dict[str, Any]] = None,
-        group_by: Optional[str] = None,
+        group_by: Optional[Any] = None,
         ttl: Optional[int] = None,
     ) -> bool:
-        key = (entity_type, metric, _normalize_filters(filters), group_by)
+        key = (
+            entity_type,
+            metric,
+            _normalize_filters(filters),
+            _normalize_group_by(group_by),
+        )
         await self._set_entry(self._aggregations, key, data, ttl)
         return True
 
@@ -180,9 +200,14 @@ class QueryCache:
         metric: str,
         *,
         filters: Optional[Dict[str, Any]] = None,
-        group_by: Optional[str] = None,
+        group_by: Optional[Any] = None,
     ) -> Optional[Dict[str, Any]]:
-        key = (entity_type, metric, _normalize_filters(filters), group_by)
+        key = (
+            entity_type,
+            metric,
+            _normalize_filters(filters),
+            _normalize_group_by(group_by),
+        )
         return await self._get_entry(self._aggregations, key)
 
     async def invalidate_aggregations(self, entity_type: str) -> int:
@@ -242,6 +267,8 @@ class QueryCache:
 
         if entity_id is not None:
             stats["entities"] = await self.invalidate_entity(entity_type, entity_id)
+        else:
+            stats["entities"] = await self.invalidate_entities(entity_type)
 
         stats["lists"] = await self.invalidate_lists(entity_type)
         stats["aggregations"] = await self.invalidate_aggregations(entity_type)
@@ -264,6 +291,18 @@ class QueryCache:
             self._aggregations.clear()
             self._searches.clear()
         return total
+
+    async def get_cache_stats(self) -> Dict[str, Any]:
+        strategy_obj = getattr(self.cache_layer, "strategy", None)
+        strategy = getattr(strategy_obj, "value", strategy_obj) or "memory"
+        async with self._lock:
+            namespaces = {
+                "entities": len(self._entities),
+                "lists": len(self._lists),
+                "aggregations": len(self._aggregations),
+                "searches": len(self._searches),
+            }
+        return {"strategy": strategy, "namespaces": namespaces}
 
     # ------------------------------------------------------------------ #
     async def _set_entry(

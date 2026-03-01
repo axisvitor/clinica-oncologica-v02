@@ -3,6 +3,7 @@ Tests for Quiz API v2
 """
 
 import pytest
+from uuid import uuid4
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -15,7 +16,7 @@ class TestQuizV2:
     
     def test_list_quizzes_basic(self, client: TestClient, db: Session, auth_headers: dict):
         """Test basic quiz listing"""
-        response = client.get("/api/v2/quiz", headers=auth_headers)
+        response = client.get("/api/v2/quiz/sessions", headers=auth_headers)
         
         assert response.status_code == 200
         data = response.json()
@@ -27,7 +28,7 @@ class TestQuizV2:
     def test_list_quizzes_with_pagination(self, client: TestClient, db: Session, auth_headers: dict):
         """Test quiz listing with pagination"""
         response = client.get(
-            "/api/v2/quiz?limit=5",
+            "/api/v2/quiz/sessions?limit=5",
             headers=auth_headers
         )
         
@@ -42,7 +43,7 @@ class TestQuizV2:
             pytest.skip("No patient available for test")
         
         response = client.get(
-            f"/api/v2/quiz?patient_id={patient.id}",
+            f"/api/v2/quiz/sessions?patient_id={patient.id}",
             headers=auth_headers
         )
         
@@ -50,12 +51,12 @@ class TestQuizV2:
         data = response.json()
         
         for quiz in data["data"]:
-            assert quiz["patient_id"] == patient.id
+            assert quiz["patient_id"] == str(patient.id)
     
     def test_list_quizzes_filter_by_status(self, client: TestClient, db: Session, auth_headers: dict):
         """Test quiz listing filtered by status"""
         response = client.get(
-            "/api/v2/quiz?status=completed",
+            "/api/v2/quiz/sessions?status=completed",
             headers=auth_headers
         )
         
@@ -68,7 +69,7 @@ class TestQuizV2:
     def test_list_quizzes_with_eager_loading(self, client: TestClient, db: Session, auth_headers: dict):
         """Test quiz listing with eager loading"""
         response = client.get(
-            "/api/v2/quiz?include=patient",
+            "/api/v2/quiz/sessions?include=patient",
             headers=auth_headers
         )
         
@@ -98,8 +99,9 @@ class TestQuizV2:
     
     def test_get_quiz_not_found(self, client: TestClient, auth_headers: dict):
         """Test getting a non-existent quiz"""
+        missing_quiz_id = uuid4()
         response = client.get(
-            "/api/v2/quiz/999999",
+            f"/api/v2/quiz/{missing_quiz_id}",
             headers=auth_headers
         )
         

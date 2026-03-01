@@ -8,6 +8,8 @@ import hashlib
 import logging
 from typing import Optional, Dict
 
+from app.core.redis_manager import get_async_redis_client as get_async_redis
+
 logger = logging.getLogger(__name__)
 
 # Cache TTL configuration (in seconds)
@@ -45,8 +47,6 @@ async def get_cached_result(cache_key: str) -> Optional[Dict]:
         Cached data as dict, or None if not found/error
     """
     try:
-        from app.core.redis_unified import get_async_redis
-
         redis_client = await get_async_redis()
         if redis_client is None:
             return None
@@ -70,8 +70,6 @@ async def set_cached_result(cache_key: str, data: Dict, ttl: int) -> None:
         ttl: Time to live in seconds
     """
     try:
-        from app.core.redis_unified import get_async_redis
-
         redis_client = await get_async_redis()
         if redis_client is None:
             return

@@ -553,7 +553,7 @@ describe('useQuizSession - State Management', () => {
     const mockSession = {
       session_id: 'abc-123',
       status: 'active',
-      expires_at: '2025-12-31T23:59:59Z',
+      expires_at: '2025-12-31T23:59:59-03:00',
     };
 
     const mockFetch = jest.fn().mockResolvedValue({
@@ -1009,7 +1009,7 @@ class TestCsrfProtection:
         from app.config.settings import settings
         data = f"{timestamp}.{random_data}"
         expected_sig = hmac.new(
-            settings.SECRET_KEY.encode(),
+            settings.SECURITY_SECRET_KEY.encode(),
             data.encode(),
             hashlib.sha256
         ).hexdigest()
@@ -1760,7 +1760,7 @@ def valid_csrf_token():
     data = f"{timestamp}.{random_data}"
 
     signature = hmac.new(
-        settings.SECRET_KEY.encode(),
+        settings.SECURITY_SECRET_KEY.encode(),
         data.encode(),
         hashlib.sha256
     ).hexdigest()
@@ -1775,7 +1775,7 @@ def expired_csrf_token():
     data = f"{old_timestamp}.{random_data}"
 
     signature = hmac.new(
-        settings.SECRET_KEY.encode(),
+        settings.SECURITY_SECRET_KEY.encode(),
         data.encode(),
         hashlib.sha256
     ).hexdigest()
@@ -1811,8 +1811,8 @@ def active_quiz_session(db_session):
         patient_id="test-patient-123",
         quiz_type="monthly",
         status="active",
-        expires_at=datetime.utcnow() + timedelta(hours=1),
-        created_at=datetime.utcnow(),
+        expires_at=now_sao_paulo() + timedelta(hours=1),
+        created_at=now_sao_paulo(),
     )
 
     db_session.add(session)
@@ -1831,8 +1831,8 @@ def expired_quiz_session(db_session):
         patient_id="test-patient-456",
         quiz_type="monthly",
         status="expired",
-        expires_at=datetime.utcnow() - timedelta(hours=1),
-        created_at=datetime.utcnow() - timedelta(hours=2),
+        expires_at=now_sao_paulo() - timedelta(hours=1),
+        created_at=now_sao_paulo() - timedelta(hours=2),
     )
 
     db_session.add(session)
@@ -1859,16 +1859,16 @@ export const mockSessionResponse = {
   session_id: 'test-session-123',
   status: 'active',
   quiz_type: 'monthly',
-  expires_at: '2025-12-31T23:59:59Z',
-  created_at: '2025-12-20T10:00:00Z',
+  expires_at: '2025-12-31T23:59:59-03:00',
+  created_at: '2025-12-20T10:00:00-03:00',
 };
 
 export const mockExpiredSessionResponse = {
   session_id: 'expired-session-456',
   status: 'expired',
   quiz_type: 'monthly',
-  expires_at: '2025-12-19T10:00:00Z',
-  created_at: '2025-12-19T09:00:00Z',
+  expires_at: '2025-12-19T10:00:00-03:00',
+  created_at: '2025-12-19T09:00:00-03:00',
 };
 
 export function createMockFetch(responses: Record<string, any>) {

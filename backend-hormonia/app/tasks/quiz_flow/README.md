@@ -9,7 +9,7 @@ quiz_flow/
 ├── __init__.py              # Package exports (backward compatibility)
 ├── question_tasks.py        # Quiz question delivery tasks
 ├── response_tasks.py        # Quiz response processing tasks
-├── monitoring_tasks.py      # Quiz monitoring and trigger tasks
+├── trigger_tasks.py         # Quiz monitoring and trigger tasks
 ├── cleanup_tasks.py         # Expired session cleanup tasks
 ├── helpers.py              # Shared helper functions
 └── README.md               # This file
@@ -29,7 +29,7 @@ quiz_flow/
 - `process_quiz_response_task` - Process patient quiz responses
 - `generate_quiz_report_task` - Generate medical reports from quiz responses
 
-### `monitoring_tasks.py` (274 lines)
+### `trigger_tasks.py` (351 lines)
 **Tasks for quiz monitoring, triggers, and link management.**
 
 - `check_quiz_triggers_task` - Check for patients needing quiz triggers
@@ -49,15 +49,11 @@ quiz_flow/
 - `_trigger_whatsapp_fallback` - Trigger WhatsApp fallback when session expires
 - `_notify_providers_of_quiz_completion` - Notify providers of quiz completion
 
-## Backward Compatibility
+## Canonical Imports
 
-All tasks are re-exported from `__init__.py` to maintain backward compatibility:
+Import tasks from their canonical modules:
 
 ```python
-# Old import (still works)
-from app.tasks.quiz_flow import send_quiz_question_task
-
-# New import (also works)
 from app.tasks.quiz_flow.question_tasks import send_quiz_question_task
 ```
 
@@ -78,23 +74,23 @@ All Celery task decorators are preserved exactly as they were:
 
 ## Migration Notes
 
-No code changes required for existing imports. The package structure provides:
+Use module-level imports for task functions. The package structure provides:
 
 1. ✅ Better organization by functional area
 2. ✅ Smaller, more maintainable files
 3. ✅ Easier testing and development
-4. ✅ Full backward compatibility
+4. ✅ Explicit module ownership for each task family
 5. ✅ Preserved Celery configurations
 
 ## Testing
 
-Test files can import helper functions and tasks exactly as before:
+Tests should import directly from canonical modules:
 
 ```python
-from app.tasks.quiz_flow import (
+from app.tasks.quiz_flow.cleanup_tasks import (
     cleanup_expired_quiz_sessions_task,
     _notify_doctor_of_expired_session,
-    _resume_patient_flow_after_expiration
+    _resume_patient_flow_after_expiration,
 )
 ```
 

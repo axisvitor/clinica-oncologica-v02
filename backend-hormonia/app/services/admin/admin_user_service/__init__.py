@@ -8,7 +8,7 @@ import logging
 from typing import Any
 
 from app.models.user import User, UserRole
-from app.middleware.admin_permissions import AdminAuditMixin
+from app.dependencies.admin_permissions import AdminAuditMixin
 from app.exceptions import AuthorizationError
 
 # Import all schemas for re-export

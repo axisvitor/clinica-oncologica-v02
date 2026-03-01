@@ -8,10 +8,13 @@ import logging
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Request, Depends, status, Header
+from fastapi import APIRouter, Request, Depends, status, Header, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.utils.rate_limiter import limiter, multi_layer_rate_limit
+from app.core.redis_manager import get_async_redis_client
+from app.services.webhook.idempotency import AtomicWebhookIdempotency
 from app.schemas.v2.webhooks import (
     WebhookCreate,
     WebhookUpdate,
@@ -35,7 +38,7 @@ from app.schemas.v2.webhooks import (
     WebhookEventTypeInfo,
     WebhookEventType,
 )
-from app.api.v2.dependencies import get_pagination_params
+from app.api.v2.dependencies import get_pagination_params_async
 from app.services.webhook_service import WebhookService
 from app.dependencies.auth_dependencies import get_current_active_admin
 
@@ -45,7 +48,9 @@ router = APIRouter()
 RATE_LIMIT_WEBHOOKS_PER_HOUR = 10
 
 
-def get_webhook_service(db=Depends(get_db)) -> WebhookService:
+async def get_webhook_service(
+    db: AsyncSession = Depends(get_async_db),
+) -> WebhookService:
     return WebhookService(db)
 
 
@@ -66,7 +71,7 @@ async def verify_webhook_signature_v2(
 @limiter.limit("100/minute")
 async def list_webhooks(
     request: Request,
-    pagination: dict = Depends(get_pagination_params),
+    pagination: dict = Depends(get_pagination_params_async),
     status_filter: Optional[WebhookStatus] = None,
     service: WebhookService = Depends(get_webhook_service),
     current_user=Depends(get_current_active_admin),
@@ -85,7 +90,7 @@ async def create_webhook(
     return await service.create_webhook(webhook_data)
 
 
-@router.get("/{webhook_id}", response_model=WebhookResponse)
+@router.get("/{webhook_id:uuid}", response_model=WebhookResponse)
 @limiter.limit("100/minute")
 async def get_webhook(
     request: Request,
@@ -96,7 +101,7 @@ async def get_webhook(
     return await service.get_webhook(webhook_id)
 
 
-@router.put("/{webhook_id}", response_model=WebhookResponse)
+@router.put("/{webhook_id:uuid}", response_model=WebhookResponse)
 @limiter.limit("60/minute")
 async def update_webhook(
     request: Request,
@@ -108,7 +113,7 @@ async def update_webhook(
     return await service.update_webhook(webhook_id, webhook_data)
 
 
-@router.delete("/{webhook_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{webhook_id:uuid}", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit("60/minute")
 async def delete_webhook(
     request: Request,
@@ -175,7 +180,7 @@ async def get_event_types(
     return WebhookEventTypeList(events=event_types, total=len(event_types))
 
 
-@router.put("/{webhook_id}/secret", response_model=WebhookSecretResponse)
+@router.put("/{webhook_id:uuid}/secret", response_model=WebhookSecretResponse)
 @limiter.limit("5/hour")
 async def rotate_webhook_secret(
     request: Request,
@@ -197,7 +202,47 @@ async def get_webhook_stats(
     return await service.get_webhook_stats()
 
 
-@router.get("/{webhook_id}/health", response_model=WebhookHealth)
+@router.get("/whatsapp/idempotency/stats")
+@limiter.limit("60/minute")
+async def get_whatsapp_idempotency_stats(request: Request):
+    """Get WhatsApp webhook idempotency metrics and cleanup stats."""
+    redis_client = await get_async_redis_client()
+    if redis_client is None:
+        raise HTTPException(status_code=503, detail="Redis unavailable")
+
+    idempotency = AtomicWebhookIdempotency(redis_client)
+    metrics = await idempotency.get_metrics()
+    processing_stats = await idempotency.get_processing_stats()
+    cleanup_stats = await idempotency.cleanup_expired_keys()
+
+    duplicate_rate = metrics.get("cache_hit_rate", 0.0)
+    alert_triggered = duplicate_rate > 0.05
+    if alert_triggered:
+        logger.warning(
+            "Webhook duplicate rate exceeded threshold",
+            extra={
+                "duplicate_rate": duplicate_rate,
+                "threshold": 0.05,
+            },
+        )
+
+    return {
+        "metrics": metrics,
+        "processing": processing_stats,
+        "cleanup": cleanup_stats,
+        "alerts": [
+            {
+                "type": "duplicate_rate_high",
+                "threshold": 0.05,
+                "current": duplicate_rate,
+            }
+        ]
+        if alert_triggered
+        else [],
+    }
+
+
+@router.get("/{webhook_id:uuid}/health", response_model=WebhookHealth)
 @limiter.limit("100/minute")
 async def get_webhook_health(
     request: Request,
@@ -219,12 +264,12 @@ async def get_failed_webhooks(
 
 
 # Stubs for other endpoints to maintain interface compatibility
-@router.get("/{webhook_id}/deliveries", response_model=WebhookDeliveryList)
+@router.get("/{webhook_id:uuid}/deliveries", response_model=WebhookDeliveryList)
 @limiter.limit("100/minute")
 async def get_webhook_deliveries(
     request: Request,
     webhook_id: UUID,
-    pagination: dict = Depends(get_pagination_params),
+    pagination: dict = Depends(get_pagination_params_async),
     service: WebhookService = Depends(get_webhook_service),
     current_user=Depends(get_current_active_admin),
 ):
@@ -232,7 +277,8 @@ async def get_webhook_deliveries(
 
 
 @router.post(
-    "/{webhook_id}/deliveries/{delivery_id}/retry", response_model=WebhookRetryResponse
+    "/{webhook_id:uuid}/deliveries/{delivery_id:uuid}/retry",
+    response_model=WebhookRetryResponse,
 )
 @limiter.limit("10/minute")
 async def retry_webhook_delivery(
@@ -248,19 +294,19 @@ async def retry_webhook_delivery(
     )
 
 
-@router.get("/{webhook_id}/logs", response_model=WebhookLogList)
+@router.get("/{webhook_id:uuid}/logs", response_model=WebhookLogList)
 @limiter.limit("100/minute")
 async def get_webhook_logs(
     request: Request,
     webhook_id: UUID,
-    pagination: dict = Depends(get_pagination_params),
+    pagination: dict = Depends(get_pagination_params_async),
     service: WebhookService = Depends(get_webhook_service),
     current_user=Depends(get_current_active_admin),
 ):
     return await service.get_webhook_logs(webhook_id, pagination)
 
 
-@router.post("/{webhook_id}/test", response_model=WebhookTestResponse)
+@router.post("/{webhook_id:uuid}/test", response_model=WebhookTestResponse)
 @limiter.limit("5/minute")
 async def test_webhook(
     request: Request,

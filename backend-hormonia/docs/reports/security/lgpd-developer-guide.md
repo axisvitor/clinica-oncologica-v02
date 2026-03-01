@@ -308,7 +308,7 @@ await repo.hard_delete(patient_id)  # Raises ValueError
 # CORRECT - Clear audit trail
 await repo.hard_delete(
     patient_id,
-    audit_reason="LGPD Art. 16 - Patient data deletion request received via email on 2025-11-26 16:30 UTC. Request ID: REQ-12345"
+    audit_reason="LGPD Art. 16 - Patient data deletion request received via email on 2025-11-26 16:30 Sao Paulo. Request ID: REQ-12345"
 )
 ```
 
@@ -431,7 +431,7 @@ async def delete_patient_with_approval(
         f"LGPD Art. 16 - Patient data deletion request. "
         f"Requested by user: {requesting_user_id}. "
         f"Approval document: {approval_document}. "
-        f"Timestamp: {datetime.utcnow().isoformat()}"
+        f"Timestamp: {now_sao_paulo().isoformat()}"
     )
 
     repo = PatientRepository(db)

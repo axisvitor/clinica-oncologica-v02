@@ -7,9 +7,10 @@ import base64
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import joinedload
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.core.database.async_engine import get_async_db
 from app.models.appointment import Appointment, AppointmentStatus, AppointmentType
 from app.models.patient import Patient
 from app.models.user import UserRole
@@ -30,12 +31,13 @@ from app.api.v2.patients_utils import (
     _extract_user_context,
     _ensure_uuid,
 )
-from app.api.v2.utils.auth_helpers import is_admin
+from app.utils.auth_helpers import is_admin
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_redis_cache,
 )
 from app.utils.rate_limiter import limiter
+from app.utils.timezone import now_sao_paulo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -95,9 +97,70 @@ class ConflictCheckResponse(BaseModel):
     conflicting_appointments: List[dict] = []
 
 
+async def _find_conflicts(
+    db: AsyncSession,
+    practitioner_id: UUID,
+    start_time: datetime,
+    end_time: datetime,
+    exclude_appointment_id: Optional[UUID] = None,
+) -> List[Appointment]:
+    stmt = select(Appointment).where(
+        Appointment.practitioner_id == practitioner_id,
+        Appointment.status.in_(
+            [
+                AppointmentStatus.SCHEDULED,
+                AppointmentStatus.CONFIRMED,
+                AppointmentStatus.IN_PROGRESS,
+            ]
+        ),
+        Appointment.scheduled_at.isnot(None),
+        Appointment.scheduled_at < end_time,
+    )
+
+    if exclude_appointment_id:
+        stmt = stmt.where(Appointment.id != exclude_appointment_id)
+
+    result = await db.execute(stmt)
+    candidates = result.scalars().all()
+
+    conflicts: List[Appointment] = []
+    for appt in candidates:
+        if not appt.duration_minutes:
+            continue
+        appt_end = appt.scheduled_at + timedelta(minutes=appt.duration_minutes)
+        if start_time < appt_end and end_time > appt.scheduled_at:
+            conflicts.append(appt)
+
+    return conflicts
+
+
+def _validate_status_transition(old_status, new_status):
+    old_val = old_status.value if hasattr(old_status, "value") else old_status
+    new_val = new_status.value if hasattr(new_status, "value") else new_status
+
+    valid_transitions = {
+        AppointmentStatus.SCHEDULED.value: [
+            AppointmentStatus.CONFIRMED.value,
+            AppointmentStatus.CANCELLED.value,
+        ],
+        AppointmentStatus.CONFIRMED.value: [
+            AppointmentStatus.IN_PROGRESS.value,
+            AppointmentStatus.CANCELLED.value,
+            AppointmentStatus.NO_SHOW.value,
+        ],
+        AppointmentStatus.IN_PROGRESS.value: [AppointmentStatus.COMPLETED.value],
+        AppointmentStatus.COMPLETED.value: [],
+        AppointmentStatus.CANCELLED.value: [],
+        AppointmentStatus.NO_SHOW.value: [],
+    }
+
+    if new_val != old_val and new_val not in valid_transitions.get(old_val, []):
+        raise ValueError(f"Invalid status transition from {old_val} to {new_val}")
+
+
 @router.get("", response_model=AppointmentV2List, summary="List appointments")
 async def list_appointments(
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     pagination=Depends(get_pagination_params),
     fields: Optional[List[str]] = Depends(get_field_selection),
@@ -122,12 +185,12 @@ async def list_appointments(
     except Exception as cache_err:
         logger.debug(f"Cache read failed (non-critical): {cache_err}")
 
-    query = db.query(Appointment)
+    stmt = select(Appointment)
     if include:
         if "patient" in include:
-            query = query.options(joinedload(Appointment.patient))
+            stmt = stmt.options(joinedload(Appointment.patient))
         if "practitioner" in include:
-            query = query.options(joinedload(Appointment.practitioner))
+            stmt = stmt.options(joinedload(Appointment.practitioner))
 
     filters = []
     role_enum, user_id = _extract_user_context(current_user)
@@ -140,7 +203,7 @@ async def list_appointments(
 
     if cursor_data and "id" in cursor_data:
         cid = UUID(cursor_data["id"])
-        cdate = datetime.fromisoformat(cursor_data["created_at"].replace("Z", "+00:00"))
+        cdate = datetime.fromisoformat(cursor_data["created_at"])
         filters.append(
             or_(
                 Appointment.created_at < cdate,
@@ -149,7 +212,7 @@ async def list_appointments(
         )
 
     if search:
-        query = query.join(Patient)
+        stmt = stmt.join(Patient)
         filters.append(Patient.name.ilike(f"%{search}%"))
 
     if patient_id:
@@ -196,17 +259,20 @@ async def list_appointments(
         filters.append(func.date(Appointment.scheduled_at) <= date_to)
 
     if filters:
-        query = query.filter(and_(*filters))
+        stmt = stmt.where(and_(*filters))
 
     total = None
     if not cursor_data:
-        tq = db.query(func.count(Appointment.id))
+        tq = select(func.count(Appointment.id))
+        if search:
+            tq = tq.select_from(Appointment).join(Patient)
         if filters:
-            tq = tq.filter(and_(*filters))
-        total = tq.scalar()
+            tq = tq.where(and_(*filters))
+        total = (await db.execute(tq)).scalar()
 
-    query = query.order_by(Appointment.created_at.desc(), Appointment.id)
-    appointments = query.limit(limit + 1).all()
+    stmt = stmt.order_by(Appointment.created_at.desc(), Appointment.id)
+    result = await db.execute(stmt.limit(limit + 1))
+    appointments = result.scalars().all()
 
     has_more = len(appointments) > limit
     if has_more:
@@ -262,7 +328,7 @@ async def check_conflicts(
     scheduled_at: datetime = Query(...),
     duration_minutes: int = Query(30, ge=15, le=480),
     exclude_appointment_id: Optional[str] = Query(None),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     try:
@@ -274,10 +340,6 @@ async def check_conflicts(
 
     end_time = scheduled_at + timedelta(minutes=duration_minutes)
 
-    from app.repositories.appointment import AppointmentRepository
-
-    repo = AppointmentRepository(db)
-
     exclude_uuid = None
     if exclude_appointment_id:
         try:
@@ -287,7 +349,8 @@ async def check_conflicts(
                 f"Invalid exclude_appointment_id, ignoring: {exclude_appointment_id}"
             )
 
-    conflicts_list = repo.find_conflicts(
+    conflicts_list = await _find_conflicts(
+        db,
         practitioner_uuid, scheduled_at, end_time, exclude_uuid
     )
 
@@ -309,7 +372,7 @@ async def check_conflicts(
 @router.get("/{appointment_id}", response_model=AppointmentV2Response)
 async def get_appointment(
     appointment_id: str,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     fields: Optional[List[str]] = Depends(get_field_selection),
     include: Optional[List[str]] = Depends(get_eager_load_params),
@@ -322,14 +385,15 @@ async def get_appointment(
             status_code=400, detail="Invalid appointment_id UUID format"
         )
 
-    query = db.query(Appointment)
+    stmt = select(Appointment)
     if include:
         if "patient" in include:
-            query = query.options(joinedload(Appointment.patient))
+            stmt = stmt.options(joinedload(Appointment.patient))
         if "practitioner" in include:
-            query = query.options(joinedload(Appointment.practitioner))
+            stmt = stmt.options(joinedload(Appointment.practitioner))
 
-    appt = query.filter(Appointment.id == aid).first()
+    result = await db.execute(stmt.where(Appointment.id == aid))
+    appt = result.scalar_one_or_none()
     if not appt:
         raise HTTPException(status_code=404)
     _ensure_appointment_access(current_user, appt)
@@ -359,17 +423,10 @@ async def get_appointment(
 async def create_appointment(
     request: Request,
     appointment_data: AppointmentV2Create,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(_get_current_user_simple),
     redis_cache=Depends(get_redis_cache),
 ):
-    # Initialize Service
-    from app.services.appointment_service import AppointmentService
-    from app.repositories.appointment import AppointmentRepository
-
-    repo = AppointmentRepository(db)
-    service = AppointmentService(db, repo)
-
     # Validate basic existence
     try:
         UUID(appointment_data.patient_id)
@@ -402,15 +459,45 @@ async def create_appointment(
             )
 
     # Ensure practitioner is set in data passed to service if implied
-    if not appointment_data.practitioner_id and prid:
-        appointment_data.practitioner_id = str(prid)
-
     try:
-        new_appt = service.create_appointment(appointment_data)
-    except ValueError as e:
-        logger.warning(f"Appointment creation conflict: {e}")
+        if prid and appointment_data.scheduled_at:
+            end_time = appointment_data.scheduled_at + timedelta(
+                minutes=appointment_data.duration_minutes
+            )
+            conflicts = await _find_conflicts(
+                db,
+                prid,
+                appointment_data.scheduled_at,
+                end_time,
+            )
+            if conflicts:
+                raise ValueError("Scheduling conflict detected")
+
+        create_data = appointment_data.model_dump(
+            exclude={"patient_id", "practitioner_id", "status", "appointment_type"}
+        )
+        create_data["patient_id"] = UUID(appointment_data.patient_id)
+        if prid:
+            create_data["practitioner_id"] = prid
+
+        if appointment_data.status:
+            create_data["status"] = AppointmentStatus(appointment_data.status.lower())
+        else:
+            create_data["status"] = AppointmentStatus.SCHEDULED
+
+        create_data["appointment_type"] = AppointmentType(
+            appointment_data.appointment_type.lower()
+        )
+
+        new_appt = Appointment(**create_data)
+        db.add(new_appt)
+        await db.commit()
+        await db.refresh(new_appt)
+    except ValueError as err:
+        logger.warning(f"Appointment creation conflict: {err}")
         raise HTTPException(status_code=409, detail="Appointment scheduling conflict detected")
     except Exception as e:
+        await db.rollback()
         logger.error(f"Error creating appointment: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to create appointment")
 
@@ -426,7 +513,7 @@ async def create_appointment(
 async def update_appointment(
     appointment_id: str,
     appointment_data: AppointmentV2Update,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
     redis_cache=Depends(get_redis_cache),
 ):
@@ -437,26 +524,65 @@ async def update_appointment(
             status_code=400, detail="Invalid appointment_id UUID format"
         )
 
-    # Initialize Service
-    from app.services.appointment_service import AppointmentService
-    from app.repositories.appointment import AppointmentRepository
-
-    repo = AppointmentRepository(db)
-    service = AppointmentService(db, repo)
-
-    appt = repo.get_by_id(aid)
+    result = await db.execute(select(Appointment).where(Appointment.id == aid))
+    appt = result.scalar_one_or_none()
     if not appt:
         raise HTTPException(status_code=404, detail="Appointment not found")
 
     _ensure_appointment_access(current_user, appt)
 
-    # Update via Service
     try:
-        updated_appt = service.update_appointment(aid, appointment_data)
+        update_data = appointment_data.model_dump(exclude_unset=True)
+
+        if "scheduled_at" in update_data or "duration_minutes" in update_data:
+            new_start = update_data.get("scheduled_at", appt.scheduled_at)
+            new_duration = update_data.get("duration_minutes", appt.duration_minutes)
+
+            practitioner_id = appt.practitioner_id
+            if "practitioner_id" in update_data and update_data["practitioner_id"]:
+                practitioner_id = UUID(update_data["practitioner_id"])
+
+            if new_start and new_duration and practitioner_id:
+                end_time = new_start + timedelta(minutes=new_duration)
+                conflicts = await _find_conflicts(
+                    db,
+                    practitioner_id,
+                    new_start,
+                    end_time,
+                    exclude_appointment_id=aid,
+                )
+                if conflicts:
+                    raise ValueError("Scheduling conflict detected")
+
+        if "status" in update_data and update_data["status"]:
+            new_status = AppointmentStatus(update_data["status"].lower())
+            _validate_status_transition(appt.status, new_status)
+            update_data["status"] = new_status
+
+            if new_status == AppointmentStatus.COMPLETED:
+                update_data["completed_at"] = now_sao_paulo()
+            elif new_status == AppointmentStatus.CANCELLED:
+                update_data["cancelled_at"] = now_sao_paulo()
+
+        if "appointment_type" in update_data and update_data["appointment_type"]:
+            update_data["appointment_type"] = AppointmentType(
+                update_data["appointment_type"].lower()
+            )
+
+        if "practitioner_id" in update_data and update_data["practitioner_id"]:
+            update_data["practitioner_id"] = UUID(update_data["practitioner_id"])
+
+        for field, value in update_data.items():
+            setattr(appt, field, value)
+
+        await db.commit()
+        await db.refresh(appt)
+        updated_appt = appt
     except ValueError as e:
         logger.warning(f"Appointment update conflict: {e}")
         raise HTTPException(status_code=400, detail="Invalid appointment update or scheduling conflict")
     except Exception as e:
+        await db.rollback()
         logger.error(f"Error updating appointment: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to update appointment")
 
@@ -472,7 +598,7 @@ async def update_appointment(
 @router.patch("/{appointment_id}/cancel", response_model=AppointmentV2Response)
 async def cancel_appointment(
     appointment_id: str,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     try:
@@ -481,14 +607,16 @@ async def cancel_appointment(
         raise HTTPException(
             status_code=400, detail="Invalid appointment_id UUID format"
         )
-    appt = db.query(Appointment).get(aid)
+    result = await db.execute(select(Appointment).where(Appointment.id == aid))
+    appt = result.scalar_one_or_none()
     if not appt:
         raise HTTPException(status_code=404)
     _ensure_appointment_access(current_user, appt)
 
     appt.status = AppointmentStatus.CANCELLED.value
-    appt.cancelled_at = datetime.now(timezone.utc)
-    db.commit()
+    appt.cancelled_at = now_sao_paulo()
+    await db.commit()
+    await db.refresh(appt)
     return _serialize_appointment(appt)
 
 
@@ -496,7 +624,7 @@ async def cancel_appointment(
 async def complete_appointment(
     appointment_id: str,
     post_appointment_notes: Optional[str] = Query(None),
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     try:
@@ -505,23 +633,25 @@ async def complete_appointment(
         raise HTTPException(
             status_code=400, detail="Invalid appointment_id UUID format"
         )
-    appt = db.query(Appointment).get(aid)
+    result = await db.execute(select(Appointment).where(Appointment.id == aid))
+    appt = result.scalar_one_or_none()
     if not appt:
         raise HTTPException(status_code=404)
     _ensure_appointment_access(current_user, appt)
 
     appt.status = AppointmentStatus.COMPLETED.value
-    appt.completed_at = datetime.now(timezone.utc)
+    appt.completed_at = now_sao_paulo()
     if post_appointment_notes:
         appt.post_appointment_notes = post_appointment_notes
-    db.commit()
+    await db.commit()
+    await db.refresh(appt)
     return _serialize_appointment(appt)
 
 
 @router.delete("/{appointment_id}", status_code=204)
 async def delete_appointment(
     appointment_id: str,
-    db=Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(get_current_user_from_session),
 ):
     try:
@@ -530,10 +660,11 @@ async def delete_appointment(
         raise HTTPException(
             status_code=400, detail="Invalid appointment_id UUID format"
         )
-    appt = db.query(Appointment).get(aid)
+    result = await db.execute(select(Appointment).where(Appointment.id == aid))
+    appt = result.scalar_one_or_none()
     if not appt:
         raise HTTPException(status_code=404)
     _ensure_appointment_access(current_user, appt)
-    db.delete(appt)
-    db.commit()
+    await db.delete(appt)
+    await db.commit()
     return None

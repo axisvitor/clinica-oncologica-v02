@@ -7,7 +7,7 @@ integrating with the unified alert system.
 
 import logging
 from typing import Dict, Any, Optional, Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 from ..types import (
@@ -18,6 +18,7 @@ from ..types import (
     MonitoringThresholds,
 )
 from ..config import get_config
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -77,17 +78,17 @@ class DatabaseMonitor:
         Check for connection pool exhaustion.
 
         Args:
-            use_service_role: Whether to check service role pool or RLS pool
+            use_service_role: Backward-compatible flag (single pool in use)
 
         Returns:
             Alert if threshold exceeded, None otherwise
         """
         try:
             # Import here to avoid circular dependencies
-            from app.core.database import get_pool_status
+            from app.database import get_pool_status
 
-            pool_name = "service_role" if use_service_role else "rls"
-            pool_status = get_pool_status(use_service_role=use_service_role)
+            pool_name = "primary"
+            pool_status = get_pool_status()
 
             # Calculate utilization
             total_capacity = pool_status.get("pool_size", 0) + pool_status.get(
@@ -143,7 +144,7 @@ class DatabaseMonitor:
                     await self._execute_callbacks(alert)
 
                 # Update debounce tracking
-                self._last_alert_times[alert_key] = datetime.now(timezone.utc)
+                self._last_alert_times[alert_key] = now_sao_paulo()
 
                 return alert
 
@@ -160,17 +161,17 @@ class DatabaseMonitor:
         Check database connection health.
 
         Args:
-            use_service_role: Whether to check service role pool or RLS pool
+            use_service_role: Backward-compatible flag (single pool in use)
 
         Returns:
             Alert if connection unhealthy, None otherwise
         """
         try:
             # Import here to avoid circular dependencies
-            from app.core.database import test_connection
+            from app.database import test_connection
 
-            pool_name = "service_role" if use_service_role else "rls"
-            health_result = test_connection(use_service_role=use_service_role)
+            pool_name = "primary"
+            health_result = test_connection()
 
             if health_result.get("status") != "healthy":
                 # Check debouncing
@@ -207,7 +208,7 @@ class DatabaseMonitor:
                     await self._execute_callbacks(alert)
 
                 # Update debounce tracking
-                self._last_alert_times[alert_key] = datetime.now(timezone.utc)
+                self._last_alert_times[alert_key] = now_sao_paulo()
 
                 return alert
 
@@ -331,7 +332,7 @@ class DatabaseMonitor:
             return False
 
         last_alert_time = self._last_alert_times[alert_key]
-        time_since_last = datetime.now(timezone.utc) - last_alert_time
+        time_since_last = now_sao_paulo() - last_alert_time
 
         return time_since_last < timedelta(minutes=self._debounce_minutes)
 

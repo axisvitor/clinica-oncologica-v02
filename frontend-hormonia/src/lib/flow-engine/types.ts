@@ -200,7 +200,7 @@ export interface FlowNodeConfig {
  *   },
  *   history: [],
  *   metadata: {
- *     started_at: '2024-01-15T10:00:00Z'
+ *     started_at: '2024-01-15T10:00:00-03:00'
  *   }
  * }
  * ```
@@ -230,7 +230,7 @@ export interface FlowExecutionContext {
  * ```typescript
  * const step: FlowExecutionStep = {
  *   node_id: 'welcome-msg',
- *   executed_at: '2024-01-15T10:00:00Z',
+ *   executed_at: '2024-01-15T10:00:00-03:00',
  *   result: 'success',
  *   output: {
  *     message_id: 'msg-456',

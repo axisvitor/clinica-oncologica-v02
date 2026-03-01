@@ -15,8 +15,6 @@ from .business_dependencies import (
     get_validated_patient,
     verify_patient_access,
     verify_monthly_quiz_token,
-    get_request_context,
-    RequestContext,
 )
 
 from .service_dependencies import (
@@ -34,7 +32,6 @@ from .service_dependencies import (
     get_flow_management_service,
     get_redis,
     get_database,
-    # get_supabase_client - REMOVED (migrated to AWS RDS PostgreSQL)
     get_message_service,
     get_analytics_service,
     get_report_service,
@@ -47,11 +44,19 @@ from .service_dependencies import (
     get_websocket_manager,
 )
 
+from .patient_services import (
+    get_async_data_integrity_service,
+)
+from .flow_services import (
+    get_async_flow_alerts_service,
+    get_async_flow_analytics_service,
+)
+
 # Import get_db directly from database module
 from app.database import get_db
+from app.core.database import get_async_db
 
-# Import from database for backward compatibility
-from app.database import get_db as get_thread_safe_db
+from app.utils.request_context import RequestContext, get_request_context
 
 # Thread-safe service provider implementation
 # Moved from app/dependencies.py to avoid package/module shadowing conflict
@@ -77,7 +82,7 @@ def get_thread_safe_service_provider() -> Generator:
     provider = None
     try:
         # Lazy imports to avoid circular dependencies
-        from app.services import ServiceProvider  # noqa: F401 - imported for type context
+        from app.service_provider import ServiceProvider  # noqa: F401 - imported for type context
         from app.core.session_manager import get_request_factory
 
         logger.debug("Starting thread-safe service provider creation")
@@ -168,8 +173,6 @@ __all__ = [
     "get_validated_patient",
     "verify_patient_access",
     "verify_monthly_quiz_token",
-    "get_request_context",
-    "RequestContext",
     # Service dependencies
     "get_patient_service",
     "get_patient_repository",
@@ -184,8 +187,6 @@ __all__ = [
     "get_flow_management_service",
     "get_redis",
     "get_database",
-    # "get_supabase_client", - REMOVED (migrated to AWS RDS PostgreSQL)
-    "get_thread_safe_db",
     "get_thread_safe_service_provider",
     "get_message_service",
     "get_analytics_service",
@@ -197,7 +198,15 @@ __all__ = [
     "get_metrics_redis_storage",
     "get_cache_service",
     "get_websocket_manager",
+    # Async service factories (Phase 21+)
+    "get_async_data_integrity_service",
+    "get_async_flow_alerts_service",
+    "get_async_flow_analytics_service",
     # Database dependencies
     "get_db",
+    "get_async_db",
     "get_flow_analytics_service",
+    # Request context utilities
+    "RequestContext",
+    "get_request_context",
 ]

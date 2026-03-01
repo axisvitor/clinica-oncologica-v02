@@ -17,6 +17,7 @@ from app.exceptions import ValidationError, NotFoundError
 from app.services.encryption import get_encryption_service
 from app.core.monthly_quiz_config import get_monthly_quiz_config
 import logging
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -317,7 +318,7 @@ class AnswerValidator:
         Raises:
             ValidationError: If submission is too fast
         """
-        elapsed = (datetime.now(timezone.utc) - session_started_at).total_seconds()
+        elapsed = (now_sao_paulo() - session_started_at).total_seconds()
         if elapsed < min_time_seconds:
             raise ValidationError(
                 "Response submitted too quickly. Please take time to read the question."

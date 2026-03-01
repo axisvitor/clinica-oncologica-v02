@@ -5,20 +5,25 @@ Combines all integrity validation services for centralized monitoring.
 """
 
 import logging
+import inspect
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from dataclasses import dataclass
 from enum import Enum
 
+from sqlalchemy import func, select
+
 
 from app.services.patient import PatientIntegrityService
 from app.services.flow_integrity import FlowIntegrityService
 from app.repositories.message import MessageIntegrityService
+from app.core.database.dual_session import DualSessionMixin
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState
 from app.models.message import Message
 from app.exceptions import ValidationError
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +67,7 @@ class IntegrityIssue:
     resolution_notes: Optional[str] = None
 
 
-class DataIntegrityMonitoringService:
+class DataIntegrityMonitoringService(DualSessionMixin):
     """
     Comprehensive data integrity monitoring service that coordinates
     all integrity validation services and provides centralized monitoring.
@@ -74,6 +79,12 @@ class DataIntegrityMonitoringService:
         self.flow_integrity = FlowIntegrityService(db)
         self.message_integrity = MessageIntegrityService(db)
         self.detected_issues: List[IntegrityIssue] = []
+
+    async def _resolve(self, maybe_awaitable: Any) -> Any:
+        """Resolve sync return values and async awaitables uniformly."""
+        if inspect.isawaitable(maybe_awaitable):
+            return await maybe_awaitable
+        return maybe_awaitable
 
     async def run_comprehensive_integrity_scan(
         self, limit: Optional[int] = None
@@ -88,7 +99,7 @@ class DataIntegrityMonitoringService:
             Comprehensive integrity scan results
         """
         try:
-            start_time = datetime.now(timezone.utc)
+            start_time = now_sao_paulo()
             self.detected_issues = []  # Reset issues list
 
             scan_results = {
@@ -155,7 +166,7 @@ class DataIntegrityMonitoringService:
             scan_results["issues_detected"]["by_entity_type"] = by_entity_type
 
             # Mark completion
-            end_time = datetime.now(timezone.utc)
+            end_time = now_sao_paulo()
             scan_results["completed_at"] = end_time.isoformat()
             scan_results["total_duration_seconds"] = (
                 end_time - start_time
@@ -180,13 +191,14 @@ class DataIntegrityMonitoringService:
     ) -> Dict[str, Any]:
         """Scan patient data integrity"""
         try:
-            start_time = datetime.now(timezone.utc)
+            start_time = now_sao_paulo()
 
-            # Get patients to scan
-            query = self.db.query(Patient)
+            patient_stmt = select(Patient)
             if limit:
-                query = query.limit(limit)
-            patients = query.all()
+                patient_stmt = patient_stmt.limit(limit)
+
+            patient_scalars = await self._resolve(self._scalars(patient_stmt))
+            patients = list(patient_scalars.all())
 
             results = {
                 "scan_type": "patient_integrity",
@@ -213,7 +225,7 @@ class DataIntegrityMonitoringService:
             results["issues_found"] = len(
                 [i for i in self.detected_issues if i.entity_type == "patient"]
             )
-            results["completed_at"] = datetime.now(timezone.utc).isoformat()
+            results["completed_at"] = now_sao_paulo().isoformat()
 
             return results
 
@@ -224,13 +236,14 @@ class DataIntegrityMonitoringService:
     async def _scan_flow_integrity(self, limit: Optional[int] = None) -> Dict[str, Any]:
         """Scan flow data integrity"""
         try:
-            start_time = datetime.now(timezone.utc)
+            start_time = now_sao_paulo()
 
-            # Get flows to scan
-            query = self.db.query(PatientFlowState)
+            flow_stmt = select(PatientFlowState)
             if limit:
-                query = query.limit(limit)
-            flows = query.all()
+                flow_stmt = flow_stmt.limit(limit)
+
+            flow_scalars = await self._resolve(self._scalars(flow_stmt))
+            flows = list(flow_scalars.all())
 
             results = {
                 "scan_type": "flow_integrity",
@@ -281,7 +294,7 @@ class DataIntegrityMonitoringService:
             results["issues_found"] = len(
                 [i for i in self.detected_issues if i.entity_type == "flow"]
             )
-            results["completed_at"] = datetime.now(timezone.utc).isoformat()
+            results["completed_at"] = now_sao_paulo().isoformat()
 
             return results
 
@@ -294,13 +307,14 @@ class DataIntegrityMonitoringService:
     ) -> Dict[str, Any]:
         """Scan message data integrity"""
         try:
-            start_time = datetime.now(timezone.utc)
+            start_time = now_sao_paulo()
 
-            # Get unique patients to scan their conversations
-            patient_query = self.db.query(Patient.id).distinct()
+            patient_stmt = select(Patient.id).distinct()
             if limit:
-                patient_query = patient_query.limit(limit)
-            patient_ids = [p.id for p in patient_query.all()]
+                patient_stmt = patient_stmt.limit(limit)
+
+            patient_result = await self._resolve(self._execute(patient_stmt))
+            patient_ids = list(patient_result.scalars().all())
 
             results = {
                 "scan_type": "message_integrity",
@@ -351,7 +365,7 @@ class DataIntegrityMonitoringService:
             results["issues_found"] = len(
                 [i for i in self.detected_issues if i.entity_type == "message"]
             )
-            results["completed_at"] = datetime.now(timezone.utc).isoformat()
+            results["completed_at"] = now_sao_paulo().isoformat()
 
             return results
 
@@ -444,7 +458,9 @@ class DataIntegrityMonitoringService:
             # Check if doctor exists
             from app.models.user import User
 
-            doctor = self.db.query(User).filter(User.id == patient.doctor_id).first()
+            doctor_stmt = select(User).where(User.id == patient.doctor_id).limit(1)
+            doctor_scalars = await self._resolve(self._scalars(doctor_stmt))
+            doctor = doctor_scalars.first()
             if not doctor:
                 self._add_integrity_issue(
                     type=IntegrityIssueType.PATIENT_ORPHANED,
@@ -471,13 +487,13 @@ class DataIntegrityMonitoringService:
     ) -> None:
         """Add integrity issue to detected issues list"""
         issue = IntegrityIssue(
-            id=f"{entity_type}_{entity_id}_{type.value}_{int(datetime.now(timezone.utc).timestamp())}",
+            id=f"{entity_type}_{entity_id}_{type.value}_{int(now_sao_paulo().timestamp())}",
             type=type,
             severity=severity,
             entity_type=entity_type,
             entity_id=entity_id,
             description=description,
-            detected_at=datetime.now(timezone.utc),
+            detected_at=now_sao_paulo(),
             metadata=metadata,
         )
         self.detected_issues.append(issue)
@@ -489,7 +505,7 @@ class DataIntegrityMonitoringService:
             recent_issues = [
                 i
                 for i in self.detected_issues
-                if i.detected_at > datetime.now(timezone.utc) - timedelta(days=7)
+                if i.detected_at > now_sao_paulo() - timedelta(days=7)
             ]
 
             # Severity distribution
@@ -505,10 +521,20 @@ class DataIntegrityMonitoringService:
                 entity_counts[entity_type] = entity_counts.get(entity_type, 0) + 1
 
             # System health score (0-100)
+            patient_count_result = await self._resolve(
+                self._execute(select(func.count()).select_from(Patient))
+            )
+            flow_count_result = await self._resolve(
+                self._execute(select(func.count()).select_from(PatientFlowState))
+            )
+            message_count_result = await self._resolve(
+                self._execute(select(func.count()).select_from(Message))
+            )
+
             total_entities = (
-                self.db.query(Patient).count()
-                + self.db.query(PatientFlowState).count()
-                + self.db.query(Message).count()
+                int(patient_count_result.scalar_one() or 0)
+                + int(flow_count_result.scalar_one() or 0)
+                + int(message_count_result.scalar_one() or 0)
             )
 
             if total_entities > 0:
@@ -517,7 +543,7 @@ class DataIntegrityMonitoringService:
                 health_score = 100
 
             return {
-                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "last_updated": now_sao_paulo().isoformat(),
                 "health_score": round(health_score, 2),
                 "recent_issues": {
                     "total": len(recent_issues),
@@ -539,7 +565,7 @@ class DataIntegrityMonitoringService:
             logger.error(f"Error generating integrity dashboard: {e}")
             return {
                 "error": str(e),
-                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "last_updated": now_sao_paulo().isoformat(),
                 "health_score": 0,
             }
 

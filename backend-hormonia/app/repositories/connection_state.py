@@ -4,8 +4,9 @@ import json
 
 import redis.asyncio as redis
 
-from app.config import settings
+from app.core.redis_manager import get_cache_redis_manager
 from app.utils.logging import get_logger
+from app.utils.timezone import now_sao_paulo
 
 logger = get_logger(__name__)
 
@@ -21,7 +22,7 @@ class ConnectionStateRepository:
         if self.redis_client:
             return self.redis_client
         try:
-            client = redis.from_url(settings.REDIS_URL)
+            client = await get_cache_redis_manager().get_async_client()
             await client.ping()
             return client
         except Exception as e:  # pragma: no cover - fallback when redis unavailable
@@ -32,7 +33,7 @@ class ConnectionStateRepository:
         data = {
             "instance": instance,
             "state": state,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": now_sao_paulo().isoformat(),
         }
         client = await self._get_client()
         key = f"connection_state:{instance}"

@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter
 
 from app.schemas.v2.ai import AIHealthResponse
-from .dependencies import get_redis_cache
+from app.api.v2.routers import ai as ai_module
+from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
 
@@ -23,14 +24,14 @@ router = APIRouter()
 )
 async def ai_health_check() -> AIHealthResponse:
     """Comprehensive AI service health check."""
-    start_time = datetime.now(timezone.utc)
+    start_time = now_sao_paulo()
 
     try:
         # Check Redis
         redis_status = "operational"
         redis_info = {}
         try:
-            redis_client = await get_redis_cache()
+            redis_client = await ai_module.get_redis_cache()
             if redis_client:
                 await redis_client.ping()
                 stats_info = await redis_client.info("stats")
@@ -81,7 +82,7 @@ async def ai_health_check() -> AIHealthResponse:
         elif redis_status == "unavailable":
             overall_status = "degraded"
 
-        response_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+        response_time = (now_sao_paulo() - start_time).total_seconds() * 1000
 
         # Check actual AI service configurations
         from app.config import settings
@@ -93,9 +94,7 @@ async def ai_health_check() -> AIHealthResponse:
             "sentiment_analyzer": "operational"
             if getattr(settings, "AI_ENABLE_SENTIMENT", True)
             else "disabled",
-            "insights_generator": "operational"
-            if getattr(settings, "AI_ENABLE_INSIGHTS", True)
-            else "disabled",
+            "insights_generator": "disabled",
             "risk_analyzer": "operational"
             if getattr(settings, "AI_ENABLE_RISK_ANALYSIS", True)
             else "disabled",
@@ -107,7 +106,7 @@ async def ai_health_check() -> AIHealthResponse:
             redis_cache=redis_info,
             gemini_api=gemini_info,
             response_time_ms=response_time,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )
 
     except Exception as e:
@@ -118,5 +117,5 @@ async def ai_health_check() -> AIHealthResponse:
             redis_cache={"status": "unknown"},
             gemini_api={"status": "unknown"},
             response_time_ms=0,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now_sao_paulo(),
         )

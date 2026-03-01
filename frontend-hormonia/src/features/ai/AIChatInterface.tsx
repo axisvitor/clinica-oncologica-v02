@@ -69,7 +69,7 @@ export function AIChatInterface({
           <div className="text-center text-muted-foreground">
             <Bot className="mx-auto h-8 w-8 mb-2" />
             <p>Chat com IA não disponível</p>
-            <p className="text-sm">Configure VITE_OPENAI_API_KEY para habilitar</p>
+            <p className="text-sm">Configure a integração de IA no backend para habilitar</p>
           </div>
         </CardContent>
       </Card>
@@ -198,7 +198,7 @@ export function AIChatInterface({
       } catch {
         // Fallback to mock response
         response = {
-          message: `Entendi sua mensagem: "${userMessage.content}". Esta é uma resposta simulada da IA. Configure a API do OpenAI para respostas reais.`,
+          message: `Entendi sua mensagem: "${userMessage.content}". Esta é uma resposta simulada da IA. Configure a integração de IA no backend para respostas reais.`,
           confidence: 0.85,
           intent: 'general_inquiry',
           suggestions: ['Como posso ajudar mais?', 'Precisa de informações específicas?'],
@@ -379,7 +379,7 @@ export function AIChatInterface({
                 <div className="bg-muted rounded-lg p-3">
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm text-muted-foreground">Pensando...</span>
+                    <span className="text-sm text-muted-foreground">Pensando…</span>
                   </div>
                 </div>
               </div>
@@ -398,14 +398,18 @@ export function AIChatInterface({
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Digite sua mensagem..."
+              placeholder='Ex.: "Preciso de ajuda"…'
               disabled={isLoading}
               className="flex-1"
+              name="message"
+              autoComplete="off"
+              aria-label="Mensagem"
             />
             <Button
               onClick={sendMessage}
               disabled={!inputValue.trim() || isLoading}
               size="icon"
+              aria-label={isLoading ? "Enviando mensagem…" : "Enviar mensagem"}
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
