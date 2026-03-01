@@ -1,8 +1,8 @@
 # Stack Research
 
-**Domain:** Healthcare WhatsApp backend — AI framework migration (LangGraph → Pydantic AI + Google ADK)
-**Researched:** 2026-02-23
-**Confidence:** HIGH (pydantic-ai versions and DI patterns), MEDIUM (google-adk dependency conflicts), HIGH (removal decisions)
+**Domain:** Healthcare WhatsApp backend — WuzAPI provider migration (Evolution API → WuzAPI)
+**Researched:** 2026-03-01
+**Confidence:** HIGH (WuzAPI API shape verified from official docs), MEDIUM (Docker resource numbers — no official specs), HIGH (Python HTTP client decisions — based on existing requirements)
 
 ---
 
@@ -10,296 +10,326 @@
 
 | Component | Status | Action | Rationale |
 |-----------|--------|--------|-----------|
-| `langgraph>=1.0.7` | REMOVE | Full removal after migration | Entire orchestration layer being replaced |
-| `langchain-core>=1.2.7` | REMOVE | After removing LangGraph | LangGraph's sole use of langchain-core |
-| `langchain-google-genai>=2.1.12` | REMOVE | After Pydantic AI migration | `ChatGoogleGenerativeAI` replaced by `google-genai` via pydantic-ai |
-| `google-ai-generativelanguage>=0.7.0` | REMOVE | Transitively with langchain-google-genai | Legacy SDK superseded by `google-genai` |
-| `pydantic-ai-slim[google,retries]` | ADD | Core of migration | Typed agents, structured output, Gemini via `google-genai` |
-| `google-genai>=1.56.0` | ADD (transitive) | Pulled in by pydantic-ai-slim[google] | New unified Google Gen AI SDK |
-| `google-adk` | DO NOT ADD (yet) | Decision below | Critical dependency conflicts with existing stack |
+| `aiohttp>=3.10.0` | KEEP | No change — WuzAPIClient uses aiohttp same as EvolutionAPIClient | WuzAPI is REST+JSON; aiohttp is already present and outperforms httpx for high-concurrency async |
+| `backoff>=2.2.1` | KEEP | No change | Retry logic pattern stays; WuzAPI returns 429/5xx same as Evolution |
+| `httpx>=0.28.1` | KEEP | No change — OTel instrumentation uses httpx | Not used for WhatsApp client; keep for OpenTelemetry |
+| `aiohttp` OTel | ADD consideration | `opentelemetry-instrumentation-aiohttp-client` | If tracing WuzAPI calls matters; currently only `httpx` instrumented |
+| `EvolutionAPIClient` | TOMBSTONE | Convert to ImportError stub after WuzAPIClient is wired | Both legacy httpx-based and canonical aiohttp-based stacks |
+| `mock_evolution.py` | TOMBSTONE | Test double replaced by mock for WuzAPIClient | |
+| New env vars | ADD | `WUZAPI_BASE_URL`, `WUZAPI_TOKEN`, `WUZAPI_WEBHOOK_SECRET` | Replace `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_API_INSTANCE` |
+| `WEBHOOK_FORMAT=json` | CONFIGURE | Set on WuzAPI sidecar | Default is `form`; JSON mode needed for easy FastAPI parsing |
+
+**No new Python packages are required.** The WuzAPI integration is a pure client-side rewrite using the existing aiohttp stack.
+
+---
+
+## WuzAPI: What It Is
+
+WuzAPI (github.com/asternic/wuzapi) is a Go binary that wraps the `whatsmeow` library (tulir/whatsmeow) and exposes WhatsApp functionality as a REST API. It connects directly to WhatsApp's WebSocket servers — no Puppeteer, no Android emulator — making it significantly lighter than browser-based solutions.
+
+**Architecture difference from Evolution API:**
+
+| Aspect | Evolution API | WuzAPI |
+|--------|--------------|--------|
+| Model | Instance-per-number (instanceName in URL path) | User-per-token (Authorization header selects session) |
+| Auth header | `apikey: <key>` | `Authorization: <user_token>` |
+| Phone format in request | `"5491155554444"` (E.164 digits only) | `"5491155554444"` (E.164 digits only; JID `@s.whatsapp.net` appears only in responses) |
+| Send text endpoint | `POST /message/sendText/{instanceName}` | `POST /chat/send/text` |
+| Send image endpoint | `POST /message/sendMedia/{instanceName}` | `POST /chat/send/image` |
+| Webhook HMAC header | `x-evolution-signature` (SHA-256) | `x-hmac-signature` (SHA-256) |
+| Webhook payload type | `application/json` always | `application/json` or `application/x-www-form-urlencoded` (env-controlled) |
+| Session state | Instance-level (create/restart/delete) | Session-level (connect/disconnect/logout) |
+| Health check | `GET /instance/connectionState/{name}` | `GET /session/status` |
+| Instance management | Per-instance CRUD | Per-user session lifecycle |
 
 ---
 
 ## Recommended Stack
 
-### New Packages to Add
+### Core Technologies (unchanged)
 
-| Technology | Version | Purpose | Why |
-|------------|---------|---------|-----|
-| pydantic-ai-slim[google] | >=1.63.0,<2.0.0 | Typed Pydantic AI agents with Gemini support | Use slim variant to avoid pulling all model providers; `[google]` extra installs `google-genai>=1.56.0` |
-| pydantic-ai-slim[retries] | Same version | Tenacity-backed retry transport for httpx | Replaces existing `ChatGoogleGenerativeAI` retry handling; integrates with existing `tenacity` |
-| google-genai | >=1.56.0,<2.0.0 | Google Gen AI SDK (transitive via pydantic-ai) | New unified SDK replacing `google-ai-generativelanguage`; direct async API |
+| Technology | Version (existing) | Purpose | Change? |
+|------------|-------------------|---------|---------|
+| Python | 3.13 | Runtime | No |
+| FastAPI | >=0.128.0,<0.200.0 | API framework | No |
+| aiohttp | >=3.10.0,<4.0.0 | WuzAPI HTTP client | No — already present |
+| backoff | >=2.2.1,<3.0.0 | Retry with exponential backoff | No |
+| pydantic | >=2.12.5,<3.0.0 | Request/response models | No |
+| SQLAlchemy (AsyncSession) | >=2.0.45,<2.1.0 | ORM for API paths | No |
+| Celery + Dragonfly | celery>=5.6.2 | Task queue | No |
 
-### Packages to Remove
+### Supporting Libraries (unchanged — already in requirements.txt)
 
-| Package | Safe to Remove After | Why |
-|---------|---------------------|-----|
-| `langgraph>=1.0.7` | Migration of `graphs.py`, `runtime.py`, `nodes.py` | All graph orchestration replaced by Pydantic AI agents + programmatic Python |
-| `langchain-core>=1.2.7` | After langgraph removal | Used exclusively by langgraph; `HumanMessage` in `client.py` replaced by `google-genai` types |
-| `langchain-google-genai>=2.1.12` | After pydantic-ai migration | `ChatGoogleGenerativeAI` replaced by `pydantic_ai.models.google.GoogleModel` |
-| `google-ai-generativelanguage>=0.7.0` | With langchain-google-genai | Legacy gRPC-based SDK; `google-genai` is the modern replacement |
+| Library | Version | Purpose | Notes |
+|---------|---------|---------|-------|
+| `backoff` | >=2.2.1,<3.0.0 | Exponential backoff on 429/5xx | Keep existing `@backoff.on_exception` decorator |
+| `aiobreaker` | >=1.2.0,<2.0.0 | Circuit breaker wrapping WuzAPI calls | Keep; wraps WuzAPIClient at service layer |
+| `tenacity` | >=8.2.3,<9.0.0 | Alternative retry primitives | Keep for pydantic-ai; not needed for WuzAPI client directly |
+| `cryptography` | >=43.0.0,<45.0.0 | Fernet encryption | Keep for LGPD key rotation; unrelated to WuzAPI |
+| `phonenumbers` | >=8.13.0,<9.0.0 | Phone number formatting | Keep; normalize to E.164 digits before sending to WuzAPI |
 
-### What Does NOT Change
+### New Dependencies: NONE
 
-| Package | Version | Keep Because |
-|---------|---------|-------------|
-| pydantic | >=2.12.5 | pydantic-ai-slim requires pydantic>=2.12; already met |
-| httpx | >=0.28.1 | pydantic-ai-slim requires httpx>=0.27; already met |
-| tenacity | >=8.2.3 | pydantic-ai retries extra uses tenacity under the hood |
-| google-auth | >=2.47.0 | Still needed for Firebase Admin + other Google APIs |
-| google-api-core | >=2.29.0 | Still needed for Firebase Admin; no conflict |
-| aiobreaker | >=1.2.0 | Circuit breaker pattern stays; wraps pydantic-ai agent calls |
+WuzAPI uses plain REST+JSON over HTTP. The existing `aiohttp` client is identical in capability to what `EvolutionAPIClient` already uses. No new Python packages are needed.
+
+**Why NOT httpx for WuzAPIClient:**
+The existing canonical `EvolutionAPIClient` already uses `aiohttp`. Benchmarks consistently show aiohttp is 2x+ faster than httpx for high-concurrency async workloads. The existing `TCPConnector` with `limit=100, limit_per_host=30` is already tuned for this use case. Switching to httpx for WuzAPI would create an inconsistency with no upside. httpx stays in requirements only for OpenTelemetry instrumentation (`opentelemetry-instrumentation-httpx`).
 
 ---
 
-## The Google ADK Decision: DO NOT ADD in v1.2
+## WuzAPI API Reference (Verified)
 
-**Recommendation: Skip google-adk for this milestone. Use Pydantic AI alone for agent structure and programmatic Python for orchestration.**
+### Authentication
 
-### Why google-adk Is Not Ready for This Stack
-
-**Conflict 1: OpenTelemetry version range incompatibility.**
-google-adk 1.25.1 requires `opentelemetry-sdk>=1.36.0,<1.39.0`. The existing requirements pin `opentelemetry-sdk>=1.28.0,<2.0.0`. These ranges overlap on the paper but google-adk's upper bound `<1.39.0` conflicts with future upgrades and the existing project may be on versions above 1.36.0.
-
-**Conflict 2: google-adk bundles FastAPI internally (known design issue).**
-google-adk pulls in its own FastAPI + Starlette as required dependencies for its web UI and development server. This caused documented version conflicts at v1.12 (starlette range mismatch), v1.16 (Pydantic 2.11+ schema generation failures with non-serializable httpx types). As of v1.25.1 there is no `google-adk-core` or `[minimal]` extra — the full web stack always installs. Issue #3615 requesting a lightweight install is open with no resolution timeline.
-
-**Conflict 3: Heavy dependency footprint for embedded use.**
-google-adk installs: FastAPI, Uvicorn, MCP, google-cloud-aiplatform, google-cloud-spanner, google-cloud-bigtable, google-cloud-pubsub, aiosqlite, and full OpenTelemetry stack. This is a framework designed to BE a server, not to be embedded in one. The oncology backend is already a FastAPI server.
-
-**Conflict 4: OpenTelemetry context management issues with async code.**
-ADK manages its own OpenTelemetry tracer and does not expose a public API to disable, configure, or extend it. With async generators and multiprocessing, there are persistent context detachment errors ("was created in a different Context"). The existing backend uses async generators in WebSocket and Celery contexts.
-
-**What to use instead of SequentialAgent/ParallelAgent:**
-The two remaining LangGraph graphs (`flow_message_graph`, `flow_response_graph`) have only 2 nodes each with simple conditional routing. Replace the graph execution with straightforward async Python:
-
-```python
-# Instead of LangGraph StateGraph or ADK SequentialAgent
-async def execute_flow_message(state: FlowMessageState, handler: Any) -> dict:
-    # Node 1: load_flow_context
-    state = await load_flow_context(state, config={"configurable": {"handler": handler}})
-    if state.get("result"):
-        return state["result"]
-    # Conditional: route to dispatch_send_mode
-    state = await dispatch_send_mode(state, config={"configurable": {"handler": handler}})
-    return state.get("result", {})
+```
+Authorization: <user_token>
 ```
 
-This replaces ~30 lines of graph builder code with ~10 lines of readable Python. No ADK dependency needed.
+Admin endpoints use the admin token (`WUZAPI_ADMIN_TOKEN`). Per-session endpoints use the per-user token created via `POST /admin/users`. The legacy `Token` header is also accepted.
 
-**Revisit google-adk in v1.3** if: (a) issue #3615 is resolved with a `[core]` extra, (b) the OTel range conflict is loosened, and (c) there is a concrete multi-agent orchestration need that programmatic Python cannot cleanly express.
+**Evolution API comparison:** Evolution used `apikey: <key>` as a flat header — a different header name, same concept.
 
----
+### Session Management (replaces instance management)
 
-## Detailed Package Analysis: pydantic-ai-slim
+| Operation | WuzAPI Endpoint | Evolution API Equivalent |
+|-----------|-----------------|-------------------------|
+| Connect/pair QR | `POST /session/connect` | `POST /instance/create` |
+| Check status | `GET /session/status` | `GET /instance/connectionState/{name}` |
+| Get QR code | `GET /session/qr` | `GET /instance/qrcode/{name}` |
+| Disconnect (keep session) | `POST /session/disconnect` | `PUT /instance/restart/{name}` |
+| Logout (clear session) | `POST /session/logout` | `DELETE /instance/logout/{name}` |
 
-### Version and Python Compatibility
-
-| Attribute | Value |
-|-----------|-------|
-| Latest stable version | 1.63.0 (released 2026-02-23) |
-| Python support | 3.10, 3.11, 3.12, 3.13, 3.14 |
-| Python 3.13 status | CONFIRMED SUPPORTED |
-| Production stability | "5 - Production/Stable" on PyPI (V1 released September 2025) |
-| API stability commitment | V2 planned April 2026 earliest; V1 receives security fixes for 6 months after V2 |
-| License | MIT |
-
-### Core Dependencies of pydantic-ai-slim (directly relevant)
-
-| Dependency | Version Required | Status in Existing Stack |
-|------------|-----------------|-------------------------|
-| pydantic | >2.12 | ALREADY MET (>=2.12.5 in requirements) |
-| httpx | >0.27 | ALREADY MET (>=0.28.1 in requirements) |
-| griffe | >2.0 | NEW — small dependency for docstring introspection |
-| google-genai | >1.56.0 (via [google] extra) | NEW — replaces google-ai-generativelanguage |
-
-### The `google-genai` SDK Transition
-
-The existing stack uses `langchain-google-genai` which wraps the legacy `google-ai-generativelanguage` gRPC-based SDK. Pydantic AI uses `google-genai` (the new unified SDK) directly.
-
-`langchain-google-genai` 4.2.1 (latest) also migrated to `google-genai` under the hood as of v4.0.0. This means both pydantic-ai-slim[google] and langchain-google-genai 4.x reference the same underlying SDK — **they can coexist during migration** without version conflict. The old `google-ai-generativelanguage` package becomes removable once `langchain-google-genai` is removed.
-
-Confidence: MEDIUM — the specific version constraint pydantic-ai-slim places on google-genai (>1.56.0) matches what google-adk also requires (>=1.56.0 minimum). No conflict found between these two packages on the google-genai version.
-
----
-
-## Pydantic AI Integration with Existing FastAPI DI Patterns
-
-### How pydantic-ai Dependency Injection Works
-
-pydantic-ai uses typed dataclass dependencies passed at `agent.run()` time, accessed via `RunContext[DepsType]`. This is the analog of FastAPI's `Depends()` — not the same mechanism but composable with it:
-
-```python
-from dataclasses import dataclass
-from pydantic_ai import Agent, RunContext
-from sqlalchemy.ext.asyncio import AsyncSession
-
-@dataclass
-class FlowDeps:
-    db: AsyncSession
-    redis_manager: Any  # existing RedisManager singleton
-    patient_id: str
-
-humanization_agent = Agent(
-    "google-gla:gemini-2.0-flash",  # google-genai model identifier
-    deps_type=FlowDeps,
-    output_type=str,  # or a Pydantic BaseModel for structured output
-    system_prompt="You humanize medical questionnaire messages for oncology patients.",
-)
-
-@humanization_agent.system_prompt
-async def get_dynamic_prompt(ctx: RunContext[FlowDeps]) -> str:
-    # Can access ctx.deps.db, ctx.deps.patient_id
-    return f"Patient ID: {ctx.deps.patient_id}. Be empathetic."
+Session connect payload:
+```json
+{
+  "Subscribe": ["Message", "ReadReceipt", "HistorySync", "ChatPresence"],
+  "Immediate": false
+}
 ```
 
-In FastAPI route handlers:
-```python
-@router.post("/flow/message")
-async def send_flow_message(
-    payload: FlowMessageRequest,
-    db: AsyncSession = Depends(get_async_db_session),
-):
-    deps = FlowDeps(db=db, redis_manager=redis_manager, patient_id=str(payload.patient_id))
-    result = await humanization_agent.run(payload.template_text, deps=deps)
-    return result.output
+### Sending Messages
+
+**Send text:**
+```
+POST /chat/send/text
+Authorization: <token>
+Content-Type: application/json
+
+{
+  "Phone": "5511999887766",
+  "Body": "Olá, como você está se sentindo?",
+  "Id": "optional-client-message-id"
+}
 ```
 
-The FastAPI `Depends()` system provides the `AsyncSession`; pydantic-ai's `deps_type` receives it. No framework collision. This is the recommended pattern.
-
-### PII Redaction Integration
-
-The existing `app/ai/pii_redaction.py` with `sanitize_prompt_text_for_external_ai()` integrates into pydantic-ai at two points:
-
-1. **System prompt function:** Apply PII redaction to dynamic system prompt content before passing to Gemini.
-2. **Before `agent.run()`:** Redact the user-provided message before it reaches the agent.
-
-```python
-# Pattern: redact before run
-sanitized_message = sanitize_prompt_text_for_external_ai(template_text)
-result = await humanization_agent.run(sanitized_message, deps=deps)
+Response (HTTP 200):
+```json
+{
+  "code": 200,
+  "data": { "Id": "whatsapp-message-id-from-server" },
+  "success": true
+}
 ```
 
-The existing `AIResponseValidation.validate_sentiment()` in `nodes_ai.py` maps directly to pydantic-ai's `output_type=SentimentResult` (a Pydantic BaseModel), which replaces manual JSON parsing.
+**Send image:**
+```
+POST /chat/send/image
+Authorization: <token>
+Content-Type: application/json
 
-### Circuit Breaker Integration
-
-The existing `aiobreaker`-based circuit breaker (`get_ai_circuit_breaker()`) wraps agent calls at the service layer — not inside pydantic-ai:
-
-```python
-async def humanize_message(template: str, patient_id: str, db: AsyncSession) -> str:
-    cb = get_ai_circuit_breaker()
-    async with cb:  # raises FeatureNotAvailableError when circuit is open
-        deps = FlowDeps(db=db, patient_id=patient_id)
-        result = await humanization_agent.run(
-            sanitize_prompt_text_for_external_ai(template), deps=deps
-        )
-        return result.output
+{
+  "Phone": "5511999887766",
+  "Image": "https://example.com/image.jpg",
+  "Caption": "Optional caption"
+}
 ```
 
-This preserves the existing circuit breaker pattern without pydantic-ai changes.
+**Send document:**
+```
+POST /chat/send/document
+Authorization: <token>
+Content-Type: application/json
+
+{
+  "Phone": "5511999887766",
+  "Document": "https://example.com/file.pdf",
+  "FileName": "relatorio.pdf"
+}
+```
+
+**Phone format:** E.164 digits only, no `+`, no spaces, no `@s.whatsapp.net`. The `@s.whatsapp.net` JID suffix appears only in webhook event payloads and contact responses, NOT in send requests. The existing `normalize_br_phone()` already produces correct format — just strip non-digits and ensure country code prefix `55`.
+
+### Webhook Configuration
+
+```
+POST /webhook
+Authorization: <token>
+Content-Type: application/json
+
+{
+  "webhookUrl": "https://your-api.railway.app/webhooks/whatsapp",
+  "webhookEvents": "Message,ReadReceipt"
+}
+```
+
+HMAC configuration:
+```
+POST /session/hmac/config
+Authorization: <token>
+Content-Type: application/json
+
+{
+  "key": "your-minimum-32-char-hmac-secret-key"
+}
+```
+
+### Webhook Payload Format
+
+**Critical:** Set `WEBHOOK_FORMAT=json` on the WuzAPI sidecar. The default `form` format requires URL-decoding a `jsonData` field, which adds complexity. With `WEBHOOK_FORMAT=json`, WuzAPI posts:
+
+```
+POST <webhook_url>
+Content-Type: application/json
+x-hmac-signature: <sha256-hex-of-raw-body>
+
+{
+  "type": "Message",
+  "event": {
+    "Info": {
+      "ID": "3EB0C767D097B7C84C5A",
+      "Timestamp": "2026-03-01T10:30:00-03:00",
+      "FromMe": false,
+      "Type": "textMessage",
+      "Sender": "5511999887766@s.whatsapp.net",
+      "Chat": "5511999887766@s.whatsapp.net"
+    },
+    "Message": {
+      "Conversation": "Patient response text here"
+    }
+  }
+}
+```
+
+ReadReceipt event:
+```json
+{
+  "type": "ReadReceipt",
+  "event": {
+    "Info": {
+      "ID": "3EB0C767D097B7C84C5A",
+      "Timestamp": "2026-03-01T10:31:00-03:00",
+      "Type": "protocolMessage"
+    }
+  }
+}
+```
+
+**HMAC signature:** The `x-hmac-signature` header contains the raw hex SHA-256 digest — no `sha256=` prefix. This differs from some other APIs. The existing `WebhookHMACValidator` already handles bare hex by defaulting to SHA-256 when no prefix is found (line 29-30 in `hmac_validator.py`). No change needed to the validator.
+
+**Inbound sender extraction:** Sender JID is `event.Info.Sender` (format: `5511999887766@s.whatsapp.net`). Strip `@s.whatsapp.net` to get the phone number. The existing `contact_data.get("id", "").split("@")[0]` pattern in `EvolutionAPIClient.get_contacts()` already demonstrates this split.
+
+### Supported Event Types
+
+| Event | Subscribe Name | Replaces Evolution API Event |
+|-------|---------------|------------------------------|
+| Incoming/outgoing messages | `Message` | `MESSAGES_UPSERT` |
+| Read receipts / delivery | `ReadReceipt` | `MESSAGES_UPDATE` |
+| Typing presence | `ChatPresence` | `PRESENCE_UPDATE` |
+| Message history sync | `HistorySync` | (no direct equivalent) |
+| User presence | `Presence` | `PRESENCE_UPDATE` |
 
 ---
 
-## Coexistence Strategy During Migration
+## WuzAPI Webhook Payload vs Evolution API Webhook Payload
 
-The migration can proceed module by module without a big-bang cutover:
+The key structural difference:
 
-| Phase | LangGraph | pydantic-ai | Notes |
-|-------|-----------|-------------|-------|
-| Start | Active (graphs.py) | Not yet installed | v1.1 state |
-| Install | Active | Installed, no agents yet | Add to requirements.txt; install creates no conflicts |
-| Migrate AI ops | Active | Agents for 4 AI operations | consensus.py removed first (dead code) |
-| Migrate flows | Removed | Async Python for flow routing | graphs.py, runtime.py deleted |
-| Cleanup | Removed | Active | Remove langchain-core, langchain-google-genai |
+| Field | Evolution API | WuzAPI (json format) |
+|-------|--------------|----------------------|
+| Top-level event type | `event` (e.g., `"MESSAGES_UPSERT"`) | `type` (e.g., `"Message"`) |
+| Message body | `data.messages[0].message.conversation` | `event.Message.Conversation` |
+| Sender JID | `data.key.remoteJid` | `event.Info.Sender` |
+| Message ID | `data.key.id` | `event.Info.ID` |
+| Timestamp | `data.messageTimestamp` (Unix int) | `event.Info.Timestamp` (ISO 8601) |
+| Instance ID | URL path: `/{instanceName}/webhook` | `Authorization` header (user token) |
 
-**Key insight:** pydantic-ai-slim[google] and langchain-google-genai can coexist in the same virtualenv because both now use `google-genai` as the underlying SDK. There is no import conflict. The migration can safely install pydantic-ai before removing LangGraph.
-
-**Order of removal matters:**
-1. Remove consensus system (dead code, zero callers)
-2. Replace 4 AI operations with pydantic-ai agents
-3. Replace flow graph execution with direct async Python functions
-4. Remove langgraph, langchain-core, langchain-google-genai, google-ai-generativelanguage
-
----
-
-## The 4 AI Operations: Migration Targets
-
-Based on codebase analysis, the 4 AI operations that move to pydantic-ai agents are:
-
-| Operation | Current Implementation | New Implementation | Output Type |
-|-----------|----------------------|-------------------|-------------|
-| Message Humanization | `GeminiClient.generate_content()` via `ChatGoogleGenerativeAI` | `humanization_agent.run(template)` | `str` |
-| Sentiment Analysis | `_parse_sentiment_analysis()` with manual JSON parsing | `sentiment_agent.run(response)` | `SentimentResult(BaseModel)` |
-| Question Variation | Direct Gemini call in `nodes_ai.py` | `variation_agent.run(question)` | `str` |
-| Empathetic Follow-up | Direct Gemini call | `followup_agent.run(context)` | `str` |
-
-The `flow_message_graph` and `flow_response_graph` graphs are NOT AI operations — they are routing logic. Replace with direct async Python (not pydantic-ai agents).
+The existing `WebhookPayload` Pydantic model (in `models/message.py`) has `event: str` and `data: Union[Dict, List[Dict]]`. For WuzAPI, this needs to be replaced with:
+```python
+class WuzAPIWebhookPayload(BaseModel):
+    type: str  # "Message" | "ReadReceipt" | "ChatPresence" | "HistorySync"
+    event: Dict[str, Any]  # nested Info + Message/Receipt data
+```
 
 ---
 
-## Structured Output: Pydantic AI + Gemini Compatibility Note
+## Deployment: WuzAPI as Railway Sidecar
 
-Pydantic AI supports two modes for structured output with Gemini:
+WuzAPI is a Go binary distributed as a Docker image (`asternic/wuzapi`). It must run alongside the Python backend.
 
-1. **Tool-calling mode (default):** Agent uses Gemini's function-calling API to return structured JSON. Works with most Pydantic models.
-2. **NativeOutput mode:** Uses Gemini's native JSON schema response format. Required for deeply nested models. **Limitation:** Cannot use tools simultaneously when NativeOutput is active with Gemini.
+**Docker image:** `asternic/wuzapi` (Docker Hub: hub.docker.com/r/asternic/wuzapi)
 
-For this project's use case (sentiment analysis returning a flat model like `SentimentScore`, `sentiment: str`, `confidence: float`), tool-calling mode is sufficient and the NativeOutput limitation does not apply.
+**Resource footprint:** Go + whatsmeow connects directly via WebSocket. No Chromium, no JVM, no Android emulator. Estimated: 50-150 MB RAM, <0.1 CPU at idle. This is the primary advantage over browser-based solutions.
 
-Confidence: MEDIUM — verified via pydantic-ai docs and GitHub issue #3483 about nested models with Gemini.
+**Database:** WuzAPI stores WhatsApp session keys and user token data. Two options:
+- SQLite (default): fine for single-instance; file lives on disk inside container. On Railway, needs a persistent volume or sessions are lost on redeploy.
+- PostgreSQL: set `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT` env vars. WuzAPI can reuse the existing AWS RDS PostgreSQL instance with a separate `wuzapi` database/schema.
 
----
+**Recommendation:** Use the existing AWS RDS PostgreSQL instance with a dedicated `wuzapi` database. This avoids volume management on Railway and session loss on redeploys. SQLite on Railway containers is ephemeral by default.
 
-## Version Compatibility Matrix
-
-| Package | Our Version | pydantic-ai-slim Requires | Compatible? |
-|---------|------------|--------------------------|-------------|
-| pydantic | >=2.12.5 | >2.12 | YES |
-| httpx | >=0.28.1 | >0.27 | YES |
-| tenacity | >=8.2.3 | (used internally by [retries] extra) | YES |
-| google-auth | >=2.47.0 | No direct constraint | YES (no conflict) |
-| google-api-core | >=2.29.0 | No direct constraint | YES (no conflict) |
-| protobuf | >=5.0,<7.0.0 | Inherited via google-genai | YES (google-genai requires protobuf; same range) |
-| opentelemetry-sdk | >=1.28.0,<2.0.0 | No constraint | YES |
-
-| Package | Our Version | google-adk 1.25.1 Requires | Compatible? |
-|---------|------------|---------------------------|-------------|
-| opentelemetry-sdk | >=1.28.0,<2.0.0 | >=1.36.0,<1.39.0 | CONFLICT (upper bound) |
-| fastapi | >=0.128.0,<0.200.0 | >=0.124.1,<1.0.0 | Overlaps but starlette sub-dep causes issues |
-| google-cloud-aiplatform | Not pinned | >=1.132.0,<2.0.0 | Would force new heavy dependency |
-
----
-
-## Installation
+**Required environment variables for WuzAPI sidecar:**
 
 ```bash
-# Add to requirements.txt (production)
-pydantic-ai-slim[google,retries]>=1.63.0,<2.0.0
+WUZAPI_ADMIN_TOKEN=<32-char-random>          # Save immediately — auto-generated if omitted
+WUZAPI_GLOBAL_ENCRYPTION_KEY=<32-byte-key>   # AES-256 for session key encryption
+WUZAPI_GLOBAL_HMAC_KEY=<32-char-minimum>     # Global HMAC fallback (per-session can override)
+WEBHOOK_FORMAT=json                           # CRITICAL: use json not form for FastAPI parsing
+WUZAPI_GLOBAL_WEBHOOK=<your-fastapi-webhook-url>  # Optional: global fallback webhook
+WUZAPI_PORT=8080                              # Default; expose on Railway internal port
 
-# google-genai installs transitively; do NOT pin separately unless needed
-# google-genai>=1.56.0,<2.0.0  # only add if direct use is needed
+# PostgreSQL (point to existing RDS)
+DB_HOST=<rds-endpoint>
+DB_USER=wuzapi
+DB_PASSWORD=<password>
+DB_NAME=wuzapi
+DB_PORT=5432
+DB_SSLMODE=require                            # RDS requires SSL
 
-# Remove from requirements.txt (after migration complete):
-# - langgraph>=1.0.7
-# - langchain-core>=1.2.7
-# - langchain-google-genai>=2.1.12
-# - google-ai-generativelanguage>=0.7.0
+# Optional
+TZ=America/Sao_Paulo
+SESSION_DEVICE_NAME=HormoniaBot
 ```
 
-**Note on pinning pydantic-ai-slim:** Pin to `<2.0.0` because pydantic-ai V2 is planned for April 2026 and is expected to have breaking API changes. The V1 API (`Agent`, `RunContext`, `output_type`) is stable until V2.
+**Required environment variables to ADD to Python backend (replacing Evolution API vars):**
+
+```bash
+WUZAPI_BASE_URL=http://wuzapi:8080          # Internal Railway service URL
+WUZAPI_TOKEN=<user-token-for-this-session>  # Created via POST /admin/users on WuzAPI
+WUZAPI_WEBHOOK_SECRET=<same-as-hmac-key>    # For validating incoming webhook signatures
+```
 
 ---
 
 ## Alternatives Considered
 
-| Recommended | Alternative | Why Not Alternative |
-|-------------|-------------|---------------------|
-| pydantic-ai-slim[google] | pydantic-ai (full) | Full variant installs all model providers (OpenAI, Anthropic, etc.) and Logfire; unnecessary bloat for a Google-only deployment |
-| Programmatic Python for flow routing | google-adk SequentialAgent | ADK creates irresolvable dependency conflicts (OTel, FastAPI/Starlette) in v1.2; the routing logic is only 2-node graphs replaceable with 10 lines of Python |
-| Programmatic Python for flow routing | LangGraph (keep it) | Migration goal is to remove LangGraph entirely; programmatic Python is more readable for 2-node conditional routing |
-| pydantic-ai-slim[google] | Direct google-genai SDK | pydantic-ai adds typed output validation, DI system, and test mocking via `agent.override()`; the `google-genai` SDK would require rebuilding all of this manually |
-| aiobreaker (keep existing) | pydantic-ai retries transport | pydantic-ai retries are for HTTP-level retries (429, 503); circuit breaker is a different concern (open/half-open/closed state machine); both are needed |
+### HTTP Client for WuzAPIClient
+
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|------------------------|
+| `aiohttp` (keep existing) | `httpx.AsyncClient` | If the codebase migrates entirely to httpx (not planned); httpx has HTTP/2 support but 2x slower for high-concurrency async |
+| `aiohttp` | `requests` (sync) | Never — all API paths are async; sync requests blocks the event loop |
+
+### WuzAPI Database Backend
+
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|------------------------|
+| PostgreSQL (existing RDS) | SQLite on Railway volume | Only if Railway persistent volumes are configured correctly; SQLite is zero-config but has Railway persistence caveats |
+| PostgreSQL (existing RDS) | A separate PostgreSQL on Railway | Adds cost and management overhead; reusing existing RDS is simpler |
+
+### Webhook Payload Format
+
+| Recommended | Alternative | When to Use Alternative |
+|-------------|-------------|------------------------|
+| `WEBHOOK_FORMAT=json` | `WEBHOOK_FORMAT=form` (default) | Never — form format requires URL-decoding a `jsonData` field and re-parsing JSON inside the FastAPI handler; json mode gives direct `request.json()` access |
 
 ---
 
@@ -307,94 +337,132 @@ pydantic-ai-slim[google,retries]>=1.63.0,<2.0.0
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| `google-adk` in v1.2 | Irresolvable dependency conflicts: OTel upper bound `<1.39.0`, FastAPI/Starlette sub-dep hell, heavy footprint (aiplatform, spanner, bigtable), OTel context detachment in async | Programmatic async Python for flow routing + pydantic-ai agents for AI ops |
-| `pydantic-ai` (full, not slim) | Installs all model providers (OpenAI, Anthropic, Groq) and Logfire; unnecessary for Google-only deployment | `pydantic-ai-slim[google,retries]` |
-| `google-generativeai` (old SDK) | Being deprecated; replaced by `google-genai`; langchain-google-genai 4.x already migrated away from it | Already transitive; remove `google-ai-generativelanguage` when removing langchain |
-| Keeping `ChatGoogleGenerativeAI` after pydantic-ai migration | Two Gemini client abstractions creates confusion about which is authoritative; increases surface area for PII redaction bypass | Remove `langchain-google-genai` after migration; use `pydantic_ai.models.google.GoogleModel` |
-| ADK's `SequentialAgent` for 2-node graphs | Massive dependency for a pattern solved in 10 lines of Python | Direct `async def execute_flow_sequence(*steps)` function |
-| `NativeOutput` mode for simple schemas | Loses tool-calling capability; Gemini cannot use tools simultaneously | Default tool-calling mode for flat structured outputs (`SentimentResult`, etc.) |
+| Any Python WuzAPI client library from PyPI | None exist (as of 2026-03); WuzAPI has no official Python SDK | Write `WuzAPIClient` directly using aiohttp — it is a simple REST API |
+| SQLite for WuzAPI session storage on Railway | Railway containers are ephemeral without explicit volume mounts; SQLite file is lost on redeploy, requiring QR scan again | PostgreSQL via existing AWS RDS (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME) |
+| `WEBHOOK_FORMAT=form` (WuzAPI default) | Form format wraps event JSON inside a `jsonData` URL-encoded field — extra parsing step with no benefit | Set `WEBHOOK_FORMAT=json` in WuzAPI sidecar environment |
+| Dual-provider (Evolution + WuzAPI simultaneously) | Creates two code paths, double maintenance, confusion about which service is authoritative for message state | Hard-cut: tombstone both Evolution API stacks after WuzAPI is verified working |
+| Keeping `WhatsAppInstance` DB model for WuzAPI | WuzAPI uses user/session model, not instance model; `WhatsAppInstance` table maps to Evolution API concepts | Assess whether instance tracking table needs adaptation or can be retired |
+| `instanceName` in request payloads | WuzAPI selects session via `Authorization` header token, not a named instance in the URL | Pass user token in `Authorization` header; no instance name in payload or path |
 
 ---
 
-## Stack Patterns for This Migration
+## Version Compatibility
 
-**For AI operations that return unstructured text (humanization, question variation, empathetic follow-up):**
+| Package | Current Version | WuzAPI Requires | Compatible? |
+|---------|----------------|-----------------|-------------|
+| `aiohttp` | >=3.10.0,<4.0.0 | (Python client; WuzAPI is Go) | YES — aiohttp 3.13.x supports Python 3.13 with pre-built wheels |
+| `backoff` | >=2.2.1,<3.0.0 | N/A | YES |
+| `pydantic` | >=2.12.5,<3.0.0 | N/A | YES — Pydantic models for WuzAPI request/response |
+| Python | 3.13 | N/A (server is Go) | YES |
+| WuzAPI Docker | `asternic/wuzapi:latest` | PostgreSQL 12+ or SQLite | YES — existing RDS is PostgreSQL 14+ |
+
+---
+
+## Integration Points in Existing Codebase
+
+### Files to Tombstone
+
+| File | Path | Action |
+|------|------|--------|
+| Legacy Evolution client (httpx) | Unknown — referenced in imports elsewhere | Find callers via Grep, tombstone after replacing |
+| Canonical Evolution client (aiohttp) | `app/integrations/whatsapp/services/evolution_client.py` | Tombstone after `WuzAPIClient` verified |
+| Evolution mock | `app/integrations/whatsapp/services/mock_evolution.py` | Tombstone; replace test double with mock of `WuzAPIClient` |
+
+### Files to Create
+
+| File | Path | Notes |
+|------|------|-------|
+| WuzAPI client | `app/integrations/whatsapp/services/wuzapi_client.py` | Direct rewrite of `EvolutionAPIClient` using same aiohttp + backoff patterns |
+| WuzAPI Pydantic models | `app/integrations/whatsapp/models/wuzapi_message.py` | New payload models (`WuzAPIWebhookPayload`, `WuzAPISendTextRequest`, etc.) |
+
+### Files to Modify
+
+| File | Change |
+|------|--------|
+| `app/integrations/whatsapp/api/webhooks.py` | Rewrite event routing: `type: Message` vs `event: MESSAGES_UPSERT`; new sender extraction path |
+| `app/integrations/whatsapp/security/hmac_validator.py` | No code change needed — existing bare-hex SHA-256 path already handles WuzAPI `x-hmac-signature` format |
+| `app/services/unified_whatsapp_service.py` | Replace `EvolutionAPIClient` with `WuzAPIClient`; update constructor and send methods |
+| `app/config.py` / `settings` | Add `WUZAPI_BASE_URL`, `WUZAPI_TOKEN`, `WUZAPI_WEBHOOK_SECRET`; deprecate `EVOLUTION_*` vars |
+| `app/integrations/whatsapp/models/message.py` | Keep `MessageStatus`, `MessageType` enums (still valid); retire `InstanceStatus` or adapt to session model |
+| `.env.example` | Add new vars, mark old ones deprecated |
+
+### HMAC Validation: No Code Change Required
+
+The existing `WebhookHMACValidator.validate_signature()` already handles bare hex (no `sha256=` prefix) by falling back to SHA-256:
+
 ```python
-from pydantic_ai import Agent
-
-humanization_agent = Agent(
-    "google-gla:gemini-2.0-flash",
-    output_type=str,
-    system_prompt="...",  # or dynamic via @agent.system_prompt
-)
-# PII redaction before run, circuit breaker wraps the call
-result = await humanization_agent.run(sanitized_template, deps=deps)
-return result.output
+# hmac_validator.py line 28-29 — already correct for WuzAPI:
+if len(signature) == 128:
+    return "sha512", signature
+return "sha256", signature  # WuzAPI sends 64-char hex (SHA-256 bare hex)
 ```
 
-**For AI operations that return structured data (sentiment analysis):**
+WuzAPI sends a 64-character hex string in `x-hmac-signature`. The validator will correctly interpret this as SHA-256 bare hex. The webhook handler only needs the **header name** updated from whatever Evolution used to `x-hmac-signature`, and the signed content is the raw JSON body (same as with `WEBHOOK_FORMAT=json`).
+
+---
+
+## Phone Number Adapter
+
+WuzAPI expects `"5511999887766"` (E.164 digits, country code prefix, no `+`).
+
+The existing `normalize_phone()` / `normalize_br_phone()` in `app/schemas/validators/phone.py` already handles this. The WuzAPIClient should use the same utility before sending:
+
 ```python
-from pydantic import BaseModel
-from pydantic_ai import Agent
+from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
-class SentimentResult(BaseModel):
-    sentiment: str  # positive/negative/neutral
-    confidence: float
-    pain_indicators: list[str]
-
-sentiment_agent = Agent(
-    "google-gla:gemini-2.0-flash",
-    output_type=SentimentResult,
-    system_prompt="...",
-)
-result = await sentiment_agent.run(patient_response, deps=deps)
-return result.output  # type: SentimentResult — no more manual JSON parsing
+def _to_wuzapi_phone(raw_phone: str) -> str:
+    """Convert any phone format to WuzAPI E.164 digits."""
+    normalized = normalize_phone(raw_phone, mode=PhoneValidationMode.STRICT)
+    # normalize_phone returns +5511999887766; strip the leading +
+    return normalized.lstrip("+")
 ```
 
-**For flow routing (replacing LangGraph 2-node graphs):**
-```python
-# Replaces build_flow_message_graph() + 30 lines of StateGraph builder
-async def execute_flow_message(state: FlowMessageState, *, handler: Any) -> dict:
-    state = await load_flow_context(state, handler=handler)
-    if state.get("result"):
-        return state["result"]
-    state = await dispatch_send_mode(state, handler=handler)
-    return state.get("result", {})
+No new library needed — `phonenumbers>=8.13.0` is already installed for E.164 formatting.
+
+---
+
+## Installation
+
+No new packages. The diff from the existing `requirements.txt` is zero Python additions.
+
+**WuzAPI sidecar (Railway service):**
+```bash
+# Docker image — no pip install; Go binary
+docker pull asternic/wuzapi:latest
+
+# Or pin to a commit SHA for reproducibility:
+docker pull asternic/wuzapi:sha-898ed2e
 ```
 
-**For testing pydantic-ai agents (replaces LangGraph mock patterns):**
-```python
-from pydantic_ai.models.test import TestModel
+**Env var changes in Python backend:**
+```bash
+# Add:
+WUZAPI_BASE_URL=http://wuzapi:8080
+WUZAPI_TOKEN=<user-token>
+WUZAPI_WEBHOOK_SECRET=<hmac-key>
 
-async def test_humanization():
-    with humanization_agent.override(model=TestModel()):
-        result = await humanization_agent.run("template text", deps=test_deps)
-        assert result.output  # validates without real Gemini call
+# Remove (after Evolution tombstoned):
+# EVOLUTION_API_URL
+# EVOLUTION_API_KEY
+# EVOLUTION_API_INSTANCE
 ```
 
 ---
 
 ## Sources
 
-- pydantic-ai PyPI — latest 1.63.0, Python 3.10–3.14, Production/Stable: https://pypi.org/project/pydantic-ai/
-- pydantic-ai install docs — slim vs full, [google] extra installs google-genai: https://ai.pydantic.dev/install/
-- pydantic-ai-slim pyproject.toml — core deps: pydantic>2.12, httpx>0.27, google-genai>1.56.0 (for [google]): https://github.com/pydantic/pydantic-ai/blob/main/pydantic_ai_slim/pyproject.toml
-- pydantic-ai Google model docs — uses google-genai SDK, not google-generativeai: https://ai.pydantic.dev/models/google/
-- pydantic-ai dependencies docs — RunContext DI pattern, dataclass deps: https://ai.pydantic.dev/dependencies/
-- pydantic-ai retries docs — tenacity-based AsyncTenacityTransport: https://ai.pydantic.dev/retries/
-- pydantic-ai output docs — structured output, NativeOutput mode, Gemini tool-calling limitation: https://ai.pydantic.dev/output/
-- google-adk PyPI — latest 1.25.1, Python >=3.10: https://pypi.org/project/google-adk/
-- google-adk pyproject.toml — deps: google-genai>=1.56.0, opentelemetry-sdk>=1.36.0,<1.39.0, fastapi>=0.124.1: https://github.com/google/adk-python/blob/main/pyproject.toml
-- google-adk issue #2657 — FastAPI/starlette version conflict, closed as "won't relax": https://github.com/google/adk-python/issues/2657
-- google-adk issue #3173 — Swagger docs fail in v1.16 due to Pydantic 2.11+/FastAPI schema conflict: https://github.com/google/adk-python/issues/3173
-- google-adk issue #3615 — lightweight/core-only install request, OPEN, no resolution: https://github.com/google/adk-python/issues/3615
-- langchain-google-genai PyPI — 4.2.1, now uses google-genai SDK (v4.0.0+ migration): https://pypi.org/project/langchain-google-genai/
-- langchain-google-genai discussion #1422 — Consolidated SDK migration to google-genai in v4.0.0: https://github.com/langchain-ai/langchain-google/discussions/1422
-- Codebase analysis — app/ai/client.py (ChatGoogleGenerativeAI usage), app/ai/langgraph/graphs.py (2 multi-node graphs), app/ai/langgraph/consensus.py (dead code, zero callers), app/ai/langgraph/nodes_ai.py (AI helpers, manual JSON parsing)
-- ZenML blog — pydantic-ai vs LangGraph, ADK vs LangGraph comparison: https://www.zenml.io/blog/google-adk-vs-langgraph
+- WuzAPI GitHub README — authentication, Docker, env vars, webhook format: https://github.com/asternic/wuzapi/blob/main/README.md (MEDIUM confidence — fetched from raw GitHub)
+- WuzAPI API.md — all endpoints, request/response schemas, phone format, HMAC details: https://github.com/asternic/wuzapi/blob/main/API.md (HIGH confidence — official API reference)
+- WuzAPI Docker Hub — image available at `asternic/wuzapi`: https://hub.docker.com/r/asternic/wuzapi (MEDIUM confidence — page content inaccessible, verified via SHA layer URLs)
+- whatsmeow library — underlying Go library for direct WhatsApp WebSocket: https://github.com/tulir/whatsmeow (HIGH confidence)
+- aiohttp PyPI — 3.13.x supports Python 3.13: https://pypi.org/project/aiohttp/ (HIGH confidence)
+- httpx PyPI — 0.28.1 current stable, 1.0.dev3 in progress: https://pypi.org/project/httpx/ (HIGH confidence)
+- httpx vs aiohttp benchmarks — aiohttp 2x+ faster for high-concurrency async: https://miguel-mendez-ai.com/2024/10/20/aiohttp-vs-httpx (MEDIUM confidence — benchmark sources vary)
+- Existing `hmac_validator.py` — bare hex SHA-256 path already handles WuzAPI format: codebase analysis (HIGH confidence)
+- Existing `requirements.txt` — current versions of all packages: codebase analysis (HIGH confidence)
 
 ---
 
-*Stack research for: Healthcare WhatsApp backend — AI framework migration (LangGraph → Pydantic AI)*
-*Researched: 2026-02-23*
-*Confidence: HIGH for pydantic-ai choices, MEDIUM for google-adk conflict analysis (verified against GitHub issues but dependency resolution can shift with new versions)*
+*Stack research for: Healthcare WhatsApp backend — WuzAPI provider migration*
+*Researched: 2026-03-01*
+*Confidence: HIGH for API shape and integration points, MEDIUM for Docker resource numbers (Go/whatsmeow is lightweight by design but no official spec found)*

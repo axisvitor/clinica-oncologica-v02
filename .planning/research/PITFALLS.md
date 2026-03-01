@@ -1,406 +1,420 @@
 # Pitfalls Research
 
-**Domain:** AI Framework Migration — LangGraph to Pydantic AI + Google ADK in Healthcare WhatsApp Backend
-**Researched:** 2026-02-23
-**Confidence:** HIGH (all critical pitfalls grounded in codebase evidence and verified external sources)
+**Domain:** WhatsApp API provider migration — Evolution API to WuzAPI (whatsmeow-backed)
+**Researched:** 2026-03-01
+**Confidence:** MEDIUM — WuzAPI endpoint/auth format verified from GitHub API.md and README. Evolution API payload shapes verified from production codebase. Brazilian 9th-digit behavior verified from multiple WhatsApp integration provider sources (Zoko, Gupshup, Baileys). LID addressing behavior verified from whatsmeow GitHub issues and Baileys migration docs. Some WuzAPI-specific rate limit numbers are undocumented (flagged LOW confidence where noted).
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: google-adk Pulls google-genai, Which Conflicts with langchain-google-genai 4.x
+### Pitfall 1: Webhook Payload Structure Is Completely Different — Silent Data Loss
 
 **What goes wrong:**
-The project currently uses `langchain-google-genai>=2.1.12,<4.0.0` to access Gemini via `ChatGoogleGenerativeAI`. The `google-adk` package requires `google-genai>=1.56.0,<2.0.0` as a direct dependency. Meanwhile, `langchain-google-genai 4.0.0` completed a migration from `google-ai-generativelanguage` to the new `google-genai` SDK.
+Evolution API sends webhooks with an outer envelope containing `event`, `instance`, and `data` keys. WuzAPI delivers raw whatsmeow event structures where the outer wrapper is `{"Type": "Message", "Data": {...}}` using Go struct naming (PascalCase, not camelCase). Incoming message text does not live at `payload["data"]["message"]["conversation"]` as it does in Evolution — it lives at different nested paths that reflect whatsmeow's native types.
 
-The critical problem: `google-adk` brings in `google-genai` with specific version constraints. If `langchain-google-genai` is still pinned to `<4.0.0` (which uses the legacy `google-ai-generativelanguage` SDK), pip may resolve to an incompatible transitive dependency tree where `google-adk`'s `google-genai` requirement conflicts with `langchain-google-genai`'s `google-ai-generativelanguage` requirement.
-
-The failure mode is silent in many cases: `pip install` succeeds with a warning, but the Google Gemini API responses return errors at runtime because the underlying SDK's authentication or transport code has incompatible versions loaded in the same process.
-
-Additionally, `google-adk` pulls in a large dependency tree including `google-cloud-aiplatform`, `google-cloud-bigquery`, `google-cloud-storage`, and other GCP packages. These add 200-400MB to the Docker image and extend cold start time on Cloud Run workers.
+If the existing webhook handler tries to access Evolution-style key paths on a WuzAPI payload, it will get `None` or `KeyError`, silently drop the message, return HTTP 200 to WuzAPI (which will not retry), and the patient's message is lost. This is especially dangerous for incoming STOP commands (opt-out), quiz responses, and patient follow-up replies — all critical clinical data.
 
 **Why it happens:**
-The migration is fundamentally a package ecosystem transition: the LangChain world used the old `google-ai-generativelanguage` SDK while the new world (ADK + Pydantic AI's `GoogleModel`) both use the new `google-genai` SDK. The two SDKs cannot cleanly coexist because they claim different API clients for the same Google AI endpoints.
+Evolution API wraps all events in a unified envelope with a consistent schema. WuzAPI passes through whatsmeow's native Go event types directly. Developers assume API interoperability at the schema level and reuse the existing `WebhookPayload` Pydantic model without checking actual WuzAPI payloads.
 
 **How to avoid:**
-Do not attempt to run both `langchain-google-genai` (LangChain era) and `google-adk` simultaneously during migration. Instead:
-1. Migrate `GeminiClient` to use `pydantic-ai` with `GoogleModel` (which uses `google-genai`) before installing `google-adk`.
-2. Remove `langchain-google-genai`, `langchain-core`, and `langgraph` from `requirements.txt` in the same commit that adds `pydantic-ai` and `google-adk`.
-3. Pin exact versions: `google-adk==1.25.1` and `pydantic-ai>=0.0.13,<1.0.0` together, tested against each other.
-4. Run `pip install --dry-run` and check the resolution before committing to `requirements.txt`.
-
-During the transition phase (if running old and new code simultaneously), isolate them into separate Docker images/services — not the same `requirements.txt`.
+1. Before writing any handler code, capture at least 10 real WuzAPI webhook payloads by pointing a test session at a local ngrok/cloudflare tunnel endpoint and triggering every event type: text message, media message, ReadReceipt, connection status.
+2. Build WuzAPI-specific Pydantic models (`WuzAPIMessageEvent`, `WuzAPIReadReceiptEvent`) that match the actual captured schema. Do not reuse or extend Evolution API Pydantic models.
+3. Add schema validation logging at the handler entry point that logs the raw payload keys and event type before any parsing — keep this active in staging indefinitely.
+4. Write integration tests using the real captured payloads stored as JSON fixtures in `tests/fixtures/wuzapi/`. Never test with guessed or fabricated schemas.
 
 **Warning signs:**
-- `pip install google-adk langchain-google-genai` produces version conflict warnings
-- `ImportError: cannot import name 'GenerativeModel' from 'google.generativeai'` at runtime
-- Two different versions of `google-protobuf` or `googleapis-common-protos` loaded (visible via `pip list | grep google`)
-- Docker build time increases by more than 5 minutes (ADK bringing in cloud SDK packages)
+- Webhook endpoint returns 200 but no messages appear in the database
+- `message.content` is None for all WuzAPI-routed incoming messages
+- Opt-out handling (STOP/PARAR/CANCELAR) stops working silently after cutover
+- Logs show "Parsing webhook event" but no "Message processed" or "Patient found" entries downstream
 
-**Phase to address:** Phase 1 (Dependency Migration) — must be resolved in isolation before writing any migration code
+**Phase to address:**
+Phase 1 (WuzAPIClient + webhook handler rewrite) — capture real payloads BEFORE writing parsers. Do not proceed to production cutover until integration tests use real captured WuzAPI payloads as fixtures.
 
 ---
 
-### Pitfall 2: PII Redaction Layer Not Applied to Pydantic AI System Prompts
+### Pitfall 2: Brazilian 9th-Digit Split — Messages Silently Not Delivered to Some Patients
 
 **What goes wrong:**
-The existing `GeminiClient.generate_content()` applies `sanitize_prompt_text_for_external_ai()` at line 559 of `client.py` before every Gemini API call. This is the LGPD PHI guardrail. When migrating to Pydantic AI `Agent`, the system prompt is often defined at agent construction time via `system_prompt=` or `instructions=`, not at call time. If a developer creates a `HumanizationAgent` with a static system prompt and passes the patient context directly to `agent.run(prompt)`, the PII redaction that existed in `GeminiClient._redact_prompt_for_external_ai()` is bypassed entirely.
+WhatsApp created a historical anomaly: mobile numbers in states that adopted the 9th digit before WhatsApp had those contacts registered (especially São Paulo DDD 11-19, Rio de Janeiro DDD 21/22/24, Espírito Santo DDD 27/28) have their WhatsApp account bound to the OLD 8-digit number. The stored patient phone may be `5511987654321` (9-digit) but the correct WhatsApp JID is `5511987654321@s.whatsapp.net` — except the actual JID WhatsApp responds to is `551187654321@s.whatsapp.net` (8-digit, no leading 9 after DDD).
 
-Concretely: `app/ai/pii_redaction.py:sanitize_prompt_text_for_external_ai()` strips patient names, CPF numbers, phone numbers, and emails from free-text prompts. If the patient's name appears in the dynamic portion of the prompt passed to a Pydantic AI agent — and the developer forgets to call `sanitize_prompt_text_for_external_ai()` before `agent.run()` — the patient name reaches Google's servers, violating LGPD Art. 46 and potentially Art. 11 (processing of sensitive health data).
+When the system sends to `5511987654321@s.whatsapp.net`, whatsmeow may return a success acknowledgment but WhatsApp backend silently drops it, or returns error 479 ("number not on WhatsApp"). The patient — an oncology patient waiting for a follow-up — never receives the message. The system marks it SENT.
 
-The Pydantic AI `output_type` validation catches structural problems with AI outputs, but it provides no input sanitization. It is purely an output concern.
+The existing `build_br_phone_variants()` in `app/schemas/validators/phone.py` already generates both 8-digit and 9-digit variants for patient lookup/matching, but this is not wired into the message send path. WuzAPI does not auto-resolve this — it sends to whatever JID you provide.
 
 **Why it happens:**
-In the current architecture, PII redaction is hidden inside `GeminiClient` and enforced automatically. After migration, developers new to the codebase may call `agent.run(prompt)` directly and not realize PII redaction is a separate concern that must be applied manually before every agent invocation.
+Developers skip the WhatsApp JID lookup step and use the stored E.164 number directly, assuming it equals the WhatsApp JID. The `format_phone_for_whatsapp()` function in `phone.py` also doesn't resolve the JID — it only formats digits.
 
 **How to avoid:**
-Create a `PIISafeAgent` wrapper class in `app/ai/agents/base.py` that:
-1. Wraps any `pydantic_ai.Agent` instance
-2. Calls `sanitize_prompt_text_for_external_ai(prompt)` and `redact_patient_context(deps)` before every `run()` call
-3. Raises `PiiRedactionError` if any bypass is attempted
-
-Make this wrapper the only sanctioned way to call Pydantic AI agents. Do not allow direct `Agent.run()` calls outside this wrapper. Add a `grep`-based CI check that fails if any file in `app/ai/agents/` calls `.run()` or `.run_sync()` directly without going through the wrapper.
-
-Also verify: the `deps` (RunContext dependencies) passed to agents do not contain raw patient objects with PII fields. Pass a pre-redacted `PatientAIContext` dataclass instead.
+1. Add a WuzAPI `/user/check` call (or equivalent WuzAPI endpoint for checking if a number is on WhatsApp) before the first send to each patient. This call accepts both the 8-digit and 9-digit variants and returns which JID is actually registered.
+2. Cache the resolved JID in a new database field `patient.whatsapp_jid` (e.g., `551187654321@s.whatsapp.net`). Use this cached JID for all subsequent sends.
+3. The existing `build_br_phone_variants()` function already generates both variants — wire its output into the JID resolution step as the input candidates.
+4. If resolution fails for both variants, surface a `PhoneValidationError` and route the message to the DLQ rather than sending to an unverified JID.
+5. During migration, run a one-time Celery task to resolve JIDs for all existing patients.
 
 **Warning signs:**
-- Any Pydantic AI agent that receives `patient.name`, `patient.phone`, or `patient.cpf` as direct input
-- A test that calls `agent.run(f"Patient {patient.name}...")` without sanitization
-- Sentry traces showing the raw patient name in an LLM API request body
+- Messages marked SENT but patients (especially in São Paulo/Rio area codes) report never receiving them
+- Error 479 appearing in WuzAPI response logs
+- Zero incoming patient responses after cutover from São Paulo-based patients
 
-**Phase to address:** Phase 2 (Agent Implementation) — must be a mandatory part of every agent's Definition of Done; a CI lint rule is required before any agent ships
+**Phase to address:**
+Phase 1 (WuzAPIClient core) — JID resolution must exist before any message sends. Phase 2 (patient data migration) — existing patients need JIDs resolved and cached as part of the cutover.
 
 ---
 
-### Pitfall 3: Pydantic AI GoogleModel Event Loop Conflict with async_to_sync
+### Pitfall 3: Auth Header Name Change — All API Calls Fail With 401
 
 **What goes wrong:**
-The codebase uses `asgiref.sync.async_to_sync()` as the canonical bridge for calling async code from Celery workers (established pattern in `tasks/flows/base.py:10-11`). Pydantic AI's `GoogleModel` uses `httpx` with `google-genai`'s async HTTP client under the hood. The `google-genai` client manages its own connection pool and event loop references.
+Evolution API uses an `apikey` header (lowercase). WuzAPI uses `Authorization: {token}` (or `Token: {token}`) as the auth mechanism. The existing `EvolutionAPIClient` passes `{"apikey": settings.WHATSAPP_EVOLUTION_API_KEY}` in every request. If `WuzAPIClient` is built by refactoring the Evolution client without updating the header name, every API call returns HTTP 401.
 
-When `async_to_sync()` (which creates/reuses a thread's event loop via `asyncio.get_event_loop()`) wraps a Pydantic AI `agent.run()` call, the `httpx` async client's connection cleanup runs after the async frame returns. If `async_to_sync()` has already shut down the thread's loop by the time connection cleanup fires, the error is:
+Depending on error handling, this either raises `ExternalServiceError` correctly (if the 401 response is parsed), or triggers a retry storm if 401 is treated as a transient network failure. The Redis circuit breaker (`_evolution_breaker` / future `_wuzapi_breaker`) will open after 5 consecutive failures, blocking all sends for 60 seconds per cycle.
 
+**Why it happens:**
+Auth header differences are easy to miss in refactoring. The WuzAPI 401 response may not clearly state "wrong header name" — it may just return `{"error": "unauthorized"}`. Because the circuit breaker opens quickly on consecutive failures, the problem surfaces as a closed circuit, not as an obvious auth error.
+
+**How to avoid:**
+1. Make the auth header name an explicit constant: `WUZAPI_AUTH_HEADER = "Authorization"` rather than an inline string.
+2. Write the WuzAPI health check call as the very first integration smoke test. If auth is broken, the health check fails fast and clearly.
+3. Log the response status and body (not sensitive headers) on every failed API call.
+4. Verify auth header in the WuzAPI dev instance before writing any other client code.
+
+**Warning signs:**
+- Circuit breaker opens immediately after deployment
+- All API calls return HTTP 401 with no specific error body
+- Health check component shows `wuzapi_session: unhealthy` immediately at startup
+
+**Phase to address:**
+Phase 1 (WuzAPIClient implementation) — first test to run in any integration smoke test suite.
+
+---
+
+### Pitfall 4: Message ID Format Differences Break Idempotency and Status Tracking
+
+**What goes wrong:**
+The system stores `message.whatsapp_id` for two critical purposes:
+1. Idempotent webhook deduplication — `AtomicWebhookIdempotency` uses the message ID as the deduplication key
+2. Status update matching — ReadReceipt events are matched to `Message` records by `whatsapp_id`
+
+Evolution API returns message IDs in its own format (base64-encoded strings, e.g., `BAE5...`). WuzAPI returns whatsmeow-native message IDs from the send response JSON. If the WuzAPI client extracts the ID from the wrong JSON field (or the field name differs from what's assumed), `message.whatsapp_id` ends up as `None`.
+
+When WuzAPI fires a `ReadReceipt` webhook for that message, the handler looks up `Message.whatsapp_id == incoming_id`, finds nothing, and silently drops the delivery confirmation. All messages remain in SENT state forever — DELIVERED and READ statuses never update. The dashboard shows all patients as "not read" even after they've read their messages.
+
+**Why it happens:**
+Developers check that the send returned HTTP 200 and assume `whatsapp_id` was stored correctly without verifying the field path from the actual WuzAPI response body. The WuzAPI response JSON field for the outbound message ID is inside a `data` sub-object, but the exact field name must be verified from real API responses, not assumed.
+
+**How to avoid:**
+1. Log the full send response body in development mode for every send — confirm which JSON field contains the message ID.
+2. Write an explicit assertion test: send a test message, capture the response, extract `whatsapp_id`, assert it is non-None and non-empty string.
+3. Add a runtime check: if `whatsapp_id` is None after a send that returned HTTP 200, log an ERROR and do not mark the message as SENT (mark as a new intermediate state or flag for investigation).
+4. In the ReadReceipt handler, log a WARNING whenever no matching `Message` record is found for an incoming receipt ID — this surfaces idempotency mismatches immediately in production.
+
+**Warning signs:**
+- `message.whatsapp_id` is NULL in the database for all WuzAPI-sent messages
+- DELIVERED/READ statuses never update after cutover despite messages being received
+- ReadReceipt webhook events are processed (HTTP 200 returned) but produce no database changes
+
+**Phase to address:**
+Phase 1 (WuzAPIClient — verify send response field extraction). Phase 2 (webhook handler — ReadReceipt lookup tested with captured payloads).
+
+---
+
+### Pitfall 5: HMAC Validation — Wrong Header Name and Wrong Signing Body Cause All Webhooks to 403
+
+**What goes wrong:**
+Evolution API and WuzAPI use different HMAC mechanisms:
+- **Evolution API:** Header is `X-Webhook-Signature` (or API-key based); current `WebhookValidatorMiddleware` looks for `X-Webhook-Signature` and tries both SHA256 and SHA1; some code uses `X-Signature` prefix stripping
+- **WuzAPI:** Header is `x-hmac-signature` (lowercase); algorithm is SHA-256 only; signature is raw hex (no `sha256=` prefix)
+
+The current `WebhookHandler.validate_signature()` in `app/integrations/evolution/webhook_handler.py` strips `sha256=`, `sha1=`, and `hmac-sha256=` prefixes. WuzAPI sends no prefix — stripping logic that expects a prefix on a plain hex value will try to match an empty string against the computed digest and fail.
+
+Additionally: WuzAPI signs the **raw request bytes** (`Content-Type: application/json` → sign the raw JSON body string). FastAPI's `await request.json()` decodes and re-serializes the body, which may alter whitespace or key ordering. If the HMAC is computed against re-serialized JSON, validation fails even with the correct key.
+
+**Why it happens:**
+Body reading is a one-time operation in ASGI. If `await request.body()` is called twice (once for HMAC, once for JSON parsing), the second call may return empty bytes on some ASGI implementations. Alternatively, if `await request.json()` is called first (for parsing), the raw bytes are consumed and HMAC validation against the original bytes is impossible.
+
+**How to avoid:**
+1. Read raw body exactly once at handler entry: `body: bytes = await request.body()`, then pass bytes to HMAC validator and `json.loads(body)` separately.
+2. Create a `WuzAPIHMACValidator` that is separate from `WebhookHMACValidator` — it must look for `x-hmac-signature` (lowercase), compute `hmac.new(key.encode(), body, hashlib.sha256).hexdigest()` with no prefix, and compare with `hmac.compare_digest()`.
+3. Remove the SHA1 fallback path in the WuzAPI validator — WuzAPI only uses SHA256.
+4. Ensure `WUZAPI_GLOBAL_HMAC_KEY` is at least 32 characters (WuzAPI requirement). Reject shorter keys at startup with a clear error.
+5. Write a test: POST a known payload with a known key, compute expected hex, assert the validator returns True. POST with wrong key, assert False.
+
+**Warning signs:**
+- All WuzAPI webhooks returning 403
+- "Webhook HMAC validation failed" logged for every incoming webhook
+- `HMAC_FAILURE_BLOCK_THRESHOLD = 5` triggers blocking of WuzAPI's IP within seconds of deployment
+
+**Phase to address:**
+Phase 1 (security/HMAC update) — must be resolved before any production webhook processing. The existing block logic will deny all WuzAPI webhooks within 5 failures if this is wrong.
+
+---
+
+### Pitfall 6: LID Addressing — LGPD Art. 18 Opt-Out Failure Risk
+
+**What goes wrong:**
+WhatsApp introduced LID (Link ID) in 2025 as a privacy identifier that replaces phone-number-based JIDs in some contexts. Newer WhatsApp clients may participate in conversations using `sender@lid` format instead of `5511987654321@s.whatsapp.net`. When a patient with a newer WhatsApp client sends STOP/PARAR/CANCELAR, the incoming webhook from WuzAPI will contain `"Sender": "1234567890abcdef@lid"`.
+
+The current opt-out handler, incoming message router, and patient lookup all assume the sender field contains a phone number JID. A `@lid` sender will fail all patient lookups. The result:
+- The patient's opt-out request is silently dropped
+- The patient continues receiving messages
+- This is a LGPD Art. 18 violation (right to object to processing)
+- In a healthcare context, this creates regulatory and reputational risk
+
+**Why it happens:**
+LID migration is gradual — most accounts don't switch immediately. Testing with a few phones may not trigger `@lid` senders, so the issue is invisible during development. The failure mode produces no error in the system — the webhook returns 200, WuzAPI considers it delivered, and the patient receives no confirmation that their opt-out was registered.
+
+**How to avoid:**
+1. When the sender JID ends in `@lid`, call WuzAPI's contact/user info endpoint to resolve the LID to a phone number using whatsmeow's internal LID→JID mapping store.
+2. If LID→JID resolution fails (contact not yet in local store because they haven't initiated conversation through a non-LID session), queue the message for retry with exponential backoff.
+3. Add a specific log alert at WARNING level for every `@lid` sender — this makes the migration scope visible.
+4. Never drop a message from a `@lid` sender silently. If it cannot be resolved, route to DLQ for manual processing.
+
+**Warning signs:**
+- "Patient not found" warnings in logs for incoming messages after cutover
+- Sender field in webhook event contains `@lid` suffix
+- Opt-out commands not taking effect for a subset of patients (those with newer WhatsApp)
+
+**Phase to address:**
+Phase 2 (webhook handler — incoming message routing) — LID resolution must be in the incoming message handler from day one of WuzAPI operation. This cannot be deferred because a patient sending STOP with a LID address and not being opted out is a LGPD compliance failure.
+
+---
+
+### Pitfall 7: Instance vs Session Environment Variable Mismatch — Silent Misconfiguration
+
+**What goes wrong:**
+Evolution API uses an "instance" model where each WhatsApp number is a named instance. The entire application references `WHATSAPP_EVOLUTION_INSTANCE_NAME`, including `UnifiedWhatsAppService.__init__()` which falls back to `"default"` if the env var is absent. WuzAPI uses a "session" model where a user is identified by a token (`WUZAPI_SESSION_TOKEN`).
+
+After migration, if `WHATSAPP_EVOLUTION_INSTANCE_NAME` is removed from Railway env but the new `WUZAPI_SESSION_TOKEN` is added with a different settings key name, the service silently uses `"default"` as the instance/session identifier. Depending on WuzAPI's multi-user setup, `"default"` may connect to no session, a wrong session, or the system may fail without a clear error.
+
+There are also references to Evolution API settings throughout `health_check()`, `_send_via_direct_api()`, and `_send_via_queue()` that would need updating.
+
+**Why it happens:**
+A hard-cut migration tombstones old code but environment variable renaming is easy to miss in Railway's dashboard. The default fallback to `"default"` masks the missing configuration at startup, so the service initializes successfully but fails at first send.
+
+**How to avoid:**
+1. Before starting migration: `grep -r "WHATSAPP_EVOLUTION" --include="*.py" backend-hormonia/` to find every reference. Map each to its WuzAPI equivalent.
+2. Add `required=True` (or equivalent) validation for the new WuzAPI env vars in `settings.py`. The application must refuse to start if `WUZAPI_SESSION_TOKEN` is missing — not fall back to `"default"`.
+3. Add a startup health check that calls WuzAPI's `/session` endpoint and logs CRITICAL + alerts if the session is not connected. In production mode, refuse to process messages until session is verified.
+4. Track all env var migrations in a checklist as part of the deployment story.
+
+**Warning signs:**
+- Application starts cleanly but all sends fail with "session not found" or "connection refused"
+- Health check shows `wuzapi_session: unhealthy` immediately
+- Logs contain `instance_name: "default"` in message metadata after migration
+
+**Phase to address:**
+Phase 1 (env var audit and startup validation) — must be the first task before any code migration. Phase 3 (cutover) — startup validation must be verified in staging before production deployment.
+
+---
+
+## Moderate Pitfalls
+
+### Pitfall 8: Status Event Mapping — Semantics Differ Between Providers
+
+**What goes wrong:**
+Evolution API fires `MESSAGES_UPDATE` events with a `status` field containing values like `PENDING`, `SERVER_ACK`, `DELIVERY_ACK`, `READ`. WuzAPI fires `ReadReceipt` events with whatsmeow-native receipt types: `ServerAck`, `Delivered`, `Read`, `Played`. These are not 1:1 — `SERVER_ACK` maps to `ServerAck`, `DELIVERY_ACK` maps to `Delivered`, `READ` maps to `Read`, and `Played` (audio message played) has no Evolution equivalent.
+
+If the status handler maps all `ReadReceipt` events to `DELIVERED` (a common shortcut to "just get something working"), the `READ` status is never recorded. Audit trails are inaccurate, and the dashboard permanently shows all messages as unread.
+
+**How to avoid:**
+Build an explicit mapping constant:
+```python
+WUZAPI_RECEIPT_TO_STATUS = {
+    "ServerAck": MessageStatus.SENT,
+    "Delivered": MessageStatus.DELIVERED,
+    "Read": MessageStatus.READ,
+    "Played": MessageStatus.READ,  # audio played is read-equivalent
+}
 ```
-RuntimeError: Event loop is closed
-```
+Unknown receipt types should log WARNING and default to SENT (not FAILED). Add a test that sends a mock ReadReceipt event for each type and asserts the correct `MessageStatus` is stored.
 
-This is the exact same class of bug documented in pydantic-ai GitHub issue #3762 and issue #748. It does not occur reliably in development (where one event loop exists throughout), but occurs in Celery workers that process many tasks sequentially (where `async_to_sync` creates and tears down loops more aggressively).
-
-**Why it happens:**
-`httpx` async clients hold open connections across requests for efficiency. When the event loop the client was bound to closes, the cleanup coroutine that drains the connection pool runs into a closed loop. The `google-genai` SDK does not eagerly close connections at the end of each request.
-
-**How to avoid:**
-Use `agent.run_sync()` for Celery workers instead of wrapping `agent.run()` with `async_to_sync()`. Pydantic AI's `run_sync()` uses its own event loop management internally and handles cleanup correctly. Verify this works with the specific version of `google-genai` in use before committing to this pattern.
-
-If `run_sync()` is insufficient (for example, if agents need to call async DB utilities during their run), use `anyio.from_thread.run_sync()` with a persistent event loop that lives for the Celery worker process lifetime (created in `@worker_process_init.connect`), rather than letting `async_to_sync()` create a new loop per invocation.
-
-Do NOT use `nest_asyncio.apply()` in Celery workers as a fix — it allows nested event loops, which masks the resource leak rather than preventing it.
-
-**Warning signs:**
-- `RuntimeError: Event loop is closed` in Celery worker logs after 10-50 task invocations
-- Worker memory growing steadily until OOM kill (connection pool resources leaking)
-- Errors appearing only under load, not in unit tests
-
-**Phase to address:** Phase 2 (Celery Integration) — must be verified with a load test simulating 100 Celery task invocations before declaring the migration complete
+**Phase to address:** Phase 2 (webhook handler + ReadReceipt processing).
 
 ---
 
-### Pitfall 4: LangGraph Redis Checkpoint Data Is Not Cleaned Up
+### Pitfall 9: Media Handling — WuzAPI Delivers Media Differently Than Evolution API
 
 **What goes wrong:**
-The existing `RedisCheckpointer` in `app/ai/langgraph/runtime.py` stores data in Redis Dragonfly DB 0 under these key patterns:
-- `langgraph:checkpoint:{graph_name}:ckpt:{thread_id}:{checkpoint_ns}:{checkpoint_id}`
-- `langgraph:checkpoint:{graph_name}:latest:{thread_id}:{checkpoint_ns}`
-- `langgraph:checkpoint:{graph_name}:index:{thread_id}:{checkpoint_ns}`
-- `langgraph:checkpoint:{graph_name}:writes:{thread_id}:{checkpoint_ns}:{checkpoint_id}`
+When a patient sends media (image, audio document), Evolution API includes a URL the system can fetch. WuzAPI delivers media as either base64 in the webhook body or an S3 URL, controlled by the `mediaDelivery` setting (`base64`, `s3`, or `both`).
 
-After removing LangGraph, this data remains in Redis indefinitely. The TTL is configurable via `LANGGRAPH_CHECKPOINT_TTL_SECONDS` (default: 3600 seconds). However, the index keys (`index:`) use `sadd` which does not auto-expire set members — only the set itself expires. Set members pointing to expired checkpoint data accumulate as garbage, and if the index key TTL is renewed before set cleanup, the set can grow unbounded.
-
-After migration, none of these keys serve any purpose. They consume memory in Dragonfly and, more importantly, obscure future debugging (a future developer might assume these keys represent active state and investigate them during an incident).
-
-**Why it happens:**
-Migrations typically add new infrastructure but defer cleanup of old infrastructure. The old data is "harmless" initially, so cleanup is deprioritized. But in Redis (a memory-bound datastore), accumulated garbage keys from a previous system become a capacity problem over time, especially for a healthcare system that processes daily patient messages.
+If `mediaDelivery` is `base64` (WuzAPI default if not configured) and the system expects a URL, the inbound media handler receives a large base64 blob it doesn't know how to handle. A single patient audio message (30-60 seconds of voice note) becomes a 0.5-2MB base64 string in the webhook payload — causing webhook handler memory spikes and potential timeout if processing is not fast enough.
 
 **How to avoid:**
-Write a one-time migration script (or a Celery task run once at deployment) that:
-1. Uses `scan_iter(match="langgraph:checkpoint:*", count=100)` (never `keys()`) to find all checkpoint keys
-2. Deletes them in batches of 500 with `pipeline().delete(*batch).execute()`
-3. Logs the count of deleted keys for audit purposes
-4. Is idempotent (safe to run multiple times)
+1. Configure WuzAPI with `mediaDelivery: s3` and configure an S3 bucket in the WuzAPI deployment. This is required for production.
+2. Set S3 retention to 7 days (sufficient for retry windows in this system).
+3. Update the inbound media handler to extract the S3 URL from the WuzAPI event, not to decode base64.
+4. For the current system (which does not heavily process inbound media), configure graceful degradation: if neither S3 URL nor base64 is available, log WARNING and continue processing the text content of the message.
 
-Schedule this cleanup for the same deployment that removes LangGraph from `requirements.txt`. Do not leave it as a follow-up task — once LangGraph is gone, there is no mechanism to re-examine what those keys meant.
-
-Additionally, verify that `LANGGRAPH_CHECKPOINT_TTL_SECONDS` is present in the environment configuration and set to a value shorter than 3600 during the transition, so natural expiry accelerates cleanup before the migration script runs.
-
-**Warning signs:**
-- `langgraph:checkpoint:*` keys visible in Dragonfly SCAN output after migration is complete
-- Dragonfly memory usage not decreasing after LangGraph removal
-- A future developer opening a debugging session and wondering what `langgraph:checkpoint:flow_message_graph:index:*` means
-
-**Phase to address:** Phase 1 (Dependency Removal) — cleanup script must be written in the same story that removes LangGraph, executed at deployment
+**Phase to address:** Phase 2 (webhook handler rewrite — media section).
 
 ---
 
-### Pitfall 5: Existing Output Guardrails Must Be Manually Re-Connected to Every New Agent
+### Pitfall 10: Rate Limiter Not Ported — Ban Risk From Sending Too Fast
 
 **What goes wrong:**
-The `GeminiClient.generate_content()` in `client.py` applies a full guardrail pipeline automatically to every AI call:
-- `normalize_ai_output()` or `normalize_json_output()` (strip wrapping quotes, code fences)
-- `validate_ai_output()` (check min/max length, banned patterns, prompt leak markers, placeholder detection)
-- Guardrail-aware retry loop with `guardrail_retries` attempts
-- `_repair_ending_punctuation()` for MESSAGE outputs
+The existing `RateLimiter` class in `evolution_client.py` (100 requests/60 seconds) throttles calls to Evolution API. WuzAPI itself applies no rate limiting — it sends to WhatsApp as fast as the client calls it. WhatsApp's backend enforces account-level limits and may flag numbers sending too many messages too quickly as spam, eventually suspending the account.
 
-Pydantic AI's `output_type` validation enforces Pydantic schema structure (field types, required fields), but it does NOT enforce:
-- Healthcare-specific banned patterns (e.g., "as an AI language model")
-- Prompt leak detection (e.g., "MENSAGEM HUMANIZADA", "NOVA PERGUNTA" appearing in output)
-- Minimum/maximum character length constraints
-- Brazilian Portuguese ending punctuation requirements
+The existing rate limiter is tightly coupled to `EvolutionAPIClient`. If it is discarded along with the old client code without being ported to `WuzAPIClient`, the new client has no throttling. For a system sending daily follow-ups to an oncology patient cohort (potentially 100-500 messages per send cycle), this is a real ban risk.
 
-If these guardrails are not re-implemented as Pydantic AI output validators or `@result_validator` decorators on every agent, the migration silently removes protection that exists in the current system. The output quality regression may not be visible in unit tests — it only surfaces when the model occasionally produces out-of-character responses under load.
-
-**Why it happens:**
-Developers migrating to Pydantic AI see `output_type=HumanizedMessage` with Pydantic validation and assume the existing quality controls are replicated. They are not — Pydantic validates structure, not content semantics. The banned pattern checks and prompt leak detection are application-specific business logic that has no equivalent in the Pydantic AI framework.
+Note: whatsmeow-backed tools (including WuzAPI) are unofficial WhatsApp API wrappers, not Meta Business API. The ToS risk is real. The mitigating factor for this system is that all messages are consent-based with active opt-out — which reduces spam detection risk but does not eliminate it.
 
 **How to avoid:**
-Create a `HealthcareOutputValidator` class (or a set of `@result_validator` decorators) that wraps the exact logic from `app/services/ai/guardrails.py`. Apply these validators to every Pydantic AI agent. Run side-by-side output comparison tests: given identical prompts, compare the full validation pipeline output from `GeminiClient.generate_content()` with the new agent's output for at least 50 sample patient contexts.
+1. Port the `RateLimiter` class to `WuzAPIClient` unchanged as a starting point.
+2. Start with a conservative limit: 60 messages per 60 seconds per session (slightly below the Evolution API limit) until behavior is validated.
+3. Add random jitter (0.5–2.0 seconds) between consecutive messages to the same recipient number.
+4. Monitor WuzAPI connection status via a Celery Beat task — if the session disconnects unexpectedly, alert immediately (may indicate account action by WhatsApp).
 
-Also preserve the guardrail retry mechanism: Pydantic AI supports `max_retries` on agents, which triggers when output validators fail via `ModelRetry`. Wire this to replace the existing `guardrail_retries` loop in `GeminiClient`.
-
-Do not remove `app/services/ai/guardrails.py` during migration — it contains the canonical guardrail logic. Import and reuse it in the new agents.
-
-**Warning signs:**
-- A new agent returning output that passes Pydantic schema validation but contains "as an AI language model"
-- Outputs containing template leak markers like "MENSAGEM HUMANIZADA" in WhatsApp messages
-- Outputs shorter than 20 characters or longer than 1600 characters being accepted
-- A test suite that passes but does not include banned-pattern assertions on agent outputs
-
-**Phase to address:** Phase 2 (Agent Implementation) — output quality regression tests must pass before any agent replaces GeminiClient in production
+**Phase to address:** Phase 1 (WuzAPIClient) — rate limiter must be included from the first implementation, not added as a follow-up.
 
 ---
 
-### Pitfall 6: The 5 Existing "Agent" Classes Are Not Real Agents — They Must Not Be Migrated as Pydantic AI Agents
+### Pitfall 11: Session Persistence — WuzAPI Requires Persistent Database or Loses Session on Restart
 
 **What goes wrong:**
-The `app/agents/` directory contains 5 classes with agent names: `AlertAnalyzer`, `PatientMonitor`, `MessageComposer`, `ResponseProcessor`, `FlowCoordinator`. These are service wrappers — Python classes with async methods that orchestrate business logic. They do NOT:
-- Call an LLM
-- Use `pydantic_ai.Agent`
-- Have tools, system prompts, or output types
+WuzAPI stores WhatsApp pairing keys and session state in a database (`DB_HOST` env var, supports PostgreSQL and SQLite). If the Railway deployment uses a default SQLite configuration with an ephemeral filesystem volume, the session data is lost on every container restart, requiring a QR code re-scan to re-link the WhatsApp number. This causes messaging downtime.
 
-If a developer assumes these are "agents to migrate to Pydantic AI," they will attempt to refactor them into `pydantic_ai.Agent` instances, adding unnecessary LLM calls and complexity to what are currently efficient service classes.
-
-The only LLM calls in the system are in `GeminiClient.generate_content()` (via `app/ai/client.py` and `app/ai/client_domain.py`) and in the 2 remaining LangGraph graphs (`flow_message_graph`, `flow_response_graph`). The 5 "agent" classes are the service layer that calls `GeminiClient` — they are NOT candidates for Pydantic AI migration.
-
-**Why it happens:**
-The naming is misleading. "Agent" in the codebase means a DDD service component (following the Hive-Mind/Swarm architecture pattern). "Agent" in Pydantic AI means an LLM-backed reasoning entity. The same word means different things.
+Railway's ephemeral storage is lost on deploy or container restart unless explicitly configured with persistent volumes.
 
 **How to avoid:**
-Before beginning migration work, explicitly document which components are LLM-backed vs. service wrappers:
-- `app/ai/client.py` (`GeminiClient`) — LLM caller, migrate to Pydantic AI agents
-- `app/ai/langgraph/graphs.py` (flow_message_graph, flow_response_graph) — LangGraph graphs with LLM nodes, replace with Pydantic AI + ADK orchestration
-- `app/agents/*` classes — service wrappers with no LLM calls, rename to `*Service` or leave as-is, do NOT add `pydantic_ai.Agent`
+1. Configure WuzAPI with PostgreSQL (can use the existing AWS RDS in a dedicated schema, or a separate Railway PostgreSQL add-on).
+2. Do not use SQLite in any environment except local development.
+3. Test a restart cycle in staging: stop the WuzAPI service, restart it, and verify the session reconnects automatically within 60 seconds without QR re-scan.
+4. Add a health check alert if WuzAPI session status shows "disconnected" for more than 5 minutes.
 
-Add a one-line comment at the top of each `app/agents/` file: `# Service component. Not an LLM agent. Do not migrate to pydantic_ai.Agent.`
-
-**Warning signs:**
-- A PR that adds `pydantic_ai.Agent` to `AlertAnalyzer`, `PatientMonitor`, or `FlowCoordinator`
-- Story scope including "migrate 5 agents to Pydantic AI" (should be "4 AI operations to Pydantic AI agents")
-- A PR that significantly increases response latency in alert processing (previously synchronous, now making LLM calls)
-
-**Phase to address:** Phase 1 (Scope Definition) — must be clarified before any migration stories are created
+**Phase to address:** Phase 3 (deployment/infrastructure) — must be resolved before production cutover.
 
 ---
 
-### Pitfall 7: Google ADK Session State Collides with LangGraph Thread State Concepts
+### Pitfall 12: Opt-Out Endpoint Routing — LGPD Compliance Gap
 
 **What goes wrong:**
-LangGraph uses `thread_id` in `config['configurable']['thread_id']` to isolate conversation state per patient. The `RedisCheckpointer` in `runtime.py` stores state keyed by `thread_id`. When migrating to Google ADK, the equivalent is `Session` objects with `session_id`. These concepts are structurally similar but semantically different:
+The opt-out handler (STOP/PARAR/CANCELAR) is currently registered at the Evolution webhook endpoint path. After migration, the WuzAPI session must be configured to POST webhooks to the new WuzAPI-specific endpoint path. If there is any path mismatch (WuzAPI posts to `/api/v2/webhooks/whatsapp/evolution/{instance_name}` which now returns 410 Gone, or WuzAPI posts to a path that FastAPI doesn't route), opt-out messages never reach the handler.
 
-- LangGraph `thread_id`: identifies a conversation thread; state persists across invocations
-- Google ADK `session_id`: identifies a user session; can include multi-turn conversation history, tool results, and agent state
-- Google ADK has its own `InMemorySessionService` and `DatabaseSessionService` that conflict with the existing Redis-based state management
-
-If the migration assumes 1:1 equivalence and maps `patient_id → session_id`, the ADK session service may persist state in a second datastore (SQLite by default for `DatabaseSessionService`), creating a dual-state problem: patient conversation state in Redis (from the old system) and patient conversation state in ADK sessions (from the new system), with no reconciliation.
-
-**Why it happens:**
-Google ADK is designed for standalone agent applications, not for embedding into existing stateful services. Its session management assumes it owns the session lifecycle. Embedding it into a system that already has Redis-based state management requires explicitly choosing which layer owns state.
+Patients cannot opt out via WhatsApp, which is a LGPD Art. 18 violation.
 
 **How to avoid:**
-Do not use ADK's built-in session services. Use ADK's `SequentialAgent` and `ParallelAgent` for orchestration only (pure computation), with no session persistence in ADK. Manage all patient conversation state in the existing Redis/PostgreSQL layer. Pass context to ADK agents as stateless inputs per invocation.
+1. The WuzAPI webhook URL configured in the WuzAPI session must exactly match the new FastAPI endpoint path.
+2. Keep the old Evolution endpoint returning HTTP 410 (Gone) with a log message — this makes misconfiguration visible rather than failing silently.
+3. Test opt-out command processing end-to-end in staging using a real WhatsApp send of "STOP" before any production cutover.
+4. Add a Celery Beat monitoring job: "If zero opt-out commands were received in the last 48 hours AND the system has sent more than 50 messages in that window, fire an alert." Some opt-outs are expected from any active patient cohort — zero is suspicious.
 
-Concretely: use `InMemorySessionService` for ADK (zero persistence, treated as ephemeral per-invocation context), and explicitly construct the full context from Redis/DB at the start of each invocation. This matches how `GeminiClient` works today (stateless, context passed per call).
-
-**Warning signs:**
-- A PR that imports `DatabaseSessionService` or `VertexAiSessionService` from `google.adk.sessions`
-- ADK creating SQLite files in the working directory (`agent_data.db`)
-- Patient conversation history being read from two different sources (Redis + ADK session) with no merge logic
-
-**Phase to address:** Phase 2 (Architecture) — must be documented in the agent architecture design before implementation begins
-
----
-
-### Pitfall 8: LangChain Dependency Removal Breaks Callers Outside the AI Module
-
-**What goes wrong:**
-`langchain-core`, `langchain-google-genai`, and `langgraph` are imported in at least 15 non-AI files (confirmed by codebase grep). After removing these packages, startup fails with `ModuleNotFoundError` at import time for any file that imports:
-- `from langchain_core.messages import HumanMessage` (used in `client.py`, flows)
-- `from langgraph.graph import StateGraph` (used in `graphs.py`)
-- `from langgraph.checkpoint.memory import MemorySaver` (used in `runtime.py`)
-
-The `try/except ImportError: X = None` guards in `langgraph/` module prevent startup failures from LangGraph itself, but any OTHER file that imports from LangChain without such a guard will hard-crash.
-
-Beyond imports, the consensus system in `app/ai/langgraph/consensus.py` and `app/agents/patient/flow_coordinator/consensus_manager.py` have LangGraph dependencies that are described as "dead code" but have not been tombstoned. If they are imported anywhere in the import tree, removal of LangGraph breaks the import.
-
-**Why it happens:**
-LangChain packages spread through a codebase via transitive imports. A module uses `HumanMessage` because it seemed like a good type at the time. Removal requires a complete import graph audit, not just searching for `import langgraph`.
-
-**How to avoid:**
-Before removing LangChain packages, run:
-```bash
-grep -r "from langchain\|import langchain\|from langgraph\|import langgraph" app/ --include="*.py" -l
-```
-This gives the full list of files to update. Tombstone or delete the consensus system in the same phase as the LangGraph removal. Use `python -c "import app.main"` as a smoke test after removal — if it succeeds, all import-time dependencies are resolved.
-
-Also check `requirements.txt` for packages that have `langchain-core` as a transitive dependency (some packages like `langchain-text-splitters` pull in LangChain implicitly).
-
-**Warning signs:**
-- `ModuleNotFoundError: No module named 'langchain_core'` in production after deployment
-- Startup health check failing with import error (not a Gemini API error)
-- Any import in `app/` that is not inside a `try/except ImportError` block but uses a LangChain class
-
-**Phase to address:** Phase 1 (Dependency Removal) — complete import graph audit must be the first task, before any code changes
+**Phase to address:** Phase 2 (webhook routing) + Phase 3 (configuration verification and monitoring).
 
 ---
 
 ## Technical Debt Patterns
 
-Shortcuts that seem reasonable but create long-term problems.
-
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Running pydantic-ai and langchain-google-genai in the same requirements.txt during migration | Allows incremental feature-by-feature migration | Dependency conflict between google-genai and google-ai-generativelanguage SDKs; unpredictable runtime behavior | Only if tested and verified compatible; prefer clean cutover |
-| Using `nest_asyncio.apply()` to fix event loop conflicts in Celery workers | Quick fix for the closed event loop error | Masks resource leaks; makes debugging harder; not compatible with all async libraries | Never in production Celery workers |
-| Migrating agents one-by-one while keeping GeminiClient as the fallback | Low risk per story | Two code paths to maintain; PII redaction guardrails must be in both; test coverage complexity doubles | Only if migration is phased across multiple milestones, with a clear sunset date |
-| Skipping output regression tests ("we'll compare manually") | Faster migration | Silent quality degradation in patient messages; banned pattern violations only discovered in production | Never — output regression tests are mandatory before cutover |
-| Reusing ADK session state across invocations for "conversational memory" | Simpler per-invocation code | Dual state with Redis/PostgreSQL; no reconciliation; stale context if DB updates between sessions | Never — use stateless ADK invocations with context rebuilt from canonical store |
-| Keeping `app/agents/` class names as-is after migration | No renaming effort | Future developers will continue trying to "migrate" these service classes to pydantic-ai | Acceptable only if a comment is added clearly stating these are service components, not LLM agents |
+| Reuse Evolution API Pydantic models for WuzAPI payloads | Less code to write | Silent field mismatches; data loss on every WuzAPI event type change | Never — WuzAPI schema is different enough to require its own models |
+| Skip JID resolution, send to raw phone number | Simpler client code | Silent delivery failures for São Paulo/Rio patients with old 8-digit JIDs | Never in production — test with DDD 11 numbers before first send |
+| Use base64 media delivery (`mediaDelivery: base64`) | No S3 setup required | Multi-MB webhook payloads; memory spikes; webhook timeout risk | Acceptable only for local development, never in staging/production |
+| Skip HMAC validation in development | Faster local testing | Habit of skipping carries to staging; launches without validation | Acceptable in local dev only, guarded by `APP_ENVIRONMENT != "production"` |
+| Port rate limiter but not adjust limits | Fast port from Evolution client | Evolution limits may not be appropriate for whatsmeow; start conservative | Port it, but reduce the limit 30% initially until WhatsApp behavior is validated |
+| Keep Evolution circuit breaker name `"evolution_api"` | No Redis key changes | Redis circuit breaker keys are misleading post-migration; confusing during incidents | Functionally works but rename to `"wuzapi"` — low effort, prevents confusion |
 
 ---
 
 ## Integration Gotchas
 
-Common mistakes when connecting the new AI framework to existing system components.
-
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Pydantic AI + Redis Cache | Assuming `output_type` validation output can be cached with the same cache key as the old hash-based `GeminiClient` key | The cache key in `GeminiClient._generate_cache_key()` is a SHA-256 of `profile_hint:prompt`. Pydantic AI agents have different call signatures. Rebuild the cache key generation from scratch for each agent type, and flush old gemini_cache:* keys at migration time. |
-| Pydantic AI + Circuit Breaker | Using the existing `get_ai_circuit_breaker()` which wraps `_generate_content_internal()` — a method that no longer exists | Re-wrap the new Pydantic AI `agent.run()` calls inside a circuit breaker. The `FeatureNotAvailableError` exception contract must be preserved so all 15+ callers that catch it continue to work. |
-| Pydantic AI + Rate Limiter | Calling `check_ai_rate_limit()` before `agent.run()` (currently in `GeminiClient._generate_content_internal()`) | Extract rate limiting into a decorator or shared utility that wraps any Pydantic AI agent invocation. It must not be an internal detail of GeminiClient. |
-| Google ADK + Celery | Calling `adk_agent._run_async_impl()` directly with `asyncio.run()` | Use `agent.run_sync()` or a persistent event loop via `@worker_process_init.connect`. ADK's async impl uses httpx which has the same closed-loop cleanup problem as pydantic-ai. |
-| Pydantic AI + Audit Trail | Calling `pydantic_ai.Agent.run()` with no audit wrapping | All AI operations must emit `AuditEventType.AI_QUERY` before and `AuditEventType.AI_RECOMMENDATION` after, the same as existing `GeminiClient` calls. This is an LGPD requirement. Wrap every agent call site in an audit context manager. |
-| Pydantic AI GoogleModel + Async Redis | `GoogleModel` creating its own `httpx.AsyncClient` that conflicts with existing async Redis client in the same async context | Verify that both use compatible asyncio event loop state. Run integration tests that call both a Pydantic AI agent and a Redis operation in the same async function. |
+| WuzAPI auth | Using `apikey` header copied from Evolution client | Use `Authorization: {token}` header (or `Token: {token}`) |
+| WuzAPI webhook HMAC | Looking for `X-Webhook-Signature` or `sha256=` prefix | Look for `x-hmac-signature` (lowercase), raw hex with no prefix |
+| WuzAPI HMAC signing | Signing re-parsed/re-serialized JSON | Sign raw request bytes (`await request.body()`) BEFORE any JSON parsing |
+| WuzAPI send phone format | Appending `@s.whatsapp.net` manually before calling the API | WuzAPI's send endpoint accepts raw digits; it appends `@s.whatsapp.net` internally. Manually adding the suffix causes double-suffix errors. Verify against API.md. |
+| WuzAPI ReadReceipt | Using Evolution-style `MESSAGES_UPDATE` event name in subscription | Subscribe to `ReadReceipt` event type in WuzAPI session configuration |
+| WuzAPI media | Expecting a fetchable URL in webhook payload (Evolution behavior) | Configure `mediaDelivery: s3`; extract S3 URL from WuzAPI event |
+| WuzAPI session lifecycle | Calling connect/disconnect per message send (Evolution instance pattern) | WuzAPI sessions are long-lived; call `/session/connect` once at startup; monitor connection status via health check |
+| Circuit breaker name | Leaving `"evolution_api"` as the breaker name in Redis keys | Rename to `"wuzapi"` — existing keys are stale after migration |
 
 ---
 
 ## Performance Traps
 
-Patterns that work at small scale but fail as usage grows.
-
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Google ADK ParallelAgent for all 4 AI operations by default | Higher Gemini API costs, quota exhaustion, inconsistent output order | Use ParallelAgent only when operations are truly independent and order-invariant. Humanization must precede sentiment analysis. | At high patient message volume (50+ concurrent flows) |
-| Pydantic AI `max_retries` set to match old `guardrail_retries=2` without timeout | Retry storms when the model consistently produces invalid output (e.g., network issue causing empty responses) | Set both `max_retries` AND a `total_timeout` on `agent.run()`. The existing circuit breaker must also wrap the retry loop to prevent retry amplification during Gemini API outages. | During any Gemini API degradation event |
-| `google-adk` full install in production Docker image | 300-400MB image size increase; 15-30s Cloud Run cold start increase | Install only the ADK components needed. Check if `google-adk` has a slim install or if only specific submodules are required for SequentialAgent/ParallelAgent without the full GCP service SDK. | Immediately on first deployment |
-| Rebuilding full patient context from DB/Redis on every Pydantic AI agent invocation | 100-200ms DB overhead per AI operation | Cache the compiled `PatientAIContext` in Redis with a 60s TTL per patient. This was implicitly handled by the LangGraph thread_id state cache. The new agents are stateless, so the cache must be rebuilt explicitly. | At >20 concurrent patient message flows |
-| Pydantic AI agents created per request | New `Agent` object instantiation overhead; Google API client re-initialization | Create agents as module-level singletons (like `get_gemini_client()` pattern), not per-request. The `GoogleModel` initialization is expensive. | At >10 req/s |
+| No JID caching (resolve on every send) | 200-500ms added per send; Celery task timeout risk | Cache resolved JID in `patient.whatsapp_jid`; resolve once, reuse for lifetime | At any scale — immediate latency regression |
+| Base64 media in webhook payload | OOM on Railway container from large audio payloads; webhook handler timeout | Use S3 delivery; never base64 in production | At first voice note from a patient (~500KB-2MB base64 JSON body) |
+| Missing rate limiter | WhatsApp account flagged for spam; connection drops; eventual ban | Port `RateLimiter` from Evolution client; reduce initial limit | During first large send cycle (100+ messages in one Celery Beat run) |
+| HMAC key < 32 characters | WuzAPI rejects HMAC configuration; all webhooks fail | Generate 32-char minimum: `secrets.token_urlsafe(32)` | At WuzAPI startup configuration |
+| Synchronous HTTP in async WuzAPIClient called from Celery | Worker blocks; throughput drops significantly | Use `httpx.AsyncClient` + `async_to_sync` bridge (established pattern in codebase) | Immediately at any message volume |
 
 ---
 
 ## Security Mistakes
 
-Domain-specific security issues specific to this migration.
-
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Patient data in Pydantic AI `RunContext.deps` without redaction | PHI (name, phone, CPF) reaches Google Gemini API, violating LGPD Art. 46 | Create a `PatientAIContext` dataclass with only pre-redacted fields; validate in CI that no Patient ORM object is passed to `agent.run()` |
-| System prompt containing patient name placeholder injected at construction time | System prompt logged in plaintext; patient name cached in `Agent` object memory | System prompts must be static and patient-agnostic; all patient context passes through the user prompt which is sanitized by `sanitize_prompt_text_for_external_ai()` |
-| LangGraph checkpoint data in Redis not cleaned up after migration | Old checkpoint data may contain conversation history with patient identifiers that was stored pre-redaction (before PII redaction was applied to state objects) | Audit what the old `FlowMessageState` stored; if it contained patient names, the Redis cleanup script must be treated as a PHI purge and logged as a LGPD data deletion event |
-| Pydantic AI `output_type` schema exposed in error logs | Validation errors include the full schema definition; if patient data is embedded in the schema via dynamic enum values, it appears in logs | Output type schemas must be static; never generate `Enum` values from patient data |
-| Google ADK tool invocations not audited | Agent tool calls (e.g., database lookups) bypass the existing audit trail | Every tool registered with an ADK agent must emit an audit event for `AuditEventType.AI_QUERY`; tool results must be sanitized before logging |
+| Not validating `x-hmac-signature` in production | Attackers can inject fake messages via webhook URL, including fake STOP commands (force-opting patients out without consent) or fake quiz responses | Validate HMAC in all non-dev environments; fail closed (403) if HMAC secret not configured in production |
+| Logging full webhook payload | Webhook payloads contain patient phone numbers (PHI). LGPD Art. 46 violation | Log only event type, timestamp, message ID. Apply existing PII redaction to any log output from webhook handlers. Never log `Sender`, `Phone`, or message content fields. |
+| Storing WuzAPI admin token in repository | Admin token controls all WuzAPI sessions; exposure = full WhatsApp account compromise | Store in Railway environment variables only; never in `.env` committed to repo; rotate immediately if leaked |
+| Silently continuing when HMAC key is absent | Webhooks accepted without validation in all environments | Raise `StartupError` if `WUZAPI_HMAC_KEY` is absent in staging or production; only allow bypass in `development` environment |
+| LID-addressed opt-out dropped silently | Patient who sent STOP via newer WhatsApp client continues receiving oncology follow-up messages (LGPD Art. 18 violation) | Log every `@lid` sender at WARNING; route unresolvable LIDs to DLQ for human review; never drop silently |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-Things that appear complete but are missing critical pieces in this specific migration.
-
-- [ ] **LangGraph removed**: `requirements.txt` no longer has `langgraph`, `langchain-core`, `langchain-google-genai` — but verify that all 15+ files that imported from these packages have been updated and that `python -c "import app.main"` succeeds
-- [ ] **Redis checkpoint cleanup**: LangGraph package removed — but verify that `langgraph:checkpoint:*` keys are absent from the Dragonfly instance (run the cleanup script and confirm)
-- [ ] **PII redaction preserved**: New Pydantic AI agents invoke Gemini — but verify that `sanitize_prompt_text_for_external_ai()` is called before EVERY `agent.run()` invocation, not just in one wrapper class
-- [ ] **Output guardrails preserved**: Agents return structured output — but verify that banned pattern detection, prompt leak markers check, length validation, and ending punctuation check are applied as `@result_validator` decorators or equivalent
-- [ ] **Circuit breaker preserved**: Agents can call Gemini — but verify that `FeatureNotAvailableError` is raised when the circuit is open and that existing catch blocks in `enhanced_flow_engine.py`, `sequential_message_handler.py`, and other callers still work
-- [ ] **Rate limiter preserved**: Agents have API access — but verify that `check_ai_rate_limit()` is called before each invocation and the in-process fallback limiter still works when Redis is unavailable
-- [ ] **Celery async bridge correct**: Agents are callable from Celery tasks — but verify with 100 sequential task invocations that no `RuntimeError: Event loop is closed` occurs and worker memory is stable
-- [ ] **Audit trail complete**: AI operations happen — but verify that `AuditEventType.AI_QUERY` and `AuditEventType.AI_RECOMMENDATION` events are emitted for every agent invocation that processes patient data
-- [ ] **Output regression tests pass**: New agents produce output — but verify that 50 canonical patient scenarios produce output that passes ALL existing guardrail checks (not just Pydantic schema validation)
-- [ ] **Service classes not converted**: 5 `app/agents/` classes exist — but verify none of them were converted to `pydantic_ai.Agent` instances (they should remain as service classes)
+- [ ] **Webhook payload schema:** Integration test uses REAL captured WuzAPI webhook payloads as JSON fixtures — not mocked/guessed schemas. Verify at least: text message event, ReadReceipt event, connection status event.
+- [ ] **JID resolution works for DDD 11 and DDD 21:** Send a test message to a number you control in São Paulo (DDD 11) and Rio (DDD 21). Confirm the message is received. Verify `patient.whatsapp_jid` is populated in the database.
+- [ ] **HMAC validation rejects tampered payloads:** POST a known payload with a wrong `x-hmac-signature` — assert HTTP 403. POST with correct signature — assert HTTP 200.
+- [ ] **ReadReceipt → READ status transition:** After sending a test message and opening it on WhatsApp, the `message.status` in the database changes to `READ` within 60 seconds.
+- [ ] **Opt-out via WhatsApp works:** Send "STOP" from the test WhatsApp number. Verify `patient.messaging_stopped_at` is set and no further messages are sent to that patient.
+- [ ] **Session persists across restart:** Stop the WuzAPI service container, wait 30 seconds, restart it. Verify the session reconnects without QR re-scan.
+- [ ] **Rate limiter is active:** Trigger 70 message sends in one minute. Verify the system backs off, no HTTP 429 from WuzAPI, no ban signal, no connection drop.
+- [ ] **Evolution env vars absent:** `WHATSAPP_EVOLUTION_API_URL`, `WHATSAPP_EVOLUTION_API_KEY`, `WHATSAPP_EVOLUTION_INSTANCE_NAME`, `WHATSAPP_EVOLUTION_WEBHOOK_URL` are NOT present in Railway staging environment after migration.
+- [ ] **PII not logged in new handlers:** Inspect structured log output from WuzAPI webhook handler. No `sender`, `phone`, `Jid`, or `From` field values appear in log lines.
+- [ ] **Circuit breaker renamed:** The Redis circuit breaker key prefix is `wuzapi` not `evolution_api`. Verify by checking Dragonfly keys after a deliberate circuit trip.
 
 ---
 
 ## Recovery Strategies
 
-When pitfalls occur despite prevention, how to recover.
-
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Dependency conflict discovered after deployment | MEDIUM | Roll back to previous Docker image immediately; resolve conflict in a dedicated branch with `pip install --dry-run` testing; redeploy |
-| PII data sent to Google API via unredacted agent call | HIGH | Report to ANPD within 72 hours (LGPD Art. 48); collect evidence of which patients and what data; apply the `PIISafeAgent` wrapper immediately; audit all agent call sites |
-| Redis checkpoint data confirmed to contain PHI | HIGH | Execute cleanup script immediately as LGPD data purge; log purge as LGPD deletion event; ANPD notification if data was present for >72 hours without redaction |
-| Output guardrail regression discovered in production | MEDIUM | Roll back to GeminiClient temporarily; add missing guardrail validators to agents; run full regression test suite; redeploy |
-| Event loop memory leak in Celery workers | MEDIUM | Restart workers immediately (clears memory); switch to `agent.run_sync()` pattern; verify fix with 100-task load test |
-| LangGraph import errors after removal | LOW | Roll back to previous image; audit all LangGraph imports with grep; fix import graph; redeploy |
-| ADK session state conflict with Redis state | HIGH | Disable ADK session persistence (switch to `InMemorySessionService`); reconcile patient state from canonical PostgreSQL source; purge ADK session data |
+| Wrong webhook payload schema (silent data loss) | HIGH | 1. Fix parser. 2. Check DLQ for messages dropped during the bad-schema window. 3. Cross-reference sent messages vs DB to identify gap period. 4. For clinical messages missed: notify medical team, trigger manual re-contact. |
+| Brazilian 9th-digit JID mismatch (delivery failure) | MEDIUM | 1. Identify affected patients (DDD 11/21/22/24/27/28 most likely). 2. Run JID resolution Celery task for affected patients. 3. Update `patient.whatsapp_jid`. 4. Re-send failed messages via DLQ retry. |
+| HMAC misconfiguration (all webhooks rejected) | LOW | 1. Fix header name or HMAC key in settings. 2. Redeploy. 3. Check WuzAPI retry behavior — if WuzAPI does not retry rejected webhooks, incoming messages during the bad window are lost. |
+| Auth header wrong (all sends fail) | LOW | 1. Fix `Authorization` header constant. 2. Redeploy. 3. Celery retry mechanism recovers in-flight messages within ~15 minutes via DLQ. |
+| Session loss (QR required for re-auth) | MEDIUM | 1. Access WuzAPI dashboard. 2. Scan QR with the registered clinic WhatsApp number. 3. Reconnection takes ~30 seconds. 4. Messages during downtime go to DLQ and are retried automatically. |
+| LID opt-out failure (LGPD violation) | HIGH | 1. Immediately implement LID→JID resolution. 2. Audit all incoming messages from cutover date for `@lid` senders. 3. Manually process any opt-out commands from LID senders. 4. If duration > 24 hours: assess LGPD Art. 48 notification obligation to ANPD. |
+| WhatsApp account banned (unofficial API ToS violation) | VERY HIGH | 1. Contact WhatsApp support (no guaranteed resolution). 2. If clinic has a backup number, configure it in WuzAPI. 3. Notify medical team immediately — clinical follow-up is disrupted. 4. Assess whether Meta Business API is required as the permanent solution. |
 
 ---
 
 ## Pitfall-to-Phase Mapping
 
-How roadmap phases should address these pitfalls.
-
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| google-adk vs langchain-google-genai dependency conflict | Phase 1: Dependency Migration | `pip install --dry-run` resolves cleanly; Docker build succeeds; `python -c "import app.main"` passes |
-| PII redaction bypass in Pydantic AI agents | Phase 2: Agent Implementation | CI lint check for direct `.run()` calls; integration test sends patient context and verifies no PII in Gemini API request body |
-| async_to_sync + GoogleModel event loop conflict | Phase 2: Celery Integration | 100-task Celery load test with no RuntimeError and stable memory |
-| LangGraph Redis checkpoint data not cleaned | Phase 1: Dependency Migration | Post-deployment scan shows zero `langgraph:checkpoint:*` keys in Dragonfly |
-| Output guardrails not re-applied to new agents | Phase 2: Agent Implementation | Output regression test suite covering 50 patient scenarios passes all guardrail assertions |
-| Service classes misidentified as LLM agents | Phase 1: Scope Definition | Architecture document explicitly lists 4 AI operations (not 5 agents); no `pydantic_ai.Agent` in `app/agents/` |
-| ADK session state conflict with Redis | Phase 2: Architecture | ADK integration uses `InMemorySessionService` only; no SQLite files or ADK session tables in DB |
-| LangChain import graph not fully cleaned | Phase 1: Dependency Migration | `grep -r "from langchain\|from langgraph" app/` returns zero results after migration |
-| Missing circuit breaker on new agents | Phase 2: Agent Implementation | Circuit breaker test: simulate Gemini API error → verify `FeatureNotAvailableError` raised → verify all 15+ callers handle it |
-| Missing audit trail for new AI operations | Phase 2: Agent Implementation | Integration test verifies `AI_QUERY` + `AI_RECOMMENDATION` audit events emitted for each new agent invocation |
+| Wrong webhook payload schema (silent data loss) | Phase 1: webhook handler rewrite | Integration tests use real captured WuzAPI payloads as fixtures; no mocked schemas |
+| Brazilian 9th-digit JID mismatch | Phase 1: WuzAPIClient (JID resolution) + Phase 2: patient data migration | Send test message to DDD 11 number; `patient.whatsapp_jid` populated; message received |
+| Auth header name change | Phase 1: WuzAPIClient implementation | Smoke test: call WuzAPI `/session` endpoint; assert HTTP 200 |
+| Message ID format — idempotency broken | Phase 1: send path field extraction + Phase 2: ReadReceipt handler | After send: assert `message.whatsapp_id` non-null. After read: assert `message.status == READ` |
+| HMAC header name and signing body | Phase 1: HMAC validator update | Wrong-signature POST → 403. Correct-signature POST → 200. |
+| LID addressing (LGPD opt-out risk) | Phase 2: incoming message handler | Send STOP from newer WhatsApp account; verify `messaging_stopped_at` set within 60s |
+| Instance vs session env var mismatch | Phase 1: env var audit + startup validation | Missing `WUZAPI_SESSION_TOKEN` → application refuses to start with clear error |
+| Status event mapping (SENT/DELIVERED/READ) | Phase 2: ReadReceipt handler | End-to-end status transition test from send through receipt |
+| Media delivery mode | Phase 2: inbound media handler | Patient sends image; system receives and stores correctly; no OOM |
+| Rate limiter not ported | Phase 1: WuzAPIClient | 70 sends/minute load test; no ban signal; no connection drop |
+| Session persistence | Phase 3: deployment configuration | Stop/start WuzAPI; verify reconnect without QR within 60s |
+| Opt-out endpoint routing | Phase 2: webhook routing + Phase 3: config verification | Send STOP → `messaging_stopped_at` set; no further messages to that patient |
 
 ---
 
 ## Sources
 
-- Codebase analysis: `/backend-hormonia/app/ai/client.py` — GeminiClient with PII redaction, guardrails, circuit breaker, rate limiter (confirmed integration points that must be preserved)
-- Codebase analysis: `/backend-hormonia/app/ai/langgraph/runtime.py` — Redis checkpoint key patterns (`langgraph:checkpoint:{graph_name}:*`)
-- Codebase analysis: `/backend-hormonia/app/ai/pii_redaction.py` — `sanitize_prompt_text_for_external_ai()` and `redact_patient_context()` (mandatory LGPD guardrails)
-- Codebase analysis: `/backend-hormonia/app/services/ai/guardrails.py` — banned pattern detection, prompt leak markers, placeholder detection, length validation
-- Codebase analysis: `/backend-hormonia/app/agents/` — 5 service classes named "agents" that have zero LLM calls
-- Codebase analysis: `/backend-hormonia/requirements.txt` — current dependency pinning and LangChain ecosystem packages
-- [google-adk PyPI: Dependencies include google-genai>=1.56.0](https://pypi.org/project/google-adk/) — confirmed ADK uses google-genai (not langchain-google-genai)
-- [pydantic-ai Issue #1887: instructions/system_prompt not working for GoogleModel](https://github.com/pydantic/pydantic-ai/issues/1887) — system prompt passing via constructor is broken with some google-genai versions; fixed in PR #1922
-- [pydantic-ai Issue #3762: RuntimeError: Event loop is closed when using GoogleModel with asyncio.run()](https://github.com/pydantic/pydantic-ai/issues/3762) — httpx connection cleanup after loop close
-- [pydantic-ai Issue #748: Gemini causes 'Event loop is closed' when running inside an async context](https://github.com/pydantic/pydantic-ai/issues/748) — same class of loop management bug
-- [langchain-google-genai 4.0.0 Release Discussion: Migration to google-genai SDK](https://github.com/langchain-ai/langchain-google/discussions/1422) — breaking change: gRPC removed; now uses google-genai directly; 50-250% latency increase reported for some users after migration
-- [google-adk Installation DeepWiki](https://deepwiki.com/google/adk-python/2.1-installation) — ADK requires google-genai>=1.56.0; full GCP dependency tree
-- [Google ADK Sequential and Parallel Agents Documentation](https://google.github.io/adk-docs/agents/workflow-agents/sequential-agents/) — confirmed ADK uses InvocationContext sharing between SequentialAgent sub-agents
-- [Google ADK Safety and Security Documentation](https://google.github.io/adk-docs/safety/) — Gemini as a Judge, in-tool guardrails, callback-based screening
-- [Pydantic AI Output Documentation](https://ai.pydantic.dev/output/) — `output_type` validation scope (structure only, not content semantics)
-- [Pydantic AI Evaluations Framework](https://deepwiki.com/pydantic/pydantic-ai/5.1-evaluation-framework) — regression testing approach for LLM output quality
-- [Comparing Agent Frameworks: PydanticAI, LangChain 1.0 and Google ADK](https://levelup.gitconnected.com/comparing-agent-frameworks-pydanticai-langchain-1-0-and-google-adk-4d2d46d927f0) — framework differences and integration considerations
-- [LangGraph Redis Checkpoint Migration Guide](https://github.com/redis-developer/langgraph-redis/blob/main/MIGRATION_0.2.0.md) — Redis key patterns and cleanup requirements
+- WuzAPI GitHub repository (asternic/wuzapi): https://github.com/asternic/wuzapi — API.md and README.md (HIGH confidence for endpoint format, auth header, HMAC header name)
+- Brazil 9th-digit WhatsApp JID inconsistency (Zoko): https://www.zoko.io/learning-article/whatsapp-id-brazil-mexico (MEDIUM confidence — documented WhatsApp limitation specific to Brazil)
+- Brazil 9th-digit WhatsApp inconsistency (Gupshup): https://support.gupshup.io/hc/en-us/articles/4407840924953 (MEDIUM confidence — same issue from different WhatsApp BSP)
+- whatsmeow LID issue (#859): https://github.com/tulir/whatsmeow/issues/859 (MEDIUM confidence — real user report, LID error 479)
+- LID/JID transition explanation (SprintHub): https://docs.sprinthub.com/en/news/behind-the-scenes-change-on-whatsapp-the-era-of-lid-and-jid-and-the-end-of-exposing-the-cell-phone-n (MEDIUM confidence — industry documentation of LID migration)
+- Baileys v7 LID migration docs: https://baileys.wiki/docs/migration/to-v7.0.0/ (MEDIUM confidence — covers LID handling in whatsmeow-equivalent library)
+- whatsmeow ban risk discussion (#567): https://github.com/tulir/whatsmeow/discussions/567 (MEDIUM confidence — community discussion on WhatsApp ban behavior with unofficial APIs)
+- Production codebase: `app/integrations/evolution/webhook_handler.py`, `app/integrations/whatsapp/api/webhooks.py`, `app/middleware/webhook_validator.py`, `app/services/unified_whatsapp_service.py`, `app/schemas/validators/phone.py` (HIGH confidence — primary source of truth for what exactly needs to change)
 
 ---
-*Pitfalls research for: AI Framework Migration — LangGraph to Pydantic AI + Google ADK, Healthcare Oncology WhatsApp Backend*
-*Researched: 2026-02-23*
+*Pitfalls research for: Evolution API to WuzAPI migration — oncology clinic WhatsApp backend (v1.6)*
+*Researched: 2026-03-01*

@@ -1,19 +1,19 @@
 # Project Research Summary
 
-**Project:** Clinica Oncologica v1.2 — AI Framework Migration (LangGraph to Pydantic AI)
-**Domain:** Healthcare WhatsApp backend — AI framework replacement milestone
-**Researched:** 2026-02-23
-**Confidence:** HIGH (Pydantic AI stack and pitfalls), MEDIUM (ADK integration patterns — blocked by dependency conflicts), HIGH (feature requirements and clinical guardrails)
+**Project:** Clinica Oncologica v1.6 — WhatsApp Provider Migration (Evolution API to WuzAPI)
+**Domain:** Healthcare WhatsApp backend — provider hard-cut migration
+**Researched:** 2026-03-01
+**Confidence:** HIGH (WuzAPI API shape and authentication verified from official docs + codebase), MEDIUM (webhook payload structure inferred from Go source inspection), HIGH (pitfall scenarios grounded in codebase evidence and verified third-party sources)
 
 ---
 
 ## Executive Summary
 
-This is a framework replacement milestone, not a new product or a greenfield build. The oncology backend already delivers 4 working AI operations (message humanization, sentiment analysis, question variation, empathetic follow-up) through a LangGraph graph layer wrapping `GeminiClient`. The goal is to remove LangGraph entirely and replace its two responsibilities: (1) the 4 AI operations, migrated to typed `pydantic-ai` agents; and (2) the 2 flow routing graphs (2-node, conditional), replaced with direct async Python functions. The existing `GeminiClient` (757 LOC, production-hardened with Redis cache, circuit breaker, rate limiter, PII redaction, and output guardrails) is preserved as the execution backend throughout the migration. Nothing changes for callers in `flow_core.py`, `flow_service.py`, and `enhanced_flow_engine.py` — they interact through the same `GeminiDomainClient` interface, which becomes a routing shim during transition.
+This is a provider replacement milestone, not a new product or a greenfield build. The oncology backend already delivers a working WhatsApp messaging layer through Evolution API (Baileys-based, two client stacks coexisting) for outbound patient follow-up messages and inbound patient replies. The goal is to replace Evolution API entirely with WuzAPI (Go + whatsmeow, direct WebSocket to WhatsApp) in a single hard-cut, with no dual-provider mode, no feature toggles, and simultaneous tombstoning of both Evolution client stacks (Stack A httpx + Stack B aiohttp) once WuzAPI is verified working. The existing `UnifiedWhatsAppService` facade, Redis message queue, DLQ, circuit breaker, Celery task pipeline, and WebSocket pub/sub are all unchanged by this migration — only the outbound client and inbound webhook parser are replaced.
 
-**Critical conflict reconciliation:** The Stack and Pitfalls researchers both independently confirmed that `google-adk` has irresolvable dependency conflicts with this stack: an OpenTelemetry version upper-bound cap (`<1.39.0`) that conflicts with the existing range (`<2.0.0`), a bundled FastAPI/Starlette sub-dependency that creates documented schema failures with Pydantic 2.11+ (issue #3173, unfixed as of 2026-02-23), and a heavy GCP footprint (aiplatform, spanner, bigtable) adding 300-400 MB to the Docker image. The Architecture researcher proposed ADK `SequentialAgent`/`ParallelAgent` patterns without verifying these conflicts — those patterns are architecturally sound and are documented here for future use, but cannot be implemented with `google-adk` in v1.2. The resolution for v1.2 is to replace both 2-node LangGraph graphs with direct async Python functions (10-15 lines each). Pydantic AI alone provides all the typed agent infrastructure needed for the 4 AI operations. ADK is formally deferred to v1.3, conditional on issue #3615 (lightweight core install) being resolved.
+The recommended approach is a 6-phase build order that respects import dependencies: create the new WuzAPI package and client first (zero impact on existing code), add the new webhook endpoint in parallel, update settings with new environment variables, migrate the outbound send path, tombstone all Evolution files in one commit, then validate with tests and CI. The key technical differences requiring careful handling are: WuzAPI uses a user/token model rather than a named instance model; inbound webhook payloads have a completely different structure from Evolution's Baileys JSON; media sends require base64 data URIs rather than URL strings; and the HMAC header name changes from Evolution's custom header to `x-hmac-signature`. No new Python packages are needed — the existing aiohttp, httpx, backoff, pydantic, and phonenumbers stack is fully sufficient.
 
-The two primary risks in this migration are clinical safety and output quality regression. PII redaction is currently enforced automatically inside `GeminiClient` and will become an explicit manual responsibility in the new agent layer — any agent that calls Gemini without invoking `sanitize_prompt_text_for_external_ai()` first sends patient names, CPF numbers, and phone numbers to Google's servers, violating LGPD Art. 46 and Art. 11. Output quality risk arises because pydantic-ai's `output_type` schema validation enforces structure but not content semantics — the existing healthcare-specific guardrails (banned patterns, prompt leak detection, Brazilian Portuguese punctuation rules, character length bounds) must be explicitly reconnected via `@result_validator` decorators. Both risks are preventable with a `PIISafeAgent` wrapper class and a 50-scenario output regression test suite that must pass before any agent replaces the production path.
+The primary risks are clinical in nature, not technical. Silent data loss from webhook payload mismatches (STOP/opt-out commands not processed = LGPD Art. 18 violation), Brazilian 9th-digit JID resolution failures (oncology patients in SP/RJ never receive messages), and LID addressing from newer WhatsApp clients (opt-out silently dropped) are all pitfalls that produce no exception — they return HTTP 200 while the clinical operation fails. All three must be addressed in Phase 1 before any production cutover, not deferred to post-migration cleanup. The existing `WebhookHMACValidator` and phone normalization utilities are reusable with minor adaptation; the `EvolutionAPIClient` client logic, webhook parser, and Pydantic models must be fully replaced, not adapted.
 
 ---
 
@@ -21,148 +21,161 @@ The two primary risks in this migration are clinical safety and output quality r
 
 ### Recommended Stack
 
-The stack decision is clear: add `pydantic-ai-slim[google,retries]>=1.63.0,<2.0.0` (production-stable since September 2025, MIT license, Python 3.10-3.14 confirmed) and remove the four LangChain-era packages (`langgraph`, `langchain-core`, `langchain-google-genai`, `google-ai-generativelanguage`) after migration completes. The `[google]` extra pulls in `google-genai>=1.56.0` transitively — this new unified Google SDK is what both pydantic-ai and langchain-google-genai 4.x now use, so both can coexist during the migration transition without version conflict. The `[retries]` extra uses `tenacity` (already in requirements) for HTTP-level retry transport. All other packages (`pydantic>=2.12.5`, `httpx>=0.28.1`, `aiobreaker`, `google-auth`, `google-api-core`) are already compatible and require no changes.
+The stack decision is clear and requires zero new Python packages. WuzAPI is a Go binary running as a Railway sidecar that exposes a plain REST+JSON API over HTTP. The existing `aiohttp>=3.10.0` client (already present for `EvolutionAPIClient`) is the correct HTTP client for `WuzAPIClient` — it outperforms httpx 2x+ at high concurrency and is already tuned with a `TCPConnector(limit=100, limit_per_host=30)` for this workload. The existing `backoff>=2.2.1`, `pydantic>=2.12.5`, `phonenumbers>=8.13.0`, and `aiobreaker>=1.2.0` packages all carry forward unchanged.
 
-`google-adk` must not be added in v1.2. The conflicts are technical, documented in open GitHub issues with no resolution timeline, and are not solvable by version pinning. The two 2-node LangGraph graphs are simple conditional routing logic that 10-15 lines of async Python replaces completely. ADK is a framework designed to be a server, not to be embedded in one — this backend is already a FastAPI server.
+The only infrastructure addition is the WuzAPI Docker sidecar (`asternic/wuzapi`) deployed on Railway, configured with PostgreSQL (using the existing AWS RDS instance with a dedicated `wuzapi` database) to avoid session loss on container restarts. Three new environment variables are required on the Python backend (`WUZAPI_BASE_URL`, `WUZAPI_TOKEN`, `WUZAPI_WEBHOOK_SECRET`); three existing Evolution API env vars are deprecated and removed after tombstoning. The WuzAPI sidecar requires its own set of env vars including `WUZAPI_ADMIN_TOKEN`, `WUZAPI_GLOBAL_ENCRYPTION_KEY`, `WUZAPI_GLOBAL_HMAC_KEY`, `WEBHOOK_FORMAT=json` (critical — default is form-encoded), and PostgreSQL connection details.
 
-**Core technologies to add:**
-- `pydantic-ai-slim[google,retries]>=1.63.0,<2.0.0`: Typed agents with `deps_type` DI, `output_type` schema validation, `RunContext` typed dependency injection, `TestModel` for test isolation — replaces LangGraph graph execution for the 4 AI operations; pin to `<2.0.0` because V2 is planned for April 2026 with breaking API changes
-- `google-genai>=1.56.0` (transitive via `[google]` extra): New unified Google SDK replacing `google-ai-generativelanguage`; do not pin separately unless a direct use is needed outside pydantic-ai
-- `GeminiClient` (existing, unchanged): Execution backend for all pydantic-ai agents; contains Redis cache, circuit breaker, PII redaction, rate limiter, and output guardrails that must not be bypassed or replaced
+Note: FEATURES.md states `WuzAPIClient` should use `httpx.AsyncClient`, but STACK.md and ARCHITECTURE.md both recommend keeping `aiohttp` for consistency with the canonical `EvolutionAPIClient` pattern. The aiohttp recommendation is adopted here as it aligns with the existing codebase pattern, avoids creating an inconsistency, and is faster for high-concurrency async.
 
-**Do not add:**
-- `google-adk`: OTel version cap conflict (`<1.39.0` vs existing `<2.0.0`), bundled FastAPI/Starlette schema failures with Pydantic 2.11+ (issue #3173), 300-400 MB GCP dependency footprint — defer to v1.3
-- `pydantic-ai` (full): Installs all model providers and Logfire; `pydantic-ai-slim[google,retries]` is the correct variant for a Google-only deployment
+**Core technologies (unchanged):**
+- `aiohttp>=3.10.0`: WuzAPIClient HTTP transport — same as EvolutionAPIClient, no change
+- `backoff>=2.2.1`: Retry on 429/5xx from WuzAPI — same decorator pattern, no change
+- `pydantic>=2.12.5`: New WuzAPI request/response Pydantic models — no version change
+- `phonenumbers>=8.13.0`: E.164 normalization — existing `normalize_phone()` produces correct WuzAPI format already
+- `aiobreaker>=1.2.0`: Circuit breaker wrapping WuzAPIClient — rename breaker from `"evolution_api"` to `"wuzapi"`
 
-**To remove after migration completes:**
-- `langgraph>=1.0.7`, `langchain-core>=1.2.7`, `langchain-google-genai>=2.1.12`, `google-ai-generativelanguage>=0.7.0` — remove in the same commit in Phase 3; do not remove incrementally
+**New infrastructure (sidecar, not Python):**
+- WuzAPI Docker sidecar: `asternic/wuzapi` — Go + whatsmeow, direct WebSocket to WhatsApp
+- PostgreSQL backend for WuzAPI: existing AWS RDS, dedicated `wuzapi` database
+
+**New Python files (no new packages):**
+- `app/integrations/wuzapi/client.py`: `WuzAPIClient` with aiohttp + backoff + rate limiter
+- `app/integrations/wuzapi/models.py`: `WuzAPISendTextRequest`, `WuzAPIResponse`, `WuzAPISessionStatus`
+- `app/integrations/wuzapi/errors.py`: `WuzAPIError` exception hierarchy
+- `app/integrations/wuzapi/mock_wuzapi.py`: test double
+- `app/integrations/wuzapi/api/webhooks.py`: webhook router at `/webhooks/wuzapi`
+- `app/services/webhook/utils/wuzapi_message_extractor.py`: pure-function parser for WuzAPI event JSON
+
+**Tombstoned (after migration):**
+- `app/integrations/evolution/client.py` (Stack A, httpx)
+- `app/integrations/evolution/message_sender.py`, `request_handler.py`, `webhook_handler.py`
+- `app/integrations/whatsapp/services/evolution_client.py` (Stack B, aiohttp)
+- `app/integrations/whatsapp/services/mock_evolution.py`
+- `app/integrations/whatsapp/api/webhooks.py` (Evolution webhook handler)
+- `app/services/webhook/utils/message_extractor.py` (Evolution Baileys parser)
 
 ### Expected Features
 
-This migration has a clear P1/P2/P3 tiering based on correctness vs. optimization. All P1 items are required for the migration to be production-safe. Missing any P1 item means the migration is broken, regresses existing behavior, or creates LGPD violations.
+The feature mapping between Evolution API and WuzAPI has clear tiers. All table-stakes features have direct equivalents in WuzAPI, though several require payload structure adaptation. The most significant technical adaptation is media sending: WuzAPI requires base64 data URIs where Evolution accepted URLs, requiring a new `fetch_and_encode_media()` utility.
 
-**Must have — migration correctness and clinical safety (P1):**
-- `HumanizeAgent`, `SentimentAgent`, `QuestionVariationAgent`, `EmpathyAgent` — 4 pydantic-ai agents replacing `GeminiDomainClient` methods; same interface, same clinical behavior
-- `PromptedOutput(SentimentResult)` for SentimentAgent — Gemini cannot use tool-calling and native structured output simultaneously; `PromptedOutput` mode (injects JSON schema into system prompt) is the documented workaround; the `SentimentResult` model must preserve all 7 fields exactly (`sentiment`, `confidence`, `emotional_indicators`, `medical_concerns`, `requires_attention`, `key_themes`, `suggested_follow_up`) because downstream alert logic has implicit `KeyError` on any missing field
-- `allow_questions`/`day_complete` flags in `EmpathyDeps` — these are clinical decisions controlling whether AI may ask patients follow-up questions; must be injected into the dynamic system prompt via `deps`, not hardcoded
-- `_is_too_similar_to_recent()` post-run check preserved in `QuestionVariationAgent` — the 88% word-overlap anti-repetition threshold is a patient disengagement prevention feature, not a style preference
-- `PIISafeAgent` wrapper class in `app/ai/agents/base.py` — the only sanctioned way to call any pydantic-ai agent; applies `sanitize_prompt_text_for_external_ai()` before every invocation; CI lint rule blocks direct `.run()` calls; mandatory before any agent goes to production
-- `@result_validator` decorators reconnecting healthcare guardrails — banned patterns, prompt leak markers, character length bounds, Brazilian Portuguese ending punctuation; pydantic-ai `output_type` does not provide these; reuse `app/services/ai/guardrails.py` logic
-- `GeminiDomainClient` shim with `AI_FRAMEWORK` feature flag — all 4 methods delegate to new agents via flag, same signatures for callers; enables per-operation rollout and instant rollback
-- `FeatureNotAvailableError` exception contract preserved — 15+ callers throughout the codebase catch this; do not introduce new exception types
-- Redis cache (SHA-256 key, 3600s TTL) preserved in shim wrapper around each agent call
-- Circuit breaker wrapping each `agent.run()` call; `aiobreaker` pattern kept
-- Audit events (`AuditEventType.AI_QUERY`, `AuditEventType.AI_RECOMMENDATION`) emitted for every agent invocation — LGPD accountability requirement; currently inside GeminiClient, must be explicit in new wrapper
-- Consensus system deleted outright (`consensus.py`, `consensus_manager.py` — confirmed zero callers)
-- 50-scenario output regression test suite — must pass all guardrail assertions before any agent replaces the production path
+**Must have (table stakes — migration is broken without these):**
+- Send text message (`POST /chat/send/text`) — field rename only; response ID at `data.Id` not `message.key.id`
+- Send media (image/audio/document/video) — requires base64 data URI; new `fetch_and_encode_media()` utility with 16 MB guard
+- Inbound message webhook — completely different payload structure; new `WuzAPIMessageExtractor` required
+- ReadReceipt webhook — `type=ReadReceipt` replaces `MESSAGES_UPDATE`; `Receipt.Type` maps to `MessageStatus`
+- HMAC webhook validation — header changes to `x-hmac-signature`; existing `WebhookHMACValidator` logic unchanged
+- Session management (connect, disconnect, logout, status, QR) — adapted to WuzAPI session model
+- WhatsApp number check (`POST /user/check`) — replaces `POST /chat/whatsappNumbers/{instance}`
+- LGPD opt-out handler (STOP/PARAR) — same logic, different extraction path in new payload parser
+- Idempotency (Redis SET NX) — keyed on `event.Info.ID` instead of `data.messages[0].key.id`
+- Environment variable migration — add `WHATSAPP_WUZAPI_*`, remove `WHATSAPP_EVOLUTION_*`
+- Evolution API code tombstoned — both Stack A and Stack B simultaneously
 
-**Should have — full LangGraph removal (P2):**
-- `build_flow_message_graph()` replaced with direct async Python function (10-15 lines, `AI_FLOW_FRAMEWORK` feature flag)
-- `build_flow_response_graph()` replaced with direct async Python function (10-15 lines)
-- Complete LangGraph import graph audit and cleanup (`python -c "import app.main"` succeeds with zero LangChain imports)
-- LangGraph checkpoint Redis cleanup script (`scan_iter`-based, idempotent, batch-delete, treated as LGPD PHI purge event)
-- `langgraph`, `langchain-core`, `langchain-google-genai`, `google-ai-generativelanguage` removed from `requirements.txt`
-- `app/ai/langgraph/` directory tombstoned (all files raise `ImportError`)
+**Should have (post-v1.6 validation):**
+- `POST /chat/markread` — mark patient messages read after opt-out processing (minor UX)
+- S3 media delivery for inbound patient media — only if patients send images/audio at scale
+- LID resolution — only if `@lid` JIDs appear in production payloads
 
-**Defer to v1.3+ (P3):**
-- `google-adk` integration (SequentialAgent, ParallelAgent) — blocked by dependency conflicts; revisit when issue #3615 is resolved
-- Parallel sentiment + empathy processing via `asyncio.gather` or ADK ParallelAgent
-- `GoogleModelSettings` per operation type (different temperatures for message vs. JSON operations)
-- `UsageLimits` per agent run complementing distributed rate limiter
-- `GeminiClient` migration from `ChatGoogleGenerativeAI` to direct `google-genai` SDK (last remaining LangChain import after Phase 3)
+**Defer to v2+:**
+- PairPhone authentication (`POST /session/pairphone`) — QR-less automated session setup
+- RabbitMQ event queue integration — only if HTTP webhook delivery proves unreliable at scale
+- Multi-user WuzAPI support — only if clinic expands to multiple WhatsApp numbers
 
-**Anti-features confirmed — do not implement in v1.2:**
-- Native structured output mode for Gemini (`NativeOutput`) — blocks tool-calling simultaneously; confirmed limitation issues #582, #1237, #3483
-- Full streaming of agent output — unsupported with structured outputs; healthcare messages must be fully validated before delivery
-- ADK `LlmAgent` for deterministic flow logic — adds ~500ms LLM call per invocation for what is pure Python DB/cache logic
-- ADK `DatabaseSessionService` or `VertexAiSessionService` — creates dual state with Redis/PostgreSQL, no reconciliation mechanism
-- `ModelRetry` alongside existing `guardrail_retries` — two retry loops amplify each other during API degradation; configure `output_retries=0` and handle retries at the caller level
-- `nest_asyncio.apply()` in Celery workers — masks resource leaks, not production-safe
+**Not buildable in WuzAPI (broken upstream):**
+- Interactive button messages — deprecated by WhatsApp in 2022; whatsmeow cannot send them despite route existing; keep existing TEXT fallback (already production behavior)
+- Interactive list messages — same issue as buttons; keep existing TEXT fallback
 
 ### Architecture Approach
 
-The migration separates into two clearly bounded layers. The Pydantic AI layer (`app/ai/agents/`) contains 4 agents that assemble typed prompts via `deps_type` and call `GeminiClient.generate_content()` as their execution backend — the GeminiClient remains completely unchanged, providing all production protections. The flow routing layer (replacing `app/ai/langgraph/graphs.py`) becomes direct async Python in `sequential_message_handler.py`, with the 2-node conditional routing expressed as simple `if/await` sequences. Feature flags (`AI_FRAMEWORK`, `AI_FLOW_FRAMEWORK` env vars in settings) route each operation independently, enabling incremental rollout and instant rollback without redeployment.
+The architecture follows a hard provider replace pattern, not an abstraction layer. `UnifiedWhatsAppService` is the preserved facade — it continues to route to direct-API mode and queue mode, with `EvolutionAPIClient` swapped for `WuzAPIClient` internally. The existing circuit breaker, Redis message queue, DLQ, Celery pipeline, and WebSocket pub/sub are untouched. The Evolution webhook endpoint (`/webhooks/whatsapp/*`) is tombstoned and replaced with a clean `/webhooks/wuzapi` endpoint that dispatches on `payload["type"]` rather than URL-path-based event routing.
 
-The key insight from reconciling the researcher conflict: the Architecture researcher's component design for `app/ai/agents/` is adopted in full. The proposed `app/ai/adk/` layer (ADKRunner, FlowMessageAgent, FlowResponseAgent) is architecturally correct but installation-blocked — it is documented as the target design for v1.3 ADK integration. The `SequentialAgent` pattern proposed for flow routing is replaced in v1.2 with direct async Python that produces identical runtime semantics.
+The six-phase build order from ARCHITECTURE.md is the canonical implementation plan: Phase 1 creates the new WuzAPI package without touching any existing files; Phase 2 adds the webhook handler in parallel; Phase 3 updates settings; Phase 4 migrates outbound send path; Phase 5 tombstones all Evolution files; Phase 6 runs tests and CI validation. This order ensures no existing functionality is broken until WuzAPIClient is fully tested, and enables rollback at any point before Phase 5.
 
 **Major components:**
-1. `app/ai/agents/` (NEW) — 4 pydantic-ai agents (`humanize.py`, `sentiment.py`, `question_variation.py`, `empathy.py`); `base.py` with `PIISafeAgent` wrapper and shared `AIDeps` dataclass
-2. `app/ai/prompts/` (RELOCATED) — prompt builders moved from `app/ai/langgraph/prompts.py` + `nodes_ai.py` with no content changes; called by agent `system_prompt` builders via `deps`
-3. `app/ai/client_domain.py` (REWORKED as shim) — all 4 `GeminiDomainClient` methods delegate to new agents via `AI_FRAMEWORK` feature flag; same signatures; tombstoned after full migration
-4. `app/services/flow/sequential_message_handler.py` (REWORKED) — LangGraph `graph.ainvoke()` replaced with direct `async def execute_flow_message(state, handler)` and `async def execute_flow_response(state, handler)` functions; `AI_FLOW_FRAMEWORK` flag routes between old and new paths during validation
-5. `app/ai/langgraph/` (TOMBSTONED in Phase 3) — all files raise `ImportError` after migration; `consensus.py` and `consensus_manager.py` deleted outright (not tombstoned) in Phase 1
-
-**Critical data flow preservation:**
-- PII path: `sanitize_prompt_text_for_external_ai()` must fire before every `agent.run()` — currently automatic in `GeminiClient._redact_prompt_for_external_ai()`; made explicit in `PIISafeAgent.run()` wrapper
-- Audit path: `AuditEventType.AI_QUERY` before and `AuditEventType.AI_RECOMMENDATION` after every agent invocation — LGPD requirement; currently inside `GeminiClient`; must be explicit in new wrapper layer
-- Exception path: `FeatureNotAvailableError` on circuit-open or empty output — 15+ callers catch this; exception contract must not change
+1. `WuzAPIClient` (`app/integrations/wuzapi/client.py`) — HTTP client for all WuzAPI REST calls; aiohttp + backoff + rate limiter; `Authorization: {token}` header
+2. `WuzAPIWebhookHandler` (`app/integrations/wuzapi/api/webhooks.py`) — single endpoint `/webhooks/wuzapi`; dispatches on `type` field; reuses `WebhookHMACValidator` and idempotency pattern
+3. `WuzAPIMessageExtractor` (`app/services/webhook/utils/wuzapi_message_extractor.py`) — pure-function parser for `type=Message` and `type=ReadReceipt` payloads; replaces Evolution Baileys parser
+4. `UnifiedWhatsAppService` (modified) — swap `EvolutionAPIClient` reference to `WuzAPIClient`; rename circuit breaker; update health check to call `GET /session/status`
+5. `IntegrationsSettings` (modified) — add `WHATSAPP_WUZAPI_*` fields; deprecate and remove `WHATSAPP_EVOLUTION_*` fields
+6. Evolution stacks (tombstoned) — Stack A (`app/integrations/evolution/`) and Stack B (`app/integrations/whatsapp/services/evolution_client.py`) both raised to `ImportError` in Phase 5
 
 ### Critical Pitfalls
 
-1. **PII redaction bypass in pydantic-ai agents (LGPD violation risk):** `GeminiClient` applies `sanitize_prompt_text_for_external_ai()` automatically on every call. Pydantic-ai agents do not have any input sanitization. Every agent call that skips this sends patient names, CPF numbers, and phone numbers to Google's servers, violating LGPD Art. 46 and Art. 11. Prevention: create `PIISafeAgent` wrapper class in `app/ai/agents/base.py` as the only sanctioned way to call agents; add CI lint rule blocking direct `.run()` calls; pass `PatientAIContext` dataclass with only pre-redacted fields to `deps`, never raw `Patient` ORM objects.
+1. **Webhook payload structure completely different — silent data loss:** WuzAPI payloads use whatsmeow-native Go struct naming. Existing Evolution handler accessing `data.messages[0].message.conversation` on a WuzAPI payload gets `None`, returns HTTP 200, and WuzAPI never retries. Patient STOP/opt-out commands are silently dropped (LGPD Art. 18 violation). Prevention: capture at least 10 real WuzAPI webhook payloads as fixtures BEFORE writing any handler code; build WuzAPI-specific Pydantic models; add schema validation logging at handler entry permanently in staging.
 
-2. **Output guardrails silently dropped:** Pydantic-ai `output_type` validates Pydantic schema structure only. It does NOT check banned patterns ("as an AI language model"), prompt leak markers ("MENSAGEM HUMANIZADA"), Brazilian Portuguese ending punctuation, or character length bounds. These guardrails currently fire automatically in every `GeminiClient.generate_content()` call via `app/services/ai/guardrails.py`. If not reconnected via `@result_validator` decorators, the migration silently removes clinical output protection. Prevention: reconnect all guardrails as `@result_validator` decorators on each agent; require a 50-scenario output regression test suite passing all guardrail assertions before any agent goes to production.
+2. **Brazilian 9th-digit split — silent delivery failures for SP/RJ patients:** Oncology patients in DDD 11-19, 21, 22, 24, 27-28 may have WhatsApp accounts bound to old 8-digit JIDs. Sending to the 9-digit JID produces silent failure or error 479. Prevention: add `POST /user/check` call before first send to each patient; cache resolved JID in `patient.whatsapp_jid`; wire existing `build_br_phone_variants()` into JID resolution; run one-time Celery task to resolve JIDs for all existing patients at cutover.
 
-3. **google-adk cannot be installed — irresolvable dependency conflicts:** The Architecture researcher proposed ADK as the primary flow routing replacement without verifying the dependency layer. Both Stack and Pitfalls researchers independently confirmed three blocking conflicts: OTel version cap `<1.39.0` (existing requirement allows `<2.0.0`), bundled FastAPI/Starlette schema failures with Pydantic 2.11+ (issue #3173, open and unresolved), and 300-400 MB GCP footprint from mandatory aiplatform/spanner/bigtable pull-in. Prevention: do not add `google-adk` to requirements.txt in v1.2. Replace the 2 LangGraph graphs with direct async Python. Re-evaluate at v1.3 planning time after checking issue #3615 status.
+3. **HMAC header name and signing body mismatch — all webhooks return 403:** WuzAPI uses `x-hmac-signature` (lowercase, no prefix) against raw request bytes. Reading `await request.json()` before HMAC validation consumes the body and makes raw-byte signing impossible. The existing HMAC_FAILURE_BLOCK threshold of 5 failures will block WuzAPI's IP within seconds. Prevention: read `body = await request.body()` once at handler entry, then `json.loads(body)` separately; update header lookup from Evolution's custom header to `x-hmac-signature`; verify HMAC key is at least 32 characters; write test: wrong signature → 403, correct signature → 200.
 
-4. **async_to_sync + GoogleModel event loop conflict in Celery workers:** Pydantic-ai's `GoogleModel` uses `httpx` with `google-genai`'s async client. When `asgiref.sync.async_to_sync()` (the established Celery bridge pattern in this codebase, used in `tasks/flows/base.py`) wraps `agent.run()`, the `httpx` connection pool cleanup fires after the thread's event loop closes, producing `RuntimeError: Event loop is closed` under sequential load (confirmed pydantic-ai issues #3762, #748). Prevention: use `agent.run_sync()` for Celery task contexts instead of wrapping `agent.run()` with `async_to_sync()`; if async DB access is needed inside agents, use a persistent event loop via `@worker_process_init.connect`; validate with 100-task sequential Celery load test before declaring migration complete; never use `nest_asyncio.apply()` as a workaround.
+4. **Message ID format difference breaks idempotency and status tracking:** WuzAPI returns `response["data"]["Id"]`; Evolution returned `response["message"]["key"]["id"]`. If the wrong field path is used, `message.whatsapp_id` is NULL in the database. ReadReceipt events find no matching record, DELIVERED/READ statuses never update. Prevention: log full send response body in dev mode; write assertion test that `whatsapp_id` is non-null after every send; in ReadReceipt handler, log WARNING when no matching record is found.
 
-5. **LangGraph checkpoint Redis data is a LGPD PHI purge event, not just a cleanup:** `RedisCheckpointer` in `runtime.py` stored data under `langgraph:checkpoint:*` keys in Dragonfly DB 0. Index keys using `sadd` accumulate garbage that does not auto-expire with set member TTLs. Critically, some checkpoint data may contain conversation state written before PII redaction was applied to state objects — meaning this cleanup qualifies as a LGPD PHI purge event, not just a maintenance task. Prevention: write an idempotent `scan_iter`-based cleanup script (never `keys()`), delete in batches of 500, execute at the same deployment that removes LangGraph, log the purge count as a LGPD data deletion event; if checkpoint data is confirmed to contain PHI, report the purge timeline to the LGPD compliance record.
+5. **LID addressing — LGPD opt-out failure risk:** WhatsApp's 2025 LID privacy feature means some patients' WhatsApp clients send `sender@lid` instead of `phone@s.whatsapp.net`. All patient lookups fail silently. A patient sending STOP with a LID address is not opted out — LGPD Art. 18 violation in a healthcare context. Prevention: add LID detection in message extractor from day one; call WuzAPI contact/user endpoint to resolve LID; route unresolvable LIDs to DLQ for manual processing; never drop silently; log every `@lid` sender at WARNING.
+
+6. **Session persistence — QR required after every Railway restart:** WuzAPI default SQLite storage is lost on container restart; Railway containers are ephemeral without persistent volumes. Prevention: configure WuzAPI with PostgreSQL (existing RDS, dedicated `wuzapi` schema); test a stop/start cycle in staging before production cutover; add health check alert if session shows disconnected for more than 5 minutes.
 
 ---
 
 ## Implications for Roadmap
 
-Based on combined research, a 4-phase structure is recommended. The dependency chain is clear and non-negotiable: scope boundary must be established before implementation begins; agent implementation must complete before LangGraph is removed; LangGraph removal completes the migration.
+Based on combined research, the 6-phase structure from ARCHITECTURE.md is the canonical roadmap. The ordering is dictated by import dependencies — nothing can be tombstoned until all its callers are updated; the new WuzAPI infrastructure must be fully tested before any Evolution code is removed.
 
-### Phase 1: Scope Boundary and Dependency Preparation
+### Phase 1: New Provider Foundation
 
-**Rationale:** Two scope errors would derail Phase 2 if not resolved first. First: the 5 classes in `app/agents/` (AlertAnalyzer, PatientMonitor, MessageComposer, ResponseProcessor, FlowCoordinator) are DDD service components with zero LLM calls — they are named "agents" for domain reasons, not AI reasons. Attempting to migrate them to `pydantic_ai.Agent` would add LLM calls to deterministic service logic and increase response latency by hundreds of milliseconds. Second: there are 15+ non-AI files that import from `langchain_core`, `langchain_google_genai`, or `langgraph` — a complete import graph audit is required before any package removal is attempted; missing any import creates a `ModuleNotFoundError` at startup.
-**Delivers:** Architecture decision document identifying exactly 4 AI operations (not 5 "agents") as migration targets; complete LangChain import graph audit results; `pydantic-ai-slim[google,retries]>=1.63.0,<2.0.0` added to `requirements.txt` (coexists safely with current LangChain packages during migration); `google-adk` formally deferred with documented rationale; one-line scope comments added to all `app/agents/` files clarifying they are service components; consensus system (`consensus.py`, `consensus_manager.py`) deleted immediately (zero callers, no risk); LangGraph checkpoint Redis cleanup script written and ready for Phase 3 deployment.
-**Addresses features:** Consensus system deletion (P1); scope boundary for 4 AI operations (P1)
-**Avoids pitfalls:** Service classes misidentified as LLM agents (Pitfall 6); LangChain import graph not audited before removal (Pitfall 8); google-adk dependency conflicts (Pitfall 3)
-**Research flag:** Standard patterns — no phase research needed. All decisions are fully resolved by existing research.
+**Rationale:** Create the entire WuzAPI package (`client.py`, `models.py`, `errors.py`, `mock_wuzapi.py`) with zero modifications to existing files. This phase can be reviewed and tested in isolation with no risk to production. It also includes the critical non-code prerequisites: capture real WuzAPI webhook payloads as test fixtures, and complete the environment variable audit (`grep -r "WHATSAPP_EVOLUTION"`) before any migration code is written. Rate limiter must be included in `WuzAPIClient` from the first implementation, not added later.
+**Delivers:** Working `WuzAPIClient` with aiohttp + backoff + rate limiter; Pydantic models for all WuzAPI request/response types; `WuzAPIError` exception hierarchy; mock client for test isolation; real captured WuzAPI webhook JSON fixtures stored in `tests/fixtures/wuzapi/`; unit tests against mock HTTP.
+**Addresses:** Text send, media send (with `fetch_and_encode_media()` utility), session management endpoints, WhatsApp number check, auth header migration, rate limiting.
+**Avoids:** Auth header error (Pitfall 3), missing rate limiter (Pitfall 10 from PITFALLS.md), wrong response ID extraction (Pitfall 4).
 
-### Phase 2: Pydantic AI Agent Implementation (4 Operations)
+### Phase 2: Webhook Handler
 
-**Rationale:** This is the highest-value and highest-risk phase. The recommended build order follows the dependency graph from research: `SentimentAgent` first (most benefit from typed output — replaces the most fragile current code: manual `json.loads()` + `_parse_sentiment_analysis()` + `AIResponseValidation.validate_sentiment()` triple-parsing chain); then `HumanizeAgent`, `QuestionVariationAgent`, `EmpathyAgent` can be built in parallel (same GeminiClient integration pattern, once SentimentAgent validates it). The `GeminiDomainClient` shim with `AI_FRAMEWORK` feature flag must exist before the first agent ships — it enables per-operation rollout and instant rollback without code deployment. `PIISafeAgent` wrapper and output guardrail reconnection are P1 requirements; no agent ships to production without them.
-**Delivers:** 4 pydantic-ai agents with typed output; `PIISafeAgent` wrapper enforcing PII redaction before every invocation; `@result_validator` guardrails reconnected; Redis cache preserved in shim; circuit breaker wrapping each `agent.run()`; `FeatureNotAvailableError` contract preserved; audit events emitted; Celery async bridge validated with 100-task load test; 50-scenario output regression test suite passing all guardrail assertions.
-**Uses:** `pydantic-ai-slim[google,retries]>=1.63.0`; `PromptedOutput(SentimentResult)` for SentimentAgent; `output_type=str` for the 3 text agents; existing `GeminiClient` as execution backend; `app/services/ai/guardrails.py` reused in `@result_validator` decorators
-**Implements:** `app/ai/agents/` layer (4 agents + base PIISafeAgent); `app/ai/prompts/` relocation from `langgraph/`; `GeminiDomainClient` shim
-**Avoids pitfalls:** PII redaction bypass (Pitfall 1); output guardrails silently dropped (Pitfall 2); event loop conflict in Celery (Pitfall 4); missing circuit breaker and audit trail (integration gotchas)
-**Research flag:** Phase research recommended for two areas: (a) Celery async bridge — `pydantic-ai run_sync()` behavior with `google-genai` httpx client under Celery 5.x process model needs a validation spike before stories are sized; (b) `PromptedOutput(SentimentResult)` validation against `gemini-2.5-flash` — pydantic-ai issues #582 and #3483 document edge cases with Gemini structured outputs; a 1-day validation spike should be the first Phase 2 task.
+**Rationale:** The new webhook endpoint can be registered alongside the existing Evolution endpoint temporarily, allowing real WuzAPI events to be tested before the outbound path is migrated. Phase 2 must include LID resolution and 9th-digit JID handling from day one — these cannot be deferred because a patient sending STOP with a LID address and not being opted out is an immediate LGPD compliance failure.
+**Delivers:** `/webhooks/wuzapi` endpoint with HMAC validation, idempotency, and event dispatch; `WuzAPIMessageExtractor` with LID detection and `@lid` DLQ routing; `StatusWebhookHandler` updated with WuzAPI `ReadReceipt` mapping (`"read"` → `MessageStatus.READ`); `phone_normalizer.py` updated to remove LID resolution methods (which call Evolution endpoints that will no longer exist); integration tests using real captured WuzAPI payloads as fixtures.
+**Uses:** Existing `WebhookHMACValidator` (header name updated to `x-hmac-signature`); existing idempotency pattern (Redis SET NX, extraction path updated to `event.Info.ID`); existing opt-out handler (phone extraction path updated to `event.Info.Chat.User`).
+**Avoids:** Webhook payload silent data loss (Pitfall 1), LID opt-out failure LGPD risk (Pitfall 6), HMAC validation failures (Pitfall 5), status event mapping gaps (Pitfall 8).
 
-### Phase 3: LangGraph Removal
+### Phase 3: Settings and Environment Variables
 
-**Rationale:** Must follow Phase 2. LangGraph can only be removed after all 4 agents are validated in staging with real traffic for at least one week with zero errors. The 2 flow routing graphs are replaced with direct async Python in `sequential_message_handler.py`. LangGraph must remain importable until the new routing path is validated — a Railway redeployment to re-add LangGraph is the rollback cost if removed prematurely. The LangGraph checkpoint Redis cleanup is treated as a LGPD PHI purge event and must be logged as such.
-**Delivers:** `build_flow_message_graph()` and `build_flow_response_graph()` replaced with direct async Python functions (10-15 lines each); `app/ai/langgraph/` directory fully tombstoned (all files raise `ImportError` with migration message); `langgraph`, `langchain-core`, `langchain-google-genai`, `google-ai-generativelanguage` removed from `requirements.txt` in a single commit; `python -c "import app.main"` passes with zero LangChain/LangGraph imports; LangGraph checkpoint cleanup script executed and LGPD purge logged; Dragonfly scan confirms zero `langgraph:checkpoint:*` keys.
-**Avoids pitfalls:** LangGraph import graph not fully cleaned (Pitfall 8); LangGraph checkpoint PHI purge not treated as LGPD event (Pitfall 5); premature LangGraph removal before cutover validation (Architecture Anti-Pattern 4)
-**Research flag:** Standard patterns — async Python replacement for 2-node conditional graphs is straightforward; patterns are fully documented in STACK.md and ARCHITECTURE.md research with code examples.
+**Rationale:** New environment variables must be available in settings before any outbound code references them. This phase also marks Evolution env vars as deprecated in their field descriptions. `.env.example` is updated to add WuzAPI vars and comment out Evolution vars with migration instructions.
+**Delivers:** `IntegrationsSettings` with `WHATSAPP_WUZAPI_BASE_URL`, `WHATSAPP_WUZAPI_TOKEN`, `WHATSAPP_WUZAPI_TIMEOUT_SECONDS`, `WHATSAPP_WUZAPI_WEBHOOK_SECRET`, `WHATSAPP_WUZAPI_USE_MOCK` fields; startup validation that refuses to start if `WUZAPI_TOKEN` is absent in non-development environments (fails fast with clear error, not silent fallback); `.env.example` updated; Railway staging env vars updated.
+**Avoids:** Instance vs session env var mismatch silent misconfiguration (Pitfall 7), application silently falling back to `"default"` session identifier.
 
-### Phase 4: Post-Migration Cleanup and ADK Readiness Assessment
+### Phase 4: Migrate Outbound Path
 
-**Rationale:** After Phase 3, the migration is functionally complete. `GeminiClient` still uses `ChatGoogleGenerativeAI` from `langchain-google-genai` internally (the last remaining LangChain reference in the entire backend). This phase migrates `GeminiClient._initialize_model()` and `_generate_content_internal()` to direct `google-genai` SDK, completing the full LangChain removal. It also produces a formal ADK dependency conflict re-assessment — if `google-adk` issue #3615 is resolved, a v1.3 ADK integration story can be drafted.
-**Delivers:** `GeminiClient` fully migrated from `ChatGoogleGenerativeAI` to direct `google-genai` SDK; `HumanMessage` import from `langchain-core` removed from `client.py`; zero LangChain imports remaining anywhere in the backend; ADK issue #3615 status re-assessed against latest `google-adk` release; v1.3 ADK integration story drafted if conflict is resolved.
-**Research flag:** Phase research recommended for `GeminiClient` SDK migration — the client is 757 LOC with retry logic, connection pool management (`_ensure_model_for_loop`), and loop-safe reinitialization; migrating from `ChatGoogleGenerativeAI` to direct `google-genai` SDK is medium complexity (~50 LOC change) but requires careful validation of all 8 execution paths (cache hit, cache miss, circuit open, rate limited, guardrail fail, retry, timeout, success).
+**Rationale:** All outbound messaging is routed through `WuzAPIClient`. This phase updates the three callers of Evolution clients: `UnifiedWhatsAppService` (Stack B via facade), `WhatsAppMessageService` (Stack B via queue worker), and `IdempotentMessageSender` (Stack A directly). `IdempotentMessageSender` must be updated before Stack A is tombstoned in Phase 5 — tombstoning Stack A first raises `ImportError` at Celery worker startup, breaking all task processing.
+**Delivers:** `UnifiedWhatsAppService` using `WuzAPIClient`; circuit breaker renamed to `"wuzapi"`; health check calling `GET /session/status`; `instance_name` removed from `MessageRequest`; `WhatsAppMessageService` accepting `WuzAPIClient` by constructor injection; `IdempotentMessageSender` importing `WuzAPIClient`; `whatsapp_id` extracted from `response.data["Id"]`; JID resolution added to send path for first-send to each patient.
+**Avoids:** Import dependency ordering violation (Anti-Pattern 4 from ARCHITECTURE.md), `instance_name` in WuzAPI requests (Anti-Pattern 5), stale circuit breaker key name confusion during incidents.
+
+### Phase 5: Tombstone Evolution Code
+
+**Rationale:** All Evolution files are raised to `ImportError` in a single commit after Phase 4 tests pass. A single commit is important — partial tombstoning creates a window where some callers are updated and some are not, making the `ImportError` harder to diagnose. This phase also removes deprecated `WHATSAPP_EVOLUTION_*` fields from settings and deregisters the Evolution webhook router.
+**Delivers:** 8 tombstoned files (Stack A: 4 files in `app/integrations/evolution/`; Stack B: 3 files in `app/integrations/whatsapp/services/` and `api/`; Evolution payload parser: 1 file); deprecated Evolution settings removed; `grep -r "evolution" backend-hormonia/app/ --include="*.py" -i` returns only tombstone docstrings; Evolution webhook router deregistered; Evolution env vars confirmed absent from Railway staging.
+**Avoids:** Dual-stack maintenance burden (Anti-Pattern 1 from ARCHITECTURE.md), Evolution webhook URL reuse with incompatible payload format (Anti-Pattern 2).
+
+### Phase 6: Tests and CI Validation
+
+**Rationale:** Full regression validation before production cutover. This phase is a gate, not an afterthought. The specific acceptance criteria from PITFALLS.md "Looks Done But Isn't" checklist must all pass.
+**Delivers:** All test fixtures updated to use `MockWuzAPIClient`; end-to-end webhook tests with real captured WuzAPI JSON; HMAC validation test (wrong signature → 403, correct signature → 200); ReadReceipt status transition test (`Receipt.Type: "read"` → `MessageStatus.READ`); JID resolution test for DDD 11 and DDD 21 numbers; opt-out end-to-end test (send "STOP" → `patient.messaging_stopped_at` set → no further sends); session persistence test (stop/start WuzAPI → reconnect without QR); rate limiter load test (70 sends/minute → no ban signal); CI scripts pass (`check_async_isolation.py`, `check_agent_run_calls.py`); PII not logged in new webhook handler output.
 
 ### Phase Ordering Rationale
 
-- Phase 1 before Phase 2: Scope errors and import graph blind spots are cheaper to fix before code is written than after 4 agents are implemented against incorrect assumptions.
-- Phase 2 before Phase 3: The feature flag coexistence strategy requires LangGraph to remain importable during agent validation. Removing LangGraph before agents are validated eliminates the rollback option.
-- Phase 3 after one week of validated traffic: The `AI_FLOW_FRAMEWORK` flag must gate the cutover; only remove LangGraph after the new routing path has been confirmed stable.
-- Phase 4 last: `GeminiClient` SDK migration requires all other LangChain packages to be gone first (Phase 3); it is also the lowest urgency item.
-- ADK deferred to v1.3: The dependency conflicts are documented, open, and have no resolution timeline. The async Python replacement delivers identical runtime behavior with zero new risk.
+- Phase 1 before Phase 4: `WuzAPIClient` must exist and be unit-tested before it can replace `EvolutionAPIClient` in the service layer.
+- Phase 2 in parallel with Phase 1: The webhook handler has no dependency on the outbound client; parallel development reduces total wall time.
+- Phase 3 before Phase 4: Settings fields must exist before the code that reads them is committed.
+- Phase 4 before Phase 5: `IdempotentMessageSender` must import `WuzAPIClient` before Stack A is tombstoned; tombstoning first causes Celery worker startup `ImportError`.
+- Phase 5 as single commit: All Evolution tombstones in one commit eliminates partial-tombstone diagnostic confusion.
+- Phase 6 as gate: Production cutover is blocked until all checklist items pass — especially opt-out, HMAC, and JID resolution.
 
 ### Research Flags
 
-Phases needing deeper research during planning:
-- **Phase 2 (Celery bridge validation):** `pydantic-ai run_sync()` + `google-genai` httpx client under Celery 5.x process model needs a validation spike. The event loop conflict is documented but the `run_sync()` fix is MEDIUM confidence — needs a 100-task Celery load test before stories are finalized.
-- **Phase 2 (PromptedOutput with Gemini):** `PromptedOutput(SentimentResult)` mode needs a 1-day validation spike against `gemini-2.5-flash` before Phase 2 story AC is finalized. Issues #582 and #3483 document edge cases that may require workarounds even for flat schemas.
-- **Phase 4 (GeminiClient SDK migration):** Direct `google-genai` SDK replacement for `ChatGoogleGenerativeAI` in a 757-LOC production client warrants a dedicated research spike before implementation begins; not a straightforward find-and-replace.
+Phases likely needing deeper research during planning:
+- **Phase 1 (WuzAPI client — real payload capture):** WuzAPI webhook payload structure is MEDIUM confidence (inferred from Go source inspection, not from official JSON schema documentation). Real payload capture BEFORE writing parsers is mandatory, not optional. The difference between actual and inferred structure in wmiau.go Go structs has led to silent bugs in similar migrations.
+- **Phase 2 (LID resolution):** WuzAPI LID→JID resolution via contact/user endpoints is not fully documented in API.md. The resolution mechanism for `@lid` senders in whatsmeow's internal store may require consulting whatsmeow issues directly. This needs a dedicated spike if LID senders appear in staging during Phase 2 validation.
+- **Phase 4 (JID 9th-digit resolution at scale):** The one-time Celery task to resolve JIDs for all existing patients needs careful design — calling `POST /user/check` for each patient at WuzAPI rate limits could take hours for large patient cohorts. Batching and progress checkpointing need to be designed before Phase 4 begins.
 
 Phases with standard patterns (research-phase not needed):
-- **Phase 1:** Scope boundary decisions and import graph audits are deterministic, fully documented in existing research with exact file locations.
-- **Phase 3:** Async Python replacement for 2-node conditional graphs is fully documented with code examples in STACK.md and ARCHITECTURE.md; no novel patterns required.
+- **Phase 3:** Settings field additions and deprecations are deterministic, fully documented in existing research with exact field names and types.
+- **Phase 5:** Tombstone pattern is well-established in this codebase (18+ files tombstoned in prior milestones). No novel patterns required.
+- **Phase 6:** Test and CI validation patterns are documented in PITFALLS.md "Looks Done But Isn't" checklist with explicit pass/fail criteria.
 
 ---
 
@@ -170,55 +183,53 @@ Phases with standard patterns (research-phase not needed):
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | `pydantic-ai-slim[google,retries]>=1.63.0` verified against PyPI, pyproject.toml, and official docs. google-adk conflict verified against 3 independent GitHub issues (#2657, #3173, #3615) plus pyproject.toml dependency analysis. Version compatibility matrix fully resolved for all existing packages. |
-| Features | HIGH | All 4 AI operations verified against codebase (`app/ai/client_domain.py`, `app/ai/langgraph/nodes_ai.py`). `PromptedOutput` mode verified against official pydantic-ai docs. Gemini structured output limitations verified against issues #582, #1237, #3483. Clinical safety requirements (PII, guardrails, anti-repetition, flag injection) verified against `app/ai/pii_redaction.py`, `app/services/ai/guardrails.py`, and `app/ai/langgraph/nodes_ai.py`. |
-| Architecture | MEDIUM | Pydantic AI agent patterns: HIGH (official docs + codebase analysis). ADK patterns: architecturally correct as designs but installation-blocked — MEDIUM because the Architecture researcher did not verify the dependency layer and initially proposed ADK as a first-class solution. The programmatic Python alternative is HIGH confidence. Custom `BaseAgent` subclass API surface for future ADK work: MEDIUM (community sources + GitHub discussions). |
-| Pitfalls | HIGH | All 8 critical pitfalls grounded in codebase evidence (grep-verified import counts, Redis key patterns confirmed from `runtime.py`, event loop issues confirmed from pydantic-ai issue tracker). Recovery costs realistically assessed. LGPD violation risk scenarios verified against LGPD Art. 46, 48, and 11 text. |
+| Stack | HIGH | WuzAPI API shape verified from official API.md (fetched directly). aiohttp recommendation consistent across STACK.md and ARCHITECTURE.md. Zero new Python packages confirmed. Docker image verified on Docker Hub. RDS PostgreSQL backend recommendation is straightforward infrastructure decision. |
+| Features | HIGH (send) / MEDIUM (inbound) | Send endpoints: HIGH (verified from API.md with explicit request/response examples). Inbound webhook payload structure: MEDIUM (inferred from wmiau.go Go source inspection, not official JSON schema). Button/list deprecation: HIGH (verified from whatsmeow maintainer statement and DEV.to article). Base64 media requirement: HIGH (confirmed from API.md). |
+| Architecture | HIGH | Full codebase read of all affected files confirms exact change set. Six-phase build order respects all import dependencies. Component boundary decisions (keep facade, replace client, tombstone both stacks simultaneously) are well-grounded. Anti-patterns are identified with specific code evidence. |
+| Pitfalls | HIGH | All critical pitfalls grounded in codebase analysis (Evolution payload paths grep-verified, HMAC validator logic read, LID resolution code confirmed). Brazilian 9th-digit issue verified from two WhatsApp BSP sources (Zoko, Gupshup). LID behavior verified from whatsmeow issues. LGPD violation scenarios mapped to specific articles (Art. 18, Art. 46, Art. 48). |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **`PromptedOutput` validation against production Gemini model:** The correct output mode for `SentimentAgent` is MEDIUM confidence. A 1-day spike against `gemini-2.5-flash` should be the first task in Phase 2 before any agent implementation stories are planned. If `PromptedOutput` fails on the flat `SentimentResult` schema, the fallback is `model_validate(json.loads(result))` at the shim layer (lower elegance but same safety).
-- **Celery async bridge confidence gap:** `agent.run_sync()` as the fix for the event loop conflict is documented pydantic-ai behavior but has not been validated against the specific combination of `pydantic-ai-slim==1.63.0` + `google-genai>=1.56.0` + Celery 5.x in this codebase. A 100-task load test must be a Phase 2 acceptance criterion, not a post-migration check.
-- **LangGraph checkpoint PHI audit:** Before running the Redis cleanup script, the actual content of existing `langgraph:checkpoint:*` keys should be sampled to determine whether they contain patient PII that was stored before the PII redaction layer was fully hardened. If PHI is present, LGPD documentation obligations apply to the purge event.
-- **ADK issue #3615 status at v1.3 planning time:** The ADK exclusion is correct for v1.2 but must be re-evaluated at the start of v1.3 planning by checking issue #3615 status and re-running the OTel version conflict check against the latest `google-adk` release at that time.
-- **GeminiClient migration scope:** The exact surface of changes required to replace `ChatGoogleGenerativeAI` in `client.py` with direct `google-genai` SDK calls is not fully characterized. The `_ensure_model_for_loop` pattern (loop-safe reinitialization) has no documented equivalent in the `google-genai` SDK and may require a custom solution.
+- **WuzAPI webhook payload JSON schema:** The exact structure of WuzAPI webhook payloads is MEDIUM confidence (inferred from Go source, not official JSON docs). Real payload capture must happen before any Phase 2 parser code is written. If actual payloads differ from the inferred structure (especially for media messages and ReadReceipt events), parser logic in `WuzAPIMessageExtractor` must be revised. Risk: low if capture is done first; high if parsers are written from documentation assumptions.
 
----
+- **LID resolution mechanism in WuzAPI:** The whatsmeow library resolves `@lid` JIDs internally via a local contact store populated by conversations. If a patient with a LID-mode WhatsApp sends STOP before they have any previous conversation in the WuzAPI session, the LID cannot be resolved from the local store. The research recommends DLQ routing for unresolvable LIDs, but the latency and retry window for this case is not fully characterized. This needs validation in staging against a real newer WhatsApp client before production cutover.
 
-## Researcher Conflict Resolution Record
+- **Brazilian 9th-digit JID resolution at patient-cohort scale:** The `POST /user/check` endpoint call per patient during the one-time JID resolution task is the correct approach, but the WuzAPI rate limits for this endpoint are not documented. If the clinic has hundreds or thousands of patients, the resolution task could take hours or trigger WhatsApp account-level throttling. Batch size and rate limit behavior should be tested against the staging WuzAPI instance before running in production.
 
-The Architecture researcher proposed `google-adk` (SequentialAgent, ParallelAgent, ADKRunner, InMemorySessionService, custom BaseAgent subclasses) as the primary mechanism for replacing the 2 LangGraph flow routing graphs. The Stack and Pitfalls researchers independently confirmed that `google-adk` cannot be installed in this stack due to irresolvable conflicts (OTel version cap, Pydantic 2.11+/FastAPI schema failures, mandatory GCP footprint).
+- **WuzAPI HMAC with `WEBHOOK_FORMAT=json`:** The HMAC is computed over the raw request body. With `WEBHOOK_FORMAT=json`, the raw body is a JSON string. The signing and verification must be byte-exact. The existing `WebhookHMACValidator` should work unchanged if raw bytes are read first (before any JSON parsing), but this exact combination has not been integration-tested in this codebase. First Phase 2 task should be a HMAC test fixture test before any other webhook handler code.
 
-**Resolution adopted in this summary:** The architectural patterns proposed by the Architecture researcher are correct design. The `app/ai/agents/` component structure, the `deps_type` injection pattern, the `PIISafeAgent` wrapper, the `InMemorySessionService` preference over persistent session services, and the `BaseAgent` subclass approach for deterministic sub-agents are all adopted for v1.2 where applicable. The `app/ai/adk/` layer (ADKRunner, FlowMessageAgent as SequentialAgent, FlowResponseAgent as SequentialAgent) is documented as the target design for v1.3 ADK integration. For v1.2, the 2-node conditional routing graphs are replaced with direct async Python functions in `sequential_message_handler.py` — equivalent behavior, zero new dependencies, lower implementation risk.
+- **aiohttp vs httpx inconsistency between FEATURES.md and other research files:** FEATURES.md recommends `httpx.AsyncClient` for `WuzAPIClient`; STACK.md and ARCHITECTURE.md recommend `aiohttp` for consistency with `EvolutionAPIClient`. This summary adopts the aiohttp recommendation, but the rationale should be documented explicitly in the implementation story's architecture decision section so the team is aligned before Phase 1 begins.
 
 ---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- pydantic-ai PyPI page — version 1.63.0, Python 3.10-3.14, Production/Stable status: https://pypi.org/project/pydantic-ai/
-- pydantic-ai official docs — `Agent`, `deps_type`, `RunContext`, `PromptedOutput`, `output_type`, `GoogleModel`, `TestModel`: https://ai.pydantic.dev/
-- pydantic-ai pyproject.toml — core deps: `pydantic>2.12`, `httpx>0.27`, `google-genai>1.56.0` (for `[google]`): https://github.com/pydantic/pydantic-ai/blob/main/pydantic_ai_slim/pyproject.toml
-- google-adk pyproject.toml — confirmed OTel constraint `>=1.36.0,<1.39.0` and bundled FastAPI + full GCP dependency tree: https://github.com/google/adk-python/blob/main/pyproject.toml
-- google-adk issues — #2657 (FastAPI conflict closed as "won't relax"), #3173 (Pydantic 2.11+ schema failures), #3615 (lightweight install request, open, no resolution timeline): https://github.com/google/adk-python/issues/
-- Google ADK docs — SequentialAgent, ParallelAgent, BaseAgent, InMemorySessionService (documented for v1.3 reference): https://google.github.io/adk-docs/agents/
-- langchain-google-genai 4.0.0 discussion — confirmed both pydantic-ai and langchain 4.x now use `google-genai`; coexistence during migration validated: https://github.com/langchain-ai/langchain-google/discussions/1422
-- Codebase analysis — `app/ai/client.py` (GeminiClient 757 LOC), `app/ai/client_domain.py` (4 domain methods), `app/ai/langgraph/graphs.py` (2 graphs with 2 nodes each), `app/ai/pii_redaction.py`, `app/services/ai/guardrails.py`, `app/ai/langgraph/runtime.py` (Redis checkpoint key patterns)
+- WuzAPI API.md — all endpoints, request/response schemas, phone format, HMAC details: https://github.com/asternic/wuzapi/blob/main/API.md
+- WuzAPI README.md — authentication model, session vs instance, HMAC configuration, Docker deployment: https://github.com/asternic/wuzapi/blob/main/README.md
+- whatsmeow events package — `events.Message` and `events.Receipt` Go struct definitions: https://pkg.go.dev/go.mau.fi/whatsmeow/types/events
+- whatsmeow discussion #534 — buttons deprecated, cannot be sent via unofficial libraries: https://github.com/tulir/whatsmeow/discussions/534
+- DEV.to — buttons and lists deprecated timeline (Aug 2021, Apr 2022, May 2022 final block): https://dev.to/purpshell/buttons-and-lists-get-deprecated-by-many-libraries-54h
+- aiohttp PyPI — 3.13.x supports Python 3.13: https://pypi.org/project/aiohttp/
+- Codebase analysis (all affected files read directly) — `evolution_client.py`, `webhooks.py`, `unified_whatsapp_service.py`, `hmac_validator.py`, `message_extractor.py`, `phone_normalizer.py`, `idempotent_sender.py`, `status_handler.py`, `integrations.py` settings, `message.py` models
 
 ### Secondary (MEDIUM confidence)
-- pydantic-ai issues #582, #1237, #3483 — Gemini structured output limitations, nested model edge cases, streaming constraints: https://github.com/pydantic/pydantic-ai/issues/
-- pydantic-ai issues #3762, #748 — `RuntimeError: Event loop is closed` with GoogleModel + async_to_sync: https://github.com/pydantic/pydantic-ai/issues/
-- ADK GitHub discussion #3924 — Runner concurrency safety with FastAPI: https://github.com/google/adk-python/discussions/3924
-- ADK GitHub issue #819 — `run_live()` incompatibility with SequentialAgent (not relevant to `run_async` path): https://github.com/google/adk-python/issues/819
-- ZenML blog — pydantic-ai vs LangGraph vs ADK framework comparison: https://www.zenml.io/blog/pydantic-ai-vs-langgraph
+- WuzAPI wmiau.go — webhook event dispatch, postmap structure for Message and ReadReceipt events (inferred from Go source): https://github.com/asternic/wuzapi/blob/main/wmiau.go
+- WuzAPI routes.go — complete route list including /chat/send/buttons and /chat/send/list: https://github.com/asternic/wuzapi/blob/main/routes.go
+- WuzAPI issue #160 + #232 — token field removed from webhook payloads for security: https://github.com/asternic/wuzapi/issues/160
+- Brazil 9th-digit WhatsApp JID inconsistency (Zoko): https://www.zoko.io/learning-article/whatsapp-id-brazil-mexico
+- Brazil 9th-digit inconsistency (Gupshup): https://support.gupshup.io/hc/en-us/articles/4407840924953
+- whatsmeow LID issue #859 — LID error 479: https://github.com/tulir/whatsmeow/issues/859
+- LID/JID transition explanation (SprintHub): https://docs.sprinthub.com/en/news/behind-the-scenes-change-on-whatsapp-the-era-of-lid-and-jid-and-the-end-of-exposing-the-cell-phone-n
+- aiohttp vs httpx benchmarks — aiohttp 2x+ faster for high-concurrency async: https://miguel-mendez-ai.com/2024/10/20/aiohttp-vs-httpx
 
-### Tertiary (informational, not decision-critical)
-- LangGraph Redis checkpoint migration guide — key patterns and cleanup requirements: https://github.com/redis-developer/langgraph-redis/blob/main/MIGRATION_0.2.0.md
-- DEV Community — Google ADK + FastAPI integration production patterns (for future v1.3 reference): https://dev.to/timtech4u/building-ai-agents-with-google-adk-fastapi-and-mcp-26h7
-- Google ADK Safety and Security docs — callback-based guardrail screening: https://google.github.io/adk-docs/safety/
+### Tertiary (informational)
+- WuzAPI Docker Hub — `asternic/wuzapi` image: https://hub.docker.com/r/asternic/wuzapi
+- whatsmeow ban risk discussion #567 — WhatsApp account behavior with unofficial APIs: https://github.com/tulir/whatsmeow/discussions/567
+- Baileys v7 LID migration docs — covers LID handling in whatsmeow-equivalent library: https://baileys.wiki/docs/migration/to-v7.0.0/
 
 ---
-*Research completed: 2026-02-23*
+*Research completed: 2026-03-01*
 *Ready for roadmap: yes*
