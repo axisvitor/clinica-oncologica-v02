@@ -88,45 +88,45 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLI-01 | — | Pending |
-| CLI-02 | — | Pending |
-| CLI-03 | — | Pending |
-| CLI-04 | — | Pending |
-| CLI-05 | — | Pending |
-| CLI-06 | — | Pending |
-| WH-01 | — | Pending |
-| WH-02 | — | Pending |
-| WH-03 | — | Pending |
-| WH-04 | — | Pending |
-| WH-05 | — | Pending |
-| WH-06 | — | Pending |
-| SESS-01 | — | Pending |
-| SESS-02 | — | Pending |
-| SESS-03 | — | Pending |
-| CFG-01 | — | Pending |
-| CFG-02 | — | Pending |
-| CFG-03 | — | Pending |
-| OUT-01 | — | Pending |
-| OUT-02 | — | Pending |
-| OUT-03 | — | Pending |
-| OUT-04 | — | Pending |
-| CLEAN-01 | — | Pending |
-| CLEAN-02 | — | Pending |
-| CLEAN-03 | — | Pending |
-| CLEAN-04 | — | Pending |
-| CLEAN-05 | — | Pending |
-| CLEAN-06 | — | Pending |
-| TEST-01 | — | Pending |
-| TEST-02 | — | Pending |
-| TEST-03 | — | Pending |
-| TEST-04 | — | Pending |
-| TEST-05 | — | Pending |
+| CLI-01 | Phase 33 | Pending |
+| CLI-02 | Phase 33 | Pending |
+| CLI-03 | Phase 33 | Pending |
+| CLI-04 | Phase 33 | Pending |
+| CLI-05 | Phase 33 | Pending |
+| CLI-06 | Phase 33 | Pending |
+| WH-01 | Phase 34 | Pending |
+| WH-02 | Phase 34 | Pending |
+| WH-03 | Phase 34 | Pending |
+| WH-04 | Phase 34 | Pending |
+| WH-05 | Phase 34 | Pending |
+| WH-06 | Phase 34 | Pending |
+| SESS-01 | Phase 35 | Pending |
+| SESS-02 | Phase 35 | Pending |
+| SESS-03 | Phase 35 | Pending |
+| CFG-01 | Phase 35 | Pending |
+| CFG-02 | Phase 35 | Pending |
+| CFG-03 | Phase 35 | Pending |
+| OUT-01 | Phase 36 | Pending |
+| OUT-02 | Phase 36 | Pending |
+| OUT-03 | Phase 36 | Pending |
+| OUT-04 | Phase 36 | Pending |
+| CLEAN-01 | Phase 37 | Pending |
+| CLEAN-02 | Phase 37 | Pending |
+| CLEAN-03 | Phase 37 | Pending |
+| CLEAN-04 | Phase 37 | Pending |
+| CLEAN-05 | Phase 37 | Pending |
+| CLEAN-06 | Phase 37 | Pending |
+| TEST-01 | Phase 38 | Pending |
+| TEST-02 | Phase 38 | Pending |
+| TEST-03 | Phase 38 | Pending |
+| TEST-04 | Phase 38 | Pending |
+| TEST-05 | Phase 38 | Pending |
 
 **Coverage:**
 - v1.6 requirements: 33 total
-- Mapped to phases: 0
-- Unmapped: 33
+- Mapped to phases: 33
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 after initial definition*
+*Last updated: 2026-03-01 — traceability complete (33/33 mapped to Phases 33-38)*
