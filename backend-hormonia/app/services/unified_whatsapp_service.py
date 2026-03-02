@@ -15,7 +15,7 @@ Key Benefits:
 import asyncio
 import json
 import logging
-from typing import Any, Optional, Callable, Dict
+from typing import Any, Optional, Callable, Dict, cast
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -212,7 +212,8 @@ class UnifiedWhatsAppService:
                 raise ExternalServiceError(
                     "WuzAPI not configured: WHATSAPP_WUZAPI_TOKEN missing"
                 )
-            self._wuzapi_client = get_wuzapi_client(base_url=base_url, token=token)
+            client = get_wuzapi_client(base_url=base_url, token=token)
+            self._wuzapi_client = cast(WuzAPIClient, client)
             await self._wuzapi_client.connect()
         return self._wuzapi_client
 
@@ -851,12 +852,12 @@ class UnifiedWhatsAppService:
             elif status == "degraded" and health["status"] != "unhealthy":
                 health["status"] = "degraded"
 
-        # Check queue client
+        # Check WuzAPI client
         try:
             await self._get_wuzapi_client()
-            _set_component_status("queue_client", "healthy")
+            _set_component_status("wuzapi_client", "healthy")
         except Exception as e:
-            _set_component_status("queue_client", "unhealthy", str(e))
+            _set_component_status("wuzapi_client", "unhealthy", str(e))
 
         # Check queue connection
         try:
