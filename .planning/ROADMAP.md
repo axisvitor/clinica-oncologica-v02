@@ -89,7 +89,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 **Milestone Goal:** Replace Evolution API with WuzAPI as the WhatsApp provider — hard cut, no dual-provider mode. All outbound messages routed through WuzAPIClient, all inbound webhooks parsed by WuzAPI-native handler, all Evolution code tombstoned.
 
-- [ ] **Phase 33: New Provider Foundation** - WuzAPIClient package with aiohttp, retry, rate limiter, mock client, and media utility
+- [x] **Phase 33: New Provider Foundation** - WuzAPIClient package with aiohttp, retry, rate limiter, mock client, and media utility (completed 2026-03-02)
 - [ ] **Phase 34: Webhook Handler** - New /webhooks/wuzapi endpoint with HMAC validation, idempotency, LID detection, and opt-out routing
 - [ ] **Phase 35: Configuration and Session** - New env vars, startup validation, .env.example update, and session management endpoints
 - [ ] **Phase 36: Outbound Migration** - Wire WuzAPIClient into all three outbound callers before any Evolution code is removed
@@ -206,7 +206,7 @@ Plans:
 | 14-19. Flow Health & Cleanup | v1.3 | 31/31 | Complete | 2026-02-26 |
 | 20-28. AsyncSession & Test Stability | v1.4 | 54/54 | Complete | 2026-02-28 |
 | 29-32. Saga Orchestrator Deep Dive | v1.5 | 14/14 | Complete | 2026-03-01 |
-| 33. New Provider Foundation | 1/3 | In Progress|  | - |
+| 33. New Provider Foundation | 3/3 | Complete   | 2026-03-02 | - |
 | 34. Webhook Handler | v1.6 | 0/3 | Not started | - |
 | 35. Configuration and Session | v1.6 | 0/2 | Not started | - |
 | 36. Outbound Migration | v1.6 | 0/2 | Not started | - |

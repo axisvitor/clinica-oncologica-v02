@@ -4,16 +4,15 @@ milestone: v1.6
 milestone_name: WuzAPI Migration
 current_phase: 33
 current_phase_name: New Provider Foundation
-current_plan: 02
-status: executing
-stopped_at: Completed 33-01-PLAN.md
-last_updated: "2026-03-02T00:41:07.000Z"
+current_plan: 03
+status: completed
+stopped_at: Completed 33-03-PLAN.md
+last_updated: "2026-03-02T00:58:13.160Z"
 progress:
-  total_phases: 6
-  completed_phases: 0
-  total_plans: 15
-  completed_plans: 1
-  percent: 7
+  total_phases: 7
+  completed_phases: 7
+  total_plans: 34
+  completed_plans: 34
 ---
 
 # Project State
@@ -28,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 33 of 38 (New Provider Foundation)
-Plan: 02 of 03 (33-01 completed)
-Status: Executing
-Last activity: 2026-03-02 — Completed 33-01 WuzAPI foundation
+Plan: 03 of 03 (33-01, 33-02, 33-03 completed)
+Status: Completed
+Last activity: 2026-03-02 — Completed 33-03 WuzAPI resilience + mock factory
 
-Progress: [█░░░░░░░░░] 7% (1/15 plans)
+Progress: [██████████] 100% (3/3 plans in phase)
 
 ## Performance Metrics
 
@@ -47,6 +46,8 @@ Progress: [█░░░░░░░░░] 7% (1/15 plans)
 | v1.6 WuzAPI Migration | 6 | 15 est. | Started 2026-03-01 |
 | **Cumulative (shipped)** | **32 phases** | **138 plans** | **8 days** |
 | Phase 33 P01 | 12min | 2 tasks | 6 files |
+| Phase 33-new-provider-foundation P02 | 9 min | 2 tasks | 6 files |
+| Phase 33 P03 | 10m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -59,6 +60,10 @@ Progress: [█░░░░░░░░░] 7% (1/15 plans)
 - [v1.6]: HMAC: read raw body bytes first, then json.loads separately — consuming request.json() first makes HMAC validation impossible
 - [Phase 33]: Use Authorization header with raw token value (no Bearer prefix) in WuzAPI client defaults.
 - [Phase 33]: Retry policy gives up on 4xx except 429 while retrying 5xx/429 up to three attempts.
+- [Phase 33-new-provider-foundation]: Centralized media endpoint/field maps in models.py and consumed by client.send_media.
+- [Phase 33-new-provider-foundation]: Enforced 16 MB limit during stream accumulation instead of post-download size checks.
+- [Phase 33]: WuzAPIClient now wraps request execution with RedisCircuitBreaker(name="wuzapi") using 5/60/3 thresholds.
+- [Phase 33]: WuzAPI package now exposes get_wuzapi_client() with WHATSAPP_WUZAPI_USE_MOCK=true switching to MockWuzAPIClient.
 
 ### Pending Todos
 
@@ -72,6 +77,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-02T00:39:07.134Z
-**Stopped At:** Completed 33-01-PLAN.md
+**Last session:** 2026-03-02T00:58:13.136Z
+**Stopped At:** Completed 33-03-PLAN.md
 **Resume File:** None
