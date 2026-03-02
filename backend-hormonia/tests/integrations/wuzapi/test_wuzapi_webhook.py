@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import fakeredis.aioredis
 import httpx
@@ -180,7 +180,7 @@ async def test_opt_out_revokes_communication_consent(app: FastAPI, fake_redis):
 
     assert response.status_code == 200
     assert response.json()["status"] == "opt_out_processed"
-    handle_opt_out_mock.assert_awaited_once_with(patient, pytest.ANY)
+    handle_opt_out_mock.assert_awaited_once_with(patient, ANY)
 
 
 @pytest.mark.asyncio
@@ -202,7 +202,7 @@ async def test_opt_out_unknown_phone_logs_warning(app: FastAPI, fake_redis, capl
 async def test_opt_out_uses_phone_hash_lookup(app: FastAPI, fake_redis):
     payload = message_payload(event_id="STOP-HASH", text="STOP")
     patient = AsyncMock(id="patient-4")
-    find_mock = AsyncMock(return_value=patient)
+    find_mock = Mock(return_value=patient)
 
     with patch("app.integrations.wuzapi.webhook.get_async_redis_client", new=AsyncMock(return_value=fake_redis)), patch(
         "app.integrations.wuzapi.webhook.PhoneNormalizer.find_patient_by_phone", new=find_mock
@@ -212,7 +212,7 @@ async def test_opt_out_uses_phone_hash_lookup(app: FastAPI, fake_redis):
 
     assert response.status_code == 200
     assert response.json()["status"] == "opt_out_processed"
-    find_mock.assert_awaited_once()
+    find_mock.assert_called_once()
 
 
 @pytest.mark.asyncio
