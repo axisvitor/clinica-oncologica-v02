@@ -88,10 +88,7 @@ class UnifiedWhatsAppService:
         resolved_redis_url = redis_url
         resolved_instance_name = default_instance_name
 
-        configured_instance_name = (
-            resolved_instance_name
-            or getattr(settings, "WHATSAPP_EVOLUTION_INSTANCE_NAME", None)
-        )
+        configured_instance_name = resolved_instance_name
         if not isinstance(configured_instance_name, str):
             configured_instance_name = None
         resolved_instance_name = (

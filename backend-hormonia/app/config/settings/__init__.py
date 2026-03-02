@@ -80,7 +80,7 @@ class Settings(
     This class inherits from all specialized settings modules:
     - DatabaseSettings: PostgreSQL and Redis configuration
     - SecuritySettings: JWT, Firebase, CSRF, CORS, rate limiting
-    - IntegrationsSettings: Evolution API, Gemini AI, Celery
+    - IntegrationsSettings: WuzAPI, Gemini AI, Celery
     - FeaturesSettings: Monthly quiz, flows, file uploads, localization
     - MonitoringSettings: Sentry, logging, APM, error tracking
 
@@ -131,7 +131,6 @@ class Settings(
             "RATE_LIMIT_ENABLE_SERVICE",
             # WhatsApp/Evolution
             "WHATSAPP_ENABLE_SERVICE",
-            "WHATSAPP_EVOLUTION_USE_MOCK",
             "WHATSAPP_WUZAPI_USE_MOCK",  # Phase 35: WuzAPI mock toggle
             "WHATSAPP_ENABLE_ON_REGISTRATION",
             "WHATSAPP_ENABLE_WELCOME_MESSAGE",
