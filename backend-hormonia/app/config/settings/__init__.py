@@ -132,6 +132,7 @@ class Settings(
             # WhatsApp/Evolution
             "WHATSAPP_ENABLE_SERVICE",
             "WHATSAPP_EVOLUTION_USE_MOCK",
+            "WHATSAPP_WUZAPI_USE_MOCK",  # Phase 35: WuzAPI mock toggle
             "WHATSAPP_ENABLE_ON_REGISTRATION",
             "WHATSAPP_ENABLE_WELCOME_MESSAGE",
             "WHATSAPP_WEBHOOK_HMAC_ENABLED",
