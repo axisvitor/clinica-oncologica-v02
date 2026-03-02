@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
 status: complete
-stopped_at: Completed 37-03-PLAN.md
-last_updated: "2026-03-02T22:42:37.530Z"
+stopped_at: Completed 37-04-PLAN.md
+last_updated: "2026-03-02T23:41:23.136Z"
 progress:
   total_phases: 11
   completed_phases: 11
-  total_plans: 45
-  completed_plans: 45
+  total_plans: 46
+  completed_plans: 46
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 37 of 39 (Evolution Cleanup)
-Plan: 03 of 03 (completed)
+Plan: 04 of 04 (completed)
 Status: Completed
-Last activity: 2026-03-02 — Completed 37-03 gap closure for canonical validator import and WuzAPI-only runtime config
+Last activity: 2026-03-02 — Completed 37-04 final gap closure for runtime imports, webhook export cleanup, and test tombstones
 
-Progress: [██████████] 100% (3/3 plans in phase 37 completed)
+Progress: [██████████] 100% (4/4 plans in phase 37 completed)
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [██████████] 100% (3/3 plans in phase 37 completed
 | Phase 37 P01 | 14 min | 2 tasks | 15 files |
 | Phase 37 P02 | 15 min | 2 tasks | 21 files |
 | Phase 37 P03 | 10min | 2 tasks | 4 files |
+| Phase 37-evolution-cleanup P04 | 10 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,8 @@ Progress: [██████████] 100% (3/3 plans in phase 37 completed
 - [Phase 37]: Monitoring/validation defaults now use WuzAPI token and instance identifiers, eliminating Evolution settings dependencies.
 - [Phase 37]: Use validate_and_format_phone(request.to, strict=False) with 3-tuple unpacking in message_service send path.
 - [Phase 37]: Remove WHATSAPP_EVOLUTION instance fallback and rely on resolved/default instance handling in UnifiedWhatsAppService.
+- [Phase 37-evolution-cleanup]: Keep unauthorized response path as log-only no-op after Evolution removal to avoid reintroducing non-clinical outbound behavior.
+- [Phase 37-evolution-cleanup]: Use WuzAPIError.status checks as drop-in queue failure categorization for RATE_LIMIT and API_ERROR.
 
 ### Pending Todos
 
@@ -107,6 +110,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-02T22:42:37.495Z
-**Stopped At:** Completed 37-03-PLAN.md
+**Last session:** 2026-03-02T23:41:23.097Z
+**Stopped At:** Completed 37-04-PLAN.md
 **Resume File:** None
