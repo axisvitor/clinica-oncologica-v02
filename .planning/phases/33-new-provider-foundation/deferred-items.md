@@ -1,0 +1,1 @@
+- Out-of-scope verification issue (not introduced by 33-02 changes): `python3 -m pytest tests/integrations/wuzapi/ -x -q` fails at `tests/integrations/wuzapi/test_wuzapi_client.py::test_non_success_response_raises` with `CircuitOpenError: Circuit wuzapi is open` due persisted circuit breaker state in Redis.
