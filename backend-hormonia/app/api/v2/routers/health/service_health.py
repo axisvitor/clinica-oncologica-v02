@@ -158,36 +158,6 @@ async def check_external_services() -> List[ExternalServiceHealth]:
     """Check external service health."""
     services = []
 
-    # Check Evolution API if enabled
-    if hasattr(settings, "ENABLE_EVOLUTION") and settings.WHATSAPP_ENABLE_SERVICE:
-        try:
-            from app.integrations.evolution import get_evolution_client
-
-            client = await get_evolution_client()
-            start_time = time.time()
-            await client.get_instance_status()
-            latency_ms = (time.time() - start_time) * 1000
-
-            services.append(
-                ExternalServiceHealth(
-                    name="Evolution API",
-                    status=HealthStatus.HEALTHY,
-                    latency_ms=round(latency_ms, 2),
-                    last_check=now_sao_paulo(),
-                    error_message=None,
-                )
-            )
-        except Exception as e:
-            services.append(
-                ExternalServiceHealth(
-                    name="Evolution API",
-                    status=HealthStatus.DEGRADED,
-                    latency_ms=None,
-                    last_check=now_sao_paulo(),
-                    error_message=str(e),
-                )
-            )
-
     return services
 
 

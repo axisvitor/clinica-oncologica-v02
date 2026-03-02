@@ -23,7 +23,6 @@ from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.domain.messaging.core import MessageService
 from app.core.redis_manager import get_sync_redis_client as get_redis_client
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError
-from app.integrations.evolution import EvolutionClient
 from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 
 from .metrics import (
@@ -57,11 +56,9 @@ class SagaOrchestrator(SagaDBAdapterMixin):
         self,
         db: Any,  # AsyncSession from API path; sync Session from Celery (via run_async)
         redis_client: Optional[Any] = None,
-        evolution_client: Optional[EvolutionClient] = None,
     ):
         self.db = db
         self.redis = redis_client or get_redis_client()
-        self.evolution_client = evolution_client
 
         self.patient_repo = PatientRepository(db)
         self.flow_service = PatientFlowService(db)

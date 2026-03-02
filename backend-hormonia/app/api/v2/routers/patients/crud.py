@@ -751,10 +751,9 @@ async def create_patient(
     # Initialize coordinator via factory
     from app.services.patient.onboarding_factory import get_onboarding_coordinator
     from app.orchestration.saga_orchestrator import SagaOrchestrator
-    from app.integrations.evolution import EvolutionClient
 
     saga_orchestrator = SagaOrchestrator(
-        db=db, redis_client=_get_sync_redis_client(), evolution_client=EvolutionClient()
+        db=db, redis_client=_get_sync_redis_client()
     )
 
     coordinator = get_onboarding_coordinator(db, saga_orchestrator)

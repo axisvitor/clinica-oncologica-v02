@@ -5,7 +5,7 @@ Enhanced Circuit Breaker Module - HIGH-006
 Implements circuit breaker pattern for external API calls to prevent cascading failures.
 
 Protects:
-- WhatsApp/Evolution API
+- WhatsApp/WuzAPI
 - Firebase Authentication
 - Gemini AI (LangChain)
 
@@ -50,7 +50,7 @@ T = TypeVar("T")
 class ServiceType(str, Enum):
     """External service types with circuit breaker protection."""
 
-    WHATSAPP = "whatsapp_evolution_api"
+    WHATSAPP = "wuzapi"
     FIREBASE = "firebase_auth"
     GEMINI_AI = "gemini_ai"
 

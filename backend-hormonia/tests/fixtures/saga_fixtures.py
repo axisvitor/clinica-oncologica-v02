@@ -61,26 +61,9 @@ def mock_redis():
 
 
 @pytest.fixture
-def mock_evolution_client():
-    """
-    Mock Evolution API client for WhatsApp messaging.
-
-    Returns:
-        Mock client with async send_message method
-    """
-    client_mock = Mock()
-    client_mock.send_message = AsyncMock(return_value={
-        "message_id": str(uuid.uuid4()),
-        "status": "sent",
-    })
-    return client_mock
-
-
-@pytest.fixture
 def saga_orchestrator(
     db_session: Session,
     mock_redis,
-    mock_evolution_client,
 ) -> SagaOrchestrator:
     """
     Create saga orchestrator with mocked external services.
@@ -88,7 +71,6 @@ def saga_orchestrator(
     Args:
         db_session: SQLAlchemy database session
         mock_redis: Mocked Redis client
-        mock_evolution_client: Mocked Evolution API client
 
     Returns:
         Configured SagaOrchestrator instance
@@ -96,7 +78,6 @@ def saga_orchestrator(
     return SagaOrchestrator(
         db=db_session,
         redis=mock_redis,
-        evolution_client=mock_evolution_client,
         enable_persistence=True,
         max_retries=3,
         retry_initial_delay=0.1,  # Fast retries for tests
@@ -329,7 +310,6 @@ __all__ = [
     "test_patient_data",
     "test_saga_id",
     "mock_redis",
-    "mock_evolution_client",
     "saga_orchestrator",
     "failed_saga_record",
     "completed_patient_record",
