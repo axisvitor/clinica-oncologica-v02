@@ -40,8 +40,8 @@ Requirements for WuzAPI migration. Each maps to roadmap phases.
 ### Outbound Migration
 
 - [x] **OUT-01**: UnifiedWhatsAppService uses WuzAPIClient instead of EvolutionAPIClient for all outbound messages
-- [ ] **OUT-02**: WhatsAppMessageService queue pipeline wired to WuzAPIClient
-- [ ] **OUT-03**: IdempotentMessageSender updated to use WuzAPIClient instead of legacy EvolutionClient (Stack A)
+- [x] **OUT-02**: WhatsAppMessageService queue pipeline wired to WuzAPIClient
+- [x] **OUT-03**: IdempotentMessageSender updated to use WuzAPIClient instead of legacy EvolutionClient (Stack A)
 - [x] **OUT-04**: Phone format adapted: raw digits sent to WuzAPI (no `@s.whatsapp.net` suffix on send — WuzAPI accepts raw Phone field)
 
 ### Evolution Cleanup
@@ -107,8 +107,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | CFG-02 | Phase 35 | Complete |
 | CFG-03 | Phase 35 | Complete |
 | OUT-01 | Phase 36 | Complete |
-| OUT-02 | Phase 36 | Pending |
-| OUT-03 | Phase 36 | Pending |
+| OUT-02 | Phase 36 | Complete |
+| OUT-03 | Phase 36 | Complete |
 | OUT-04 | Phase 36 | Complete |
 | CLEAN-01 | Phase 37 | Pending |
 | CLEAN-02 | Phase 37 | Pending |

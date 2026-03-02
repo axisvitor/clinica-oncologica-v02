@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
 status: in_progress
-stopped_at: Completed 36-01-PLAN.md
-last_updated: "2026-03-02T05:28:30Z"
+stopped_at: Completed 36-02-PLAN.md
+last_updated: "2026-03-02T05:43:05.585Z"
 progress:
   total_phases: 10
-  completed_phases: 9
-  total_plans: 39
-  completed_plans: 39
+  completed_phases: 10
+  total_plans: 41
+  completed_plans: 41
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** v1.6 WuzAPI Migration — Phase 36: Outbound Migration
+**Current focus:** v1.6 WuzAPI Migration — Phase 37: Evolution Cleanup
 
 ## Current Position
 
-Phase: 36 of 39 (Outbound Migration)
-Plan: 02 of 02 (36-01 completed)
+Phase: 37 of 39 (Evolution Cleanup)
+Plan: 01 of 02 (36-01 and 36-02 completed)
 Status: In Progress
-Last activity: 2026-03-02 — Completed 36-01 UnifiedWhatsAppService outbound migration to WuzAPI
+Last activity: 2026-03-02 — Completed 36-02 outbound migration (message_service + idempotent_sender) to WuzAPI
 
-Progress: [█████░░░░░] 50% (1/2 plans in phase)
+Progress: [██████████] 100% (2/2 plans in phase 36 completed)
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Progress: [█████░░░░░] 50% (1/2 plans in phase)
 | Phase 34 P03 | 26 min | 2 tasks | 5 files |
 | Phase 35 P01 | 5 min | 2 tasks | 3 files |
 | Phase 35 P02 | 5 min | 2 tasks | 7 files |
+| Phase 36 P02 | 6 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Progress: [█████░░░░░] 50% (1/2 plans in phase)
 - [Phase 35]: Lifespan startup keeps `_initialize_evolution_api` and adds `_initialize_wuzapi_session` in parallel, with status-first idempotent connect and warning-only failures.
 - [Phase 36]: UnifiedWhatsAppService now uses `get_wuzapi_client()`/`WuzAPIClient` for direct and queue-backed outbound flows with circuit breaker key `wuzapi`.
 - [Phase 36]: Direct send path writes `whatsapp_id` from `response.data.Id` and encodes media via `fetch_and_encode_media` before `send_media`.
+- [Phase 36]: WhatsApp queue and idempotent senders now call WuzAPI directly while preserving existing queue/idempotency flows
+- [Phase 36]: sync_contacts now raises NotImplementedError because WuzAPI has no contacts API; removal deferred to Phase 37
 
 ### Pending Todos
 
@@ -92,6 +95,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-02T05:28:30Z
-**Stopped At:** Completed 36-01-PLAN.md
+**Last session:** 2026-03-02T05:43:05.552Z
+**Stopped At:** Completed 36-02-PLAN.md
 **Resume File:** None
