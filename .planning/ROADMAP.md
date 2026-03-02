@@ -125,12 +125,12 @@ Plans:
   3. ReadReceipt events map `Receipt.Type` values to the correct `MessageStatus` (SENT, DELIVERED, READ, PLAYED)
   4. A repeated event with the same `event.Info.ID` is deduplicated via Redis SET NX and processed only once
   5. An inbound message containing STOP, PARAR, or CANCELAR triggers the opt-out handler and sets `patient.messaging_stopped_at`; senders with `@lid` addresses are routed to DLQ rather than silently dropped
-**Plans**: TBD
+**Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 34-01: Webhook endpoint and HMAC validation (route registration, raw body read before JSON parse, x-hmac-signature header lookup)
-- [ ] 34-02: WuzAPIMessageExtractor (Message payload parser, ReadReceipt mapper, LID detection and DLQ routing)
-- [ ] 34-03: Idempotency and opt-out wiring (Redis SET NX on event.Info.ID, STOP/PARAR/CANCELAR extraction from WuzAPI payload path)
+- [ ] 34-01-PLAN.md — Webhook endpoint and HMAC validation: POST /webhooks/wuzapi, raw body read, x-hmac-signature, event type routing stubs (Wave 1)
+- [ ] 34-02-PLAN.md — WuzAPIMessageExtractor: Message parser, ReadReceipt mapper, LID detection, PLAYED enum, RECEIPT_TYPE_TO_STATUS (Wave 1, parallel with 34-01)
+- [ ] 34-03-PLAN.md — Idempotency, opt-out, LID DLQ wiring: Redis SET NX dedup, STOP/PARAR/CANCELAR handler, LID DLQ routing, router registration (Wave 2, depends on 34-01 + 34-02)
 
 ### Phase 35: Configuration and Session
 **Goal**: All WuzAPI environment variables exist in settings, application refuses to start without the token, `.env.example` is updated, and session management (connect, status, QR) is exposed through the monitoring API
