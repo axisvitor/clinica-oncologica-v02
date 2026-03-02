@@ -1,6 +1,6 @@
 # Phase 37: Evolution Cleanup - Research
 
-**Researched:** 2026-03-02
+**Researched:** 2026-03-02 (gap-closure re-research)
 **Domain:** Python dead-code tombstoning, FastAPI router deregistration, pydantic settings cleanup
 **Confidence:** HIGH
 
@@ -11,25 +11,330 @@
 
 | ID | Description | Research Support |
 |----|-------------|-----------------|
-| CLEAN-01 | Stack A tombstoned: `app/integrations/evolution/` (client, message_sender, request_handler, webhook_handler, rate_limiter, validators) converted to ImportError sentinels | Tombstone pattern confirmed from Phase 12/16; all 7 files identified |
-| CLEAN-02 | Stack B tombstoned: `app/integrations/whatsapp/services/evolution_client.py` and `mock_evolution.py` converted to ImportError sentinels | Both files confirmed live; callers in routes.py and __init__.py identified |
-| CLEAN-03 | Evolution webhook handler tombstoned: `app/integrations/whatsapp/api/webhooks.py` deregistered from router | Router registration path confirmed (router_registry.py → whatsapp/__init__.py); webhook_handler.py also wraps it |
-| CLEAN-04 | Evolution message extractor tombstoned: `app/services/webhook/utils/message_extractor.py` | File confirmed active; only one call site in message_handler.py at line 459 needs removal |
-| CLEAN-05 | LID resolution methods removed from `phone_normalizer.py` (WuzAPI/whatsmeow handles internally) | `resolve_phone_from_lid`, `_fetch_evolution_chats`, `_match_phone_jid_for_lid`, `_normalize_chat_name`, `_parse_chat_timestamp` identified; single call site in message_handler.py line 459 |
-| CLEAN-06 | `WHATSAPP_EVOLUTION_*` env vars removed from settings and `.env.example` | 10 settings fields identified; `.env.example` has only `WHATSAPP_EVOLUTION_TIMEOUT_SECONDS` remaining; `worker/.env.example` has 5 more |
+| CLEAN-01 | Stack A tombstoned: `app/integrations/evolution/` (client, message_sender, request_handler, webhook_handler, rate_limiter, validators) converted to ImportError sentinels | Tombstones exist (37-01); blocked only by runtime import in `message_handler.py:1065` |
+| CLEAN-02 | Stack B tombstoned: `app/integrations/whatsapp/services/evolution_client.py` and `mock_evolution.py` converted to ImportError sentinels | Tombstones exist (37-02); blocked only by top-level import of `EvolutionAPIError` in `queue/manager.py:19` |
+| CLEAN-03 | Evolution webhook handler tombstoned: `app/integrations/whatsapp/api/webhooks.py` deregistered from router | Tombstone exists (37-02); blocked by `api/__init__.py:6` still importing it + 2 test files importing the tombstoned module |
+| CLEAN-04 | Evolution message extractor tombstoned: `app/services/webhook/utils/message_extractor.py` | SATISFIED — tombstoned, zero active handler usage |
+| CLEAN-05 | LID resolution methods removed from `phone_normalizer.py` | SATISFIED — confirmed removed |
+| CLEAN-06 | `WHATSAPP_EVOLUTION_*` env vars removed from settings and `.env.example` | SATISFIED — confirmed removed (37-03) |
 </phase_requirements>
 
 ---
 
 ## Summary
 
-Phase 37 is a tombstone-and-prune operation: all Evolution API code that was bypassed in Phase 36 (outbound rewiring) must now be converted to `ImportError` sentinels so any surviving import attempt fails immediately at startup rather than silently consuming Evolution API credentials that no longer exist.
+### Original Research Context (preserved)
 
-The project has a mature tombstone pattern (used in Phase 12 for LangGraph, Phase 16 for dead code): replace the file content with a module-level docstring explaining the removal and a bare `raise ImportError(...)` on the first executable line. This pattern has been applied to at least 20+ modules in the codebase and is well-understood.
+Phase 37 is a tombstone-and-prune operation converting all Evolution API code to `ImportError` sentinels. Plans 37-01 and 37-02 completed the bulk of the work (tombstoning all Stack A/B files, webhook handlers, message extractor, LID resolution, env vars). Plan 37-03 closed a second round of gaps (canonical phone validator import in `message_service.py`, residual WHATSAPP_EVOLUTION settings, production env template).
 
-The complexity of this phase comes not from the tombstoning itself but from the dependency graph: several non-Evolution files still import from Evolution modules (`routes.py`, `__init__.py`, `orchestrator.py`, `message_handler.py`, `service_health.py`, `patients/crud.py`, `security.py`, `webhook_validator.py`). Each of these callers must be cleaned up or have their Evolution reference replaced/removed before or alongside the tombstone, otherwise the application fails to start.
+The project's tombstone pattern is established across 20+ modules: module-level docstring + `raise ImportError(...)` as the first executable line. This pattern has been used in Phase 12 (LangGraph), Phase 16 (dead code), Phase 37-01/02 (Evolution Stack A/B).
 
-**Primary recommendation:** Tombstone in two waves — first fix all callers (routes.py, __init__ files, orchestrator, health check, webhook infrastructure), then convert the Evolution files to ImportError sentinels. Commit as a single Phase 37 commit.
+After 37-03, three gaps remain. All tombstone files exist. The three gaps are all caller-side: active runtime code that still imports from already-tombstoned modules.
+
+**Primary recommendation for gap-closure plan 37-04:** Three file edits — no new tombstones required. All three fixes are caller-side removals/replacements. Two test files also need tombstoning.
+
+---
+
+## Gap Closure Re-Research: 3 Specific Gaps
+
+### Gap 1 — Stack A runtime import (CLEAN-01 blocked)
+
+**File:** `backend-hormonia/app/services/webhook/handlers/message_handler.py`
+**Lines:** 1065–1091 (within `_send_unauthorized_response` method, lines 1054–1099)
+
+#### Current code (exact, verified):
+
+```python
+    async def _send_unauthorized_response(
+        self, phone: str, attempt_count: int = 1
+    ) -> None:
+        """
+        Send escalating unauthorized messages to non-registered numbers.
+
+        Args:
+            phone: Phone number
+            attempt_count: Number of attempts (1-3)
+        """
+        try:
+            from app.integrations.evolution import get_evolution_client   # LINE 1065 -- TOMBSTONED
+
+            client = await get_evolution_client()                          # LINE 1067
+            if not client:
+                logger.warning("Evolution client unavailable")
+                return
+
+            # Escalating messages based on attempt count
+            messages = {
+                1: (
+                    "Olá! Este número não está cadastrado no sistema de acompanhamento da clínica. "
+                    "Para informações sobre cadastro, entre em contato com a recepção pelos telefones oficiais."
+                ),
+                2: (
+                    "ATENÇÃO: Este número não tem autorização para acessar o sistema da clínica. "
+                    "Se você é paciente, verifique se está usando o número correto cadastrado."
+                ),
+                3: (
+                    "ALERTA DE SEGURANÇA: Múltiplas tentativas de acesso não autorizado detectadas. "
+                    "Este número será temporariamente bloqueado."
+                ),
+            }
+
+            message = messages.get(attempt_count, messages[3])
+            delay = min(1000 * attempt_count, 5000)
+
+            await client.send_text_message(phone, message, delay=delay)   # LINE 1091
+
+            logger.info(
+                f"Sent unauthorized response (attempt #{attempt_count})",
+                extra={"phone": phone[:6] + "****", "attempt": attempt_count},
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send unauthorized response: {e}")
+```
+
+#### Only caller:
+Line 495: `await self._send_unauthorized_response(message_data["phone"], attempt_count)`
+
+The caller is in the active (WuzAPI-compatible) webhook processing path.
+
+#### Additional Evolution references in this file (non-blocking, string literals):
+- Line 2: module docstring mentions "Evolution API integration" — safe to leave or update
+- Line 94: comment "Standalone opt-out handler for any webhook endpoint (WuzAPI, Evolution, etc.)"
+- Line 157: class docstring "Handler for incoming message webhooks from Evolution API"
+- Line 196: method docstring "Process incoming message webhook from Evolution API"
+- Lines 214, 220: `source="evolution_api"` string literals — NOT import dependencies
+- Line 440: comment "Evolution official payload can include remoteJidAlt for LID addressed chats"
+
+None of the above are import dependencies. Only lines 1065–1091 are the actual blocker.
+
+#### WuzAPI replacement:
+
+The WuzAPI client is at `app.integrations.wuzapi` with `get_wuzapi_client(base_url, token)`. The send method is `send_text(phone: str, message: str) -> dict`. There is no `delay` parameter in WuzAPI's `send_text` — the delay concept was Evolution-specific.
+
+The recommended fix is to replace the Evolution client call with a direct WuzAPI `send_text` call using the same settings pattern used in `unified_whatsapp_service.py:_get_wuzapi_client()`:
+
+```python
+    async def _send_unauthorized_response(
+        self, phone: str, attempt_count: int = 1
+    ) -> None:
+        """
+        Send escalating unauthorized messages to non-registered numbers.
+
+        Args:
+            phone: Phone number
+            attempt_count: Number of attempts (1-3)
+        """
+        try:
+            from app.integrations.wuzapi import get_wuzapi_client
+
+            token = getattr(settings, "WHATSAPP_WUZAPI_TOKEN", None)
+            if not token:
+                logger.warning("WuzAPI not configured, skipping unauthorized response")
+                return
+
+            base_url = getattr(settings, "WHATSAPP_WUZAPI_BASE_URL", "")
+            client = get_wuzapi_client(base_url=base_url, token=token)
+
+            # Escalating messages based on attempt count
+            messages = {
+                1: (
+                    "Olá! Este número não está cadastrado no sistema de acompanhamento da clínica. "
+                    "Para informações sobre cadastro, entre em contato com a recepção pelos telefones oficiais."
+                ),
+                2: (
+                    "ATENÇÃO: Este número não tem autorização para acessar o sistema da clínica. "
+                    "Se você é paciente, verifique se está usando o número correto cadastrado."
+                ),
+                3: (
+                    "ALERTA DE SEGURANÇA: Múltiplas tentativas de acesso não autorizado detectadas. "
+                    "Este número será temporariamente bloqueado."
+                ),
+            }
+
+            message = messages.get(attempt_count, messages[3])
+
+            await client.send_text(phone, message)
+
+            logger.info(
+                f"Sent unauthorized response (attempt #{attempt_count})",
+                extra={"phone": phone[:6] + "****", "attempt": attempt_count},
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send unauthorized response: {e}")
+```
+
+**Rationale:** The lazy import pattern is acceptable here because this method has a broad `except Exception` guard — any failure including import errors is already swallowed. However, changing to WuzAPI import is cleaner. The `delay` parameter is dropped because WuzAPI's `send_text` has no delay support; at the volume of unauthorized responses this is not significant. The `client.connect()` step is NOT called here (unlike `_get_wuzapi_client()` in UnifiedWhatsAppService) because `connect()` establishes a WuzAPI session and this is an outbound-only ephemeral call — WuzAPI session is managed globally by the startup lifespan.
+
+**Alternative (simpler):** Disable the unauthorized response path entirely by making the method a no-op with a log. The function is defensive messaging for non-patients; the clinic may prefer to simply not respond to unauthorized numbers rather than send potentially confusing messages via a newly configured provider. The planner should decide between:
+1. Replace with WuzAPI send_text (preserves behavior)
+2. Disable with logger.warning only (removes behavior, simpler, safer)
+
+---
+
+### Gap 2 — Stack B runtime import (CLEAN-02 blocked)
+
+**File:** `backend-hormonia/app/integrations/whatsapp/queue/manager.py`
+**Line:** 19 (top-level import)
+
+#### Current code (exact, verified):
+
+```python
+# Line 19 (top-level, module load time):
+from app.integrations.whatsapp.services.evolution_client import EvolutionAPIError
+```
+
+#### Where it is used (exact, verified):
+
+```python
+# Lines 486-489 in _categorize_failure():
+    def _categorize_failure(self, error: Exception) -> FailureReason:
+        """Categorize failures for DLQ routing."""
+        if isinstance(error, asyncio.TimeoutError):
+            return FailureReason.TIMEOUT
+        if isinstance(error, ValueError) and "phone" in str(error).lower():
+            return FailureReason.INVALID_PHONE
+        if isinstance(error, EvolutionAPIError) and error.status == 429:  # LINE 486
+            return FailureReason.RATE_LIMIT
+        if isinstance(error, EvolutionAPIError):                           # LINE 488
+            return FailureReason.API_ERROR
+        if "rate" in str(error).lower() and "limit" in str(error).lower():
+            return FailureReason.RATE_LIMIT
+        return FailureReason.API_ERROR
+```
+
+#### WuzAPI replacement:
+
+`WuzAPIError` is the direct replacement. It lives at `app.integrations.wuzapi.errors` and is exported from `app.integrations.wuzapi`. It has the same `status` attribute (`status: int | None`). The structure is identical:
+
+```python
+# WuzAPIError (from app/integrations/wuzapi/errors.py):
+class WuzAPIError(Exception):
+    def __init__(self, message: str, status: int | None = None, response: dict | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+        self.response = response
+```
+
+**Fix — two changes in manager.py:**
+
+1. Replace line 19 import:
+   ```python
+   # REMOVE:
+   from app.integrations.whatsapp.services.evolution_client import EvolutionAPIError
+   # ADD:
+   from app.integrations.wuzapi.errors import WuzAPIError
+   ```
+
+2. Replace lines 486–489 in `_categorize_failure`:
+   ```python
+   # REMOVE:
+   if isinstance(error, EvolutionAPIError) and error.status == 429:
+       return FailureReason.RATE_LIMIT
+   if isinstance(error, EvolutionAPIError):
+       return FailureReason.API_ERROR
+   # ADD:
+   if isinstance(error, WuzAPIError) and error.status == 429:
+       return FailureReason.RATE_LIMIT
+   if isinstance(error, WuzAPIError):
+       return FailureReason.API_ERROR
+   ```
+
+#### Additional Evolution references in this file (non-blocking):
+- Line 4: module docstring "delivery to Evolution instances"
+- Line 35: class docstring "Multi-instance Evolution support"
+- Line 52: constructor docstring "Default Evolution instance name"
+
+These are string comments only — no import dependency. Safe to update as part of cleanup but not blocking.
+
+---
+
+### Gap 3 — Webhook deregistration incomplete (CLEAN-03 blocked)
+
+**File:** `backend-hormonia/app/integrations/whatsapp/api/__init__.py`
+**Lines:** 1–8 (entire file, only 8 lines)
+
+#### Current code (exact, verified):
+
+```python
+"""
+WhatsApp API package
+"""
+
+from .routes import router as whatsapp_router
+from .webhooks import router as webhook_router        # LINE 6 -- TOMBSTONED
+
+__all__ = ["whatsapp_router", "webhook_router"]       # LINE 8
+```
+
+#### Why this breaks the import chain:
+
+When Python imports `app.integrations.whatsapp` (triggered from `router_registry.py:207` and `app/api/v2/router.py:54`), the following chain runs:
+
+1. `from app.integrations.whatsapp import whatsapp_router` (or `from app.integrations.whatsapp.api.routes import router`)
+2. Python initializes `app.integrations.whatsapp.api` package → executes `api/__init__.py`
+3. `api/__init__.py` line 6: `from .webhooks import router as webhook_router`
+4. `webhooks.py` is tombstoned → raises `ImportError`
+5. App startup fails
+
+#### Consumers of `webhook_router` from `api/__init__.py`:
+
+None found. `grep -r "webhook_router"` across `backend-hormonia/app/` shows ZERO consumers outside of `api/__init__.py` itself. The `webhook_router` exported here was previously consumed by `router_registry.py` (removed in 37-02) and possibly `whatsapp/__init__.py` (removed in 37-02).
+
+#### Fix — two changes in `api/__init__.py`:
+
+```python
+# BEFORE (entire file):
+"""
+WhatsApp API package
+"""
+
+from .routes import router as whatsapp_router
+from .webhooks import router as webhook_router
+
+__all__ = ["whatsapp_router", "webhook_router"]
+
+# AFTER:
+"""
+WhatsApp API package
+"""
+
+from .routes import router as whatsapp_router
+
+__all__ = ["whatsapp_router"]
+```
+
+#### Test files that also import the tombstoned `webhooks` module:
+
+Two test files import `from app.integrations.whatsapp.api import webhooks as webhook_module`:
+
+1. `backend-hormonia/tests/integration/whatsapp/test_webhook_scenarios.py` (line 19)
+2. `backend-hormonia/tests/integration/whatsapp/test_webhook_fail_closed_and_queue_batch.py` (line 13)
+
+These tests will also fail with ImportError when the package init is fixed (because they import the tombstoned `webhooks` module directly). Both must be tombstoned using the standard test tombstone pattern:
+
+```python
+"""TOMBSTONED -- Phase 37: tested app.integrations.whatsapp.api.webhooks which is now tombstoned."""
+import pytest
+pytestmark = pytest.mark.skip(reason="Evolution webhook API tombstoned in Phase 37")
+```
+
+---
+
+## Gap Closure Map
+
+| Gap | File | Lines | Action | Replacement |
+|-----|------|-------|--------|-------------|
+| 1 (CLEAN-01) | `app/services/webhook/handlers/message_handler.py` | 1065–1091 | Replace import+call | `get_wuzapi_client` + `send_text()` OR disable (log only) |
+| 2 (CLEAN-02) | `app/integrations/whatsapp/queue/manager.py` | 19, 486–489 | Replace import+isinstance checks | `WuzAPIError` from `app.integrations.wuzapi.errors` |
+| 3 (CLEAN-03) | `app/integrations/whatsapp/api/__init__.py` | 6, 8 | Remove import+export | Nothing (line deletion only) |
+| 3 (CLEAN-03) test | `tests/integration/whatsapp/test_webhook_scenarios.py` | whole file | Tombstone | Standard skip pattern |
+| 3 (CLEAN-03) test | `tests/integration/whatsapp/test_webhook_fail_closed_and_queue_batch.py` | whole file | Tombstone | Standard skip pattern |
+
+**Total files to touch:** 5 (3 source + 2 tests)
+**New tombstone files:** 0 (all existing tombstones are correct)
+**New source files:** 0
 
 ---
 
@@ -38,16 +343,10 @@ The complexity of this phase comes not from the tombstoning itself but from the 
 ### Core (already in project)
 | Tool | Version | Purpose | Why Standard |
 |------|---------|---------|--------------|
-| Python `raise ImportError(...)` | stdlib | Module-level tombstone sentinel | Zero dependencies; fails fast at import time |
-| Pydantic `Field` removal | pydantic v2 | Remove settings fields | Already used throughout `IntegrationsSettings` |
-| FastAPI `APIRouter` | current | Router deregistration | Remove `include_router` call and `webhook_router` export |
-| `pytest` + `importlib` | 7.x | Verify tombstones raise | CI-runnable; established in codebase |
-
-### Verification Tools (already in project)
-| Tool | Purpose |
-|------|---------|
-| `scripts/check_agent_run_calls.py` | Reference CI lint script pattern to write TEST-05 equivalent |
-| `grep -r "EvolutionAPIClient\|EvolutionClient"` | Verify zero live imports after tombstone |
+| `raise ImportError(...)` | stdlib | Module-level tombstone sentinel | Zero dependencies; fails fast at import time |
+| `WuzAPIError` | project | Provider-agnostic WhatsApp error | Replaces `EvolutionAPIError`; identical `status` attribute |
+| `get_wuzapi_client` | project | WuzAPI client factory | Same pattern used by `unified_whatsapp_service.py` |
+| `pytest.mark.skip` | 7.x | Test tombstone pattern | Established in project for dead-code tests |
 
 ---
 
@@ -55,7 +354,7 @@ The complexity of this phase comes not from the tombstoning itself but from the 
 
 ### Tombstone Pattern (established in project)
 
-All tombstoned modules follow exactly this structure — no variation:
+All tombstoned modules follow exactly this structure:
 
 ```python
 """
@@ -72,288 +371,151 @@ raise ImportError(
 )
 ```
 
-Source: `app/ai/langgraph/__init__.py`, `app/services/flow/constants.py` (all identical structure).
+### WuzAPI Client Instantiation Pattern (from `unified_whatsapp_service.py:203-215`)
 
-### Caller Cleanup Pattern
-
-Before tombstoning a module, all callers must be either:
-1. **Removed** — if the caller itself is dead (e.g., `evolution_client.py` in routes.py `get_evolution_client()` function used only by Evolution endpoints being deleted)
-2. **Replaced** — if the caller is live but uses a replaceable evolution reference (e.g., `EvolutionClient()` in `patients/crud.py` which passes it to `SagaOrchestrator`; `SagaOrchestrator.__init__` accepts `Optional[EvolutionClient]` and stores it but the field is never used downstream — so the argument can simply be omitted)
-
-### Router Deregistration Pattern
-
-The Evolution webhook router at `/webhooks/whatsapp` is registered via:
-1. `app/integrations/whatsapp/__init__.py` exports `webhook_router` (from `api/webhooks.py`)
-2. `app/core/router_registry.py` calls `app.include_router(webhook_router)`
-3. `app/integrations/whatsapp/webhook_handler.py` wraps `api/webhooks.py` functions in a second router at `/api/v2/webhooks/whatsapp/evolution/{instance_name}`
-
-Deregistration requires:
-- Removing the `webhook_router` export from `whatsapp/__init__.py`
-- Removing `app.include_router(webhook_router)` from `router_registry.py`
-- Tombstoning `api/webhooks.py` (CLEAN-03)
-- Tombstoning `webhook_handler.py` (the wrapper, which imports from `api/webhooks.py`)
-
-After deregistration, `GET /webhooks/whatsapp/*` and `POST /api/v2/webhooks/whatsapp/evolution/*` return 404.
-
----
-
-## Complete File Inventory
-
-### Stack A — `app/integrations/evolution/` (7 files — CLEAN-01)
-
-| File | Class/Function | Status | Action |
-|------|---------------|--------|--------|
-| `__init__.py` | exports `EvolutionClient`, `get_evolution_client`, etc. | Live | Tombstone |
-| `client.py` | `EvolutionClient`, `get_evolution_client`, `close_evolution_client` | Live | Tombstone |
-| `message_sender.py` | `MessageSender` | Live | Tombstone |
-| `request_handler.py` | `RequestHandler` | Live | Tombstone |
-| `webhook_handler.py` | `WebhookHandler` | Live | Tombstone |
-| `rate_limiter.py` | `RateLimiter` | Live | Tombstone |
-| `validators.py` | `format_phone_number`, `validate_message_content` | Live | Tombstone |
-| `models.py` | `MessageType`, `TextMessage`, `WebhookEvent`, `EvolutionAPIError` | Live | Tombstone (not individually listed in requirements but is part of the package) |
-
-### Stack B — `app/integrations/whatsapp/services/` (2 files — CLEAN-02)
-
-| File | Class/Function | Status | Action |
-|------|---------------|--------|--------|
-| `evolution_client.py` | `EvolutionAPIClient`, `RateLimiter`, `EvolutionAPIError` | Live | Tombstone |
-| `mock_evolution.py` | `MockEvolutionAPIClient`, `create_evolution_client` | Live | Tombstone |
-
-### Evolution Webhook Handler (CLEAN-03)
-
-| File | Routes | Status | Action |
-|------|--------|--------|--------|
-| `app/integrations/whatsapp/api/webhooks.py` | `POST /webhooks/whatsapp/{instance_name}`, `POST /webhooks/whatsapp/{instance_name}/{event_name}` | Live | Tombstone + deregister |
-| `app/integrations/whatsapp/webhook_handler.py` | `POST /api/v2/webhooks/whatsapp/evolution/{instance_name}` | Live | Tombstone + deregister |
-
-### Message Extractor (CLEAN-04)
-
-| File | Function | Status | Action |
-|------|----------|--------|--------|
-| `app/services/webhook/utils/message_extractor.py` | `extract_message_data`, `_clean_phone_from_jid`, `_prefer_non_lid_jid`, `_select_source_jid`, `_extract_content_and_type` | Live | Tombstone (only called from `message_handler.py` Evolution path) |
-
-### LID Resolution Methods (CLEAN-05)
-
-| Location | Methods to remove | Callers |
-|----------|------------------|---------|
-| `app/services/webhook/utils/phone_normalizer.py` | `resolve_phone_from_lid`, `_fetch_evolution_chats`, `_match_phone_jid_for_lid`, `_normalize_chat_name`, `_parse_chat_timestamp`, class-level `_lid_resolution_cache: Dict[str, str]` | `message_handler.py:459` — single call site |
-
-The call site in `message_handler.py` at line 459 is in an `if remote_jid.endswith("@lid"):` block that must be deleted entirely (WuzAPI/whatsmeow resolves LIDs internally before delivering events).
-
-### Settings Fields to Remove (CLEAN-06)
-
-From `app/config/settings/integrations.py`, remove these `Field(...)` declarations:
-
-| Field | Default | Still Used? |
-|-------|---------|-------------|
-| `WHATSAPP_EVOLUTION_USE_MOCK` | `False` | routes.py `_should_use_mock_evolution()` — remove |
-| `WHATSAPP_EVOLUTION_API_URL` | `"http://localhost:8080"` | routes.py, lifespan, security, phone_normalizer — all to be cleaned |
-| `WHATSAPP_EVOLUTION_INSTANCE_NAME` | `"clinica_oncologica"` | monitoring/whatsapp.py lines 36, 47 — requires cleanup there |
-| `WHATSAPP_EVOLUTION_API_KEY` | `"your-evolution-api-key-here"` | routes.py, lifespan, validation.py — all to be cleaned |
-| `WHATSAPP_EVOLUTION_WEBHOOK_SECRET` | `None` | security.py lines 47/57/63, webhook_validator.py line 19 — all to be cleaned |
-| `WHATSAPP_WEBHOOK_SECRET` | `None` | Only referenced by security.py as fallback for evolution secret — can be removed |
-| `WHATSAPP_EVOLUTION_WEBHOOK_URL` | `None` | lifespan.py, routes.py — to be cleaned |
-| `WHATSAPP_EVOLUTION_TIMEOUT_SECONDS` | `30` | `phone_normalizer.py` LID methods (being deleted) — safe to remove |
-
-**Note:** `WHATSAPP_WEBHOOK_HMAC_ENABLED`, `WHATSAPP_WEBHOOK_TIMESTAMP_REQUIRED`, etc. are provider-agnostic and MUST be kept.
-
-From `.env.example` (backend-hormonia/):
-- Line 205: `WHATSAPP_EVOLUTION_TIMEOUT_SECONDS=30` — remove
-
-From `worker/.env.example`:
-- Lines 66-70: 5 WHATSAPP_EVOLUTION_* vars — remove
-
----
-
-## Caller Cleanup Map
-
-Before tombstoning Evolution modules, these live callers must be cleaned:
-
-### 1. `app/integrations/whatsapp/__init__.py`
-- Remove `from .services.evolution_client import EvolutionAPIClient, RateLimiter`
-- Remove `from .services.mock_evolution import MockEvolutionAPIClient, create_evolution_client`
-- Remove `from .api.webhooks import router as webhook_router`
-- Remove from `__all__`: `EvolutionAPIClient`, `RateLimiter`, `MockEvolutionAPIClient`, `create_evolution_client`, `webhook_router`
-
-### 2. `app/integrations/__init__.py`
-- Remove `from .evolution import (EvolutionClient, EvolutionAPIError, WebhookEvent, MessageType, get_evolution_client, close_evolution_client)`
-- Remove from `__all__`: all Evolution exports
-- Update module docstring to remove Evolution reference
-
-### 3. `app/integrations/whatsapp/api/routes.py`
-- Remove `from ..services.evolution_client import EvolutionAPIClient, validate_phone_number`
-- Remove `get_evolution_client()` dependency function (lines 78-109)
-- Remove `_should_use_mock_evolution()` helper
-- Remove all endpoints that `Depends(get_evolution_client)`:
-  - `POST /instances` (create_instance)
-  - `GET /instances/{instance_name}` (get_instance_status)
-  - `GET /instances/{instance_name}/qr` (get_qr_code)
-  - `POST /instances/{instance_name}/restart` (restart_instance)
-  - `DELETE /instances/{instance_name}` (delete_instance)
-  - `POST /contacts/{instance_name}/check` (check_whatsapp_number)
-- Keep: endpoints that use `Depends(get_message_service)` or `Depends(get_async_db)` only
-
-### 4. `app/core/router_registry.py`
-- Remove `app.include_router(webhook_router)` (line 210)
-- Keep `app.include_router(whatsapp_router)` (for surviving message/queue/contact endpoints)
-
-### 5. `app/core/lifespan.py`
-- Remove `_initialize_evolution_api(app, logger)` from `asyncio.gather()` (line 114)
-- Remove the entire `_initialize_evolution_api()` function (line 546+)
-
-### 6. `app/orchestration/saga_orchestrator/orchestrator.py`
-- Remove `from app.integrations.evolution import EvolutionClient` (line 26)
-- Remove `evolution_client: Optional[EvolutionClient] = None` from `__init__` signature
-- Remove `self.evolution_client = evolution_client` (line 64)
-- **Verify**: `evolution_client` is never used beyond being stored (confirmed at lines 26, 60, 64 — not referenced in any method body)
-
-### 7. `app/api/v2/routers/patients/crud.py`
-- Remove `from app.integrations.evolution import EvolutionClient` (line 754)
-- Remove `evolution_client=EvolutionClient()` from `SagaOrchestrator(...)` call (line 757)
-- Verify `SagaOrchestrator` constructor no longer has `evolution_client` parameter after step 6
-
-### 8. `app/api/v2/routers/health/service_health.py`
-- Remove the `if hasattr(settings, "ENABLE_EVOLUTION") and settings.WHATSAPP_ENABLE_SERVICE:` block (lines 162-195) that calls `get_evolution_client()` and adds Evolution API health check
-
-### 9. `app/services/webhook/handlers/message_handler.py`
-- Remove the `if remote_jid.endswith("@lid"):` block (lines 456-469) that calls `self.phone_normalizer.resolve_phone_from_lid(...)`
-- Remove the evolution-specific message logging (`source="evolution_api"` strings at lines 215/221 are metadata strings — not import dependencies, safe to leave as string literals or change to `"whatsapp"`)
-
-### 10. `app/services/whatsapp/security.py`
-- Replace `WHATSAPP_EVOLUTION_WEBHOOK_SECRET` references with `WHATSAPP_WUZAPI_WEBHOOK_SECRET` (lines 47, 57, 63)
-
-### 11. `app/middleware/webhook_validator.py`
-- Replace `settings.WHATSAPP_EVOLUTION_WEBHOOK_SECRET` with `settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET` (lines 19, 106, 123)
-
-### 12. `app/api/v2/routers/system/validation.py`
-- Update validation check at line 121 — remove or replace `settings.WHATSAPP_EVOLUTION_API_KEY` check
-
-### 13. `app/api/v2/monitoring/whatsapp.py`
-- Replace `settings.WHATSAPP_EVOLUTION_INSTANCE_NAME` (lines 36, 47) with `settings.WHATSAPP_WUZAPI_BASE_URL` or a neutral default
-
-### 14. `app/resilience/circuit_breaker/enhanced.py`
-- Line 53: `WHATSAPP = "whatsapp_evolution_api"` — rename constant value to `"wuzapi"` (the string is a metric label, not an import)
-
----
-
-## Tests to Tombstone/Remove
-
-These test files test code that will be tombstoned:
-
-| File | Action |
-|------|--------|
-| `tests/integrations/evolution/test_client_comprehensive.py` | Tombstone (imports from `app.integrations.evolution.client`) |
-| `tests/integration/whatsapp/test_evolution_integration.py` | Tombstone (imports `RateLimiter`, `EvolutionAPIClient` from Stack B) |
-| `tests/fixtures/saga_fixtures.py` | Remove `mock_evolution_client` fixture and update `saga_orchestrator` fixture to not pass `evolution_client=` |
-
-The test tombstone pattern: replace test file with skip-all:
 ```python
-"""TOMBSTONED -- Phase 37: tested app.integrations.evolution which is now tombstoned."""
-import pytest
-pytestmark = pytest.mark.skip(reason="Evolution API tombstoned in Phase 37")
+from app.integrations.wuzapi import get_wuzapi_client
+
+token = getattr(settings, "WHATSAPP_WUZAPI_TOKEN", None)
+if not token:
+    # handle missing config
+    return
+base_url = getattr(settings, "WHATSAPP_WUZAPI_BASE_URL", "")
+client = get_wuzapi_client(base_url=base_url, token=token)
+response = await client.send_text(phone, message)
 ```
 
-Or simply delete the test file entirely (the project has precedent for both approaches; deleting is cleaner for tests).
+Note: `client.connect()` is used in `UnifiedWhatsAppService` because it manages a persistent session. For the short-lived unauthorized response path in `message_handler.py`, `connect()` is NOT needed — the WuzAPI session is already established by the app startup lifespan.
+
+### Test Tombstone Pattern (established in project)
+
+```python
+"""TOMBSTONED -- Phase 37: tested app.integrations.whatsapp.api.webhooks which is now tombstoned."""
+import pytest
+pytestmark = pytest.mark.skip(reason="Evolution webhook API tombstoned in Phase 37")
+```
 
 ---
 
 ## Common Pitfalls
 
-### Pitfall 1: Partial Caller Cleanup Breaks Startup
-**What goes wrong:** If `routes.py` still `from ..services.evolution_client import EvolutionAPIClient` and `evolution_client.py` has been tombstoned, FastAPI app startup fails with `ImportError` in the `whatsapp/__init__.py` module, which is imported by `router_registry.py` before any request is processed.
-**Why it happens:** Python resolves all imports at module load time.
-**How to avoid:** Clean all callers listed in "Caller Cleanup Map" before or in the same commit as the tombstones.
-**Warning signs:** Any import of `evolution_client` in `routes.py`, `__init__.py`, or any other live module will cause startup failure.
+### Pitfall 1: `send_text_message` vs `send_text`
 
-### Pitfall 2: models.py Contains Enums Shared with Stack B
-**What goes wrong:** `app/integrations/evolution/models.py` exports `MessageType` and `EvolutionAPIError`. Stack B (`evolution_client.py`) imports from `..models.message` (a *different* models module in `app/integrations/whatsapp/models/message.py`). There is no circular dependency, but the models in `app/integrations/evolution/models.py` must be tombstoned too (they are part of the package).
-**How to avoid:** Tombstone `app/integrations/evolution/models.py` along with other Stack A files.
+Evolution client method was `send_text_message(phone, message, delay=delay)`. WuzAPI client method is `send_text(phone, message)` (no `delay` parameter). The planner must NOT pass `delay=delay` to `send_text`.
 
-### Pitfall 3: `WHATSAPP_WEBHOOK_SECRET` vs `WHATSAPP_EVOLUTION_WEBHOOK_SECRET`
-**What goes wrong:** `security.py` uses `WHATSAPP_EVOLUTION_WEBHOOK_SECRET` as the primary and `EVOLUTION_WEBHOOK_SECRET` as fallback. After removing these fields from settings, any call to `WhatsAppSecurity.validate_webhook_signature()` that is NOT on the WuzAPI webhook handler will fail.
-**How to avoid:** In `security.py`, replace `WHATSAPP_EVOLUTION_WEBHOOK_SECRET` → `WHATSAPP_WUZAPI_WEBHOOK_SECRET`. The WuzAPI webhook handler already uses `WebhookHMACValidator` directly with `settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET`; `WhatsAppSecurity` is only used by the Evolution webhook path (which is being deleted). Once the Evolution webhook handler is gone, `WhatsAppSecurity` may become dead code too — confirm this and tombstone it if so.
+### Pitfall 2: `client.connect()` in unauthorized response path
 
-### Pitfall 4: `message_extractor.py` LID Constants
-**What goes wrong:** `message_extractor.py` defines `_prefer_non_lid_jid` and `_select_source_jid` which reference `@lid`. The WuzAPI webhook processor (Phase 34) has its own parser that does NOT call `extract_message_data()`. Tombstoning `message_extractor.py` is safe because it is only imported from the Evolution webhook handler path.
-**How to avoid:** Confirm no WuzAPI code imports from `message_extractor.py` before tombstoning. Search shows zero imports outside the Evolution webhook flow.
+`UnifiedWhatsAppService._get_wuzapi_client()` calls `await self._wuzapi_client.connect()` because it manages a long-lived client instance. In `message_handler._send_unauthorized_response`, we create a new ephemeral client — calling `connect()` here would attempt a new WuzAPI session registration, which is unnecessary. The WuzAPI session is already managed by the startup lifespan. The `send_text` call works via aiohttp directly to the already-running WuzAPI server.
 
-### Pitfall 5: `resolve_phone_from_lid` Call Site Remains
-**What goes wrong:** The call to `self.phone_normalizer.resolve_phone_from_lid(...)` at `message_handler.py:459` is inside the Evolution webhook processing path. If the Evolution webhooks are deregistered but `message_handler.py` is still loaded, the dead code path will silently survive — but it references `WHATSAPP_EVOLUTION_*` settings that no longer exist, causing `AttributeError` if somehow triggered.
-**How to avoid:** Delete the entire `if remote_jid.endswith("@lid"):` block at lines 456-469 in `message_handler.py`.
+### Pitfall 3: `api/__init__.py` fix is NOT sufficient without also tombstoning the test files
+
+After fixing `api/__init__.py`, running `pytest tests/integration/whatsapp/test_webhook_scenarios.py` will still fail because that test file does `from app.integrations.whatsapp.api import webhooks as webhook_module`, which hits the tombstone directly (bypassing `__init__.py`). Both test files must be tombstoned as part of the same plan.
+
+### Pitfall 4: `EvolutionAPIError` isinstance checks use `error.status`
+
+`EvolutionAPIError.status` is an integer field. `WuzAPIError.status` is also `int | None`. The replacement `isinstance(error, WuzAPIError) and error.status == 429` is semantically identical. No attribute mapping needed.
+
+### Pitfall 5: Module docstrings mention "Evolution" — these are NOT blockers
+
+`message_handler.py` docstring says "Message webhook handler for Evolution API integration". These string literals in docstrings/comments are not import dependencies and do not cause ImportError. They should be updated as courtesy cleanup but must NOT be confused with the actual blocker (line 1065 import).
 
 ---
 
 ## Code Examples
 
-### Canonical Tombstone (from `app/ai/langgraph/__init__.py`)
+### Gap 1 complete replacement (Option A — WuzAPI send):
+
+```python
+    async def _send_unauthorized_response(
+        self, phone: str, attempt_count: int = 1
+    ) -> None:
+        """
+        Send escalating unauthorized messages to non-registered numbers.
+
+        Args:
+            phone: Phone number
+            attempt_count: Number of attempts (1-3)
+        """
+        try:
+            from app.integrations.wuzapi import get_wuzapi_client
+
+            token = getattr(settings, "WHATSAPP_WUZAPI_TOKEN", None)
+            if not token:
+                logger.warning("WuzAPI not configured, skipping unauthorized response")
+                return
+
+            base_url = getattr(settings, "WHATSAPP_WUZAPI_BASE_URL", "")
+            client = get_wuzapi_client(base_url=base_url, token=token)
+
+            messages = {
+                1: (
+                    "Olá! Este número não está cadastrado no sistema de acompanhamento da clínica. "
+                    "Para informações sobre cadastro, entre em contato com a recepção pelos telefones oficiais."
+                ),
+                2: (
+                    "ATENÇÃO: Este número não tem autorização para acessar o sistema da clínica. "
+                    "Se você é paciente, verifique se está usando o número correto cadastrado."
+                ),
+                3: (
+                    "ALERTA DE SEGURANÇA: Múltiplas tentativas de acesso não autorizado detectadas. "
+                    "Este número será temporariamente bloqueado."
+                ),
+            }
+
+            message = messages.get(attempt_count, messages[3])
+            await client.send_text(phone, message)
+
+            logger.info(
+                f"Sent unauthorized response (attempt #{attempt_count})",
+                extra={"phone": phone[:6] + "****", "attempt": attempt_count},
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to send unauthorized response: {e}")
+```
+
+### Gap 1 complete replacement (Option B — disable flow):
+
+```python
+    async def _send_unauthorized_response(
+        self, phone: str, attempt_count: int = 1
+    ) -> None:
+        """
+        Unauthorized response disabled — Evolution API removed in Phase 37.
+
+        WuzAPI outbound responses to non-registered numbers are not implemented.
+        Unauthorized access attempts are logged only.
+        """
+        logger.warning(
+            "Unauthorized response skipped (Evolution removed, WuzAPI response not configured)",
+            extra={"phone": phone[:6] + "****", "attempt": attempt_count},
+        )
+```
+
+### Gap 2 complete fix (manager.py):
+
+```python
+# Line 19 — replace:
+from app.integrations.wuzapi.errors import WuzAPIError
+
+# Lines 486-489 in _categorize_failure() — replace:
+        if isinstance(error, WuzAPIError) and error.status == 429:
+            return FailureReason.RATE_LIMIT
+        if isinstance(error, WuzAPIError):
+            return FailureReason.API_ERROR
+```
+
+### Gap 3 complete fix (api/__init__.py — entire file after edit):
+
 ```python
 """
-TOMBSTONED -- Phase 37 (Evolution Cleanup)
-
-This module has been decommissioned. WuzAPI is the sole WhatsApp provider.
-All outbound messaging: use app.integrations.wuzapi.
-All inbound events: routed through /api/v2/webhooks/wuzapi.
-
-Do not import from this module.
+WhatsApp API package
 """
-raise ImportError(
-    "app.integrations.evolution has been tombstoned in Phase 37 (Evolution Cleanup). "
-    "Use app.integrations.wuzapi for WhatsApp messaging."
-)
+
+from .routes import router as whatsapp_router
+
+__all__ = ["whatsapp_router"]
 ```
-
-### Settings Field Removal (CLEAN-06)
-Remove the block from `IntegrationsSettings` in `integrations.py`:
-```python
-# DELETE these fields:
-WHATSAPP_EVOLUTION_USE_MOCK: bool = Field(...)
-WHATSAPP_EVOLUTION_API_URL: str = Field(...)
-WHATSAPP_EVOLUTION_INSTANCE_NAME: str = Field(...)
-WHATSAPP_EVOLUTION_API_KEY: str = Field(...)
-WHATSAPP_EVOLUTION_WEBHOOK_SECRET: Optional[str] = Field(...)
-WHATSAPP_WEBHOOK_SECRET: Optional[str] = Field(...)     # Evolution-only fallback
-WHATSAPP_EVOLUTION_WEBHOOK_URL: Optional[str] = Field(...)
-WHATSAPP_EVOLUTION_TIMEOUT_SECONDS: int = Field(...)    # Used only by LID methods
-```
-
-### Verifying tombstones (TEST-05 approach)
-```bash
-# This must return zero matches outside tombstone docstrings:
-grep -r "EvolutionAPIClient\|EvolutionClient" backend-hormonia/app/ --include="*.py" -i
-# Expected output: only lines containing the string inside """ docstrings """
-```
-
----
-
-## Plan Split Rationale
-
-### Plan 37-01: Stack A Tombstone
-- Tombstone all 7 files in `app/integrations/evolution/` (including `models.py`)
-- Remove Evolution exports from `app/integrations/__init__.py`
-- Fix `app/orchestration/saga_orchestrator/orchestrator.py` (remove EvolutionClient import + constructor param)
-- Fix `app/api/v2/routers/patients/crud.py` (remove EvolutionClient() instantiation)
-- Fix `app/api/v2/routers/health/service_health.py` (remove Evolution health check block)
-- Fix `app/resilience/circuit_breaker/enhanced.py` (rename WHATSAPP enum string)
-- Tombstone `tests/integrations/evolution/test_client_comprehensive.py`
-- Fix `tests/fixtures/saga_fixtures.py` (remove mock_evolution_client fixture dependency)
-
-### Plan 37-02: Stack B Tombstone + Webhook Deregistration + LID Cleanup + Settings
-- Tombstone `app/integrations/whatsapp/services/evolution_client.py` (CLEAN-02)
-- Tombstone `app/integrations/whatsapp/services/mock_evolution.py` (CLEAN-02)
-- Tombstone `app/integrations/whatsapp/api/webhooks.py` (CLEAN-03)
-- Tombstone `app/integrations/whatsapp/webhook_handler.py` (CLEAN-03, wrapper)
-- Tombstone `app/services/webhook/utils/message_extractor.py` (CLEAN-04)
-- Clean `app/integrations/whatsapp/__init__.py` (remove evolution_client, mock_evolution, webhook_router exports)
-- Clean `app/integrations/whatsapp/api/routes.py` (remove get_evolution_client and Evolution endpoints)
-- Clean `app/core/router_registry.py` (remove webhook_router include)
-- Clean `app/core/lifespan.py` (remove _initialize_evolution_api)
-- Remove LID methods from `app/services/webhook/utils/phone_normalizer.py` (CLEAN-05)
-- Remove LID call block from `app/services/webhook/handlers/message_handler.py`
-- Remove `WHATSAPP_EVOLUTION_*` fields from `integrations.py` settings (CLEAN-06)
-- Update `security.py` and `webhook_validator.py` to use WuzAPI secret
-- Update `monitoring/whatsapp.py` and `system/validation.py`
-- Remove evolution vars from `.env.example` files
-- Tombstone `tests/integration/whatsapp/test_evolution_integration.py`
 
 ---
 
@@ -365,73 +527,62 @@ grep -r "EvolutionAPIClient\|EvolutionClient" backend-hormonia/app/ --include="*
 | Framework | pytest 7.x |
 | Config file | `backend-hormonia/pyproject.toml` (`[tool.pytest.ini_options]`) |
 | Quick run command | `cd backend-hormonia && python -m pytest tests/unit/ -x -q` |
-| Full suite command | `cd backend-hormonia && python -m pytest tests/ -x -q --timeout=60` |
-| Source lint | `cd backend-hormonia && grep -r "EvolutionAPIClient\|EvolutionClient" app/ --include="*.py" -i` |
+| Boot check | `cd backend-hormonia && TESTING=1 WHATSAPP_WUZAPI_TOKEN=dummy python3 -c "from app.main import app; print(app.title)"` |
+| Import check | `cd backend-hormonia && python -c "from app.integrations.whatsapp.api import whatsapp_router; print('OK')"` |
 
-### Phase Requirements to Test Map
-| Req ID | Behavior | Test Type | Command | File Exists? |
-|--------|----------|-----------|---------|-------------|
-| CLEAN-01 | `from app.integrations.evolution import EvolutionClient` raises ImportError | unit | `pytest tests/unit/test_evolution_tombstone.py -x` | No — Wave 0 |
-| CLEAN-02 | `from app.integrations.whatsapp.services.evolution_client import EvolutionAPIClient` raises ImportError | unit | same test file | No — Wave 0 |
-| CLEAN-03 | `GET /webhooks/whatsapp/X` returns 404 | smoke | manual or `pytest tests/api/` | No — Wave 0 |
-| CLEAN-04 | `from app.services.webhook.utils.message_extractor import extract_message_data` raises ImportError | unit | same test file | No — Wave 0 |
-| CLEAN-05 | `phone_normalizer.PhoneNormalizer` has no `resolve_phone_from_lid` attribute | unit | `pytest tests/services/webhook/test_phone_normalizer.py` | Partial — existing test file |
-| CLEAN-06 | `settings.WHATSAPP_EVOLUTION_API_KEY` raises `AttributeError` | unit | same test file | No — Wave 0 |
+### Phase Requirements → Test Map (gap-closure specific)
+
+| Req ID | Behavior | Test Type | Automated Command | File Exists? |
+|--------|----------|-----------|-------------------|-------------|
+| CLEAN-01 | `message_handler.py` imports cleanly without Evolution import | smoke | `python -c "from app.services.webhook.handlers.message_handler import MessageHandler; print('OK')"` | implicit |
+| CLEAN-02 | `queue/manager.py` imports cleanly without Evolution import | smoke | `python -c "from app.integrations.whatsapp.queue.manager import QueueManager; print('OK')"` | implicit |
+| CLEAN-03 | `from app.integrations.whatsapp.api import whatsapp_router` succeeds | smoke | `python -c "from app.integrations.whatsapp.api import whatsapp_router; print('OK')"` | implicit |
+| CLEAN-03 | App boots without ImportError | smoke | `TESTING=1 WHATSAPP_WUZAPI_TOKEN=dummy python3 -c "from app.main import app; print(app.title)"` | implicit |
 
 ### Wave 0 Gaps
-- [ ] `tests/unit/test_evolution_tombstone.py` — covers CLEAN-01, CLEAN-02, CLEAN-04, CLEAN-06 import assertions
-
-Existing tests to verify no regression:
-- `tests/services/webhook/test_phone_normalizer.py` — CLEAN-05 (verify `resolve_phone_from_lid` is gone)
-- `tests/services/test_unified_whatsapp_service.py` — verify unified service still works post-cleanup
+None — existing infrastructure is sufficient. All checks are import-level smoke tests runnable in < 5 seconds.
 
 ---
 
 ## Open Questions
 
-1. **`WHATSAPP_WEBHOOK_SECRET` field in settings**
-   - What we know: Used only as fallback in `security.py` for evolution secret lookup; WuzAPI uses `WHATSAPP_WUZAPI_WEBHOOK_SECRET` directly
-   - What's unclear: Whether any non-Evolution code reads `WHATSAPP_WEBHOOK_SECRET`
-   - Recommendation: Remove it in CLEAN-06; if something breaks, it will be a clear `AttributeError`
+1. **Gap 1 — WuzAPI send vs disable**
+   - Should `_send_unauthorized_response` use WuzAPI to actually send the escalating messages, or should it be disabled (log only)?
+   - WuzAPI send preserves existing behavior but adds a new outbound code path for this rarely-triggered function.
+   - Disabling is simpler and safer; unauthorized responses were a defensive feature with no clinical impact.
+   - **Recommendation:** Disable (Option B). The unauthorized response was an Evolution-era feature; re-implementing it for WuzAPI adds scope and testing surface for a non-critical function. Document it as deferred to a future story if needed.
 
-2. **`WHATSAPP_ENABLE_SERVICE` flag**
-   - What we know: Currently guards `_initialize_evolution_api` in lifespan and the `webhook_router` registration
-   - What's unclear: Should it be repurposed as a WuzAPI enable flag, or removed entirely since WuzAPI is always required?
-   - Recommendation: Keep `WHATSAPP_ENABLE_SERVICE` but repurpose the name; it now guards WuzAPI session initialization only. This is a Phase 37 discretion decision.
-
-3. **`app/services/webhook_service.py` uses `WHATSAPP_EVOLUTION_WEBHOOK_SECRET`**
-   - What we know: Line 106 and 123 in `webhook_service.py` (confirmed from grep)
-   - What's unclear: Whether `webhook_service.py` is the same as `middleware/webhook_validator.py` or a different file
-   - Recommendation: Check both files in 37-02 and update both if different.
+2. **Docstring cleanup in `message_handler.py`**
+   - Multiple docstrings and comments reference "Evolution API" and `source="evolution_api"` strings.
+   - These are NOT blockers (no import dependency).
+   - **Recommendation:** Update module docstring and class docstring to "WuzAPI" in the same plan for completeness, but keep as separate atomic edit clearly marked as "courtesy cleanup only."
 
 ---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Direct codebase inspection — all file paths, line numbers, and code patterns are from the actual source files
-- `app/ai/langgraph/__init__.py` — canonical tombstone pattern (Phase 12)
-- `app/integrations/evolution/client.py` — Stack A main file confirmed
-- `app/integrations/whatsapp/services/evolution_client.py` — Stack B confirmed
-- `app/integrations/whatsapp/__init__.py` — export manifest confirmed
-- `app/core/router_registry.py:204-213` — Evolution webhook registration path confirmed
-- `app/config/settings/integrations.py` — all WHATSAPP_EVOLUTION_* fields confirmed
-- `.planning/STATE.md` — `[Phase 35]: Keep WHATSAPP_EVOLUTION_* fields in settings until Phase 37 cleanup` (explicit prior decision)
-- `.planning/STATE.md` — `[v1.6]: Hard cut — no dual-provider mode... Evolution tombstoned in single commit after Phase 36 passes`
-
-### Secondary (MEDIUM confidence)
-- `.planning/REQUIREMENTS.md` — CLEAN-01 through CLEAN-06 requirement text (project-authored spec)
+- Direct codebase inspection — all file paths, line numbers, and code patterns verified by reading actual source files
+- `backend-hormonia/app/services/webhook/handlers/message_handler.py:1054-1099` — exact current code of `_send_unauthorized_response`
+- `backend-hormonia/app/integrations/whatsapp/queue/manager.py:1-25, 480-492` — exact current code of import and `_categorize_failure`
+- `backend-hormonia/app/integrations/whatsapp/api/__init__.py:1-8` — exact current 8-line file
+- `backend-hormonia/app/integrations/wuzapi/errors.py` — WuzAPIError class structure confirmed
+- `backend-hormonia/app/integrations/wuzapi/__init__.py` — `WuzAPIError` and `get_wuzapi_client` exports confirmed
+- `backend-hormonia/app/integrations/wuzapi/client.py:177-179` — `send_text(phone, message)` signature confirmed
+- `backend-hormonia/tests/integration/whatsapp/test_webhook_scenarios.py:19` — test import of tombstoned webhooks confirmed
+- `backend-hormonia/tests/integration/whatsapp/test_webhook_fail_closed_and_queue_batch.py:13` — test import of tombstoned webhooks confirmed
+- `.planning/phases/37-evolution-cleanup/37-VERIFICATION.md` — gap definitions confirmed
+- `.planning/phases/37-evolution-cleanup/37-03-SUMMARY.md` — 37-03 scope confirmed (did NOT address these 3 gaps)
 
 ---
 
 ## Metadata
 
 **Confidence breakdown:**
-- File inventory: HIGH — every file verified by direct read
-- Caller cleanup map: HIGH — every caller found by grep and code inspection
-- Tombstone pattern: HIGH — taken verbatim from existing Phase 12 tombstones
-- Settings field list: HIGH — all fields counted and confirmed in integrations.py
-- Test gaps: MEDIUM — test file content inspected but Wave 0 test details are planning-time estimates
+- Gap site identification: HIGH — every line number verified by direct file read
+- WuzAPI replacement interface: HIGH — `send_text`, `WuzAPIError`, `get_wuzapi_client` verified from source
+- Test file impact: HIGH — both test files confirmed by grep
+- Import chain analysis: HIGH — `api/__init__.py` only 8 lines, import chain traced fully
 
-**Research date:** 2026-03-02
-**Valid until:** Indefinite (codebase is not fast-moving; this phase is the terminal step of v1.6)
+**Research date:** 2026-03-02 (gap-closure re-research after 37-03)
+**Valid until:** Indefinite (codebase is not fast-moving; no concurrent changes expected)
