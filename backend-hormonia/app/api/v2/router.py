@@ -53,7 +53,7 @@ from .routers.debug import router as debug_router
 from .routers.hive_mind import router as hive_mind_router
 from app.integrations.whatsapp.api.routes import router as whatsapp_router
 from app.integrations.wuzapi.webhook import router as wuzapi_webhook_router
-from app.api.v2.monitoring import whatsapp_monitoring_router
+from app.api.v2.monitoring import whatsapp_monitoring_router, wuzapi_monitoring_router
 
 logger = logging.getLogger(__name__)
 api_v2_router = APIRouter(prefix="/api/v2", tags=["v2"])
@@ -120,6 +120,11 @@ api_v2_router.include_router(
     whatsapp_monitoring_router,
     prefix="/monitoring/whatsapp",
     tags=["whatsapp-monitoring-v2"],
+)
+api_v2_router.include_router(
+    wuzapi_monitoring_router,
+    prefix="/monitoring/wuzapi",
+    tags=["wuzapi-monitoring-v2"],
 )
 api_v2_router.include_router(
     enhanced_quiz_router, prefix="/enhanced-quiz", tags=["enhanced-quiz-v2"]

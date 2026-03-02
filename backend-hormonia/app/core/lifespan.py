@@ -112,6 +112,7 @@ async def _startup(app: FastAPI) -> object:
             _initialize_ai_services(app, logger),
             _initialize_enum_validation(app, logger),
             _initialize_evolution_api(app, logger),
+            _initialize_wuzapi_session(app, logger),
             return_exceptions=True  # Don't fail entire startup on single service failure
         )
 
@@ -640,6 +641,64 @@ async def _initialize_evolution_api(app: FastAPI, logger) -> None:
                 await client.disconnect()
             except Exception:
                 logger.debug("Evolution client disconnect failed (non-critical)")
+
+
+async def _initialize_wuzapi_session(app: FastAPI, logger) -> None:
+    """Connect WuzAPI session at startup (SESS-01).
+
+    Non-blocking: logs warning and continues if WuzAPI is unreachable.
+    Checks status first; skips connect if already connected.
+    """
+    start = time.time()
+
+    if not settings.WHATSAPP_ENABLE_SERVICE:
+        logger.info("WuzAPI: WHATSAPP_ENABLE_SERVICE=False -- skipping session connect")
+        return
+
+    token = getattr(settings, "WHATSAPP_WUZAPI_TOKEN", None)
+    base_url = getattr(settings, "WHATSAPP_WUZAPI_BASE_URL", None)
+
+    if not token or not base_url:
+        logger.warning("WuzAPI: token or base_url not configured -- skipping session connect")
+        return
+
+    client = None
+    try:
+        from app.integrations.wuzapi import get_wuzapi_client
+
+        client = get_wuzapi_client(base_url=base_url, token=token)
+        await client.connect()
+
+        try:
+            status_resp = await client.get_session_status()
+            status_data = status_resp.get("data", {})
+            if status_data.get("Connected") and status_data.get("LoggedIn"):
+                elapsed = time.time() - start
+                logger.info(
+                    f"WuzAPI session already connected ({elapsed:.2f}s) -- skipping reconnect"
+                )
+                return
+        except Exception:
+            pass
+
+        result = await client.session_connect(subscribe=["Message"])
+        elapsed = time.time() - start
+        details = result.get("data", {}).get("details", "")
+        logger.info(
+            f"WuzAPI session connected ({elapsed:.2f}s): {details}"
+        )
+    except Exception as exc:
+        elapsed = time.time() - start
+        logger.warning(
+            f"WuzAPI session connect failed ({elapsed:.2f}s): {exc}. "
+            "WhatsApp sends will fail until session is connected manually."
+        )
+    finally:
+        if client:
+            try:
+                await client.disconnect()
+            except Exception:
+                logger.debug("WuzAPI client disconnect failed (non-critical)")
 
 
 async def _initialize_follow_up_system(app: FastAPI, logger) -> None:
