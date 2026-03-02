@@ -52,3 +52,33 @@ class MockWuzAPIClient:
             }
         )
         return self._make_response()
+
+    async def session_connect(
+        self,
+        subscribe: list[str] | None = None,
+        immediate: bool = False,
+    ) -> dict[str, Any]:
+        """Mock session connect."""
+        _ = subscribe, immediate
+        self.connected = True
+        return {
+            "code": 200,
+            "data": {"details": "Connected (mock)", "jid": "mock@s.whatsapp.net"},
+            "success": True,
+        }
+
+    async def get_session_status(self) -> dict[str, Any]:
+        """Mock session status."""
+        return {
+            "code": 200,
+            "data": {"Connected": self.connected, "LoggedIn": self.connected},
+            "success": True,
+        }
+
+    async def get_qr(self) -> dict[str, Any]:
+        """Mock QR code."""
+        return {
+            "code": 200,
+            "data": "data:image/png;base64,mockQRbase64data==",
+            "success": True,
+        }

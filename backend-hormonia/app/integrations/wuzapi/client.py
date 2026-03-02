@@ -204,3 +204,30 @@ class WuzAPIClient:
             body["FileName"] = filename
 
         return await self._make_request("POST", endpoint, data=body)
+
+    async def session_connect(
+        self,
+        subscribe: list[str] | None = None,
+        immediate: bool = False,
+    ) -> dict[str, Any]:
+        """POST /session/connect -- connect to WhatsApp servers.
+
+        Args:
+            subscribe: Event types to receive (e.g. ["Message"]).
+            immediate: If True, connect immediately without waiting.
+
+        Returns:
+            WuzAPI response with connection details and JID.
+        """
+        payload: dict[str, Any] = {"Immediate": immediate}
+        if subscribe:
+            payload["Subscribe"] = subscribe
+        return await self._make_request("POST", "/session/connect", data=payload)
+
+    async def get_session_status(self) -> dict[str, Any]:
+        """GET /session/status -- returns Connected and LoggedIn booleans."""
+        return await self._make_request("GET", "/session/status")
+
+    async def get_qr(self) -> dict[str, Any]:
+        """GET /session/qr -- returns base64 QR code data URI for pairing."""
+        return await self._make_request("GET", "/session/qr")
