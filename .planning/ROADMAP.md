@@ -92,7 +92,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] **Phase 33: New Provider Foundation** - WuzAPIClient package with aiohttp, retry, rate limiter, mock client, and media utility (completed 2026-03-02)
 - [x] **Phase 34: Webhook Handler** - New /webhooks/wuzapi endpoint with HMAC validation, idempotency, LID detection, and opt-out routing (completed 2026-03-02)
 - [x] **Phase 35: Configuration and Session** - New env vars, startup validation, .env.example update, and session management endpoints (completed 2026-03-02)
-- [x] **Phase 36: Outbound Migration** - Wire WuzAPIClient into all three outbound callers before any Evolution code is removed (completed 2026-03-02)
+- [x] **Phase 36: Outbound Migration** - Wire WuzAPIClient into all three outbound callers before any Evolution code is removed (gap closure in progress) (completed 2026-03-02)
 - [ ] **Phase 37: Evolution Cleanup** - Tombstone all Evolution files in one atomic commit after outbound is verified
 - [ ] **Phase 38: Tests and CI Validation** - Full regression gate: HMAC, opt-out E2E, JID resolution, source-level import guards
 
@@ -157,11 +157,12 @@ Plans:
   2. The queue pipeline in `WhatsAppMessageService` routes outbound messages through WuzAPIClient by constructor injection
   3. `IdempotentMessageSender` imports and uses WuzAPIClient; `whatsapp_id` in the database is populated from `response.data["Id"]` after each send
   4. Phone numbers are sent to WuzAPI as raw digits (no `@s.whatsapp.net` suffix) and the circuit breaker key is `wuzapi`
-**Plans**: TBD
+**Plans**: 3 plans in 3 waves
 
 Plans:
 - [x] 36-01: UnifiedWhatsAppService migration (swap EvolutionAPIClient for WuzAPIClient, rename circuit breaker to wuzapi, update health check to GET /session/status)
-- [ ] 36-02: Queue pipeline and IdempotentMessageSender migration (WhatsAppMessageService constructor injection, IdempotentMessageSender import update, whatsapp_id extraction from response.data.Id)
+- [x] 36-02: Queue pipeline and IdempotentMessageSender migration (WhatsAppMessageService constructor injection, IdempotentMessageSender import update, whatsapp_id extraction from response.data.Id)
+- [ ] 36-03: Gap closure — runtime wiring fixes (get_message_service DI path, FollowUpSystemService and MessageScheduler caller injection)
 
 ### Phase 37: Evolution Cleanup
 **Goal**: All Evolution API code is tombstoned in a single commit — both Stack A and Stack B clients, the Evolution webhook handler, the Baileys message parser, LID resolution methods, and deprecated env vars are all removed from the active runtime
@@ -209,7 +210,7 @@ Plans:
 | 33. New Provider Foundation | 3/3 | Complete    | 2026-03-02 | - |
 | 34. Webhook Handler | 3/3 | Complete   | 2026-03-02 | - |
 | 35. Configuration and Session | 2/2 | Complete    | 2026-03-02 | - |
-| 36. Outbound Migration | 2/2 | Complete   | 2026-03-02 | - |
+| 36. Outbound Migration | 3/3 | Complete   | 2026-03-02 | - |
 | 37. Evolution Cleanup | v1.6 | 0/2 | Not started | - |
 | 38. Tests and CI Validation | v1.6 | 0/3 | Not started | - |
 

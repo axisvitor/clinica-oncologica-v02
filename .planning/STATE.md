@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
 status: in_progress
-stopped_at: Completed 36-02-PLAN.md
-last_updated: "2026-03-02T05:43:05.585Z"
+stopped_at: Completed 36-03-PLAN.md
+last_updated: "2026-03-02T16:58:17.867Z"
 progress:
   total_phases: 10
   completed_phases: 10
-  total_plans: 41
-  completed_plans: 41
+  total_plans: 42
+  completed_plans: 42
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 37 of 39 (Evolution Cleanup)
-Plan: 01 of 02 (36-01 and 36-02 completed)
+Plan: 01 of 02 (ready to start)
 Status: In Progress
-Last activity: 2026-03-02 — Completed 36-02 outbound migration (message_service + idempotent_sender) to WuzAPI
+Last activity: 2026-03-02 — Completed 36-03 outbound wiring gap closure (caller-level WuzAPI wiring)
 
-Progress: [██████████] 100% (2/2 plans in phase 36 completed)
+Progress: [██████████] 100% (3/3 plans in phase 36 completed)
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [██████████] 100% (2/2 plans in phase 36 completed
 | Phase 35 P01 | 5 min | 2 tasks | 3 files |
 | Phase 35 P02 | 5 min | 2 tasks | 7 files |
 | Phase 36 P02 | 6 min | 2 tasks | 2 files |
+| Phase 36 P03 | 6 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,8 @@ Progress: [██████████] 100% (2/2 plans in phase 36 completed
 - [Phase 36]: Direct send path writes `whatsapp_id` from `response.data.Id` and encodes media via `fetch_and_encode_media` before `send_media`.
 - [Phase 36]: WhatsApp queue and idempotent senders now call WuzAPI directly while preserving existing queue/idempotency flows
 - [Phase 36]: sync_contacts now raises NotImplementedError because WuzAPI has no contacts API; removal deferred to Phase 37
+- [Phase 36]: Keep Evolution DI only for instance-management endpoints in routes.py; migrate outbound message DI path to WuzAPI now.
+- [Phase 36]: Remove explicit EvolutionClient construction from IdempotentMessageSender callers and rely on lazy WuzAPI initialization.
 
 ### Pending Todos
 
@@ -95,6 +98,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-02T05:43:05.552Z
-**Stopped At:** Completed 36-02-PLAN.md
+**Last session:** 2026-03-02T16:58:17.836Z
+**Stopped At:** Completed 36-03-PLAN.md
 **Resume File:** None
