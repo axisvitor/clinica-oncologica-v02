@@ -9,8 +9,9 @@ import aiohttp
 import backoff
 from aiohttp import ClientError, ClientSession, ClientTimeout
 
+from app.core.redis_circuit_breaker import RedisCircuitBreaker
 from app.integrations.wuzapi.errors import WuzAPIConnectionError, WuzAPIError
-from app.integrations.wuzapi.models import WuzAPITextRequest
+from app.integrations.wuzapi.models import MEDIA_ENDPOINT_MAP, MEDIA_FIELD_MAP, WuzAPITextRequest
 
 
 async def _safe_read_json(response: aiohttp.ClientResponse) -> dict[str, Any]:
@@ -154,3 +155,30 @@ class WuzAPIClient:
     async def send_text(self, phone: str, message: str) -> dict[str, Any]:
         payload = WuzAPITextRequest(Phone=phone, Body=message).model_dump()
         return await self._make_request("POST", "/chat/send/text", data=payload)
+
+    async def send_media(
+        self,
+        media_type: str,
+        phone: str,
+        data_uri: str,
+        caption: str | None = None,
+        filename: str | None = None,
+    ) -> dict[str, Any]:
+        """Send image/audio/video/document as base64 data URI."""
+        if media_type not in MEDIA_FIELD_MAP:
+            raise ValueError(
+                f"Unsupported media type: {media_type}. Must be one of: {list(MEDIA_FIELD_MAP)}"
+            )
+
+        field = MEDIA_FIELD_MAP[media_type]
+        endpoint = MEDIA_ENDPOINT_MAP[media_type]
+
+        body: dict[str, Any] = {"Phone": phone, field: data_uri}
+
+        if caption and media_type in ("image", "video"):
+            body["Caption"] = caption
+
+        if filename and media_type == "document":
+            body["FileName"] = filename
+
+        return await self._make_request("POST", endpoint, data=body)
