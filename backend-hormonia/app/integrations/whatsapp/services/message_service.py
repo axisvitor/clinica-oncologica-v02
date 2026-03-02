@@ -13,7 +13,7 @@ import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from .evolution_client import validate_phone_number
+from app.schemas.validators.phone import validate_and_format_phone
 from ..models.message import (
     WhatsAppMessage,
     WhatsAppContact,
@@ -316,9 +316,11 @@ class WhatsAppMessageService:
     async def send_message(self, request: MessageRequest) -> MessageResponse:
         """Send WhatsApp message with queue processing."""
         # Validate phone number
-        is_valid, formatted_number = await validate_phone_number(request.to)
+        is_valid, formatted_number, phone_error = validate_and_format_phone(
+            request.to, strict=False
+        )
         if not is_valid:
-            raise ValueError(f"Invalid phone number: {formatted_number}")
+            raise ValueError(f"Invalid phone number: {phone_error}")
 
         # Ensure we send using the normalized number (prevents mismatched delivery)
         request = request.copy(update={"to": formatted_number})
