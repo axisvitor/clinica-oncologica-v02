@@ -1,33 +1,13 @@
 """
-Evolution API integration module.
-WhatsApp Business integration for Hormonia system.
+TOMBSTONED -- Phase 37 (Evolution Cleanup)
+
+This module has been decommissioned. WuzAPI is the sole WhatsApp provider.
+All outbound messaging: use app.integrations.wuzapi.
+All inbound events: routed through /api/v2/webhooks/wuzapi.
+
+Do not import from this module.
 """
-
-from .client import EvolutionClient, get_evolution_client, close_evolution_client
-from .models import (
-    MessageType,
-    TextMessage,
-    ButtonMessage,
-    ListMessage,
-    MediaMessage,
-    WebhookEvent,
-    EvolutionAPIError,
+raise ImportError(
+    "app.integrations.evolution has been tombstoned in Phase 37 (Evolution Cleanup). "
+    "Use app.integrations.wuzapi for WhatsApp messaging."
 )
-
-__all__ = [
-    # Main client
-    "EvolutionClient",
-    "get_evolution_client",
-    "close_evolution_client",
-    # Enums
-    "MessageType",
-    # Message models
-    "TextMessage",
-    "ButtonMessage",
-    "ListMessage",
-    "MediaMessage",
-    # Webhook
-    "WebhookEvent",
-    # Exceptions
-    "EvolutionAPIError",
-]
