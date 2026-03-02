@@ -65,6 +65,12 @@ class WuzAPIClient:
         self.token = token
         self.timeout = ClientTimeout(total=timeout_seconds)
         self.rate_limiter = RateLimiter(max_requests=max_requests, window_seconds=window_seconds)
+        self._circuit_breaker = RedisCircuitBreaker(
+            name="wuzapi",
+            failure_threshold=5,
+            recovery_timeout=60,
+            success_threshold=3,
+        )
         self.session: ClientSession | None = None
         self.headers = {
             "Content-Type": "application/json",
@@ -114,6 +120,22 @@ class WuzAPIClient:
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         await self.rate_limiter.wait_for_availability()
+
+        return await self._circuit_breaker.call(
+            self._do_request,
+            method,
+            endpoint,
+            data,
+            params,
+        )
+
+    async def _do_request(
+        self,
+        method: str,
+        endpoint: str,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
 
         if not self.session:
             await self.connect()
