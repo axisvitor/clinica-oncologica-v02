@@ -9,9 +9,9 @@ Requirements for WuzAPI migration. Each maps to roadmap phases.
 
 ### Client Infrastructure
 
-- [ ] **CLI-01**: WuzAPIClient sends text messages via `POST /chat/send/text` with Token auth header
+- [x] **CLI-01**: WuzAPIClient sends text messages via `POST /chat/send/text` with Token auth header
 - [ ] **CLI-02**: WuzAPIClient sends media messages (image, audio, video, document) via type-specific endpoints with base64 data URI encoding
-- [ ] **CLI-03**: WuzAPIClient uses aiohttp with backoff retry (3 retries on 5xx/429/timeout) and sliding-window rate limiter
+- [x] **CLI-03**: WuzAPIClient uses aiohttp with backoff retry (3 retries on 5xx/429/timeout) and sliding-window rate limiter
 - [ ] **CLI-04**: Circuit breaker wraps WuzAPIClient calls (renamed from `evolution_api` to `wuzapi`)
 - [ ] **CLI-05**: MockWuzAPIClient provides drop-in test double activated by `WHATSAPP_WUZAPI_USE_MOCK=true`
 - [ ] **CLI-06**: `fetch_and_encode_media()` utility downloads media URLs and converts to base64 data URIs with 16MB size guard
@@ -88,9 +88,9 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLI-01 | Phase 33 | Pending |
+| CLI-01 | Phase 33 | Complete |
 | CLI-02 | Phase 33 | Pending |
-| CLI-03 | Phase 33 | Pending |
+| CLI-03 | Phase 33 | Complete |
 | CLI-04 | Phase 33 | Pending |
 | CLI-05 | Phase 33 | Pending |
 | CLI-06 | Phase 33 | Pending |

@@ -2,19 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
-current_phase: 33
-current_phase_name: New Provider Foundation
-current_plan: none
-status: ready_to_plan
-stopped_at: null
-last_updated: "2026-03-01T23:45:00.000Z"
-last_activity: 2026-03-01
+status: unknown
+stopped_at: Completed 33-01-PLAN.md
+last_updated: "2026-03-02T00:39:07.159Z"
 progress:
-  total_phases: 6
-  completed_phases: 0
-  total_plans: 15
-  completed_plans: 0
-  percent: 0
+  total_phases: 7
+  completed_phases: 6
+  total_plans: 34
+  completed_plans: 32
 ---
 
 # Project State
@@ -47,6 +42,7 @@ Progress: [░░░░░░░░░░] 0% (0/15 plans)
 | v1.5 Saga Orchestrator Deep Dive | 4 | 14 | 2 days (2026-02-28 → 2026-03-01) |
 | v1.6 WuzAPI Migration | 6 | 15 est. | Started 2026-03-01 |
 | **Cumulative (shipped)** | **32 phases** | **138 plans** | **8 days** |
+| Phase 33 P01 | 12min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -57,6 +53,8 @@ Progress: [░░░░░░░░░░] 0% (0/15 plans)
 - [v1.6]: Phase 37 tombstone must come AFTER Phase 36 (IdempotentMessageSender updated) to avoid Celery worker ImportError on startup
 - [v1.6]: LID (@lid) senders routed to DLQ from day one — never silently dropped (LGPD Art. 18 risk)
 - [v1.6]: HMAC: read raw body bytes first, then json.loads separately — consuming request.json() first makes HMAC validation impossible
+- [Phase 33]: Use Authorization header with raw token value (no Bearer prefix) in WuzAPI client defaults.
+- [Phase 33]: Retry policy gives up on 4xx except 429 while retrying 5xx/429 up to three attempts.
 
 ### Pending Todos
 
@@ -70,6 +68,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-01
-**Stopped At:** Roadmap created — Phase 33 ready to plan
-**Resume File:** None — start with `/gsd:plan-phase 33`
+**Last session:** 2026-03-02T00:39:07.134Z
+**Stopped At:** Completed 33-01-PLAN.md
+**Resume File:** None
