@@ -18,6 +18,7 @@ from ..models.message import (
 )
 from ..services.evolution_client import EvolutionAPIClient, validate_phone_number
 from ..services.message_service import WhatsAppMessageService, MessageQueue
+from app.integrations.wuzapi import get_wuzapi_client
 from app.database import get_async_db
 from app.config import settings
 from app.utils.timezone import now_sao_paulo
@@ -107,13 +108,34 @@ async def get_evolution_client() -> AsyncGenerator[EvolutionAPIClient, None]:
             logger.warning("Failed to disconnect Evolution client: %s", e)
 
 
+async def get_wuzapi_for_queue():
+    """Get WuzAPI client for queue message service (outbound messages only)."""
+    token = getattr(settings, "WHATSAPP_WUZAPI_TOKEN", None)
+    base_url = getattr(settings, "WHATSAPP_WUZAPI_BASE_URL", "")
+    if not token:
+        raise HTTPException(
+            status_code=501,
+            detail="WuzAPI not configured: WHATSAPP_WUZAPI_TOKEN missing",
+        )
+
+    client = get_wuzapi_client(base_url=base_url, token=token)
+    await client.connect()
+    try:
+        yield client
+    finally:
+        try:
+            await client.disconnect()
+        except Exception as e:
+            logger.warning("Failed to disconnect WuzAPI client: %s", e)
+
+
 async def get_message_service(
     db: AsyncSession = Depends(get_async_db),
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
+    wuzapi_client=Depends(get_wuzapi_for_queue),
 ) -> AsyncGenerator[WhatsAppMessageService, None]:
     """Get WhatsApp message service instance with queue resource cleanup."""
     message_queue = MessageQueue(redis_url=settings.REDIS_URL)
-    service = WhatsAppMessageService(evolution_client, db, message_queue)
+    service = WhatsAppMessageService(wuzapi_client, db, message_queue)
     try:
         yield service
     finally:
