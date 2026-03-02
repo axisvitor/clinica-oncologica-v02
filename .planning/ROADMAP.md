@@ -108,12 +108,12 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
   3. WuzAPIClient retries automatically on 5xx and 429 responses (up to 3 attempts) and the circuit breaker key is named `wuzapi`
   4. MockWuzAPIClient is activated by `WHATSAPP_WUZAPI_USE_MOCK=true` and satisfies the same interface as WuzAPIClient
   5. `fetch_and_encode_media()` downloads a media URL and returns a base64 data URI, rejecting files larger than 16 MB with a clear error
-**Plans**: TBD
+**Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 33-01: WuzAPIClient core (aiohttp transport, token auth, text send, response parsing, rate limiter)
-- [ ] 33-02: Media send (image/audio/video/document endpoints, base64 data URI encoding, fetch_and_encode_media utility)
-- [ ] 33-03: Resilience and mock (circuit breaker wiring, backoff retry, MockWuzAPIClient, Pydantic models, errors)
+- [ ] 33-01-PLAN.md — WuzAPIClient core: aiohttp transport, token auth, text send, response parsing, rate limiter, backoff retry (Wave 1)
+- [ ] 33-02-PLAN.md — Media send: image/audio/video/document endpoints, base64 data URI encoding, fetch_and_encode_media utility (Wave 2, depends on 33-01)
+- [ ] 33-03-PLAN.md — Resilience and mock: circuit breaker wiring (key="wuzapi"), MockWuzAPIClient, factory function (Wave 2, depends on 33-01)
 
 ### Phase 34: Webhook Handler
 **Goal**: A new `/webhooks/wuzapi` endpoint receives WuzAPI events, validates HMAC with `x-hmac-signature`, deduplicates by `event.Info.ID`, and correctly routes Message and ReadReceipt events — including LID sender detection and opt-out keyword processing
