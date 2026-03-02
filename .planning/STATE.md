@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
 status: unknown
-stopped_at: Completed 33-03-PLAN.md
-last_updated: "2026-03-02T01:17:16.162Z"
+stopped_at: Completed 34-02-PLAN.md
+last_updated: "2026-03-02T02:30:11.133Z"
 progress:
-  total_phases: 7
+  total_phases: 8
   completed_phases: 7
-  total_plans: 34
-  completed_plans: 34
+  total_plans: 37
+  completed_plans: 36
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** v1.6 WuzAPI Migration — Phase 33: New Provider Foundation
+**Current focus:** v1.6 WuzAPI Migration — Phase 34: Webhook Handler
 
 ## Current Position
 
-Phase: 33 of 38 (New Provider Foundation)
-Plan: 03 of 03 (33-01, 33-02, 33-03 completed)
-Status: Completed
-Last activity: 2026-03-02 — Completed 33-03 WuzAPI resilience + mock factory
+Phase: 34 of 38 (Webhook Handler)
+Plan: 02 of 03 (34-01, 34-02 completed)
+Status: In Progress
+Last activity: 2026-03-02 — Completed 34-02 WuzAPI extractor + receipt mapping tests
 
-Progress: [██████████] 100% (3/3 plans in phase)
+Progress: [███████░░░] 67% (2/3 plans in phase)
 
 ## Performance Metrics
 
@@ -45,6 +45,8 @@ Progress: [██████████] 100% (3/3 plans in phase)
 | Phase 33 P01 | 12min | 2 tasks | 6 files |
 | Phase 33-new-provider-foundation P02 | 9 min | 2 tasks | 6 files |
 | Phase 33 P03 | 10m | 2 tasks | 5 files |
+| Phase 34-webhook-handler P01 | 8 min | 2 tasks | 3 files |
+| Phase 34 P02 | 8 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -61,6 +63,11 @@ Progress: [██████████] 100% (3/3 plans in phase)
 - [Phase 33-new-provider-foundation]: Enforced 16 MB limit during stream accumulation instead of post-download size checks.
 - [Phase 33]: WuzAPIClient now wraps request execution with RedisCircuitBreaker(name="wuzapi") using 5/60/3 thresholds.
 - [Phase 33]: WuzAPI package now exposes get_wuzapi_client() with WHATSAPP_WUZAPI_USE_MOCK=true switching to MockWuzAPIClient.
+- [Phase 34-webhook-handler]: Reuse WebhookHMACValidator for WuzAPI webhook signature checks.
+- [Phase 34-webhook-handler]: Process webhook raw bytes before JSON parsing to preserve HMAC integrity.
+- [Phase 34-webhook-handler]: Use deterministic body-hash fallback event IDs when Info.ID is missing.
+- [Phase 34]: Add MessageStatus.PLAYED to represent whatsmeow played receipts explicitly.
+- [Phase 34]: WuzAPI extractor accepts wrapped and flat payloads with explicit empty-string delivered mapping.
 
 ### Pending Todos
 
@@ -74,6 +81,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-02T00:58:13.136Z
-**Stopped At:** Completed 33-03-PLAN.md
+**Last session:** 2026-03-02T02:30:11.092Z
+**Stopped At:** Completed 34-02-PLAN.md
 **Resume File:** None

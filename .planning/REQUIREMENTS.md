@@ -18,10 +18,10 @@ Requirements for WuzAPI migration. Each maps to roadmap phases.
 
 ### Webhook Handling
 
-- [ ] **WH-01**: New webhook endpoint receives WuzAPI events at `/webhooks/wuzapi` and routes by `type` field (Message, ReadReceipt)
-- [ ] **WH-02**: Inbound message parser extracts sender phone, message text, media info, and message ID from WuzAPI `Message` event payload
-- [ ] **WH-03**: ReadReceipt parser maps WuzAPI receipt types to internal `MessageStatus` (SENT, DELIVERED, READ, PLAYED)
-- [ ] **WH-04**: HMAC validation uses `x-hmac-signature` header with SHA-256 on raw request body bytes
+- [x] **WH-01**: New webhook endpoint receives WuzAPI events at `/webhooks/wuzapi` and routes by `type` field (Message, ReadReceipt)
+- [x] **WH-02**: Inbound message parser extracts sender phone, message text, media info, and message ID from WuzAPI `Message` event payload
+- [x] **WH-03**: ReadReceipt parser maps WuzAPI receipt types to internal `MessageStatus` (SENT, DELIVERED, READ, PLAYED)
+- [x] **WH-04**: HMAC validation uses `x-hmac-signature` header with SHA-256 on raw request body bytes
 - [ ] **WH-05**: LGPD opt-out handler detects STOP/PARAR/CANCELAR keywords in WuzAPI inbound message payloads
 - [ ] **WH-06**: Webhook idempotency uses WuzAPI `event.Info.ID` as deduplication key in Redis SET NX
 
@@ -94,10 +94,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | CLI-04 | Phase 33 | Complete |
 | CLI-05 | Phase 33 | Complete |
 | CLI-06 | Phase 33 | Complete |
-| WH-01 | Phase 34 | Pending |
-| WH-02 | Phase 34 | Pending |
-| WH-03 | Phase 34 | Pending |
-| WH-04 | Phase 34 | Pending |
+| WH-01 | Phase 34 | Complete |
+| WH-02 | Phase 34 | Complete |
+| WH-03 | Phase 34 | Complete |
+| WH-04 | Phase 34 | Complete |
 | WH-05 | Phase 34 | Pending |
 | WH-06 | Phase 34 | Pending |
 | SESS-01 | Phase 35 | Pending |
