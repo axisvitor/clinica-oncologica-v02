@@ -18,7 +18,7 @@ Features:
 - Cleans up old idempotency records
 
 Usage:
-    sender = IdempotentMessageSender(db, redis, evolution_client)
+    sender = IdempotentMessageSender(db, redis, wuzapi_client)
     message = await sender.send_message(
         patient_id=patient_id,
         content="Hello!",
@@ -40,7 +40,8 @@ from sqlalchemy import select
 
 from app.models.message import Message, MessageStatus, MessageDirection, MessageType
 from app.models.patient import Patient
-from app.integrations.evolution import EvolutionClient
+from app.integrations.wuzapi import get_wuzapi_client
+from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
 from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ class IdempotentMessageSender:
         self,
         db: Session,
         redis: Optional[Redis] = None,
-        evolution_client: Optional[EvolutionClient] = None,
+        wuzapi_client=None,
         cache_ttl: int = 86400,  # 24 hours
         enable_cache: bool = True,
     ):
@@ -77,13 +78,13 @@ class IdempotentMessageSender:
         Args:
             db: Database session
             redis: Redis client (optional, lazy-loaded if not provided)
-            evolution_client: Evolution API client (optional, lazy-loaded if not provided)
+            wuzapi_client: WuzAPI client (optional, lazy-loaded if not provided)
             cache_ttl: Cache TTL in seconds (default: 24 hours)
             enable_cache: Enable Redis cache (default: True)
         """
         self.db = db
         self._redis = redis
-        self._evolution_client = evolution_client
+        self._wuzapi_client = wuzapi_client
         self.cache_ttl = cache_ttl
         self.enable_cache = enable_cache
         self.cache_prefix = "idempotency:message"
@@ -97,11 +98,16 @@ class IdempotentMessageSender:
         return self._redis
 
     @property
-    def evolution_client(self) -> EvolutionClient:
-        """Lazy-load Evolution client if not provided."""
-        if self._evolution_client is None:
-            self._evolution_client = EvolutionClient()
-        return self._evolution_client
+    def wuzapi_client(self):
+        """Lazy-load WuzAPI client if not provided."""
+        if self._wuzapi_client is None:
+            from app.config import settings
+
+            self._wuzapi_client = get_wuzapi_client(
+                base_url=getattr(settings, "WHATSAPP_WUZAPI_BASE_URL", ""),
+                token=getattr(settings, "WHATSAPP_WUZAPI_TOKEN", ""),
+            )
+        return self._wuzapi_client
 
     def _generate_idempotency_key(
         self,
@@ -388,28 +394,41 @@ class IdempotentMessageSender:
                 f"Concurrent message creation failed for key: {idempotency_key}"
             )
 
-        # 6. Send message via Evolution API
+        # 6. Send message via WuzAPI
         try:
-            logger.info(f"Sending message {message.id} via Evolution API")
+            logger.info(f"Sending message {message.id} via WuzAPI")
 
             # Update status to SENDING
             message.status = MessageStatus.SENDING
             self.db.flush()
 
-            # Send via Evolution API
-            evolution_response = await self.evolution_client.send_text_message(
-                phone_number=patient.phone,
+            # Use decrypted phone and normalize to raw digits for WuzAPI
+            raw_phone = patient.phone_decrypted
+            if not raw_phone:
+                raise ValueError(f"Patient {patient_id} has no decrypted phone number")
+
+            phone = normalize_phone(raw_phone, mode=PhoneValidationMode.BR_TO_E164)
+            if not phone:
+                raise ValueError(f"Patient {patient_id} has invalid phone number")
+
+            if phone.startswith("+"):
+                phone = phone[1:]
+
+            # Send via WuzAPI
+            wuzapi_response = await self.wuzapi_client.send_text(
+                phone=phone,
                 message=content,
             )
 
-            # Update message with Evolution API response
-            if evolution_response and evolution_response.get("key", {}).get("id"):
-                message.whatsapp_id = evolution_response["key"]["id"]
+            # Update message with WuzAPI response
+            wuzapi_id = wuzapi_response.get("data", {}).get("Id")
+            if wuzapi_id:
+                message.whatsapp_id = wuzapi_id
                 message.status = MessageStatus.SENT
                 message.sent_at = now_sao_paulo()
                 logger.info(
                     f"Message {message.id} sent successfully "
-                    f"(whatsapp_id: {message.whatsapp_id})"
+                    f"(whatsapp_id: {wuzapi_id})"
                 )
             else:
                 # Sending initiated but no immediate confirmation
