@@ -13,7 +13,7 @@ import redis.asyncio as redis
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from .evolution_client import EvolutionAPIClient, validate_phone_number
+from .evolution_client import validate_phone_number
 from ..models.message import (
     WhatsAppMessage,
     WhatsAppContact,
@@ -27,6 +27,7 @@ from app.core.tracing import get_tracer, trace
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError, LockKeys
 from app.config import settings
 from app.core.redis_manager import get_async_redis_client, get_redis_connection_kwargs
+from app.integrations.wuzapi.media import fetch_and_encode_media
 from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 
 logger = logging.getLogger(__name__)
@@ -290,20 +291,20 @@ class WhatsAppMessageService:
 
     def __init__(
         self,
-        evolution_client: EvolutionAPIClient,
+        wuzapi_client,
         db_session: AsyncSession,
         message_queue: MessageQueue,
         message_status_handler: Optional[Any] = None,  # Avoid circular import
     ):
-        self.evolution_client = evolution_client
+        self.wuzapi_client = wuzapi_client
         self.db_session = db_session
         self.message_queue = message_queue
         self.message_status_handler = message_status_handler
         self._processing = False
 
-        # Circuit breaker for Evolution API
+        # Circuit breaker for WuzAPI
         self.evolution_breaker = CircuitBreaker(
-            name="evolution_api_queue",
+            name="wuzapi_queue",
             failure_threshold=5,
             recovery_timeout=60,
             expected_exception=Exception,
@@ -568,7 +569,7 @@ class WhatsAppMessageService:
                     )
             raise
 
-    @trace(name="send_message_impl", attributes={"service": "evolution_api"})
+    @trace(name="send_message_impl", attributes={"service": "wuzapi"})
     async def _send_message_impl(
         self, message: WhatsAppMessage, request_data: Dict[str, Any]
     ):
@@ -576,32 +577,33 @@ class WhatsAppMessageService:
         request = MessageRequest(**request_data)
 
         async def _send_with_breaker():
-            """Wrapped send function with circuit breaker."""
+            """Send via WuzAPI with circuit breaker."""
+            phone = request.to
+            if "@" in phone:
+                phone = phone.split("@")[0]
+
             if request.message_type == MessageType.TEXT:
-                response = await self.evolution_client.send_text_message(
-                    instance_name=request.instance_name,
-                    to=request.to,
-                    text=request.text,
-                    message_data=request.message_data,
+                return await self.wuzapi_client.send_text(
+                    phone=phone,
+                    message=request.text or "",
                 )
-            else:
-                response = await self.evolution_client.send_media_message(
-                    instance_name=request.instance_name,
-                    to=request.to,
-                    media_url=request.media_url,
-                    media_type=request.message_type,
-                    caption=request.media_caption,
-                    filename=request.filename,
-                    message_data=request.message_data,
-                )
-            return response
+
+            data_uri = await fetch_and_encode_media(request.media_url or "")
+            media_type_str = request.message_type.value.lower()
+            return await self.wuzapi_client.send_media(
+                media_type=media_type_str,
+                phone=phone,
+                data_uri=data_uri,
+                caption=request.media_caption,
+                filename=request.filename,
+            )
 
         try:
             # Use circuit breaker with retry
             response = await self.evolution_breaker.call(_send_with_breaker)
 
-            # Update message with Evolution API response
-            message.external_id = response.external_id
+            # Update message with WuzAPI response
+            message.external_id = response.get("data", {}).get("Id")
             message.status = MessageStatus.SENT
             message.sent_at = now_sao_paulo_naive()
 
@@ -619,7 +621,7 @@ class WhatsAppMessageService:
 
         except CircuitOpenError:
             logger.error(
-                f"Circuit breaker open for Evolution API, message {message.id} cannot be sent"
+                f"Circuit breaker open for WuzAPI, message {message.id} cannot be sent"
             )
             raise
         except Exception as e:
@@ -747,47 +749,16 @@ class WhatsAppMessageService:
         return stats
 
     async def sync_contacts(self, instance_name: str) -> int:
-        """Synchronize contacts from WhatsApp."""
-        try:
-            contacts = await self.evolution_client.get_contacts(instance_name)
-            synced_count = 0
+        """Synchronize contacts from WhatsApp.
 
-            for contact_response in contacts:
-                # Check if contact exists
-                stmt = select(WhatsAppContact).where(
-                    WhatsAppContact.instance_name == instance_name,
-                    WhatsAppContact.phone_number == contact_response.phone_number,
-                )
-                result = await self.db_session.execute(stmt)
-                existing_contact = result.scalar_one_or_none()
-
-                if existing_contact:
-                    # Update existing contact
-                    existing_contact.name = contact_response.name
-                    existing_contact.profile_picture_url = (
-                        contact_response.profile_picture_url
-                    )
-                    existing_contact.updated_at = now_sao_paulo_naive()
-                else:
-                    # Create new contact
-                    contact = WhatsAppContact(
-                        id=str(uuid4()),
-                        instance_name=instance_name,
-                        phone_number=contact_response.phone_number,
-                        formatted_number=contact_response.formatted_number,
-                        name=contact_response.name,
-                        profile_picture_url=contact_response.profile_picture_url,
-                    )
-                    self.db_session.add(contact)
-
-                synced_count += 1
-
-            await self.db_session.commit()
-            logger.info(
-                f"Synchronized {synced_count} contacts for instance {instance_name}"
-            )
-            return synced_count
-
-        except Exception as e:
-            logger.error(f"Error syncing contacts for instance {instance_name}: {e}")
-            raise
+        NOTE: WuzAPI does not have a contacts API equivalent to Evolution.
+        Stubbed out pending Phase 37 removal.
+        """
+        logger.warning(
+            "sync_contacts called but WuzAPI has no contacts API -- returning 0",
+            extra={"instance_name": instance_name},
+        )
+        raise NotImplementedError(
+            "sync_contacts is not supported with WuzAPI. "
+            "This method will be removed in Phase 37."
+        )
