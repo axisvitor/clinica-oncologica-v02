@@ -211,7 +211,7 @@ Plans:
 | 34. Webhook Handler | 3/3 | Complete   | 2026-03-02 | - |
 | 35. Configuration and Session | 2/2 | Complete    | 2026-03-02 | - |
 | 36. Outbound Migration | 3/3 | Complete    | 2026-03-02 | - |
-| 37. Evolution Cleanup | 4/4 | Complete   | 2026-03-02 | - |
+| 37. Evolution Cleanup | 4/4 | Complete    | 2026-03-02 | - |
 | 38. Tests and CI Validation | v1.6 | 0/3 | Not started | - |
 
 ---
