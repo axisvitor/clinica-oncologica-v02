@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
-status: unknown
-stopped_at: Completed 34-02-PLAN.md
-last_updated: "2026-03-02T02:30:11.133Z"
+status: in_progress
+stopped_at: Completed 34-03-PLAN.md
+last_updated: "2026-03-02T03:06:17Z"
 progress:
   total_phases: 8
   completed_phases: 7
   total_plans: 37
-  completed_plans: 36
+  completed_plans: 37
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 34 of 38 (Webhook Handler)
-Plan: 02 of 03 (34-01, 34-02 completed)
-Status: In Progress
-Last activity: 2026-03-02 — Completed 34-02 WuzAPI extractor + receipt mapping tests
+Plan: 03 of 03 (34-01, 34-02, 34-03 completed)
+Status: Completed
+Last activity: 2026-03-02 — Completed 34-03 idempotency + opt-out + LID DLQ wiring with integration tests
 
-Progress: [███████░░░] 67% (2/3 plans in phase)
+Progress: [██████████] 100% (3/3 plans in phase)
 
 ## Performance Metrics
 
@@ -47,6 +47,7 @@ Progress: [███████░░░] 67% (2/3 plans in phase)
 | Phase 33 P03 | 10m | 2 tasks | 5 files |
 | Phase 34-webhook-handler P01 | 8 min | 2 tasks | 3 files |
 | Phase 34 P02 | 8 min | 2 tasks | 3 files |
+| Phase 34 P03 | 26 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ Progress: [███████░░░] 67% (2/3 plans in phase)
 - [Phase 34-webhook-handler]: Use deterministic body-hash fallback event IDs when Info.ID is missing.
 - [Phase 34]: Add MessageStatus.PLAYED to represent whatsmeow played receipts explicitly.
 - [Phase 34]: WuzAPI extractor accepts wrapped and flat payloads with explicit empty-string delivered mapping.
+- [Phase 34]: WuzAPI webhook now uses AtomicWebhookIdempotency fail-open checks and returns HTTP 200 duplicate payloads for repeated event IDs.
+- [Phase 34]: Opt-out keywords STOP/PARAR/CANCELAR are processed through PhoneNormalizer phone-hash lookup and async handle_opt_out path.
+- [Phase 34]: LID sender events are routed to DLQ and WuzAPI webhook is registered at /api/v2/webhooks/wuzapi via external router prefix.
 
 ### Pending Todos
 
@@ -75,12 +79,11 @@ None.
 
 ### Blockers/Concerns
 
-- WuzAPI webhook payload JSON schema is MEDIUM confidence (inferred from Go source) — real payload capture required before Phase 34 parser code is written
 - LID resolution mechanism in WuzAPI not fully documented — spike needed if @lid senders appear in staging during Phase 34
 - Brazilian 9th-digit JID resolution at patient-cohort scale — rate limits for POST /user/check not documented; batch design needed before Phase 36
 
 ## Session Continuity
 
-**Last session:** 2026-03-02T02:30:11.092Z
-**Stopped At:** Completed 34-02-PLAN.md
+**Last session:** 2026-03-02T03:06:17Z
+**Stopped At:** Completed 34-03-PLAN.md
 **Resume File:** None

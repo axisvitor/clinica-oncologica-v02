@@ -90,7 +90,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 **Milestone Goal:** Replace Evolution API with WuzAPI as the WhatsApp provider — hard cut, no dual-provider mode. All outbound messages routed through WuzAPIClient, all inbound webhooks parsed by WuzAPI-native handler, all Evolution code tombstoned.
 
 - [x] **Phase 33: New Provider Foundation** - WuzAPIClient package with aiohttp, retry, rate limiter, mock client, and media utility (completed 2026-03-02)
-- [ ] **Phase 34: Webhook Handler** - New /webhooks/wuzapi endpoint with HMAC validation, idempotency, LID detection, and opt-out routing
+- [x] **Phase 34: Webhook Handler** - New /webhooks/wuzapi endpoint with HMAC validation, idempotency, LID detection, and opt-out routing (completed 2026-03-02)
 - [ ] **Phase 35: Configuration and Session** - New env vars, startup validation, .env.example update, and session management endpoints
 - [ ] **Phase 36: Outbound Migration** - Wire WuzAPIClient into all three outbound callers before any Evolution code is removed
 - [ ] **Phase 37: Evolution Cleanup** - Tombstone all Evolution files in one atomic commit after outbound is verified
@@ -128,9 +128,9 @@ Plans:
 **Plans**: 3 plans in 2 waves
 
 Plans:
-- [ ] 34-01-PLAN.md — Webhook endpoint and HMAC validation: POST /webhooks/wuzapi, raw body read, x-hmac-signature, event type routing stubs (Wave 1)
-- [ ] 34-02-PLAN.md — WuzAPIMessageExtractor: Message parser, ReadReceipt mapper, LID detection, PLAYED enum, RECEIPT_TYPE_TO_STATUS (Wave 1, parallel with 34-01)
-- [ ] 34-03-PLAN.md — Idempotency, opt-out, LID DLQ wiring: Redis SET NX dedup, STOP/PARAR/CANCELAR handler, LID DLQ routing, router registration (Wave 2, depends on 34-01 + 34-02)
+- [x] 34-01-PLAN.md — Webhook endpoint and HMAC validation: POST /webhooks/wuzapi, raw body read, x-hmac-signature, event type routing stubs (Wave 1)
+- [x] 34-02-PLAN.md — WuzAPIMessageExtractor: Message parser, ReadReceipt mapper, LID detection, PLAYED enum, RECEIPT_TYPE_TO_STATUS (Wave 1, parallel with 34-01)
+- [x] 34-03-PLAN.md — Idempotency, opt-out, LID DLQ wiring: Redis SET NX dedup, STOP/PARAR/CANCELAR handler, LID DLQ routing, router registration (Wave 2, depends on 34-01 + 34-02)
 
 ### Phase 35: Configuration and Session
 **Goal**: All WuzAPI environment variables exist in settings, application refuses to start without the token, `.env.example` is updated, and session management (connect, status, QR) is exposed through the monitoring API

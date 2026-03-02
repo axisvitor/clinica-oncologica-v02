@@ -22,8 +22,8 @@ Requirements for WuzAPI migration. Each maps to roadmap phases.
 - [x] **WH-02**: Inbound message parser extracts sender phone, message text, media info, and message ID from WuzAPI `Message` event payload
 - [x] **WH-03**: ReadReceipt parser maps WuzAPI receipt types to internal `MessageStatus` (SENT, DELIVERED, READ, PLAYED)
 - [x] **WH-04**: HMAC validation uses `x-hmac-signature` header with SHA-256 on raw request body bytes
-- [ ] **WH-05**: LGPD opt-out handler detects STOP/PARAR/CANCELAR keywords in WuzAPI inbound message payloads
-- [ ] **WH-06**: Webhook idempotency uses WuzAPI `event.Info.ID` as deduplication key in Redis SET NX
+- [x] **WH-05**: LGPD opt-out handler detects STOP/PARAR/CANCELAR keywords in WuzAPI inbound message payloads
+- [x] **WH-06**: Webhook idempotency uses WuzAPI `event.Info.ID` as deduplication key in Redis SET NX
 
 ### Session Management
 
@@ -98,8 +98,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | WH-02 | Phase 34 | Complete |
 | WH-03 | Phase 34 | Complete |
 | WH-04 | Phase 34 | Complete |
-| WH-05 | Phase 34 | Pending |
-| WH-06 | Phase 34 | Pending |
+| WH-05 | Phase 34 | Completed |
+| WH-06 | Phase 34 | Completed |
 | SESS-01 | Phase 35 | Pending |
 | SESS-02 | Phase 35 | Pending |
 | SESS-03 | Phase 35 | Pending |
