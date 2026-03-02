@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
 status: unknown
-stopped_at: Completed 35-01-PLAN.md
-last_updated: "2026-03-02T04:12:03.661Z"
+stopped_at: Completed 35-02-PLAN.md
+last_updated: "2026-03-02T04:25:14.000Z"
 progress:
   total_phases: 9
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 39
-  completed_plans: 38
+  completed_plans: 39
 ---
 
 # Project State
@@ -23,12 +23,12 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 
 ## Current Position
 
-Phase: 35 of 39 (Configuration and Session)
-Plan: 01 of 02 (35-01 completed, 35-02 pending)
+Phase: 36 of 39 (Outbound Migration)
+Plan: 01 of 02 (36-01 pending)
 Status: In Progress
-Last activity: 2026-03-02 — Completed 35-01 WuzAPI settings, startup token validation, and env example updates
+Last activity: 2026-03-02 — Completed 35-02 WuzAPI session methods, monitoring endpoints, and lifespan startup initialization
 
-Progress: [█████░░░░░] 50% (1/2 plans in phase)
+Progress: [░░░░░░░░░░] 0% (0/2 plans in phase)
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Progress: [█████░░░░░] 50% (1/2 plans in phase)
 | Phase 34 P02 | 8 min | 2 tasks | 3 files |
 | Phase 34 P03 | 26 min | 2 tasks | 5 files |
 | Phase 35 P01 | 5 min | 2 tasks | 3 files |
+| Phase 35 P02 | 5 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,8 @@ Progress: [█████░░░░░] 50% (1/2 plans in phase)
 - [Phase 34]: LID sender events are routed to DLQ and WuzAPI webhook is registered at /api/v2/webhooks/wuzapi via external router prefix.
 - [Phase 35]: Keep WHATSAPP_EVOLUTION_* fields in settings until Phase 37 cleanup to avoid breaking imports.
 - [Phase 35]: Validate WHATSAPP_WUZAPI_TOKEN via IntegrationsSettings model_validator with test-environment exemptions.
+- [Phase 35]: Monitoring session endpoints should fail-open with structured error payloads (`connected/logged_in` or `qr` plus `error`) instead of raising API errors.
+- [Phase 35]: Lifespan startup keeps `_initialize_evolution_api` and adds `_initialize_wuzapi_session` in parallel, with status-first idempotent connect and warning-only failures.
 
 ### Pending Todos
 
@@ -87,6 +90,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-02T04:12:03.632Z
-**Stopped At:** Completed 35-01-PLAN.md
+**Last session:** 2026-03-02T04:25:14.000Z
+**Stopped At:** Completed 35-02-PLAN.md
 **Resume File:** None

@@ -91,7 +91,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 - [x] **Phase 33: New Provider Foundation** - WuzAPIClient package with aiohttp, retry, rate limiter, mock client, and media utility (completed 2026-03-02)
 - [x] **Phase 34: Webhook Handler** - New /webhooks/wuzapi endpoint with HMAC validation, idempotency, LID detection, and opt-out routing (completed 2026-03-02)
-- [ ] **Phase 35: Configuration and Session** - New env vars, startup validation, .env.example update, and session management endpoints
+- [x] **Phase 35: Configuration and Session** - New env vars, startup validation, .env.example update, and session management endpoints (completed 2026-03-02)
 - [ ] **Phase 36: Outbound Migration** - Wire WuzAPIClient into all three outbound callers before any Evolution code is removed
 - [ ] **Phase 37: Evolution Cleanup** - Tombstone all Evolution files in one atomic commit after outbound is verified
 - [ ] **Phase 38: Tests and CI Validation** - Full regression gate: HMAC, opt-out E2E, JID resolution, source-level import guards
@@ -145,8 +145,8 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 35-01: IntegrationsSettings update (add WHATSAPP_WUZAPI_* fields, startup validator, .env.example update)
-- [ ] 35-02: Session management endpoints (connect on startup, status monitoring endpoint, QR endpoint wired to WuzAPIClient)
+- [x] 35-01: IntegrationsSettings update (add WHATSAPP_WUZAPI_* fields, startup validator, .env.example update)
+- [x] 35-02: Session management endpoints (connect on startup, status monitoring endpoint, QR endpoint wired to WuzAPIClient)
 
 ### Phase 36: Outbound Migration
 **Goal**: All outbound WhatsApp messages flow through WuzAPIClient — UnifiedWhatsAppService, WhatsAppMessageService queue pipeline, and IdempotentMessageSender are all updated before any Evolution file is removed
@@ -208,11 +208,11 @@ Plans:
 | 29-32. Saga Orchestrator Deep Dive | v1.5 | 14/14 | Complete | 2026-03-01 |
 | 33. New Provider Foundation | 3/3 | Complete    | 2026-03-02 | - |
 | 34. Webhook Handler | 3/3 | Complete   | 2026-03-02 | - |
-| 35. Configuration and Session | 1/2 | In Progress|  | - |
+| 35. Configuration and Session | 2/2 | Complete | 2026-03-02 | - |
 | 36. Outbound Migration | v1.6 | 0/2 | Not started | - |
 | 37. Evolution Cleanup | v1.6 | 0/2 | Not started | - |
 | 38. Tests and CI Validation | v1.6 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-03-01 — v1.6 roadmap added (Phases 33-38)*
+*Last updated: 2026-03-02 — Phase 35 completed (2/2 plans)*

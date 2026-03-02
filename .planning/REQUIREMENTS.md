@@ -27,9 +27,9 @@ Requirements for WuzAPI migration. Each maps to roadmap phases.
 
 ### Session Management
 
-- [ ] **SESS-01**: Application startup calls `POST /session/connect` and verifies session is connected before accepting sends
-- [ ] **SESS-02**: Session status endpoint (`GET /session/status`) exposes connection state via monitoring API
-- [ ] **SESS-03**: QR code endpoint (`GET /session/qr`) returns base64 QR for WhatsApp pairing
+- [x] **SESS-01**: Application startup calls `POST /session/connect` and verifies session is connected before accepting sends
+- [x] **SESS-02**: Session status endpoint (`GET /session/status`) exposes connection state via monitoring API
+- [x] **SESS-03**: QR code endpoint (`GET /session/qr`) returns base64 QR for WhatsApp pairing
 
 ### Configuration
 
@@ -100,9 +100,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | WH-04 | Phase 34 | Complete |
 | WH-05 | Phase 34 | Completed |
 | WH-06 | Phase 34 | Completed |
-| SESS-01 | Phase 35 | Pending |
-| SESS-02 | Phase 35 | Pending |
-| SESS-03 | Phase 35 | Pending |
+| SESS-01 | Phase 35 | Complete |
+| SESS-02 | Phase 35 | Complete |
+| SESS-03 | Phase 35 | Complete |
 | CFG-01 | Phase 35 | Complete |
 | CFG-02 | Phase 35 | Complete |
 | CFG-03 | Phase 35 | Complete |
@@ -129,4 +129,4 @@ Deferred to future release. Tracked but not in current roadmap.
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 — traceability complete (33/33 mapped to Phases 33-38)*
+*Last updated: 2026-03-02 — Phase 35 session requirements marked complete*
