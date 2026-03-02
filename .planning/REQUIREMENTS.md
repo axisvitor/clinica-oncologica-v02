@@ -33,9 +33,9 @@ Requirements for WuzAPI migration. Each maps to roadmap phases.
 
 ### Configuration
 
-- [ ] **CFG-01**: New env vars added: `WHATSAPP_WUZAPI_BASE_URL`, `WHATSAPP_WUZAPI_TOKEN`, `WHATSAPP_WUZAPI_WEBHOOK_SECRET`
-- [ ] **CFG-02**: Startup validation refuses to start if `WHATSAPP_WUZAPI_TOKEN` is missing (hard fail)
-- [ ] **CFG-03**: `.env.example` updated with all WuzAPI env vars and removed Evolution API vars
+- [x] **CFG-01**: New env vars added: `WHATSAPP_WUZAPI_BASE_URL`, `WHATSAPP_WUZAPI_TOKEN`, `WHATSAPP_WUZAPI_WEBHOOK_SECRET`
+- [x] **CFG-02**: Startup validation refuses to start if `WHATSAPP_WUZAPI_TOKEN` is missing (hard fail)
+- [x] **CFG-03**: `.env.example` updated with all WuzAPI env vars and removed Evolution API vars
 
 ### Outbound Migration
 
@@ -103,9 +103,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | SESS-01 | Phase 35 | Pending |
 | SESS-02 | Phase 35 | Pending |
 | SESS-03 | Phase 35 | Pending |
-| CFG-01 | Phase 35 | Pending |
-| CFG-02 | Phase 35 | Pending |
-| CFG-03 | Phase 35 | Pending |
+| CFG-01 | Phase 35 | Complete |
+| CFG-02 | Phase 35 | Complete |
+| CFG-03 | Phase 35 | Complete |
 | OUT-01 | Phase 36 | Pending |
 | OUT-02 | Phase 36 | Pending |
 | OUT-03 | Phase 36 | Pending |

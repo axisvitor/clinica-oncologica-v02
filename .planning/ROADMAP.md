@@ -208,7 +208,7 @@ Plans:
 | 29-32. Saga Orchestrator Deep Dive | v1.5 | 14/14 | Complete | 2026-03-01 |
 | 33. New Provider Foundation | 3/3 | Complete    | 2026-03-02 | - |
 | 34. Webhook Handler | 3/3 | Complete   | 2026-03-02 | - |
-| 35. Configuration and Session | v1.6 | 0/2 | Not started | - |
+| 35. Configuration and Session | 1/2 | In Progress|  | - |
 | 36. Outbound Migration | v1.6 | 0/2 | Not started | - |
 | 37. Evolution Cleanup | v1.6 | 0/2 | Not started | - |
 | 38. Tests and CI Validation | v1.6 | 0/3 | Not started | - |
