@@ -33,7 +33,10 @@ class MockRequestContext:
 
 
 def make_client() -> WuzAPIClient:
-    return WuzAPIClient(base_url="http://wuzapi.test", token="token-123")
+    client = WuzAPIClient(base_url="http://wuzapi.test", token="token-123")
+    client._circuit_breaker._fallback_to_memory = True
+    client._circuit_breaker.reset()
+    return client
 
 
 @pytest.mark.asyncio
