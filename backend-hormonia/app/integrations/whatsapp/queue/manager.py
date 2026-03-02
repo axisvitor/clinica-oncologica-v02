@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from .schemas import MessageRequest, MessageResponse, QueueStatus
 from .dlq import DLQHandler
 from app.models.failed_message import FailureReason
-from app.integrations.whatsapp.services.evolution_client import EvolutionAPIError
+from app.integrations.wuzapi.errors import WuzAPIError
 from app.utils.logging import get_logger
 from app.config import settings
 from app.core.redis_manager import get_async_redis_client, get_redis_connection_kwargs
@@ -483,9 +483,9 @@ class QueueManager:
             return FailureReason.TIMEOUT
         if isinstance(error, ValueError) and "phone" in str(error).lower():
             return FailureReason.INVALID_PHONE
-        if isinstance(error, EvolutionAPIError) and error.status == 429:
+        if isinstance(error, WuzAPIError) and error.status == 429:
             return FailureReason.RATE_LIMIT
-        if isinstance(error, EvolutionAPIError):
+        if isinstance(error, WuzAPIError):
             return FailureReason.API_ERROR
         if "rate" in str(error).lower() and "limit" in str(error).lower():
             return FailureReason.RATE_LIMIT

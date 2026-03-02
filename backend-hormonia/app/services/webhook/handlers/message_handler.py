@@ -1055,48 +1055,15 @@ class MessageWebhookHandler:
         self, phone: str, attempt_count: int = 1
     ) -> None:
         """
-        Send escalating unauthorized messages to non-registered numbers.
+        Unauthorized response disabled -- Evolution API removed in Phase 37.
 
-        Args:
-            phone: Phone number
-            attempt_count: Number of attempts (1-3)
+        WuzAPI outbound responses to non-registered numbers are not implemented.
+        Unauthorized access attempts are logged only.
         """
-        try:
-            from app.integrations.evolution import get_evolution_client
-
-            client = await get_evolution_client()
-            if not client:
-                logger.warning("Evolution client unavailable")
-                return
-
-            # Escalating messages based on attempt count
-            messages = {
-                1: (
-                    "Olá! Este número não está cadastrado no sistema de acompanhamento da clínica. "
-                    "Para informações sobre cadastro, entre em contato com a recepção pelos telefones oficiais."
-                ),
-                2: (
-                    "ATENÇÃO: Este número não tem autorização para acessar o sistema da clínica. "
-                    "Se você é paciente, verifique se está usando o número correto cadastrado."
-                ),
-                3: (
-                    "ALERTA DE SEGURANÇA: Múltiplas tentativas de acesso não autorizado detectadas. "
-                    "Este número será temporariamente bloqueado."
-                ),
-            }
-
-            message = messages.get(attempt_count, messages[3])
-            delay = min(1000 * attempt_count, 5000)
-
-            await client.send_text_message(phone, message, delay=delay)
-
-            logger.info(
-                f"Sent unauthorized response (attempt #{attempt_count})",
-                extra={"phone": phone[:6] + "****", "attempt": attempt_count},
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to send unauthorized response: {e}")
+        logger.warning(
+            "Unauthorized response skipped (Evolution removed, WuzAPI unauthorized response not configured)",
+            extra={"phone": phone[:6] + "****", "attempt": attempt_count},
+        )
 
     async def _publish_message_event(self, message: Message, patient_id: UUID) -> None:
         """
