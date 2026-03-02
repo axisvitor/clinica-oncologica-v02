@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
-status: unknown
-stopped_at: Completed 37-02-PLAN.md
-last_updated: "2026-03-02T19:18:37.421Z"
+status: complete
+stopped_at: Completed 37-03-PLAN.md
+last_updated: "2026-03-02T22:42:37.530Z"
 progress:
   total_phases: 11
   completed_phases: 11
-  total_plans: 44
-  completed_plans: 44
+  total_plans: 45
+  completed_plans: 45
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 37 of 39 (Evolution Cleanup)
-Plan: 02 of 02 (completed)
+Plan: 03 of 03 (completed)
 Status: Completed
-Last activity: 2026-03-02 — Completed 37-02 Stack B cleanup and Evolution config removal
+Last activity: 2026-03-02 — Completed 37-03 gap closure for canonical validator import and WuzAPI-only runtime config
 
-Progress: [██████████] 100% (2/2 plans in phase 37 completed)
+Progress: [██████████] 100% (3/3 plans in phase 37 completed)
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [██████████] 100% (2/2 plans in phase 37 completed
 | Phase 36 P03 | 6 min | 2 tasks | 3 files |
 | Phase 37 P01 | 14 min | 2 tasks | 15 files |
 | Phase 37 P02 | 15 min | 2 tasks | 21 files |
+| Phase 37 P03 | 10min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,8 @@ Progress: [██████████] 100% (2/2 plans in phase 37 completed
 - [Phase 37]: Keep verification-time environment overrides scoped to commands instead of editing env files.
 - [Phase 37]: Removed all remaining Stack B LID/Evolution paths and standardized webhook secret references on WHATSAPP_WUZAPI_WEBHOOK_SECRET.
 - [Phase 37]: Monitoring/validation defaults now use WuzAPI token and instance identifiers, eliminating Evolution settings dependencies.
+- [Phase 37]: Use validate_and_format_phone(request.to, strict=False) with 3-tuple unpacking in message_service send path.
+- [Phase 37]: Remove WHATSAPP_EVOLUTION instance fallback and rely on resolved/default instance handling in UnifiedWhatsAppService.
 
 ### Pending Todos
 
@@ -104,6 +107,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-02T19:18:37.384Z
-**Stopped At:** Completed 37-02-PLAN.md
+**Last session:** 2026-03-02T22:42:37.495Z
+**Stopped At:** Completed 37-03-PLAN.md
 **Resume File:** None
