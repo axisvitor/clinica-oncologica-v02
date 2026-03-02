@@ -55,7 +55,7 @@ class WuzAPIMessageExtractor:
             return None
 
         sender_jid = info.get("Sender") or ""
-        is_lid = "@lid" in sender_jid
+        is_lid = sender_jid.endswith("@lid") or sender_jid.endswith("@hosted.lid")
         phone = cls._jid_to_phone(sender_jid)
         if not phone:
             logger.warning(
