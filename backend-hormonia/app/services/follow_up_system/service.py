@@ -51,7 +51,6 @@ from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSen
 from app.domain.messaging.scheduling import MessageScheduler
 from app.services.follow_up.redis_store import FollowUpRedisStore
 from app.core.redis_manager import get_sync_redis_client as get_sync_redis
-from app.integrations.evolution import EvolutionClient
 from app.utils.timezone import SAO_PAULO_TZ, now_sao_paulo
 
 logger = logging.getLogger(__name__)
@@ -81,10 +80,9 @@ class FollowUpSystemService:
         self._initialized = False
 
         # Domain services - initialize with required dependencies
-        logger.info("Initializing IdempotentMessageSender with db, redis_client, evolution_client...")
+        logger.info("Initializing IdempotentMessageSender with db, redis_client...")
         redis_client = get_sync_redis()
-        evolution_client = EvolutionClient()
-        self.message_sender = IdempotentMessageSender(db, redis_client, evolution_client)
+        self.message_sender = IdempotentMessageSender(db, redis_client)
         logger.info("IdempotentMessageSender initialized successfully")
         self.message_scheduler = MessageScheduler(db)
 

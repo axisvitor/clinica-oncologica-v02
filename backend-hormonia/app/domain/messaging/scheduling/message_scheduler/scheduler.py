@@ -20,7 +20,6 @@ from app.repositories.message import MessageRepository
 from app.domain.messaging.delivery.idempotent_sender import IdempotentMessageSender
 from app.exceptions import ValidationError, NotFoundError
 from app.core.redis_manager import get_sync_redis_client as get_sync_redis
-from app.integrations.evolution import EvolutionClient
 from app.utils.db_retry import with_db_retry
 
 from .models import SchedulingWindow, TaskSchedulingError
@@ -49,8 +48,7 @@ class MessageScheduler:
             self.patient_repo = PatientRepository(db)
             self.message_repo = MessageRepository(db)
             redis_client = get_sync_redis()
-            evolution_client = EvolutionClient()
-            self.message_sender = IdempotentMessageSender(db, redis_client, evolution_client)
+            self.message_sender = IdempotentMessageSender(db, redis_client)
 
         # Initialize component handlers
         self.timezone_handler = TimezoneHandler(self.config)
