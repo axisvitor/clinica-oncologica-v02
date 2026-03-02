@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
-status: unknown
-stopped_at: Completed 35-02-PLAN.md
-last_updated: "2026-03-02T04:42:46.138Z"
+status: in_progress
+stopped_at: Completed 36-01-PLAN.md
+last_updated: "2026-03-02T05:28:30Z"
 progress:
   total_phases: 10
   completed_phases: 9
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** v1.6 WuzAPI Migration — Phase 35: Configuration and Session
+**Current focus:** v1.6 WuzAPI Migration — Phase 36: Outbound Migration
 
 ## Current Position
 
 Phase: 36 of 39 (Outbound Migration)
-Plan: 01 of 02 (36-01 pending)
+Plan: 02 of 02 (36-01 completed)
 Status: In Progress
-Last activity: 2026-03-02 — Completed 35-02 WuzAPI session methods, monitoring endpoints, and lifespan startup initialization
+Last activity: 2026-03-02 — Completed 36-01 UnifiedWhatsAppService outbound migration to WuzAPI
 
-Progress: [░░░░░░░░░░] 0% (0/2 plans in phase)
+Progress: [█████░░░░░] 50% (1/2 plans in phase)
 
 ## Performance Metrics
 
@@ -78,6 +78,8 @@ Progress: [░░░░░░░░░░] 0% (0/2 plans in phase)
 - [Phase 35]: Validate WHATSAPP_WUZAPI_TOKEN via IntegrationsSettings model_validator with test-environment exemptions.
 - [Phase 35]: Monitoring session endpoints should fail-open with structured error payloads (`connected/logged_in` or `qr` plus `error`) instead of raising API errors.
 - [Phase 35]: Lifespan startup keeps `_initialize_evolution_api` and adds `_initialize_wuzapi_session` in parallel, with status-first idempotent connect and warning-only failures.
+- [Phase 36]: UnifiedWhatsAppService now uses `get_wuzapi_client()`/`WuzAPIClient` for direct and queue-backed outbound flows with circuit breaker key `wuzapi`.
+- [Phase 36]: Direct send path writes `whatsapp_id` from `response.data.Id` and encodes media via `fetch_and_encode_media` before `send_media`.
 
 ### Pending Todos
 
@@ -90,6 +92,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-02T04:25:14.000Z
-**Stopped At:** Completed 35-02-PLAN.md
+**Last session:** 2026-03-02T05:28:30Z
+**Stopped At:** Completed 36-01-PLAN.md
 **Resume File:** None

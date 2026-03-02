@@ -160,7 +160,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 36-01: UnifiedWhatsAppService migration (swap EvolutionAPIClient for WuzAPIClient, rename circuit breaker to wuzapi, update health check to GET /session/status)
+- [x] 36-01: UnifiedWhatsAppService migration (swap EvolutionAPIClient for WuzAPIClient, rename circuit breaker to wuzapi, update health check to GET /session/status)
 - [ ] 36-02: Queue pipeline and IdempotentMessageSender migration (WhatsAppMessageService constructor injection, IdempotentMessageSender import update, whatsapp_id extraction from response.data.Id)
 
 ### Phase 37: Evolution Cleanup
@@ -209,10 +209,10 @@ Plans:
 | 33. New Provider Foundation | 3/3 | Complete    | 2026-03-02 | - |
 | 34. Webhook Handler | 3/3 | Complete   | 2026-03-02 | - |
 | 35. Configuration and Session | 2/2 | Complete    | 2026-03-02 | - |
-| 36. Outbound Migration | v1.6 | 0/2 | Not started | - |
+| 36. Outbound Migration | v1.6 | 1/2 | In Progress | - |
 | 37. Evolution Cleanup | v1.6 | 0/2 | Not started | - |
 | 38. Tests and CI Validation | v1.6 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-03-02 — Phase 35 completed (2/2 plans)*
+*Last updated: 2026-03-02 — Phase 36 plan 01 completed (1/2 plans)*
