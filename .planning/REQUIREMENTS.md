@@ -47,11 +47,11 @@ Requirements for WuzAPI migration. Each maps to roadmap phases.
 ### Evolution Cleanup
 
 - [x] **CLEAN-01**: Stack A tombstoned: `app/integrations/evolution/` (client, message_sender, request_handler, webhook_handler, rate_limiter, validators) converted to ImportError sentinels
-- [ ] **CLEAN-02**: Stack B tombstoned: `app/integrations/whatsapp/services/evolution_client.py` and `mock_evolution.py` converted to ImportError sentinels
-- [ ] **CLEAN-03**: Evolution webhook handler tombstoned: `app/integrations/whatsapp/api/webhooks.py` deregistered from router
-- [ ] **CLEAN-04**: Evolution message extractor tombstoned: `app/services/webhook/utils/message_extractor.py`
-- [ ] **CLEAN-05**: LID resolution methods removed from `phone_normalizer.py` (WuzAPI/whatsmeow handles internally)
-- [ ] **CLEAN-06**: `WHATSAPP_EVOLUTION_*` env vars removed from settings and `.env.example`
+- [x] **CLEAN-02**: Stack B tombstoned: `app/integrations/whatsapp/services/evolution_client.py` and `mock_evolution.py` converted to ImportError sentinels
+- [x] **CLEAN-03**: Evolution webhook handler tombstoned: `app/integrations/whatsapp/api/webhooks.py` deregistered from router
+- [x] **CLEAN-04**: Evolution message extractor tombstoned: `app/services/webhook/utils/message_extractor.py`
+- [x] **CLEAN-05**: LID resolution methods removed from `phone_normalizer.py` (WuzAPI/whatsmeow handles internally)
+- [x] **CLEAN-06**: `WHATSAPP_EVOLUTION_*` env vars removed from settings and `.env.example`
 
 ### Testing & Validation
 
@@ -111,11 +111,11 @@ Deferred to future release. Tracked but not in current roadmap.
 | OUT-03 | Phase 36 | Complete |
 | OUT-04 | Phase 36 | Complete |
 | CLEAN-01 | Phase 37 | Complete |
-| CLEAN-02 | Phase 37 | Pending |
-| CLEAN-03 | Phase 37 | Pending |
-| CLEAN-04 | Phase 37 | Pending |
-| CLEAN-05 | Phase 37 | Pending |
-| CLEAN-06 | Phase 37 | Pending |
+| CLEAN-02 | Phase 37 | Complete |
+| CLEAN-03 | Phase 37 | Complete |
+| CLEAN-04 | Phase 37 | Complete |
+| CLEAN-05 | Phase 37 | Complete |
+| CLEAN-06 | Phase 37 | Complete |
 | TEST-01 | Phase 38 | Pending |
 | TEST-02 | Phase 38 | Pending |
 | TEST-03 | Phase 38 | Pending |

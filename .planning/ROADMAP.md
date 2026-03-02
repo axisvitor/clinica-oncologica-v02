@@ -93,7 +93,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] **Phase 34: Webhook Handler** - New /webhooks/wuzapi endpoint with HMAC validation, idempotency, LID detection, and opt-out routing (completed 2026-03-02)
 - [x] **Phase 35: Configuration and Session** - New env vars, startup validation, .env.example update, and session management endpoints (completed 2026-03-02)
 - [x] **Phase 36: Outbound Migration** - Wire WuzAPIClient into all three outbound callers before any Evolution code is removed (gap closure in progress) (completed 2026-03-02)
-- [ ] **Phase 37: Evolution Cleanup** - Tombstone all Evolution files in one atomic commit after outbound is verified
+- [x] **Phase 37: Evolution Cleanup** - Tombstone all Evolution files in one atomic commit after outbound is verified (completed 2026-03-02)
 - [ ] **Phase 38: Tests and CI Validation** - Full regression gate: HMAC, opt-out E2E, JID resolution, source-level import guards
 
 ## Phase Details
@@ -177,8 +177,8 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 37-01: Stack A tombstone (app/integrations/evolution/: client, message_sender, request_handler, webhook_handler, rate_limiter, validators)
-- [ ] 37-02: Stack B tombstone and cleanup (evolution_client.py, mock_evolution.py, Evolution webhook deregistration, message_extractor.py tombstone, phone_normalizer.py LID methods removal, WHATSAPP_EVOLUTION_* vars removal)
+- [x] 37-01: Stack A tombstone (app/integrations/evolution/: client, message_sender, request_handler, webhook_handler, rate_limiter, validators)
+- [x] 37-02: Stack B tombstone and cleanup (evolution_client.py, mock_evolution.py, Evolution webhook deregistration, message_extractor.py tombstone, phone_normalizer.py LID methods removal, WHATSAPP_EVOLUTION_* vars removal)
 
 ### Phase 38: Tests and CI Validation
 **Goal**: The full test suite passes with WuzAPI contracts, all LGPD-critical paths (opt-out, HMAC, idempotency) are covered by tests, and CI source-level guards confirm zero Evolution imports outside tombstone files
@@ -211,9 +211,9 @@ Plans:
 | 34. Webhook Handler | 3/3 | Complete   | 2026-03-02 | - |
 | 35. Configuration and Session | 2/2 | Complete    | 2026-03-02 | - |
 | 36. Outbound Migration | 3/3 | Complete    | 2026-03-02 | - |
-| 37. Evolution Cleanup | 1/2 | In Progress|  | - |
+| 37. Evolution Cleanup | 2/2 | Complete   | 2026-03-02 | - |
 | 38. Tests and CI Validation | v1.6 | 0/3 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-03-02 — Phase 36 plan 01 completed (1/2 plans)*
+*Last updated: 2026-03-02 — Phase 37 plan 02 completed (2/2 plans)*
