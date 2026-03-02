@@ -35,34 +35,35 @@ async def wuzapi_webhook(
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise HTTPException(status_code=400, detail=f"Invalid JSON: {exc}") from exc
 
+    event_id = _extract_event_id(payload, raw_body)
     event_type = payload.get("type", "unknown")
 
     if event_type == "Message":
-        return await _handle_message(payload, db)
+        return await _handle_message(payload, db, event_id)
     if event_type == "ReadReceipt":
-        return await _handle_receipt(payload, db)
+        return await _handle_receipt(payload, db, event_id)
 
     logger.debug("WuzAPI webhook: unhandled event type %r", event_type)
     return {"status": "ignored", "type": event_type}
 
 
-async def _handle_message(payload: dict[str, Any], db: AsyncSession) -> dict[str, Any]:
+async def _handle_message(payload: dict[str, Any], db: AsyncSession, event_id: str) -> dict[str, Any]:
     """Stub handler for Message events. Wired in plan 34-03."""
     _ = db
     event = payload.get("event") or payload
     info = event.get("Info") or {}
-    message_id = info.get("ID", "")
+    message_id = info.get("ID", "") or event_id
     logger.info("WuzAPI Message received: %s", message_id)
     return {"status": "received", "message_id": message_id, "type": "Message"}
 
 
-async def _handle_receipt(payload: dict[str, Any], db: AsyncSession) -> dict[str, Any]:
+async def _handle_receipt(payload: dict[str, Any], db: AsyncSession, event_id: str) -> dict[str, Any]:
     """Stub handler for ReadReceipt events. Wired in plan 34-03."""
     _ = db
     event = payload.get("event") or payload
     info = event.get("Info") or {}
     receipt = event.get("Receipt") or {}
-    message_id = info.get("ID", "")
+    message_id = info.get("ID", "") or event_id
     receipt_type = receipt.get("Type", "")
     logger.info("WuzAPI Receipt received: %s (type=%s)", message_id, receipt_type)
     return {
