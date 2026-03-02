@@ -46,7 +46,7 @@ Requirements for WuzAPI migration. Each maps to roadmap phases.
 
 ### Evolution Cleanup
 
-- [ ] **CLEAN-01**: Stack A tombstoned: `app/integrations/evolution/` (client, message_sender, request_handler, webhook_handler, rate_limiter, validators) converted to ImportError sentinels
+- [x] **CLEAN-01**: Stack A tombstoned: `app/integrations/evolution/` (client, message_sender, request_handler, webhook_handler, rate_limiter, validators) converted to ImportError sentinels
 - [ ] **CLEAN-02**: Stack B tombstoned: `app/integrations/whatsapp/services/evolution_client.py` and `mock_evolution.py` converted to ImportError sentinels
 - [ ] **CLEAN-03**: Evolution webhook handler tombstoned: `app/integrations/whatsapp/api/webhooks.py` deregistered from router
 - [ ] **CLEAN-04**: Evolution message extractor tombstoned: `app/services/webhook/utils/message_extractor.py`
@@ -110,7 +110,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | OUT-02 | Phase 36 | Complete |
 | OUT-03 | Phase 36 | Complete |
 | OUT-04 | Phase 36 | Complete |
-| CLEAN-01 | Phase 37 | Pending |
+| CLEAN-01 | Phase 37 | Complete |
 | CLEAN-02 | Phase 37 | Pending |
 | CLEAN-03 | Phase 37 | Pending |
 | CLEAN-04 | Phase 37 | Pending |

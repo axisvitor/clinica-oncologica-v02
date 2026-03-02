@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
 status: unknown
-stopped_at: Completed 36-03-PLAN.md
-last_updated: "2026-03-02T17:12:21.190Z"
+stopped_at: Completed 37-01-PLAN.md
+last_updated: "2026-03-02T18:40:59.387Z"
 progress:
-  total_phases: 10
+  total_phases: 11
   completed_phases: 10
-  total_plans: 42
-  completed_plans: 42
+  total_plans: 44
+  completed_plans: 43
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 37 of 39 (Evolution Cleanup)
-Plan: 01 of 02 (ready to start)
+Plan: 02 of 02 (ready to start)
 Status: In Progress
-Last activity: 2026-03-02 — Completed 36-03 outbound wiring gap closure (caller-level WuzAPI wiring)
+Last activity: 2026-03-02 — Completed 37-01 Stack A tombstone and caller cleanup
 
-Progress: [██████████] 100% (3/3 plans in phase 36 completed)
+Progress: [█████░░░░░] 50% (1/2 plans in phase 37 completed)
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [██████████] 100% (3/3 plans in phase 36 completed
 | Phase 35 P02 | 5 min | 2 tasks | 7 files |
 | Phase 36 P02 | 6 min | 2 tasks | 2 files |
 | Phase 36 P03 | 6 min | 2 tasks | 3 files |
+| Phase 37 P01 | 14 min | 2 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -86,6 +87,8 @@ Progress: [██████████] 100% (3/3 plans in phase 36 completed
 - [Phase 36]: sync_contacts now raises NotImplementedError because WuzAPI has no contacts API; removal deferred to Phase 37
 - [Phase 36]: Keep Evolution DI only for instance-management endpoints in routes.py; migrate outbound message DI path to WuzAPI now.
 - [Phase 36]: Remove explicit EvolutionClient construction from IdempotentMessageSender callers and rely on lazy WuzAPI initialization.
+- [Phase 37]: Use full tombstone replacement for all 8 app.integrations.evolution modules with identical package-level ImportError message.
+- [Phase 37]: Keep verification-time environment overrides scoped to commands instead of editing env files.
 
 ### Pending Todos
 
@@ -98,6 +101,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-02T16:58:17.836Z
-**Stopped At:** Completed 36-03-PLAN.md
+**Last session:** 2026-03-02T18:40:59.352Z
+**Stopped At:** Completed 37-01-PLAN.md
 **Resume File:** None
