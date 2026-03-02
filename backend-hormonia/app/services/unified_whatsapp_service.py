@@ -2,7 +2,7 @@
 Unified WhatsApp Service - Consolidates Direct API and Queue WhatsApp Pipelines
 
 This service unifies two previously separate WhatsApp messaging pipelines:
-1. Direct API: MessageSender using Evolution client directly
+1. Direct API: MessageSender using provider client directly
 2. Queue: WhatsAppMessageService with queue management
 
 Key Benefits:
@@ -23,7 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import update
 
 from app.database import get_async_session_factory
-from app.integrations.whatsapp.services.evolution_client import EvolutionAPIClient
+from app.integrations.wuzapi import get_wuzapi_client, WuzAPIClient
+from app.integrations.wuzapi.media import fetch_and_encode_media
 from app.integrations.whatsapp.services.message_service import (
     MessageQueue,
     WhatsAppMessageService,
@@ -81,7 +82,7 @@ class UnifiedWhatsAppService:
         Args:
             db: Database session (sync or async)
             redis_url: Redis URL for queue management
-            default_instance_name: Default Evolution instance name (falls back to settings)
+            default_instance_name: Default instance name (falls back to settings)
         """
         self.db = db
         resolved_redis_url = redis_url
@@ -126,6 +127,7 @@ class UnifiedWhatsAppService:
         self.message_queue = MessageQueue(self.redis_url)
         self._queue_service: Optional[WhatsAppMessageService] = None
         self._queue_client = None
+        self._wuzapi_client: Optional[WuzAPIClient] = None
 
         # Status Handler
         self.status_handler = None
@@ -142,15 +144,15 @@ class UnifiedWhatsAppService:
         # Tracer for distributed tracing
         self.tracer = get_tracer()
 
-        # WA-004 FIX: Circuit breaker for Evolution API protection
-        self._evolution_breaker = CircuitBreaker(
-            name="evolution_api",
+        # WA-004 FIX: Circuit breaker for WuzAPI protection
+        self._wuzapi_breaker = CircuitBreaker(
+            name="wuzapi",
             failure_threshold=5,
             recovery_timeout=60,  # 1 minute
             success_threshold=3,
         )
         logger.info(
-            "Circuit breaker initialized for Evolution API",
+            "Circuit breaker initialized for WuzAPI",
             extra={
                 "failure_threshold": 5,
                 "recovery_timeout": 60,
@@ -201,46 +203,26 @@ class UnifiedWhatsAppService:
             },
         )
 
-    async def _get_queue_client(self) -> EvolutionAPIClient:
-        """Get queue-based Evolution client."""
-        if not self._queue_client:
-            if not settings.WHATSAPP_EVOLUTION_API_URL:
-                raise ExternalServiceError("Evolution API not configured")
-
-            # Use mock client only when explicitly enabled.
-            if getattr(settings, "WHATSAPP_EVOLUTION_USE_MOCK", False):
-                from app.integrations.whatsapp.services.mock_evolution import (
-                    MockEvolutionAPIClient,
+    async def _get_wuzapi_client(self) -> WuzAPIClient:
+        """Get WuzAPI client for outbound messaging."""
+        if not self._wuzapi_client:
+            token = getattr(settings, "WHATSAPP_WUZAPI_TOKEN", None)
+            base_url = getattr(settings, "WHATSAPP_WUZAPI_BASE_URL", "")
+            if not token:
+                raise ExternalServiceError(
+                    "WuzAPI not configured: WHATSAPP_WUZAPI_TOKEN missing"
                 )
-
-                self._queue_client = MockEvolutionAPIClient(
-                    base_url=settings.WHATSAPP_EVOLUTION_API_URL,
-                    api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
-                    global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL,
-                    timeout_seconds=getattr(
-                        settings, "WHATSAPP_EVOLUTION_TIMEOUT_SECONDS", 30
-                    ),
-                )
-            else:
-                self._queue_client = EvolutionAPIClient(
-                    base_url=settings.WHATSAPP_EVOLUTION_API_URL,
-                    api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
-                    global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL,
-                    timeout_seconds=getattr(
-                        settings, "WHATSAPP_EVOLUTION_TIMEOUT_SECONDS", 30
-                    ),
-                )
-
-            await self._queue_client.connect()
-        return self._queue_client
+            self._wuzapi_client = get_wuzapi_client(base_url=base_url, token=token)
+            await self._wuzapi_client.connect()
+        return self._wuzapi_client
 
     async def _get_queue_service(self) -> WhatsAppMessageService:
         """Get queue-based message service."""
         if not self._queue_service:
             if self._is_async:
-                evolution_client = await self._get_queue_client()
+                wuzapi_client = await self._get_wuzapi_client()
                 self._queue_service = WhatsAppMessageService(
-                    evolution_client,
+                    wuzapi_client,
                     self.db,
                     self.message_queue,
                     message_status_handler=self.status_handler,
@@ -472,7 +454,7 @@ class UnifiedWhatsAppService:
         """
         Send message via queue pipeline with circuit breaker protection.
 
-        WA-004: Circuit breaker protects against Evolution API failures
+        WA-004: Circuit breaker protects against WuzAPI failures
         
         Note: This method does NOT mark messages as FAILED on transient failures.
         The Celery task is responsible for marking FAILED only after exhausting retries.
@@ -488,7 +470,7 @@ class UnifiedWhatsAppService:
                 return await queue_service.send_message(queue_request)
 
             # Send via queue with Redis-backed circuit breaker
-            response = await self._evolution_breaker.call(_send_request)
+            response = await self._wuzapi_breaker.call(_send_request)
 
             if response.status == WhatsAppMessageStatus.PENDING:
                 logger.info(f"Message {message.id} queued successfully")
@@ -503,16 +485,16 @@ class UnifiedWhatsAppService:
                 )
 
         except CircuitOpenError as exc:
-            breaker_state = await self._evolution_breaker.get_state_async()
+            breaker_state = await self._wuzapi_breaker.get_state_async()
             logger.warning(
-                "Evolution API circuit breaker OPEN - skipping message send",
+                "WuzAPI circuit breaker OPEN - skipping message send",
                 extra={
                     "message_id": str(message.id),
                     "breaker_state": breaker_state.value,
                 },
             )
             raise ExternalServiceError(
-                f"Circuit breaker open for Evolution API (state: {breaker_state.value})"
+                f"Circuit breaker open for WuzAPI (state: {breaker_state.value})"
             ) from exc
         except ExternalServiceError as exc:
             logger.error(f"Queue send failed for message {message.id}: {exc}")
@@ -523,12 +505,9 @@ class UnifiedWhatsAppService:
             raise ExternalServiceError(f"Queue send failed: {e}") from e
 
     async def _send_via_direct_api(self, message: Message, **kwargs) -> bool:
-        """Send message directly via Evolution API (no queue)."""
+        """Send message directly via WuzAPI (no queue)."""
         try:
             metadata = message.message_metadata or {}
-            instance_name = metadata.get("instance_name", self.default_instance_name)
-            if not instance_name:
-                raise ExternalServiceError("instance_name is required for direct send")
 
             patient = await self._ensure_patient_loaded(message)
             if not patient or not patient.phone_decrypted:
@@ -546,24 +525,26 @@ class UnifiedWhatsAppService:
             if phone.startswith("+"):
                 phone = phone[1:]
 
-            evolution_client = await self._get_queue_client()
+            wuzapi_client = await self._get_wuzapi_client()
 
             if message.type == MessageType.TEXT or not message.type:
-                response = await evolution_client.send_text_message(
-                    instance_name, phone, message.content or ""
+                response = await wuzapi_client.send_text(
+                    phone=phone, message=message.content or ""
                 )
             else:
-                response = await evolution_client.send_media_message(
-                    instance_name,
-                    phone,
-                    media_url=message.content or "",
-                    media_type=message.type,
+                media_url = metadata.get("media_url", "")
+                media_type = metadata.get("media_type", "image")
+                if not media_url:
+                    raise ExternalServiceError("media_url is required for media send")
+                data_uri = await fetch_and_encode_media(media_url)
+                response = await wuzapi_client.send_media(
+                    media_type=media_type,
+                    phone=phone,
+                    data_uri=data_uri,
                 )
 
             message.status = MessageStatus.SENT
-            message.whatsapp_id = getattr(response, "external_id", None) or getattr(
-                response, "id", None
-            )
+            message.whatsapp_id = response.get("data", {}).get("Id")
             message.sent_at = now_sao_paulo()
 
             if self._is_async:
@@ -872,7 +853,7 @@ class UnifiedWhatsAppService:
 
         # Check queue client
         try:
-            await self._get_queue_client()
+            await self._get_wuzapi_client()
             _set_component_status("queue_client", "healthy")
         except Exception as e:
             _set_component_status("queue_client", "unhealthy", str(e))
@@ -884,22 +865,22 @@ class UnifiedWhatsAppService:
         except Exception as e:
             _set_component_status("message_queue", "unhealthy", str(e))
 
-        # Check Evolution API instance health
+        # Check WuzAPI session health
         try:
-            evolution_client = await self._get_queue_client()
-            instance_health = await evolution_client.health_check(
-                self.default_instance_name
+            wuzapi_client = await self._get_wuzapi_client()
+            status_resp = await wuzapi_client.get_session_status()
+            status_data = status_resp.get("data", {})
+            is_connected = status_data.get("Connected", False) and status_data.get(
+                "LoggedIn", False
             )
-            instance_status = (
-                "healthy" if instance_health.get("is_connected") else "degraded"
-            )
-            _set_component_status("evolution_instance", instance_status, instance_health)
+            instance_status = "healthy" if is_connected else "degraded"
+            _set_component_status("wuzapi_session", instance_status, status_resp)
         except Exception as e:
-            _set_component_status("evolution_instance", "unhealthy", str(e))
+            _set_component_status("wuzapi_session", "unhealthy", str(e))
 
         # Circuit breaker stats
         try:
-            breaker_stats = await self._evolution_breaker.get_stats_async()
+            breaker_stats = await self._wuzapi_breaker.get_stats_async()
             breaker_state = breaker_stats.get("state", "unknown")
             breaker_status = (
                 "healthy"
@@ -910,7 +891,7 @@ class UnifiedWhatsAppService:
             )
             _set_component_status("circuit_breaker", breaker_status, breaker_stats)
             whatsapp_metrics.set_circuit_breaker_state(
-                self.default_instance_name, "evolution_api", breaker_state
+                self.default_instance_name, "wuzapi", breaker_state
             )
         except Exception as e:
             _set_component_status("circuit_breaker", "unhealthy", str(e))
@@ -930,6 +911,13 @@ class UnifiedWhatsAppService:
                     if asyncio.iscoroutine(disconnect_result):
                         await disconnect_result
                 self._queue_client = None
+
+            if self._wuzapi_client:
+                try:
+                    await self._wuzapi_client.disconnect()
+                except Exception:
+                    pass
+                self._wuzapi_client = None
 
             self._queue_service = None
 
