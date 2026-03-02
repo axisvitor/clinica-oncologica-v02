@@ -36,6 +36,7 @@ from app.services.webhook.utils.phone_normalizer import PhoneNormalizer
 from app.services.webhook.utils.message_extractor import extract_message_data
 from app.utils.timezone import now_sao_paulo
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +85,69 @@ def is_opt_out_message(text: str) -> bool:
         return False
     normalized = text.strip().lower()
     return normalized in OPT_OUT_KEYWORDS
+
+
+# ---------------------------------------------------------------------------
+
+
+async def handle_opt_out(patient: Patient, db: AsyncSession) -> None:
+    """
+    Standalone opt-out handler for any webhook endpoint (WuzAPI, Evolution, etc.).
+
+    LGPD Art. 18 compliance flow:
+    1. Stamp messaging_stopped_at immediately.
+    2. Revoke active COMMUNICATION consents (best-effort).
+    3. Commit the transaction.
+    """
+    from sqlalchemy import select as sa_select
+
+    from app.models.consent import Consent, ConsentType, ConsentStatus
+    from app.services.lgpd.consent_service import ConsentService
+
+    now = now_sao_paulo()
+    patient.messaging_stopped_at = now
+    logger.info(
+        "Patient %s opted out of WhatsApp messaging via STOP keyword",
+        patient.id,
+        extra={"patient_id": str(patient.id)},
+    )
+
+    try:
+        stmt = sa_select(Consent).where(
+            Consent.patient_id == patient.id,
+            Consent.consent_type == ConsentType.COMMUNICATION,
+            Consent.status == ConsentStatus.GRANTED,
+        )
+        result = await db.execute(stmt)
+        active_consents = result.scalars().all()
+
+        consent_service = ConsentService(db)
+        for consent in active_consents:
+            try:
+                await consent_service.revoke_consent(
+                    consent_id=consent.id,
+                    reason="Patient opt-out via WhatsApp STOP message",
+                )
+                logger.info(
+                    "Revoked COMMUNICATION consent %s for patient %s",
+                    consent.id,
+                    patient.id,
+                )
+            except Exception as revoke_err:
+                logger.warning(
+                    "Failed to revoke consent %s for patient %s (opt-out still applied): %s",
+                    consent.id,
+                    patient.id,
+                    revoke_err,
+                )
+    except Exception as consent_err:
+        logger.warning(
+            "Failed to query consents for patient %s (opt-out still applied): %s",
+            patient.id,
+            consent_err,
+        )
+
+    await db.commit()
 
 
 # ---------------------------------------------------------------------------

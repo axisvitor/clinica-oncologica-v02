@@ -5,6 +5,12 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - interim during incremental setup
     WuzAPIClient = None
 from app.integrations.wuzapi.errors import MediaTooLargeError, WuzAPIError
+from app.integrations.wuzapi.extractor import (
+    RECEIPT_TYPE_TO_STATUS,
+    WuzAPIInboundMessage,
+    WuzAPIMessageExtractor,
+    WuzAPIReceiptEvent,
+)
 from app.integrations.wuzapi.media import fetch_and_encode_media
 from app.integrations.wuzapi.mock import MockWuzAPIClient
 from app.integrations.wuzapi.models import WuzAPISendResponse
@@ -28,4 +34,8 @@ __all__ = [
     "MediaTooLargeError",
     "WuzAPISendResponse",
     "fetch_and_encode_media",
+    "WuzAPIMessageExtractor",
+    "WuzAPIInboundMessage",
+    "WuzAPIReceiptEvent",
+    "RECEIPT_TYPE_TO_STATUS",
 ]

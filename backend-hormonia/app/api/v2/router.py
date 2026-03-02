@@ -52,6 +52,7 @@ from .routers.monthly_quiz_operations import router as monthly_quiz_operations_r
 from .routers.debug import router as debug_router
 from .routers.hive_mind import router as hive_mind_router
 from app.integrations.whatsapp.api.routes import router as whatsapp_router
+from app.integrations.wuzapi.webhook import router as wuzapi_webhook_router
 from app.api.v2.monitoring import whatsapp_monitoring_router
 
 logger = logging.getLogger(__name__)
@@ -105,6 +106,11 @@ api_v2_router.include_router(webhooks_router, prefix="/webhooks", tags=["webhook
 api_v2_router.include_router(ai_router, prefix="/ai", tags=["ai-v2"])
 api_v2_router.include_router(hive_mind_router, prefix="/hive-mind", tags=["hive-mind-v2"])
 api_v2_router.include_router(whatsapp_router, tags=["whatsapp-v2"]) # prefix is already in router definition
+api_v2_router.include_router(
+    wuzapi_webhook_router,
+    prefix="/webhooks",
+    tags=["wuzapi-webhooks-v2"],
+)
 
 # Phase 5: Enhanced modules and Alerts
 api_v2_router.include_router(
