@@ -1,6 +1,6 @@
 """
 Integrations configuration module: External APIs and services.
-Includes Evolution API (WhatsApp), Google Gemini AI, LangChain, and Celery.
+Includes WhatsApp provider settings, Google Gemini AI, LangChain, and Celery.
 ENV Variable Naming Convention: {CATEGORY}_{SUBCATEGORY}_{ATTRIBUTE}_{UNIT}
 """
 
@@ -13,41 +13,10 @@ class IntegrationsSettings(BaseAppSettings):
     """Configuration for external API integrations and background tasks."""
 
     # ============================================================================
-    # WhatsApp / Evolution API - Direct ENV names
+    # WhatsApp provider - Direct ENV names
     # ============================================================================
     WHATSAPP_ENABLE_SERVICE: bool = Field(
-        default=True, description="Enable Evolution API WhatsApp integration"
-    )
-    WHATSAPP_EVOLUTION_USE_MOCK: bool = Field(
-        default=False,
-        description=(
-            "Use mock Evolution client instead of real HTTP calls. "
-            "Set true only for local development/testing without Evolution API."
-        ),
-    )
-    WHATSAPP_EVOLUTION_API_URL: str = Field(
-        default="http://localhost:8080", description="Evolution API base URL"
-    )
-    WHATSAPP_EVOLUTION_INSTANCE_NAME: str = Field(
-        default="clinica_oncologica", description="Evolution instance name"
-    )
-    WHATSAPP_EVOLUTION_API_KEY: str = Field(
-        default="your-evolution-api-key-here", description="Evolution API key"
-    )
-    WHATSAPP_EVOLUTION_WEBHOOK_SECRET: Optional[str] = Field(
-        default=None,
-        description=(
-            "Evolution webhook secret for HMAC-SHA256 signature validation. "
-            "CRITICAL SECURITY: Must be set in production to prevent webhook spoofing. "
-            "Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
-        ),
-    )
-    WHATSAPP_WEBHOOK_SECRET: Optional[str] = Field(
-        default=None,
-        description=(
-            "WhatsApp webhook secret for HMAC validation. "
-            "Use this to override WHATSAPP_EVOLUTION_WEBHOOK_SECRET when needed."
-        ),
+        default=True, description="Enable WhatsApp integration"
     )
     WHATSAPP_WEBHOOK_HMAC_ENABLED: bool = Field(
         default=True,
@@ -75,13 +44,6 @@ class IntegrationsSettings(BaseAppSettings):
             "Keep disabled unless requests always come from a trusted reverse proxy."
         ),
     )
-    WHATSAPP_EVOLUTION_WEBHOOK_URL: Optional[str] = Field(
-        default=None, description="Webhook URL for receiving Evolution API events"
-    )
-
-    # ============================================================================
-    # WhatsApp / WuzAPI - Direct ENV names (Phase 35)
-    # ============================================================================
     WHATSAPP_WUZAPI_BASE_URL: str = Field(
         default="http://localhost:8080",
         description="WuzAPI base URL (e.g. http://wuzapi:8080)",
@@ -155,10 +117,6 @@ class IntegrationsSettings(BaseAppSettings):
     WHATSAPP_RETRY_DELAY_SECONDS: int = Field(
         default=60,
         description="Initial delay in seconds before retrying failed messages (uses exponential backoff)",
-    )
-    WHATSAPP_EVOLUTION_TIMEOUT_SECONDS: int = Field(
-        default=30,
-        description="Evolution API request timeout in seconds",
     )
     WHATSAPP_FLOW_RESPONSE_TIMEOUT_SECONDS: int = Field(
         default=180,

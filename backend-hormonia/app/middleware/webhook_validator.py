@@ -16,12 +16,12 @@ Usage:
 
     app.add_middleware(
         WebhookValidatorMiddleware,
-        secret_key=settings.WHATSAPP_EVOLUTION_WEBHOOK_SECRET,
+        secret_key=settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET,
         max_timestamp_age=300  # 5 minutes
     )
 
 Configuration:
-    Set EVOLUTION_WEBHOOK_SECRET in your environment variables to enable validation.
+    Set WHATSAPP_WUZAPI_WEBHOOK_SECRET in your environment variables to enable validation.
     Generate a secure secret with: python -c 'import secrets; print(secrets.token_urlsafe(32))'
 
 Author: Hormonia Backend Team
@@ -101,7 +101,7 @@ class WebhookValidatorMiddleware(BaseHTTPMiddleware):
             if is_production:
                 # FAIL-CLOSED in production - webhook validation is mandatory
                 raise ValueError(
-                    "CRITICAL: EVOLUTION_WEBHOOK_SECRET must be set in production. "
+                    "CRITICAL: WHATSAPP_WUZAPI_WEBHOOK_SECRET must be set in production. "
                     "Webhook validation cannot be disabled in production environment."
                 )
             else:

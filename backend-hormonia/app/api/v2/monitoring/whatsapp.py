@@ -2,7 +2,6 @@
 WhatsApp monitoring endpoints.
 """
 
-from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -33,7 +32,7 @@ async def get_whatsapp_health(db=Depends(get_db)):
     """Detailed health check for WhatsApp integration."""
     service = UnifiedWhatsAppService(
         db,
-        default_instance_name=settings.WHATSAPP_EVOLUTION_INSTANCE_NAME,
+        default_instance_name="wuzapi",
     )
     return await service.health_check()
 
@@ -44,7 +43,7 @@ async def get_queue_stats(
 ):
     """Queue statistics for WhatsApp message processing."""
     manager = QueueManager(
-        default_instance=settings.WHATSAPP_EVOLUTION_INSTANCE_NAME,
+        default_instance="wuzapi",
         redis_url=settings.REDIS_URL,
     )
     try:

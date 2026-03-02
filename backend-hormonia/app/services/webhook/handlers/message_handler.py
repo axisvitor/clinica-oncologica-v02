@@ -33,7 +33,6 @@ from app.config import settings
 from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.utils.db_retry import with_db_retry
 from app.services.webhook.utils.phone_normalizer import PhoneNormalizer
-from app.services.webhook.utils.message_extractor import extract_message_data
 from app.utils.timezone import now_sao_paulo
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -223,7 +222,7 @@ class MessageWebhookHandler:
                     )
 
             # Step 1: Extract message data
-            message_data = extract_message_data(event_data)
+            message_data = event_data if isinstance(event_data, dict) else None
             if not message_data:
                 logger.warning("No valid message data found in webhook")
                 if stored_event_id and webhook_store:
@@ -431,9 +430,7 @@ class MessageWebhookHandler:
         if not isinstance(metadata, dict):
             metadata = {}
 
-        remote_jid = parse_optional_str(metadata.get("remote_jid")) or ""
         remote_jid_alt = parse_optional_str(metadata.get("remote_jid_alt")) or ""
-        instance_name = parse_optional_str(metadata.get("instance_name"))
         phone = self.phone_normalizer.clean_phone_number(message_data["phone"])
         patient = self.phone_normalizer.find_patient_by_phone(phone)
 
@@ -452,34 +449,6 @@ class MessageWebhookHandler:
                     metadata["resolved_phone"] = alt_phone
                     message_data["metadata"] = metadata
                     return patient
-
-        # Evolution can deliver inbound as @lid while the patient is registered by phone.
-        # Try to resolve the LID to a phone JID before classifying as unauthorized.
-        if remote_jid.endswith("@lid"):
-            resolved_phone = await self.phone_normalizer.resolve_phone_from_lid(
-                remote_jid, instance_name=instance_name
-            )
-            if resolved_phone:
-                phone = self.phone_normalizer.clean_phone_number(resolved_phone)
-                patient = self.phone_normalizer.find_patient_by_phone(phone)
-                if patient:
-                    message_data["phone"] = phone
-                    metadata["resolved_from_lid"] = True
-                    metadata["resolved_phone"] = phone
-                    message_data["metadata"] = metadata
-                    return patient
-            else:
-                logger.warning(
-                    "Skipping unauthorized handling for unresolved LID sender",
-                    extra={"remote_jid": remote_jid, "instance_name": instance_name},
-                )
-                if webhook_id and webhook_store:
-                    await webhook_store.mark_processed(
-                        webhook_id,
-                        False,
-                        "Unable to resolve LID sender to patient phone",
-                    )
-                return None
 
         # Patient not found - handle unauthorized access
         from app.services.security_monitor import SecurityMonitor

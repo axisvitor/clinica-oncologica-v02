@@ -43,10 +43,7 @@ class WhatsAppSecurity:
             - Constant-time comparison (prevents timing attacks)
         """
         # If no secret configured, fail-closed in production/staging
-        webhook_secret = (
-            getattr(settings, "WHATSAPP_EVOLUTION_WEBHOOK_SECRET", None)
-            or getattr(settings, "EVOLUTION_WEBHOOK_SECRET", None)
-        )
+        webhook_secret = getattr(settings, "WHATSAPP_WUZAPI_WEBHOOK_SECRET", None)
         if not webhook_secret:
             is_dev = getattr(settings, "APP_ENABLE_DEBUG", False) or (
                 getattr(settings, "APP_ENVIRONMENT", "production").lower()
@@ -54,13 +51,13 @@ class WhatsAppSecurity:
             )
             if is_dev:
                 logger.warning(
-                    "SECURITY WARNING: WHATSAPP_EVOLUTION_WEBHOOK_SECRET not configured. "
+                    "SECURITY WARNING: WHATSAPP_WUZAPI_WEBHOOK_SECRET not configured. "
                     "Webhook signature validation SKIPPED (development mode)."
                 )
                 return True
             else:
                 logger.critical(
-                    "SECURITY CRITICAL: WHATSAPP_EVOLUTION_WEBHOOK_SECRET not configured "
+                    "SECURITY CRITICAL: WHATSAPP_WUZAPI_WEBHOOK_SECRET not configured "
                     "in %s environment. Rejecting webhook (fail-closed).",
                     getattr(settings, "APP_ENVIRONMENT", "unknown"),
                 )

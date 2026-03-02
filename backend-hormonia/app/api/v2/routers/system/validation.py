@@ -8,8 +8,6 @@ Security: Admin role required.
 """
 
 from typing import Optional
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 
 from app.schemas.v2.system import (
@@ -118,8 +116,8 @@ async def validate_configuration(
             recommendations.append("Configure allowed CORS origins")
 
         # Check external service configurations
-        if settings.WHATSAPP_ENABLE_SERVICE and not settings.WHATSAPP_EVOLUTION_API_KEY:
-            warnings.append("Evolution API is enabled but API key not configured")
+        if settings.WHATSAPP_ENABLE_SERVICE and not getattr(settings, "WHATSAPP_WUZAPI_TOKEN", None):
+            warnings.append("WhatsApp service is enabled but WHATSAPP_WUZAPI_TOKEN not configured")
 
         if settings.AI_ENABLE_HUMANIZATION and not settings.AI_GEMINI_API_KEY:
             warnings.append(

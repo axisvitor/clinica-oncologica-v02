@@ -103,7 +103,7 @@ class WebhookService:
     async def verify_webhook_signature(
         self, payload: bytes, signature: str, timestamp: str, webhook_id: str
     ) -> Dict[str, Any]:
-        if not settings.WHATSAPP_EVOLUTION_WEBHOOK_SECRET:
+        if not settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET:
             raise HTTPException(
                 status_code=401, detail="Webhook authentication not configured"
             )
@@ -120,7 +120,7 @@ class WebhookService:
                 raise HTTPException(status_code=401, detail="Invalid webhook timestamp")
 
         expected_signature = self._compute_webhook_signature(
-            payload, settings.WHATSAPP_EVOLUTION_WEBHOOK_SECRET, timestamp
+            payload, settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET, timestamp
         )
         if not hmac.compare_digest(signature, expected_signature):
             raise HTTPException(status_code=401, detail="Invalid webhook signature")
