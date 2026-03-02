@@ -4,7 +4,7 @@ Includes Evolution API (WhatsApp), Google Gemini AI, LangChain, and Celery.
 ENV Variable Naming Convention: {CATEGORY}_{SUBCATEGORY}_{ATTRIBUTE}_{UNIT}
 """
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from typing import List, Optional
 from .base import BaseAppSettings
 
@@ -78,6 +78,66 @@ class IntegrationsSettings(BaseAppSettings):
     WHATSAPP_EVOLUTION_WEBHOOK_URL: Optional[str] = Field(
         default=None, description="Webhook URL for receiving Evolution API events"
     )
+
+    # ============================================================================
+    # WhatsApp / WuzAPI - Direct ENV names (Phase 35)
+    # ============================================================================
+    WHATSAPP_WUZAPI_BASE_URL: str = Field(
+        default="http://localhost:8080",
+        description="WuzAPI base URL (e.g. http://wuzapi:8080)",
+    )
+    WHATSAPP_WUZAPI_TOKEN: Optional[str] = Field(
+        default=None,
+        description=(
+            "WuzAPI API token. REQUIRED in non-test environments. "
+            "Application refuses to start if absent. "
+            "Set via Authorization header on every WuzAPI request."
+        ),
+    )
+    WHATSAPP_WUZAPI_WEBHOOK_SECRET: Optional[str] = Field(
+        default=None,
+        description=(
+            "HMAC-SHA256 secret for WuzAPI webhook signature validation. "
+            "Generate with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+        ),
+    )
+    WHATSAPP_WUZAPI_USE_MOCK: bool = Field(
+        default=False,
+        description=(
+            "Use MockWuzAPIClient instead of real WuzAPI HTTP calls. "
+            "Set true only for local development/testing without WuzAPI."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def validate_wuzapi_token(self) -> "IntegrationsSettings":
+        """Hard-fail at startup if WHATSAPP_WUZAPI_TOKEN is missing (CFG-02).
+
+        Application must refuse to start without the token in non-test environments.
+        Silent fallback is explicitly prohibited.
+        """
+        import os
+
+        is_test = bool(
+            os.getenv("PYTEST_CURRENT_TEST")
+            or os.getenv("TESTING") == "1"
+            or self.APP_ENVIRONMENT.lower() in ("test", "testing")
+        )
+        if is_test:
+            return self
+
+        token = self.WHATSAPP_WUZAPI_TOKEN
+        if not token or not token.strip():
+            raise ValueError(
+                "\n" + "=" * 70 + "\n"
+                "STARTUP VALIDATION FAILED: WHATSAPP_WUZAPI_TOKEN is required.\n"
+                "=" * 70 + "\n"
+                "Set WHATSAPP_WUZAPI_TOKEN in your .env file or environment.\n"
+                "This token authenticates all WuzAPI API calls.\n"
+                "Obtain it from your WuzAPI instance configuration.\n"
+                "=" * 70
+            )
+        return self
 
     # WhatsApp Integration Configuration - Direct ENV names
     WHATSAPP_ENABLE_ON_REGISTRATION: bool = Field(
