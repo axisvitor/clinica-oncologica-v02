@@ -204,10 +204,9 @@ def register_routers(app: FastAPI) -> None:
     # WhatsApp integration (if enabled)
     try:
         if getattr(settings, "WHATSAPP_ENABLE_SERVICE", False):
-            from app.integrations.whatsapp import whatsapp_router, webhook_router
+            from app.integrations.whatsapp import whatsapp_router
 
             app.include_router(whatsapp_router, tags=["WhatsApp"])
-            app.include_router(webhook_router)
             logger.info("✓ WhatsApp integration endpoints registered")
     except ImportError as e:
         logger.warning(f"WhatsApp integration not available: {e}")

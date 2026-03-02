@@ -12,11 +12,9 @@ from sqlalchemy import select
 from ..models.message import (
     MessageRequest,
     MessageResponse,
-    InstanceStatus,
     WhatsAppContact,
     WhatsAppInstance,
 )
-from ..services.evolution_client import EvolutionAPIClient, validate_phone_number
 from ..services.message_service import WhatsAppMessageService, MessageQueue
 from app.integrations.wuzapi import get_wuzapi_client
 from app.database import get_async_db
@@ -27,11 +25,6 @@ logger = logging.getLogger(__name__)
 
 # This router is mounted under /api/v2 in the main v2 router.
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
-
-
-def _should_use_mock_evolution() -> bool:
-    """Enable mock Evolution client only when explicitly configured."""
-    return bool(getattr(settings, "WHATSAPP_EVOLUTION_USE_MOCK", False))
 
 
 def _serialize_message_entry(msg, *, include_error_message: bool) -> dict:
@@ -75,39 +68,6 @@ def _build_messages_response(
     }
 
 
-async def get_evolution_client() -> AsyncGenerator[EvolutionAPIClient, None]:
-    """Get Evolution API client instance with guaranteed cleanup."""
-    if not settings.WHATSAPP_EVOLUTION_API_URL or not settings.WHATSAPP_EVOLUTION_API_KEY:
-        raise HTTPException(status_code=501, detail="Evolution API not configured")
-
-    if "your-evolution-api-key" in settings.WHATSAPP_EVOLUTION_API_KEY.lower():
-        raise HTTPException(status_code=501, detail="Evolution API not configured")
-
-    if _should_use_mock_evolution():
-        from ..services.mock_evolution import MockEvolutionAPIClient
-
-        client = MockEvolutionAPIClient(
-            base_url=settings.WHATSAPP_EVOLUTION_API_URL,
-            api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
-            global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL,
-        )
-    else:
-        client = EvolutionAPIClient(
-            base_url=settings.WHATSAPP_EVOLUTION_API_URL,
-            api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
-            global_webhook_url=settings.WHATSAPP_EVOLUTION_WEBHOOK_URL,
-        )
-
-    await client.connect()
-    try:
-        yield client
-    finally:
-        try:
-            await client.disconnect()
-        except Exception as e:
-            logger.warning("Failed to disconnect Evolution client: %s", e)
-
-
 async def get_wuzapi_for_queue():
     """Get WuzAPI client for queue message service (outbound messages only)."""
     token = getattr(settings, "WHATSAPP_WUZAPI_TOKEN", None)
@@ -143,136 +103,6 @@ async def get_message_service(
             await message_queue.disconnect()
         except Exception as e:
             logger.warning("Failed to disconnect message queue client: %s", e)
-
-
-# Instance Management Endpoints
-@router.post("/instances", response_model=InstanceStatus)
-async def create_instance(
-    instance_name: str,
-    webhook_url: Optional[str] = None,
-    db: AsyncSession = Depends(get_async_db),
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
-):
-    """Create a new WhatsApp instance."""
-    try:
-        # Check if instance already exists
-        stmt = select(WhatsAppInstance).where(WhatsAppInstance.name == instance_name)
-        result = await db.execute(stmt)
-        existing_instance = result.scalar_one_or_none()
-
-        if existing_instance:
-            raise HTTPException(status_code=409, detail="Instance already exists")
-
-        # Create instance via Evolution API
-        instance_status = await evolution_client.create_instance(
-            instance_name=instance_name, webhook_url=webhook_url
-        )
-
-        # Save instance to database
-        instance = WhatsAppInstance(
-            id=f"instance_{instance_name}",
-            name=instance_name,
-            status=instance_status.status,
-            qr_code=instance_status.qr_code,
-            webhook_url=webhook_url,
-            is_connected=instance_status.is_connected,
-        )
-
-        db.add(instance)
-        await db.commit()
-
-        logger.info(f"Created WhatsApp instance: {instance_name}")
-        return instance_status
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating instance {instance_name}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to create WhatsApp instance")
-
-
-@router.get("/instances/{instance_name}", response_model=InstanceStatus)
-async def get_instance_status(
-    instance_name: str,
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
-):
-    """Get instance connection status."""
-    try:
-        return await evolution_client.get_instance_status(instance_name)
-    except Exception as e:
-        logger.error(f"Error getting instance status for {instance_name}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to get instance status")
-
-
-@router.get("/instances/{instance_name}/qr")
-async def get_qr_code(
-    instance_name: str,
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
-):
-    """Get QR code for instance connection."""
-    try:
-        qr_code = await evolution_client.get_qr_code(instance_name)
-        if qr_code:
-            return {"qr_code": qr_code, "timestamp": now_sao_paulo()}
-        else:
-            raise HTTPException(status_code=404, detail="QR code not available")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting QR code for {instance_name}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to get QR code")
-
-
-@router.post("/instances/{instance_name}/restart")
-async def restart_instance(
-    instance_name: str,
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
-):
-    """Restart WhatsApp instance."""
-    try:
-        success = await evolution_client.restart_instance(instance_name)
-        if success:
-            return {"status": "restarted", "timestamp": now_sao_paulo()}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to restart instance")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error restarting instance {instance_name}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to restart instance")
-
-
-@router.delete("/instances/{instance_name}")
-async def delete_instance(
-    instance_name: str,
-    db: AsyncSession = Depends(get_async_db),
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
-):
-    """Delete WhatsApp instance."""
-    try:
-        # Delete from Evolution API
-        success = await evolution_client.delete_instance(instance_name)
-
-        if success:
-            # Delete from database
-            stmt = select(WhatsAppInstance).where(
-                WhatsAppInstance.name == instance_name
-            )
-            result = await db.execute(stmt)
-            instance = result.scalar_one_or_none()
-
-            if instance:
-                await db.delete(instance)
-                await db.commit()
-
-            return {"status": "deleted", "timestamp": now_sao_paulo()}
-        else:
-            raise HTTPException(status_code=500, detail="Failed to delete instance")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error deleting instance {instance_name}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to delete instance")
 
 
 # Message Management Endpoints
@@ -439,38 +269,6 @@ async def get_contacts(
     except Exception as e:
         logger.error(f"Error getting contacts: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get contacts")
-
-
-@router.post("/contacts/{instance_name}/check")
-async def check_whatsapp_number(
-    instance_name: str,
-    phone_number: str,
-    evolution_client: EvolutionAPIClient = Depends(get_evolution_client),
-):
-    """Check if phone number is registered on WhatsApp."""
-    try:
-        # Validate and format phone number
-        is_valid, formatted_number = await validate_phone_number(phone_number)
-        if not is_valid:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid phone number: {formatted_number}"
-            )
-
-        is_whatsapp = await evolution_client.check_whatsapp_number(
-            instance_name, formatted_number
-        )
-
-        return {
-            "phone_number": phone_number,
-            "formatted_number": formatted_number,
-            "is_whatsapp_user": is_whatsapp,
-            "checked_at": now_sao_paulo(),
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error checking WhatsApp number: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to check WhatsApp number")
 
 
 # Queue Management Endpoints

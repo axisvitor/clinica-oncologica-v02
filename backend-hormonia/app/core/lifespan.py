@@ -111,7 +111,6 @@ async def _startup(app: FastAPI) -> object:
             _initialize_redis_websocket_events(app, logger),
             _initialize_ai_services(app, logger),
             _initialize_enum_validation(app, logger),
-            _initialize_evolution_api(app, logger),
             _initialize_wuzapi_session(app, logger),
             return_exceptions=True  # Don't fail entire startup on single service failure
         )
@@ -541,106 +540,6 @@ async def _initialize_enum_validation(app: FastAPI, logger) -> None:
         logger.warning(
             "Continuing without enum validation - database enum errors may occur"
         )
-
-
-async def _initialize_evolution_api(app: FastAPI, logger) -> None:
-    """Bootstrap Evolution API instance/webhook configuration with timing."""
-    start = time.time()
-
-    if not settings.WHATSAPP_ENABLE_SERVICE:
-        logger.info("Evolution API disabled - skipping bootstrap")
-        return
-
-    webhook_url = settings.WHATSAPP_EVOLUTION_WEBHOOK_URL
-    api_key = settings.WHATSAPP_EVOLUTION_API_KEY
-
-    if not webhook_url or not api_key:
-        logger.warning("Evolution API not configured - skipping bootstrap")
-        return
-
-    if "change_this" in api_key.lower() or "your-evolution-api-key" in api_key.lower():
-        logger.warning("Evolution API key placeholder detected - skipping bootstrap")
-        return
-
-    client = None
-    instance_name = settings.WHATSAPP_EVOLUTION_INSTANCE_NAME
-
-    try:
-        from app.integrations.whatsapp.services.evolution_client import (
-            EvolutionAPIClient,
-            DEFAULT_WEBHOOK_EVENTS,
-        )
-
-        client = EvolutionAPIClient(
-            base_url=settings.WHATSAPP_EVOLUTION_API_URL,
-            api_key=api_key,
-            global_webhook_url=webhook_url,
-        )
-        await client.connect()
-
-        instance_ready = False
-        try:
-            status = await client.get_instance_status(instance_name)
-            instance_ready = True
-            logger.info(
-                "Evolution instance status",
-                extra={
-                    "instance_name": instance_name,
-                    "status": status.status,
-                    "is_connected": status.is_connected,
-                },
-            )
-        except Exception as status_error:
-            logger.warning(
-                "Evolution instance status check failed; attempting create",
-                extra={"instance_name": instance_name, "error": str(status_error)},
-            )
-            try:
-                await client.create_instance(
-                    instance_name=instance_name,
-                    webhook_url=webhook_url,
-                    webhook_events=DEFAULT_WEBHOOK_EVENTS,
-                )
-                instance_ready = True
-                logger.info(
-                    "Evolution instance created",
-                    extra={"instance_name": instance_name},
-                )
-            except Exception as create_error:
-                logger.error(
-                    "Evolution instance create failed",
-                    extra={"instance_name": instance_name, "error": str(create_error)},
-                )
-
-        if instance_ready:
-            webhook_ok = await client.set_webhook_url(
-                instance_name=instance_name,
-                webhook_url=webhook_url,
-                events=DEFAULT_WEBHOOK_EVENTS,
-            )
-            if webhook_ok:
-                logger.info(
-                    "Evolution webhook configured",
-                    extra={"instance_name": instance_name, "webhook_url": webhook_url},
-                )
-            else:
-                logger.warning(
-                    "Evolution webhook configuration failed",
-                    extra={"instance_name": instance_name, "webhook_url": webhook_url},
-                )
-
-        elapsed = time.time() - start
-        logger.info(f"✓ Evolution API bootstrap completed ({elapsed:.2f}s)")
-
-    except Exception as e:
-        elapsed = time.time() - start
-        logger.warning(f"Evolution API bootstrap failed ({elapsed:.2f}s): {e}")
-    finally:
-        if client:
-            try:
-                await client.disconnect()
-            except Exception:
-                logger.debug("Evolution client disconnect failed (non-critical)")
 
 
 async def _initialize_wuzapi_session(app: FastAPI, logger) -> None:
