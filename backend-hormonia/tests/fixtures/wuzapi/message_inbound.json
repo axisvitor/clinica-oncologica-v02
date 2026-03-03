@@ -1,0 +1,21 @@
+{
+  "type": "Message",
+  "event": {
+    "Info": {
+      "ID": "3EB0A618C4E77B6E5A3D",
+      "MessageSource": {
+        "Chat": "5511987654321@s.whatsapp.net",
+        "Sender": "5511987654321@s.whatsapp.net",
+        "IsFromMe": false,
+        "IsGroup": false
+      },
+      "Sender": "5511987654321@s.whatsapp.net",
+      "PushName": "Maria Silva",
+      "IsFromMe": false,
+      "Timestamp": "2026-03-03T14:30:00Z"
+    },
+    "Message": {
+      "Conversation": "Bom dia doutor, estou me sentindo melhor hoje"
+    }
+  }
+}

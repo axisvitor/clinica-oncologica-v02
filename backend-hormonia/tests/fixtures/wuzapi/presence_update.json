@@ -1,0 +1,8 @@
+{
+  "type": "PresenceUpdate",
+  "event": {
+    "JID": "5511987654321@s.whatsapp.net",
+    "Unavailable": false,
+    "LastSeen": "2026-03-03T14:35:00Z"
+  }
+}

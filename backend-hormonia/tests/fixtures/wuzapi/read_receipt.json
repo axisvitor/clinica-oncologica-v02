@@ -1,0 +1,17 @@
+{
+  "type": "ReadReceipt",
+  "event": {
+    "Info": {
+      "ID": "3EB0B729D5F88A1C4E2F",
+      "Sender": "5511987654321@s.whatsapp.net",
+      "Timestamp": "2026-03-03T14:32:00Z"
+    },
+    "Receipt": {
+      "Type": "read",
+      "MessageIDs": [
+        "3EB0A618C4E77B6E5A3D"
+      ],
+      "PreviousStatus": 2
+    }
+  }
+}
