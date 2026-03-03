@@ -211,7 +211,7 @@ Plans:
 | 35. Configuration and Session | 2/2 | Complete    | 2026-03-02 | - |
 | 36. Outbound Migration | 3/3 | Complete    | 2026-03-02 | - |
 | 37. Evolution Cleanup | 4/4 | Complete    | 2026-03-02 | - |
-| 38. Tests and CI Validation | v1.6 | 0/2 | Not started | - |
+| 38. Tests and CI Validation | 1/2 | In Progress|  | - |
 
 ---
 *Roadmap created: 2026-02-22*

@@ -55,9 +55,9 @@ Requirements for WuzAPI migration. Each maps to roadmap phases.
 
 ### Testing & Validation
 
-- [ ] **TEST-01**: WuzAPIClient unit tests cover text send, media send (all types), auth header, retry on 5xx, rate limiting
-- [ ] **TEST-02**: Webhook handler tests with real WuzAPI payload fixtures for Message, ReadReceipt, and unknown event types
-- [ ] **TEST-03**: HMAC validation tests verify `x-hmac-signature` acceptance and rejection of tampered payloads
+- [x] **TEST-01**: WuzAPIClient unit tests cover text send, media send (all types), auth header, retry on 5xx, rate limiting
+- [x] **TEST-02**: Webhook handler tests with real WuzAPI payload fixtures for Message, ReadReceipt, and unknown event types
+- [x] **TEST-03**: HMAC validation tests verify `x-hmac-signature` acceptance and rejection of tampered payloads
 - [ ] **TEST-04**: Opt-out E2E test: inbound STOP message → patient.messaging_stopped_at set → send guard blocks future messages
 - [ ] **TEST-05**: Source-level regression tests verify zero imports of `EvolutionClient` or `EvolutionAPIClient` outside tombstone files
 
@@ -116,9 +116,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | CLEAN-04 | Phase 37 | Complete |
 | CLEAN-05 | Phase 37 | Complete |
 | CLEAN-06 | Phase 37 | Complete |
-| TEST-01 | Phase 38 | Pending |
-| TEST-02 | Phase 38 | Pending |
-| TEST-03 | Phase 38 | Pending |
+| TEST-01 | Phase 38 | Complete |
+| TEST-02 | Phase 38 | Complete |
+| TEST-03 | Phase 38 | Complete |
 | TEST-04 | Phase 38 | Pending |
 | TEST-05 | Phase 38 | Pending |
 

@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
 status: unknown
-stopped_at: Completed 37-04-PLAN.md
-last_updated: "2026-03-02T23:56:42.799Z"
+stopped_at: Completed 38-01-PLAN.md
+last_updated: "2026-03-03T13:04:16.202Z"
 progress:
-  total_phases: 11
+  total_phases: 12
   completed_phases: 11
-  total_plans: 46
-  completed_plans: 46
+  total_plans: 48
+  completed_plans: 47
 ---
 
 # Project State
@@ -19,16 +19,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** v1.6 WuzAPI Migration — Phase 37: Evolution Cleanup
+**Current focus:** v1.6 WuzAPI Migration — Phase 38: Tests and CI Validation
 
 ## Current Position
 
-Phase: 37 of 39 (Evolution Cleanup)
-Plan: 04 of 04 (completed)
-Status: Completed
-Last activity: 2026-03-02 — Completed 37-04 final gap closure for runtime imports, webhook export cleanup, and test tombstones
+Phase: 38 of 39 (Tests and CI Validation)
+Plan: 01 of 02 (completed)
+Status: In Progress
+Last activity: 2026-03-03 — Completed 38-01 test gap closure for unknown webhook events and missing HMAC header validation
 
-Progress: [██████████] 100% (4/4 plans in phase 37 completed)
+Progress: [█████░░░░░] 50% (1/2 plans in phase 38 completed)
 
 ## Performance Metrics
 
@@ -56,6 +56,7 @@ Progress: [██████████] 100% (4/4 plans in phase 37 completed
 | Phase 37 P02 | 15 min | 2 tasks | 21 files |
 | Phase 37 P03 | 10min | 2 tasks | 4 files |
 | Phase 37-evolution-cleanup P04 | 10 min | 2 tasks | 5 files |
+| Phase 38 P01 | 9 min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Progress: [██████████] 100% (4/4 plans in phase 37 completed
 - [Phase 37]: Remove WHATSAPP_EVOLUTION instance fallback and rely on resolved/default instance handling in UnifiedWhatsAppService.
 - [Phase 37-evolution-cleanup]: Keep unauthorized response path as log-only no-op after Evolution removal to avoid reintroducing non-clinical outbound behavior.
 - [Phase 37-evolution-cleanup]: Use WuzAPIError.status checks as drop-in queue failure categorization for RATE_LIMIT and API_ERROR.
+- [Phase 38]: Reuse existing webhook integration harness and add only targeted gap tests for unknown event + missing HMAC header.
+- [Phase 38]: Treat Task 2 as verification-only regression gate with no code delta when all tests pass.
 
 ### Pending Todos
 
@@ -110,6 +113,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-02T23:41:23.097Z
-**Stopped At:** Completed 37-04-PLAN.md
+**Last session:** 2026-03-03T13:04:16.165Z
+**Stopped At:** Completed 38-01-PLAN.md
 **Resume File:** None
