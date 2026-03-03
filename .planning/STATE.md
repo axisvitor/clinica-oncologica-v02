@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Frontend Quality & ADK Integration
-current_plan: 2
+current_plan: 3
 status: executing
-stopped_at: Completed 41-01-PLAN.md
-last_updated: "2026-03-03T23:21:43.607Z"
+stopped_at: Completed 41-03-PLAN.md
+last_updated: "2026-03-03T23:54:04.925Z"
 last_activity: 2026-03-03
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 97
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-03-03)
 
 Phase: 41 of 43 (ADK Agent Integration)
 Plan: 02 of 03
-Current Plan: 2
+Current Plan: 3
 Total Plans in Phase: 3
 Status: Ready to execute
 Last Activity: 2026-03-03
@@ -51,6 +51,7 @@ Progress: [█████████░] 97%
 | Phase 40 P02 | 9 min | 2 tasks | 3 files |
 | Phase 40 P03 | 5 min | 2 tasks | 2 files |
 | Phase 41 P01 | 9 min | 2 tasks | 5 files |
+| Phase 41 P03 | 8 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Progress: [█████████░] 97%
 - [Phase 40]: Add optional scan-root argument so guard regression tests can target tmp fixtures
 - [Phase 41]: Keep ADK execution behind PIISafeADKWrapper by delegating wrapper _invoke_adk to runtime helper.
 - [Phase 41]: Normalize all tool and runtime responses to stable {status, result} payloads for downstream endpoint wiring.
+- [Phase 41]: Removed LANGGRAPH_ONLY mode and _process_with_langgraph path entirely to eliminate unsupported crash-prone execution.
+- [Phase 41]: Added source-level and import-level regression tests to permanently guard against LangGraph tombstone symbol reintroduction.
 
 ### Pending Todos
 
@@ -84,6 +87,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-03T23:11:43.950Z
-**Stopped At:** Completed 41-01-PLAN.md
+**Last session:** 2026-03-03T23:54:04.896Z
+**Stopped At:** Completed 41-03-PLAN.md
 **Resume File:** None

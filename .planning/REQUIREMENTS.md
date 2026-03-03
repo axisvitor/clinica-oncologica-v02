@@ -14,7 +14,7 @@
 - [x] **ADK-05**: CI guard (`check_agent_run_calls.py`) estendido para cobrir patterns de chamada ADK
 - [x] **ADK-06**: 4 agentes Pydantic AI existentes (sentiment, humanize, variation, empathy) wrapped como ADK FunctionTools
 - [ ] **ADK-07**: ADK Runner configurado com pelo menos um endpoint FastAPI funcional
-- [ ] **ADK-08**: HiveMind LangGraph dead code removido (`IntegrationMode.LANGGRAPH_ONLY`, `_process_with_langgraph()`)
+- [x] **ADK-08**: HiveMind LangGraph dead code removido (`IntegrationMode.LANGGRAPH_ONLY`, `_process_with_langgraph()`)
 
 ### Admin SPA
 
@@ -71,7 +71,7 @@
 | ADK-05 | Phase 40 | Complete |
 | ADK-06 | Phase 41 | Complete |
 | ADK-07 | Phase 41 | Pending |
-| ADK-08 | Phase 41 | Pending |
+| ADK-08 | Phase 41 | Complete |
 | ADMIN-01 | Phase 42 | Pending |
 | ADMIN-02 | Phase 42 | Pending |
 | ADMIN-03 | Phase 42 | Pending |
