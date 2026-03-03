@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
-status: unknown
-stopped_at: Completed 38-01-PLAN.md
-last_updated: "2026-03-03T13:04:16.202Z"
+status: in_progress
+stopped_at: Completed 38-02-PLAN.md
+last_updated: "2026-03-03T13:30:08.984Z"
 progress:
   total_phases: 12
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 48
-  completed_plans: 47
+  completed_plans: 48
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 38 of 39 (Tests and CI Validation)
-Plan: 01 of 02 (completed)
-Status: In Progress
-Last activity: 2026-03-03 — Completed 38-01 test gap closure for unknown webhook events and missing HMAC header validation
+Plan: 02 of 02 (completed)
+Status: Complete
+Last activity: 2026-03-03 — Completed 38-02 opt-out LGPD + Evolution import CI validation
 
-Progress: [█████░░░░░] 50% (1/2 plans in phase 38 completed)
+Progress: [██████████] 100% (2/2 plans in phase 38 completed)
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [█████░░░░░] 50% (1/2 plans in phase 38 completed)
 | Phase 37 P03 | 10min | 2 tasks | 4 files |
 | Phase 37-evolution-cleanup P04 | 10 min | 2 tasks | 5 files |
 | Phase 38 P01 | 9 min | 2 tasks | 1 files |
+| Phase 38 P02 | 11 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,8 @@ Progress: [█████░░░░░] 50% (1/2 plans in phase 38 completed)
 - [Phase 37-evolution-cleanup]: Use WuzAPIError.status checks as drop-in queue failure categorization for RATE_LIMIT and API_ERROR.
 - [Phase 38]: Reuse existing webhook integration harness and add only targeted gap tests for unknown event + missing HMAC header.
 - [Phase 38]: Treat Task 2 as verification-only regression gate with no code delta when all tests pass.
+- [Phase 38]: Scan app/ only in check_evolution_imports.py to match existing CI guard scope and avoid test-only false positives
+- [Phase 38]: Keep tombstoned unit test modules collectable as skipped by retaining a placeholder test under module-level pytest skip
 
 ### Pending Todos
 
@@ -113,6 +116,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-03T13:04:16.165Z
-**Stopped At:** Completed 38-01-PLAN.md
+**Last session:** 2026-03-03T13:30:08.947Z
+**Stopped At:** Completed 38-02-PLAN.md
 **Resume File:** None

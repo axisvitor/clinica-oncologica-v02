@@ -58,8 +58,8 @@ Requirements for WuzAPI migration. Each maps to roadmap phases.
 - [x] **TEST-01**: WuzAPIClient unit tests cover text send, media send (all types), auth header, retry on 5xx, rate limiting
 - [x] **TEST-02**: Webhook handler tests with real WuzAPI payload fixtures for Message, ReadReceipt, and unknown event types
 - [x] **TEST-03**: HMAC validation tests verify `x-hmac-signature` acceptance and rejection of tampered payloads
-- [ ] **TEST-04**: Opt-out E2E test: inbound STOP message → patient.messaging_stopped_at set → send guard blocks future messages
-- [ ] **TEST-05**: Source-level regression tests verify zero imports of `EvolutionClient` or `EvolutionAPIClient` outside tombstone files
+- [x] **TEST-04**: Opt-out E2E test: inbound STOP message → patient.messaging_stopped_at set → send guard blocks future messages
+- [x] **TEST-05**: Source-level regression tests verify zero imports of `EvolutionClient` or `EvolutionAPIClient` outside tombstone files
 
 ## v2 Requirements
 
@@ -119,8 +119,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | TEST-01 | Phase 38 | Complete |
 | TEST-02 | Phase 38 | Complete |
 | TEST-03 | Phase 38 | Complete |
-| TEST-04 | Phase 38 | Pending |
-| TEST-05 | Phase 38 | Pending |
+| TEST-04 | Phase 38 | Complete |
+| TEST-05 | Phase 38 | Complete |
 
 **Coverage:**
 - v1.6 requirements: 33 total
