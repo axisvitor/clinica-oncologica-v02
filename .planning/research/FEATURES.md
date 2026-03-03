@@ -1,338 +1,194 @@
 # Feature Research
 
-**Domain:** WhatsApp Provider Migration — Evolution API to WuzAPI (v1.6)
-**Researched:** 2026-03-01
-**Confidence:** MEDIUM overall (WuzAPI official API.md + routes.go HIGH confidence; webhook payload JSON structure MEDIUM — inferred from wmiau.go Go source; buttons/lists deprecation HIGH confidence from whatsmeow maintainer statement)
+**Domain:** Frontend Quality Overhaul + Google ADK Integration (v1.7)
+**Researched:** 2026-03-03
+**Confidence:** HIGH for frontend patterns (established ecosystem); MEDIUM for ADK integration specifics (ADK v1.26.0 + dependency constraints verified but OTel removal scope inferred from codebase inspection)
 
 ---
 
 ## Context
 
-This research maps the existing Evolution API feature set (already built) against WuzAPI endpoints and
-capabilities to surface: what maps directly, what needs adaptation, what is broken (gap), and what
-WuzAPI adds that Evolution API does not have.
+This research maps the feature landscape for v1.7, which targets two independent workstreams:
 
-This is a **hard-cut migration** — no dual-provider mode, no feature toggles. The project is a
-Brazilian oncology clinic backend. The WhatsApp layer is used exclusively for outbound patient
-follow-up messages and inbound patient replies (STOP/opt-out, quiz answers). There is no live chat,
-no group messaging, no broadcast lists in active production use.
+1. **Frontend Quality** — Review and fix both frontends (admin SPA: React 19 + Vite + shadcn/ui; quiz interface: Next.js 14 + React 18 + shadcn/ui) for dead code, API alignment, layout consistency, and code quality (lint/types).
+2. **Google ADK Integration** — Remove OpenTelemetry (unblocking dependency conflict) and integrate Google ADK on top of the existing Pydantic AI agent stack.
 
----
+These workstreams are nearly independent. Frontend quality has no dependency on ADK. ADK integration is purely backend.
 
-## WuzAPI vs Evolution API: Authentication and Model Differences (Critical)
-
-| Aspect | Evolution API | WuzAPI |
-|--------|---------------|--------|
-| Auth header | `apikey: <key>` (primary) | `Token: <key>` (primary) OR `Authorization: Bearer <key>` |
-| Multi-tenancy unit | **Instance** (named, e.g. `"clinic-prod"`) | **User** (admin-created, token-per-user stored in SQLite/Postgres) |
-| Instance/session in URL | `/{instance_name}` path segment on every endpoint | No instance name in URL; user identified by Token header |
-| Backend runtime | Node.js + Baileys (WhatsApp Web emulation) | Go + whatsmeow (direct WebSocket to WhatsApp servers) |
-| Memory / CPU footprint | High (Node.js + Puppeteer-era overhead) | Low (Go binary, direct protocol) |
-| Config env vars (current) | `WHATSAPP_EVOLUTION_API_KEY`, `WHATSAPP_EVOLUTION_INSTANCE_NAME` | `WUZAPI_BASE_URL`, `WUZAPI_TOKEN` (user token) |
-
-**Migration impact on service layer:** `default_instance_name` in `UnifiedWhatsAppService` becomes
-unused. All API paths drop the `/{instance_name}` segment. The `Token` header replaces `apikey`.
+**Existing stack relevant to this milestone:**
+- Admin SPA: React 19, Vite 6, Tailwind v4, shadcn/ui (full Radix primitive set), TanStack Query v5, react-router-dom v6, Sentry, Firebase Auth, axios, vitest, Playwright
+- Quiz interface: Next.js 14, React 18, Tailwind v4, shadcn/ui (pinned Radix versions), jest, msw
+- Backend AI: 4 Pydantic AI agents (pydantic-ai-slim[google]), google-genai SDK, GeminiClient with circuit breaker + rate limiter + cache, PIISafeAgent mandatory wrapper
+- OTel: opentelemetry-api/sdk + 4 instrumentation packages + 2 exporters — optional wrapper in `app/core/tracing.py` (already guarded by `try/except ImportError`)
 
 ---
 
 ## Feature Landscape
 
-### Table Stakes (Must Work for Migration to be Complete)
+### Table Stakes — Frontend Quality (Users / Developers Expect These)
 
-These existing capabilities MUST have working equivalents in WuzAPI. Missing any = migration is broken.
+Features a well-maintained React/Next.js codebase must have. Missing = technical debt that blocks future development.
 
-| Feature | Evolution API | WuzAPI | Status | Complexity | Notes |
-|---------|--------------|--------|--------|------------|-------|
-| Send text message | `POST /message/sendText/{instance}` body: `{number, text}` | `POST /chat/send/text` body: `{Phone, Body}` | DIRECT MAP | LOW | Field rename only. Response ID at `data.Id` (WuzAPI) vs `message.key.id` (Evolution). |
-| Send image | `POST /message/sendMedia/{instance}` body: `{mediaMessage: {mediatype, media: URL}}` | `POST /chat/send/image` body: `{Phone, Image: "data:image/jpeg;base64,...", Caption}` | ADAPTED | MEDIUM | WuzAPI requires base64 data URI. Evolution accepted URL. Download + encode step needed. |
-| Send audio | `POST /message/sendMedia/{instance}` | `POST /chat/send/audio` body: `{Phone, Audio: "data:audio/ogg;base64,..."}` | ADAPTED | MEDIUM | Same base64 data URI requirement. |
-| Send document | `POST /message/sendMedia/{instance}` | `POST /chat/send/document` body: `{Phone, Document: "data:application/...;base64,...", FileName}` | ADAPTED | MEDIUM | `FileName` field required for documents. |
-| Send video | `POST /message/sendMedia/{instance}` | `POST /chat/send/video` body: `{Phone, Video: "data:video/mp4;base64,...", Caption}` | ADAPTED | MEDIUM | Same base64 requirement. |
-| Inbound message webhook | Event: `MESSAGES_UPSERT`, endpoint: `/webhooks/whatsapp/evolution/{instance}` | Event: `type=Message`, single endpoint registered via `POST /webhook` | REWRITE | HIGH | Payload structure completely different. See webhook section below. |
-| Delivery/read receipt webhook | Event: `MESSAGES_UPDATE` | Event: `type=ReadReceipt` | REWRITE | HIGH | Different event name, different payload shape. See webhook section below. |
-| HMAC webhook validation | Header: `X-Webhook-Signature` or `X-Evolution-Signature`, SHA-256 | Header: `x-hmac-signature`, SHA-256 | ADAPTED | LOW | `WebhookHMACValidator.validate_signature()` logic unchanged. Header lookup key changes. HMAC key set via `POST /session/hmac/config`. |
-| QR code for session | `GET /instance/qrcode/{instance}` → `qrcode.code` | `GET /session/qr` → `data.QRCode` (base64 PNG) | ADAPTED | LOW | Response field path changes. |
-| Session status | `GET /instance/connectionState/{instance}` → `instance.state == "open"` | `GET /session/status` → `data.Connected` (bool) + `data.LoggedIn` (bool) | ADAPTED | LOW | Different response shape; same semantics. |
-| Session connect | `POST /instance/create` + QR scan | `POST /session/connect` body: `{Subscribe: ["Message","ReadReceipt"], Immediate: false}` | ADAPTED | LOW | Subscribe list sets which events trigger webhooks. Required at startup. |
-| Session disconnect / logout | `PUT /instance/restart/{instance}` + `DELETE /instance/logout/{instance}` | `POST /session/disconnect` + `POST /session/logout` | ADAPTED | LOW | Different verbs. Disconnect keeps session; logout removes pairing. |
-| WhatsApp number check | `POST /chat/whatsappNumbers/{instance}` body: `{numbers: [...]}` | `POST /user/check` body: `{Phone: ["5511..."]}` | ADAPTED | LOW | Different endpoint and field name. |
-| LGPD opt-out handler (STOP/PARAR) | Parsed from `MESSAGES_UPSERT` payload `message.conversation` field | Parsed from `type=Message` event `event.Message.conversation` field | ADAPTED | LOW | Same logic; different extraction path in new payload parser. |
-| Idempotency (Redis SET NX) | Keyed on `key.id` from Evolution payload | Keyed on `event.Info.ID` from WuzAPI payload | ADAPTED | LOW | Same Redis pattern; extraction path changes. |
-| Circuit breaker on API calls | `_evolution_breaker` wrapping `EvolutionAPIClient` | Same pattern wrapping `WuzAPIClient` | REUSE | LOW | Rename breaker to `"wuzapi_api"`. Thresholds unchanged. |
-| Message queue + DLQ | Redis queue + DLQ, provider-agnostic layer | Unchanged | REUSE | LOW | No change needed in queue or DLQ. |
-| Phone normalization | `normalize_phone()` → E.164 raw digits (e.g. `5511999887766`) | Same raw digit format for send requests | REUSE | LOW | Phone format for send is identical. JID extraction from webhook differs (see below). |
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Zero unused npm dependencies | Package bloat slows install/build; security surface | LOW | Both frontends have full shadcn/ui Radix primitive set installed; many primitives may be unused. Use `knip` for project-wide detection; shadcn/ui docs explicitly say to remove unused `@radix-ui/react-*` packages. |
+| Zero unused files and exports | Dead components add confusion, inflate bundle | MEDIUM | Admin SPA has pages like `HiveMindPage`, `EnhancedAnalyticsDashboard`, `PhysicianDashboard` — their backend endpoints need verification. `knip` traces from entry points; anything unreachable is flagged. |
+| ESLint passing with zero errors | Prevents bad code reaching CI | LOW | Admin SPA: `eslint . --ext ts,tsx` (eslint v9 + typescript-eslint v8). Quiz: `next lint` (eslint v8 + eslint-config-next). Both configured. Run state unknown — may have suppressed errors. |
+| TypeScript strict with zero `any` warnings | Type safety catches API contract mismatches at compile time | MEDIUM | Admin SPA: `tsc --noEmit`. Quiz: typescript v5.9. Both have tsconfig. Degree of `any` usage, `@ts-ignore`, and `as unknown as X` patterns unknown without audit. |
+| API calls matching backend contracts | Frontend silently breaks when endpoint paths/payloads drift | MEDIUM | Admin SPA `lib/api-client/` has 10+ domain modules (auth, patients, analytics, admin, dashboard, tasks, hive-mind, etc.). `hive-mind.ts` calls `/api/v2/hive-mind/agents` — backend "hive mind" concept may not exist as a real API resource post-v1.2 AI rationalization. `ai-adapters.ts` maps AI insight types — must align with Pydantic AI agent output schemas. |
+| Consistent error states and loading skeletons | Users expect graceful failure and loading UX | MEDIUM | Admin SPA has `LoadingStates.tsx`, `ErrorBoundary.tsx`, `ErrorFallback.tsx`, skeleton components — but consistency across pages is unverified. `AgentSwarm` component uses raw `useEffect` + `setInterval` instead of TanStack Query — inconsistent pattern. |
+| No duplicate API client implementations | Multiple clients for same domain = divergent behavior | LOW | Admin SPA has `lib/api.ts`, `lib/api-client.ts`, `lib/client.ts`, AND `lib/api-client/` directory — potential duplication. `src/client.ts` at top level appears to be a stub. Needs consolidation audit. |
 
----
+### Table Stakes — ADK Integration (Backend)
 
-### Webhook Payload: Evolution API vs WuzAPI (Critical Detail)
+What must be true for ADK to be usable in this project.
 
-**Evolution API — `MESSAGES_UPSERT` payload (what the current code parses):**
-```json
-{
-  "event": "MESSAGES_UPSERT",
-  "instance": "clinic-prod",
-  "data": {
-    "messages": [
-      {
-        "key": {
-          "id": "3EB0XABCDEF1234",
-          "fromMe": false,
-          "remoteJid": "5511999887766@s.whatsapp.net"
-        },
-        "message": {
-          "conversation": "PARAR"
-        },
-        "messageTimestamp": 1706500000
-      }
-    ]
-  }
-}
-```
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| OTel packages removed from requirements.txt | ADK pulls its own OTel; running two OTel stacks causes `ValueError: Token was created in a different Context` errors in async code | MEDIUM | Current: 7 OTel packages in requirements.txt. `app/core/tracing.py` already has `try/except ImportError` mock fallback — designed for optional OTel. Removal primarily means: (1) remove from requirements.txt, (2) verify no `from opentelemetry import X` calls survive outside the guarded module, (3) update middleware_setup.py if any OTel middleware was registered. |
+| google-adk installable alongside pydantic-ai-slim | pip can resolve both without conflict | MEDIUM | ADK v1.26.0 current (verified). ADK depends on google-genai (same as pydantic-ai-slim[google]). Version pinning between ADK and pydantic-ai-slim on google-genai may require careful version coordination. LOW confidence on exact version constraints without running pip resolve. |
+| ADK Runner wired to at least one existing agent | Proof of integration; validates agent wrapping pattern | MEDIUM | ADK uses `Runner` + `InMemorySessionService` for stateless operation; or `DatabaseSessionService` for persistence. Existing Pydantic AI agents are callable functions — they need to be wrapped as ADK `FunctionTool` or `LlmAgent`. |
+| PIISafeAgent contract preserved | LGPD Art. 46 — PII redaction must remain mandatory | LOW | ADK agent wrapping must invoke PIISafeAgent, not bypass it. CI guard `scripts/check_agent_run_calls.py` must still block direct `.run()` calls. ADK's `FunctionTool` wrapping a PIISafeAgent-guarded function naturally satisfies this. |
 
-**WuzAPI — `Message` event payload (MEDIUM confidence — inferred from wmiau.go source code):**
-```json
-{
-  "type": "Message",
-  "event": {
-    "Info": {
-      "ID": "3EB0XABCDEF1234",
-      "Chat": { "User": "5511999887766", "Server": "s.whatsapp.net" },
-      "Sender": { "User": "5511999887766", "Server": "s.whatsapp.net" },
-      "IsFromMe": false,
-      "IsGroup": false,
-      "PushName": "Joao Silva",
-      "Timestamp": "2024-01-29T10:30:00Z",
-      "Type": "text"
-    },
-    "Message": {
-      "conversation": "PARAR"
-    }
-  }
-}
-```
-For media messages, `event.Message` contains `imageMessage`, `audioMessage`, `documentMessage`,
-or `videoMessage` instead of (or in addition to) `conversation`. Media binary is NOT included
-in the webhook payload by default — must call download endpoints or configure S3 delivery.
+### Differentiators — Frontend Quality
 
-**WuzAPI — `ReadReceipt` event payload (MEDIUM confidence — inferred from wmiau.go source):**
-```json
-{
-  "type": "ReadReceipt",
-  "state": "Read",
-  "event": {
-    "MessageIDs": ["3EB0XABCDEF1234"],
-    "Timestamp": "2024-01-29T10:31:00Z",
-    "Chat": { "User": "5511999887766", "Server": "s.whatsapp.net" },
-    "Sender": { "User": "5511999887766", "Server": "s.whatsapp.net" },
-    "Type": "read"
-  }
-}
-```
-`state` values: `"Read"` (recipient read), `"ReadSelf"` (sender read their own), `"Delivered"`.
-Maps to Evolution's `update.status` values (2=DELIVERED, 3=READ).
+Features that improve maintainability beyond the minimum viable cleanup.
 
-**Key structural differences to handle in new webhook handler:**
-- WuzAPI uses a single callback URL for ALL events (not per-event path like Evolution's `/{instance}/{event_name}`)
-- Event type discriminated via top-level `type` field (`"Message"`, `"ReadReceipt"`, `"Presence"`, `"HistorySync"`, `"ChatPresence"`)
-- No `instance` field in payload — instance implicit per user token
-- Message ID: `event.Info.ID` (not `data.messages[0].key.id`)
-- Phone: `event.Info.Chat.User` (digits only, not full JID string)
-- Text content: `event.Message.conversation` (same field name as Evolution's `message.conversation`)
-- The token field was removed from payloads in a recent security fix (issue #160 + issue #232)
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| TanStack Query used consistently for all async data | Eliminates raw `useEffect` + `useState` polling; adds caching, deduplication, background refresh, optimistic updates | MEDIUM | `AgentSwarm.tsx` uses `setInterval` polling pattern (anti-pattern). `SystemHealth.tsx` likely same. Converting to `useQuery` with `refetchInterval` is the correct pattern. Admin SPA already has TanStack Query v5 + `OptimizedQueryProvider` — just apply it consistently. |
+| Centralized query key factory (`queryKeys.ts`) | Prevents cache invalidation bugs from mismatched keys | LOW | Admin SPA already has `lib/query-keys.ts`. Verify all hooks use it rather than inline string keys. |
+| Shared `apiClient` instance used everywhere | One auth token, one base URL, one interceptor chain | LOW | Admin SPA has `lib/api-client/` as the canonical client. Verify pages and hooks do not call `axios` directly or use `lib/api.ts` as a parallel client. |
+| Layout consistency: page header / breadcrumb / card padding | Cross-page visual coherence reduces cognitive load for clinic staff | MEDIUM | Admin SPA has 20+ pages — visual consistency between `DashboardPage`, `PatientsPage`, `PhysicianDashboard`, `EnhancedAnalyticsDashboard`, etc. needs audit. `Breadcrumb.tsx` and `Header.tsx` exist but page-level patterns may diverge. |
+| Zod validation schemas colocated with forms | Eliminates runtime field name mismatches between form and API payload | LOW | Admin SPA has `lib/validations/admin-schemas.ts`, `lib/validations/user-schemas.ts`. Patient form (`PatientForm.tsx`) uses `react-hook-form` + `@hookform/resolvers/zod` — check all forms follow this pattern. |
+| React 19 ref-as-prop migration on shadcn components | React 19 deprecates `forwardRef`; shadcn/ui v1.x already removed it | LOW | Admin SPA on React 19 — if using shadcn/ui components installed before Feb 2025 update, they may still use `forwardRef`. Check `components.json` shadcn version and run `shadcn add` updates for stale primitives. Quiz interface on React 18 — no change needed. |
 
----
+### Differentiators — ADK Integration
 
-### Phone Number Format
+What ADK adds beyond the current Pydantic AI setup.
 
-| Context | Evolution API | WuzAPI |
-|---------|---------------|--------|
-| Send request body | Raw digits: `"5511999887766"` | Raw digits: `"5511999887766"` (identical) |
-| Webhook inbound (JID) | String: `"5511999887766@s.whatsapp.net"` | Object: `{"User": "5511999887766", "Server": "s.whatsapp.net"}` |
-| Phone extraction from webhook | `key.remoteJid.split("@")[0]` | `event.Info.Chat.User` (already digits, no split needed) |
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| ADK Session + Memory Service | Agents can carry conversational state across tool calls without explicit state threading in caller code | HIGH | Current Pydantic AI agents are stateless per-call. ADK `InMemorySessionService` adds within-session state; `DatabaseSessionService` could persist across sessions. Useful for multi-turn patient assessment flows. High complexity: requires ADK Runner integration into async FastAPI handlers. |
+| ADK Sequential/Parallel/Loop workflow agents | Declarative multi-step agent pipelines without custom orchestration code | HIGH | Current flow orchestration uses direct async Python functions (~10-15 lines each). ADK workflow agents provide the same semantics with more overhead but better observability. Medium value for this codebase since direct functions already work well. |
+| ADK Built-in Evaluation framework | Run automated test cases against agents with prompt/response fixture pairs | MEDIUM | Current: no agent evaluation pipeline. ADK's `adk eval` CLI runs scenarios and scores responses. Valuable for validating sentiment/empathy agent quality changes. |
+| ADK Agent Registry + Skills API | Discover and compose agents dynamically; `load_skill_from_dir()` | HIGH | Overkill for 4 fixed-purpose agents. Future value if agent count grows. |
+| ADK BigQuery Analytics plugin | Track agent usage, latency, error rates in BigQuery | HIGH | Project uses Railway + AWS RDS — no BigQuery. Not applicable. |
 
-**Migration impact:** `normalize_phone()` and the BR phone validation pipeline are unchanged. Only
-the extraction path from the incoming webhook payload changes (object field vs string split).
-
----
-
-### Message ID in Send Response
-
-| Provider | Response Path | Example |
-|----------|--------------|---------|
-| Evolution API | `response["message"]["key"]["id"]` | `"3EB0XABCDEF1234"` |
-| WuzAPI | `response["data"]["Id"]` | `"90B2F8B13FAC8A9CF6B06E99C7834DC5"` |
-
-The existing code in `evolution_client.send_text_message()` extracts via `message_data.get("key", {}).get("id")`.
-The new `WuzAPIClient.send_text_message()` must extract via `response_data.get("data", {}).get("Id")`.
-This propagates to `message.whatsapp_id` assignment in `UnifiedWhatsAppService._send_via_direct_api()`.
-
----
-
-### Media Sending: URL vs Base64 (Critical Adaptation)
-
-| Provider | Image send method | Document send method |
-|----------|--------------------|----------------------|
-| Evolution API | URL string: `mediaMessage.media = "https://..."` | URL string: same |
-| WuzAPI | Base64 data URI: `"Image": "data:image/jpeg;base64,..."` | Base64 data URI: `"Document": "data:application/pdf;base64,..."` |
-
-**This is the most significant technical adaptation.** The existing code passes URLs directly to
-Evolution API. WuzAPI requires downloading the media and base64-encoding it before the API call.
-
-**Required new utility:** `async def fetch_and_encode_media(url: str, max_size_bytes: int = 16_000_000) -> str`
-that downloads the URL, validates size, and returns a data URI string. Must propagate `ExternalServiceError`
-on download failure so Celery retry logic picks it up.
-
-**Confidence on format requirement:** HIGH (confirmed from API.md examples with explicit base64 data URI strings)
-
----
-
-### Buttons and List Messages: BROKEN in WuzAPI (Critical Gap)
-
-| Feature | Evolution API | WuzAPI | Status |
-|---------|--------------|--------|--------|
-| Button messages | `POST /message/sendButtons/{instance}` | `POST /chat/send/buttons` (route exists) | BROKEN |
-| List messages | `POST /message/sendList/{instance}` | `POST /chat/send/list` (route exists) | BROKEN |
-
-**Why broken:** WhatsApp deprecated button/list messages for third-party WebSocket clients in 2022.
-The whatsmeow library (which WuzAPI is built on) cannot send these messages — the maintainer stated
-explicitly: *"Buttons are deprecated by WhatsApp and cannot be sent anymore. You can only send button
-messages via the WhatsApp Business Platform API."* The routes exist in WuzAPI but the underlying
-library call fails or is silently ignored.
-
-**Impact on this project:** LOW — the current codebase already maps `MessageType.BUTTON` and
-`MessageType.LIST` to `WhatsAppMessageType.TEXT` in `UnifiedWhatsAppService._convert_to_queue_request()`.
-This fallback is already production behavior. No regression.
-
----
-
-### Differentiators (WuzAPI Features Evolution API Lacks)
-
-| Feature | Value for This Project | Complexity to Adopt | Notes |
-|---------|------------------------|---------------------|-------|
-| Direct WebSocket to WhatsApp (no Puppeteer/Chrome) | Lower memory, faster reconnects, fewer disconnections — main reason for migration | LOW (inherent, no code needed) | Stability improvement without code change. |
-| Poll messages (`POST /chat/send/poll`) | N/A for oncology follow-up | LOW | Not needed for this use case. |
-| React to messages (`POST /chat/react`) | N/A | LOW | Not needed. |
-| Mark messages read (`POST /chat/markread`) | Could mark patient replies as read after opt-out processing | LOW | Minor UX improvement, P3. |
-| S3 media delivery on inbound webhooks | Inbound patient media (images, audio) auto-uploaded to S3; webhook gets URL | MEDIUM | Useful only if patients send media at scale. Not current use case. |
-| RabbitMQ event queue integration | Alternative event delivery mechanism | HIGH | Out of scope. Requires new MQ infrastructure. |
-| Per-user SOCKS5 proxy (`POST /session/proxy`) | Route WhatsApp traffic through proxy per number | MEDIUM | Not needed for single-clinic deployment. |
-| PairPhone authentication (`POST /session/pairphone`) | Pair without QR scan, useful for automated deployment | LOW | Operational convenience, not required for v1.6. |
-| LID resolution (`GET /user/lid/{jid}`) | Resolve WhatsApp privacy LID to phone number | LOW | Edge case; only relevant if patients have privacy-mode contacts. |
-| Message editing (`POST /chat/send/edit`) | Edit a previously sent message | LOW | Not needed for template-based follow-ups. |
-| Delete sent messages (`POST /chat/delete`) | Retract a sent message | LOW | Not needed. |
-| Get message history (`GET /chat/history`) | Retrieve historical messages | LOW | Not needed; messages tracked in PostgreSQL. |
-
----
-
-### Anti-Features (Do Not Build in v1.6)
+### Anti-Features — Frontend Quality
 
 | Anti-Feature | Why Requested | Why Problematic | Alternative |
 |--------------|---------------|-----------------|-------------|
-| Dual-provider mode (Evolution + WuzAPI simultaneously) | "Safe rollout" | Doubles complexity: two clients, two webhook parsers, two config sets, two test suites. PROJECT.md explicitly forbids this. | Hard-cut as specified. Test coverage handles safety. |
-| Interactive buttons via WuzAPI | Replace `MessageType.BUTTON` | Buttons are broken in whatsmeow/WuzAPI (see above). Route exists but call fails. | Keep existing TEXT fallback — already production behavior. |
-| Interactive list messages via WuzAPI | Replace `MessageType.LIST` | Same issue as buttons. | Keep existing TEXT fallback. |
-| S3 for outbound media encoding | Avoid base64 encoding step | Requires new S3 bucket, IAM policy, WuzAPI S3 config endpoints. Over-engineered for the clinic's low media volume. | Download + base64 encode in `WuzAPIClient` with 16 MB size guard. |
-| RabbitMQ event queue | Better event delivery guarantees | New infrastructure dependency not present in current stack. No value over existing Redis DLQ pattern. | Keep Redis webhook HTTP delivery + DLQ. |
-| Replacing `UnifiedWhatsAppService` architecture | "Simplify code while migrating" | The unified service is well-tested (v1.4/v1.5 work). Replacing it expands scope and destabilizes existing test suite. | Swap `EvolutionAPIClient` → `WuzAPIClient` inside the existing service. |
-| Async aiohttp client in WuzAPIClient | Reuse Evolution's aiohttp pattern | httpx is already in the project's dependency tree (FastAPI async ecosystem). httpx async client is idiomatic for Python 3.13 async. | Use `httpx.AsyncClient` in `WuzAPIClient`. |
+| Full UI redesign of admin SPA | "While we're in the code, improve the UX" | Out-of-scope per PROJECT.md: "Redesign de UI do frontend admin ou quiz interface — foco backend." Scope creep that blocks v1.7 delivery. | Stick to layout consistency (padding, spacing, card structure) without visual redesign. |
+| Migrating quiz interface from Next.js 14 → 15 | Next.js 15 is available | Next.js 15 changes App Router behavior, Server Actions API, and React 19 opt-in mechanics. Migration is a separate workstream, not a quality fix. | Stay on Next.js 14. Fix quality within current version. |
+| Adding Storybook for component catalog | Seems like a good practice | Adds significant tooling overhead and maintenance burden for a small team. Admin SPA has vitest + Playwright — component testing is covered. | Document component patterns in CLAUDE.md or a lightweight spec if needed. |
+| Code splitting / bundle optimization | "Performance improvements" | Performance has not been identified as a user complaint. Premature optimization. Vite already does code splitting by default. | Let Vite handle it. Focus on correctness and dead code removal. |
+| Replacing axios with native `fetch` | React 19 promotes `use(fetch(...))` | `TanStack Query + axios` is the established pattern already wired up. Switching HTTP clients is pure churn with zero functional benefit. | Keep axios. |
+| Type-safe API generation from OpenAPI spec | "Eliminate manual type maintenance" | FastAPI does expose an OpenAPI schema, but wiring openapi-typescript code-gen into both frontends' CI is significant tooling work. Over-engineered for this team size and codebase maturity. | Hand-maintain types in `lib/api-client/types.ts`. Use `tsc --noEmit` as the quality gate. |
+
+### Anti-Features — ADK Integration
+
+| Anti-Feature | Why Requested | Why Problematic | Alternative |
+|--------------|---------------|-----------------|-------------|
+| Replacing Pydantic AI agents entirely with ADK LlmAgent | "Consolidate on one framework" | Pydantic AI agents provide typed structured output — critical for PIISafeAgent LGPD compliance. ADK's output schema is less strict. Replacement would destabilize 4 tested agents and weaken type safety. | Wrap existing Pydantic AI agents as ADK FunctionTools. ADK orchestrates; Pydantic AI executes typed calls. |
+| Using ADK for flow orchestration (replacing direct async Python) | "Better observability" | Direct async Python flow functions (10-15 lines each) already replaced LangGraph successfully in v1.2. Introducing ADK workflow agents adds framework overhead for no functional gain. The decision log explicitly notes "Direct async Python over ADK for flow orchestration — zero new dependencies." | Keep direct async Python flow functions. Use ADK only for agent-level coordination if needed. |
+| Keeping OpenTelemetry alongside ADK | "Don't lose tracing" | ADK v1.26.0 manages its own OTel tracer. Two OTel SDK initializations in the same process cause `ValueError: Token was created in a different Context` on async context propagation — a known ADK/Langfuse conflict documented in multiple open issues. | Remove OTel; use Sentry (already installed) for error tracking. ADK's built-in tracing covers AI agent spans. |
+| ADK Web UI / CLI deployment | "Use ADK's built-in server" | Project deploys on Railway/Cloud Run with FastAPI. ADK's web interface is a development tool, not a production runtime. | Use ADK as a Python library inside existing FastAPI handlers. |
+| ADK RabbitMQ / BigQuery integrations | "Enterprise features" | Project has no RabbitMQ or BigQuery infrastructure. Adding dependencies for unused features. | Skip these ADK optional plugins. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-WuzAPI User Setup (POST /admin/users) [one-time infra step]
-    └──required by──> All WuzAPI API calls (no user = no token = 401)
+FRONTEND WORKSTREAM
+-------------------
 
-WuzAPI Session Connect (POST /session/connect)
-    └──required by──> All send endpoints
-    └──sets up──> Webhook event subscriptions (Subscribe: ["Message", "ReadReceipt"])
+Dead Code Audit (knip)
+    └──informs──> Unused npm package removal
+    └──informs──> Unused file/component removal
+    └──prerequisite for──> Layout consistency (know what pages exist and are reachable)
 
-WuzAPI HMAC Config (POST /session/hmac/config)
-    └──required by──> Secure webhook validation
-    └──reuses──> WebhookHMACValidator.validate_signature() [unchanged logic]
-    └──changes──> Header name: x-hmac-signature (not X-Webhook-Signature)
+ESLint audit
+    └──prerequisite for──> TypeScript strict audit (fix lint first, then type errors)
 
-WuzAPIClient (new)
-    └──replaces──> EvolutionAPIClient
-    └──uses──> httpx.AsyncClient (not aiohttp)
-    └──requires──> fetch_and_encode_media() helper for image/audio/document/video
+TypeScript strict audit
+    └──prerequisite for──> API alignment audit (tsc catches contract mismatches)
 
-fetch_and_encode_media() helper (new)
-    └──required by──> WuzAPIClient.send_image(), send_audio(), send_document(), send_video()
-    └──raises──> ExternalServiceError on download failure (for Celery retry)
+API alignment audit
+    └──depends on──> Dead code audit (don't align API calls for dead pages)
+    └──may trigger──> Backend endpoint verification (does /api/v2/hive-mind exist?)
 
-WuzAPI Message Webhook Handler (new)
-    └──replaces──> handle_message_upsert() + Evolution payload parsing
-    └──reuses──> AtomicWebhookIdempotency (extraction path: event.Info.ID)
-    └──reuses──> WebhookHMACValidator (header: x-hmac-signature)
-    └──reuses──> opt-out handler (extraction path: event.Info.Chat.User + event.Message.conversation)
-    └──reuses──> rate limiting, HMAC blocking, IP whitelist logic [unchanged]
+Layout consistency review
+    └──depends on──> Dead code audit (only fix pages that are reachable)
+    └──independent of──> API alignment (visual only)
 
-WuzAPI ReadReceipt Webhook Handler (new)
-    └──replaces──> handle_message_update() + Evolution MESSAGES_UPDATE parsing
-    └──reuses──> MessageStatusHandler (maps state: "Read"→READ, "Delivered"→DELIVERED)
+BACKEND ADK WORKSTREAM
+----------------------
 
-Environment Variables Migration
-    └──removes──> WHATSAPP_EVOLUTION_API_URL, WHATSAPP_EVOLUTION_API_KEY, WHATSAPP_EVOLUTION_INSTANCE_NAME
-    └──adds──> WHATSAPP_WUZAPI_BASE_URL, WHATSAPP_WUZAPI_TOKEN, WHATSAPP_WUZAPI_WEBHOOK_SECRET
+OTel removal from requirements.txt
+    └──prerequisite for──> google-adk installation (eliminates context conflict)
+    └──verify──> app/core/tracing.py mock fallback still works
+    └──verify──> no surviving bare `from opentelemetry import X` outside guarded module
 
-Evolution API Tombstone
-    └──requires──> WuzAPIClient complete and tested
-    └──tombstones──> evolution_client.py, mock_evolution.py
-    └──updates shim──> unified_whatsapp_service.py (EvolutionAPIClient import → WuzAPIClient)
+google-adk installation
+    └──depends on──> OTel removal
+    └──may conflict with──> pydantic-ai-slim[google] on google-genai version (verify pip resolve)
+
+ADK Runner wiring
+    └──depends on──> google-adk installation
+    └──wraps──> existing PIISafeAgent calls as FunctionTool
+    └──must preserve──> PIISafeAgent LGPD wrapper (not bypass)
+
+CROSS-WORKSTREAM
+----------------
+
+Frontend AI display (ai-adapters.ts, AIPredictionsPanel)
+    └──depends on──> ADK agent output schema remaining compatible
+    └──note──> If ADK changes response format vs current Pydantic AI, frontend type sync needed
 ```
 
 ### Dependency Notes
 
-- **Session must be connected before sends:** Unlike Evolution which uses named instances that can
-  persist across restarts, WuzAPI requires an explicit `POST /session/connect` call (with Subscribe list)
-  after each process restart. Health check and startup logic must include this reconnect step.
-- **Media base64 adds latency to send path:** For each media message, the system downloads the URL and
-  base64-encodes it synchronously before calling WuzAPI. For a 1 MB PDF, this is ~100-200ms of extra latency.
-  This is acceptable for the clinic's async Celery task pipeline but must be surfaced in monitoring.
-- **HMAC key is per-user in WuzAPI:** Call `POST /session/hmac/config` once at startup or during session
-  setup. The key should match `WHATSAPP_WUZAPI_WEBHOOK_SECRET` (same value as former `WHATSAPP_EVOLUTION_WEBHOOK_SECRET`).
-- **Single webhook URL for all event types:** WuzAPI sends all events (Message, ReadReceipt, Presence)
-  to the same webhook URL. The new handler must switch on `payload["type"]` at the top, unlike the current
-  Evolution handler that uses path-based event routing (`/evolution/{instance}/{event_name}`).
+- **Dead code audit before layout work:** Running `knip` first prevents spending time fixing layout on unreachable pages. The admin SPA has `HiveMindPage`, `EnhancedAnalyticsDashboard`, `PhysicianDashboard`, `DLQDashboard` — reachability from routes must be confirmed before cleanup.
+- **OTel removal before ADK install:** Installing google-adk while OTel SDK is active triggers async context errors in production. This is the blocker the PROJECT.md notes explicitly ("OTel removed to unblock ADK").
+- **PIISafeAgent must survive ADK wrapping:** ADK's `FunctionTool` wraps a Python callable. The callable must be the PIISafeAgent-gated function, not the raw agent `.run()`. CI guard (`scripts/check_agent_run_calls.py`) must not need modification.
+- **`hive-mind` API client module:** `lib/api-client/hive-mind.ts` calls `/api/v2/hive-mind/*` endpoints. Post v1.2 AI rationalization (LangGraph removed), whether these backend routes still exist is unknown. If they are tombstoned or never existed as a REST API, this is a dead API client module and should be removed.
 
 ---
 
-## MVP Definition (v1.6 Scope)
+## MVP Definition (v1.7 Scope)
 
-### Launch With (v1.6 — Hard Cut Required)
+### Launch With (v1.7 — both workstreams)
 
-- [ ] `WuzAPIClient` replacing `EvolutionAPIClient` — httpx async, all send endpoints
-- [ ] Send text: `POST /chat/send/text` with `Phone` + `Body` fields, response ID from `data.Id`
-- [ ] Send media (image/audio/document/video): base64 data URI via respective endpoints
-- [ ] `fetch_and_encode_media()` utility with 16 MB size guard and `ExternalServiceError` propagation
-- [ ] Inbound message webhook: parse `type=Message`, extract phone from `event.Info.Chat.User`, text from `event.Message.conversation`
-- [ ] ReadReceipt webhook: parse `type=ReadReceipt`, map `state` to `MessageStatus.DELIVERED|READ`
-- [ ] HMAC validation: use existing `WebhookHMACValidator` with `x-hmac-signature` header
-- [ ] Single webhook endpoint (not per-event-path) registered with WuzAPI via `POST /webhook`
-- [ ] Session status: `GET /session/status` → `data.Connected`
-- [ ] QR code: `GET /session/qr` → `data.QRCode`
-- [ ] Session connect/disconnect/logout: adapted to WuzAPI paths and response shapes
-- [ ] Opt-out handler adapted to WuzAPI phone extraction
-- [ ] Idempotency: extraction of message ID from `event.Info.ID`
-- [ ] Auth: `Token: <key>` header in all WuzAPI requests
-- [ ] Environment variables: `WHATSAPP_WUZAPI_BASE_URL`, `WHATSAPP_WUZAPI_TOKEN`, `WHATSAPP_WUZAPI_WEBHOOK_SECRET`
-- [ ] Settings: remove `WHATSAPP_EVOLUTION_*` config class, add `WHATSAPP_WUZAPI_*`
-- [ ] Evolution API code tombstoned: `evolution_client.py`, `mock_evolution.py`
-- [ ] Tests: updated for WuzAPI payload contracts (send response, webhook payloads)
+**Frontend Quality:**
+- [ ] `knip` audit run on both frontends — unused files, exports, packages identified and removed
+- [ ] ESLint errors: zero in admin SPA (`eslint . --ext ts,tsx`) and quiz (`next lint`)
+- [ ] TypeScript: `tsc --noEmit` passing with zero errors in both frontends
+- [ ] API client consolidation in admin SPA: single `lib/api-client/` as canonical; `lib/api.ts` and `lib/api-client.ts` at root removed or verified as shims
+- [ ] `hive-mind.ts` API module: verified against actual backend routes or removed if endpoints do not exist
+- [ ] TanStack Query used for data fetching in `AgentSwarm.tsx` and `SystemHealth.tsx` (replace raw `useEffect` + `setInterval`)
+- [ ] Layout consistency: page-level padding, card structure, and breadcrumb usage verified consistent across all reachable admin pages
+
+**ADK Integration:**
+- [ ] OTel packages removed from `requirements.txt` (7 packages: api, sdk, 4 instrumentations, 2 exporters)
+- [ ] `app/core/tracing.py` verified working with mock fallback (no live OTel)
+- [ ] `google-adk` installed and pip resolve clean alongside `pydantic-ai-slim[google]`
+- [ ] At least one existing Pydantic AI agent (e.g., sentiment agent) wrapped as ADK `FunctionTool` as proof-of-concept
+- [ ] ADK Runner integration in a FastAPI handler (can be a new diagnostic endpoint, not in critical path)
+- [ ] PIISafeAgent CI guard remains in place; ADK wrapping does not bypass it
 
 ### Add After Validation (v1.x)
 
-- [ ] `POST /chat/markread` — mark patient messages read after processing (minor UX)
-- [ ] S3 delivery for inbound patient media — only if patients send images/audio at scale
-- [ ] LID resolution — only if `@lid` JIDs appear in production payloads
+- [ ] ADK `InMemorySessionService` for multi-turn patient assessment context (only if a use case emerges)
+- [ ] ADK evaluation harness for agent quality regression testing
+- [ ] Remaining Pydantic AI agents (humanize, variation, empathy) wrapped as ADK FunctionTools
 
 ### Future Consideration (v2+)
 
-- [ ] PairPhone auth (`POST /session/pairphone`) — automated QR-less session setup
-- [ ] RabbitMQ integration — only if HTTP webhook delivery proves unreliable at scale
-- [ ] Multi-user WuzAPI support — only if clinic expands to multiple WhatsApp numbers
+- [ ] ADK `DatabaseSessionService` backed by PostgreSQL for persistent agent memory
+- [ ] ADK Agent Registry for dynamic agent discovery if agent count grows beyond 4
+- [ ] Next.js upgrade (quiz interface) from 14 → 15 as a separate milestone
 
 ---
 
@@ -340,54 +196,60 @@ Evolution API Tombstone
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Text message send | HIGH (core function) | LOW | P1 |
-| Auth header update (`Token` not `apikey`) | HIGH (nothing works without) | LOW | P1 |
-| Inbound message webhook parser | HIGH (STOP/opt-out + replies) | HIGH | P1 |
-| ReadReceipt webhook parser | HIGH (delivery tracking) | MEDIUM | P1 |
-| Media send with base64 adaptation | HIGH (PDF reports to patients) | MEDIUM | P1 |
-| `fetch_and_encode_media()` utility | HIGH (required for media) | MEDIUM | P1 |
-| HMAC validation update | HIGH (security) | LOW | P1 |
-| Session management (connect, status, QR) | HIGH (health checks, reconnect) | LOW | P1 |
-| Environment variable migration | HIGH (deployment blocker) | LOW | P1 |
-| Evolution tombstone | MEDIUM (code hygiene) | LOW | P1 |
-| Test suite update | HIGH (regression safety) | HIGH | P1 |
-| Mark-read endpoint | LOW (minor UX) | LOW | P3 |
-| S3 inbound media delivery | LOW (edge case) | MEDIUM | P3 |
-| Buttons/lists via WuzAPI | NONE (broken in whatsmeow) | N/A | SKIP |
+| ESLint zero errors | MEDIUM (dev quality) | LOW | P1 |
+| TypeScript zero errors | HIGH (prevents runtime bugs) | MEDIUM | P1 |
+| Dead code removal (knip) | MEDIUM (bundle size, clarity) | LOW | P1 |
+| API client consolidation | HIGH (prevents silent failures) | MEDIUM | P1 |
+| hive-mind module verification/removal | HIGH (live API calls to possibly non-existent endpoints) | LOW | P1 |
+| TanStack Query for all data fetching | MEDIUM (DX consistency) | LOW | P1 |
+| Layout consistency | LOW (visual only) | MEDIUM | P2 |
+| OTel removal | HIGH (ADK prerequisite) | MEDIUM | P1 |
+| google-adk installation + pip resolve | HIGH (ADK prerequisite) | MEDIUM | P1 |
+| One agent wrapped as ADK FunctionTool | MEDIUM (proof of concept) | MEDIUM | P1 |
+| ADK evaluation harness | MEDIUM (quality gate) | HIGH | P2 |
+| All 4 agents wrapped in ADK | LOW (incremental) | LOW | P2 |
+
+**Priority key:**
+- P1: Must have for v1.7 milestone close
+- P2: Should have, add when possible within v1.7
+- P3: Nice to have, future milestone
 
 ---
 
-## Known Gaps: Evolution Features Not Available or Broken in WuzAPI
+## Competitor / Ecosystem Analysis
 
-| Gap | Current Evolution Usage | Impact | Mitigation |
-|-----|------------------------|--------|------------|
-| **Button messages** | `MessageType.BUTTON` mapped to TEXT already in `_convert_to_queue_request()` | NONE — fallback exists | Keep existing TEXT fallback. |
-| **List messages** | `MessageType.LIST` mapped to TEXT already | NONE — fallback exists | Keep existing TEXT fallback. |
-| **Instance health endpoint with `phone_number` + `profile_name`** | `health_check()` returns `phone_number`, `profile_name` fields (informational) | LOW | WuzAPI `GET /session/status` returns only `Connected` + `LoggedIn`. Remove those optional fields from health result dict. |
-| **URL-based media sending** | Media URLs passed directly to Evolution | MEDIUM — requires new download step | `fetch_and_encode_media()` utility. |
-| **Per-event-path webhook routing** | `/evolution/{instance}/{event_name}` path routing | LOW — architecture only | New single-endpoint handler switching on `payload["type"]`. |
-| **`MESSAGES_DELETE` event** | Not actively used (unhandled, logged as unknown) | NONE | WuzAPI has no equivalent DELETE event in standard mode. |
-| **`CONTACTS_UPSERT`, `CHATS_UPSERT`** | Handled but low production value | LOW | WuzAPI does not emit these as webhook events in standard config. Events not subscribed. |
+Not applicable in traditional competitive sense. This is internal quality work. Ecosystem patterns that inform decisions:
+
+| Pattern | Ecosystem Standard | This Project | Gap |
+|---------|-------------------|--------------|-----|
+| Dead code detection | `knip` (industry standard 2024-2026, recommended over ts-prune) | Not yet in CI | Add `npx knip` to both frontends |
+| ESLint v9 flat config | Admin SPA already uses eslint v9 + typescript-eslint v8 | In place | Verify config is strict enough |
+| TanStack Query v5 for async state | Standard for React data fetching; replaces SWR, Redux Toolkit Query for most use cases | Installed, partially used | Apply consistently to all data-fetching components |
+| ADK v1.26.0 | Current production release (Feb 26, 2026); supports `InMemorySessionService`, `FunctionTool`, `LlmAgent`, workflow agents | Not yet installed | Install after OTel removal |
+| Pydantic AI + ADK coexistence | ADK wraps Pydantic AI agents as FunctionTools — documented pattern; ADK uses Pydantic for its own output schemas | Planned | Implement wrapping; do not replace |
+| shadcn/ui + Tailwind v4 | React 19 removes forwardRef; shadcn/ui updated Feb 2025; Tailwind v4 now stable | Admin SPA: Tailwind v4 + React 19 (up to date). Quiz: Tailwind v4 + React 18 | Admin SPA may have pre-update shadcn components |
 
 ---
 
 ## Sources
 
-- [WuzAPI GitHub repository](https://github.com/asternic/wuzapi) — official source (HIGH confidence)
-- [WuzAPI API.md](https://github.com/asternic/wuzapi/blob/main/API.md) — send text, send image, send audio, send document, send video request/response format (HIGH confidence)
-- [WuzAPI routes.go](https://github.com/asternic/wuzapi/blob/main/routes.go) — complete route list including /chat/send/buttons and /chat/send/list (HIGH confidence)
-- [WuzAPI wmiau.go](https://github.com/asternic/wuzapi/blob/main/wmiau.go) — webhook event dispatch code, postmap structure for Message and ReadReceipt events (MEDIUM confidence — inferred from Go source inspection)
-- [whatsmeow events package](https://pkg.go.dev/go.mau.fi/whatsmeow/types/events) — `events.Message` and `events.Receipt` struct definitions with field names (HIGH confidence)
-- [whatsmeow discussion #534: buttons deprecated](https://github.com/tulir/whatsmeow/discussions/534) — maintainer: "Buttons are deprecated by WhatsApp and cannot be sent anymore" (HIGH confidence)
-- [DEV.to: buttons deprecated by WhatsApp Web libraries](https://dev.to/purpshell/buttons-and-lists-get-deprecated-by-many-libraries-54h) — timeline: Aug 2021 initial block, Apr 2022 second patch, May 2022 final block (HIGH confidence)
-- [WuzAPI issue #160](https://github.com/asternic/wuzapi/issues/160) — token removed from webhook payloads for security (MEDIUM confidence)
-- [WuzAPI issue #232](https://github.com/asternic/wuzapi/issues/232) — confirms token field removed from webhook JSON (MEDIUM confidence)
-- Codebase: `backend-hormonia/app/integrations/whatsapp/services/evolution_client.py` — current Evolution API send patterns, header format, response parsing (HIGH confidence)
-- Codebase: `backend-hormonia/app/integrations/whatsapp/api/webhooks.py` — current webhook handler, HMAC validation, idempotency, event routing (HIGH confidence)
-- Codebase: `backend-hormonia/app/services/unified_whatsapp_service.py` — service layer contracts, circuit breaker, retry policies (HIGH confidence)
-- Codebase: `backend-hormonia/app/integrations/whatsapp/security/hmac_validator.py` — existing HMAC validator (HIGH confidence)
+- [google/adk-python GitHub Releases](https://github.com/google/adk-python/releases) — v1.26.0 current (Feb 26, 2026); feature list HIGH confidence
+- [Google ADK Documentation](https://google.github.io/adk-docs/) — LLM agents, sessions, memory, artifacts — HIGH confidence
+- [Google ADK Issue #1670: OTel context error](https://github.com/google/adk-python/issues/1670) — async context conflict confirmed — HIGH confidence
+- [Langfuse Issue #8316: ADK + OTel conflict](https://github.com/langfuse/langfuse/issues/8316) — context token created/detached in different context — HIGH confidence
+- [Google ADK Issue #2792: OTel disable/extend support](https://github.com/google/adk-python/issues/2792) — no public API to disable ADK internal OTel — MEDIUM confidence
+- [Knip official docs](https://knip.dev/) — dead code detection; Vite + Next.js plugins — HIGH confidence
+- [Knip: dead code vs ts-prune](https://levelup.gitconnected.com/dead-code-detection-in-typescript-projects-why-we-chose-knip-over-ts-prune-8feea827da35) — why knip is the current standard — MEDIUM confidence
+- [shadcn/ui React 19 docs](https://ui.shadcn.com/docs/react-19) — forwardRef removal, Tailwind v4 support — HIGH confidence
+- [TanStack Query v5 TypeScript guide](https://tanstack.com/query/v5/docs/framework/react/typescript) — typed queries, AxiosError handling — HIGH confidence
+- Codebase inspection: `frontend-hormonia/package.json` — React 19, Vite 6, TanStack v5, shadcn full Radix set
+- Codebase inspection: `quiz-mensal-interface/package.json` — Next.js 14, React 18, Radix pinned versions
+- Codebase inspection: `frontend-hormonia/src/lib/api-client/` — 10+ domain modules, hive-mind.ts
+- Codebase inspection: `frontend-hormonia/src/components/hive-mind/AgentSwarm.tsx` — raw useEffect polling
+- Codebase inspection: `backend-hormonia/requirements.txt` — 7 OTel packages, pydantic-ai-slim[google]
+- Codebase inspection: `backend-hormonia/app/core/tracing.py` — optional OTel with mock fallback pattern
 
 ---
 
-*Feature research for: WuzAPI migration — Evolution API replacement (oncology WhatsApp backend v1.6)*
-*Researched: 2026-03-01*
+*Feature research for: Frontend Quality Overhaul + Google ADK Integration (oncology clinic v1.7)*
+*Researched: 2026-03-03*

@@ -1,724 +1,534 @@
 # Architecture Research
 
-**Domain:** WhatsApp provider migration (Evolution API -> WuzAPI) in oncology backend
-**Researched:** 2026-03-01
-**Confidence:** HIGH (official WuzAPI docs fetched + codebase fully read)
+**Domain:** Healthcare WhatsApp monitoring — Frontend quality overhaul + Google ADK integration
+**Researched:** 2026-03-03
+**Confidence:** HIGH (direct codebase inspection + official ADK release notes)
 
 ---
 
 ## Standard Architecture
 
-### Current WhatsApp Integration Map (before migration)
+### System Overview
 
 ```
-Outbound (sending):
-  Celery Tasks / API Handlers
-       |
-       v
-  UnifiedWhatsAppService          <- canonical facade (KEEP, adapt)
-  app/services/unified_whatsapp_service.py
-       |
-       +-- direct mode --> EvolutionAPIClient (aiohttp, Stack B)
-       |                   app/integrations/whatsapp/services/evolution_client.py
-       |
-       +-- queue mode  --> WhatsAppMessageService
-                           app/integrations/whatsapp/services/message_service.py
-                                |
-                                v
-                           EvolutionAPIClient (same Stack B)
-                           + MessageQueue (Redis)
-
-  IdempotentMessageSender         <- secondary send path (ADAPT then tombstone Evolution)
-  app/domain/messaging/delivery/idempotent_sender.py
-       |
-       v
-  EvolutionClient (httpx, Stack A, structlog)
-  app/integrations/evolution/client.py
-
-Inbound (webhooks):
-  POST /webhooks/whatsapp/*
-  app/integrations/whatsapp/api/webhooks.py
-       |
-       +-- HMAC validation --> WebhookHMACValidator
-       |
-       +-- Message events  --> message_extractor.py
-       |                       (parses Evolution Baileys JSON:
-       |                        key.remoteJid, key.participant,
-       |                        message.conversation, LID resolution)
-       |
-       +-- Status events   --> StatusWebhookHandler
-                               (maps PENDING/SENT/DELIVERED/READ/FAILED)
-                               (idempotency via Redis SET NX)
+┌─────────────────────────────────────────────────────────────┐
+│                    FRONTENDS (Firebase Hosting)              │
+├──────────────────────────┬──────────────────────────────────┤
+│  frontend-hormonia        │  quiz-mensal-interface           │
+│  React 19 + Vite          │  Next.js 14 + React 18          │
+│  shadcn/ui (Radix)        │  shadcn/ui (Radix)              │
+│  TanStack Query v5        │  fetch + CSRF in RAM            │
+│  Firebase Auth + sessions │  HttpOnly cookies               │
+│  WS real-time             │  Direct API (no proxy)          │
+└──────────┬───────────────┴──────────────────────────────────┘
+           │  HTTPS + session cookie
+           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   FastAPI v2 (Railway)                       │
+│  DDD: API -> Domain -> Services -> Infrastructure           │
+│  All routers: AsyncSession                                   │
+│  Middleware: CORS, LGPD, Security, CSRF, Cache, Compress    │
+├────────────────────┬────────────────────────────────────────┤
+│  AI Layer (v1.2)   │  WhatsApp Layer (v1.6)                 │
+│  GeminiDomainClient│  WuzAPI (Go/whatsmeow) -- hard cut     │
+│  4 PydanticAI agents│  No Evolution fallback                │
+│  PIISafeAgent guard │  unified_whatsapp_service.py          │
+│  google-genai SDK  │  webhook HMAC validation               │
+├────────────────────┴────────────────────────────────────────┤
+│  Saga Orchestrator         │  FlowDispatcher (facade)        │
+│  Async-safe dual-session   │  Direct async Python functions  │
+│  Compensation + trace      │  pause/resume/cancel            │
+├─────────────────────────────────────────────────────────────┤
+│  Celery Beat (38 tasks)    │  Dragonfly (Redis-compat)       │
+│  Sync Session (by design)  │  4 DBs: broker/cache/sess/rl   │
+└─────────────────────────────────────────────────────────────┘
+│  PostgreSQL (AWS RDS)                                        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Target WhatsApp Integration Map (after WuzAPI migration)
+### Component Responsibilities
+
+| Component | Responsibility | Status |
+|-----------|---------------|--------|
+| `frontend-hormonia` | Admin SPA -- physicians, patients, flows, monitoring | Needs quality pass |
+| `quiz-mensal-interface` | Patient quiz via short link -- HttpOnly cookie session | Needs quality pass |
+| `GeminiClient` | Raw Gemini calls: rate limit, circuit breaker, cache, PII redact | Stable |
+| `GeminiDomainClient` | Domain methods: humanize, sentiment, variation, empathy | Stable |
+| `PIISafeAgent` | LGPD wrapper around all Pydantic AI agent `.run()` calls | Stable, CI-enforced |
+| `app/core/tracing.py` | OTel wrapper with mock fallback -- the only OTel import file | Removal target |
+| OTel block in requirements.txt | 7 opentelemetry-* packages + protobuf>=5 | Removal target |
+| `FlowDispatcher` | Stable facade routing enrollments; callers never see flow internals | Stable |
+| `SagaOrchestrator` | Async-safe compensation, dual-session, 40+ tests | Stable |
+
+---
+
+## Frontend Architecture: admin SPA (frontend-hormonia)
+
+### Current Structure
 
 ```
-Outbound (sending):
-  Celery Tasks / API Handlers
-       |
-       v
-  UnifiedWhatsAppService          <- KEEP, swap internal client reference
-  app/services/unified_whatsapp_service.py
-       |
-       +-- direct mode --> WuzAPIClient (httpx async)       <- NEW
-       |                   app/integrations/wuzapi/client.py
-       |
-       +-- queue mode  --> WhatsAppMessageService           <- ADAPT
-                           (swap EvolutionAPIClient -> WuzAPIClient)
-                           + MessageQueue (Redis, unchanged)
+frontend-hormonia/src/
+├── app/
+│   ├── providers/         # AuthContext (Firebase + session)
+│   ├── routes/            # routeConfig, routeDefinitions, AdminRoutes.lazy
+│   └── styles/
+├── components/
+│   ├── auth/              # ProtectedRoute, ReAuthenticationModal
+│   ├── common/            # FileUpload, LoadingStates
+│   ├── error/             # ErrorBoundary
+│   ├── hive-mind/         # AgentSwarm, SystemHealth (legacy UI)
+│   ├── layout/            # Layout, Sidebar, Header, Breadcrumb, Nav
+│   ├── monitoring/        # SystemStatus
+│   └── ui/                # shadcn/ui primitives
+├── config/
+│   └── mock.config.ts     # Mock mode toggle
+├── contexts/
+│   └── AuthContext.tsx
+├── features/              # Domain-sliced features (20+ slices)
+│   ├── admin/             # AdminDashboard, UsersTab, AuditLogViewer
+│   ├── ai/                # AIChatInterface, AIAnalyticsDashboard, etc.
+│   ├── analytics/         # AIPredictionsPanel, TrendAnalysisChart
+│   ├── auth/              # ProtectedRoute, ReAuthenticationModal
+│   ├── dashboard/         # MetricCard, Charts, RecentActivity
+│   ├── flow-designer/     # Canvas, Nodes, Properties, Validator
+│   ├── flows/             # FlowsTable, FlowAnalyticsDashboard
+│   ├── monitoring/        # SystemStatus
+│   ├── patients/          # PatientsTable, PatientDetail, AI analysis
+│   ├── settings/          # SettingsSection, sidebar, sections
+│   ├── templates/         # template management
+│   └── whatsapp/          # WhatsAppDashboard, instances, messages
+├── hooks/                 # 30+ hooks split across api/, admin/, auth/
+├── lib/
+│   ├── api-client/        # Modular: auth, patients, analytics, admin...
+│   ├── api-client.ts      # Backward compat shim
+│   ├── api.ts             # Legacy file (check for actual callers)
+│   ├── types/             # api.ts (re-export barrel, 526 lines)
+│   └── [utils, logger, flow-engine, mappers, react-query...]
+├── mocks/                 # 7 mock data files (patients, flows, alerts...)
+├── monitoring/            # sentry.ts
+├── pages/                 # 20 page-level components (mixed routing)
+├── services/
+│   ├── firebase-auth.ts   # Firebase + session management
+│   └── whatsapp/          # WhatsAppService.ts (wraps apiClient)
+└── types/                 # 15 type files: api.ts, shared, auth, medico...
+```
 
-Inbound (webhooks):
-  POST /webhooks/wuzapi                               <- NEW route
-  app/integrations/wuzapi/api/webhooks.py
-       |
-       +-- HMAC validation (header: x-hmac-signature, SHA-256)
-       |                    <- WebhookHMACValidator KEEP (header name is the only change)
-       |
-       +-- type == "Message"    --> WuzAPIMessageExtractor  <- NEW
-       |                            (parses WuzAPI JSON:
-       |                             event.Info.ID, event.Info.Sender,
-       |                             event.Message.Conversation, token field)
-       |
-       +-- type == "ReadReceipt" --> StatusWebhookHandler   <- ADAPT
-                               (map WuzAPI Receipt.Type "read" to MessageStatus.READ)
+### Key Frontend Issues Identified
+
+**Dead Code -- Evolution API (fully tombstoned backend since v1.6):**
+- `features/whatsapp/WhatsAppDashboard.tsx` -- gated on `VITE_ENABLE_EVOLUTION=true`; always shows "disabled" state since backend no longer supports it. Entire dashboard is effectively dead UI.
+- `features/admin/tabs/AdminSettingsTab.tsx:203` -- Evolution API URL form field still visible in admin settings.
+- `lib/env-validator.ts:266` -- still validates `VITE_ENABLE_EVOLUTION` and `VITE_EVOLUTION_API_URL`.
+- `lib/runtime-config.ts:51-52` -- Evolution fields still in type definition and defaults.
+
+**Stale AI Provider References:**
+- `config.ts:248-250` -- JSDoc comments reference `VITE_OPENAI_API_KEY` and `VITE_LANGCHAIN_API_KEY` (backend is Gemini-only since v1.2; these env vars are never read).
+- `types/api.ts:766` -- `AIConfig.openai_model` field (backend has no OpenAI integration; field is dead).
+- `lib/types/api.ts` -- eight `@deprecated` re-export markers indicating consolidation is incomplete.
+
+**Type Duplication:**
+- `src/types/api.ts` (884 lines) + `src/lib/types/api.ts` (526-line re-export barrel) + 15 other type files create confusion about canonical type source.
+- `lib/api-client/types.ts` defines `AIInsight`, `AIInsights`, `AIRecommendations` and is imported alongside `types/api.ts:AIInsight` in some components.
+
+**Mock Layer Drift:**
+- `src/mocks/` and `src/lib/mock-api-handler.ts` are used only when `enableMockApi` flag is set in dev. Mock data shapes have not been updated since v1.3-v1.6 API changes.
+
+**API Alignment:**
+- `lib/api-client/patients.ts:384` has comment `REMOVED: Medical History, Appointments, Documents` -- client was pruned but some page-level components may still attempt removed endpoints.
+- `WhatsAppService.ts` wraps `apiClient` for WuzAPI endpoints but `WhatsAppDashboard` still models Evolution API instance lifecycle (connected/QR states differ in WuzAPI).
+
+---
+
+## Frontend Architecture: quiz-mensal-interface
+
+### Current Structure
+
+```
+quiz-mensal-interface/
+├── app/
+│   ├── api/health/         # Next.js API route for health check
+│   ├── quiz/               # Quiz pages (page.tsx, monthly/page.tsx)
+│   ├── globals.css
+│   ├── layout.tsx
+│   └── page.tsx            # Root -- redirects to /quiz
+├── components/
+│   ├── error/              # ErrorBoundary
+│   ├── quiz/               # QuizSkeleton, ResumeQuizDialog, question types
+│   ├── quiz-interface.tsx  # Main quiz UI component
+│   ├── theme-provider.tsx
+│   └── ui/                 # shadcn/ui primitives
+├── hooks/
+│   ├── use-quiz-session.ts  # Gold master: URL token -> HttpOnly cookie -> CSRF in RAM
+│   ├── use-mobile.ts
+│   └── use-toast.ts
+├── lib/
+│   └── api-client.ts       # Direct fetch (no proxy), CSRF in RAM, auto-retry
+├── tests/                  # (coverage/ also present)
+└── types/quiz.ts           # QuizSession, QuizSubmitResponse
+```
+
+### Quiz Architecture Pattern
+
+The quiz uses a stateless security model that bypasses a Next.js API proxy layer:
+
+```
+Patient clicks short link --> URL contains ?token=xxx
+    |
+    v
+useQuizSession hook:
+  1. Exchange URL token for session (POST /api/v2/quiz/sessions/init)
+  2. Backend sets HttpOnly cookie (QuizSession UUID)
+  3. CSRF token returned in response body --> stored in RAM (XSS immune)
+  4. URL cleaned (removes ?token from address bar)
+    |
+    v
+All subsequent calls use: credentials: 'include' + X-CSRF-Token header
+```
+
+Key constraint: quiz talks directly to FastAPI backend at `NEXT_PUBLIC_QUIZ_PUBLIC_API_URL`. No Next.js server-side proxy exists. Only `/api/health` is a Next.js API route.
+
+---
+
+## Backend AI Architecture
+
+### Current AI Stack
+
+```
+GeminiDomainClient (extends GeminiClient)
+    |
+    +-- humanize_flow_message()      -> HumanizeAgent (PIISafeAgent)
+    +-- generate_varied_question()   -> VariationAgent (PIISafeAgent)
+    +-- analyze_response_sentiment() -> SentimentAgent (PIISafeAgent)
+    +-- create_empathetic_follow_up()-> EmpathyAgent (PIISafeAgent)
+           |
+           +-- PIISafeAgent._safe_run()
+                   +-- sanitize_prompt_text_for_external_ai()  <- PII/PHI redaction (LGPD)
+                   +-- GoogleModel(deps.model_name) via pydantic-ai
+                   +-- agent.run(safe_prompt, model=model, deps=deps)
+
+GeminiClient.generate_content()  <- For non-agent calls (templates, raw text)
+    +-- PII redaction
+    +-- Rate limit (Redis sliding window, fallback in-process)
+    +-- Circuit breaker (get_ai_circuit_breaker())
+    +-- Semantic cache (Redis, SHA-256 hash keyed)
+    +-- Guardrail validation (OutputKind: MESSAGE, JSON, RAW)
+    +-- Retry with exponential backoff
+```
+
+### ADK Integration Architecture
+
+**What ADK is:** Google Agent Development Kit v1.26.0 (Feb 26, 2026) -- framework for building, evaluating, and deploying multi-agent pipelines using Gemini. Ships with OTel integration as an internal dependency.
+
+**Why OTel must be removed first:**
+ADK bundles `opentelemetry-*` as a hard dependency and manages its own OTel context internally. Running ADK alongside the current explicit OTel instrumentation causes `ValueError: Token was created in a different Context` in async generators -- confirmed in adk-python issue #860 (May 2025) and #1670 (Jun 2025). Issue #2792 confirms no public API exists to disable ADK's internal OTel tracing. The only clean resolution is to let ADK own the OTel layer by removing the explicit OTel packages.
+
+**OTel removal scope (backend only -- well-isolated):**
+
+The codebase has already designed for graceful OTel removal. `app/core/tracing.py` wraps all OTel imports in a `try/except ImportError` block and provides complete mock implementations when OTel is not installed. Callers of `get_tracer()` get a no-op mock tracer transparently.
+
+Files to change in `requirements.txt` (remove):
+```
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-sqlalchemy
+opentelemetry-instrumentation-redis
+opentelemetry-instrumentation-httpx
+opentelemetry-exporter-otlp
+opentelemetry-exporter-otlp-proto-http
+opentelemetry-proto
+```
+
+Files that need no code changes after package removal (callers of mock tracer):
+- `app/integrations/whatsapp/services/message_service.py` -- uses `get_tracer()`, `@trace` decorator; both become no-ops
+- `app/services/unified_whatsapp_service.py` -- uses `self.tracer = get_tracer()`; becomes no-op
+
+`setup_tracing()` in application startup calls `instrument_fastapi()` etc., all of which are already safe no-ops when OTel is absent. No startup code changes needed.
+
+**ADK integration points with existing AI stack:**
+
+The 4 Pydantic AI agents (humanize, sentiment, variation, empathy) are NOT replaced by ADK. They are stable, CI-guarded, and satisfy their specific typed operations. ADK is an additional module for new agentic capabilities not currently covered.
+
+```
+EXISTING (keep as-is)                  NEW (ADK adds)
+------------------------------------   ---------------------------------
+GeminiClient.generate_content()        ADK LlmAgent
+  template rendering, raw generation     multi-step reasoning tasks
+
+PIISafeAgent + 4 Pydantic AI agents    ADK Runner + Session
+  humanize, sentiment, variation,        agent lifecycle management
+  empathy (typed, structured output)     state persistence across turns
+
+FlowDispatcher -> direct async fns     ADK orchestration (optional path)
+  enrollment flow control                complex multi-agent scenarios
+```
+
+**ADK module placement:**
+
+```
+backend-hormonia/app/ai/
+├── agents/          # Existing: 4 PIISafe Pydantic AI agents (unchanged)
+│   ├── base.py
+│   ├── deps.py
+│   ├── humanize_agent.py
+│   ├── sentiment_agent.py
+│   ├── variation_agent.py
+│   └── empathy_agent.py
+├── adk/             # NEW: ADK integration module
+│   ├── __init__.py
+│   ├── runner.py    # ADK Runner setup, session management
+│   ├── wrapper.py   # PIISafeADKWrapper (mirrors PIISafeAgent pattern)
+│   └── agents/      # ADK-specific agent definitions
+├── client.py        # Unchanged
+├── client_domain.py # Unchanged
+└── pii_redaction.py # Unchanged (shared by both layers)
 ```
 
 ---
 
-## Component Responsibilities
+## Data Flow Changes (v1.7)
 
-| Component | Current State | Action | Responsibility After Migration |
-|-----------|--------------|--------|-------------------------------|
-| `UnifiedWhatsAppService` | Uses `EvolutionAPIClient` directly | ADAPT | Facade stays; swaps client reference to `WuzAPIClient` |
-| `EvolutionAPIClient` (Stack B) | Canonical send client, aiohttp | TOMBSTONE | Replaced by `WuzAPIClient` |
-| `EvolutionClient` (Stack A) | Legacy httpx client, structlog | TOMBSTONE | Dead once `IdempotentMessageSender` is updated |
-| `IdempotentMessageSender` | Uses Stack A `EvolutionClient` | ADAPT | Swap import to `WuzAPIClient`; keep idempotency logic intact |
-| `WhatsAppMessageService` | Wraps `EvolutionAPIClient` | ADAPT | Constructor injection: accept `WuzAPIClient` |
-| `webhooks.py` (Evolution) | Parses Evolution Baileys JSON | TOMBSTONE | Replaced by `wuzapi/api/webhooks.py` |
-| `message_extractor.py` | Evolution payload parser | TOMBSTONE | Replaced by `WuzAPIMessageExtractor` |
-| `StatusWebhookHandler` | Maps Evolution status strings | ADAPT | Status string mapping update for ReadReceipt event shape |
-| `WebhookHMACValidator` | Algorithm-agnostic SHA-256/512 | KEEP | Already handles SHA-256; just change header name in caller |
-| `phone_normalizer.py` | E.164 + LID resolution via Evolution | ADAPT | Remove LID resolution (WuzAPI has no LID); keep E.164 normalization |
-| `IntegrationsSettings` | `WHATSAPP_EVOLUTION_*` env vars | ADAPT | Add `WHATSAPP_WUZAPI_*` vars; deprecate Evolution vars |
-| `MessageRequest` (Pydantic) | Has `instance_name` field | ADAPT | `instance_name` no longer required; WuzAPI identifies session via token |
+### Frontend Quality Work -- Data Flow Unchanged
 
----
-
-## Recommended Project Structure (after migration)
+Frontend quality improvements (dead code removal, API alignment, type consolidation, layout consistency) do not change API contracts. The request flow remains:
 
 ```
-backend-hormonia/app/integrations/
-|
-+-- evolution/                          # TOMBSTONED (keep files, add ImportError sentinels)
-|   +-- client.py                       # Tombstone: "Replaced by wuzapi in v1.6"
-|   +-- message_sender.py               # Tombstone
-|   +-- request_handler.py              # Tombstone
-|   +-- webhook_handler.py              # Tombstone
-|
-+-- whatsapp/                           # Keep structure, migrate internals
-|   +-- api/
-|   |   +-- webhooks.py                 # TOMBSTONE: Evolution webhook handler
-|   |   +-- routes.py                   # Keep (admin routes, health checks, update health)
-|   +-- models/
-|   |   +-- message.py                  # ADAPT: remove Evolution-specific field comments
-|   +-- services/
-|   |   +-- evolution_client.py         # TOMBSTONE
-|   |   +-- message_service.py          # ADAPT: inject WuzAPIClient
-|   |   +-- mock_evolution.py           # TOMBSTONE (replace with mock_wuzapi.py)
-|   +-- security/
-|       +-- hmac_validator.py           # KEEP (algorithm-agnostic, unchanged)
-|
-+-- wuzapi/                             # NEW package
-    +-- __init__.py
-    +-- client.py                       # NEW: WuzAPIClient (httpx async, Token auth)
-    +-- errors.py                       # NEW: WuzAPIError exception hierarchy
-    +-- models.py                       # NEW: WuzAPI request/response Pydantic models
-    +-- mock_wuzapi.py                  # NEW: mock for testing
-    +-- api/
-        +-- __init__.py
-        +-- webhooks.py                 # NEW: WuzAPI webhook router (/webhooks/wuzapi)
+Admin user action
+    |
+    v
+React component -> feature hook -> apiClient.[domain].[method]()
+    |
+    v
+ApiClientCore.request()  -- auth headers, CSRF, retry, error mapping
+    |
+    v
+FastAPI /api/v2/[resource]  -- AsyncSession, auth dep, LGPD middleware
+    |
+    v
+Domain service -> PostgreSQL (RDS)
+    |
+    v
+Response -> normalized (normalizers.ts) -> TanStack Query cache -> component
 ```
 
+What changes during quality pass (data flow perspective):
+- `WhatsAppDashboard` Evolution API gate removed; component shows WuzAPI connection state directly using existing WuzAPI admin endpoints.
+- `AdminSettingsTab` Evolution URL field removed; settings form simplified.
+- Stale type fields (`openai_model` in `AIConfig`) removed from TS types; no backend impact.
+- Mock data shapes updated to match current API response schemas where drift exists.
+
+### ADK Data Flow (new path)
+
 ```
-backend-hormonia/app/services/webhook/
-+-- utils/
-|   +-- message_extractor.py            # TOMBSTONE (Evolution parser)
-|   +-- wuzapi_message_extractor.py     # NEW: WuzAPI payload parser
-|   +-- phone_normalizer.py             # ADAPT: remove LID resolution methods
-+-- handlers/
-    +-- status_handler.py               # ADAPT: add WuzAPI ReadReceipt mapping
+New agentic endpoint called (e.g., POST /api/v2/ai/adk/assess)
+    |
+    v
+FastAPI router (AsyncSession context)
+    |
+    v
+app/ai/adk/runner.py
+    +-- PIISafeADKWrapper.run(patient_text)
+            +-- sanitize_prompt_text_for_external_ai()  <- mandatory PII redaction
+            +-- ADK Runner dispatches to LlmAgent
+            +-- ADK internal OTel span (ADK manages its own context)
+    |
+    v
+Structured result returned to router -> response
 ```
 
 ---
 
 ## Architectural Patterns
 
-### Pattern 1: Hard Provider Replace (not abstraction layer)
+### Pattern 1: PIISafeAgent Wrapper (existing -- MUST extend to ADK)
 
-**What:** Delete the dual-stack complexity. Wire `UnifiedWhatsAppService` directly to `WuzAPIClient` with no `BaseWhatsAppProvider` interface.
+**What:** All Gemini/AI calls go through a wrapper that sanitizes PII before sending to external AI. CI lint script `scripts/check_agent_run_calls.py` blocks direct `agent.run()` calls outside the wrapper.
 
-**When to use:** When there is exactly one provider and no planned multi-provider future. The project decision confirms "hard cut, no dual-provider hacks."
+**When to use:** Any AI invocation that may receive patient data -- name, CPF, phone, medical notes.
 
-**Trade-offs:**
-- Pro: Zero abstraction overhead, direct error messages, simpler tests
-- Pro: Eliminates existing dual-stack problem (Stack A + Stack B) permanently
-- Pro: All Evolution-era code goes dark simultaneously
-- Con: If WuzAPI fails long-term, a future migration must touch the facade again (same scope of work either way)
+**Trade-offs:** Small overhead per call (regex scan + hash log), but mandatory for LGPD Art. 46 compliance. Non-negotiable.
 
-**Example:**
 ```python
-# Before (UnifiedWhatsAppService.__init__)
-self._queue_client = EvolutionAPIClient(
-    base_url=settings.WHATSAPP_EVOLUTION_API_URL,
-    api_key=settings.WHATSAPP_EVOLUTION_API_KEY,
-    ...
-)
-
-# After:
-self._queue_client = WuzAPIClient(
-    base_url=settings.WHATSAPP_WUZAPI_BASE_URL,
-    token=settings.WHATSAPP_WUZAPI_TOKEN,
-    timeout_seconds=settings.WHATSAPP_WUZAPI_TIMEOUT_SECONDS,
-)
+class PIISafeAgent:
+    async def _safe_run(self, prompt: str, deps: AIDeps, *, operation: str) -> Any:
+        safe_prompt = sanitize_prompt_text_for_external_ai(prompt)  # mandatory
+        result = await self._agent.run(safe_prompt, model=model, deps=deps)
+        return result
 ```
 
-### Pattern 2: Constructor Injection for WhatsAppMessageService
+ADK extension needed: Any ADK-managed agent that processes patient text needs equivalent PII sanitization before the ADK Runner dispatches to Gemini. Implement via ADK `before_model_callback` hook or pre-process at the calling site.
 
-**What:** `WhatsAppMessageService.__init__` currently requires `EvolutionAPIClient`. Change the type annotation to accept `WuzAPIClient`. No interface needed — duck-typing is sufficient since there is only one implementation.
+### Pattern 2: Modular API Client (existing frontend pattern)
 
-**When to use:** Service has one known implementation; injection is for testability only.
+**What:** `lib/api-client/` is split by domain (patients, auth, analytics, admin, etc.) and composed into the `apiClient` singleton in `index.ts`. Domain modules are independently importable.
 
-**Example:**
-```python
-class WhatsAppMessageService:
-    def __init__(
-        self,
-        whatsapp_client: WuzAPIClient,  # was: EvolutionAPIClient
-        db: AsyncSession,
-        message_queue: MessageQueue,
-        ...
-    ):
-```
+**When to use:** All new API endpoints are added to the relevant domain module, not inline in components.
 
-### Pattern 3: Tombstone Both Evolution Stacks Simultaneously
+**Trade-offs:** Good separation but `index.ts` is large due to inline type imports. `lib/api.ts` is a legacy monolith -- callers should migrate to `lib/api-client/`.
 
-**What:** On the same commit that introduces the final `WuzAPIClient` wiring, add `ImportError` sentinels to all Evolution files.
+### Pattern 3: Feature Slice (existing frontend pattern)
 
-**When to use:** Hard-cut migrations where rollback is not required.
+**What:** `features/[domain]/` contains the feature's components, hooks, and local utils. Shared components go in `components/`. Shared cross-feature hooks go in `hooks/`.
 
-**Example:**
-```python
-# app/integrations/evolution/client.py (tombstoned)
-"""
-Evolution API client — TOMBSTONED in v1.6.
-Replaced by app.integrations.wuzapi.client.WuzAPIClient.
-"""
-raise ImportError(
-    "EvolutionClient removed in v1.6. "
-    "Use app.integrations.wuzapi.client.WuzAPIClient instead."
-)
-```
+**When to use:** New feature work and refactoring should respect this boundary. Domain-specific logic does not belong in `components/`.
 
-### Pattern 4: WuzAPI Webhook Extractor as Stateless Function Module
+**Trade-offs:** 20+ feature slices; some have 1-2 files (minor over-slicing in `features/monitoring/`, `features/analytics/`). Acceptable for this project size.
 
-**What:** `wuzapi_message_extractor.py` is a module of pure functions (no class required). Matches the existing `message_extractor.py` pattern.
+### Pattern 4: Dual-Mode Session (existing backend -- DO NOT CHANGE)
 
-**WuzAPI incoming Message payload to parse:**
-```json
-{
-  "type": "Message",
-  "token": "USER_TOKEN",
-  "event": {
-    "Info": {
-      "ID": "3EB06F9067F80BAB89FF",
-      "FromMe": false,
-      "Timestamp": "2024-01-20T12:49:08-03:00",
-      "Type": "textMessage",
-      "PushName": "Patient Name",
-      "Sender": "5511987654321@s.whatsapp.net"
-    },
-    "Message": {
-      "Conversation": "Patient reply text",
-      "ExtendedTextMessage": null,
-      "ImageMessage": null
-    }
-  }
-}
-```
+**What:** API routers use `AsyncSession` via `get_async_db`. Celery tasks use sync `Session` via `get_db`. Services accept `db: Any` and operate with either.
 
-**WuzAPI ReadReceipt payload to parse:**
-```json
-{
-  "type": "ReadReceipt",
-  "token": "USER_TOKEN",
-  "event": {
-    "Info": {
-      "ID": "3EB06F9067F80BAB89FF",
-      "FromMe": true,
-      "Timestamp": "2024-01-20T12:49:15-03:00"
-    },
-    "Receipt": {
-      "Type": "read",
-      "Timestamp": "2024-01-20T12:49:15-03:00"
-    }
-  }
-}
-```
+**When to use:** All new router code uses `get_async_db`. All new Celery task code uses sync `get_db`. This is a design contract enforced by CI guard `scripts/check_async_isolation.py`.
 
-**Key extraction logic:**
-```python
-def extract_message_data(payload: dict) -> Optional[dict]:
-    event = payload.get("event", {})
-    info = event.get("Info", {})
-
-    # WuzAPI does not use @lid addressing — no LID resolution needed
-    sender = info.get("Sender", "")  # "5511987654321@s.whatsapp.net"
-    phone = _clean_phone_from_jid(sender)  # "5511987654321"
-
-    message = event.get("Message", {})
-    content, message_type = _extract_content_and_type(message)
-
-    return {
-        "phone": phone,
-        "content": content,
-        "type": message_type,
-        "whatsapp_id": info.get("ID"),
-        "metadata": {
-            "from_me": info.get("FromMe", False),
-            "timestamp": info.get("Timestamp"),
-            "pushName": info.get("PushName"),
-            "token": payload.get("token"),
-        }
-    }
-```
-
----
-
-## Data Flow
-
-### Outbound Message Flow (after migration)
-
-```
-Celery Task: send_whatsapp_message
-    |
-    v
-UnifiedWhatsAppService.send_message(message)
-    |
-    +-- direct mode (non-prod) --> _send_via_direct_api()
-    |       |
-    |       v
-    |   WuzAPIClient.send_text_message(phone, text)
-    |   POST /chat/send/text
-    |   Headers: { "Authorization": "{token}", "Content-Type": "application/json" }
-    |   Body: { "Phone": "5511987654321", "Body": "message text" }
-    |       |
-    |       v
-    |   WuzAPI returns: { "code": 200, "data": { "Details": "Sent", "Id": "3EB..." } }
-    |   message.whatsapp_id = response["data"]["Id"]
-    |
-    +-- queue mode (prod) --> _send_via_queue()
-            |
-            v
-        WhatsAppMessageService.send_message(MessageRequest)
-            |
-            v
-        MessageQueue (Redis) -> worker -> WuzAPIClient.send_text_message()
-```
-
-### Inbound Webhook Flow (after migration)
-
-```
-WuzAPI Server
-    |
-    POST /webhooks/wuzapi
-    Headers: { "x-hmac-signature": "sha256=<digest>" }
-    Body: { "type": "Message"|"ReadReceipt", "token": "...", "event": {...} }
-    |
-    v
-app/integrations/wuzapi/api/webhooks.py
-    |
-    +-- Rate limit check (existing limiter)
-    +-- HMAC validation: WebhookHMACValidator.validate_signature(
-    |       body_bytes,
-    |       request.headers["x-hmac-signature"],
-    |       settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET
-    |   )
-    +-- Idempotency: Redis SET NX (same pattern as existing handler)
-    |
-    +-- type == "Message" --> wuzapi_message_extractor.extract_message_data()
-    |       |
-    |       v
-    |   Returns: { "phone": "5511987654321",
-    |              "content": "text", "type": TEXT,
-    |              "whatsapp_id": "3EB06F..." }
-    |       |
-    |       v
-    |   PhoneNormalizer.find_patient_by_phone(phone)
-    |       |
-    |       v
-    |   Flow engine processes patient response (unchanged)
-    |
-    +-- type == "ReadReceipt" --> StatusWebhookHandler._map_wuzapi_status()
-            |
-            v
-        Extract: event.Info.ID as whatsapp_id
-                 Receipt.Type as "read"
-        Map:     "read" -> MessageStatus.READ
-        Update:  message.status via MessageService
-        Broadcast: WebSocket event MESSAGE_STATUS_UPDATED (unchanged)
-```
-
-### Phone Number Format: Key Difference
-
-| Direction | Evolution API | WuzAPI |
-|-----------|--------------|--------|
-| Outbound send `to` field | `55119...` digits only | `55119...` digits only (same) |
-| Inbound sender JID | `55119...@s.whatsapp.net` or `@lid` | `55119...@s.whatsapp.net` (no LID) |
-| Phone strip logic | Split on `@`, take left part | Same: split on `@`, take left part |
-| LID addressing | Present (complex `@lid` JIDs) | Absent (whatsmeow resolves internally) |
-
-The existing `_clean_phone_from_jid()` logic is correct and reusable in the new extractor. The LID resolution code in `phone_normalizer.py` (`resolve_phone_from_lid`, `_fetch_evolution_chats`, `_match_phone_jid_for_lid`) must be removed since WuzAPI has no LID concept and those methods make HTTP calls to Evolution API endpoints.
+**ADK relevance:** If ADK agents are called from FastAPI routes (HTTP-triggered), they run in the async context and do not touch the DB session. If called from Celery tasks, they need a sync bridge (`async_to_sync` pattern already used elsewhere).
 
 ---
 
 ## Integration Points
 
-### New vs Modified vs Tombstoned Files
+### Frontend Integration Points for Quality Work
 
-| File | Action | Reason |
-|------|--------|--------|
-| `app/integrations/wuzapi/__init__.py` | **NEW** | Package init |
-| `app/integrations/wuzapi/client.py` | **NEW** | `WuzAPIClient`: httpx async, `Authorization` token header, `/chat/send/text` |
-| `app/integrations/wuzapi/models.py` | **NEW** | Pydantic models: `WuzAPISendRequest`, `WuzAPIResponse`, `WuzAPISessionStatus` |
-| `app/integrations/wuzapi/errors.py` | **NEW** | `WuzAPIError` hierarchy replacing `EvolutionAPIError` |
-| `app/integrations/wuzapi/mock_wuzapi.py` | **NEW** | Test double implementing same interface as `WuzAPIClient` |
-| `app/integrations/wuzapi/api/__init__.py` | **NEW** | Package init |
-| `app/integrations/wuzapi/api/webhooks.py` | **NEW** | Webhook router at `/webhooks/wuzapi`; handles Message + ReadReceipt |
-| `app/services/webhook/utils/wuzapi_message_extractor.py` | **NEW** | Pure-function parser for WuzAPI message event JSON |
-| `app/services/unified_whatsapp_service.py` | **MODIFY** | Swap `EvolutionAPIClient` -> `WuzAPIClient`; update config refs; rename circuit breaker |
-| `app/integrations/whatsapp/services/message_service.py` | **MODIFY** | Accept `WuzAPIClient` in constructor instead of `EvolutionAPIClient` |
-| `app/services/webhook/handlers/status_handler.py` | **MODIFY** | Add `_map_wuzapi_status()`; update `source` field to `"wuzapi"` |
-| `app/services/webhook/utils/phone_normalizer.py` | **MODIFY** | Remove 3 LID methods; keep E.164 normalization and patient lookup |
-| `app/config/settings/integrations.py` | **MODIFY** | Add `WHATSAPP_WUZAPI_*` vars; deprecate Evolution vars |
-| `app/domain/messaging/delivery/idempotent_sender.py` | **MODIFY** | Replace `EvolutionClient` import with `WuzAPIClient`; update send call signature |
-| `app/integrations/whatsapp/security/hmac_validator.py` | **KEEP** | Algorithm-agnostic; handles WuzAPI SHA-256 with no changes |
-| `app/integrations/evolution/client.py` | **TOMBSTONE** | Stack A (httpx/structlog) eliminated |
-| `app/integrations/evolution/message_sender.py` | **TOMBSTONE** | Stack A dependency |
-| `app/integrations/evolution/request_handler.py` | **TOMBSTONE** | Stack A dependency |
-| `app/integrations/evolution/webhook_handler.py` | **TOMBSTONE** | Stack A dependency |
-| `app/integrations/whatsapp/services/evolution_client.py` | **TOMBSTONE** | Stack B (aiohttp) eliminated |
-| `app/integrations/whatsapp/services/mock_evolution.py` | **TOMBSTONE** | Replace with `mock_wuzapi.py` |
-| `app/integrations/whatsapp/api/webhooks.py` | **TOMBSTONE** | Evolution webhook handler eliminated |
-| `app/services/webhook/utils/message_extractor.py` | **TOMBSTONE** | Evolution Baileys parser eliminated |
+| Integration Point | Current State | Required Change |
+|-------------------|--------------|----------------|
+| `WhatsAppDashboard` | Gated on `VITE_ENABLE_EVOLUTION=true`; always shows disabled state | Remove gate; wire to WuzAPI status/QR endpoints via existing `apiClient` |
+| `AdminSettingsTab:203` | Evolution API URL form field present | Remove field and its validation |
+| `lib/env-validator.ts:266` | Validates `VITE_ENABLE_EVOLUTION`, `VITE_EVOLUTION_API_URL` | Remove both entries |
+| `lib/runtime-config.ts:51-52` | Evolution fields in type + defaults | Remove from type definition and defaults object |
+| `types/api.ts:AIConfig` | `openai_model: string` field | Remove or rename to `gemini_model` |
+| `config.ts` comments | References `VITE_OPENAI_API_KEY`, `VITE_LANGCHAIN_API_KEY` | Update docs to Gemini-only |
+| `lib/types/api.ts` @deprecated exports | 8 re-exports marked deprecated | Decide: consolidate into `types/api.ts` or keep barrel explicitly |
+| Mock data shapes | May have drifted from v1.3-v1.6 API changes | Sync with backend response schemas |
 
-### External Service Integration Points
+### Backend Integration Points for ADK Integration
 
-| Service | Auth Method | Endpoint | Notes |
-|---------|-------------|----------|-------|
-| WuzAPI send text | `Authorization: {user_token}` | `POST /chat/send/text` | Phone: raw digits `5511...`; no `@s.whatsapp.net` |
-| WuzAPI send image | `Authorization: {user_token}` | `POST /chat/send/image` | Body field with base64 or URL |
-| WuzAPI session health | `Authorization: {user_token}` | `GET /session/status` | Returns `{Connected: bool, LoggedIn: bool}` |
-| WuzAPI session connect | `Authorization: {user_token}` | `POST /session/connect` | Initiates WhatsApp WebSocket connection |
-| WuzAPI admin | `Authorization: {admin_token}` | `POST /admin/users` | `WUZAPI_ADMIN_TOKEN` env var |
-| WuzAPI webhooks inbound | `x-hmac-signature: sha256=<hex>` | POST to configured URL | HMAC key: `WUZAPI_GLOBAL_HMAC_KEY` on WuzAPI server |
+| Integration Point | Current State | Required Change |
+|-------------------|--------------|----------------|
+| `requirements.txt` OTel block | 7 OTel packages pinned | Remove all 7; add `google-adk>=1.26.0` |
+| `app/core/tracing.py` | Tries real OTel, falls back to mocks on ImportError | Remove real OTel try-imports; keep mock-only path (already written) |
+| `unified_whatsapp_service.py` | `self.tracer = get_tracer()` | No code change needed; mock tracer stays |
+| `integrations/whatsapp/services/message_service.py` | Uses `get_tracer()`, `@trace` decorator | No code change needed; decorators become no-ops |
+| `app/ai/` directory | 4 Pydantic AI agents + GeminiClient | ADD `app/ai/adk/` alongside -- no modifications to existing files |
+| New ADK endpoints | Not yet defined | New router `app/api/v2/routers/ai/adk.py` (if HTTP-triggered) |
 
-### Internal Boundary Changes
+### Internal Boundaries
 
-| Boundary | Before | After |
-|----------|--------|-------|
-| `UnifiedWhatsAppService` -> client | `EvolutionAPIClient` (aiohttp) | `WuzAPIClient` (httpx) |
-| `WhatsAppMessageService` -> client | `EvolutionAPIClient` | `WuzAPIClient` |
-| `IdempotentMessageSender` -> client | `EvolutionClient` (Stack A, httpx) | `WuzAPIClient` |
-| Webhook URL path | `/webhooks/whatsapp/*` (multiple routes) | `/webhooks/wuzapi` (single route, type in body) |
-| HMAC signature header | Evolution-specific (custom per deployment) | `x-hmac-signature` (WuzAPI standard) |
-| Status event type | `MESSAGES_UPDATE` with `update.status` string | `ReadReceipt` with `Receipt.Type` string |
-| Session identifier | `instance_name` string on every call | Bearer token identifies session; no `instance_name` |
-| Connection state check | `GET /instance/connectionState/{instance}` | `GET /session/status` |
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `frontend-hormonia` <-> FastAPI | HTTPS REST + WebSocket (wss://) | No changes to contract during quality pass |
+| `quiz-mensal-interface` <-> FastAPI | HTTPS REST direct (no proxy) | No changes; quiz is stable |
+| `GeminiDomainClient` <-> `PIISafeAgent` | Direct method calls | Stable; ADK does not touch this |
+| ADK agents <-> `PIISafeAgent` pattern | New `PIISafeADKWrapper` needed | Must implement PII sanitization at ADK boundary |
+| `app/core/tracing.py` <-> callers | Mock tracer interface (no-op) | After OTel removal, callers get no-ops automatically |
+| Celery tasks <-> ADK | Sync bridge if needed | Use `async_to_sync` pattern (same as existing Celery AI calls) |
+
+---
+
+## Build Order for v1.7
+
+The dependency structure dictates this ordering:
+
+**Phase A -- Backend OTel removal (blocker for ADK, no frontend impact):**
+1. Remove 7 OTel packages from `requirements.txt`
+2. Verify `app/core/tracing.py` compiles with mock-only path (`OPENTELEMETRY_AVAILABLE = False`)
+3. Confirm `unified_whatsapp_service.py` and `message_service.py` still import without error
+4. Run existing test suite to confirm no regressions
+
+**Phase B -- ADK integration (depends on Phase A):**
+1. Add `google-adk>=1.26.0` to `requirements.txt`
+2. Create `app/ai/adk/` module with `PIISafeADKWrapper`
+3. Define ADK agent(s) for new capability scope
+4. Add new router endpoint(s) if HTTP-triggered; or Celery bridge if task-triggered
+5. Verify ADK's OTel context operates without conflict (no context detach errors in logs)
+
+**Phase C -- Frontend quality: admin SPA (independent of A/B):**
+1. Remove Evolution API dead code (WhatsAppDashboard gate, AdminSettingsTab field, env-validator, runtime-config)
+2. Update `WhatsAppDashboard` to model WuzAPI lifecycle (QR pairing, connected, disconnected)
+3. Clean stale AI provider references (types, config comments)
+4. Audit and sync mock data shapes with current API response schemas
+5. Consolidate type duplication (`src/types/` vs `src/lib/types/`)
+6. Fix lint issues, type errors, ESLint suppressions
+
+**Phase D -- Frontend quality: quiz (independent of A/B/C):**
+1. Audit `quiz-mensal-interface` for dead code and type coverage gaps
+2. Verify mock data shapes
+3. Layout consistency pass
+4. Run TypeScript strict check (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`)
+
+Phases C and D can run in parallel with A and B since they touch separate codebases with no shared code.
 
 ---
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Adding an Abstraction Layer "Just in Case"
+### Anti-Pattern 1: Parallel OTel + ADK
 
-**What people do:** Create a `BaseWhatsAppProvider` protocol/ABC that both Evolution and WuzAPI implement, keeping Evolution code alive behind an interface.
+**What people do:** Install `google-adk` without removing existing `opentelemetry-*` packages.
 
-**Why it's wrong:** The PROJECT.md decision is "hard cut." Maintaining two implementations doubles test surface and leaves Evolution-era bugs alive. The existing dual-stack problem (Stack A vs Stack B) proved the cost of abstraction for a single-provider system.
+**Why it's wrong:** ADK's internal OTel tracer conflicts with existing instrumentation. `ValueError: Token was created in a different Context` appears at runtime in async generators -- hard to debug, non-deterministic. ADK has no public API to disable its internal OTel (issue #2792, open as of 2025-08).
 
-**Do this instead:** Wire `WuzAPIClient` directly. If a future migration is needed, it will be its own milestone with its own research.
+**Do this instead:** Remove all 7 OTel packages from `requirements.txt` first. `app/core/tracing.py` already has a mock fallback path -- callers are safe after removal with zero code changes.
 
-### Anti-Pattern 2: Reusing the Evolution Webhook URL Path
+### Anti-Pattern 2: Direct Gemini calls in ADK agents without PII sanitization
 
-**What people do:** Register WuzAPI webhooks at `/webhooks/whatsapp/` to avoid reconfiguring WuzAPI's webhook destination URL.
+**What people do:** Write ADK agents that accept patient records directly in the prompt string.
 
-**Why it's wrong:** The Evolution handler expects Baileys JSON (`key.remoteJid`, `update.status`, `messages[0].message.conversation`). WuzAPI sends `{"type": "Message", "event": {"Info": {...}, "Message": {...}}}`. Routing WuzAPI payloads to the Evolution handler produces silent parse failures.
+**Why it's wrong:** Violates LGPD Art. 46. The CI guard `scripts/check_agent_run_calls.py` blocks `agent.run()` outside `PIISafeAgent`, but ADK agents bypass this guard unless explicitly extended.
 
-**Do this instead:** Create `/webhooks/wuzapi` as a clean endpoint. Configure WuzAPI server's webhook URL to point there. Tombstone the Evolution handler.
+**Do this instead:** Add `sanitize_prompt_text_for_external_ai()` at the ADK integration boundary, either via ADK `before_model_callback` hook or at the calling site. Implement `PIISafeADKWrapper` that mirrors `PIISafeAgent`.
 
-### Anti-Pattern 3: Keeping the LID Resolution Logic
+### Anti-Pattern 3: Adding new API calls inline in React components
 
-**What people do:** Preserve `resolve_phone_from_lid` in `PhoneNormalizer` as a no-op or a conditional that checks for Evolution config.
+**What people do:** Call `fetch('/api/v2/...')` or `apiClient.core.request()` directly inside a component's `useEffect`.
 
-**Why it's wrong:** The LID (Linked Device) addressing concept is specific to Evolution API's wrapper over Baileys. WuzAPI uses whatsmeow which resolves JIDs internally and always delivers standard `phone@s.whatsapp.net` in webhook payloads. The three LID methods make HTTP calls to `{EVOLUTION_API_URL}/chat/findChats/{instance}` — an endpoint that will not exist post-migration.
+**Why it's wrong:** Bypasses error normalization, retry logic, auth header injection, and TanStack Query caching. Creates duplicate loading/error state management.
 
-**Do this instead:** Delete `resolve_phone_from_lid`, `_fetch_evolution_chats`, and `_match_phone_jid_for_lid` from `PhoneNormalizer`. Add a tombstone comment explaining removal.
+**Do this instead:** Add the call to the relevant domain module in `lib/api-client/`, expose it via a typed hook in `hooks/`, and use TanStack Query for cache/loading/error state.
 
-### Anti-Pattern 4: Tombstoning Stack A Before Updating IdempotentMessageSender
+### Anti-Pattern 4: Modifying existing Pydantic AI agents for ADK compatibility
 
-**What people do:** Tombstone `app/integrations/evolution/client.py` (Stack A) in Phase 5 before updating `IdempotentMessageSender`.
+**What people do:** Refactor `HumanizeAgent`, `SentimentAgent`, etc. to run under ADK orchestration.
 
-**Why it's wrong:** `IdempotentMessageSender` directly imports `from app.integrations.evolution import EvolutionClient`. Tombstoning Stack A first raises `ImportError` at Celery worker startup, breaking all task processing even before any task runs.
+**Why it's wrong:** These 4 agents are stable, fully tested, and CI-guarded. They solve specific typed output problems well. ADK is an addition for new scenarios -- not a migration target for existing agents.
 
-**Do this instead:** Update `IdempotentMessageSender` to import `WuzAPIClient` in the same commit as or before tombstoning Stack A.
-
-### Anti-Pattern 5: Using `instance_name` in WuzAPI Requests
-
-**What people do:** Pass `instance_name` through the `MessageRequest` Pydantic model to `WuzAPIClient`, mirroring the Evolution pattern.
-
-**Why it's wrong:** WuzAPI does not have an instance concept. The `Authorization` token identifies the WhatsApp session. Passing an `instance_name` field to the WuzAPI client requires stripping or ignoring it, which is confusing and error-prone.
-
-**Do this instead:** Remove `instance_name` as a required field from `MessageRequest`. `UnifiedWhatsAppService` reads `WHATSAPP_WUZAPI_TOKEN` from settings; session identity comes from authentication, not from a per-message parameter.
-
----
-
-## Suggested Build Order
-
-The build order respects import dependencies: nothing can be tombstoned until its callers are updated.
-
-### Phase 1: New Provider Foundation (no existing files changed)
-
-**Goal:** Create `WuzAPIClient` and all supporting infrastructure. Zero existing files modified.
-
-1. Create `app/integrations/wuzapi/__init__.py`
-2. Create `app/integrations/wuzapi/errors.py` — `WuzAPIError(Exception)` with `status`, `response`, `method`, `url` attributes
-3. Create `app/integrations/wuzapi/models.py` — Pydantic models:
-   - `WuzAPISendTextRequest(phone: str, body: str, id: Optional[str])`
-   - `WuzAPIResponse(code: int, data: Dict, success: bool)`
-   - `WuzAPISessionStatus(connected: bool, logged_in: bool)`
-4. Create `app/integrations/wuzapi/client.py` — `WuzAPIClient`:
-   - httpx `AsyncClient` with `Authorization: {token}` header
-   - `send_text_message(phone: str, text: str) -> WuzAPIResponse`
-   - `send_media_message(phone, media_type, ...)` for image/audio/document/video
-   - `get_session_status() -> WuzAPISessionStatus`
-   - `connect_session()`, `disconnect_session()`
-   - `health_check() -> Dict[str, Any]` mapping `Connected+LoggedIn` to `is_connected`
-   - Retry via `backoff` (same pattern as `EvolutionAPIClient`)
-   - Rate limiter (reuse existing `RateLimiter` class or copy)
-5. Create `app/integrations/wuzapi/mock_wuzapi.py` — implements same interface
-6. Unit tests for `WuzAPIClient` against mock HTTP (no external calls)
-
-**Why first:** Zero impact on existing code. Can be reviewed independently.
-
-### Phase 2: Webhook Handler (parallel with Phase 1)
-
-**Goal:** WuzAPI can deliver webhooks to a live endpoint. No outbound send changes yet.
-
-1. Create `app/services/webhook/utils/wuzapi_message_extractor.py`:
-   - `extract_message_data(payload: dict) -> Optional[dict]`
-   - Parse `event.Info.Sender` for phone (strip `@s.whatsapp.net`)
-   - Reuse phone-cleaning logic (copy `_clean_phone_from_jid`)
-   - Handle message types: `Conversation`, `ExtendedTextMessage.Text`, `ImageMessage`, `AudioMessage`, `VideoMessage`, `DocumentMessage`, `StickerMessage`
-   - Return `{phone, content, type, whatsapp_id, metadata}`
-2. Create `app/integrations/wuzapi/api/__init__.py`
-3. Create `app/integrations/wuzapi/api/webhooks.py`:
-   - `POST /webhooks/wuzapi` endpoint (FastAPI router)
-   - Read `x-hmac-signature` header; call `WebhookHMACValidator.validate_signature()`
-   - Route `type == "Message"` -> `wuzapi_message_extractor`
-   - Route `type == "ReadReceipt"` -> adapted `StatusWebhookHandler`
-   - Idempotency via Redis SET NX (identical pattern to existing handler)
-   - Background task dispatch for flow engine (identical to existing handler)
-4. Adapt `app/services/webhook/handlers/status_handler.py`:
-   - Add `_map_wuzapi_status(receipt_type: str) -> MessageStatus` method
-   - Map `"read"` -> `MessageStatus.READ`
-   - Keep `_map_evolution_status` alive until Evolution handler is tombstoned in Phase 5
-   - Update `source` field to accept `"wuzapi"` parameter
-5. Register new WuzAPI webhook router in application (alongside existing Evolution router temporarily)
-6. Integration tests: POST mock WuzAPI JSON to `/webhooks/wuzapi`, verify patient flow triggers
-
-### Phase 3: Update Settings
-
-**Goal:** New environment variables available before outbound code references them.
-
-1. Add to `app/config/settings/integrations.py`:
-   ```python
-   WHATSAPP_WUZAPI_BASE_URL: str = Field(
-       default="http://localhost:8080",
-       description="WuzAPI server base URL"
-   )
-   WHATSAPP_WUZAPI_TOKEN: str = Field(
-       default="",
-       description="WuzAPI user authentication token"
-   )
-   WHATSAPP_WUZAPI_TIMEOUT_SECONDS: int = Field(
-       default=30, description="WuzAPI request timeout in seconds"
-   )
-   WHATSAPP_WUZAPI_WEBHOOK_SECRET: Optional[str] = Field(
-       default=None,
-       description="HMAC secret for validating WuzAPI webhook signatures (x-hmac-signature)"
-   )
-   WHATSAPP_WUZAPI_USE_MOCK: bool = Field(
-       default=False, description="Use mock WuzAPI client for testing"
-   )
-   ```
-2. Mark `WHATSAPP_EVOLUTION_*` fields with deprecation note in description
-3. Update `.env.example`: add WuzAPI vars, comment out Evolution vars
-
-### Phase 4: Migrate Outbound Path
-
-**Goal:** All outbound messaging uses `WuzAPIClient`. Both Evolution stacks have zero callers.
-
-1. Update `app/services/unified_whatsapp_service.py`:
-   - Replace `from app.integrations.whatsapp.services.evolution_client import EvolutionAPIClient` with `from app.integrations.wuzapi.client import WuzAPIClient`
-   - `_get_queue_client()`: construct `WuzAPIClient` from `WHATSAPP_WUZAPI_*` settings
-   - Mock client branch: use `MockWuzAPIClient` when `WHATSAPP_WUZAPI_USE_MOCK` is True
-   - Circuit breaker name: `"evolution_api"` -> `"wuzapi"` (affects Redis key namespace)
-   - `health_check()`: call `WuzAPIClient.get_session_status()` (returns `WuzAPISessionStatus`)
-   - `_send_via_direct_api()`: phone format unchanged (digits-only, `+` stripped already)
-   - Remove all `WHATSAPP_EVOLUTION_API_URL`, `WHATSAPP_EVOLUTION_API_KEY` references
-   - Remove `instance_name` from `_convert_to_queue_request()` return value
-2. Update `app/integrations/whatsapp/services/message_service.py`:
-   - Type annotation `EvolutionAPIClient` -> `WuzAPIClient`
-   - Call `WuzAPIClient.send_text_message(phone, text)` in queue worker loop
-3. Update `app/domain/messaging/delivery/idempotent_sender.py`:
-   - Replace `from app.integrations.evolution import EvolutionClient` with `from app.integrations.wuzapi.client import WuzAPIClient`
-   - `evolution_client` property: instantiate `WuzAPIClient(base_url=..., token=...)`
-   - Update `send_text_message` call: keyword args change from `(phone_number=, message=)` to `(phone=, text=)` per WuzAPI models
-   - Extract `whatsapp_id` from `response.data["Id"]` instead of `response["key"]["id"]`
-
-### Phase 5: Tombstone Evolution Code
-
-**Goal:** All Evolution files raise `ImportError`. No silent dead code.
-
-Execute after Phase 4 tests pass. Do all tombstones in a single commit.
-
-1. Tombstone `app/integrations/evolution/client.py` (Stack A root)
-2. Tombstone `app/integrations/evolution/message_sender.py`
-3. Tombstone `app/integrations/evolution/request_handler.py`
-4. Tombstone `app/integrations/evolution/webhook_handler.py`
-5. Tombstone `app/integrations/whatsapp/services/evolution_client.py` (Stack B)
-6. Tombstone `app/integrations/whatsapp/services/mock_evolution.py`
-7. Tombstone `app/integrations/whatsapp/api/webhooks.py` (Evolution webhook router)
-8. Tombstone `app/services/webhook/utils/message_extractor.py` (Evolution payload parser)
-9. Remove deprecated `WHATSAPP_EVOLUTION_*` fields from `IntegrationsSettings`
-10. Remove LID methods from `phone_normalizer.py`: `resolve_phone_from_lid`, `_fetch_evolution_chats`, `_match_phone_jid_for_lid`
-11. Deregister Evolution webhook router from application
-12. Verify: `grep -r "evolution" backend-hormonia/app/ --include="*.py" -i` returns only tombstone docstrings
-
-### Phase 6: Tests and CI Validation
-
-**Goal:** Full test coverage for WuzAPI paths; no regressions in WebSocket, Celery, or saga behavior.
-
-1. Update all fixtures that instantiate `EvolutionClient` or `EvolutionAPIClient`
-2. Update `tests/integrations/` to use `MockWuzAPIClient`
-3. Verify circuit breaker tests pass (breaker logic identical; name string changed)
-4. Verify `IdempotentMessageSender` tests pass with `WuzAPIClient`
-5. End-to-end webhook tests: POST valid WuzAPI JSON to `/webhooks/wuzapi`; verify patient flow triggers
-6. HMAC validation test: correct `x-hmac-signature` header passes; wrong header rejected
-7. ReadReceipt test: `StatusWebhookHandler` correctly maps `Receipt.Type: "read"` to `MessageStatus.READ`
-8. Run `scripts/check_async_isolation.py` — Celery tasks remain sync Session, unchanged
-9. Run `scripts/check_agent_run_calls.py` — AI agent usage unchanged
-
----
-
-## WuzAPI Client Design Specification
-
-### Authentication Summary
-
-| Context | Header | Value | Env Var |
-|---------|--------|-------|---------|
-| User operations | `Authorization` | `{user_token}` | `WHATSAPP_WUZAPI_TOKEN` |
-| Admin operations | `Authorization` | `{admin_token}` | `WUZAPI_ADMIN_TOKEN` |
-
-The user token maps to the WuzAPI user that owns the WhatsApp session. This replaces the `instance_name` concept entirely.
-
-### Key API Endpoint Differences
-
-| Operation | Evolution API | WuzAPI |
-|-----------|--------------|--------|
-| Send text | `POST /message/sendText/{instance}` | `POST /chat/send/text` |
-| Send image | `POST /message/sendMedia/{instance}` | `POST /chat/send/image` |
-| Send audio | `POST /message/sendMedia/{instance}` | `POST /chat/send/audio` |
-| Send document | `POST /message/sendMedia/{instance}` | `POST /chat/send/document` |
-| Session status | `GET /instance/connectionState/{instance}` | `GET /session/status` |
-| Session connect | `POST /instance/connect/{instance}` | `POST /session/connect` |
-| Session disconnect | `DELETE /instance/logout/{instance}` | `POST /session/disconnect` |
-
-### Send Text Request/Response
-
-```python
-# POST /chat/send/text
-# Request body:
-{
-    "Phone": "5511987654321",   # digits only, no @s.whatsapp.net
-    "Body": "message text",
-    "Id": "domain-message-id"   # optional; use for correlation
-}
-
-# Success response:
-{
-    "code": 200,
-    "data": { "Details": "Sent", "Id": "3EB06F9067F80BAB89FF" },
-    "success": true
-}
-# message.whatsapp_id = response["data"]["Id"]
-
-# Failure response (4xx/5xx):
-{
-    "code": 400,
-    "error": "Number not found",
-    "success": false
-}
-```
-
-### Session Status Mapping
-
-```python
-# GET /session/status response:
-{
-    "code": 200,
-    "data": { "Connected": true, "LoggedIn": true },
-    "success": true
-}
-
-# Maps to internal health check:
-# is_connected = data["Connected"] and data["LoggedIn"]
-# Replaces Evolution's: state.get("state") == "open"
-```
+**Do this instead:** Keep existing agents unchanged. `app/ai/adk/` covers new agentic scenarios that were previously impossible or ad-hoc.
 
 ---
 
 ## Scaling Considerations
 
-| Scale | Architecture Impact |
-|-------|-------------------|
-| Current (1 clinic, 1 phone number) | Single WuzAPI user token; no multi-session complexity |
-| Multiple clinics (future) | One WuzAPI user per clinic phone; token stored per-tenant in config or DB |
-| High volume (>1k msg/min) | WuzAPI supports RabbitMQ output; can bypass Redis queue with AMQP if needed |
+The system serves a single oncology clinic. Architecture scaling is not a concern for v1.7. Relevant operational considerations:
 
-The existing Redis-backed queue, circuit breaker (Redis-backed), Celery beat schedule, and WebSocket pub/sub are all unchanged by this migration.
+| Concern | Current Approach | v1.7 Impact |
+|---------|-----------------|-------------|
+| AI latency | Circuit breaker + rate limit + Redis cache | ADK adds its own retry; do not double-retry at the outer layer |
+| PII compliance | PIISafeAgent + CI lint guard | Must extend to ADK boundary before any patient data flows through ADK |
+| OTel context conflicts | Currently blocks ADK adoption | OTel removal unblocks ADK; no other scaling impact |
+| Frontend bundle size | Firebase lazy-loaded, React.lazy routes | Dead code removal reduces bundle; no regressions expected |
 
 ---
 
 ## Sources
 
-- [WuzAPI GitHub — asternic/wuzapi](https://github.com/asternic/wuzapi) — MEDIUM confidence (official repo)
-- [WuzAPI API.md (raw)](https://raw.githubusercontent.com/asternic/wuzapi/main/API.md) — HIGH confidence (fetched directly; endpoint payloads verified)
-- [WuzAPI README.md](https://github.com/asternic/wuzapi/blob/main/README.md) — HIGH confidence (auth model, session vs instance, HMAC config verified)
-- Codebase inspection (HIGH confidence — direct reads):
-  - `app/services/unified_whatsapp_service.py`
-  - `app/integrations/whatsapp/services/evolution_client.py`
-  - `app/integrations/evolution/client.py`
-  - `app/domain/messaging/delivery/idempotent_sender.py`
-  - `app/integrations/whatsapp/api/webhooks.py`
-  - `app/services/webhook/handlers/status_handler.py`
-  - `app/services/webhook/utils/message_extractor.py`
-  - `app/services/webhook/utils/phone_normalizer.py`
-  - `app/config/settings/integrations.py`
-  - `app/integrations/whatsapp/models/message.py`
-  - `app/integrations/whatsapp/security/hmac_validator.py`
+- Direct codebase inspection (HIGH confidence -- 2026-03-03):
+  - `backend-hormonia/app/ai/client.py` -- GeminiClient full implementation
+  - `backend-hormonia/app/ai/client_domain.py` -- GeminiDomainClient 4 domain methods
+  - `backend-hormonia/app/ai/agents/base.py` -- PIISafeAgent pattern
+  - `backend-hormonia/app/core/tracing.py` -- OTel mock fallback design
+  - `backend-hormonia/requirements.txt` -- 7 OTel packages + AI deps
+  - `frontend-hormonia/src/lib/api-client/` -- modular API client
+  - `frontend-hormonia/src/features/whatsapp/WhatsAppDashboard.tsx` -- Evolution gate
+  - `frontend-hormonia/src/config.ts` -- stale OpenAI/LangChain comments
+  - `frontend-hormonia/src/types/api.ts` -- `openai_model` field
+  - `frontend-hormonia/src/lib/env-validator.ts` -- Evolution env validation
+  - `quiz-mensal-interface/hooks/use-quiz-session.ts` -- gold master quiz security pattern
+  - `quiz-mensal-interface/lib/api-client.ts` -- direct fetch, no proxy
+- [google/adk-python Releases](https://github.com/google/adk-python/releases) -- v1.26.0 (Feb 26, 2026) confirmed latest; OTel bundled as internal dep (MEDIUM confidence via WebFetch)
+- [ADK issue #860](https://github.com/google/adk-python/issues/860) -- OTel context conflict in async generators (confirmed May 2025)
+- [ADK issue #1670](https://github.com/google/adk-python/issues/1670) -- Failed to detach context with dual OTel (confirmed Jun 2025)
+- [ADK issue #2792](https://github.com/google/adk-python/issues/2792) -- No public API to disable internal OTel tracing (open issue Aug 2025)
+- [pydantic-ai PyPI](https://pypi.org/project/pydantic-ai/) -- v1.x current; compatible with ADK as separate packages (not conflicting)
 
 ---
 
-*Architecture research for: WuzAPI migration in clinica-oncologica-v02-1 backend (v1.6)*
-*Researched: 2026-03-01*
+*Architecture research for: Clinica Oncologica v1.7 -- Frontend Quality + ADK Integration*
+*Researched: 2026-03-03*

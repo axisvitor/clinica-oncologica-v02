@@ -1,420 +1,323 @@
 # Pitfalls Research
 
-**Domain:** WhatsApp API provider migration — Evolution API to WuzAPI (whatsmeow-backed)
-**Researched:** 2026-03-01
-**Confidence:** MEDIUM — WuzAPI endpoint/auth format verified from GitHub API.md and README. Evolution API payload shapes verified from production codebase. Brazilian 9th-digit behavior verified from multiple WhatsApp integration provider sources (Zoko, Gupshup, Baileys). LID addressing behavior verified from whatsmeow GitHub issues and Baileys migration docs. Some WuzAPI-specific rate limit numbers are undocumented (flagged LOW confidence where noted).
+**Domain:** Brownfield frontend quality overhaul (React 19 + Next.js 14) + Google ADK integration into existing Pydantic AI stack + OTel removal — v1.7 milestone
+**Researched:** 2026-03-03
+**Confidence:** HIGH (verified against codebase, ADK v1.26.0 release notes, and confirmed GitHub issues)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: Webhook Payload Structure Is Completely Different — Silent Data Loss
+### Pitfall 1: ADK Reintroduces OTel as a Transitive Dependency After "Removal"
 
 **What goes wrong:**
-Evolution API sends webhooks with an outer envelope containing `event`, `instance`, and `data` keys. WuzAPI delivers raw whatsmeow event structures where the outer wrapper is `{"Type": "Message", "Data": {...}}` using Go struct naming (PascalCase, not camelCase). Incoming message text does not live at `payload["data"]["message"]["conversation"]` as it does in Evolution — it lives at different nested paths that reflect whatsmeow's native types.
-
-If the existing webhook handler tries to access Evolution-style key paths on a WuzAPI payload, it will get `None` or `KeyError`, silently drop the message, return HTTP 200 to WuzAPI (which will not retry), and the patient's message is lost. This is especially dangerous for incoming STOP commands (opt-out), quiz responses, and patient follow-up replies — all critical clinical data.
+The team removes all `opentelemetry-*` packages from `requirements.txt` to unblock ADK integration. ADK is then installed. ADK v1.24.0+ itself declares `opentelemetry-api>=1.36.0` and `opentelemetry-sdk>=1.36.0` as its own direct dependencies (ADK uses OTel for its own built-in tracing). The OTel packages return as transitive dependencies, now at a version range ADK controls — not the project. The instrumentation packages (`opentelemetry-instrumentation-fastapi`, `-sqlalchemy`, `-redis`, `-httpx`) are gone, but the core API/SDK is back. The result is a partial, unconfigured OTel install that no one intentionally set up, where `app/core/tracing.py` still exists with the full `DistributedTracer` class but now acts on ADK-imported OTel rather than nothing. The "relaxed version constraints" note in ADK v1.24.0 release notes ("Update OpenTelemetry dependency versions to relax version constraints for opentelemetry-api and opentelemetry-sdk") confirms OTel was NOT removed from ADK — only version pinning was loosened.
 
 **Why it happens:**
-Evolution API wraps all events in a unified envelope with a consistent schema. WuzAPI passes through whatsmeow's native Go event types directly. Developers assume API interoperability at the schema level and reuse the existing `WebhookPayload` Pydantic model without checking actual WuzAPI payloads.
+Removing OTel from `requirements.txt` removes it from your explicit requirements but not from the installed environment if a peer package pulls it back. ADK's OTel dependency is not optional — it is used for ADK's own tracing of agent execution. Developers assume that removing explicit pins = removing the library.
 
 **How to avoid:**
-1. Before writing any handler code, capture at least 10 real WuzAPI webhook payloads by pointing a test session at a local ngrok/cloudflare tunnel endpoint and triggering every event type: text message, media message, ReadReceipt, connection status.
-2. Build WuzAPI-specific Pydantic models (`WuzAPIMessageEvent`, `WuzAPIReadReceiptEvent`) that match the actual captured schema. Do not reuse or extend Evolution API Pydantic models.
-3. Add schema validation logging at the handler entry point that logs the raw payload keys and event type before any parsing — keep this active in staging indefinitely.
-4. Write integration tests using the real captured payloads stored as JSON fixtures in `tests/fixtures/wuzapi/`. Never test with guessed or fabricated schemas.
+1. After installing ADK in isolation: `pip install google-adk && pip show opentelemetry-api opentelemetry-sdk`. If they appear, document that OTel is ADK-managed transitive dep — not your explicit dep.
+2. Change the strategy: do NOT remove OTel core API/SDK. Remove only the *instrumentation packages* (`opentelemetry-instrumentation-fastapi`, `opentelemetry-instrumentation-sqlalchemy`, `opentelemetry-instrumentation-redis`, `opentelemetry-instrumentation-httpx`) and the OTLP exporters. These are the packages that add overhead and conflict — not the core.
+3. Tombstone or convert `app/core/tracing.py` to a no-op shim. The two callers confirmed in the codebase (`message_service.py` L26 and `unified_whatsapp_service.py` L51) only use `get_tracer()` to set `self.tracer` — replacing with `MockTracer()` always requires zero API changes and zero risk.
+4. Remove the `@trace(name="send_message_impl", attributes={"service": "wuzapi"})` decorator from `message_service.py` line 574 — it is the only active `@trace` decorator outside of `tracing.py` itself.
 
 **Warning signs:**
-- Webhook endpoint returns 200 but no messages appear in the database
-- `message.content` is None for all WuzAPI-routed incoming messages
-- Opt-out handling (STOP/PARAR/CANCELAR) stops working silently after cutover
-- Logs show "Parsing webhook event" but no "Message processed" or "Patient found" entries downstream
+- `pip check` shows `opentelemetry-api` conflicts after ADK install
+- `opentelemetry.context ValueError: Token was created in a different Context` appears in Celery logs — documented ADK+ParallelAgent issue (github.com/google/adk-python/issues/860)
+- `TypeError: BaseModel.model_dump() missing 1 required positional argument: 'self'` from ADK + OTel + Pydantic output_schema interaction (github.com/google/adk-python/issues/3884)
 
 **Phase to address:**
-Phase 1 (WuzAPIClient + webhook handler rewrite) — capture real payloads BEFORE writing parsers. Do not proceed to production cutover until integration tests use real captured WuzAPI payloads as fixtures.
+OTel removal phase — MUST audit transitive deps before finalizing removal list. No OTel package should be removed without verifying ADK's requirements.
 
 ---
 
-### Pitfall 2: Brazilian 9th-Digit Split — Messages Silently Not Delivered to Some Patients
+### Pitfall 2: PIISafeAgent Bypass When ADK Tools Call Pydantic AI Agents
 
 **What goes wrong:**
-WhatsApp created a historical anomaly: mobile numbers in states that adopted the 9th digit before WhatsApp had those contacts registered (especially São Paulo DDD 11-19, Rio de Janeiro DDD 21/22/24, Espírito Santo DDD 27/28) have their WhatsApp account bound to the OLD 8-digit number. The stored patient phone may be `5511987654321` (9-digit) but the correct WhatsApp JID is `5511987654321@s.whatsapp.net` — except the actual JID WhatsApp responds to is `551187654321@s.whatsapp.net` (8-digit, no leading 9 after DDD).
-
-When the system sends to `5511987654321@s.whatsapp.net`, whatsmeow may return a success acknowledgment but WhatsApp backend silently drops it, or returns error 479 ("number not on WhatsApp"). The patient — an oncology patient waiting for a follow-up — never receives the message. The system marks it SENT.
-
-The existing `build_br_phone_variants()` in `app/schemas/validators/phone.py` already generates both 8-digit and 9-digit variants for patient lookup/matching, but this is not wired into the message send path. WuzAPI does not auto-resolve this — it sends to whatever JID you provide.
+Google ADK agents use `@tool` decorators and callback hooks to call external code. If a developer wires an ADK tool to invoke one of the four existing Pydantic AI agents (sentiment, humanize, variation, empathy) by passing `agent.run()` directly inside the tool function, the CI guard (`scripts/check_agent_run_calls.py`) may not detect this. The guard does static AST scanning for `.run(` on agent instances — ADK tool invocations that use indirect references, lambdas, or class methods may escape detection. Patient oncology data (CPF, name, diagnosis, treatment) reaches Gemini without PII redaction — a LGPD Art. 46 violation.
 
 **Why it happens:**
-Developers skip the WhatsApp JID lookup step and use the stored E.164 number directly, assuming it equals the WhatsApp JID. The `format_phone_for_whatsapp()` function in `phone.py` also doesn't resolve the JID — it only formats digits.
+ADK has its own agent execution model. Developers integrating ADK naturally use ADK-idiomatic patterns. The PIISafeAgent constraint is documented in `base.py` and MEMORY.md but is not structurally enforced in ADK-specific wiring code until someone extends the CI guard for ADK call patterns.
 
 **How to avoid:**
-1. Add a WuzAPI `/user/check` call (or equivalent WuzAPI endpoint for checking if a number is on WhatsApp) before the first send to each patient. This call accepts both the 8-digit and 9-digit variants and returns which JID is actually registered.
-2. Cache the resolved JID in a new database field `patient.whatsapp_jid` (e.g., `551187654321@s.whatsapp.net`). Use this cached JID for all subsequent sends.
-3. The existing `build_br_phone_variants()` function already generates both variants — wire its output into the JID resolution step as the input candidates.
-4. If resolution fails for both variants, surface a `PhoneValidationError` and route the message to the DLQ rather than sending to an unverified JID.
-5. During migration, run a one-time Celery task to resolve JIDs for all existing patients.
+1. Define every ADK tool as a plain async wrapper function that calls `PIISafeAgent._safe_run()` — never pass the Pydantic AI agent object directly to ADK's `FunctionTool` or `AgentTool`.
+2. Extend `scripts/check_agent_run_calls.py` to also scan for `.run(` inside functions decorated with any ADK tool decorator pattern.
+3. Add an integration test: invoke an ADK tool with a synthetic PHI payload (fake CPF, fake name). Assert that the PII redaction log line (`[PIISafeAgent]`) appears in the log output before the Gemini API call.
+4. Use ADK's `before_tool_callback` to add a secondary PII check as defense-in-depth.
+5. Apply PIISafeAgent BEFORE wiring, not as a retrofit — the PIISafeAgent CI guard was added in v1.2 precisely because retrofitting is hard.
 
 **Warning signs:**
-- Messages marked SENT but patients (especially in São Paulo/Rio area codes) report never receiving them
-- Error 479 appearing in WuzAPI response logs
-- Zero incoming patient responses after cutover from São Paulo-based patients
+- CI guard passes but production structured logs show Gemini calls without the `[PIISafeAgent]` prefix
+- Patient names or CPF numbers appear raw in Sentry error payload breadcrumbs
+- ADK `tool_response` field in ADK session state contains patient identifiers
 
 **Phase to address:**
-Phase 1 (WuzAPIClient core) — JID resolution must exist before any message sends. Phase 2 (patient data migration) — existing patients need JIDs resolved and cached as part of the cutover.
+ADK integration phase — the CI guard extension must be a prerequisite task, not a follow-up.
 
 ---
 
-### Pitfall 3: Auth Header Name Change — All API Calls Fail With 401
+### Pitfall 3: Evolution API Dead Code Remains in Production Frontend Build
 
 **What goes wrong:**
-Evolution API uses an `apikey` header (lowercase). WuzAPI uses `Authorization: {token}` (or `Token: {token}`) as the auth mechanism. The existing `EvolutionAPIClient` passes `{"apikey": settings.WHATSAPP_EVOLUTION_API_KEY}` in every request. If `WuzAPIClient` is built by refactoring the Evolution client without updating the header name, every API call returns HTTP 401.
+The WhatsApp hard cut to WuzAPI completed in v1.6 on the backend, but the frontend still ships Evolution API dead code. Confirmed in codebase:
+- `WhatsAppDashboard.tsx` lines 62-76: `const [isEvolutionEnabled, setIsEvolutionEnabled] = useState(false)` and `VITE_ENABLE_EVOLUTION` check
+- `WhatsAppDashboard.tsx` lines 183-195: renders "Evolution API disabled" placeholder visible to physicians
+- `env-validator.ts` and `runtime-config.ts`: reference `VITE_ENABLE_EVOLUTION`
+- `types/api-wave2.ts`: auto-generated October 2025, may contain Evolution-specific type shapes
+- `AdminSettingsTab.tsx`: likely contains Evolution API settings fields
 
-Depending on error handling, this either raises `ExternalServiceError` correctly (if the 401 response is parsed), or triggers a retry storm if 401 is treated as a transient network failure. The Redis circuit breaker (`_evolution_breaker` / future `_wuzapi_breaker`) will open after 5 consecutive failures, blocking all sends for 60 seconds per cycle.
+These dead branches add bundle weight, confuse future developers about provider state, and show misleading "Evolution API disabled" text to clinic physicians rather than WuzAPI connection status.
 
 **Why it happens:**
-Auth header differences are easy to miss in refactoring. The WuzAPI 401 response may not clearly state "wrong header name" — it may just return `{"error": "unauthorized"}`. Because the circuit breaker opens quickly on consecutive failures, the problem surfaces as a closed circuit, not as an obvious auth error.
+Backend migrations are executed without synchronised frontend cleanup. v1.6 WuzAPI migration was documented as backend-only; "frontend foco backend" was an explicit scope constraint.
 
 **How to avoid:**
-1. Make the auth header name an explicit constant: `WUZAPI_AUTH_HEADER = "Authorization"` rather than an inline string.
-2. Write the WuzAPI health check call as the very first integration smoke test. If auth is broken, the health check fails fast and clearly.
-3. Log the response status and body (not sensitive headers) on every failed API call.
-4. Verify auth header in the WuzAPI dev instance before writing any other client code.
+1. Audit all `VITE_ENABLE_EVOLUTION` references as the first task in the frontend cleanup phase: `grep -r "VITE_ENABLE_EVOLUTION" frontend-hormonia/src/`.
+2. Remove the feature flag and all conditional branches — there is no "disabled Evolution" state in the new system. The correct state is WuzAPI, always connected.
+3. Replace `WhatsAppDashboard.tsx` Evolution placeholder with a WuzAPI-specific QR/status card that calls the WuzAPI instance status endpoint.
+4. Remove Evolution-specific type definitions from `types/api-wave2.ts` — check what is actually consumed by the UI.
+5. Remove Evolution settings fields from `AdminSettingsTab.tsx`.
 
 **Warning signs:**
-- Circuit breaker opens immediately after deployment
-- All API calls return HTTP 401 with no specific error body
-- Health check component shows `wuzapi_session: unhealthy` immediately at startup
+- `grep -r "VITE_ENABLE_EVOLUTION"` returns results in `src/` (currently confirmed)
+- WhatsApp page shows "Enable it by setting VITE_ENABLE_EVOLUTION=true" — physicians see this message
+- `WhatsAppService.ts` has methods pointing to `/evolution/` path prefixes
 
 **Phase to address:**
-Phase 1 (WuzAPIClient implementation) — first test to run in any integration smoke test suite.
+Frontend dead code removal phase — prioritize WhatsApp feature area first due to physician UX impact.
 
 ---
 
-### Pitfall 4: Message ID Format Differences Break Idempotency and Status Tracking
+### Pitfall 4: HiveMind Service Calls Tombstoned LangGraph Code
 
 **What goes wrong:**
-The system stores `message.whatsapp_id` for two critical purposes:
-1. Idempotent webhook deduplication — `AtomicWebhookIdempotency` uses the message ID as the deduplication key
-2. Status update matching — ReadReceipt events are matched to `Message` records by `whatsapp_id`
+`app/services/hive_mind_integration.py` contains `IntegrationMode.LANGGRAPH_ONLY` (line 31) and `_process_with_langgraph()` (line 473). LangGraph was tombstoned in v1.2 — 9 modules in `app/ai/langgraph/` raise `ImportError` on import. If HiveMind service is instantiated and an external caller (the frontend HiveMind page, Celery Beat, or a future ADK orchestrator) triggers `LANGGRAPH_ONLY` mode, it crashes with `ImportError` from the tombstone.
 
-Evolution API returns message IDs in its own format (base64-encoded strings, e.g., `BAE5...`). WuzAPI returns whatsmeow-native message IDs from the send response JSON. If the WuzAPI client extracts the ID from the wrong JSON field (or the field name differs from what's assumed), `message.whatsapp_id` ends up as `None`.
-
-When WuzAPI fires a `ReadReceipt` webhook for that message, the handler looks up `Message.whatsapp_id == incoming_id`, finds nothing, and silently drops the delivery confirmation. All messages remain in SENT state forever — DELIVERED and READ statuses never update. The dashboard shows all patients as "not read" even after they've read their messages.
+The frontend `HiveMindPage.tsx` is actively routed in `routeDefinitions.tsx`. The `/hive-mind` router is registered in `api/v2/router.py` (confirmed: line 107). The endpoint is accessible in production — this is not dead frontend code guarded by a feature flag.
 
 **Why it happens:**
-Developers check that the send returned HTTP 200 and assume `whatsapp_id` was stored correctly without verifying the field path from the actual WuzAPI response body. The WuzAPI response JSON field for the outbound message ID is inside a `data` sub-object, but the exact field name must be verified from real API responses, not assumed.
+HiveMind integration was written to bridge the old multi-mode system. The tombstoning of LangGraph removed the implementation but not the dead `IntegrationMode` enum value or the method that references it. The enum value has no callers at present, but it is a maintenance hazard if ADK integration adds a new orchestration path.
 
 **How to avoid:**
-1. Log the full send response body in development mode for every send — confirm which JSON field contains the message ID.
-2. Write an explicit assertion test: send a test message, capture the response, extract `whatsapp_id`, assert it is non-None and non-empty string.
-3. Add a runtime check: if `whatsapp_id` is None after a send that returned HTTP 200, log an ERROR and do not mark the message as SENT (mark as a new intermediate state or flag for investigation).
-4. In the ReadReceipt handler, log a WARNING whenever no matching `Message` record is found for an incoming receipt ID — this surfaces idempotency mismatches immediately in production.
+1. Remove `LANGGRAPH_ONLY` from the `IntegrationMode` enum.
+2. Delete `_process_with_langgraph()` method from `HiveMindIntegrationService`.
+3. Determine the purpose and value of `HiveMindPage.tsx`. If it shows ADK-style multi-agent status, keep it and update to use ADK concepts. If it is purely legacy orchestration UI, remove the route.
+4. Consider this a prerequisite for ADK integration — HiveMind is the natural landing zone for ADK wiring.
 
 **Warning signs:**
-- `message.whatsapp_id` is NULL in the database for all WuzAPI-sent messages
-- DELIVERED/READ statuses never update after cutover despite messages being received
-- ReadReceipt webhook events are processed (HTTP 200 returned) but produce no database changes
+- `grep -n "LANGGRAPH_ONLY\|_process_with_langgraph" backend-hormonia/app/services/hive_mind_integration.py` returns results (currently confirmed)
+- HiveMind API endpoint returns 500 in production if called with a non-default integration mode
 
 **Phase to address:**
-Phase 1 (WuzAPIClient — verify send response field extraction). Phase 2 (webhook handler — ReadReceipt lookup tested with captured payloads).
+Frontend dead code phase or ADK integration phase — clean up LangGraph references before wiring ADK to HiveMind service.
 
 ---
 
-### Pitfall 5: HMAC Validation — Wrong Header Name and Wrong Signing Body Cause All Webhooks to 403
+### Pitfall 5: Sentry Trace Correlation Breaks After OTel Instrumentation Removal
 
 **What goes wrong:**
-Evolution API and WuzAPI use different HMAC mechanisms:
-- **Evolution API:** Header is `X-Webhook-Signature` (or API-key based); current `WebhookValidatorMiddleware` looks for `X-Webhook-Signature` and tries both SHA256 and SHA1; some code uses `X-Signature` prefix stripping
-- **WuzAPI:** Header is `x-hmac-signature` (lowercase); algorithm is SHA-256 only; signature is raw hex (no `sha256=` prefix)
+The system has `sentry-sdk[fastapi]>=1.38.0` installed. When OTel instrumentation packages (`opentelemetry-instrumentation-fastapi`, `-sqlalchemy`) are present, Sentry may use OTel context propagation headers (`traceparent`) to correlate FastAPI request traces with Celery task traces. After removing the instrumentation packages, if Sentry's context propagation relied on OTel's `W3CTraceContextPropagator`, request-to-task correlation in Sentry may break — showing separate isolated transactions instead of parent-child spans.
 
-The current `WebhookHandler.validate_signature()` in `app/integrations/evolution/webhook_handler.py` strips `sha256=`, `sha1=`, and `hmac-sha256=` prefixes. WuzAPI sends no prefix — stripping logic that expects a prefix on a plain hex value will try to match an empty string against the computed digest and fail.
-
-Additionally: WuzAPI signs the **raw request bytes** (`Content-Type: application/json` → sign the raw JSON body string). FastAPI's `await request.json()` decodes and re-serializes the body, which may alter whitespace or key ordering. If the HMAC is computed against re-serialized JSON, validation fails even with the correct key.
+Note: Sentry does NOT require OTel for its own tracing. `sentry-sdk[fastapi]` includes its own FastAPI middleware that injects Sentry transaction IDs. However, if the project team had configured Sentry to read OTel's `traceparent` header instead of Sentry's own `sentry-trace` header, correlation breaks at the boundary.
 
 **Why it happens:**
-Body reading is a one-time operation in ASGI. If `await request.body()` is called twice (once for HMAC, once for JSON parsing), the second call may return empty bytes on some ASGI implementations. Alternatively, if `await request.json()` is called first (for parsing), the raw bytes are consumed and HMAC validation against the original bytes is impossible.
+OTel and Sentry can interoperate through OpenTelemetry's `sentry-sdk` OTel integration. If this interop was configured, removing OTel instrumentation breaks the bridge. The `monitoring/sentry.ts` in the frontend has `beforeSend` filters — verifying those survive an OTel context change is non-trivial without explicit testing.
 
 **How to avoid:**
-1. Read raw body exactly once at handler entry: `body: bytes = await request.body()`, then pass bytes to HMAC validator and `json.loads(body)` separately.
-2. Create a `WuzAPIHMACValidator` that is separate from `WebhookHMACValidator` — it must look for `x-hmac-signature` (lowercase), compute `hmac.new(key.encode(), body, hashlib.sha256).hexdigest()` with no prefix, and compare with `hmac.compare_digest()`.
-3. Remove the SHA1 fallback path in the WuzAPI validator — WuzAPI only uses SHA256.
-4. Ensure `WUZAPI_GLOBAL_HMAC_KEY` is at least 32 characters (WuzAPI requirement). Reject shorter keys at startup with a clear error.
-5. Write a test: POST a known payload with a known key, compute expected hex, assert the validator returns True. POST with wrong key, assert False.
+1. Sample one production request BEFORE OTel removal: find a patient flow in Sentry and note the Sentry transaction tree depth (FastAPI root → Celery task → result).
+2. After OTel removal, sample the same flow type and compare the transaction tree. If it is shallower or broken, Sentry was relying on OTel context propagation.
+3. Fix: ensure `sentry-sdk[fastapi]` `FastApiIntegration` and `CeleryIntegration` are explicitly enabled in Sentry config — these provide trace correlation without OTel.
+4. The two files that import from `tracing.py` (`message_service.py`, `unified_whatsapp_service.py`) do not affect Sentry directly — they only affect the `DistributedTracer` mock. Converting them to no-ops has zero Sentry impact.
 
 **Warning signs:**
-- All WuzAPI webhooks returning 403
-- "Webhook HMAC validation failed" logged for every incoming webhook
-- `HMAC_FAILURE_BLOCK_THRESHOLD = 5` triggers blocking of WuzAPI's IP within seconds of deployment
+- Sentry transactions for `/api/v2/*` show as isolated (no Celery child spans) after OTel removal
+- Railway Celery task logs lose `trace_id` field that previously matched FastAPI request trace ID
+- Sentry "Performance" tab shows significantly fewer distributed traces
 
 **Phase to address:**
-Phase 1 (security/HMAC update) — must be resolved before any production webhook processing. The existing block logic will deny all WuzAPI webhooks within 5 failures if this is wrong.
+OTel removal phase — validate Sentry observability explicitly before removing instrumentation packages, not as a post-hoc assumption.
 
 ---
 
-### Pitfall 6: LID Addressing — LGPD Art. 18 Opt-Out Failure Risk
+### Pitfall 6: React Strict Mode Double-Invocation Breaks Quiz Session Initialization
 
 **What goes wrong:**
-WhatsApp introduced LID (Link ID) in 2025 as a privacy identifier that replaces phone-number-based JIDs in some contexts. Newer WhatsApp clients may participate in conversations using `sender@lid` format instead of `5511987654321@s.whatsapp.net`. When a patient with a newer WhatsApp client sends STOP/PARAR/CANCELAR, the incoming webhook from WuzAPI will contain `"Sender": "1234567890abcdef@lid"`.
+The `quiz-mensal-interface` uses Next.js 13+ which enables React Strict Mode by default since v13.5.1. The `useQuizSession` hook already guards against this with a `useRef`-based double-execution guard (documented in the hook's JSDoc: "React Strict Mode protection (prevents double execution)"). If any refactoring during the quality pass removes this guard — perhaps because it looks like unnecessary complexity — the quiz session init fires twice.
 
-The current opt-out handler, incoming message router, and patient lookup all assume the sender field contains a phone number JID. A `@lid` sender will fail all patient lookups. The result:
-- The patient's opt-out request is silently dropped
-- The patient continues receiving messages
-- This is a LGPD Art. 18 violation (right to object to processing)
-- In a healthcare context, this creates regulatory and reputational risk
+The backend session init creates a cryptographic token and sets an HttpOnly cookie. A double-init either: (a) creates two sessions for the same patient, consuming two one-time-use tokens, or (b) the second init attempt fails because the token was consumed, leaving the patient stuck on an error screen. In either case, the patient's oncology follow-up quiz is disrupted.
 
 **Why it happens:**
-LID migration is gradual — most accounts don't switch immediately. Testing with a few phones may not trigger `@lid` senders, so the issue is invisible during development. The failure mode produces no error in the system — the webhook returns 200, WuzAPI considers it delivered, and the patient receives no confirmation that their opt-out was registered.
+Developers cleaning "complex" hooks often simplify by removing guards they don't understand. The `useRef` guard looks like React antipattern boilerplate until you remove it and see the impact in development mode. Strict Mode is invisible in production (it is a development-only double-render), so removing the guard passes CI but breaks patient-facing behavior in development.
 
 **How to avoid:**
-1. When the sender JID ends in `@lid`, call WuzAPI's contact/user info endpoint to resolve the LID to a phone number using whatsmeow's internal LID→JID mapping store.
-2. If LID→JID resolution fails (contact not yet in local store because they haven't initiated conversation through a non-LID session), queue the message for retry with exponential backoff.
-3. Add a specific log alert at WARNING level for every `@lid` sender — this makes the migration scope visible.
-4. Never drop a message from a `@lid` sender silently. If it cannot be resolved, route to DLQ for manual processing.
+1. Before the quality pass, add a block comment above the `useRef` guard in `useQuizSession.ts` explaining its purpose with explicit reference to React Strict Mode double-invoke behavior.
+2. Add a unit test that renders the hook twice in quick succession (simulating Strict Mode) and asserts the API is called exactly once.
+3. Run the quiz app in `next dev` (Strict Mode active) after any hook refactoring and monitor network tab for exactly one `POST /quiz/session` call.
 
 **Warning signs:**
-- "Patient not found" warnings in logs for incoming messages after cutover
-- Sender field in webhook event contains `@lid` suffix
-- Opt-out commands not taking effect for a subset of patients (those with newer WhatsApp)
+- Two `POST /quiz/session` API calls appear in browser DevTools network tab on page load in development
+- Patients report "quiz link already used" immediately after clicking their link
+- `useRef` guard removed from `useQuizSession.ts` during cleanup
 
 **Phase to address:**
-Phase 2 (webhook handler — incoming message routing) — LID resolution must be in the incoming message handler from day one of WuzAPI operation. This cannot be deferred because a patient sending STOP with a LID address and not being opted out is a LGPD compliance failure.
+Quiz frontend quality phase — add the Strict Mode protection test before touching the hook.
 
 ---
 
-### Pitfall 7: Instance vs Session Environment Variable Mismatch — Silent Misconfiguration
+### Pitfall 7: date-fns v3 vs v4 API Divergence Between Frontends
 
 **What goes wrong:**
-Evolution API uses an "instance" model where each WhatsApp number is a named instance. The entire application references `WHATSAPP_EVOLUTION_INSTANCE_NAME`, including `UnifiedWhatsAppService.__init__()` which falls back to `"default"` if the env var is absent. WuzAPI uses a "session" model where a user is identified by a token (`WUZAPI_SESSION_TOKEN`).
+The admin SPA (`frontend-hormonia`) uses `date-fns v3.x` (`"date-fns": "^3.6.0"`). The quiz interface (`quiz-mensal-interface`) uses `date-fns v4.x` (`"date-fns": "4.1.0"`). Between v3 and v4, date-fns introduced breaking API changes — `format` function signatures changed, timezone handling changed, and some utilities were renamed or removed.
 
-After migration, if `WHATSAPP_EVOLUTION_INSTANCE_NAME` is removed from Railway env but the new `WUZAPI_SESSION_TOKEN` is added with a different settings key name, the service silently uses `"default"` as the instance/session identifier. Depending on WuzAPI's multi-user setup, `"default"` may connect to no session, a wrong session, or the system may fail without a clear error.
-
-There are also references to Evolution API settings throughout `health_check()`, `_send_via_direct_api()`, and `_send_via_queue()` that would need updating.
+During a frontend quality consolidation pass, a developer copies a date formatting utility from the admin SPA (v3 API) to the quiz interface (expecting v4 API), or vice versa. The code compiles without errors (TypeScript types are broadly compatible) but renders dates incorrectly at runtime — showing wrong year, wrong format, or incorrect timezone offset for Brazilian patients (UTC-3 / America/Sao_Paulo).
 
 **Why it happens:**
-A hard-cut migration tombstones old code but environment variable renaming is easy to miss in Railway's dashboard. The default fallback to `"default"` masks the missing configuration at startup, so the service initializes successfully but fails at first send.
+Both frontends use shadcn/ui with Tailwind, both use date-fns — they look like the same stack. The minor version difference is easy to miss in `package.json` comparisons. TypeScript doesn't always catch date-fns API misuse because the types are backward-compatible at the function signature level.
 
 **How to avoid:**
-1. Before starting migration: `grep -r "WHATSAPP_EVOLUTION" --include="*.py" backend-hormonia/` to find every reference. Map each to its WuzAPI equivalent.
-2. Add `required=True` (or equivalent) validation for the new WuzAPI env vars in `settings.py`. The application must refuse to start if `WUZAPI_SESSION_TOKEN` is missing — not fall back to `"default"`.
-3. Add a startup health check that calls WuzAPI's `/session` endpoint and logs CRITICAL + alerts if the session is not connected. In production mode, refuse to process messages until session is verified.
-4. Track all env var migrations in a checklist as part of the deployment story.
+1. In the quality consolidation phase, standardize both frontends on the same date-fns version. Upgrade the admin SPA to v4 (or pin quiz to v3) as a deliberate decision.
+2. Any shared date formatting logic must live in a single package or be written explicitly for each frontend's version.
+3. All date displays referencing patient appointment dates must be tested against `America/Sao_Paulo` timezone, not UTC. Brazilian oncology patient appointments use São Paulo local time.
 
 **Warning signs:**
-- Application starts cleanly but all sends fail with "session not found" or "connection refused"
-- Health check shows `wuzapi_session: unhealthy` immediately
-- Logs contain `instance_name: "default"` in message metadata after migration
+- Dates in admin SPA show differently from the same dates in quiz interface for the same patient
+- `format(new Date(), 'dd/MM/yyyy')` returns different results between the two frontends despite same input
+- Any copy-paste of date utilities between the two frontends without version check
 
 **Phase to address:**
-Phase 1 (env var audit and startup validation) — must be the first task before any code migration. Phase 3 (cutover) — startup validation must be verified in staging before production deployment.
-
----
-
-## Moderate Pitfalls
-
-### Pitfall 8: Status Event Mapping — Semantics Differ Between Providers
-
-**What goes wrong:**
-Evolution API fires `MESSAGES_UPDATE` events with a `status` field containing values like `PENDING`, `SERVER_ACK`, `DELIVERY_ACK`, `READ`. WuzAPI fires `ReadReceipt` events with whatsmeow-native receipt types: `ServerAck`, `Delivered`, `Read`, `Played`. These are not 1:1 — `SERVER_ACK` maps to `ServerAck`, `DELIVERY_ACK` maps to `Delivered`, `READ` maps to `Read`, and `Played` (audio message played) has no Evolution equivalent.
-
-If the status handler maps all `ReadReceipt` events to `DELIVERED` (a common shortcut to "just get something working"), the `READ` status is never recorded. Audit trails are inaccurate, and the dashboard permanently shows all messages as unread.
-
-**How to avoid:**
-Build an explicit mapping constant:
-```python
-WUZAPI_RECEIPT_TO_STATUS = {
-    "ServerAck": MessageStatus.SENT,
-    "Delivered": MessageStatus.DELIVERED,
-    "Read": MessageStatus.READ,
-    "Played": MessageStatus.READ,  # audio played is read-equivalent
-}
-```
-Unknown receipt types should log WARNING and default to SENT (not FAILED). Add a test that sends a mock ReadReceipt event for each type and asserts the correct `MessageStatus` is stored.
-
-**Phase to address:** Phase 2 (webhook handler + ReadReceipt processing).
-
----
-
-### Pitfall 9: Media Handling — WuzAPI Delivers Media Differently Than Evolution API
-
-**What goes wrong:**
-When a patient sends media (image, audio document), Evolution API includes a URL the system can fetch. WuzAPI delivers media as either base64 in the webhook body or an S3 URL, controlled by the `mediaDelivery` setting (`base64`, `s3`, or `both`).
-
-If `mediaDelivery` is `base64` (WuzAPI default if not configured) and the system expects a URL, the inbound media handler receives a large base64 blob it doesn't know how to handle. A single patient audio message (30-60 seconds of voice note) becomes a 0.5-2MB base64 string in the webhook payload — causing webhook handler memory spikes and potential timeout if processing is not fast enough.
-
-**How to avoid:**
-1. Configure WuzAPI with `mediaDelivery: s3` and configure an S3 bucket in the WuzAPI deployment. This is required for production.
-2. Set S3 retention to 7 days (sufficient for retry windows in this system).
-3. Update the inbound media handler to extract the S3 URL from the WuzAPI event, not to decode base64.
-4. For the current system (which does not heavily process inbound media), configure graceful degradation: if neither S3 URL nor base64 is available, log WARNING and continue processing the text content of the message.
-
-**Phase to address:** Phase 2 (webhook handler rewrite — media section).
-
----
-
-### Pitfall 10: Rate Limiter Not Ported — Ban Risk From Sending Too Fast
-
-**What goes wrong:**
-The existing `RateLimiter` class in `evolution_client.py` (100 requests/60 seconds) throttles calls to Evolution API. WuzAPI itself applies no rate limiting — it sends to WhatsApp as fast as the client calls it. WhatsApp's backend enforces account-level limits and may flag numbers sending too many messages too quickly as spam, eventually suspending the account.
-
-The existing rate limiter is tightly coupled to `EvolutionAPIClient`. If it is discarded along with the old client code without being ported to `WuzAPIClient`, the new client has no throttling. For a system sending daily follow-ups to an oncology patient cohort (potentially 100-500 messages per send cycle), this is a real ban risk.
-
-Note: whatsmeow-backed tools (including WuzAPI) are unofficial WhatsApp API wrappers, not Meta Business API. The ToS risk is real. The mitigating factor for this system is that all messages are consent-based with active opt-out — which reduces spam detection risk but does not eliminate it.
-
-**How to avoid:**
-1. Port the `RateLimiter` class to `WuzAPIClient` unchanged as a starting point.
-2. Start with a conservative limit: 60 messages per 60 seconds per session (slightly below the Evolution API limit) until behavior is validated.
-3. Add random jitter (0.5–2.0 seconds) between consecutive messages to the same recipient number.
-4. Monitor WuzAPI connection status via a Celery Beat task — if the session disconnects unexpectedly, alert immediately (may indicate account action by WhatsApp).
-
-**Phase to address:** Phase 1 (WuzAPIClient) — rate limiter must be included from the first implementation, not added as a follow-up.
-
----
-
-### Pitfall 11: Session Persistence — WuzAPI Requires Persistent Database or Loses Session on Restart
-
-**What goes wrong:**
-WuzAPI stores WhatsApp pairing keys and session state in a database (`DB_HOST` env var, supports PostgreSQL and SQLite). If the Railway deployment uses a default SQLite configuration with an ephemeral filesystem volume, the session data is lost on every container restart, requiring a QR code re-scan to re-link the WhatsApp number. This causes messaging downtime.
-
-Railway's ephemeral storage is lost on deploy or container restart unless explicitly configured with persistent volumes.
-
-**How to avoid:**
-1. Configure WuzAPI with PostgreSQL (can use the existing AWS RDS in a dedicated schema, or a separate Railway PostgreSQL add-on).
-2. Do not use SQLite in any environment except local development.
-3. Test a restart cycle in staging: stop the WuzAPI service, restart it, and verify the session reconnects automatically within 60 seconds without QR re-scan.
-4. Add a health check alert if WuzAPI session status shows "disconnected" for more than 5 minutes.
-
-**Phase to address:** Phase 3 (deployment/infrastructure) — must be resolved before production cutover.
-
----
-
-### Pitfall 12: Opt-Out Endpoint Routing — LGPD Compliance Gap
-
-**What goes wrong:**
-The opt-out handler (STOP/PARAR/CANCELAR) is currently registered at the Evolution webhook endpoint path. After migration, the WuzAPI session must be configured to POST webhooks to the new WuzAPI-specific endpoint path. If there is any path mismatch (WuzAPI posts to `/api/v2/webhooks/whatsapp/evolution/{instance_name}` which now returns 410 Gone, or WuzAPI posts to a path that FastAPI doesn't route), opt-out messages never reach the handler.
-
-Patients cannot opt out via WhatsApp, which is a LGPD Art. 18 violation.
-
-**How to avoid:**
-1. The WuzAPI webhook URL configured in the WuzAPI session must exactly match the new FastAPI endpoint path.
-2. Keep the old Evolution endpoint returning HTTP 410 (Gone) with a log message — this makes misconfiguration visible rather than failing silently.
-3. Test opt-out command processing end-to-end in staging using a real WhatsApp send of "STOP" before any production cutover.
-4. Add a Celery Beat monitoring job: "If zero opt-out commands were received in the last 48 hours AND the system has sent more than 50 messages in that window, fire an alert." Some opt-outs are expected from any active patient cohort — zero is suspicious.
-
-**Phase to address:** Phase 2 (webhook routing) + Phase 3 (configuration verification and monitoring).
+Frontend quality consolidation phase — standardize date-fns version first before any date utility sharing.
 
 ---
 
 ## Technical Debt Patterns
 
+Shortcuts that seem reasonable but create long-term problems.
+
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Reuse Evolution API Pydantic models for WuzAPI payloads | Less code to write | Silent field mismatches; data loss on every WuzAPI event type change | Never — WuzAPI schema is different enough to require its own models |
-| Skip JID resolution, send to raw phone number | Simpler client code | Silent delivery failures for São Paulo/Rio patients with old 8-digit JIDs | Never in production — test with DDD 11 numbers before first send |
-| Use base64 media delivery (`mediaDelivery: base64`) | No S3 setup required | Multi-MB webhook payloads; memory spikes; webhook timeout risk | Acceptable only for local development, never in staging/production |
-| Skip HMAC validation in development | Faster local testing | Habit of skipping carries to staging; launches without validation | Acceptable in local dev only, guarded by `APP_ENVIRONMENT != "production"` |
-| Port rate limiter but not adjust limits | Fast port from Evolution client | Evolution limits may not be appropriate for whatsmeow; start conservative | Port it, but reduce the limit 30% initially until WhatsApp behavior is validated |
-| Keep Evolution circuit breaker name `"evolution_api"` | No Redis key changes | Redis circuit breaker keys are misleading post-migration; confusing during incidents | Functionally works but rename to `"wuzapi"` — low effort, prevents confusion |
-
----
+| Keep `app/core/tracing.py` as-is, just remove OTel from requirements.txt | Zero code change | ADK pulls OTel back as transitive dep; tracing.py becomes permanently ambiguous dead code with unclear activation state | Never — convert to no-op shim or tombstone after ADK install verification |
+| Leave `VITE_ENABLE_EVOLUTION` flag "false by default" in frontend config | No frontend changes needed | Engineers expect dual-provider mode to exist; flag pollutes env validator and runtime-config; physicians see "Evolution API disabled" message | Never — hard delete all Evolution references |
+| Running ADK alongside Pydantic AI without extending PIISafeAgent CI guard | Fast integration path | Patient oncology data (CPF, diagnosis, treatment) can reach Gemini API unredacted; LGPD Art. 46 violation | Never for any data from patient records |
+| Skipping TypeScript strict mode in the quality pass | Fewer immediate type errors | Type holes hide API contract mismatches between frontend and backend; unsafe `any` types grow | Only if strict mode was never enabled before — do not introduce a new disable |
+| Using `// @ts-ignore` on type errors from stale `api-wave2.ts` types | Quick compilation fix | API misalignment becomes invisible; stale type definitions cause runtime 404s and silent data loss | Never — fix the type definition to match the actual backend contract |
+| Leaving `IntegrationMode.LANGGRAPH_ONLY` in hive_mind_integration.py | No enum changes | Any caller using that mode gets an ImportError from tombstoned LangGraph; no valid code path exists | Never — remove dead enum values when the implementation is tombstoned |
+| Creating a new ADK `GeminiClient` instance instead of reusing existing `app/ai/client.py` | Simpler ADK setup | Two Gemini SDK instances with independent rate limit state and circuit breakers; rate limit budget split unpredictably | Never — reuse existing `GeminiClient` via shared configuration |
 
 ## Integration Gotchas
 
+Common mistakes when connecting ADK to the existing Pydantic AI + google-genai stack.
+
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| WuzAPI auth | Using `apikey` header copied from Evolution client | Use `Authorization: {token}` header (or `Token: {token}`) |
-| WuzAPI webhook HMAC | Looking for `X-Webhook-Signature` or `sha256=` prefix | Look for `x-hmac-signature` (lowercase), raw hex with no prefix |
-| WuzAPI HMAC signing | Signing re-parsed/re-serialized JSON | Sign raw request bytes (`await request.body()`) BEFORE any JSON parsing |
-| WuzAPI send phone format | Appending `@s.whatsapp.net` manually before calling the API | WuzAPI's send endpoint accepts raw digits; it appends `@s.whatsapp.net` internally. Manually adding the suffix causes double-suffix errors. Verify against API.md. |
-| WuzAPI ReadReceipt | Using Evolution-style `MESSAGES_UPDATE` event name in subscription | Subscribe to `ReadReceipt` event type in WuzAPI session configuration |
-| WuzAPI media | Expecting a fetchable URL in webhook payload (Evolution behavior) | Configure `mediaDelivery: s3`; extract S3 URL from WuzAPI event |
-| WuzAPI session lifecycle | Calling connect/disconnect per message send (Evolution instance pattern) | WuzAPI sessions are long-lived; call `/session/connect` once at startup; monitor connection status via health check |
-| Circuit breaker name | Leaving `"evolution_api"` as the breaker name in Redis keys | Rename to `"wuzapi"` — existing keys are stale after migration |
-
----
+| ADK + Pydantic AI agents | Passing Pydantic AI agent object as ADK `AgentTool` or `FunctionTool` directly | Wrap each Pydantic AI agent call in a plain async function decorated as an ADK tool; `PIISafeAgent._safe_run()` lives inside that wrapper |
+| ADK + GeminiClient | Creating a new `google-genai` client instance in ADK agent configuration | Reuse the `GeminiClient` from `app/ai/client.py` via shared API key and model name — two client instances split the rate limit budget and each has its own circuit breaker |
+| ADK + AsyncSession | ADK framework callbacks may be called synchronously | Use `async_to_sync()` (established codebase pattern from Celery tasks) if ADK requires sync callbacks that need DB access; never pass `AsyncSession` to a sync callback |
+| ADK + Circuit Breaker | Not wrapping ADK `runner.run_async()` in the existing circuit breaker | Import `aiobreaker` circuit breaker from `app/resilience/circuit_breaker/` and wrap the ADK runner call — ADK can fail with network errors, Gemini errors, or quota errors |
+| ADK + OTel re-import | Removing all OTel from requirements.txt and assuming ADK works without it | Pin ADK version in requirements.txt, run `pip install google-adk && pip freeze` to confirm actual transitive dep tree before finalizing removal list |
+| Frontend + WuzAPI endpoints | Calling backend endpoints that matched Evolution API paths (e.g., `/evolution/`) | Compare `frontend-hormonia/src/services/whatsapp/WhatsAppService.ts` endpoint paths against active routes in `api/v2/router.py`; update mismatched paths |
+| Frontend types + backend contract | Using `types/api-wave2.ts` (auto-generated Oct 2025) without verifying current backend Pydantic models | Re-generate or manually audit `api-wave2.ts` types against current v2 OpenAPI output (`/api/v2/openapi.json`) before cleanup |
 
 ## Performance Traps
 
+Patterns that work at small scale but fail as usage grows.
+
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| No JID caching (resolve on every send) | 200-500ms added per send; Celery task timeout risk | Cache resolved JID in `patient.whatsapp_jid`; resolve once, reuse for lifetime | At any scale — immediate latency regression |
-| Base64 media in webhook payload | OOM on Railway container from large audio payloads; webhook handler timeout | Use S3 delivery; never base64 in production | At first voice note from a patient (~500KB-2MB base64 JSON body) |
-| Missing rate limiter | WhatsApp account flagged for spam; connection drops; eventual ban | Port `RateLimiter` from Evolution client; reduce initial limit | During first large send cycle (100+ messages in one Celery Beat run) |
-| HMAC key < 32 characters | WuzAPI rejects HMAC configuration; all webhooks fail | Generate 32-char minimum: `secrets.token_urlsafe(32)` | At WuzAPI startup configuration |
-| Synchronous HTTP in async WuzAPIClient called from Celery | Worker blocks; throughput drops significantly | Use `httpx.AsyncClient` + `async_to_sync` bridge (established pattern in codebase) | Immediately at any message volume |
-
----
+| ADK agent sessions not explicitly closed | Memory growth in long-running FastAPI process; ADK session context accumulates state | Use `async with` context manager or explicit `session.close()` in a `finally` block around ADK runner calls | At >100 concurrent patients in active follow-up flows |
+| React Query cache not invalidated on admin focus | Physician sees stale patient data from another session's cache in multi-tab usage | Add `refetchOnWindowFocus: true` for patient-facing queries; use per-session query keys for sensitive data | Immediately visible when physician uses multiple browser tabs |
+| Virtualisation components on pages with <50 items | `react-window` and `react-virtualized-auto-sizer` in quiz history or alerts (likely <20 items) add complexity with no performance benefit | Remove virtualisation from low-item pages; keep only for patient list (100+ records) | Never breaks performance, but adds unnecessary complexity that makes quality cleanup harder |
+| Stale mocks in `frontend-hormonia/src/mocks/` silencing real API contract errors | Tests pass against mocked responses while production calls different endpoints or gets different shapes | Audit mock files against actual backend responses using the test `normalizers.ts` patterns; confirm mock shapes match live API | Immediately at any backend endpoint change that mocks don't reflect |
 
 ## Security Mistakes
 
+Domain-specific security issues for oncology patient data.
+
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Not validating `x-hmac-signature` in production | Attackers can inject fake messages via webhook URL, including fake STOP commands (force-opting patients out without consent) or fake quiz responses | Validate HMAC in all non-dev environments; fail closed (403) if HMAC secret not configured in production |
-| Logging full webhook payload | Webhook payloads contain patient phone numbers (PHI). LGPD Art. 46 violation | Log only event type, timestamp, message ID. Apply existing PII redaction to any log output from webhook handlers. Never log `Sender`, `Phone`, or message content fields. |
-| Storing WuzAPI admin token in repository | Admin token controls all WuzAPI sessions; exposure = full WhatsApp account compromise | Store in Railway environment variables only; never in `.env` committed to repo; rotate immediately if leaked |
-| Silently continuing when HMAC key is absent | Webhooks accepted without validation in all environments | Raise `StartupError` if `WUZAPI_HMAC_KEY` is absent in staging or production; only allow bypass in `development` environment |
-| LID-addressed opt-out dropped silently | Patient who sent STOP via newer WhatsApp client continues receiving oncology follow-up messages (LGPD Art. 18 violation) | Log every `@lid` sender at WARNING; route unresolvable LIDs to DLQ for human review; never drop silently |
+| Logging patient name or CPF in browser console during API debugging | LGPD violation; console accessible to browser extensions and XSS | Use `createLogger` from `lib/logger.ts` (already sanitizes PII); never call `console.log(patient)` or `console.log(response.data)` with raw patient objects |
+| ADK tool output containing patient clinical data persisted in ADK session state | ADK session state may be written to disk, memory dumps, or ADK's built-in storage service in ways the team doesn't control | Apply PII redaction via `PIISafeAgent` BEFORE any data enters ADK tool results; use `before_tool_callback` as secondary filter |
+| Removing Sentry's `beforeSend` filter during the monitoring cleanup pass | Patient names appearing in Sentry breadcrumbs, error payloads, and session replay | The `SentryMonitoring` class in `monitoring/sentry.ts` already has `beforeSend` filters — verify they survive any Sentry configuration refactor; never remove them |
+| Switching quiz session state storage from HttpOnly cookies to `localStorage` | XSS can steal session token; quiz sessions represent patient oncology health interactions | Quiz already uses HttpOnly cookies correctly per `use-quiz-session.ts` — do not change this during the quality pass; it is the secure architecture |
+| New ADK API endpoint missing audit log | LGPD Art. 37 requires processing activity records for health data | Every new API route that invokes ADK agents must call the existing `AuditService` — add this at route handler level, not as an afterthought in a follow-up story |
+| ADK agent output rendered to admin UI without output escaping | ADK processes patient messages, which may contain injection strings | Escape all ADK agent output before rendering to any HTML context; `DOMPurify` is already installed in the admin SPA (`"dompurify": "^3.3.0"`) |
 
----
+## UX Pitfalls
+
+Frontend-specific UX mistakes for the oncology admin context.
+
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| Removing the Evolution "disabled" banner without replacing with WuzAPI status | Physicians have zero visibility into WhatsApp system health; the most critical infrastructure for patient follow-up has no status indicator | Replace Evolution placeholder in `WhatsAppDashboard.tsx` with a WuzAPI connection status card showing: instance status, last-seen timestamp, QR code state if disconnected |
+| Dead Evolution settings fields in AdminSettingsTab | Physician or admin tries to toggle "Evolution API" settings and gets no response; confusing UI state | Remove all Evolution-related settings fields from `AdminSettingsTab.tsx` |
+| 501 responses showing as infinite loading state | When backend returns 501 (unsupported feature, e.g., WuzAPI contact sync), frontend spinner runs forever | Map HTTP 501 to explicit "Feature not available" UI state — the `FeatureNotAvailableError` pattern is established in the backend; align the frontend |
+| Inconsistent Sao Paulo timezone display between admin SPA and quiz interface | Same appointment time shows differently in both UIs for the same patient | Standardize timezone handling in both frontends: `America/Sao_Paulo` UTC-3; verify `date-fns` timezone functions use the correct locale and zone after v3→v4 alignment |
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Webhook payload schema:** Integration test uses REAL captured WuzAPI webhook payloads as JSON fixtures — not mocked/guessed schemas. Verify at least: text message event, ReadReceipt event, connection status event.
-- [ ] **JID resolution works for DDD 11 and DDD 21:** Send a test message to a number you control in São Paulo (DDD 11) and Rio (DDD 21). Confirm the message is received. Verify `patient.whatsapp_jid` is populated in the database.
-- [ ] **HMAC validation rejects tampered payloads:** POST a known payload with a wrong `x-hmac-signature` — assert HTTP 403. POST with correct signature — assert HTTP 200.
-- [ ] **ReadReceipt → READ status transition:** After sending a test message and opening it on WhatsApp, the `message.status` in the database changes to `READ` within 60 seconds.
-- [ ] **Opt-out via WhatsApp works:** Send "STOP" from the test WhatsApp number. Verify `patient.messaging_stopped_at` is set and no further messages are sent to that patient.
-- [ ] **Session persists across restart:** Stop the WuzAPI service container, wait 30 seconds, restart it. Verify the session reconnects without QR re-scan.
-- [ ] **Rate limiter is active:** Trigger 70 message sends in one minute. Verify the system backs off, no HTTP 429 from WuzAPI, no ban signal, no connection drop.
-- [ ] **Evolution env vars absent:** `WHATSAPP_EVOLUTION_API_URL`, `WHATSAPP_EVOLUTION_API_KEY`, `WHATSAPP_EVOLUTION_INSTANCE_NAME`, `WHATSAPP_EVOLUTION_WEBHOOK_URL` are NOT present in Railway staging environment after migration.
-- [ ] **PII not logged in new handlers:** Inspect structured log output from WuzAPI webhook handler. No `sender`, `phone`, `Jid`, or `From` field values appear in log lines.
-- [ ] **Circuit breaker renamed:** The Redis circuit breaker key prefix is `wuzapi` not `evolution_api`. Verify by checking Dragonfly keys after a deliberate circuit trip.
+Things that appear complete but are missing critical pieces.
 
----
+- [ ] **OTel removal:** Confirm whether `pip show opentelemetry-api` returns "not found" OR document that ADK re-imported it and clarify that instrumentation packages are the real removal target — never leave the OTel state ambiguous.
+- [ ] **ADK integration:** Verify `scripts/check_agent_run_calls.py` detects direct `.run()` calls inside ADK `@tool`-decorated functions — test with a synthetic file.
+- [ ] **PIISafeAgent in ADK path:** Integration test with synthetic PHI input asserts the PII redaction log line appears before Gemini API call in every ADK-invoked agent path.
+- [ ] **Evolution dead code removed:** `grep -r "VITE_ENABLE_EVOLUTION\|Evolution API\|EvolutionAPI" frontend-hormonia/src/` returns zero results.
+- [ ] **HiveMind LangGraph cleaned:** `grep -n "LANGGRAPH_ONLY\|_process_with_langgraph" backend-hormonia/app/services/hive_mind_integration.py` returns zero results.
+- [ ] **Quiz Strict Mode guard preserved:** `useQuizSession.ts` unit test passes simulating double-invocation; API called exactly once.
+- [ ] **Sentry correlation intact post-OTel-removal:** Sentry transaction tree for one sampled patient flow request shows same parent-child span depth before and after OTel instrumentation package removal.
+- [ ] **TypeScript clean in both frontends:** `tsc --noEmit` exits 0 in both `frontend-hormonia/` and `quiz-mensal-interface/` with strict mode enabled.
+- [ ] **date-fns version aligned:** Both frontends declare the same major version of date-fns; no copy-paste of date utilities across frontends without version verification.
+- [ ] **ADK session lifecycle:** ADK runner sessions are explicitly closed in all code paths including exception paths; no session accumulation under load.
 
 ## Recovery Strategies
 
+When pitfalls occur despite prevention, how to recover.
+
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Wrong webhook payload schema (silent data loss) | HIGH | 1. Fix parser. 2. Check DLQ for messages dropped during the bad-schema window. 3. Cross-reference sent messages vs DB to identify gap period. 4. For clinical messages missed: notify medical team, trigger manual re-contact. |
-| Brazilian 9th-digit JID mismatch (delivery failure) | MEDIUM | 1. Identify affected patients (DDD 11/21/22/24/27/28 most likely). 2. Run JID resolution Celery task for affected patients. 3. Update `patient.whatsapp_jid`. 4. Re-send failed messages via DLQ retry. |
-| HMAC misconfiguration (all webhooks rejected) | LOW | 1. Fix header name or HMAC key in settings. 2. Redeploy. 3. Check WuzAPI retry behavior — if WuzAPI does not retry rejected webhooks, incoming messages during the bad window are lost. |
-| Auth header wrong (all sends fail) | LOW | 1. Fix `Authorization` header constant. 2. Redeploy. 3. Celery retry mechanism recovers in-flight messages within ~15 minutes via DLQ. |
-| Session loss (QR required for re-auth) | MEDIUM | 1. Access WuzAPI dashboard. 2. Scan QR with the registered clinic WhatsApp number. 3. Reconnection takes ~30 seconds. 4. Messages during downtime go to DLQ and are retried automatically. |
-| LID opt-out failure (LGPD violation) | HIGH | 1. Immediately implement LID→JID resolution. 2. Audit all incoming messages from cutover date for `@lid` senders. 3. Manually process any opt-out commands from LID senders. 4. If duration > 24 hours: assess LGPD Art. 48 notification obligation to ANPD. |
-| WhatsApp account banned (unofficial API ToS violation) | VERY HIGH | 1. Contact WhatsApp support (no guaranteed resolution). 2. If clinic has a backup number, configure it in WuzAPI. 3. Notify medical team immediately — clinical follow-up is disrupted. 4. Assess whether Meta Business API is required as the permanent solution. |
-
----
+| ADK re-pulls OTel at conflicting version | MEDIUM | Pin ADK to exact tested version; document OTel as ADK-managed transitive dep; remove your own OTel pins from requirements.txt and let ADK's declared range govern |
+| PIISafeAgent bypassed in production ADK call | HIGH | Immediately deploy hotfix wrapping the ADK tool in `PIISafeAgent._safe_run()`; notify DPO per LGPD Art. 48 if patient PHI reached Gemini unredacted; audit Gemini API request logs for the exposure window |
+| Quiz double-session from Strict Mode guard removal | LOW | Rollback the hook change that removed the `useRef` guard; add the missing test; redeploy |
+| Evolution dead code causes physician confusion | LOW | Remove `VITE_ENABLE_EVOLUTION` flag; remove Evolution UI sections; rebuild and deploy frontend; no backend changes needed |
+| Sentry loses correlation after OTel removal | MEDIUM | Ensure `sentry-sdk[fastapi]` `FastApiIntegration` and `CeleryIntegration` are explicitly registered in Sentry init; verify `traces_sample_rate > 0`; Sentry does not require OTel for its own tracing |
+| HiveMind endpoint crashes on LANGGRAPH_ONLY mode | LOW | Remove dead enum value; redeploy backend; no data loss since the mode was unreachable safely |
+| date-fns API mismatch causes incorrect dates in UI | LOW | Identify the cross-version copy-paste; standardize on one version; test with São Paulo timezone edge case (DST boundary) |
 
 ## Pitfall-to-Phase Mapping
 
+How roadmap phases should address these pitfalls.
+
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Wrong webhook payload schema (silent data loss) | Phase 1: webhook handler rewrite | Integration tests use real captured WuzAPI payloads as fixtures; no mocked schemas |
-| Brazilian 9th-digit JID mismatch | Phase 1: WuzAPIClient (JID resolution) + Phase 2: patient data migration | Send test message to DDD 11 number; `patient.whatsapp_jid` populated; message received |
-| Auth header name change | Phase 1: WuzAPIClient implementation | Smoke test: call WuzAPI `/session` endpoint; assert HTTP 200 |
-| Message ID format — idempotency broken | Phase 1: send path field extraction + Phase 2: ReadReceipt handler | After send: assert `message.whatsapp_id` non-null. After read: assert `message.status == READ` |
-| HMAC header name and signing body | Phase 1: HMAC validator update | Wrong-signature POST → 403. Correct-signature POST → 200. |
-| LID addressing (LGPD opt-out risk) | Phase 2: incoming message handler | Send STOP from newer WhatsApp account; verify `messaging_stopped_at` set within 60s |
-| Instance vs session env var mismatch | Phase 1: env var audit + startup validation | Missing `WUZAPI_SESSION_TOKEN` → application refuses to start with clear error |
-| Status event mapping (SENT/DELIVERED/READ) | Phase 2: ReadReceipt handler | End-to-end status transition test from send through receipt |
-| Media delivery mode | Phase 2: inbound media handler | Patient sends image; system receives and stores correctly; no OOM |
-| Rate limiter not ported | Phase 1: WuzAPIClient | 70 sends/minute load test; no ban signal; no connection drop |
-| Session persistence | Phase 3: deployment configuration | Stop/start WuzAPI; verify reconnect without QR within 60s |
-| Opt-out endpoint routing | Phase 2: webhook routing + Phase 3: config verification | Send STOP → `messaging_stopped_at` set; no further messages to that patient |
-
----
+| ADK reintroduces OTel as transitive dep | OTel removal phase — audit transitive deps first | `pip show opentelemetry-api` state is known and documented before any requirements.txt changes |
+| PIISafeAgent bypass via ADK tools | ADK integration phase — extend CI guard before any agent wiring | CI fails on a test file with direct `agent.run()` inside an ADK `@tool` function |
+| ADK tool output leaks PHI to session state | ADK integration phase | Integration test with synthetic PHI in tool input asserts redaction in ADK session output |
+| Evolution API dead code in frontend | Frontend dead code removal phase — WhatsApp area first | `grep -r "VITE_ENABLE_EVOLUTION"` returns zero results in `frontend-hormonia/src/` |
+| HiveMind references tombstoned LangGraph | Frontend dead code or ADK integration phase | `grep -n "LANGGRAPH_ONLY"` returns zero results in `hive_mind_integration.py` |
+| Sentry trace correlation breaks post-OTel removal | OTel removal phase — validate Sentry before and after | Sentry transaction tree for one sampled flow intact after instrumentation package removal |
+| React Strict Mode double-init in quiz | Quiz quality phase | `useQuizSession` unit test with double-invocation simulation; API called exactly once |
+| date-fns version divergence between frontends | Frontend quality consolidation phase | Both frontends declare same date-fns major version; `tsc --noEmit` clean |
+| 501 responses showing as infinite loading | Frontend quality phase | HTTP 501 response renders "Feature not available" state, not spinner |
+| ADK session not closed causing memory growth | ADK integration phase | ADK runner usage wrapped in `async with` or `finally` block; load test shows stable memory |
 
 ## Sources
 
-- WuzAPI GitHub repository (asternic/wuzapi): https://github.com/asternic/wuzapi — API.md and README.md (HIGH confidence for endpoint format, auth header, HMAC header name)
-- Brazil 9th-digit WhatsApp JID inconsistency (Zoko): https://www.zoko.io/learning-article/whatsapp-id-brazil-mexico (MEDIUM confidence — documented WhatsApp limitation specific to Brazil)
-- Brazil 9th-digit WhatsApp inconsistency (Gupshup): https://support.gupshup.io/hc/en-us/articles/4407840924953 (MEDIUM confidence — same issue from different WhatsApp BSP)
-- whatsmeow LID issue (#859): https://github.com/tulir/whatsmeow/issues/859 (MEDIUM confidence — real user report, LID error 479)
-- LID/JID transition explanation (SprintHub): https://docs.sprinthub.com/en/news/behind-the-scenes-change-on-whatsapp-the-era-of-lid-and-jid-and-the-end-of-exposing-the-cell-phone-n (MEDIUM confidence — industry documentation of LID migration)
-- Baileys v7 LID migration docs: https://baileys.wiki/docs/migration/to-v7.0.0/ (MEDIUM confidence — covers LID handling in whatsmeow-equivalent library)
-- whatsmeow ban risk discussion (#567): https://github.com/tulir/whatsmeow/discussions/567 (MEDIUM confidence — community discussion on WhatsApp ban behavior with unofficial APIs)
-- Production codebase: `app/integrations/evolution/webhook_handler.py`, `app/integrations/whatsapp/api/webhooks.py`, `app/middleware/webhook_validator.py`, `app/services/unified_whatsapp_service.py`, `app/schemas/validators/phone.py` (HIGH confidence — primary source of truth for what exactly needs to change)
+- Google ADK v1.26.0 CHANGELOG: "Update OpenTelemetry dependency versions to relax version constraints" — confirms OTel is NOT removed, only pinning widened — [https://github.com/google/adk-python/blob/main/CHANGELOG.md](https://github.com/google/adk-python/blob/main/CHANGELOG.md)
+- Google ADK v1.26.0 releases page — [https://github.com/google/adk-python/releases](https://github.com/google/adk-python/releases)
+- GitHub Issue: `TypeError: BaseModel.model_dump()` with ADK + OTel + Pydantic output_schema — [https://github.com/google/adk-python/issues/3884](https://github.com/google/adk-python/issues/3884)
+- GitHub Issue: OTel context ValueError with ADK ParallelAgent (google/adk-python #860) — [https://github.com/google/adk-python/issues/860](https://github.com/google/adk-python/issues/860)
+- GitHub Issue: OTel context detach errors in ADK (google/adk-python #1670) — [https://github.com/google/adk-python/issues/1670](https://github.com/google/adk-python/issues/1670)
+- GitHub Issue: Pydantic AI + OTel import crash on Lambda (pydantic/pydantic-ai #2985) — [https://github.com/pydantic/pydantic-ai/issues/2985](https://github.com/pydantic/pydantic-ai/issues/2985)
+- OTel + Protobuf version conflict documentation — [https://github.com/open-telemetry/opentelemetry-python/issues/4563](https://github.com/open-telemetry/opentelemetry-python/issues/4563)
+- Google ADK Safety documentation (PII and callbacks) — [https://google.github.io/adk-docs/safety/](https://google.github.io/adk-docs/safety/)
+- React 19 release notes and Strict Mode behavior — [https://react.dev/blog/2024/12/05/react-19](https://react.dev/blog/2024/12/05/react-19)
+- LGPD compliance checklist — [https://captaincompliance.com/education/lgpd-compliance-checklist/](https://captaincompliance.com/education/lgpd-compliance-checklist/)
+- Codebase: `backend-hormonia/app/core/tracing.py` — OPENTELEMETRY_AVAILABLE guard and MockTracer fallback (HIGH confidence — direct file read)
+- Codebase: `frontend-hormonia/src/features/whatsapp/WhatsAppDashboard.tsx` lines 62-76, 183-195 — Evolution API dead code confirmed (HIGH confidence — direct file read)
+- Codebase: `backend-hormonia/app/services/hive_mind_integration.py` lines 31, 217-218 — LangGraph dead code in active service confirmed (HIGH confidence — direct file read)
+- Codebase: `quiz-mensal-interface/hooks/use-quiz-session.ts` — Strict Mode protection guard confirmed present (HIGH confidence — direct file read)
+- Codebase: `backend-hormonia/requirements.txt` lines 116-134 — 9 explicit OTel package declarations confirmed (HIGH confidence — direct file read)
+- Codebase: confirmed OTel callers: only `app/integrations/whatsapp/services/message_service.py` (line 26, 314, 574) and `app/services/unified_whatsapp_service.py` (line 51, 142) (HIGH confidence — grep confirmed)
 
 ---
-*Pitfalls research for: Evolution API to WuzAPI migration — oncology clinic WhatsApp backend (v1.6)*
-*Researched: 2026-03-01*
+*Pitfalls research for: Clinica Oncologica v02 — v1.7 Frontend Quality & ADK Integration milestone*
+*Researched: 2026-03-03*

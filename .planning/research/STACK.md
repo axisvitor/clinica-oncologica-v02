@@ -1,8 +1,8 @@
 # Stack Research
 
-**Domain:** Healthcare WhatsApp backend — WuzAPI provider migration (Evolution API → WuzAPI)
-**Researched:** 2026-03-01
-**Confidence:** HIGH (WuzAPI API shape verified from official docs), MEDIUM (Docker resource numbers — no official specs), HIGH (Python HTTP client decisions — based on existing requirements)
+**Domain:** Frontend quality overhaul (React 19 + Vite + Next.js 14) + Google ADK integration (Python 3.13)
+**Researched:** 2026-03-03
+**Confidence:** HIGH (OTel/ADK conflict verified from pyproject.toml), HIGH (frontend tooling — packages verified from existing package.json), MEDIUM (ADK integration scope — pending real install test)
 
 ---
 
@@ -10,326 +10,192 @@
 
 | Component | Status | Action | Rationale |
 |-----------|--------|--------|-----------|
-| `aiohttp>=3.10.0` | KEEP | No change — WuzAPIClient uses aiohttp same as EvolutionAPIClient | WuzAPI is REST+JSON; aiohttp is already present and outperforms httpx for high-concurrency async |
-| `backoff>=2.2.1` | KEEP | No change | Retry logic pattern stays; WuzAPI returns 429/5xx same as Evolution |
-| `httpx>=0.28.1` | KEEP | No change — OTel instrumentation uses httpx | Not used for WhatsApp client; keep for OpenTelemetry |
-| `aiohttp` OTel | ADD consideration | `opentelemetry-instrumentation-aiohttp-client` | If tracing WuzAPI calls matters; currently only `httpx` instrumented |
-| `EvolutionAPIClient` | TOMBSTONE | Convert to ImportError stub after WuzAPIClient is wired | Both legacy httpx-based and canonical aiohttp-based stacks |
-| `mock_evolution.py` | TOMBSTONE | Test double replaced by mock for WuzAPIClient | |
-| New env vars | ADD | `WUZAPI_BASE_URL`, `WUZAPI_TOKEN`, `WUZAPI_WEBHOOK_SECRET` | Replace `EVOLUTION_API_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_API_INSTANCE` |
-| `WEBHOOK_FORMAT=json` | CONFIGURE | Set on WuzAPI sidecar | Default is `form`; JSON mode needed for easy FastAPI parsing |
-
-**No new Python packages are required.** The WuzAPI integration is a pure client-side rewrite using the existing aiohttp stack.
+| `opentelemetry-api>=1.28.0,<2.0.0` | REMOVE | Delete all 9 OTel lines from requirements.txt | ADK 1.26 requires `opentelemetry-api>=1.36.0,<1.39.0`; current `<2.0.0` upper bound is compatible on version but the instrumentation packages are the blocker |
+| `opentelemetry-sdk` | REMOVE | Part of OTel removal | ADK brings its own managed OTel SDK |
+| `opentelemetry-instrumentation-fastapi` | REMOVE | Part of OTel removal | ADK manages its own tracing context; external FastAPI OTel causes context detachment errors |
+| `opentelemetry-instrumentation-sqlalchemy` | REMOVE | Part of OTel removal | Conflicts with ADK's internal OTel context management |
+| `opentelemetry-instrumentation-redis` | REMOVE | Part of OTel removal | Same context conflict |
+| `opentelemetry-instrumentation-httpx` | REMOVE | Part of OTel removal | Same context conflict |
+| `opentelemetry-exporter-otlp` | REMOVE | Part of OTel removal | ADK handles its own exporting |
+| `opentelemetry-exporter-otlp-proto-http` | REMOVE | Part of OTel removal | Replaced by ADK's built-in OTLP |
+| `opentelemetry-proto` | REMOVE | Part of OTel removal | Transitive; no longer needed directly |
+| `app/core/tracing.py` | TOMBSTONE | Convert to `raise ImportError` stub | Already has graceful `OPENTELEMETRY_AVAILABLE = False` fallback; safe to remove OTel |
+| `google-adk>=1.26.0,<2.0.0` | ADD | New Python package | Core ADK runtime for agent orchestration |
+| `prettier>=3.5.0` | ADD (admin + quiz) | Formatter — missing from both frontends | ESLint does not enforce formatting; without Prettier, code style drifts silently |
+| `eslint-config-prettier>=9.1.0` | ADD (admin + quiz) | Disables ESLint rules that conflict with Prettier | Required companion whenever Prettier is added to an ESLint project |
+| `eslint-plugin-prettier>=5.x` | ADD (admin + quiz) | Surfaces Prettier violations as ESLint errors | Integrates Prettier into the existing ESLint 9 flat config |
+| `eslint-plugin-jsx-a11y>=6.10.0` | ADD (admin) | Accessibility lint rules | Currently zero a11y enforcement; oncology patient-facing data demands accessible UI |
+| `eslint-plugin-react-compiler` | CONSIDER | React Compiler lint rules | Admin app uses React 19; compiler rules catch optimization violations. Skip for now unless compiler is explicitly enabled |
+| Prettier config | ADD | `.prettierrc` file in both frontends | Establishes canonical formatting rules |
+| `identity-obj-proxy` | ADD (quiz only) | CSS module mock for Jest | Already referenced in quiz `jest.config` but missing from `devDependencies` |
+| Next.js upgrade (quiz) | EVALUATE | `next@^14.2.35` → `next@^15` | Next.js 15 supports ESLint 9 flat config natively; quiz currently on eslint 8 + legacy `.eslintrc.json`; migration to flat config requires Next.js 15 |
+| `msw` (quiz) | UPDATE | `^1.3.5` → `^2.x` | MSW v1 is outdated; v2 has breaking API changes but is the current standard and works with ESM |
 
 ---
 
-## WuzAPI: What It Is
+## The OTel/ADK Conflict: Root Cause
 
-WuzAPI (github.com/asternic/wuzapi) is a Go binary that wraps the `whatsmeow` library (tulir/whatsmeow) and exposes WhatsApp functionality as a REST API. It connects directly to WhatsApp's WebSocket servers — no Puppeteer, no Android emulator — making it significantly lighter than browser-based solutions.
+Google ADK 1.26 bundles its own OpenTelemetry instrumentation and manages the OTel context internally using Python's `contextvars`. The ADK tracer creates context spans that must be detached within the same context they were attached. When external OTel instrumentation (e.g., `opentelemetry-instrumentation-fastapi`) attaches its own spans to the same `contextvars` context tree, the ADK's detach operations fail with:
 
-**Architecture difference from Evolution API:**
+```
+ERROR:opentelemetry.context:Failed to detach context
+```
 
-| Aspect | Evolution API | WuzAPI |
-|--------|--------------|--------|
-| Model | Instance-per-number (instanceName in URL path) | User-per-token (Authorization header selects session) |
-| Auth header | `apikey: <key>` | `Authorization: <user_token>` |
-| Phone format in request | `"5491155554444"` (E.164 digits only) | `"5491155554444"` (E.164 digits only; JID `@s.whatsapp.net` appears only in responses) |
-| Send text endpoint | `POST /message/sendText/{instanceName}` | `POST /chat/send/text` |
-| Send image endpoint | `POST /message/sendMedia/{instanceName}` | `POST /chat/send/image` |
-| Webhook HMAC header | `x-evolution-signature` (SHA-256) | `x-hmac-signature` (SHA-256) |
-| Webhook payload type | `application/json` always | `application/json` or `application/x-www-form-urlencoded` (env-controlled) |
-| Session state | Instance-level (create/restart/delete) | Session-level (connect/disconnect/logout) |
-| Health check | `GET /instance/connectionState/{name}` | `GET /session/status` |
-| Instance management | Per-instance CRUD | Per-user session lifecycle |
+This is not a version mismatch — it is a design conflict. ADK's internal OTel is not an optional feature; it cannot be disabled via a public API (tracked in google/adk-python#2792). The resolution is to remove all external OTel instrumentation packages and let ADK own the tracing layer entirely.
+
+**What ADK requires (from pyproject.toml, current as of 1.26):**
+- `opentelemetry-api>=1.36.0,<1.39.0`
+- `opentelemetry-sdk>=1.36.0,<1.39.0`
+- `opentelemetry-exporter-otlp-proto-http>=1.36.0`
+- `google-genai>=1.56.0,<2.0.0` (compatible with existing `pydantic-ai-slim[google]`)
+- `pydantic>=2.12.0,<3.0.0` (compatible with existing `>=2.12.5`)
+
+**What is already installed and stays:**
+- `sentry-sdk[fastapi]>=1.38.0` — Sentry remains as the error tracking layer. Sentry uses its own transport, not OTel, for error capture. The existing `monitoring_config.py` + `sentry.py` setup is unaffected by removing OTel.
+- `prometheus-client>=0.24.1` — Celery/application metrics via prometheus-client are independent of OTel.
+- `structlog>=24.1.0` — Structured logging is independent of OTel.
+
+**The tracing.py situation:** `app/core/tracing.py` already has a `try/except ImportError` guard with `OPENTELEMETRY_AVAILABLE = False` fallback. Once OTel packages are removed, it gracefully degrades to `MockTracer`. Convert the file to a tombstone with `raise ImportError` to prevent any future accidental re-import.
+
+---
+
+## Frontend Admin (frontend-hormonia/) — Current State Assessment
+
+**What exists and works:**
+- ESLint 9 with flat config (`eslint.config.js`) — already configured correctly
+- `typescript-eslint v8.45.0` — current
+- `eslint-plugin-react-hooks v5.1.0` — current
+- `eslint-plugin-react-refresh v0.4.23` — current
+- `vitest v3.2.4` — current; test runner and coverage already configured in `vite.config.ts`
+- `husky v9.1.7` + `lint-staged v16.2.4` — pre-commit hook runs `npx lint-staged`
+- TypeScript strict mode enabled (`noImplicitAny`, `noImplicitReturns`, `noUncheckedIndexedAccess`)
+
+**What is missing:**
+- No `prettier` or `.prettierrc` — formatting is not enforced
+- No `eslint-config-prettier` — ESLint formatting rules may conflict with any future Prettier setup
+- No accessibility plugin (`eslint-plugin-jsx-a11y`) — zero a11y enforcement
+
+**ESLint rule gaps in existing config:**
+- `'no-console': 'warn'` is set but `console.log` calls left in production code are common dead code
+- `@typescript-eslint/no-explicit-any: 'warn'` is a warning, not error — any-typed code drifts without enforcement
+
+---
+
+## Frontend Quiz (quiz-mensal-interface/) — Current State Assessment
+
+**What exists:**
+- Next.js 14.2.35 with App Router
+- ESLint 8.57.0 with legacy `.eslintrc.json` (`{"extends": "next/core-web-vitals"}`) — old format
+- Jest 29 + ts-jest — testing works but is split from the admin app's Vitest setup
+- TypeScript 5.9.2 strict mode enabled
+- Tailwind CSS v4 (via `@tailwindcss/postcss`)
+
+**Critical gaps:**
+- ESLint 8 (legacy format) vs admin app's ESLint 9 (flat config) — inconsistent lint toolchain across the monorepo
+- No Prettier
+- `msw v1.3.5` in test dependencies — MSW v1 is end-of-life; v2 has breaking API changes (handlers must use `http.get()` not `rest.get()`)
+- `@testing-library/react v14.1.2` — this is the React 18 version; quiz app uses React 18, so this is correct, but inconsistent with admin app's `@testing-library/react v16.x` (React 19 version)
+- `identity-obj-proxy` referenced in jest config's `moduleNameMapper` but not listed in `devDependencies`
+
+**Next.js 14 vs 15 for ESLint 9:**
+Next.js 15 adds native ESLint 9 flat config support. If the quiz is upgraded to Next.js 15, the `.eslintrc.json` can be migrated to `eslint.config.mjs` using `nextPlugin.flatConfig.coreWebVitals`. This aligns the quiz app with the admin app's ESLint 9 setup. **Recommendation: Upgrade Next.js to 15.x as part of this milestone.** React 18 → React 19 upgrade for the quiz app is out of scope (different testing library versions, potential breaking changes).
 
 ---
 
 ## Recommended Stack
 
-### Core Technologies (unchanged)
+### Core Technologies (additions/changes for v1.7)
 
-| Technology | Version (existing) | Purpose | Change? |
-|------------|-------------------|---------|---------|
-| Python | 3.13 | Runtime | No |
-| FastAPI | >=0.128.0,<0.200.0 | API framework | No |
-| aiohttp | >=3.10.0,<4.0.0 | WuzAPI HTTP client | No — already present |
-| backoff | >=2.2.1,<3.0.0 | Retry with exponential backoff | No |
-| pydantic | >=2.12.5,<3.0.0 | Request/response models | No |
-| SQLAlchemy (AsyncSession) | >=2.0.45,<2.1.0 | ORM for API paths | No |
-| Celery + Dragonfly | celery>=5.6.2 | Task queue | No |
+| Technology | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `google-adk` | `>=1.26.0,<2.0.0` | Google Agent Development Kit | Provides Runner, Session, Agent orchestration primitives; sits alongside existing Pydantic AI agents (they use different abstraction layers — ADK is for multi-step agent orchestration, Pydantic AI is for typed structured AI calls) |
+| `prettier` | `>=3.5.0` | Code formatter for both frontends | Opinionated formatter; zero config conflicts; integrates with ESLint via eslint-plugin-prettier; replaces manual formatting debate |
+| `next` (quiz) | `^15.3.0` | Next.js upgrade | Unlocks ESLint 9 flat config support; App Router stability improvements |
 
-### Supporting Libraries (unchanged — already in requirements.txt)
+### Supporting Libraries (frontend additions)
 
-| Library | Version | Purpose | Notes |
-|---------|---------|---------|-------|
-| `backoff` | >=2.2.1,<3.0.0 | Exponential backoff on 429/5xx | Keep existing `@backoff.on_exception` decorator |
-| `aiobreaker` | >=1.2.0,<2.0.0 | Circuit breaker wrapping WuzAPI calls | Keep; wraps WuzAPIClient at service layer |
-| `tenacity` | >=8.2.3,<9.0.0 | Alternative retry primitives | Keep for pydantic-ai; not needed for WuzAPI client directly |
-| `cryptography` | >=43.0.0,<45.0.0 | Fernet encryption | Keep for LGPD key rotation; unrelated to WuzAPI |
-| `phonenumbers` | >=8.13.0,<9.0.0 | Phone number formatting | Keep; normalize to E.164 digits before sending to WuzAPI |
+| Library | Version | Purpose | Which App |
+|---------|---------|---------|-----------|
+| `eslint-config-prettier` | `^9.1.0` | Disables ESLint formatting rules that conflict with Prettier | Both |
+| `eslint-plugin-prettier` | `^5.2.0` | Surfaces Prettier violations as ESLint errors in flat config | Both |
+| `eslint-plugin-jsx-a11y` | `^6.10.0` | Accessibility lint rules for JSX | Admin (frontend-hormonia) |
+| `identity-obj-proxy` | `^3.0.0` | CSS module mock for Jest | Quiz only (already used but missing from deps) |
 
-### New Dependencies: NONE
+### Development Tools (no new tools — leverage existing)
 
-WuzAPI uses plain REST+JSON over HTTP. The existing `aiohttp` client is identical in capability to what `EvolutionAPIClient` already uses. No new Python packages are needed.
-
-**Why NOT httpx for WuzAPIClient:**
-The existing canonical `EvolutionAPIClient` already uses `aiohttp`. Benchmarks consistently show aiohttp is 2x+ faster than httpx for high-concurrency async workloads. The existing `TCPConnector` with `limit=100, limit_per_host=30` is already tuned for this use case. Switching to httpx for WuzAPI would create an inconsistency with no upside. httpx stays in requirements only for OpenTelemetry instrumentation (`opentelemetry-instrumentation-httpx`).
+| Tool | Purpose | Current State |
+|------|---------|---------------|
+| `vitest v3.2.4` | Test runner for admin app | Already configured in vite.config.ts |
+| `husky v9.1.7` | Git hooks | Pre-commit runs lint-staged; add typecheck |
+| `lint-staged v16.2.4` | Staged file linting | Add `prettier --write` to staged file action |
+| `typescript-eslint v8.45.0` | TypeScript lint rules | Already configured in flat config |
 
 ---
 
-## WuzAPI API Reference (Verified)
+## Installation
 
-### Authentication
-
-```
-Authorization: <user_token>
-```
-
-Admin endpoints use the admin token (`WUZAPI_ADMIN_TOKEN`). Per-session endpoints use the per-user token created via `POST /admin/users`. The legacy `Token` header is also accepted.
-
-**Evolution API comparison:** Evolution used `apikey: <key>` as a flat header — a different header name, same concept.
-
-### Session Management (replaces instance management)
-
-| Operation | WuzAPI Endpoint | Evolution API Equivalent |
-|-----------|-----------------|-------------------------|
-| Connect/pair QR | `POST /session/connect` | `POST /instance/create` |
-| Check status | `GET /session/status` | `GET /instance/connectionState/{name}` |
-| Get QR code | `GET /session/qr` | `GET /instance/qrcode/{name}` |
-| Disconnect (keep session) | `POST /session/disconnect` | `PUT /instance/restart/{name}` |
-| Logout (clear session) | `POST /session/logout` | `DELETE /instance/logout/{name}` |
-
-Session connect payload:
-```json
-{
-  "Subscribe": ["Message", "ReadReceipt", "HistorySync", "ChatPresence"],
-  "Immediate": false
-}
-```
-
-### Sending Messages
-
-**Send text:**
-```
-POST /chat/send/text
-Authorization: <token>
-Content-Type: application/json
-
-{
-  "Phone": "5511999887766",
-  "Body": "Olá, como você está se sentindo?",
-  "Id": "optional-client-message-id"
-}
-```
-
-Response (HTTP 200):
-```json
-{
-  "code": 200,
-  "data": { "Id": "whatsapp-message-id-from-server" },
-  "success": true
-}
-```
-
-**Send image:**
-```
-POST /chat/send/image
-Authorization: <token>
-Content-Type: application/json
-
-{
-  "Phone": "5511999887766",
-  "Image": "https://example.com/image.jpg",
-  "Caption": "Optional caption"
-}
-```
-
-**Send document:**
-```
-POST /chat/send/document
-Authorization: <token>
-Content-Type: application/json
-
-{
-  "Phone": "5511999887766",
-  "Document": "https://example.com/file.pdf",
-  "FileName": "relatorio.pdf"
-}
-```
-
-**Phone format:** E.164 digits only, no `+`, no spaces, no `@s.whatsapp.net`. The `@s.whatsapp.net` JID suffix appears only in webhook event payloads and contact responses, NOT in send requests. The existing `normalize_br_phone()` already produces correct format — just strip non-digits and ensure country code prefix `55`.
-
-### Webhook Configuration
-
-```
-POST /webhook
-Authorization: <token>
-Content-Type: application/json
-
-{
-  "webhookUrl": "https://your-api.railway.app/webhooks/whatsapp",
-  "webhookEvents": "Message,ReadReceipt"
-}
-```
-
-HMAC configuration:
-```
-POST /session/hmac/config
-Authorization: <token>
-Content-Type: application/json
-
-{
-  "key": "your-minimum-32-char-hmac-secret-key"
-}
-```
-
-### Webhook Payload Format
-
-**Critical:** Set `WEBHOOK_FORMAT=json` on the WuzAPI sidecar. The default `form` format requires URL-decoding a `jsonData` field, which adds complexity. With `WEBHOOK_FORMAT=json`, WuzAPI posts:
-
-```
-POST <webhook_url>
-Content-Type: application/json
-x-hmac-signature: <sha256-hex-of-raw-body>
-
-{
-  "type": "Message",
-  "event": {
-    "Info": {
-      "ID": "3EB0C767D097B7C84C5A",
-      "Timestamp": "2026-03-01T10:30:00-03:00",
-      "FromMe": false,
-      "Type": "textMessage",
-      "Sender": "5511999887766@s.whatsapp.net",
-      "Chat": "5511999887766@s.whatsapp.net"
-    },
-    "Message": {
-      "Conversation": "Patient response text here"
-    }
-  }
-}
-```
-
-ReadReceipt event:
-```json
-{
-  "type": "ReadReceipt",
-  "event": {
-    "Info": {
-      "ID": "3EB0C767D097B7C84C5A",
-      "Timestamp": "2026-03-01T10:31:00-03:00",
-      "Type": "protocolMessage"
-    }
-  }
-}
-```
-
-**HMAC signature:** The `x-hmac-signature` header contains the raw hex SHA-256 digest — no `sha256=` prefix. This differs from some other APIs. The existing `WebhookHMACValidator` already handles bare hex by defaulting to SHA-256 when no prefix is found (line 29-30 in `hmac_validator.py`). No change needed to the validator.
-
-**Inbound sender extraction:** Sender JID is `event.Info.Sender` (format: `5511999887766@s.whatsapp.net`). Strip `@s.whatsapp.net` to get the phone number. The existing `contact_data.get("id", "").split("@")[0]` pattern in `EvolutionAPIClient.get_contacts()` already demonstrates this split.
-
-### Supported Event Types
-
-| Event | Subscribe Name | Replaces Evolution API Event |
-|-------|---------------|------------------------------|
-| Incoming/outgoing messages | `Message` | `MESSAGES_UPSERT` |
-| Read receipts / delivery | `ReadReceipt` | `MESSAGES_UPDATE` |
-| Typing presence | `ChatPresence` | `PRESENCE_UPDATE` |
-| Message history sync | `HistorySync` | (no direct equivalent) |
-| User presence | `Presence` | `PRESENCE_UPDATE` |
-
----
-
-## WuzAPI Webhook Payload vs Evolution API Webhook Payload
-
-The key structural difference:
-
-| Field | Evolution API | WuzAPI (json format) |
-|-------|--------------|----------------------|
-| Top-level event type | `event` (e.g., `"MESSAGES_UPSERT"`) | `type` (e.g., `"Message"`) |
-| Message body | `data.messages[0].message.conversation` | `event.Message.Conversation` |
-| Sender JID | `data.key.remoteJid` | `event.Info.Sender` |
-| Message ID | `data.key.id` | `event.Info.ID` |
-| Timestamp | `data.messageTimestamp` (Unix int) | `event.Info.Timestamp` (ISO 8601) |
-| Instance ID | URL path: `/{instanceName}/webhook` | `Authorization` header (user token) |
-
-The existing `WebhookPayload` Pydantic model (in `models/message.py`) has `event: str` and `data: Union[Dict, List[Dict]]`. For WuzAPI, this needs to be replaced with:
-```python
-class WuzAPIWebhookPayload(BaseModel):
-    type: str  # "Message" | "ReadReceipt" | "ChatPresence" | "HistorySync"
-    event: Dict[str, Any]  # nested Info + Message/Receipt data
-```
-
----
-
-## Deployment: WuzAPI as Railway Sidecar
-
-WuzAPI is a Go binary distributed as a Docker image (`asternic/wuzapi`). It must run alongside the Python backend.
-
-**Docker image:** `asternic/wuzapi` (Docker Hub: hub.docker.com/r/asternic/wuzapi)
-
-**Resource footprint:** Go + whatsmeow connects directly via WebSocket. No Chromium, no JVM, no Android emulator. Estimated: 50-150 MB RAM, <0.1 CPU at idle. This is the primary advantage over browser-based solutions.
-
-**Database:** WuzAPI stores WhatsApp session keys and user token data. Two options:
-- SQLite (default): fine for single-instance; file lives on disk inside container. On Railway, needs a persistent volume or sessions are lost on redeploy.
-- PostgreSQL: set `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT` env vars. WuzAPI can reuse the existing AWS RDS PostgreSQL instance with a separate `wuzapi` database/schema.
-
-**Recommendation:** Use the existing AWS RDS PostgreSQL instance with a dedicated `wuzapi` database. This avoids volume management on Railway and session loss on redeploys. SQLite on Railway containers is ephemeral by default.
-
-**Required environment variables for WuzAPI sidecar:**
+### Backend (Python) — OTel removal + ADK addition
 
 ```bash
-WUZAPI_ADMIN_TOKEN=<32-char-random>          # Save immediately — auto-generated if omitted
-WUZAPI_GLOBAL_ENCRYPTION_KEY=<32-byte-key>   # AES-256 for session key encryption
-WUZAPI_GLOBAL_HMAC_KEY=<32-char-minimum>     # Global HMAC fallback (per-session can override)
-WEBHOOK_FORMAT=json                           # CRITICAL: use json not form for FastAPI parsing
-WUZAPI_GLOBAL_WEBHOOK=<your-fastapi-webhook-url>  # Optional: global fallback webhook
-WUZAPI_PORT=8080                              # Default; expose on Railway internal port
+# 1. Remove these 9 lines from backend-hormonia/requirements.txt:
+#    opentelemetry-api>=1.28.0,<2.0.0
+#    opentelemetry-sdk>=1.28.0,<2.0.0
+#    opentelemetry-instrumentation-fastapi>=0.49b0,<1.0.0
+#    opentelemetry-instrumentation-sqlalchemy>=0.49b0,<1.0.0
+#    opentelemetry-instrumentation-redis>=0.49b0,<1.0.0
+#    opentelemetry-instrumentation-httpx>=0.49b0,<1.0.0
+#    opentelemetry-exporter-otlp>=1.28.0,<2.0.0
+#    opentelemetry-exporter-otlp-proto-http>=1.28.0,<2.0.0
+#    opentelemetry-proto>=1.28.0,<2.0.0
 
-# PostgreSQL (point to existing RDS)
-DB_HOST=<rds-endpoint>
-DB_USER=wuzapi
-DB_PASSWORD=<password>
-DB_NAME=wuzapi
-DB_PORT=5432
-DB_SSLMODE=require                            # RDS requires SSL
+# 2. Add google-adk to requirements.txt:
+# google-adk>=1.26.0,<2.0.0
 
-# Optional
-TZ=America/Sao_Paulo
-SESSION_DEVICE_NAME=HormoniaBot
+# 3. Install (in Railway/local backend env):
+pip install -r requirements.txt
 ```
 
-**Required environment variables to ADD to Python backend (replacing Evolution API vars):**
+### Admin Frontend (frontend-hormonia/)
 
 ```bash
-WUZAPI_BASE_URL=http://wuzapi:8080          # Internal Railway service URL
-WUZAPI_TOKEN=<user-token-for-this-session>  # Created via POST /admin/users on WuzAPI
-WUZAPI_WEBHOOK_SECRET=<same-as-hmac-key>    # For validating incoming webhook signatures
+cd frontend-hormonia
+
+# Add Prettier + ESLint integration
+npm install -D prettier@^3.5.0 eslint-config-prettier@^9.1.0 eslint-plugin-prettier@^5.2.0
+
+# Add accessibility linting
+npm install -D eslint-plugin-jsx-a11y@^6.10.0
+```
+
+### Quiz Frontend (quiz-mensal-interface/)
+
+```bash
+cd quiz-mensal-interface
+
+# Next.js upgrade
+npm install next@^15.3.0
+
+# Add Prettier + ESLint integration
+npm install -D prettier@^3.5.0 eslint-config-prettier@^9.1.0 eslint-plugin-prettier@^5.2.0
+
+# Fix missing test dep
+npm install -D identity-obj-proxy@^3.0.0
+
+# Optional: MSW v2 upgrade (breaking API change — separate task)
+# npm install -D msw@^2.7.0
 ```
 
 ---
 
 ## Alternatives Considered
 
-### HTTP Client for WuzAPIClient
-
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|------------------------|
-| `aiohttp` (keep existing) | `httpx.AsyncClient` | If the codebase migrates entirely to httpx (not planned); httpx has HTTP/2 support but 2x slower for high-concurrency async |
-| `aiohttp` | `requests` (sync) | Never — all API paths are async; sync requests blocks the event loop |
-
-### WuzAPI Database Backend
-
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|------------------------|
-| PostgreSQL (existing RDS) | SQLite on Railway volume | Only if Railway persistent volumes are configured correctly; SQLite is zero-config but has Railway persistence caveats |
-| PostgreSQL (existing RDS) | A separate PostgreSQL on Railway | Adds cost and management overhead; reusing existing RDS is simpler |
-
-### Webhook Payload Format
-
-| Recommended | Alternative | When to Use Alternative |
-|-------------|-------------|------------------------|
-| `WEBHOOK_FORMAT=json` | `WEBHOOK_FORMAT=form` (default) | Never — form format requires URL-decoding a `jsonData` field and re-parsing JSON inside the FastAPI handler; json mode gives direct `request.json()` access |
+| Remove all OTel packages | Upgrade OTel to match ADK range (>=1.36.0,<1.39.0) | Only if you need OTel instrumentation of FastAPI/SQLAlchemy/Redis AND are willing to manage dual-OTel context between ADK and external instrumentation. The context detachment error (adk-python#1670) is a known bug with no fix. Do not use. |
+| `google-adk>=1.26.0,<2.0.0` | Remain on Pydantic AI only, no ADK | Valid choice if ADK features (Runner, multi-step orchestration, Session management) are not needed. Current Pydantic AI agents handle 4 typed operations — if that scope doesn't expand, ADK is unnecessary. |
+| Prettier | Biome | Biome is faster (Rust-based) and handles both lint + format, but has gaps in ESLint plugin ecosystem (e.g., `eslint-plugin-react-compiler` works in ESLint but not Biome). Given existing ESLint 9 investment in both frontends, Prettier alongside ESLint is lower friction. |
+| Next.js 15 upgrade (quiz) | Keep Next.js 14, keep ESLint 8 | Valid if the quiz frontend is not being heavily modified. However, ESLint 8 is EOL. The quiz needs lint fixes regardless, so upgrading Next.js to unlock ESLint 9 flat config is the cleaner path. |
+| `eslint-plugin-jsx-a11y` (admin) | Manual a11y audit | Manual audits catch real issues but don't enforce anything in CI. For healthcare data shown to oncology patients, automated a11y lint is the minimum viable enforcement. |
 
 ---
 
@@ -337,132 +203,109 @@ WUZAPI_WEBHOOK_SECRET=<same-as-hmac-key>    # For validating incoming webhook si
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| Any Python WuzAPI client library from PyPI | None exist (as of 2026-03); WuzAPI has no official Python SDK | Write `WuzAPIClient` directly using aiohttp — it is a simple REST API |
-| SQLite for WuzAPI session storage on Railway | Railway containers are ephemeral without explicit volume mounts; SQLite file is lost on redeploy, requiring QR scan again | PostgreSQL via existing AWS RDS (DB_HOST, DB_USER, DB_PASSWORD, DB_NAME) |
-| `WEBHOOK_FORMAT=form` (WuzAPI default) | Form format wraps event JSON inside a `jsonData` URL-encoded field — extra parsing step with no benefit | Set `WEBHOOK_FORMAT=json` in WuzAPI sidecar environment |
-| Dual-provider (Evolution + WuzAPI simultaneously) | Creates two code paths, double maintenance, confusion about which service is authoritative for message state | Hard-cut: tombstone both Evolution API stacks after WuzAPI is verified working |
-| Keeping `WhatsAppInstance` DB model for WuzAPI | WuzAPI uses user/session model, not instance model; `WhatsAppInstance` table maps to Evolution API concepts | Assess whether instance tracking table needs adaptation or can be retired |
-| `instanceName` in request payloads | WuzAPI selects session via `Authorization` header token, not a named instance in the URL | Pass user token in `Authorization` header; no instance name in payload or path |
+| `opentelemetry-instrumentation-fastapi` alongside ADK | Context detachment errors — ADK's internal OTel spans are created in one `contextvars` context and the external instrumentor detaches them in a different one, causing `Failed to detach context` runtime errors | Remove OTel instrumentation entirely; ADK owns the tracing layer |
+| `opentelemetry-api>=1.28.0` + ADK together | ADK 1.26 requires `>=1.36.0,<1.39.0`; even if pip resolves to 1.36.x, the instrumentation context conflict above still applies | Remove all external OTel packages |
+| Upgrading quiz to React 19 in this milestone | `@testing-library/react` v14 (current in quiz) is for React 18; v16 is for React 19. Upgrading React requires upgrading testing-library, which may break existing tests. Out of scope for a quality review milestone. | Keep quiz on React 18; only admin uses React 19 |
+| `eslint-disable` comments as dead code cleanup | Suppressing lint errors is not removing dead code. Dead code removal means deleting unused components, routes, and API calls. | Delete unreachable code paths, unused imports, and untriggered routes |
+| MSW v1 for new quiz tests | MSW v1 (`rest.get()`) is end-of-life; v2 API is breaking (`http.get()` + `HttpResponse`). New tests written against v1 will need to be rewritten. | Either upgrade to MSW v2 in a dedicated task, or avoid writing new MSW-dependent tests until the upgrade is done |
+| Prettier as an ESLint rule with `--fix` in CI | Running `eslint --fix` with Prettier rules in CI will auto-modify source code and cause CI to fail with diff. | Run `prettier --check` in CI (read-only); run `prettier --write` in pre-commit via lint-staged |
+
+---
+
+## Stack Patterns by Variant
+
+**If google-adk is used for multi-agent orchestration (orchestrating the 4 Pydantic AI agents):**
+- Use `adk.Agent` as the orchestrator shell; keep Pydantic AI agents as the typed leaf-node tools
+- ADK's `Runner` manages conversation state and tool dispatch; Pydantic AI handles the structured AI call within each tool
+- Session persistence goes through ADK's `SessionService` (not a new concept — it wraps a DB backend)
+
+**If google-adk is used only for its utilities (tools, sessions) without replacing Pydantic AI:**
+- Import `google.adk` selectively (e.g., `from google.adk.sessions import InMemorySessionService`)
+- Do NOT replace `PIISafeAgent` — the LGPD PII redaction wrapper is a compliance requirement enforced by CI lint; ADK has no equivalent
+
+**If Next.js upgrade causes quiz build failures:**
+- Next.js 15 has App Router as default; if quiz uses Pages Router, check for deprecated APIs
+- Run `next build` after upgrade; review deprecation warnings before fixing lint
+
+**If ADK's internal OTel generates too much tracing noise:**
+- Set `GOOGLE_GENAI_USE_VERTEXAI=false` and do not configure GCP exporters; ADK's OTel will still trace but export nowhere
+- For future observability, configure the ADK OTLP exporter to point to a Jaeger or similar collector
 
 ---
 
 ## Version Compatibility
 
-| Package | Current Version | WuzAPI Requires | Compatible? |
-|---------|----------------|-----------------|-------------|
-| `aiohttp` | >=3.10.0,<4.0.0 | (Python client; WuzAPI is Go) | YES — aiohttp 3.13.x supports Python 3.13 with pre-built wheels |
-| `backoff` | >=2.2.1,<3.0.0 | N/A | YES |
-| `pydantic` | >=2.12.5,<3.0.0 | N/A | YES — Pydantic models for WuzAPI request/response |
-| Python | 3.13 | N/A (server is Go) | YES |
-| WuzAPI Docker | `asternic/wuzapi:latest` | PostgreSQL 12+ or SQLite | YES — existing RDS is PostgreSQL 14+ |
+| Package A | Compatible With | Notes |
+|-----------|-----------------|-------|
+| `google-adk>=1.26.0` | `pydantic>=2.12.5,<3.0.0` | ADK requires `pydantic>=2.12.0`; existing constraint `>=2.12.5` satisfies this |
+| `google-adk>=1.26.0` | `google-genai>=1.56.0` | ADK requires `google-genai>=1.56.0,<2.0.0`; verify existing `pydantic-ai-slim[google]` does not pin `google-genai` below 1.56.0 |
+| `google-adk>=1.26.0` | `opentelemetry-api>=1.36.0,<1.39.0` | ADK brings this as its own dependency; do not also install external instrumentation packages |
+| `prettier@^3.5` | `eslint@^9.17.0` (admin) | Requires `eslint-config-prettier@^9` to disable conflicting ESLint rules; compatible with flat config |
+| `prettier@^3.5` | `eslint@^8.57.0` (quiz/current) | Works with ESLint 8 + `.eslintrc.json`; but if quiz upgrades to Next.js 15 + ESLint 9, use flat config pattern |
+| `next@^15.3` | `react@^18` | Next.js 15 supports both React 18 and 19; quiz stays on React 18 |
+| `next@^15.3` | `eslint@^9` | Next.js 15 exports `nextPlugin.flatConfig.coreWebVitals` for flat config |
+| `vitest@^3.2.4` | `@testing-library/react@^16` (admin) | React 19 testing; admin app already has correct version |
+| `@testing-library/react@^14` | `react@^18` (quiz) | React 18 testing; keep at v14 for quiz, do not upgrade to v16 |
 
 ---
 
-## Integration Points in Existing Codebase
+## OTel Package Removal Checklist
 
-### Files to Tombstone
+These are the exact lines to remove from `backend-hormonia/requirements.txt`:
 
-| File | Path | Action |
-|------|------|--------|
-| Legacy Evolution client (httpx) | Unknown — referenced in imports elsewhere | Find callers via Grep, tombstone after replacing |
-| Canonical Evolution client (aiohttp) | `app/integrations/whatsapp/services/evolution_client.py` | Tombstone after `WuzAPIClient` verified |
-| Evolution mock | `app/integrations/whatsapp/services/mock_evolution.py` | Tombstone; replace test double with mock of `WuzAPIClient` |
-
-### Files to Create
-
-| File | Path | Notes |
-|------|------|-------|
-| WuzAPI client | `app/integrations/whatsapp/services/wuzapi_client.py` | Direct rewrite of `EvolutionAPIClient` using same aiohttp + backoff patterns |
-| WuzAPI Pydantic models | `app/integrations/whatsapp/models/wuzapi_message.py` | New payload models (`WuzAPIWebhookPayload`, `WuzAPISendTextRequest`, etc.) |
-
-### Files to Modify
-
-| File | Change |
-|------|--------|
-| `app/integrations/whatsapp/api/webhooks.py` | Rewrite event routing: `type: Message` vs `event: MESSAGES_UPSERT`; new sender extraction path |
-| `app/integrations/whatsapp/security/hmac_validator.py` | No code change needed — existing bare-hex SHA-256 path already handles WuzAPI `x-hmac-signature` format |
-| `app/services/unified_whatsapp_service.py` | Replace `EvolutionAPIClient` with `WuzAPIClient`; update constructor and send methods |
-| `app/config.py` / `settings` | Add `WUZAPI_BASE_URL`, `WUZAPI_TOKEN`, `WUZAPI_WEBHOOK_SECRET`; deprecate `EVOLUTION_*` vars |
-| `app/integrations/whatsapp/models/message.py` | Keep `MessageStatus`, `MessageType` enums (still valid); retire `InstanceStatus` or adapt to session model |
-| `.env.example` | Add new vars, mark old ones deprecated |
-
-### HMAC Validation: No Code Change Required
-
-The existing `WebhookHMACValidator.validate_signature()` already handles bare hex (no `sha256=` prefix) by falling back to SHA-256:
-
-```python
-# hmac_validator.py line 28-29 — already correct for WuzAPI:
-if len(signature) == 128:
-    return "sha512", signature
-return "sha256", signature  # WuzAPI sends 64-char hex (SHA-256 bare hex)
+```
+# Lines to DELETE (9 total):
+opentelemetry-api>=1.28.0,<2.0.0
+opentelemetry-sdk>=1.28.0,<2.0.0
+opentelemetry-instrumentation-fastapi>=0.49b0,<1.0.0
+opentelemetry-instrumentation-sqlalchemy>=0.49b0,<1.0.0
+opentelemetry-instrumentation-redis>=0.49b0,<1.0.0
+opentelemetry-instrumentation-httpx>=0.49b0,<1.0.0
+opentelemetry-exporter-otlp>=1.28.0,<2.0.0
+opentelemetry-exporter-otlp-proto-http>=1.28.0,<2.0.0
+opentelemetry-proto>=1.28.0,<2.0.0
 ```
 
-WuzAPI sends a 64-character hex string in `x-hmac-signature`. The validator will correctly interpret this as SHA-256 bare hex. The webhook handler only needs the **header name** updated from whatever Evolution used to `x-hmac-signature`, and the signed content is the raw JSON body (same as with `WEBHOOK_FORMAT=json`).
+Files that import OTel and need updating/tombstoning:
+
+| File | Current Import | Action |
+|------|---------------|--------|
+| `app/core/tracing.py` | `from opentelemetry import trace as otel_trace` (try/except guarded) | Tombstone: `raise ImportError("OTel removed in v1.7 — tracing delegated to Google ADK")` |
+| Any callers of `setup_tracing()` / `get_tracer()` | Via `from app.core.tracing import ...` | Find with Grep, replace with Sentry's `sentry_sdk.start_transaction()` or no-op |
+
+`app/core/monitoring_config.py` does NOT import OTel — it only uses `sentry_sdk`. Safe to keep as-is.
 
 ---
 
-## Phone Number Adapter
+## ADK Integration Points
 
-WuzAPI expects `"5511999887766"` (E.164 digits, country code prefix, no `+`).
+Google ADK introduces new concepts. How they map to the existing codebase:
 
-The existing `normalize_phone()` / `normalize_br_phone()` in `app/schemas/validators/phone.py` already handles this. The WuzAPIClient should use the same utility before sending:
-
-```python
-from app.schemas.validators.phone import normalize_phone, PhoneValidationMode
-
-def _to_wuzapi_phone(raw_phone: str) -> str:
-    """Convert any phone format to WuzAPI E.164 digits."""
-    normalized = normalize_phone(raw_phone, mode=PhoneValidationMode.STRICT)
-    # normalize_phone returns +5511999887766; strip the leading +
-    return normalized.lstrip("+")
-```
-
-No new library needed — `phonenumbers>=8.13.0` is already installed for E.164 formatting.
-
----
-
-## Installation
-
-No new packages. The diff from the existing `requirements.txt` is zero Python additions.
-
-**WuzAPI sidecar (Railway service):**
-```bash
-# Docker image — no pip install; Go binary
-docker pull asternic/wuzapi:latest
-
-# Or pin to a commit SHA for reproducibility:
-docker pull asternic/wuzapi:sha-898ed2e
-```
-
-**Env var changes in Python backend:**
-```bash
-# Add:
-WUZAPI_BASE_URL=http://wuzapi:8080
-WUZAPI_TOKEN=<user-token>
-WUZAPI_WEBHOOK_SECRET=<hmac-key>
-
-# Remove (after Evolution tombstoned):
-# EVOLUTION_API_URL
-# EVOLUTION_API_KEY
-# EVOLUTION_API_INSTANCE
-```
+| ADK Concept | What It Provides | Existing Equivalent | Integration Strategy |
+|-------------|------------------|--------------------|--------------------|
+| `adk.Agent` | Agent definition with model + tools + instruction | `PIISafeAgent` wrapping Pydantic AI agents | ADK Agent can call Pydantic AI tools as `FunctionTool`; keep `PIISafeAgent` as the PII boundary |
+| `adk.Runner` | Orchestrates multi-step agent execution | `_flow_functions.py` async orchestration | Use Runner for new multi-step workflows; keep existing flow functions for existing patient flows |
+| `SessionService` | Tracks conversation state across turns | Dragonfly (Redis) session cache | ADK `InMemorySessionService` for development; custom `RedisSessionService` wrapping `RedisManager` for production |
+| ADK OTel | Built-in distributed tracing | `app/core/tracing.py` (being tombstoned) | ADK traces via its own `TracerProvider`; configure OTLP exporter if needed |
 
 ---
 
 ## Sources
 
-- WuzAPI GitHub README — authentication, Docker, env vars, webhook format: https://github.com/asternic/wuzapi/blob/main/README.md (MEDIUM confidence — fetched from raw GitHub)
-- WuzAPI API.md — all endpoints, request/response schemas, phone format, HMAC details: https://github.com/asternic/wuzapi/blob/main/API.md (HIGH confidence — official API reference)
-- WuzAPI Docker Hub — image available at `asternic/wuzapi`: https://hub.docker.com/r/asternic/wuzapi (MEDIUM confidence — page content inaccessible, verified via SHA layer URLs)
-- whatsmeow library — underlying Go library for direct WhatsApp WebSocket: https://github.com/tulir/whatsmeow (HIGH confidence)
-- aiohttp PyPI — 3.13.x supports Python 3.13: https://pypi.org/project/aiohttp/ (HIGH confidence)
-- httpx PyPI — 0.28.1 current stable, 1.0.dev3 in progress: https://pypi.org/project/httpx/ (HIGH confidence)
-- httpx vs aiohttp benchmarks — aiohttp 2x+ faster for high-concurrency async: https://miguel-mendez-ai.com/2024/10/20/aiohttp-vs-httpx (MEDIUM confidence — benchmark sources vary)
-- Existing `hmac_validator.py` — bare hex SHA-256 path already handles WuzAPI format: codebase analysis (HIGH confidence)
-- Existing `requirements.txt` — current versions of all packages: codebase analysis (HIGH confidence)
+- `google/adk-python` `pyproject.toml` (main branch, fetched 2026-03-03) — exact OTel version constraints `>=1.36.0,<1.39.0`: https://github.com/google/adk-python/blob/main/pyproject.toml (HIGH confidence)
+- `google-adk` PyPI page — v1.26.0, Python >=3.10: https://pypi.org/project/google-adk/ (HIGH confidence)
+- `google/adk-python` issue #1670 — "Failed to detach context" OTel conflict: https://github.com/google/adk-python/issues/1670 (HIGH confidence — confirmed runtime behavior)
+- `google/adk-python` issue #2792 — No public API to disable ADK's internal OTel: https://github.com/google/adk-python/issues/2792 (HIGH confidence — confirmed design constraint)
+- `frontend-hormonia/package.json` — ESLint 9, vitest 3.2.4, husky 9.1.7, no Prettier: codebase analysis (HIGH confidence)
+- `quiz-mensal-interface/package.json` — Next.js 14, ESLint 8 legacy config, msw v1, missing identity-obj-proxy: codebase analysis (HIGH confidence)
+- `frontend-hormonia/eslint.config.js` — flat config already configured, no a11y rules: codebase analysis (HIGH confidence)
+- `frontend-hormonia/vite.config.ts` — vitest inline config, build targets, dev proxy: codebase analysis (HIGH confidence)
+- Next.js ESLint 9 support — available in Next.js 15 RC 2+: https://github.com/vercel/next.js/discussions/54238 (MEDIUM confidence — from GitHub discussion thread)
+- Prettier 3.x + ESLint 9 flat config setup guide (Oct 2025): https://leandroaps.medium.com/setting-up-eslint-and-prettier-in-a-react-19-project-with-vite-using-eslint-9-326147501971 (MEDIUM confidence — community source, pattern well-established)
+- ADK Sessions documentation: https://google.github.io/adk-docs/sessions/session/ (MEDIUM confidence — official docs fetched indirectly)
 
 ---
 
-*Stack research for: Healthcare WhatsApp backend — WuzAPI provider migration*
-*Researched: 2026-03-01*
-*Confidence: HIGH for API shape and integration points, MEDIUM for Docker resource numbers (Go/whatsmeow is lightweight by design but no official spec found)*
+*Stack research for: Frontend quality overhaul + Google ADK integration (v1.7 milestone)*
+*Researched: 2026-03-03*
+*Confidence: HIGH for OTel/ADK conflict and exact packages to remove; HIGH for frontend tooling gaps; MEDIUM for ADK integration scope (real install test needed to confirm google-genai version transitive resolution)*
