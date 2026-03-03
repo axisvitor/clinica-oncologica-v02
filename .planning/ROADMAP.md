@@ -227,7 +227,7 @@ Plans:
 | 36. Outbound Migration | v1.6 | 3/3 | Complete | 2026-03-02 |
 | 37. Evolution Cleanup | v1.6 | 4/4 | Complete | 2026-03-02 |
 | 38. Tests and CI Validation | v1.6 | 5/5 | Complete | 2026-03-03 |
-| 39. WuzAPI Integration Polish | v1.6 | 1/1 | Complete | 2026-03-03 |
+| 39. WuzAPI Integration Polish | v1.6 | Complete    | 2026-03-03 | 2026-03-03 |
 
 ---
 *Roadmap created: 2026-02-22*
