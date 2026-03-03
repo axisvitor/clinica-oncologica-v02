@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
+from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.models.message import MessageStatus
+from app.services.unified_whatsapp_service import UnifiedWhatsAppService
 from app.services.webhook.handlers.message_handler import handle_opt_out
 
 
@@ -24,6 +27,50 @@ async def test_handle_opt_out_sets_messaging_stopped_at():
 
     assert patient.messaging_stopped_at is not None
     db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_send_guard_blocks_opted_out_patient_via_service():
+    db = AsyncMock()
+    db.execute = AsyncMock()
+
+    service = UnifiedWhatsAppService(db, redis_url="redis://fake:6379/0")
+
+    message = MagicMock()
+    message.id = uuid4()
+    message.patient_id = uuid4()
+    message.status = MessageStatus.PENDING
+
+    opted_out_patient = MagicMock()
+    opted_out_patient.messaging_stopped_at = datetime(2026, 3, 3, 12, 0, 0, tzinfo=timezone.utc)
+
+    with patch.object(service, "_ensure_patient_loaded", return_value=opted_out_patient):
+        result = await service.send_message(message)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_send_guard_allows_active_patient_via_service():
+    db = AsyncMock()
+    db.execute = AsyncMock()
+
+    service = UnifiedWhatsAppService(db, redis_url="redis://fake:6379/0")
+
+    message = MagicMock()
+    message.id = uuid4()
+    message.patient_id = uuid4()
+    message.status = MessageStatus.PENDING
+
+    active_patient = MagicMock()
+    active_patient.messaging_stopped_at = None
+
+    with patch.object(service, "_ensure_patient_loaded", return_value=active_patient), patch.object(
+        service, "_send_via_queue", AsyncMock(return_value=True)
+    ), patch.object(service, "_send_via_direct_api", AsyncMock(return_value=True)):
+        result = await service.send_message(message)
+
+    assert result is True
 
 
 def test_send_guard_blocks_opted_out_patient():
