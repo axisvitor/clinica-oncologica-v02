@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Frontend Quality & ADK Integration
-status: in_progress
-stopped_at: Completed 40-01-PLAN.md
-last_updated: "2026-03-03T19:58:30.425Z"
-last_activity: 2026-03-03 — Roadmap created; Phase 40 is next
+status: executing
+stopped_at: Completed 40-02-PLAN.md
+last_updated: "2026-03-03T20:22:33.431Z"
+last_activity: 2026-03-03 — Completed 40-01 (ADK compatibility gate + OTel cleanup)
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 33
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Phase 40 — OTel Removal & ADK Foundation (plan 01 complete)
+**Current focus:** Phase 40 — OTel Removal & ADK Foundation (plans 01-02 complete)
 
 ## Current Position
 
 Phase: 40 of 43 (OTel Removal & ADK Foundation)
-Plan: 02 of 03
+Plan: 03 of 03
 Status: In progress
-Last activity: 2026-03-03 — Completed 40-01 (ADK compatibility gate + OTel cleanup)
+Last activity: 2026-03-03 — Completed 40-02 (PIISafe ADK wrapper boundary + tests)
 
-Progress: [███░░░░░░░] 33%
+Progress: [███████░░░] 67%
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Progress: [███░░░░░░░] 33%
 | v1.6 WuzAPI Migration | 7 | 21 | 3 days (2026-03-01 → 2026-03-03) |
 | **Cumulative (shipped)** | **39 phases** | **159 plans** | **11 days** |
 | Phase 40 P01 | 12 min | 2 tasks | 10 files |
+| Phase 40 P02 | 9 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -59,6 +60,8 @@ Progress: [███░░░░░░░] 33%
 - [Phase 40]: Used python:3.13-slim container for ADK compatibility gate because host python3.13 was unavailable.
 - [Phase 40]: Kept protobuf pin and updated rationale for retained Google/ADK dependency compatibility.
 - [Phase 40]: Added CeleryIntegration explicitly in setup_sentry() to preserve FastAPI->Celery trace correlation post-OTel cleanup.
+- [Phase 40]: Mirror PIISafeAgent safety contract in PIISafeADKWrapper.safe_run before ADK wiring
+- [Phase 40]: Keep AIDeps typing via TYPE_CHECKING to avoid runtime import side effects during package import
 
 ### Pending Todos
 
@@ -72,6 +75,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-03T19:58:30.411Z
-**Stopped At:** Completed 40-01-PLAN.md
+**Last session:** 2026-03-03T20:21:42.049Z
+**Stopped At:** Completed 40-02-PLAN.md
 **Resume File:** None
