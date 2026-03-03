@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Frontend Quality & ADK Integration
 status: executing
-stopped_at: Completed 40-02-PLAN.md
-last_updated: "2026-03-03T20:22:33.431Z"
-last_activity: 2026-03-03 — Completed 40-01 (ADK compatibility gate + OTel cleanup)
+stopped_at: Completed 40-03-PLAN.md
+last_updated: "2026-03-03T20:42:05.481Z"
+last_activity: 2026-03-03 — Completed 40-03 (ADK direct-run CI guard regression coverage)
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 33
+  completed_plans: 3
+  percent: 67
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Phase 40 — OTel Removal & ADK Foundation (plans 01-02 complete)
+**Current focus:** Phase 41 — ADK Agent Integration (Phase 40 complete)
 
 ## Current Position
 
 Phase: 40 of 43 (OTel Removal & ADK Foundation)
 Plan: 03 of 03
-Status: In progress
-Last activity: 2026-03-03 — Completed 40-02 (PIISafe ADK wrapper boundary + tests)
+Status: Complete
+Last activity: 2026-03-03 — Completed 40-03 (ADK direct-run CI guard regression coverage)
 
-Progress: [███████░░░] 67%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Progress: [███████░░░] 67%
 | **Cumulative (shipped)** | **39 phases** | **159 plans** | **11 days** |
 | Phase 40 P01 | 12 min | 2 tasks | 10 files |
 | Phase 40 P02 | 9 min | 2 tasks | 3 files |
+| Phase 40 P03 | 5 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -62,6 +63,8 @@ Progress: [███████░░░] 67%
 - [Phase 40]: Added CeleryIntegration explicitly in setup_sentry() to preserve FastAPI->Celery trace correlation post-OTel cleanup.
 - [Phase 40]: Mirror PIISafeAgent safety contract in PIISafeADKWrapper.safe_run before ADK wiring
 - [Phase 40]: Keep AIDeps typing via TYPE_CHECKING to avoid runtime import side effects during package import
+- [Phase 40]: Keep one CI guard script for pydantic-ai and ADK direct-run policy
+- [Phase 40]: Add optional scan-root argument so guard regression tests can target tmp fixtures
 
 ### Pending Todos
 
@@ -75,6 +78,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-03T20:21:42.049Z
-**Stopped At:** Completed 40-02-PLAN.md
+**Last session:** 2026-03-03T20:42:05.467Z
+**Stopped At:** Completed 40-03-PLAN.md
 **Resume File:** None

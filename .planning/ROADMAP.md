@@ -97,7 +97,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 **Milestone Goal:** Corrigir qualidade dos dois frontends (admin SPA + quiz mensal) e integrar Google ADK no backend desbloqueado pela remocao do OpenTelemetry.
 
-- [ ] **Phase 40: OTel Removal & ADK Foundation** - Remove OTel instrumentation, install ADK, scaffold PIISafeADKWrapper with CI guard
+- [x] **Phase 40: OTel Removal & ADK Foundation** - Remove OTel instrumentation, install ADK, scaffold PIISafeADKWrapper with CI guard (completed 2026-03-03)
 - [ ] **Phase 41: ADK Agent Integration** - Wire Pydantic AI agents as ADK FunctionTools, configure ADK Runner endpoint, remove HiveMind LangGraph dead code
 - [ ] **Phase 42: Admin SPA Quality** - Remove Evolution dead code, consolidate API client, migrate polling to TanStack Query, enforce lint/formatting
 - [ ] **Phase 43: Quiz Interface Quality** - Add Prettier, upgrade Next.js 15, align ESLint 9, fix missing deps, improve type coverage
@@ -118,7 +118,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 Plans:
 - [ ] 40-01-PLAN.md — Validate ADK dependency compatibility, remove OTel instrumentation, and tombstone tracing with Sentry CeleryIntegration
 - [ ] 40-02-PLAN.md — Scaffold PIISafeADKWrapper package and verify synthetic PHI sanitization behavior
-- [ ] 40-03-PLAN.md — Extend CI guard to block direct ADK run calls with regression fixture coverage
+- [x] 40-03-PLAN.md — Extend CI guard to block direct ADK run calls with regression fixture coverage (completed 2026-03-03)
 
 ### Phase 41: ADK Agent Integration
 **Goal**: At least one Pydantic AI agent is callable as an ADK FunctionTool via a live FastAPI endpoint, the ADK Runner is operational, and all LangGraph dead code in hive_mind_integration.py is removed — no live production crash risk from LangGraph tombstones
@@ -166,7 +166,7 @@ Plans:
 | 20-28. AsyncSession & Test Stability | v1.4 | 54/54 | Complete | 2026-02-28 |
 | 29-32. Saga Orchestrator Deep Dive | v1.5 | 14/14 | Complete | 2026-03-01 |
 | 33-39. WuzAPI Migration | v1.6 | 21/21 | Complete | 2026-03-03 |
-| 40. OTel Removal & ADK Foundation | 2/3 | In Progress|  | - |
+| 40. OTel Removal & ADK Foundation | 3/3 | Complete   | 2026-03-03 | - |
 | 41. ADK Agent Integration | v1.7 | 0/TBD | Not started | - |
 | 42. Admin SPA Quality | v1.7 | 0/TBD | Not started | - |
 | 43. Quiz Interface Quality | v1.7 | 0/TBD | Not started | - |

@@ -11,7 +11,7 @@
 - [x] **ADK-02**: `app/core/tracing.py` tombstoned com ImportError (fallback mock ja existe)
 - [x] **ADK-03**: google-adk instalado e resolvido com pydantic-ai-slim[google] no Python 3.13
 - [x] **ADK-04**: PIISafeADKWrapper criado em `app/ai/adk/` com sanitizacao PII antes de qualquer chamada Gemini via ADK
-- [ ] **ADK-05**: CI guard (`check_agent_run_calls.py`) estendido para cobrir patterns de chamada ADK
+- [x] **ADK-05**: CI guard (`check_agent_run_calls.py`) estendido para cobrir patterns de chamada ADK
 - [ ] **ADK-06**: 4 agentes Pydantic AI existentes (sentiment, humanize, variation, empathy) wrapped como ADK FunctionTools
 - [ ] **ADK-07**: ADK Runner configurado com pelo menos um endpoint FastAPI funcional
 - [ ] **ADK-08**: HiveMind LangGraph dead code removido (`IntegrationMode.LANGGRAPH_ONLY`, `_process_with_langgraph()`)
@@ -68,7 +68,7 @@
 | ADK-02 | Phase 40 | Complete |
 | ADK-03 | Phase 40 | Complete |
 | ADK-04 | Phase 40 | Complete |
-| ADK-05 | Phase 40 | Pending |
+| ADK-05 | Phase 40 | Complete |
 | ADK-06 | Phase 41 | Pending |
 | ADK-07 | Phase 41 | Pending |
 | ADK-08 | Phase 41 | Pending |
