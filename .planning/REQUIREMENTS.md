@@ -64,35 +64,35 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ADK-01 | — | Pending |
-| ADK-02 | — | Pending |
-| ADK-03 | — | Pending |
-| ADK-04 | — | Pending |
-| ADK-05 | — | Pending |
-| ADK-06 | — | Pending |
-| ADK-07 | — | Pending |
-| ADK-08 | — | Pending |
-| ADMIN-01 | — | Pending |
-| ADMIN-02 | — | Pending |
-| ADMIN-03 | — | Pending |
-| ADMIN-04 | — | Pending |
-| ADMIN-05 | — | Pending |
-| ADMIN-06 | — | Pending |
-| ADMIN-07 | — | Pending |
-| ADMIN-08 | — | Pending |
-| QUIZ-01 | — | Pending |
-| QUIZ-02 | — | Pending |
-| QUIZ-03 | — | Pending |
-| QUIZ-04 | — | Pending |
-| QUIZ-05 | — | Pending |
-| QUIZ-06 | — | Pending |
-| QUIZ-07 | — | Pending |
+| ADK-01 | Phase 40 | Pending |
+| ADK-02 | Phase 40 | Pending |
+| ADK-03 | Phase 40 | Pending |
+| ADK-04 | Phase 40 | Pending |
+| ADK-05 | Phase 40 | Pending |
+| ADK-06 | Phase 41 | Pending |
+| ADK-07 | Phase 41 | Pending |
+| ADK-08 | Phase 41 | Pending |
+| ADMIN-01 | Phase 42 | Pending |
+| ADMIN-02 | Phase 42 | Pending |
+| ADMIN-03 | Phase 42 | Pending |
+| ADMIN-04 | Phase 42 | Pending |
+| ADMIN-05 | Phase 42 | Pending |
+| ADMIN-06 | Phase 42 | Pending |
+| ADMIN-07 | Phase 42 | Pending |
+| ADMIN-08 | Phase 42 | Pending |
+| QUIZ-01 | Phase 43 | Pending |
+| QUIZ-02 | Phase 43 | Pending |
+| QUIZ-03 | Phase 43 | Pending |
+| QUIZ-04 | Phase 43 | Pending |
+| QUIZ-05 | Phase 43 | Pending |
+| QUIZ-06 | Phase 43 | Pending |
+| QUIZ-07 | Phase 43 | Pending |
 
 **Coverage:**
 - v1.7 requirements: 23 total
-- Mapped to phases: 0
-- Unmapped: 23 (pending roadmap creation)
+- Mapped to phases: 23
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-03*
-*Last updated: 2026-03-03 after initial definition*
+*Last updated: 2026-03-03 — traceability mapped to Phases 40-43*

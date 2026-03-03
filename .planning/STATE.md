@@ -4,10 +4,10 @@ milestone: v1.7
 milestone_name: Frontend Quality & ADK Integration
 status: active
 stopped_at: null
-last_updated: "2026-03-03T20:00:00.000Z"
-last_activity: 2026-03-03 — Milestone v1.7 started
+last_updated: "2026-03-03T21:00:00.000Z"
+last_activity: 2026-03-03 — Roadmap created (Phases 40-43)
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Frontend quality review (admin + quiz) and Google ADK integration.
+**Current focus:** Phase 40 — OTel Removal & ADK Foundation (ready to plan)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-03 — Milestone v1.7 started
+Phase: 40 of 43 (OTel Removal & ADK Foundation)
+Plan: — (not started)
+Status: Ready to plan
+Last activity: 2026-03-03 — Roadmap created; Phase 40 is next
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -44,79 +44,17 @@ Progress: [░░░░░░░░░░] 0%
 | v1.5 Saga Orchestrator Deep Dive | 4 | 14 | 2 days (2026-02-28 → 2026-03-01) |
 | v1.6 WuzAPI Migration | 7 | 21 | 3 days (2026-03-01 → 2026-03-03) |
 | **Cumulative (shipped)** | **39 phases** | **159 plans** | **11 days** |
-| Phase 33 P01 | 12min | 2 tasks | 6 files |
-| Phase 33-new-provider-foundation P02 | 9 min | 2 tasks | 6 files |
-| Phase 33 P03 | 10m | 2 tasks | 5 files |
-| Phase 34-webhook-handler P01 | 8 min | 2 tasks | 3 files |
-| Phase 34 P02 | 8 min | 2 tasks | 3 files |
-| Phase 34 P03 | 26 min | 2 tasks | 5 files |
-| Phase 35 P01 | 5 min | 2 tasks | 3 files |
-| Phase 35 P02 | 5 min | 2 tasks | 7 files |
-| Phase 36 P02 | 6 min | 2 tasks | 2 files |
-| Phase 36 P03 | 6 min | 2 tasks | 3 files |
-| Phase 37 P01 | 14 min | 2 tasks | 15 files |
-| Phase 37 P02 | 15 min | 2 tasks | 21 files |
-| Phase 37 P03 | 10min | 2 tasks | 4 files |
-| Phase 37-evolution-cleanup P04 | 10 min | 2 tasks | 5 files |
-| Phase 38 P01 | 9 min | 2 tasks | 1 files |
-| Phase 38 P02 | 11 min | 2 tasks | 4 files |
-| Phase 38 P03 | 9 min | 2 tasks | 5 files |
-| Phase 38-tests-ci-validation P04 | 12 min | 2 tasks | 1 files |
-| Phase 38-tests-ci-validation P05 | 6 | 2 tasks | 1 files |
-| Phase 39-wuzapi-integration-polish P01 | 4min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
 ### Decisions
 
-- [v1.6]: WuzAPIClient uses aiohttp (not httpx) for consistency with existing EvolutionAPIClient pattern and 2x perf advantage at high concurrency
-- [v1.6]: Hard cut — no dual-provider mode, no feature toggles; Evolution tombstoned in single commit after Phase 36 passes
-- [v1.6]: Phase 37 tombstone must come AFTER Phase 36 (IdempotentMessageSender updated) to avoid Celery worker ImportError on startup
-- [v1.6]: LID (@lid) senders routed to DLQ from day one — never silently dropped (LGPD Art. 18 risk)
-- [v1.6]: HMAC: read raw body bytes first, then json.loads separately — consuming request.json() first makes HMAC validation impossible
-- [Phase 33]: Use Authorization header with raw token value (no Bearer prefix) in WuzAPI client defaults.
-- [Phase 33]: Retry policy gives up on 4xx except 429 while retrying 5xx/429 up to three attempts.
-- [Phase 33-new-provider-foundation]: Centralized media endpoint/field maps in models.py and consumed by client.send_media.
-- [Phase 33-new-provider-foundation]: Enforced 16 MB limit during stream accumulation instead of post-download size checks.
-- [Phase 33]: WuzAPIClient now wraps request execution with RedisCircuitBreaker(name="wuzapi") using 5/60/3 thresholds.
-- [Phase 33]: WuzAPI package now exposes get_wuzapi_client() with WHATSAPP_WUZAPI_USE_MOCK=true switching to MockWuzAPIClient.
-- [Phase 34-webhook-handler]: Reuse WebhookHMACValidator for WuzAPI webhook signature checks.
-- [Phase 34-webhook-handler]: Process webhook raw bytes before JSON parsing to preserve HMAC integrity.
-- [Phase 34-webhook-handler]: Use deterministic body-hash fallback event IDs when Info.ID is missing.
-- [Phase 34]: Add MessageStatus.PLAYED to represent whatsmeow played receipts explicitly.
-- [Phase 34]: WuzAPI extractor accepts wrapped and flat payloads with explicit empty-string delivered mapping.
-- [Phase 34]: WuzAPI webhook now uses AtomicWebhookIdempotency fail-open checks and returns HTTP 200 duplicate payloads for repeated event IDs.
-- [Phase 34]: Opt-out keywords STOP/PARAR/CANCELAR are processed through PhoneNormalizer phone-hash lookup and async handle_opt_out path.
-- [Phase 34]: LID sender events are routed to DLQ and WuzAPI webhook is registered at /api/v2/webhooks/wuzapi via external router prefix.
-- [Phase 35]: Keep WHATSAPP_EVOLUTION_* fields in settings until Phase 37 cleanup to avoid breaking imports.
-- [Phase 35]: Validate WHATSAPP_WUZAPI_TOKEN via IntegrationsSettings model_validator with test-environment exemptions.
-- [Phase 35]: Monitoring session endpoints should fail-open with structured error payloads (`connected/logged_in` or `qr` plus `error`) instead of raising API errors.
-- [Phase 35]: Lifespan startup keeps `_initialize_evolution_api` and adds `_initialize_wuzapi_session` in parallel, with status-first idempotent connect and warning-only failures.
-- [Phase 36]: UnifiedWhatsAppService now uses `get_wuzapi_client()`/`WuzAPIClient` for direct and queue-backed outbound flows with circuit breaker key `wuzapi`.
-- [Phase 36]: Direct send path writes `whatsapp_id` from `response.data.Id` and encodes media via `fetch_and_encode_media` before `send_media`.
-- [Phase 36]: WhatsApp queue and idempotent senders now call WuzAPI directly while preserving existing queue/idempotency flows
-- [Phase 36]: sync_contacts now raises NotImplementedError because WuzAPI has no contacts API; removal deferred to Phase 37
-- [Phase 36]: Keep Evolution DI only for instance-management endpoints in routes.py; migrate outbound message DI path to WuzAPI now.
-- [Phase 36]: Remove explicit EvolutionClient construction from IdempotentMessageSender callers and rely on lazy WuzAPI initialization.
-- [Phase 37]: Use full tombstone replacement for all 8 app.integrations.evolution modules with identical package-level ImportError message.
-- [Phase 37]: Keep verification-time environment overrides scoped to commands instead of editing env files.
-- [Phase 37]: Removed all remaining Stack B LID/Evolution paths and standardized webhook secret references on WHATSAPP_WUZAPI_WEBHOOK_SECRET.
-- [Phase 37]: Monitoring/validation defaults now use WuzAPI token and instance identifiers, eliminating Evolution settings dependencies.
-- [Phase 37]: Use validate_and_format_phone(request.to, strict=False) with 3-tuple unpacking in message_service send path.
-- [Phase 37]: Remove WHATSAPP_EVOLUTION instance fallback and rely on resolved/default instance handling in UnifiedWhatsAppService.
-- [Phase 37-evolution-cleanup]: Keep unauthorized response path as log-only no-op after Evolution removal to avoid reintroducing non-clinical outbound behavior.
-- [Phase 37-evolution-cleanup]: Use WuzAPIError.status checks as drop-in queue failure categorization for RATE_LIMIT and API_ERROR.
-- [Phase 38]: Reuse existing webhook integration harness and add only targeted gap tests for unknown event + missing HMAC header.
-- [Phase 38]: Treat Task 2 as verification-only regression gate with no code delta when all tests pass.
-- [Phase 38]: Scan app/ only in check_evolution_imports.py to match existing CI guard scope and avoid test-only false positives
-- [Phase 38]: Keep tombstoned unit test modules collectable as skipped by retaining a placeholder test under module-level pytest skip
-- [Phase 38]: Keep inline synthetic helper tests and add fixture-backed JSON tests in parallel for TEST-02 realism coverage.
-- [Phase 38]: Reuse shared WuzAPI fixture payload files across webhook and extractor tests to enforce schema consistency.
-- [Phase 38-tests-ci-validation]: Use UnifiedWhatsAppService.send_message runtime invocation to verify opt-out guard behavior for TEST-04
-- [Phase 38-tests-ci-validation]: Patch patient loading/send path in tests to isolate guard outcomes without external transport side effects
-- [Phase 38-tests-ci-validation]: Patch ConsentService at source module (app.services.lgpd.consent_service.ConsentService) for lazy-imported function-local symbols in handle_opt_out
-- [Phase 39-wuzapi-integration-polish]: Use settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET for webhook HMAC secret reads
-- [Phase 39-wuzapi-integration-polish]: Return HTTP 501 for sync_contacts to keep route compatibility while signaling unsupported provider capability
+- [v1.7 roadmap]: Phase 40 and Phase 42 can run in parallel (no shared code between backend ADK and frontend admin); sequential ordering chosen to keep plans focused
+- [v1.7 roadmap]: ADK split into two phases (40: foundation/safety, 41: wiring) to enforce PIISafeADKWrapper + CI guard gate before any patient data reaches ADK
+- [v1.7 roadmap]: Phase 43 depends on Phase 42 (tooling decisions — ESLint major, Prettier config pattern — made once in admin SPA then mirrored to quiz)
+- [v1.7 research]: OTel removal target is instrumentation packages only (not opentelemetry-api/sdk core); ADK re-introduces OTel core as transitive dep at its own version range
+- [v1.7 research]: HiveMind LangGraph dead code (LANGGRAPH_ONLY enum value + _process_with_langgraph method) is a live production crash risk — must be removed in Phase 41
+- [v1.6]: WuzAPIClient uses aiohttp; hard cut with no dual-provider mode; Evolution tombstoned after Phase 36
 
 ### Pending Todos
 
@@ -124,11 +62,12 @@ None.
 
 ### Blockers/Concerns
 
-- Live-provider WuzAPI operational checks are still pending (real send/media, webhook HMAC delivery, QR pairing, LID DLQ observability).
-- Next milestone requirements are intentionally empty until `/gsd-new-milestone` is executed.
+- Phase 40: ADK pip resolution with pydantic-ai-slim[google] in Python 3.13 is MEDIUM confidence — first task of Phase 40 must run dry-run install and document resolved versions before touching requirements.txt
+- Phase 40: PIISafeADKWrapper hook point (ADK before_model_callback vs call-site) needs spike in ADK v1.26.0 source before implementation
+- Phase 42: hive-mind.ts frontend module disposition (keep vs remove) depends on whether /api/v2/hive-mind/* routes exist in current backend router — verify in Phase 42 plan
 
 ## Session Continuity
 
-**Last session:** 2026-03-03T18:05:00.000Z
-**Stopped At:** Milestone v1.6 archived; awaiting /gsd-new-milestone
+**Last session:** 2026-03-03T21:00:00.000Z
+**Stopped At:** Roadmap v1.7 created; Phases 40-43 defined; ready for /gsd:plan-phase 40
 **Resume File:** None
