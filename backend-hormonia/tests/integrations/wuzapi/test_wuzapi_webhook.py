@@ -100,6 +100,34 @@ async def test_invalid_hmac_returns_403(app: FastAPI, secret: str):
 
 
 @pytest.mark.asyncio
+async def test_unknown_event_type_returns_ignored(app: FastAPI, fake_redis):
+    payload = {"type": "PresenceUpdate", "event": {"Info": {"ID": "UNK-1"}}}
+
+    with patch("app.integrations.wuzapi.webhook.get_async_redis_client", new=AsyncMock(return_value=fake_redis)):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            response = await post_payload(client, payload)
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ignored"
+    assert response.json()["type"] == "PresenceUpdate"
+
+
+@pytest.mark.asyncio
+async def test_missing_hmac_header_returns_403(app: FastAPI, secret: str):
+    body = json.dumps({"type": "Message", "event": {"Info": {"ID": "HMAC-MISS-1"}}}).encode()
+
+    with patch("app.integrations.wuzapi.webhook.os.environ.get", return_value=secret):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/webhooks/wuzapi",
+                content=body,
+                headers={"content-type": "application/json"},
+            )
+
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_duplicate_event_returns_200_duplicate(app: FastAPI, fake_redis):
     payload = message_payload(event_id="DUP-1", text="hello")
     with patch("app.integrations.wuzapi.webhook.get_async_redis_client", new=AsyncMock(return_value=fake_redis)):
