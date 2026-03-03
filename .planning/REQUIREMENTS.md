@@ -7,9 +7,9 @@
 
 ### ADK Integration
 
-- [ ] **ADK-01**: OTel instrumentation packages removidos de requirements.txt sem quebrar Sentry
-- [ ] **ADK-02**: `app/core/tracing.py` tombstoned com ImportError (fallback mock ja existe)
-- [ ] **ADK-03**: google-adk instalado e resolvido com pydantic-ai-slim[google] no Python 3.13
+- [x] **ADK-01**: OTel instrumentation packages removidos de requirements.txt sem quebrar Sentry
+- [x] **ADK-02**: `app/core/tracing.py` tombstoned com ImportError (fallback mock ja existe)
+- [x] **ADK-03**: google-adk instalado e resolvido com pydantic-ai-slim[google] no Python 3.13
 - [ ] **ADK-04**: PIISafeADKWrapper criado em `app/ai/adk/` com sanitizacao PII antes de qualquer chamada Gemini via ADK
 - [ ] **ADK-05**: CI guard (`check_agent_run_calls.py`) estendido para cobrir patterns de chamada ADK
 - [ ] **ADK-06**: 4 agentes Pydantic AI existentes (sentiment, humanize, variation, empathy) wrapped como ADK FunctionTools
@@ -64,9 +64,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ADK-01 | Phase 40 | Pending |
-| ADK-02 | Phase 40 | Pending |
-| ADK-03 | Phase 40 | Pending |
+| ADK-01 | Phase 40 | Complete |
+| ADK-02 | Phase 40 | Complete |
+| ADK-03 | Phase 40 | Complete |
 | ADK-04 | Phase 40 | Pending |
 | ADK-05 | Phase 40 | Pending |
 | ADK-06 | Phase 41 | Pending |

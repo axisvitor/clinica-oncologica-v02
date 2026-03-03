@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Frontend Quality & ADK Integration
-status: planning
-stopped_at: Phase 40 context gathered
-last_updated: "2026-03-03T18:24:45.259Z"
+status: in_progress
+stopped_at: Completed 40-01-PLAN.md
+last_updated: "2026-03-03T19:58:30.425Z"
 last_activity: 2026-03-03 — Roadmap created; Phase 40 is next
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 3
+  completed_plans: 1
+  percent: 33
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Phase 40 — OTel Removal & ADK Foundation (ready to plan)
+**Current focus:** Phase 40 — OTel Removal & ADK Foundation (plan 01 complete)
 
 ## Current Position
 
 Phase: 40 of 43 (OTel Removal & ADK Foundation)
-Plan: — (not started)
-Status: Ready to plan
-Last activity: 2026-03-03 — Roadmap created; Phase 40 is next
+Plan: 02 of 03
+Status: In progress
+Last activity: 2026-03-03 — Completed 40-01 (ADK compatibility gate + OTel cleanup)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Progress: [░░░░░░░░░░] 0%
 | v1.5 Saga Orchestrator Deep Dive | 4 | 14 | 2 days (2026-02-28 → 2026-03-01) |
 | v1.6 WuzAPI Migration | 7 | 21 | 3 days (2026-03-01 → 2026-03-03) |
 | **Cumulative (shipped)** | **39 phases** | **159 plans** | **11 days** |
+| Phase 40 P01 | 12 min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -55,6 +56,9 @@ Progress: [░░░░░░░░░░] 0%
 - [v1.7 research]: OTel removal target is instrumentation packages only (not opentelemetry-api/sdk core); ADK re-introduces OTel core as transitive dep at its own version range
 - [v1.7 research]: HiveMind LangGraph dead code (LANGGRAPH_ONLY enum value + _process_with_langgraph method) is a live production crash risk — must be removed in Phase 41
 - [v1.6]: WuzAPIClient uses aiohttp; hard cut with no dual-provider mode; Evolution tombstoned after Phase 36
+- [Phase 40]: Used python:3.13-slim container for ADK compatibility gate because host python3.13 was unavailable.
+- [Phase 40]: Kept protobuf pin and updated rationale for retained Google/ADK dependency compatibility.
+- [Phase 40]: Added CeleryIntegration explicitly in setup_sentry() to preserve FastAPI->Celery trace correlation post-OTel cleanup.
 
 ### Pending Todos
 
@@ -68,6 +72,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-03T18:24:45.247Z
-**Stopped At:** Phase 40 context gathered
-**Resume File:** .planning/phases/40-otel-removal-adk-foundation/40-CONTEXT.md
+**Last session:** 2026-03-03T19:58:30.411Z
+**Stopped At:** Completed 40-01-PLAN.md
+**Resume File:** None

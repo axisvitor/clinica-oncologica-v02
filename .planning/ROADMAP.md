@@ -114,7 +114,11 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
   3. `app/core/tracing.py` is tombstoned — importing it raises ImportError and callers fall back to no-op mock without any code change
   4. `app/ai/adk/wrapper.py` exists with PIISafeADKWrapper that redacts PII before every ADK Gemini call, tested with synthetic PHI input
   5. CI lint (`check_agent_run_calls.py`) blocks direct `.run()` calls inside ADK tool functions and the test suite confirms this with a failing fixture
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 40-01-PLAN.md — Validate ADK dependency compatibility, remove OTel instrumentation, and tombstone tracing with Sentry CeleryIntegration
+- [ ] 40-02-PLAN.md — Scaffold PIISafeADKWrapper package and verify synthetic PHI sanitization behavior
+- [ ] 40-03-PLAN.md — Extend CI guard to block direct ADK run calls with regression fixture coverage
 
 ### Phase 41: ADK Agent Integration
 **Goal**: At least one Pydantic AI agent is callable as an ADK FunctionTool via a live FastAPI endpoint, the ADK Runner is operational, and all LangGraph dead code in hive_mind_integration.py is removed — no live production crash risk from LangGraph tombstones
@@ -162,7 +166,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 | 20-28. AsyncSession & Test Stability | v1.4 | 54/54 | Complete | 2026-02-28 |
 | 29-32. Saga Orchestrator Deep Dive | v1.5 | 14/14 | Complete | 2026-03-01 |
 | 33-39. WuzAPI Migration | v1.6 | 21/21 | Complete | 2026-03-03 |
-| 40. OTel Removal & ADK Foundation | v1.7 | 0/TBD | Not started | - |
+| 40. OTel Removal & ADK Foundation | v1.7 | 1/3 | In Progress | - |
 | 41. ADK Agent Integration | v1.7 | 0/TBD | Not started | - |
 | 42. Admin SPA Quality | v1.7 | 0/TBD | Not started | - |
 | 43. Quiz Interface Quality | v1.7 | 0/TBD | Not started | - |
