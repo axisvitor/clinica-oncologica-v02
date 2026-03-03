@@ -95,6 +95,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] **Phase 36: Outbound Migration** - Wire WuzAPIClient into all three outbound callers before any Evolution code is removed (gap closure in progress) (completed 2026-03-02)
 - [x] **Phase 37: Evolution Cleanup** - Tombstone all Evolution files in one atomic commit after outbound is verified (completed 2026-03-02)
 - [x] **Phase 38: Tests and CI Validation** - Full regression gate: HMAC, opt-out E2E, JID resolution, source-level import guards (completed 2026-03-03)
+- [ ] **Phase 39: WuzAPI Integration Polish** - Gap closure: settings consistency, dead endpoint removal, orphaned model cleanup (audit finding)
 
 ## Phase Details
 
@@ -196,6 +197,17 @@ Plans:
 - [x] 38-01-PLAN.md — TEST-01/02/03: Confirm WuzAPIClient test coverage, add unknown-event-type and missing-HMAC-header webhook tests (Wave 1)
 - [x] 38-02-PLAN.md — TEST-04/05: Opt-out E2E tests (handle_opt_out + send guard), Evolution import CI guard script, test_evolution_client.py tombstone (Wave 1, parallel with 38-01)
 
+### Phase 39: WuzAPI Integration Polish
+**Goal**: Close integration and flow gaps identified in v1.6 milestone audit — fix settings bypass in webhook HMAC, remove misleading sync_contacts endpoint, clean up orphaned models
+**Depends on**: Phase 38
+**Requirements**: WH-04, CFG-01, OUT-02 (integration consistency)
+**Gap Closure**: Closes M-1, M-2, and Contacts Sync flow break from v1.6-MILESTONE-AUDIT.md
+**Success Criteria** (what must be TRUE):
+  1. `webhook.py` reads `WHATSAPP_WUZAPI_WEBHOOK_SECRET` from `settings` (Pydantic-validated) instead of `os.environ.get()` — consistent with all other WuzAPI config consumers
+  2. `POST /whatsapp/contacts/{instance_name}/sync` returns HTTP 501 with a clear message that WuzAPI does not support contacts sync — no misleading 200
+  3. `WuzAPIWebhookEvent` and `WuzAPIMessageInfo` in `models.py` are either consumed by runtime code or removed as dead types
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -212,7 +224,8 @@ Plans:
 | 36. Outbound Migration | 3/3 | Complete    | 2026-03-02 | - |
 | 37. Evolution Cleanup | 4/4 | Complete    | 2026-03-02 | - |
 | 38. Tests and CI Validation | 5/5 | Complete    | 2026-03-03 | - |
+| 39. WuzAPI Integration Polish | 0/1 | Pending     | - | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-03-03 — Phase 38 plan 04 completed (4/4 plans)*
+*Last updated: 2026-03-03 — Phase 39 added for audit gap closure*
