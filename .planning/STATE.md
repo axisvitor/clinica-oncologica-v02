@@ -2,16 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Frontend Quality & ADK Integration
-status: completed
-stopped_at: Completed 40-03-PLAN.md
-last_updated: "2026-03-03T21:54:02.126Z"
-last_activity: 2026-03-03 — Completed 40-03 (ADK direct-run CI guard regression coverage)
+current_plan: 2
+status: executing
+stopped_at: Completed 41-01-PLAN.md
+last_updated: "2026-03-03T23:21:43.607Z"
+last_activity: 2026-03-03
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_plans: 6
+  completed_plans: 4
+  percent: 97
 ---
 
 # Project State
@@ -25,12 +26,14 @@ See: .planning/PROJECT.md (updated 2026-03-03)
 
 ## Current Position
 
-Phase: 40 of 43 (OTel Removal & ADK Foundation)
-Plan: 03 of 03
-Status: Complete
-Last activity: 2026-03-03 — Completed 40-03 (ADK direct-run CI guard regression coverage)
+Phase: 41 of 43 (ADK Agent Integration)
+Plan: 02 of 03
+Current Plan: 2
+Total Plans in Phase: 3
+Status: Ready to execute
+Last Activity: 2026-03-03
 
-Progress: [██████████] 100%
+Progress: [█████████░] 97%
 
 ## Performance Metrics
 
@@ -47,6 +50,7 @@ Progress: [██████████] 100%
 | Phase 40 P01 | 12 min | 2 tasks | 10 files |
 | Phase 40 P02 | 9 min | 2 tasks | 3 files |
 | Phase 40 P03 | 5 min | 2 tasks | 2 files |
+| Phase 41 P01 | 9 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -65,6 +69,8 @@ Progress: [██████████] 100%
 - [Phase 40]: Keep AIDeps typing via TYPE_CHECKING to avoid runtime import side effects during package import
 - [Phase 40]: Keep one CI guard script for pydantic-ai and ADK direct-run policy
 - [Phase 40]: Add optional scan-root argument so guard regression tests can target tmp fixtures
+- [Phase 41]: Keep ADK execution behind PIISafeADKWrapper by delegating wrapper _invoke_adk to runtime helper.
+- [Phase 41]: Normalize all tool and runtime responses to stable {status, result} payloads for downstream endpoint wiring.
 
 ### Pending Todos
 
@@ -78,6 +84,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-03T20:42:05.467Z
-**Stopped At:** Completed 40-03-PLAN.md
+**Last session:** 2026-03-03T23:11:43.950Z
+**Stopped At:** Completed 41-01-PLAN.md
 **Resume File:** None

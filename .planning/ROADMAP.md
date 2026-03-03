@@ -171,7 +171,7 @@ Plans:
 | 29-32. Saga Orchestrator Deep Dive | v1.5 | 14/14 | Complete | 2026-03-01 |
 | 33-39. WuzAPI Migration | v1.6 | 21/21 | Complete | 2026-03-03 |
 | 40. OTel Removal & ADK Foundation | 3/3 | Complete    | 2026-03-03 | - |
-| 41. ADK Agent Integration | v1.7 | 0/TBD | Not started | - |
+| 41. ADK Agent Integration | 1/3 | In Progress|  | - |
 | 42. Admin SPA Quality | v1.7 | 0/TBD | Not started | - |
 | 43. Quiz Interface Quality | v1.7 | 0/TBD | Not started | - |
 
