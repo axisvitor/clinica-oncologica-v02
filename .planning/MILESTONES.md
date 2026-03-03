@@ -1,5 +1,29 @@
 # Milestones
 
+## v1.6 WuzAPI Migration (Shipped: 2026-03-03)
+
+**Delivered:** Evolution API was fully replaced by WuzAPI across inbound, outbound, config/session, and test/CI flows with a hard-cut provider migration.
+
+**Phases completed:** 7 phases, 21 plans, 42 tasks
+
+**Git range:** `885816d3..9ee0cdb4` (99 commits)
+**Files changed:** 132 files, +16,433 / -7,093 lines (net +9,340 LOC)
+**Timeline:** 2026-03-01 → 2026-03-03
+
+**Key accomplishments:**
+- WuzAPI client foundation shipped with token auth, retries, rate limiting, circuit breaker, media encoding, and mock factory (`CLI-01..06`).
+- WuzAPI webhook stack implemented with raw-body HMAC validation, payload extraction, Redis idempotency, LGPD opt-out handling, and LID DLQ routing (`WH-01..06`).
+- Outbound message paths fully migrated to WuzAPI and Evolution code tombstoned across Stack A/Stack B with import-level kill switches (`OUT-01..04`, `CLEAN-01..06`).
+- Regression gates added for webhook fixtures, STOP-to-send-guard E2E, and source-level Evolution import checks (`TEST-01..05`).
+- Audit findings M-1/M-2 closed in Phase 39 by aligning webhook secret lookup with settings and returning explicit HTTP 501 for unsupported contacts sync.
+
+**Known Gaps (tech debt, non-blocking):**
+- Live-provider verification still required for production confidence: real WuzAPI send/media, real webhook HMAC delivery, QR pairing UX, and LID DLQ observability.
+
+**Archive:** `.planning/milestones/v1.6-ROADMAP.md`, `.planning/milestones/v1.6-REQUIREMENTS.md`, `.planning/milestones/v1.6-MILESTONE-AUDIT.md`
+
+---
+
 ## v1.0 Refinamento para Producao (Shipped: 2026-02-22)
 
 **Phases completed:** 5 phases, 13 plans, 28 tasks

@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
 status: completed
-stopped_at: Completed 39-wuzapi-integration-polish-01-PLAN.md
-last_updated: "2026-03-03T16:58:12.068Z"
-last_activity: 2026-03-03 — Completed 39-01 WuzAPI integration polish gap closure
+stopped_at: Milestone v1.6 archived; awaiting /gsd-new-milestone
+last_updated: "2026-03-03T18:05:00.000Z"
+last_activity: 2026-03-03 — Archived v1.6 milestone and prepared next milestone handoff
 progress:
   total_phases: 7
   completed_phases: 7
@@ -18,19 +18,19 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-01)
+See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** v1.6 WuzAPI Migration — Phase 39: WuzAPI Integration Polish (completed)
+**Current focus:** Planning next milestone (v1.7) with fresh requirements and roadmap.
 
 ## Current Position
 
-Phase: 39 of 39 (WuzAPI Integration Polish)
-Plan: 01 of 01 (completed)
-Status: Complete
-Last activity: 2026-03-03 — Completed 39-01 WuzAPI integration polish gap closure
+Milestone: v1.6 WuzAPI Migration (archived)
+Status: Shipped
+Last activity: 2026-03-03 — Archived milestone artifacts and updated project baselines
+Next action: Run `/gsd-new-milestone` to define new requirements and roadmap
 
-Progress: [██████████] 100% (1/1 plans in phase 39 completed)
+Progress: [██████████] 100% (v1.6 shipped and archived)
 
 ## Performance Metrics
 
@@ -42,8 +42,8 @@ Progress: [██████████] 100% (1/1 plans in phase 39 completed
 | v1.3 Flow Health & Cleanup | 6 | 31 | 2 days (2026-02-24 → 2026-02-26) |
 | v1.4 AsyncSession & Test Stability | 9 | 54 | 3 days (2026-02-26 → 2026-02-28) |
 | v1.5 Saga Orchestrator Deep Dive | 4 | 14 | 2 days (2026-02-28 → 2026-03-01) |
-| v1.6 WuzAPI Migration | 6 | 15 est. | Started 2026-03-01 |
-| **Cumulative (shipped)** | **32 phases** | **138 plans** | **8 days** |
+| v1.6 WuzAPI Migration | 7 | 21 | 3 days (2026-03-01 → 2026-03-03) |
+| **Cumulative (shipped)** | **39 phases** | **159 plans** | **11 days** |
 | Phase 33 P01 | 12min | 2 tasks | 6 files |
 | Phase 33-new-provider-foundation P02 | 9 min | 2 tasks | 6 files |
 | Phase 33 P03 | 10m | 2 tasks | 5 files |
@@ -124,11 +124,11 @@ None.
 
 ### Blockers/Concerns
 
-- LID resolution mechanism in WuzAPI not fully documented — spike needed if @lid senders appear in staging during Phase 34
-- Brazilian 9th-digit JID resolution at patient-cohort scale — rate limits for POST /user/check not documented; batch design needed before Phase 36
+- Live-provider WuzAPI operational checks are still pending (real send/media, webhook HMAC delivery, QR pairing, LID DLQ observability).
+- Next milestone requirements are intentionally empty until `/gsd-new-milestone` is executed.
 
 ## Session Continuity
 
-**Last session:** 2026-03-03T16:46:23.155Z
-**Stopped At:** Completed 39-wuzapi-integration-polish-01-PLAN.md
+**Last session:** 2026-03-03T18:05:00.000Z
+**Stopped At:** Milestone v1.6 archived; awaiting /gsd-new-milestone
 **Resume File:** None

@@ -8,7 +8,7 @@
 - ✅ **v1.3 Flow Health & Cleanup** — Phases 14-19 (shipped 2026-02-26)
 - ✅ **v1.4 AsyncSession & Test Stability** — Phases 20-28 (shipped 2026-02-28)
 - ✅ **v1.5 Saga Orchestrator Deep Dive** — Phases 29-32 (shipped 2026-03-01)
-- 🚧 **v1.6 WuzAPI Migration** — Phases 33-39 (in progress)
+- ✅ **v1.6 WuzAPI Migration** — Phases 33-39 (shipped 2026-03-03)
 
 ## Phases
 
@@ -85,131 +85,12 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 </details>
 
-### 🚧 v1.6 WuzAPI Migration (In Progress)
+<details>
+<summary>✅ v1.6 WuzAPI Migration (Phases 33-39) — SHIPPED 2026-03-03</summary>
 
-**Milestone Goal:** Replace Evolution API with WuzAPI as the WhatsApp provider — hard cut, no dual-provider mode. All outbound messages routed through WuzAPIClient, all inbound webhooks parsed by WuzAPI-native handler, all Evolution code tombstoned.
+- [x] Phases 33-39 archived — full details: `.planning/milestones/v1.6-ROADMAP.md`
 
-- [x] **Phase 33: New Provider Foundation** - WuzAPIClient package with aiohttp, retry, rate limiter, mock client, and media utility (completed 2026-03-02)
-- [x] **Phase 34: Webhook Handler** - New /webhooks/wuzapi endpoint with HMAC validation, idempotency, LID detection, and opt-out routing (completed 2026-03-02)
-- [x] **Phase 35: Configuration and Session** - New env vars, startup validation, .env.example update, and session management endpoints (completed 2026-03-02)
-- [x] **Phase 36: Outbound Migration** - Wire WuzAPIClient into all three outbound callers before any Evolution code is removed (gap closure in progress) (completed 2026-03-02)
-- [x] **Phase 37: Evolution Cleanup** - Tombstone all Evolution files in one atomic commit after outbound is verified (completed 2026-03-02)
-- [x] **Phase 38: Tests and CI Validation** - Full regression gate: HMAC, opt-out E2E, JID resolution, source-level import guards (completed 2026-03-03)
-- [x] **Phase 39: WuzAPI Integration Polish** - Gap closure: settings consistency, dead endpoint removal, orphaned model cleanup (audit finding) (completed 2026-03-03)
-
-## Phase Details
-
-### Phase 33: New Provider Foundation
-**Goal**: WuzAPIClient exists, is unit-tested, and can send text and media messages to WuzAPI — without modifying any existing file
-**Depends on**: Phase 32 (v1.5 complete)
-**Requirements**: CLI-01, CLI-02, CLI-03, CLI-04, CLI-05, CLI-06
-**Success Criteria** (what must be TRUE):
-  1. WuzAPIClient sends a text message to WuzAPI via `POST /chat/send/text` with `Authorization: {token}` header and receives a non-null `data.Id` in response
-  2. WuzAPIClient sends image, audio, video, and document messages using base64-encoded data URIs to their respective type endpoints
-  3. WuzAPIClient retries automatically on 5xx and 429 responses (up to 3 attempts) and the circuit breaker key is named `wuzapi`
-  4. MockWuzAPIClient is activated by `WHATSAPP_WUZAPI_USE_MOCK=true` and satisfies the same interface as WuzAPIClient
-  5. `fetch_and_encode_media()` downloads a media URL and returns a base64 data URI, rejecting files larger than 16 MB with a clear error
-**Plans**: 3 plans in 2 waves
-
-Plans:
-- [ ] 33-01-PLAN.md — WuzAPIClient core: aiohttp transport, token auth, text send, response parsing, rate limiter, backoff retry (Wave 1)
-- [ ] 33-02-PLAN.md — Media send: image/audio/video/document endpoints, base64 data URI encoding, fetch_and_encode_media utility (Wave 2, depends on 33-01)
-- [ ] 33-03-PLAN.md — Resilience and mock: circuit breaker wiring (key="wuzapi"), MockWuzAPIClient, factory function (Wave 2, depends on 33-01)
-
-### Phase 34: Webhook Handler
-**Goal**: A new `/webhooks/wuzapi` endpoint receives WuzAPI events, validates HMAC with `x-hmac-signature`, deduplicates by `event.Info.ID`, and correctly routes Message and ReadReceipt events — including LID sender detection and opt-out keyword processing
-**Depends on**: Phase 33
-**Requirements**: WH-01, WH-02, WH-03, WH-04, WH-05, WH-06
-**Success Criteria** (what must be TRUE):
-  1. A POST to `/webhooks/wuzapi` with a valid WuzAPI Message payload and correct HMAC returns 200; an invalid HMAC returns 403
-  2. Inbound Message events yield the correct sender phone, message text, and message ID extracted by `WuzAPIMessageExtractor`
-  3. ReadReceipt events map `Receipt.Type` values to the correct `MessageStatus` (SENT, DELIVERED, READ, PLAYED)
-  4. A repeated event with the same `event.Info.ID` is deduplicated via Redis SET NX and processed only once
-  5. An inbound message containing STOP, PARAR, or CANCELAR triggers the opt-out handler and sets `patient.messaging_stopped_at`; senders with `@lid` addresses are routed to DLQ rather than silently dropped
-**Plans**: 3 plans in 2 waves
-
-Plans:
-- [x] 34-01-PLAN.md — Webhook endpoint and HMAC validation: POST /webhooks/wuzapi, raw body read, x-hmac-signature, event type routing stubs (Wave 1)
-- [x] 34-02-PLAN.md — WuzAPIMessageExtractor: Message parser, ReadReceipt mapper, LID detection, PLAYED enum, RECEIPT_TYPE_TO_STATUS (Wave 1, parallel with 34-01)
-- [x] 34-03-PLAN.md — Idempotency, opt-out, LID DLQ wiring: Redis SET NX dedup, STOP/PARAR/CANCELAR handler, LID DLQ routing, router registration (Wave 2, depends on 34-01 + 34-02)
-
-### Phase 35: Configuration and Session
-**Goal**: All WuzAPI environment variables exist in settings, application refuses to start without the token, `.env.example` is updated, and session management (connect, status, QR) is exposed through the monitoring API
-**Depends on**: Phase 33
-**Requirements**: CFG-01, CFG-02, CFG-03, SESS-01, SESS-02, SESS-03
-**Success Criteria** (what must be TRUE):
-  1. Starting the application with `WHATSAPP_WUZAPI_TOKEN` absent causes an immediate startup failure with a clear error message — not a silent fallback
-  2. `WHATSAPP_WUZAPI_BASE_URL`, `WHATSAPP_WUZAPI_TOKEN`, and `WHATSAPP_WUZAPI_WEBHOOK_SECRET` are valid settings fields readable by the WuzAPIClient at startup
-  3. `.env.example` contains all three WuzAPI variables and has removed Evolution API variable entries
-  4. The monitoring API exposes the WuzAPI session connection state via `GET /session/status` so operators can observe whether WhatsApp is connected
-  5. The QR code endpoint returns a base64 QR string usable to pair a new WhatsApp session
-**Plans**: 2 plans
-
-Plans:
-- [x] 35-01: IntegrationsSettings update (add WHATSAPP_WUZAPI_* fields, startup validator, .env.example update)
-- [x] 35-02: Session management endpoints (connect on startup, status monitoring endpoint, QR endpoint wired to WuzAPIClient)
-
-### Phase 36: Outbound Migration
-**Goal**: All outbound WhatsApp messages flow through WuzAPIClient — UnifiedWhatsAppService, WhatsAppMessageService queue pipeline, and IdempotentMessageSender are all updated before any Evolution file is removed
-**Depends on**: Phase 35 (env vars must exist before callers reference them)
-**Requirements**: OUT-01, OUT-02, OUT-03, OUT-04
-**Success Criteria** (what must be TRUE):
-  1. A patient follow-up message sent via `UnifiedWhatsAppService` is delivered using WuzAPIClient with `Authorization: {token}` header — no Evolution client is called
-  2. The queue pipeline in `WhatsAppMessageService` routes outbound messages through WuzAPIClient by constructor injection
-  3. `IdempotentMessageSender` imports and uses WuzAPIClient; `whatsapp_id` in the database is populated from `response.data["Id"]` after each send
-  4. Phone numbers are sent to WuzAPI as raw digits (no `@s.whatsapp.net` suffix) and the circuit breaker key is `wuzapi`
-**Plans**: 3 plans in 3 waves
-
-Plans:
-- [x] 36-01: UnifiedWhatsAppService migration (swap EvolutionAPIClient for WuzAPIClient, rename circuit breaker to wuzapi, update health check to GET /session/status)
-- [x] 36-02: Queue pipeline and IdempotentMessageSender migration (WhatsAppMessageService constructor injection, IdempotentMessageSender import update, whatsapp_id extraction from response.data.Id)
-- [ ] 36-03: Gap closure — runtime wiring fixes (get_message_service DI path, FollowUpSystemService and MessageScheduler caller injection)
-
-### Phase 37: Evolution Cleanup
-**Goal**: All Evolution API code is tombstoned in a single commit — both Stack A and Stack B clients, the Evolution webhook handler, the Baileys message parser, LID resolution methods, and deprecated env vars are all removed from the active runtime
-**Depends on**: Phase 36 (all callers must be updated before tombstoning)
-**Requirements**: CLEAN-01, CLEAN-02, CLEAN-03, CLEAN-04, CLEAN-05, CLEAN-06
-**Success Criteria** (what must be TRUE):
-  1. Importing anything from `app/integrations/evolution/` raises `ImportError` with a tombstone message — Stack A is dead
-  2. Importing `evolution_client.py` or `mock_evolution.py` from `app/integrations/whatsapp/services/` raises `ImportError` — Stack B is dead
-  3. The Evolution webhook router (`/webhooks/whatsapp/*`) is deregistered; requests to that path return 404
-  4. `grep -r "EvolutionAPIClient\|EvolutionClient" backend-hormonia/app/ --include="*.py" -i` returns no matches outside tombstone docstrings
-  5. `WHATSAPP_EVOLUTION_*` env vars are absent from settings and `.env.example`; LID resolution methods that called Evolution endpoints are removed from `phone_normalizer.py`
-**Plans**: 2 plans
-
-Plans:
-- [x] 37-01: Stack A tombstone (app/integrations/evolution/: client, message_sender, request_handler, webhook_handler, rate_limiter, validators)
-- [x] 37-02: Stack B tombstone and cleanup (evolution_client.py, mock_evolution.py, Evolution webhook deregistration, message_extractor.py tombstone, phone_normalizer.py LID methods removal, WHATSAPP_EVOLUTION_* vars removal)
-
-### Phase 38: Tests and CI Validation
-**Goal**: The full test suite passes with WuzAPI contracts, all LGPD-critical paths (opt-out, HMAC, idempotency) are covered by tests, and CI source-level guards confirm zero Evolution imports outside tombstone files
-**Depends on**: Phase 37
-**Requirements**: TEST-01, TEST-02, TEST-03, TEST-04, TEST-05
-**Success Criteria** (what must be TRUE):
-  1. WuzAPIClient unit tests pass for text send, all media types, auth header correctness, 5xx retry behavior, and rate limiting — using MockWuzAPIClient or a mock HTTP server
-  2. Webhook handler tests using real captured WuzAPI JSON fixture payloads pass for Message events, ReadReceipt events, and unknown event types
-  3. HMAC validation tests confirm: valid `x-hmac-signature` returns 200; tampered payload returns 403; missing header returns 403
-  4. The opt-out end-to-end test confirms: sending "STOP" → `patient.messaging_stopped_at` is set → subsequent sends are blocked by the send guard
-  5. `scripts/check_async_isolation.py` passes and a source-level regression test confirms zero imports of `EvolutionClient` or `EvolutionAPIClient` in any non-tombstone file
-**Plans**: 2 plans in 1 wave
-
-Plans:
-- [x] 38-01-PLAN.md — TEST-01/02/03: Confirm WuzAPIClient test coverage, add unknown-event-type and missing-HMAC-header webhook tests (Wave 1)
-- [x] 38-02-PLAN.md — TEST-04/05: Opt-out E2E tests (handle_opt_out + send guard), Evolution import CI guard script, test_evolution_client.py tombstone (Wave 1, parallel with 38-01)
-
-### Phase 39: WuzAPI Integration Polish
-**Goal**: Close integration and flow gaps identified in v1.6 milestone audit — fix settings bypass in webhook HMAC, remove misleading sync_contacts endpoint, clean up orphaned models
-**Depends on**: Phase 38
-**Requirements**: WH-04, CFG-01, OUT-02 (integration consistency)
-**Gap Closure**: Closes M-1, M-2, and Contacts Sync flow break from v1.6-MILESTONE-AUDIT.md
-**Success Criteria** (what must be TRUE):
-  1. `webhook.py` reads `WHATSAPP_WUZAPI_WEBHOOK_SECRET` from `settings` (Pydantic-validated) instead of `os.environ.get()` — consistent with all other WuzAPI config consumers
-  2. `POST /whatsapp/contacts/{instance_name}/sync` returns HTTP 501 with a clear message that WuzAPI does not support contacts sync — no misleading 200
-  3. `WuzAPIWebhookEvent` and `WuzAPIMessageInfo` in `models.py` are either consumed by runtime code or removed as dead types
-**Plans**: 1 plan in 1 wave
-
-Plans:
-- [x] 39-01-PLAN.md — Settings-based HMAC fix, sync_contacts 501, orphaned model removal (Wave 1)
+</details>
 
 ## Progress
 
@@ -221,14 +102,8 @@ Plans:
 | 14-19. Flow Health & Cleanup | v1.3 | 31/31 | Complete | 2026-02-26 |
 | 20-28. AsyncSession & Test Stability | v1.4 | 54/54 | Complete | 2026-02-28 |
 | 29-32. Saga Orchestrator Deep Dive | v1.5 | 14/14 | Complete | 2026-03-01 |
-| 33. New Provider Foundation | v1.6 | 3/3 | Complete | 2026-03-02 |
-| 34. Webhook Handler | v1.6 | 3/3 | Complete | 2026-03-02 |
-| 35. Configuration and Session | v1.6 | 2/2 | Complete | 2026-03-02 |
-| 36. Outbound Migration | v1.6 | 3/3 | Complete | 2026-03-02 |
-| 37. Evolution Cleanup | v1.6 | 4/4 | Complete | 2026-03-02 |
-| 38. Tests and CI Validation | v1.6 | 5/5 | Complete | 2026-03-03 |
-| 39. WuzAPI Integration Polish | v1.6 | Complete    | 2026-03-03 | 2026-03-03 |
+| 33-39. WuzAPI Migration | v1.6 | 21/21 | Complete | 2026-03-03 |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-03-03 — Phase 39 completed (39-01)*
+*Last updated: 2026-03-03 — v1.6 milestone archived*
