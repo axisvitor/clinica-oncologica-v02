@@ -95,7 +95,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] **Phase 36: Outbound Migration** - Wire WuzAPIClient into all three outbound callers before any Evolution code is removed (gap closure in progress) (completed 2026-03-02)
 - [x] **Phase 37: Evolution Cleanup** - Tombstone all Evolution files in one atomic commit after outbound is verified (completed 2026-03-02)
 - [x] **Phase 38: Tests and CI Validation** - Full regression gate: HMAC, opt-out E2E, JID resolution, source-level import guards (completed 2026-03-03)
-- [ ] **Phase 39: WuzAPI Integration Polish** - Gap closure: settings consistency, dead endpoint removal, orphaned model cleanup (audit finding)
+- [x] **Phase 39: WuzAPI Integration Polish** - Gap closure: settings consistency, dead endpoint removal, orphaned model cleanup (audit finding) (completed 2026-03-03)
 
 ## Phase Details
 
@@ -209,7 +209,7 @@ Plans:
 **Plans**: 1 plan in 1 wave
 
 Plans:
-- [ ] 39-01-PLAN.md — Settings-based HMAC fix, sync_contacts 501, orphaned model removal (Wave 1)
+- [x] 39-01-PLAN.md — Settings-based HMAC fix, sync_contacts 501, orphaned model removal (Wave 1)
 
 ## Progress
 
@@ -227,8 +227,8 @@ Plans:
 | 36. Outbound Migration | v1.6 | 3/3 | Complete | 2026-03-02 |
 | 37. Evolution Cleanup | v1.6 | 4/4 | Complete | 2026-03-02 |
 | 38. Tests and CI Validation | v1.6 | 5/5 | Complete | 2026-03-03 |
-| 39. WuzAPI Integration Polish | v1.6 | 0/1 | Pending | - |
+| 39. WuzAPI Integration Polish | v1.6 | 1/1 | Complete | 2026-03-03 |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-03-03 — Phase 39 plans created*
+*Last updated: 2026-03-03 — Phase 39 completed (39-01)*

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
 status: completed
-stopped_at: Completed 38-05-PLAN.md
-last_updated: "2026-03-03T15:40:36.701Z"
-last_activity: 2026-03-03 — Completed 38-04 service-level send guard validation for TEST-04
+stopped_at: Completed 39-wuzapi-integration-polish-01-PLAN.md
+last_updated: "2026-03-03T16:46:23.189Z"
+last_activity: 2026-03-03 — Completed 39-01 WuzAPI integration polish gap closure
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 20
-  completed_plans: 20
+  total_phases: 7
+  completed_phases: 7
+  total_plans: 21
+  completed_plans: 21
   percent: 100
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** v1.6 WuzAPI Migration — Phase 38: Tests and CI Validation
+**Current focus:** v1.6 WuzAPI Migration — Phase 39: WuzAPI Integration Polish (completed)
 
 ## Current Position
 
-Phase: 38 of 39 (Tests and CI Validation)
-Plan: 04 of 04 (completed)
+Phase: 39 of 39 (WuzAPI Integration Polish)
+Plan: 01 of 01 (completed)
 Status: Complete
-Last activity: 2026-03-03 — Completed 38-04 service-level send guard validation for TEST-04
+Last activity: 2026-03-03 — Completed 39-01 WuzAPI integration polish gap closure
 
-Progress: [██████████] 100% (4/4 plans in phase 38 completed)
+Progress: [██████████] 100% (1/1 plans in phase 39 completed)
 
 ## Performance Metrics
 
@@ -63,6 +63,7 @@ Progress: [██████████] 100% (4/4 plans in phase 38 completed
 | Phase 38 P03 | 9 min | 2 tasks | 5 files |
 | Phase 38-tests-ci-validation P04 | 12 min | 2 tasks | 1 files |
 | Phase 38-tests-ci-validation P05 | 6 | 2 tasks | 1 files |
+| Phase 39-wuzapi-integration-polish P01 | 4min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -114,6 +115,8 @@ Progress: [██████████] 100% (4/4 plans in phase 38 completed
 - [Phase 38-tests-ci-validation]: Use UnifiedWhatsAppService.send_message runtime invocation to verify opt-out guard behavior for TEST-04
 - [Phase 38-tests-ci-validation]: Patch patient loading/send path in tests to isolate guard outcomes without external transport side effects
 - [Phase 38-tests-ci-validation]: Patch ConsentService at source module (app.services.lgpd.consent_service.ConsentService) for lazy-imported function-local symbols in handle_opt_out
+- [Phase 39-wuzapi-integration-polish]: Use settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET for webhook HMAC secret reads
+- [Phase 39-wuzapi-integration-polish]: Return HTTP 501 for sync_contacts to keep route compatibility while signaling unsupported provider capability
 
 ### Pending Todos
 
@@ -126,6 +129,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-03T15:34:38.907Z
-**Stopped At:** Completed 38-05-PLAN.md
+**Last session:** 2026-03-03T16:46:23.155Z
+**Stopped At:** Completed 39-wuzapi-integration-polish-01-PLAN.md
 **Resume File:** None
