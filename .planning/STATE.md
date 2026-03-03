@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.6
-milestone_name: WuzAPI Migration
-status: completed
-stopped_at: Milestone v1.6 archived; awaiting /gsd-new-milestone
-last_updated: "2026-03-03T18:05:00.000Z"
-last_activity: 2026-03-03 — Archived v1.6 milestone and prepared next milestone handoff
+milestone: v1.7
+milestone_name: Frontend Quality & ADK Integration
+status: active
+stopped_at: null
+last_updated: "2026-03-03T20:00:00.000Z"
+last_activity: 2026-03-03 — Milestone v1.7 started
 progress:
-  total_phases: 7
-  completed_phases: 7
-  total_plans: 21
-  completed_plans: 21
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-03)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Planning next milestone (v1.7) with fresh requirements and roadmap.
+**Current focus:** Frontend quality review (admin + quiz) and Google ADK integration.
 
 ## Current Position
 
-Milestone: v1.6 WuzAPI Migration (archived)
-Status: Shipped
-Last activity: 2026-03-03 — Archived milestone artifacts and updated project baselines
-Next action: Run `/gsd-new-milestone` to define new requirements and roadmap
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-03 — Milestone v1.7 started
 
-Progress: [██████████] 100% (v1.6 shipped and archived)
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 

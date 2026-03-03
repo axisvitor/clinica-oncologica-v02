@@ -51,30 +51,11 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 
 ### Active
 
+- [ ] Revisar e corrigir ambos frontends (admin SPA + quiz mensal): dead code, API alignment, layout, qualidade
+- [ ] Remover OpenTelemetry e integrar Google ADK no sistema
 - [ ] Executar verificacao operacional em ambiente real WuzAPI (send/media, webhook HMAC real, QR pairing, LID DLQ observability)
-- [ ] Definir requirements e roadmap do proximo milestone (`/gsd-new-milestone`)
 - [ ] Modelar disponibilidade medica por medico (substituir baseline hardcoded Mon-Fri 08:00-17:00)
 - [ ] Continuar reducao de arquivos >500 linhas em modulos criticos
-- [ ] Revisitar ADK/OTel stack quando conflitos de dependencia forem destravados
-
-<details>
-<summary>Archived v1.6 planning scope</summary>
-
-**Goal:** Replace Evolution API with WuzAPI as the WhatsApp provider — hard cut, no dual-provider hacks.
-
-**Target features:**
-- WuzAPIClient replacing EvolutionAPIClient (aiohttp async, whatsmeow-backed)
-- Webhook handlers rewritten for WuzAPI payload format (Message, ReadReceipt events)
-- Phone format adaptation (final implementation sends raw digits in WuzAPI `Phone` field)
-- Auth model update (apikey header -> Token/Authorization header)
-- HMAC validation update (SHA-256 via x-hmac-signature)
-- Session management (instance model -> session model)
-- UnifiedWhatsAppService adapter wired to WuzAPI
-- Environment variables migrated
-- Evolution API code tombstoned (both legacy and canonical stacks)
-- Tests updated for WuzAPI contracts
-
-</details>
 
 ### Out of Scope
 
@@ -84,25 +65,22 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - OAuth/SSO — Firebase Auth ja atende
 - Migraçao de infra (Railway/AWS RDS/Dragonfly) — manter stack atual
 - 50+ files >500 lines needing split — tracked as tech debt
-- Google ADK — deferred pending dependency conflict resolution
 - Physician availability hours model — hardcoded Mon-Fri 08:00-17:00 functional baseline
 - ORM query rewrite to raw SQL — keep SQLAlchemy ORM; just switch Session type
 - Saga event-sourcing rewrite — existing saga pattern functional, audit confirmed
 - Dual-provider mode (Evolution + WuzAPI) — intentionally rejected after hard cut
 
-## Current State
+## Current Milestone: v1.7 Frontend Quality & ADK Integration
 
-- v1.6 WuzAPI Migration shipped (Phases 33-39, 21 plans, 42 tasks)
-- Milestone stats: 132 files changed, +16,433 / -7,093 lines (net +9,340 LOC), 99 commits
-- Audit findings M-1/M-2 closed in Phase 39; remaining debt is live-environment verification only
-- Artifacts archived in `.planning/milestones/v1.6-ROADMAP.md` and `.planning/milestones/v1.6-REQUIREMENTS.md`
+**Goal:** Revisar e corrigir ambos os frontends (admin SPA + quiz mensal) em qualidade geral, e desbloquear/integrar Google ADK removendo OTel.
 
-## Next Milestone Goals
-
-- Formalizar novo milestone com requirements frescos (sem herdar backlog implícito)
-- Fechar lacunas de validacao operacional WuzAPI em ambiente real
-- Priorizar melhorias de confiabilidade clinica observadas em producao
-- Continuar hardening de arquitetura (files >500 LOC, observability de saga/flow)
+**Target features:**
+- Dead code removal nos dois frontends
+- Organizacao e alinhamento das chamadas de API com o backend
+- Consistencia visual e de layout entre paginas
+- Qualidade de codigo: lint, tipos, padroes
+- Remocao do OpenTelemetry (desbloqueio de dependencias)
+- Integracao do Google ADK no sistema
 
 ## Context
 
@@ -149,9 +127,9 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 | Cancel and saga compensation as independent lifecycles | Cancel = flow cleanup; compensation = saga failure; no coupling | ✓ Good (v1.5) |
 | Compensation ownership on SagaCompensator | Orchestrator delegates; tests validate compensator API | ✓ Good (v1.5) |
 | compensate_patient uses hard-delete (db.delete) | Matches production handler behavior; documented as contract | ✓ Good (v1.5) |
-| Google ADK deferred | Irresolvable OTel cap + Pydantic 2.11+ + 300-400 MB footprint | ⚠ Revisit |
+| OTel removed to unblock ADK | OTel instrumentation conflicts with ADK deps; user chose to remove OTel | — Pending |
 | Hardcoded physician hours (Mon-Fri 08-17) | No preferences model exists yet; functional baseline | ⚠ Revisit |
 | WuzAPI over Evolution API | Evolution API instability and maintenance debt made hard-cut migration lower risk | ✓ Good (v1.6) |
 
 ---
-*Last updated: 2026-03-03 after v1.6 milestone completion*
+*Last updated: 2026-03-03 after v1.7 milestone start*
