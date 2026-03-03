@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
 status: in_progress
-stopped_at: Completed 38-03-PLAN.md
-last_updated: "2026-03-03T14:22:37.067Z"
+stopped_at: Completed 38-04-PLAN.md
+last_updated: "2026-03-03T14:35:27.570Z"
 progress:
   total_phases: 12
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 50
-  completed_plans: 49
+  completed_plans: 50
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-03-01)
 ## Current Position
 
 Phase: 38 of 39 (Tests and CI Validation)
-Plan: 03 of 04 (completed)
-Status: In Progress
-Last activity: 2026-03-03 — Completed 38-03 fixture-backed WuzAPI payload coverage for TEST-02
+Plan: 04 of 04 (completed)
+Status: Complete
+Last activity: 2026-03-03 — Completed 38-04 service-level send guard validation for TEST-04
 
-Progress: [████████░░] 75% (3/4 plans in phase 38 completed)
+Progress: [██████████] 100% (4/4 plans in phase 38 completed)
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Progress: [████████░░] 75% (3/4 plans in phase 38 completed)
 | Phase 38 P01 | 9 min | 2 tasks | 1 files |
 | Phase 38 P02 | 11 min | 2 tasks | 4 files |
 | Phase 38 P03 | 9 min | 2 tasks | 5 files |
+| Phase 38-tests-ci-validation P04 | 12 min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,8 @@ Progress: [████████░░] 75% (3/4 plans in phase 38 completed)
 - [Phase 38]: Keep tombstoned unit test modules collectable as skipped by retaining a placeholder test under module-level pytest skip
 - [Phase 38]: Keep inline synthetic helper tests and add fixture-backed JSON tests in parallel for TEST-02 realism coverage.
 - [Phase 38]: Reuse shared WuzAPI fixture payload files across webhook and extractor tests to enforce schema consistency.
+- [Phase 38-tests-ci-validation]: Use UnifiedWhatsAppService.send_message runtime invocation to verify opt-out guard behavior for TEST-04
+- [Phase 38-tests-ci-validation]: Patch patient loading/send path in tests to isolate guard outcomes without external transport side effects
 
 ### Pending Todos
 
@@ -119,6 +122,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-03T14:22:37.024Z
-**Stopped At:** Completed 38-03-PLAN.md
+**Last session:** 2026-03-03T14:35:27.532Z
+**Stopped At:** Completed 38-04-PLAN.md
 **Resume File:** None
