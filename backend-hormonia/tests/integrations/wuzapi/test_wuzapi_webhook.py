@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from pathlib import Path
 from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import fakeredis.aioredis
@@ -10,6 +11,14 @@ from fastapi import FastAPI
 
 from app.core.database.async_engine import get_async_db
 from app.integrations.wuzapi.webhook import router
+
+
+FIXTURE_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "wuzapi"
+
+
+def load_fixture(name: str) -> dict:
+    """Load a captured WuzAPI JSON fixture by filename."""
+    return json.loads((FIXTURE_DIR / name).read_text())
 
 
 @pytest.fixture
@@ -316,3 +325,43 @@ async def test_idempotency_fail_open(app: FastAPI):
 
     assert response.status_code == 200
     assert response.json()["status"] == "processed"
+
+
+@pytest.mark.asyncio
+async def test_message_from_fixture_processes_successfully(app: FastAPI, fake_redis):
+    """Webhook processes a captured WuzAPI Message fixture payload."""
+    payload = load_fixture("message_inbound.json")
+    with patch("app.integrations.wuzapi.webhook.get_async_redis_client", new=AsyncMock(return_value=fake_redis)):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            response = await post_payload(client, payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "processed"
+    assert body["message_id"] == "3EB0A618C4E77B6E5A3D"
+
+
+@pytest.mark.asyncio
+async def test_receipt_from_fixture_maps_status(app: FastAPI, fake_redis):
+    """Webhook processes a captured WuzAPI ReadReceipt fixture payload."""
+    payload = load_fixture("read_receipt.json")
+    with patch("app.integrations.wuzapi.webhook.get_async_redis_client", new=AsyncMock(return_value=fake_redis)):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            response = await post_payload(client, payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "processed"
+    assert body["internal_status"] == "read"
+    assert "3EB0A618C4E77B6E5A3D" in body["message_ids"]
+
+
+@pytest.mark.asyncio
+async def test_unknown_event_from_fixture_returns_ignored(app: FastAPI, fake_redis):
+    """Webhook returns ignored for a captured PresenceUpdate fixture payload."""
+    payload = load_fixture("presence_update.json")
+    with patch("app.integrations.wuzapi.webhook.get_async_redis_client", new=AsyncMock(return_value=fake_redis)):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            response = await post_payload(client, payload)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ignored"
+    assert body["type"] == "PresenceUpdate"

@@ -1,9 +1,20 @@
+import json
+from pathlib import Path
+
 from app.integrations.wuzapi.extractor import (
     RECEIPT_TYPE_TO_STATUS,
     WuzAPIInboundMessage,
     WuzAPIMessageExtractor,
     WuzAPIReceiptEvent,
 )
+
+
+FIXTURE_DIR = Path(__file__).resolve().parent.parent.parent / "fixtures" / "wuzapi"
+
+
+def load_fixture(name: str) -> dict:
+    """Load a captured WuzAPI JSON fixture by filename."""
+    return json.loads((FIXTURE_DIR / name).read_text())
 
 
 def make_message_payload(
@@ -152,3 +163,28 @@ class TestExtractReceipt:
 
     def test_jid_to_phone_empty(self):
         assert WuzAPIMessageExtractor._jid_to_phone("") == ""
+
+
+class TestFixturePayloads:
+    """Tests using captured WuzAPI JSON fixture files (TEST-02 gap closure)."""
+
+    def test_extract_message_from_fixture(self):
+        """Extractor parses a captured WuzAPI Message fixture payload."""
+        payload = load_fixture("message_inbound.json")
+        result = WuzAPIMessageExtractor.extract_message(payload)
+        assert result is not None
+        assert result.message_id == "3EB0A618C4E77B6E5A3D"
+        assert result.phone == "5511987654321"
+        assert result.text == "Bom dia doutor, estou me sentindo melhor hoje"
+        assert result.push_name == "Maria Silva"
+        assert result.is_lid is False
+        assert result.is_from_me is False
+
+    def test_extract_receipt_from_fixture(self):
+        """Extractor parses a captured WuzAPI ReadReceipt fixture payload."""
+        payload = load_fixture("read_receipt.json")
+        result = WuzAPIMessageExtractor.extract_receipt(payload)
+        assert result is not None
+        assert result.receipt_type == "read"
+        assert "3EB0A618C4E77B6E5A3D" in result.message_ids
+        assert result.sender_phone == "5511987654321"
