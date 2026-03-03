@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from app.ai.agents.deps import AIDeps
 from app.ai.pii_redaction import sanitize_prompt_text_for_external_ai
+
+if TYPE_CHECKING:
+    from app.ai.agents.deps import AIDeps
 
 logger = logging.getLogger(__name__)
 
