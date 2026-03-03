@@ -190,12 +190,11 @@ Plans:
   3. HMAC validation tests confirm: valid `x-hmac-signature` returns 200; tampered payload returns 403; missing header returns 403
   4. The opt-out end-to-end test confirms: sending "STOP" → `patient.messaging_stopped_at` is set → subsequent sends are blocked by the send guard
   5. `scripts/check_async_isolation.py` passes and a source-level regression test confirms zero imports of `EvolutionClient` or `EvolutionAPIClient` in any non-tombstone file
-**Plans**: TBD
+**Plans**: 2 plans in 1 wave
 
 Plans:
-- [ ] 38-01: WuzAPIClient unit tests (text, media, auth, retry, rate limit)
-- [ ] 38-02: Webhook tests with real WuzAPI fixture payloads (Message, ReadReceipt, unknown type, HMAC accept/reject)
-- [ ] 38-03: E2E opt-out test and source-level Evolution import regression guard
+- [ ] 38-01-PLAN.md — TEST-01/02/03: Confirm WuzAPIClient test coverage, add unknown-event-type and missing-HMAC-header webhook tests (Wave 1)
+- [ ] 38-02-PLAN.md — TEST-04/05: Opt-out E2E tests (handle_opt_out + send guard), Evolution import CI guard script, test_evolution_client.py tombstone (Wave 1, parallel with 38-01)
 
 ## Progress
 
@@ -212,7 +211,7 @@ Plans:
 | 35. Configuration and Session | 2/2 | Complete    | 2026-03-02 | - |
 | 36. Outbound Migration | 3/3 | Complete    | 2026-03-02 | - |
 | 37. Evolution Cleanup | 4/4 | Complete    | 2026-03-02 | - |
-| 38. Tests and CI Validation | v1.6 | 0/3 | Not started | - |
+| 38. Tests and CI Validation | v1.6 | 0/2 | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
