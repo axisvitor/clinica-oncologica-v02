@@ -8,7 +8,7 @@
 - ✅ **v1.3 Flow Health & Cleanup** — Phases 14-19 (shipped 2026-02-26)
 - ✅ **v1.4 AsyncSession & Test Stability** — Phases 20-28 (shipped 2026-02-28)
 - ✅ **v1.5 Saga Orchestrator Deep Dive** — Phases 29-32 (shipped 2026-03-01)
-- 🚧 **v1.6 WuzAPI Migration** — Phases 33-38 (in progress)
+- 🚧 **v1.6 WuzAPI Migration** — Phases 33-39 (in progress)
 
 ## Phases
 
@@ -143,7 +143,7 @@ Plans:
   3. `.env.example` contains all three WuzAPI variables and has removed Evolution API variable entries
   4. The monitoring API exposes the WuzAPI session connection state via `GET /session/status` so operators can observe whether WhatsApp is connected
   5. The QR code endpoint returns a base64 QR string usable to pair a new WhatsApp session
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
 - [x] 35-01: IntegrationsSettings update (add WHATSAPP_WUZAPI_* fields, startup validator, .env.example update)
@@ -175,7 +175,7 @@ Plans:
   3. The Evolution webhook router (`/webhooks/whatsapp/*`) is deregistered; requests to that path return 404
   4. `grep -r "EvolutionAPIClient\|EvolutionClient" backend-hormonia/app/ --include="*.py" -i` returns no matches outside tombstone docstrings
   5. `WHATSAPP_EVOLUTION_*` env vars are absent from settings and `.env.example`; LID resolution methods that called Evolution endpoints are removed from `phone_normalizer.py`
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
 - [x] 37-01: Stack A tombstone (app/integrations/evolution/: client, message_sender, request_handler, webhook_handler, rate_limiter, validators)
@@ -206,7 +206,10 @@ Plans:
   1. `webhook.py` reads `WHATSAPP_WUZAPI_WEBHOOK_SECRET` from `settings` (Pydantic-validated) instead of `os.environ.get()` — consistent with all other WuzAPI config consumers
   2. `POST /whatsapp/contacts/{instance_name}/sync` returns HTTP 501 with a clear message that WuzAPI does not support contacts sync — no misleading 200
   3. `WuzAPIWebhookEvent` and `WuzAPIMessageInfo` in `models.py` are either consumed by runtime code or removed as dead types
-**Plans**: TBD
+**Plans**: 1 plan in 1 wave
+
+Plans:
+- [ ] 39-01-PLAN.md — Settings-based HMAC fix, sync_contacts 501, orphaned model removal (Wave 1)
 
 ## Progress
 
@@ -218,14 +221,14 @@ Plans:
 | 14-19. Flow Health & Cleanup | v1.3 | 31/31 | Complete | 2026-02-26 |
 | 20-28. AsyncSession & Test Stability | v1.4 | 54/54 | Complete | 2026-02-28 |
 | 29-32. Saga Orchestrator Deep Dive | v1.5 | 14/14 | Complete | 2026-03-01 |
-| 33. New Provider Foundation | 3/3 | Complete    | 2026-03-02 | - |
-| 34. Webhook Handler | 3/3 | Complete   | 2026-03-02 | - |
-| 35. Configuration and Session | 2/2 | Complete    | 2026-03-02 | - |
-| 36. Outbound Migration | 3/3 | Complete    | 2026-03-02 | - |
-| 37. Evolution Cleanup | 4/4 | Complete    | 2026-03-02 | - |
-| 38. Tests and CI Validation | 5/5 | Complete    | 2026-03-03 | - |
-| 39. WuzAPI Integration Polish | 0/1 | Pending     | - | - |
+| 33. New Provider Foundation | v1.6 | 3/3 | Complete | 2026-03-02 |
+| 34. Webhook Handler | v1.6 | 3/3 | Complete | 2026-03-02 |
+| 35. Configuration and Session | v1.6 | 2/2 | Complete | 2026-03-02 |
+| 36. Outbound Migration | v1.6 | 3/3 | Complete | 2026-03-02 |
+| 37. Evolution Cleanup | v1.6 | 4/4 | Complete | 2026-03-02 |
+| 38. Tests and CI Validation | v1.6 | 5/5 | Complete | 2026-03-03 |
+| 39. WuzAPI Integration Polish | v1.6 | 0/1 | Pending | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-03-03 — Phase 39 added for audit gap closure*
+*Last updated: 2026-03-03 — Phase 39 plans created*
