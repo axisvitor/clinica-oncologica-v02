@@ -73,15 +73,25 @@ def _find_violations(path: Path) -> list[tuple[int, str]]:
     return violations
 
 
+def _iter_python_files(scan_root: Path) -> list[Path]:
+    if scan_root.is_file():
+        return [scan_root] if scan_root.suffix == ".py" else []
+    return sorted(scan_root.rglob("*.py"))
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
-    app_dir = repo_root / "app"
-    if not app_dir.exists():
-        print(f"App directory not found: {app_dir}")
+    if len(sys.argv) > 1:
+        scan_root = Path(sys.argv[1]).resolve()
+    else:
+        scan_root = repo_root / "app"
+
+    if not scan_root.exists():
+        print(f"Scan path not found: {scan_root}")
         return 1
 
     found: list[tuple[Path, int, str]] = []
-    for py_file in sorted(app_dir.rglob("*.py")):
+    for py_file in _iter_python_files(scan_root):
         if _is_exempt(py_file):
             continue
         for line_no, snippet in _find_violations(py_file):
@@ -90,7 +100,10 @@ def main() -> int:
     if found:
         print("Direct agent/adk run() calls found outside approved wrappers:")
         for path, line_no, snippet in found:
-            rel = path.relative_to(repo_root)
+            try:
+                rel = path.relative_to(repo_root)
+            except ValueError:
+                rel = path
             print(f"- {rel}:{line_no} -> {snippet}")
         return 1
 
