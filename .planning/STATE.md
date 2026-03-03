@@ -2,14 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: WuzAPI Migration
-status: in_progress
-stopped_at: Completed 38-04-PLAN.md
-last_updated: "2026-03-03T14:35:27.570Z"
+status: completed
+stopped_at: Completed 38-05-PLAN.md
+last_updated: "2026-03-03T15:34:38.941Z"
+last_activity: 2026-03-03 — Completed 38-04 service-level send guard validation for TEST-04
 progress:
-  total_phases: 12
-  completed_phases: 12
-  total_plans: 50
-  completed_plans: 50
+  total_phases: 6
+  completed_phases: 6
+  total_plans: 20
+  completed_plans: 20
+  percent: 100
 ---
 
 # Project State
@@ -60,6 +62,7 @@ Progress: [██████████] 100% (4/4 plans in phase 38 completed
 | Phase 38 P02 | 11 min | 2 tasks | 4 files |
 | Phase 38 P03 | 9 min | 2 tasks | 5 files |
 | Phase 38-tests-ci-validation P04 | 12 min | 2 tasks | 1 files |
+| Phase 38-tests-ci-validation P05 | 6 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -110,6 +113,7 @@ Progress: [██████████] 100% (4/4 plans in phase 38 completed
 - [Phase 38]: Reuse shared WuzAPI fixture payload files across webhook and extractor tests to enforce schema consistency.
 - [Phase 38-tests-ci-validation]: Use UnifiedWhatsAppService.send_message runtime invocation to verify opt-out guard behavior for TEST-04
 - [Phase 38-tests-ci-validation]: Patch patient loading/send path in tests to isolate guard outcomes without external transport side effects
+- [Phase 38-tests-ci-validation]: Patch ConsentService at source module (app.services.lgpd.consent_service.ConsentService) for lazy-imported function-local symbols in handle_opt_out
 
 ### Pending Todos
 
@@ -122,6 +126,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-03T14:35:27.532Z
-**Stopped At:** Completed 38-04-PLAN.md
+**Last session:** 2026-03-03T15:34:38.907Z
+**Stopped At:** Completed 38-05-PLAN.md
 **Resume File:** None
