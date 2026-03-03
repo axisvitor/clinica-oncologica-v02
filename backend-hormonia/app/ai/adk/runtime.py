@@ -12,6 +12,8 @@ except ModuleNotFoundError:
 if TYPE_CHECKING:
     from app.ai.agents.deps import AIDeps
 
+from app.ai.adk.tools import get_tool_registry
+
 
 @dataclass(frozen=True)
 class ADKToolRunRequest:
@@ -25,4 +27,23 @@ class ADKToolRunRequest:
 
 async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
     """Execute a single ADK tool invocation and return normalized payload."""
-    raise NotImplementedError
+    _session_service = InMemorySessionService()
+    _ = _session_service
+
+    registry = get_tool_registry()
+    tool_name = request.tool_name.strip().lower()
+    handler = registry.get(tool_name)
+    if handler is None:
+        return {
+            "status": "error",
+            "result": {
+                "message": f"Unsupported ADK tool: {request.tool_name}",
+                "tool": request.tool_name,
+            },
+        }
+
+    result = await handler(prompt=request.prompt, deps=request.deps, context=request.context)
+    if isinstance(result, dict) and "status" in result and "result" in result:
+        return result
+
+    return {"status": "success", "result": result}

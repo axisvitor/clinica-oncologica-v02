@@ -4,6 +4,7 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any
 
+from app.ai.adk.runtime import ADKToolRunRequest, run_adk_tool
 from app.ai.pii_redaction import sanitize_prompt_text_for_external_ai
 
 if TYPE_CHECKING:
@@ -59,7 +60,16 @@ class PIISafeADKWrapper:
         context: dict[str, Any] | None = None,
     ) -> Any:
         """Invoke ADK with already-sanitized inputs."""
-        raise NotImplementedError("ADK runner wiring is implemented in Phase 41")
+        payload = context or {}
+        request = ADKToolRunRequest(
+            prompt=safe_prompt,
+            tool_name=str(payload.get("tool_name") or operation),
+            deps=deps,
+            user_id=str(payload.get("user_id") or "pii-safe-adk"),
+            session_id=str(payload.get("session_id") or "default-session"),
+            context=payload,
+        )
+        return await run_adk_tool(request)
 
     def _warn_on_output_pii(self, output_text: str, *, operation: str) -> None:
         """Scan ADK output and emit warning when potential PII is detected."""
