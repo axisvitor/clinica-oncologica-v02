@@ -23,7 +23,6 @@ from ..models.message import (
     MessageType,
 )
 from app.resilience.circuit_breaker import CircuitBreaker, CircuitOpenError
-from app.core.tracing import get_tracer, trace
 from app.core.distributed_lock import acquire_lock, LockAcquisitionError, LockKeys
 from app.config import settings
 from app.core.redis_manager import get_async_redis_client, get_redis_connection_kwargs
@@ -310,9 +309,6 @@ class WhatsAppMessageService:
             expected_exception=Exception,
         )
 
-        # Tracer for distributed tracing
-        self.tracer = get_tracer()
-
     async def send_message(self, request: MessageRequest) -> MessageResponse:
         """Send WhatsApp message with queue processing."""
         # Validate phone number
@@ -571,7 +567,6 @@ class WhatsAppMessageService:
                     )
             raise
 
-    @trace(name="send_message_impl", attributes={"service": "wuzapi"})
     async def _send_message_impl(
         self, message: WhatsAppMessage, request_data: Dict[str, Any]
     ):

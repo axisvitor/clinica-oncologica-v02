@@ -1,0 +1,7 @@
+{
+  "trace_linked": true,
+  "span_depth": 3,
+  "fastapi_transaction": "phase40.fastapi.request",
+  "celery_task_transaction": "phase40.celery.task",
+  "captured_event_count": 1
+}

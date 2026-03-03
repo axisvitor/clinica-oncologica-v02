@@ -41,6 +41,7 @@ prometheus-client>=0.24.1,<1.0.0  # Prometheus metrics for Celery tasks
 # [google]: pulls google-genai SDK (unified Google GenAI client)
 # [retries]: uses tenacity (already installed) for HTTP-level retry transport
 pydantic-ai-slim[google,retries]>=1.63.0,<2.0.0
+google-adk>=1.26.0,<2.0.0
 
 # Google API dependencies - Python 3.13 compatible (fixes pkg_resources deprecation)
 # NOTE: Removed gRPC dependencies to avoid Protobuf 6.x requirement (using HTTP-only OTLP)
@@ -113,24 +114,10 @@ asyncio-mqtt>=0.16.1,<1.0.0  # For async operations in resilience patterns
 aiobreaker>=1.2.0,<2.0.0  # Async circuit breaker with native asyncio support (HIGH-006)
 tenacity>=8.2.3,<9.0.0  # Retry with exponential backoff
 
-# OpenTelemetry for distributed tracing
-# Updated to latest versions for Python 3.13 compatibility and googleapis-common-protos>=1.70.0
-# NOTE: Removed opentelemetry-exporter-jaeger (no Python 3.13 support) - using OTLP instead
-# NOTE: Using HTTP-only OTLP exporter (Jaeger supports OTLP via port 4318)
-opentelemetry-api>=1.28.0,<2.0.0
-opentelemetry-sdk>=1.28.0,<2.0.0
-opentelemetry-instrumentation-fastapi>=0.49b0,<1.0.0
-opentelemetry-instrumentation-sqlalchemy>=0.49b0,<1.0.0
-opentelemetry-instrumentation-redis>=0.49b0,<1.0.0
-opentelemetry-instrumentation-httpx>=0.49b0,<1.0.0
-# OTLP HTTP-only exporter
-opentelemetry-exporter-otlp>=1.28.0,<2.0.0
-opentelemetry-exporter-otlp-proto-http>=1.28.0,<2.0.0
-opentelemetry-proto>=1.28.0,<2.0.0
-# Protobuf 5.x-6.x compatible with ALL packages:
-# - opentelemetry-proto>=1.28.0 requires protobuf>=5.0
-# - googleapis-common-protos 1.70.0 accepts protobuf>=3.20.2,<7.0.0
-# - google-api-core 2.25.0 accepts protobuf>=3.19.5,<7.0.0
+# Protobuf 5.x-6.x compatible with retained Google dependencies:
+# - googleapis-common-protos accepts protobuf>=3.20.2,<7.0.0
+# - google-api-core accepts protobuf>=3.19.5,<7.0.0
+# - google-adk transitively resolves protobuf 6.x in Python 3.13
 protobuf>=5.0,<7.0.0
 # WhatsApp integration dependencies
 aiohttp>=3.10.0,<4.0.0

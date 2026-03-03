@@ -48,7 +48,6 @@ from app.core.redis_circuit_breaker import (
     RedisCircuitBreaker as CircuitBreaker,
     CircuitOpenError,
 )
-from app.core.tracing import get_tracer
 from app.domain.analytics.quiz import get_quiz_metrics_collector
 from app.integrations.whatsapp.metrics import whatsapp_metrics
 from app.utils.timezone import now_sao_paulo
@@ -137,9 +136,6 @@ class UnifiedWhatsAppService:
         self.message_service = None
         if self._db_sync is not None:
             self.message_service = MessageService(self._db_sync)
-
-        # Tracer for distributed tracing
-        self.tracer = get_tracer()
 
         # WA-004 FIX: Circuit breaker for WuzAPI protection
         self._wuzapi_breaker = CircuitBreaker(

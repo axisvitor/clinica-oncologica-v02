@@ -35,9 +35,10 @@ def setup_sentry() -> None:
 
     try:
         import sentry_sdk
+        from sentry_sdk.integrations.celery import CeleryIntegration
         from sentry_sdk.integrations.fastapi import FastApiIntegration
-        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
         from sentry_sdk.integrations.redis import RedisIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
         # Determine environment
         environment = getattr(settings, "ENVIRONMENT", "development")
@@ -59,6 +60,7 @@ def setup_sentry() -> None:
                 FastApiIntegration(transaction_style="endpoint"),
                 SqlalchemyIntegration(),
                 RedisIntegration(),
+                CeleryIntegration(monitor_beat_tasks=True),
             ],
             # Send default PII (Personally Identifiable Information)
             send_default_pii=False,  # Don't send PII for HIPAA compliance
