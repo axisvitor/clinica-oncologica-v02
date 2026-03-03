@@ -129,7 +129,11 @@ Plans:
   2. The ADK Runner processes a request end-to-end: receives input, calls PIISafeADKWrapper, returns output — verifiable via integration test with synthetic data
   3. `grep -n "LANGGRAPH_ONLY\|_process_with_langgraph" backend-hormonia/app/services/hive_mind_integration.py` returns zero results
   4. The HiveMind service no longer crashes at import time — running `python -c "from app.services.hive_mind_integration import HiveMindService"` succeeds without ImportError
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 41-01-PLAN.md — Wrap sentiment/humanize/variation/empathy as ADK tools and implement wrapper runtime invocation
+- [ ] 41-02-PLAN.md — Expose `/api/v2/adk/run` endpoint with schema and integration tests through PIISafeADKWrapper
+- [ ] 41-03-PLAN.md — Remove HiveMind LangGraph dead code paths and add regression/import safety checks
 
 ### Phase 42: Admin SPA Quality
 **Goal**: The admin SPA shows accurate WuzAPI connection status to physicians (no "Evolution API disabled" banner), all API calls hit real backend endpoints, and the codebase passes ESLint and TypeScript checks cleanly
