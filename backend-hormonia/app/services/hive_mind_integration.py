@@ -7,7 +7,7 @@ Provides seamless integration while maintaining backward compatibility.
 
 import asyncio
 from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timezone
+from datetime import timezone
 from uuid import UUID
 from enum import Enum
 
@@ -18,9 +18,8 @@ from app.services.enhanced_flow_engine import EnhancedFlowEngine
 from app.services.template_loader_pkg import EnhancedTemplateLoader
 from app.models.patient import Patient
 from app.models.flow import PatientFlowState
-from app.agents.patient.flow_coordinator.constants import resolve_flow_type_and_day
 from app.utils.logging import get_logger
-from app.utils.timezone import now_sao_paulo, SAO_PAULO_TZ
+from app.utils.timezone import now_sao_paulo
 
 
 class IntegrationMode(Enum):
@@ -28,7 +27,6 @@ class IntegrationMode(Enum):
 
     FLOW_ENGINE_ONLY = "flow_engine_only"  # Use only existing flow engine fallback
     HIVE_MIND_ONLY = "hive_mind_only"  # Use only new agents
-    LANGGRAPH_ONLY = "langgraph_only"  # Use LangGraph flow execution
     HYBRID = "hybrid"  # Use both systems with coordination
     GRADUAL_MIGRATION = "gradual_migration"  # Gradually migrate to agents
 
@@ -201,7 +199,6 @@ class HiveMindIntegrationService:
             "total_processed": 0,
             "agent_processed": 0,
             "flow_engine_processed": 0,
-            "langgraph_processed": 0,
             "errors": [],
             "performance_metrics": {},
         }
@@ -214,36 +211,28 @@ class HiveMindIntegrationService:
                 self.logger.info("No patients need flow processing")
                 return results
 
-            if self.integration_mode == IntegrationMode.LANGGRAPH_ONLY:
-                langgraph_results = await self._process_with_langgraph(
-                    patients_to_process
-                )
-                results["langgraph_processed"] = langgraph_results["processed"]
-                results["errors"].extend(langgraph_results.get("errors", []))
-            else:
-                # Decide processing approach for each patient
-                agent_patients, flow_engine_patients = await self._distribute_patients(
-                    patients_to_process
-                )
+            # Decide processing approach for each patient
+            agent_patients, flow_engine_patients = await self._distribute_patients(
+                patients_to_process
+            )
 
-                # Process with agents (parallel)
-                if agent_patients and self.agent_enabled_features["flow_coordination"]:
-                    agent_results = await self._process_with_agents(agent_patients)
-                    results["agent_processed"] = agent_results["processed"]
-                    results["errors"].extend(agent_results.get("errors", []))
+            # Process with agents (parallel)
+            if agent_patients and self.agent_enabled_features["flow_coordination"]:
+                agent_results = await self._process_with_agents(agent_patients)
+                results["agent_processed"] = agent_results["processed"]
+                results["errors"].extend(agent_results.get("errors", []))
 
-                # Process with flow engine fallback (parallel)
-                if flow_engine_patients:
-                    flow_engine_results = await self._process_with_flow_engine(
-                        flow_engine_patients
-                    )
-                    results["flow_engine_processed"] = flow_engine_results["processed"]
-                    results["errors"].extend(flow_engine_results.get("errors", []))
+            # Process with flow engine fallback (parallel)
+            if flow_engine_patients:
+                flow_engine_results = await self._process_with_flow_engine(
+                    flow_engine_patients
+                )
+                results["flow_engine_processed"] = flow_engine_results["processed"]
+                results["errors"].extend(flow_engine_results.get("errors", []))
 
             results["total_processed"] = (
                 results["agent_processed"]
                 + results["flow_engine_processed"]
-                + results["langgraph_processed"]
             )
 
             # Update migration statistics
@@ -323,8 +312,6 @@ class HiveMindIntegrationService:
             return False
         elif self.integration_mode == IntegrationMode.HIVE_MIND_ONLY:
             return True
-        elif self.integration_mode == IntegrationMode.LANGGRAPH_ONLY:
-            return False
         elif self.integration_mode == IntegrationMode.HYBRID:
             # Use hash of patient ID to consistently assign patients
             import hashlib
@@ -467,80 +454,6 @@ class HiveMindIntegrationService:
         except Exception as e:
             self.logger.error(f"Flow engine processing failed: {e}")
             results["errors"].append({"error": str(e), "type": "flow_engine_system"})
-
-        return results
-
-    async def _process_with_langgraph(
-        self, patients: List[Tuple[Patient, PatientFlowState]]
-    ) -> Dict[str, Any]:
-        """Process patients using LangGraph flow execution."""
-        results = {"processed": 0, "errors": []}
-
-        try:
-            from app.services.flow.sequential_message_handler import (
-                SequentialMessageHandler,
-            )
-
-            # Note: HiveMindIntegrationService receives db_session from the agent
-            # framework (sync Session via SessionLocal). SequentialMessageHandler now
-            # expects AsyncSession for the FastAPI hot-path. This Hive-Mind agent path
-            # should be migrated to AsyncSession in a follow-up task.
-            handler = SequentialMessageHandler(self.db_session)
-
-            for patient, _flow_state in patients:
-                try:
-                    enrollment_date = (
-                        patient.enrollment_date
-                        or patient.created_at
-                        or now_sao_paulo()
-                    )
-                    if isinstance(enrollment_date, datetime):
-                        if enrollment_date.tzinfo is None:
-                            enrollment_date = enrollment_date.replace(
-                                tzinfo=SAO_PAULO_TZ
-                            )
-                        else:
-                            enrollment_date = enrollment_date.astimezone(SAO_PAULO_TZ)
-                        current_day = (
-                            now_sao_paulo().date() - enrollment_date.date()
-                        ).days + 1
-                    else:
-                        current_day = (now_sao_paulo().date() - enrollment_date).days + 1
-                    if current_day <= 0:
-                        current_day = 1
-
-                    flow_kind, day_in_flow = resolve_flow_type_and_day(current_day)
-
-                    flow_result = await handler.send_day_messages(
-                        patient_id=patient.id,
-                        day_number=day_in_flow,
-                        flow_kind=flow_kind,
-                    )
-
-                    if flow_result.get("status") != "error":
-                        results["processed"] += 1
-                    else:
-                        results["errors"].append(
-                            {
-                                "patient_id": str(patient.id),
-                                "error": flow_result.get(
-                                    "message", "LangGraph error"
-                                ),
-                            }
-                        )
-
-                except Exception as e:
-                    results["errors"].append(
-                        {
-                            "patient_id": str(patient.id),
-                            "error": str(e),
-                            "type": "langgraph_processing",
-                        }
-                    )
-
-        except Exception as e:
-            self.logger.error(f"LangGraph processing failed: {e}")
-            results["errors"].append({"error": str(e), "type": "langgraph_system"})
 
         return results
 
