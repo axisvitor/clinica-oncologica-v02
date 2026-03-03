@@ -5,7 +5,7 @@ WhatsApp API routes for message management and instance control.
 import logging
 from datetime import datetime
 from typing import Optional, AsyncGenerator
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -203,22 +203,20 @@ async def get_message_history(
 
 # Contact Management Endpoints
 @router.post("/contacts/{instance_name}/sync")
-async def sync_contacts(
-    instance_name: str,
-    background_tasks: BackgroundTasks,
-    message_service: WhatsAppMessageService = Depends(get_message_service),
-):
-    """Synchronize contacts from WhatsApp."""
-    try:
-        background_tasks.add_task(message_service.sync_contacts, instance_name)
-        return {
-            "status": "sync_started",
-            "instance_name": instance_name,
-            "timestamp": now_sao_paulo(),
-        }
-    except Exception as e:
-        logger.error(f"Error starting contact sync: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to start contact sync")
+async def sync_contacts(instance_name: str):
+    """Contacts sync is not supported by WuzAPI.
+
+    WuzAPI (whatsmeow-based) does not expose a contacts API equivalent to
+    Evolution API. This endpoint is retained for API compatibility and returns
+    HTTP 501 to avoid silent failures from the previous stub implementation.
+    """
+    raise HTTPException(
+        status_code=501,
+        detail=(
+            "Contacts sync is not supported by WuzAPI. "
+            "This operation has no equivalent in the current WhatsApp provider."
+        ),
+    )
 
 
 @router.get("/contacts/{instance_name}")
