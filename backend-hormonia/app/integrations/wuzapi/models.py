@@ -31,24 +31,3 @@ class WuzAPITextRequest(BaseModel):
 
 class WuzAPIMediaRequest(BaseModel):
     Phone: str
-
-
-class WuzAPIMessageInfo(BaseModel):
-    """Info block from WuzAPI webhook event (whatsmeow MessageInfo)."""
-
-    ID: str = ""
-    Sender: str = ""
-    Chat: str = ""
-    Timestamp: str | None = None
-    PushName: str | None = None
-    IsFromMe: bool = False
-
-
-class WuzAPIWebhookEvent(BaseModel):
-    """Top-level WuzAPI webhook envelope."""
-
-    type: str = "unknown"
-    token: str | None = None
-    event: dict | None = None
-
-    model_config = {"extra": "allow"}

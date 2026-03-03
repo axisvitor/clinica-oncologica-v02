@@ -1,13 +1,13 @@
 import hashlib
 import json
 import logging
-import os
 from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.redis_manager import get_async_redis_client
 from app.core.database.async_engine import get_async_db
 from app.integrations.wuzapi.extractor import (
@@ -34,7 +34,7 @@ async def wuzapi_webhook(
 ) -> dict[str, Any]:
     raw_body = await request.body()
 
-    secret = os.environ.get("WHATSAPP_WUZAPI_WEBHOOK_SECRET")
+    secret = settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET
     if secret:
         signature = request.headers.get("x-hmac-signature", "")
         if not WebhookHMACValidator.validate_signature(raw_body, signature, secret):

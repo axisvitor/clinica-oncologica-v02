@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import json
 from pathlib import Path
-from unittest.mock import ANY, AsyncMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, Mock, patch
 
 import fakeredis.aioredis
 import httpx
@@ -89,7 +89,9 @@ async def post_payload(client: httpx.AsyncClient, payload: dict, secret: str | N
 @pytest.mark.asyncio
 async def test_valid_hmac_returns_200(app: FastAPI, secret: str):
     payload = message_payload(event_id="X1")
-    with patch("app.integrations.wuzapi.webhook.os.environ.get", return_value=secret):
+    mock_settings = MagicMock()
+    mock_settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET = secret
+    with patch("app.integrations.wuzapi.webhook.settings", mock_settings):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             response = await post_payload(client, payload, secret=secret)
     assert response.status_code == 200
@@ -98,7 +100,9 @@ async def test_valid_hmac_returns_200(app: FastAPI, secret: str):
 @pytest.mark.asyncio
 async def test_invalid_hmac_returns_403(app: FastAPI, secret: str):
     body = b'{"type":"Message","event":{"Info":{"ID":"X2"}}}'
-    with patch("app.integrations.wuzapi.webhook.os.environ.get", return_value=secret):
+    mock_settings = MagicMock()
+    mock_settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET = secret
+    with patch("app.integrations.wuzapi.webhook.settings", mock_settings):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/webhooks/wuzapi",
@@ -125,7 +129,9 @@ async def test_unknown_event_type_returns_ignored(app: FastAPI, fake_redis):
 async def test_missing_hmac_header_returns_403(app: FastAPI, secret: str):
     body = json.dumps({"type": "Message", "event": {"Info": {"ID": "HMAC-MISS-1"}}}).encode()
 
-    with patch("app.integrations.wuzapi.webhook.os.environ.get", return_value=secret):
+    mock_settings = MagicMock()
+    mock_settings.WHATSAPP_WUZAPI_WEBHOOK_SECRET = secret
+    with patch("app.integrations.wuzapi.webhook.settings", mock_settings):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post(
                 "/webhooks/wuzapi",
