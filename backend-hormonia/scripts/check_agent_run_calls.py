@@ -21,12 +21,19 @@ RUN_CALL_PATTERN = re.compile(
     r"\b\w*agent\b\.run(?:_sync|_stream)?\s*\(",
     flags=re.IGNORECASE,
 )
+ADK_RUN_PATTERN = re.compile(
+    r"\b\w*runner\b\.run(?:_async)?\s*\(",
+    flags=re.IGNORECASE,
+)
 TRIPLE_DOUBLE = '"""'
 TRIPLE_SINGLE = "'''"
 
 
 def _is_exempt(path: Path) -> bool:
-    return path.as_posix().endswith("app/ai/agents/base.py")
+    as_posix = path.as_posix()
+    return as_posix.endswith(
+        "app/ai/agents/base.py"
+    ) or as_posix.endswith("app/ai/adk/wrapper.py")
 
 
 def _find_violations(path: Path) -> list[tuple[int, str]]:
@@ -60,7 +67,7 @@ def _find_violations(path: Path) -> list[tuple[int, str]]:
         if in_docstring:
             continue
 
-        if RUN_CALL_PATTERN.search(line):
+        if RUN_CALL_PATTERN.search(line) or ADK_RUN_PATTERN.search(line):
             violations.append((line_no, stripped))
 
     return violations
@@ -81,13 +88,13 @@ def main() -> int:
             found.append((py_file, line_no, snippet))
 
     if found:
-        print("Direct agent.run() calls found outside PIISafeAgent:")
+        print("Direct agent/adk run() calls found outside approved wrappers:")
         for path, line_no, snippet in found:
             rel = path.relative_to(repo_root)
             print(f"- {rel}:{line_no} -> {snippet}")
         return 1
 
-    print("No direct agent.run() calls found outside PIISafeAgent")
+    print("No direct agent/adk run() calls found outside approved wrappers")
     return 0
 
 
