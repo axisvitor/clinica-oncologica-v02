@@ -102,8 +102,6 @@ export interface ServiceStatusMetrics {
   redis: ServiceStatus
   /** Database service status */
   database: ServiceStatus
-  /** Evolution API service status */
-  evolution_api: ServiceStatus
   /** OpenAI API service status */
   openai_api: ServiceStatus
 }

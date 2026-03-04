@@ -51,7 +51,6 @@ export interface DatabaseMetrics {
 export interface ServiceStatusMetrics {
   redis: 'healthy' | 'degraded' | 'down'
   database: 'healthy' | 'degraded' | 'down'
-  evolution_api: 'healthy' | 'degraded' | 'down'
   openai_api: 'healthy' | 'degraded' | 'down'
 }
 

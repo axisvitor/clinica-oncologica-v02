@@ -262,19 +262,7 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     description: 'Comma-separated list of supported file MIME types',
   },
 
-  // Evolution and Demo Configuration
-  VITE_ENABLE_EVOLUTION: {
-    required: false,
-    type: 'boolean',
-    allowedValues: ['true', 'false'],
-    description: 'Enable evolution features',
-  },
-
-  VITE_EVOLUTION_API_URL: {
-    required: false,
-    type: 'url',
-    description: 'Evolution API URL',
-  },
+  // Demo Configuration
 
   VITE_SHOW_DEMO_CREDENTIALS: {
     required: false,
