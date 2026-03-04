@@ -16,6 +16,7 @@ async def run_adk(payload: ADKRunRequest) -> ADKRunResponse:
         "tool_name": payload.tool_name,
         "user_id": payload.user_id or "api-v2-adk-user",
         "session_id": payload.session_id or "api-v2-adk-session",
+        "request_source": "api_v2_adk",
     }
     if payload.context:
         context.update(payload.context)
