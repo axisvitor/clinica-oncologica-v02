@@ -98,7 +98,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 **Milestone Goal:** Corrigir qualidade dos dois frontends (admin SPA + quiz mensal) e integrar Google ADK no backend desbloqueado pela remocao do OpenTelemetry.
 
 - [x] **Phase 40: OTel Removal & ADK Foundation** - Remove OTel instrumentation, install ADK, scaffold PIISafeADKWrapper with CI guard (completed 2026-03-03)
-- [x] **Phase 41: ADK Agent Integration** - Wire Pydantic AI agents as ADK FunctionTools, configure ADK Runner endpoint, remove HiveMind LangGraph dead code (completed 2026-03-04)
+- [ ] **Phase 41: ADK Agent Integration** - Wire Pydantic AI agents as ADK FunctionTools, configure ADK Runner endpoint, remove HiveMind LangGraph dead code (gap closure in progress)
 - [ ] **Phase 42: Admin SPA Quality** - Remove Evolution dead code, consolidate API client, migrate polling to TanStack Query, enforce lint/formatting
 - [ ] **Phase 43: Quiz Interface Quality** - Add Prettier, upgrade Next.js 15, align ESLint 9, fix missing deps, improve type coverage
 
@@ -129,11 +129,12 @@ Plans:
   2. The ADK Runner processes a request end-to-end: receives input, calls PIISafeADKWrapper, returns output — verifiable via integration test with synthetic data
   3. `grep -n "LANGGRAPH_ONLY\|_process_with_langgraph" backend-hormonia/app/services/hive_mind_integration.py` returns zero results
   4. The HiveMind service no longer crashes at import time — running `python -c "from app.services.hive_mind_integration import HiveMindService"` succeeds without ImportError
-**Plans**: 3 plans
+**Plans**: 4 plans
 Plans:
-- [ ] 41-01-PLAN.md — Wrap sentiment/humanize/variation/empathy as ADK tools and implement wrapper runtime invocation
-- [ ] 41-02-PLAN.md — Expose `/api/v2/adk/run` endpoint with schema and integration tests through PIISafeADKWrapper
-- [ ] 41-03-PLAN.md — Remove HiveMind LangGraph dead code paths and add regression/import safety checks
+- [x] 41-01-PLAN.md — Wrap sentiment/humanize/variation/empathy as ADK tools and implement wrapper runtime invocation
+- [x] 41-02-PLAN.md — Expose `/api/v2/adk/run` endpoint with schema and integration tests through PIISafeADKWrapper
+- [x] 41-03-PLAN.md — Remove HiveMind LangGraph dead code paths and add regression/import safety checks
+- [ ] 41-04-PLAN.md — Gap closure: replace plain handler dispatch with real ADK FunctionTool + Runner primitives (ADK-06, ADK-07)
 
 ### Phase 42: Admin SPA Quality
 **Goal**: The admin SPA shows accurate WuzAPI connection status to physicians (no "Evolution API disabled" banner), all API calls hit real backend endpoints, and the codebase passes ESLint and TypeScript checks cleanly
@@ -171,10 +172,10 @@ Plans:
 | 29-32. Saga Orchestrator Deep Dive | v1.5 | 14/14 | Complete | 2026-03-01 |
 | 33-39. WuzAPI Migration | v1.6 | 21/21 | Complete | 2026-03-03 |
 | 40. OTel Removal & ADK Foundation | 3/3 | Complete    | 2026-03-03 | - |
-| 41. ADK Agent Integration | 3/3 | Complete   | 2026-03-04 | - |
+| 41. ADK Agent Integration | v1.7 | 3/4 | Gap closure | - |
 | 42. Admin SPA Quality | v1.7 | 0/TBD | Not started | - |
 | 43. Quiz Interface Quality | v1.7 | 0/TBD | Not started | - |
 
 ---
 *Roadmap created: 2026-02-22*
-*Last updated: 2026-03-03 — v1.7 roadmap created (Phases 40-43)*
+*Last updated: 2026-03-04 — Phase 41 gap closure plan added (41-04)*
