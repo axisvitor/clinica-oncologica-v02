@@ -24,8 +24,8 @@
 - [x] **ADMIN-04**: Componentes de polling (AgentSwarm.tsx, SystemHealth.tsx) migrados para TanStack Query
 - [x] **ADMIN-05**: Prettier configurado e aplicado em todo o admin SPA
 - [x] **ADMIN-06**: Warnings de ESLint zerados no admin SPA
-- [ ] **ADMIN-07**: Pacotes npm nao utilizados removidos (audit via knip ou similar)
-- [ ] **ADMIN-08**: Layout e espacamento consistentes entre paginas do admin
+- [x] **ADMIN-07**: Pacotes npm nao utilizados removidos (audit via knip ou similar)
+- [x] **ADMIN-08**: Layout e espacamento consistentes entre paginas do admin
 
 ### Quiz Interface
 
@@ -78,8 +78,8 @@
 | ADMIN-04 | Phase 42 | Complete |
 | ADMIN-05 | Phase 42 | Complete |
 | ADMIN-06 | Phase 42 | Complete |
-| ADMIN-07 | Phase 42 | Pending |
-| ADMIN-08 | Phase 42 | Pending |
+| ADMIN-07 | Phase 42 | Complete |
+| ADMIN-08 | Phase 42 | Complete |
 | QUIZ-01 | Phase 43 | Pending |
 | QUIZ-02 | Phase 43 | Pending |
 | QUIZ-03 | Phase 43 | Pending |
