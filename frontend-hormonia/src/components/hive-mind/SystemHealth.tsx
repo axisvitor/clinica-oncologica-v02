@@ -5,7 +5,11 @@ import { apiClient } from '@/lib/api-client'
 import { Activity, AlertTriangle, CheckCircle, Server } from 'lucide-react'
 
 export function SystemHealth() {
-  const { data: health, isLoading, error } = useQuery({
+  const {
+    data: health,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['hive-mind', 'health'],
     queryFn: () => apiClient.hiveMind.health(),
     refetchInterval: 30_000,

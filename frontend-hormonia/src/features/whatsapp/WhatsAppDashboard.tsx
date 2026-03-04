@@ -209,7 +209,9 @@ export const WhatsAppDashboard: React.FC = () => {
       <Card>
         <CardContent className="p-8 text-center">
           <AlertCircle className="w-16 h-16 mx-auto mb-4 text-red-500" />
-          <h2 className="text-xl font-semibold mb-2">WhatsApp (WuzAPI) connection status unavailable</h2>
+          <h2 className="text-xl font-semibold mb-2">
+            WhatsApp (WuzAPI) connection status unavailable
+          </h2>
           <p className="text-gray-600">Check server configuration.</p>
         </CardContent>
       </Card>
