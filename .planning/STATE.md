@@ -4,14 +4,14 @@ milestone: v1.7
 milestone_name: Frontend Quality & ADK Integration
 current_plan: 3
 status: executing
-stopped_at: Completed 41-02-PLAN.md
-last_updated: "2026-03-04T00:21:18.235Z"
+stopped_at: Completed 41-04-PLAN.md
+last_updated: "2026-03-04T03:30:33.671Z"
 last_activity: 2026-03-04
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 7
+  completed_plans: 7
   percent: 97
 ---
 
@@ -53,6 +53,7 @@ Progress: [█████████░] 97%
 | Phase 41 P01 | 9 min | 2 tasks | 5 files |
 | Phase 41 P03 | 8 | 2 tasks | 2 files |
 | Phase 41 P02 | 9 min | 2 tasks | 4 files |
+| Phase 41 P04 | 19 min | 1 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Progress: [█████████░] 97%
 - [Phase 41]: Added source-level and import-level regression tests to permanently guard against LangGraph tombstone symbol reintroduction.
 - [Phase 41]: Kept /api/v2/adk/run as a thin router that always delegates execution through PIISafeADKWrapper.safe_run.
 - [Phase 41]: Standardized ADK endpoint response as {status, tool_name, session_id, output} with request_source metadata in wrapper context.
+- [Phase 41]: Build deterministic single-tool Agent instances so requested tool_name maps to exactly one FunctionTool in Runner mode
+- [Phase 41]: Preserve host compatibility by keeping direct-handler fallback when ADK runtime is unavailable
 
 ### Pending Todos
 
@@ -90,6 +93,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-04T00:21:18.218Z
-**Stopped At:** Completed 41-02-PLAN.md
+**Last session:** 2026-03-04T03:30:33.654Z
+**Stopped At:** Completed 41-04-PLAN.md
 **Resume File:** None
