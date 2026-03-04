@@ -1,37 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiClient } from '@/lib/api-client'
-import { createLogger } from '@/utils/logger'
-
-const logger = createLogger('SystemHealth')
-import { SystemHealthOverview } from '@/lib/api-client/hive-mind'
 import { Activity, AlertTriangle, CheckCircle, Server } from 'lucide-react'
 
 export function SystemHealth() {
-  const [health, setHealth] = useState<SystemHealthOverview | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data: health, isLoading, error } = useQuery({
+    queryKey: ['hive-mind', 'health'],
+    queryFn: () => apiClient.hiveMind.health(),
+    refetchInterval: 30_000,
+    retry: 2,
+  })
 
-  useEffect(() => {
-    const fetchHealth = async () => {
-      try {
-        const data = await apiClient.hiveMind.health()
-        setHealth(data)
-      } catch (err) {
-        setError('Failed to fetch system health')
-        logger.error('Failed to fetch system health', err instanceof Error ? err : undefined)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchHealth()
-    const interval = setInterval(fetchHealth, 30000) // Refresh every 30s
-    return () => clearInterval(interval)
-  }, [])
-
-  if (loading) {
+  if (isLoading) {
     return <SystemHealthSkeleton />
   }
 
@@ -41,7 +22,7 @@ export function SystemHealth() {
         <CardContent className="pt-6 text-red-600">
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />
-            <span>{error}</span>
+            <span>{error instanceof Error ? error.message : 'Failed to fetch system health'}</span>
           </div>
         </CardContent>
       </Card>
