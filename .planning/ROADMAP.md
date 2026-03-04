@@ -98,7 +98,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 **Milestone Goal:** Corrigir qualidade dos dois frontends (admin SPA + quiz mensal) e integrar Google ADK no backend desbloqueado pela remocao do OpenTelemetry.
 
 - [x] **Phase 40: OTel Removal & ADK Foundation** - Remove OTel instrumentation, install ADK, scaffold PIISafeADKWrapper with CI guard (completed 2026-03-03)
-- [ ] **Phase 41: ADK Agent Integration** - Wire Pydantic AI agents as ADK FunctionTools, configure ADK Runner endpoint, remove HiveMind LangGraph dead code
+- [x] **Phase 41: ADK Agent Integration** - Wire Pydantic AI agents as ADK FunctionTools, configure ADK Runner endpoint, remove HiveMind LangGraph dead code (completed 2026-03-04)
 - [ ] **Phase 42: Admin SPA Quality** - Remove Evolution dead code, consolidate API client, migrate polling to TanStack Query, enforce lint/formatting
 - [ ] **Phase 43: Quiz Interface Quality** - Add Prettier, upgrade Next.js 15, align ESLint 9, fix missing deps, improve type coverage
 
@@ -171,7 +171,7 @@ Plans:
 | 29-32. Saga Orchestrator Deep Dive | v1.5 | 14/14 | Complete | 2026-03-01 |
 | 33-39. WuzAPI Migration | v1.6 | 21/21 | Complete | 2026-03-03 |
 | 40. OTel Removal & ADK Foundation | 3/3 | Complete    | 2026-03-03 | - |
-| 41. ADK Agent Integration | 2/3 | In Progress|  | - |
+| 41. ADK Agent Integration | 3/3 | Complete   | 2026-03-04 | - |
 | 42. Admin SPA Quality | v1.7 | 0/TBD | Not started | - |
 | 43. Quiz Interface Quality | v1.7 | 0/TBD | Not started | - |
 
