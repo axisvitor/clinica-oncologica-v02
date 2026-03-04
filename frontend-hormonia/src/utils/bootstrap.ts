@@ -118,15 +118,9 @@ export class FrontendBootstrap {
     logger.info('[2/5] Setting up monitoring...')
 
     try {
-      // Initialize web vitals monitoring
-      if (typeof window !== 'undefined') {
-        import('web-vitals').then(({ onCLS, onFID, onFCP, onLCP, onTTFB }) => {
-          onCLS((metric) => logger.debug('CLS', metric))
-          onFID((metric) => logger.debug('FID', metric))
-          onFCP((metric) => logger.debug('FCP', metric))
-          onLCP((metric) => logger.debug('LCP', metric))
-          onTTFB((metric) => logger.debug('TTFB', metric))
-        })
+      if (typeof window !== 'undefined' && 'performance' in window) {
+        const navigation = performance.getEntriesByType('navigation')[0]
+        logger.debug('Navigation metrics', navigation)
       }
 
       logger.info('✓ Monitoring configured')

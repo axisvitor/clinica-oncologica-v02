@@ -3,7 +3,6 @@
  * Handles AI-powered analytics endpoints
  */
 
-import axios, { AxiosInstance } from 'axios'
 import { createLogger } from '@/utils/logger'
 
 const logger = createLogger('EnhancedAnalytics')
@@ -20,8 +19,98 @@ import {
   ReportResponse,
 } from '../../types/enhanced-analytics'
 
+type RequestOptions = {
+  params?: Record<string, unknown>
+  responseType?: 'json' | 'blob'
+}
+
+type ApiErrorPayload = { message?: string }
+
+class ApiClientError extends Error {
+  status?: number
+  payload?: ApiErrorPayload
+
+  constructor(message: string, status?: number, payload?: ApiErrorPayload) {
+    super(message)
+    this.name = 'ApiClientError'
+    this.status = status
+    this.payload = payload
+  }
+}
+
+class HttpClient {
+  constructor(
+    private readonly baseUrl: string,
+    private readonly timeoutMs: number,
+    private readonly getAuthHeaders: () => Record<string, string>,
+    private readonly onUnauthorized: () => void
+  ) {}
+
+  async get<T>(path: string, options: RequestOptions = {}): Promise<{ data: T }> {
+    return this.request<T>('GET', path, undefined, options)
+  }
+
+  async post<T>(path: string, body?: unknown, options: RequestOptions = {}): Promise<{ data: T }> {
+    return this.request<T>('POST', path, body, options)
+  }
+
+  private async request<T>(
+    method: 'GET' | 'POST',
+    path: string,
+    body?: unknown,
+    options: RequestOptions = {}
+  ): Promise<{ data: T }> {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), this.timeoutMs)
+
+    try {
+      const url = new URL(path.replace(/^\//, ''), this.baseUrl)
+      if (options.params) {
+        Object.entries(options.params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            url.searchParams.set(key, String(value))
+          }
+        })
+      }
+
+      const response = await fetch(url.toString(), {
+        method,
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...this.getAuthHeaders(),
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      })
+
+      if (response.status === 401) {
+        this.onUnauthorized()
+      }
+
+      if (!response.ok) {
+        let payload: ApiErrorPayload | undefined
+        try {
+          payload = (await response.json()) as ApiErrorPayload
+        } catch {
+          payload = undefined
+        }
+        throw new ApiClientError(payload?.message || response.statusText, response.status, payload)
+      }
+
+      if (options.responseType === 'blob') {
+        return { data: (await response.blob()) as T }
+      }
+
+      return { data: (await response.json()) as T }
+    } finally {
+      window.clearTimeout(timeout)
+    }
+  }
+}
+
 export class EnhancedAnalyticsApi {
-  private client: AxiosInstance
+  private client: HttpClient
   private baseUrl: string
 
   constructor(baseUrl?: string) {
@@ -31,34 +120,21 @@ export class EnhancedAnalyticsApi {
       import.meta.env.VITE_API_BASE_URL ||
       import.meta.env.VITE_API_URL ||
       'http://localhost:8000'
-    this.client = axios.create({
-      baseURL: `${this.baseUrl}/api/v2/enhanced-analytics/`,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      withCredentials: true,
-      timeout: 30000, // AI operations may take longer
-    })
-
-    // Add auth token interceptor
-    this.client.interceptors.request.use((config) => {
-      const token = localStorage.getItem('session_id') || localStorage.getItem('auth_token')
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`
-        config.headers['X-Session-ID'] = token
-      }
-      return config
-    })
-
-    // Add response error handler
-    this.client.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response?.status === 401) {
-          // Redirect to login or refresh token
-          window.location.href = '/login'
+    this.client = new HttpClient(
+      `${this.baseUrl}/api/v2/enhanced-analytics/`,
+      30000,
+      (): Record<string, string> => {
+        const token = localStorage.getItem('session_id') || localStorage.getItem('auth_token')
+        if (!token) {
+          return {}
         }
-        return Promise.reject(error)
+        return {
+          Authorization: `Bearer ${token}`,
+          'X-Session-ID': token,
+        }
+      },
+      () => {
+        window.location.href = '/login'
       }
     )
   }
@@ -69,7 +145,7 @@ export class EnhancedAnalyticsApi {
   async getDashboard(filters?: DashboardFilters): Promise<EnhancedDashboard> {
     try {
       const response = await this.client.get<DashboardResponse>('dashboard', {
-        params: filters,
+        params: filters as unknown as Record<string, unknown> | undefined,
       })
 
       if (!response.data.success) {
@@ -160,7 +236,7 @@ export class EnhancedAnalyticsApi {
    */
   async downloadReport(reportId: string, format: 'pdf' | 'csv' | 'json'): Promise<Blob> {
     try {
-      const response = await this.client.get(`/reports/${reportId}/download`, {
+      const response = await this.client.get<Blob>(`/reports/${reportId}/download`, {
         params: { format },
         responseType: 'blob',
       })
@@ -207,7 +283,7 @@ export class EnhancedAnalyticsApi {
    */
   async exportDashboard(filters?: DashboardFilters, format: 'pdf' | 'csv' = 'pdf'): Promise<Blob> {
     try {
-      const response = await this.client.post(
+      const response = await this.client.post<Blob>(
         'dashboard/export',
         { filters },
         {
@@ -247,8 +323,8 @@ export class EnhancedAnalyticsApi {
    * Error handler
    */
   private handleError(error: unknown): Error {
-    if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message
+    if (error instanceof ApiClientError) {
+      const message = error.payload?.message || error.message
       return new Error(`API Error: ${message}`)
     }
     if (error instanceof Error) {
