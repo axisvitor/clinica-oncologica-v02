@@ -181,9 +181,9 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 Plans:
 
-- [ ] 43-01-PLAN.md — Establish quiz tooling baseline with Prettier parity, Next.js 15 upgrade, and ESLint 9 flat config
-- [ ] 43-02-PLAN.md — Add missing Jest CSS mapper dependency and migrate test mocks from MSW v1 to v2
-- [ ] 43-03-PLAN.md — Harden core quiz typing/boundary guards and normalize route layout/spacing shell consistency
+- [ ] 43-01-PLAN.md — Stabilize quiz formatter/lint/build baseline (Prettier parity + Next 15 + ESLint 9 flat config runtime fixes)
+- [ ] 43-02-PLAN.md — Add missing Jest CSS mapper dependency and migrate quiz mocks to MSW v2 API contracts
+- [ ] 43-03-PLAN.md — Harden locked core typing/boundary guards, remove cross-app toast import drift, and normalize quiz shell consistency
 
 ## Progress
 
