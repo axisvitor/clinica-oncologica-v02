@@ -40,29 +40,32 @@ export function useMonthlyQuizAdmin() {
   }, [])
 
   // Resend quiz link
-  const resendQuizLink = useCallback(async (sessionId: string) => {
-    try {
-      const result = await apiClient.monthlyQuiz.resend(sessionId)
+  const resendQuizLink = useCallback(
+    async (sessionId: string) => {
+      try {
+        const result = await apiClient.monthlyQuiz.resend(sessionId)
 
-      toast({
-        title: 'Link reenviado',
-        description: 'O link do quiz foi reenviado com sucesso'
-      })
+        toast({
+          title: 'Link reenviado',
+          description: 'O link do quiz foi reenviado com sucesso',
+        })
 
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['monthly-quiz-active-links'] })
-      queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ['monthly-quiz-active-links'] })
+        queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
 
-      return result
-    } catch (error: unknown) {
-      toast({
-        title: 'Erro ao reenviar link',
-        description: getErrorMessage(error) || 'Ocorreu um erro ao reenviar o link',
-        variant: 'destructive'
-      })
-      throw error
-    }
-  }, [queryClient, toast])
+        return result
+      } catch (error: unknown) {
+        toast({
+          title: 'Erro ao reenviar link',
+          description: getErrorMessage(error) || 'Ocorreu um erro ao reenviar o link',
+          variant: 'destructive',
+        })
+        throw error
+      }
+    },
+    [queryClient, toast]
+  )
 
   // Get quiz link status for a patient
   const getQuizLinkStatus = useCallback(async (patientId: string) => {
@@ -77,12 +80,15 @@ export function useMonthlyQuizAdmin() {
         const list = await getQuizLinkStatus(patientId)
         if (!Array.isArray(list) || list.length === 0) return null
         const first = list[0] as QuizLinkStatus
-        const expired = first.expires_at ? (new Date(first.expires_at) < new Date()) : false
-        const uiStatus = !expired && !['completed', 'cancelled', 'expired'].includes(first.status) ? 'active' : first.status
+        const expired = first.expires_at ? new Date(first.expires_at) < new Date() : false
+        const uiStatus =
+          !expired && !['completed', 'cancelled', 'expired'].includes(first.status)
+            ? 'active'
+            : first.status
         return { ...first, status: uiStatus }
       },
       enabled: !!patientId,
-      staleTime: 30000 // 30 seconds
+      staleTime: 30000, // 30 seconds
     })
   }
 
@@ -96,34 +102,37 @@ export function useMonthlyQuizAdmin() {
     return useQuery<QuizHistoryEntry[]>({
       queryKey: ['monthly-quiz-history', patientId],
       queryFn: () => getQuizLinkHistory(patientId),
-      enabled: !!patientId
+      enabled: !!patientId,
     })
   }
 
   // Cancel quiz link
-  const cancelQuizLink = useCallback(async (sessionId: string) => {
-    try {
-      const result = await apiClient.monthlyQuiz.cancel(sessionId)
+  const cancelQuizLink = useCallback(
+    async (sessionId: string) => {
+      try {
+        const result = await apiClient.monthlyQuiz.cancel(sessionId)
 
-      toast({
-        title: 'Link cancelado',
-        description: 'O link do quiz foi cancelado com sucesso'
-      })
+        toast({
+          title: 'Link cancelado',
+          description: 'O link do quiz foi cancelado com sucesso',
+        })
 
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['monthly-quiz-active-links'] })
-      queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
+        // Invalidate queries to refresh data
+        queryClient.invalidateQueries({ queryKey: ['monthly-quiz-active-links'] })
+        queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
 
-      return result
-    } catch (error: unknown) {
-      toast({
-        title: 'Erro ao cancelar link',
-        description: getErrorMessage(error) || 'Ocorreu um erro ao cancelar o link',
-        variant: 'destructive'
-      })
-      throw error
-    }
-  }, [queryClient, toast])
+        return result
+      } catch (error: unknown) {
+        toast({
+          title: 'Erro ao cancelar link',
+          description: getErrorMessage(error) || 'Ocorreu um erro ao cancelar o link',
+          variant: 'destructive',
+        })
+        throw error
+      }
+    },
+    [queryClient, toast]
+  )
 
   // Get quiz statistics
   const getQuizStats = useCallback(async (dateFrom?: string, dateTo?: string) => {
@@ -139,7 +148,7 @@ export function useMonthlyQuizAdmin() {
     return useQuery({
       queryKey: ['monthly-quiz-stats', dateFrom, dateTo],
       queryFn: () => getQuizStats(dateFrom, dateTo),
-      staleTime: 60000 // 1 minute
+      staleTime: 60000, // 1 minute
     })
   }
 
@@ -150,7 +159,7 @@ export function useMonthlyQuizAdmin() {
       onSuccess: () => {
         toast({
           title: 'Link enviado',
-          description: 'O link do quiz foi enviado com sucesso'
+          description: 'O link do quiz foi enviado com sucesso',
         })
         queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
         queryClient.invalidateQueries({ queryKey: ['patients'] })
@@ -159,9 +168,9 @@ export function useMonthlyQuizAdmin() {
         toast({
           title: 'Erro ao enviar link',
           description: getErrorMessage(error) || 'Ocorreu um erro ao enviar o link',
-          variant: 'destructive'
+          variant: 'destructive',
         })
-      }
+      },
     })
   }
 
@@ -172,7 +181,7 @@ export function useMonthlyQuizAdmin() {
       onSuccess: () => {
         toast({
           title: 'Links enviados',
-          description: 'Os links do quiz foram enviados com sucesso'
+          description: 'Os links do quiz foram enviados com sucesso',
         })
         queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
         queryClient.invalidateQueries({ queryKey: ['patients'] })
@@ -181,9 +190,9 @@ export function useMonthlyQuizAdmin() {
         toast({
           title: 'Erro ao enviar links',
           description: getErrorMessage(error) || 'Ocorreu um erro ao enviar os links',
-          variant: 'destructive'
+          variant: 'destructive',
         })
-      }
+      },
     })
   }
 
@@ -199,6 +208,6 @@ export function useMonthlyQuizAdmin() {
     getQuizStats,
     useQuizStats,
     useSendQuizLinkMutation,
-    useBulkSendQuizLinksMutation
+    useBulkSendQuizLinksMutation,
   }
 }

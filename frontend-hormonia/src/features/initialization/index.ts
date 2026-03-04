@@ -9,7 +9,7 @@ export {
   LoadingTableRow,
   LoadingCardSkeleton,
   LoadingCard_Skeleton,
-  LoadingList
+  LoadingList,
 } from '@/components/ui/loading-spinner'
 export { EnvironmentSetup } from './EnvironmentSetup'
 export { DatabaseChecker } from './DatabaseChecker'
@@ -18,7 +18,12 @@ export { WelcomeFlow } from './WelcomeFlow'
 export { InitialUserSetup } from './InitialUserSetup'
 
 // Re-export error boundary components used by initialization
-export { ErrorBoundary, SimpleErrorFallback, withErrorBoundary, useErrorHandler } from '@/components/error/ErrorBoundary'
+export {
+  ErrorBoundary,
+  SimpleErrorFallback,
+  withErrorBoundary,
+  useErrorHandler,
+} from '@/components/error/ErrorBoundary'
 
 // Types
 export interface InitializationConfig {

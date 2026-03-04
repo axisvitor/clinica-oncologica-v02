@@ -15,7 +15,7 @@ import { ptBR } from 'date-fns/locale'
 export function getInitials(name: string): string {
   return name
     .split(' ')
-    .map(n => n[0])
+    .map((n) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2)
@@ -33,7 +33,7 @@ export function formatLastContact(lastContact?: string): string {
   try {
     return formatDistanceToNow(new Date(lastContact), {
       addSuffix: true,
-      locale: ptBR
+      locale: ptBR,
     })
   } catch {
     return 'Data inválida'
@@ -59,24 +59,24 @@ export interface StatusBadgeConfig {
 export const STATUS_BADGE_MAP: Record<PatientStatus, StatusBadgeConfig> = {
   active: {
     label: 'Ativo',
-    className: 'bg-green-100 text-green-800'
+    className: 'bg-green-100 text-green-800',
   },
   paused: {
     label: 'Pausado',
-    className: 'bg-yellow-100 text-yellow-800'
+    className: 'bg-yellow-100 text-yellow-800',
   },
   completed: {
     label: 'Concluído',
-    className: 'bg-blue-100 text-blue-800'
+    className: 'bg-blue-100 text-blue-800',
   },
   inactive: {
     label: 'Inativo',
-    className: 'bg-gray-100 text-gray-800'
+    className: 'bg-gray-100 text-gray-800',
   },
   cancelled: {
     label: 'Cancelado',
-    className: 'bg-red-100 text-red-800'
-  }
+    className: 'bg-red-100 text-red-800',
+  },
 }
 
 /**
@@ -90,7 +90,7 @@ export function getStatusBadgeConfig(status: string): StatusBadgeConfig {
   if (!config) {
     return {
       label: status,
-      className: 'bg-gray-100 text-gray-800'
+      className: 'bg-gray-100 text-gray-800',
     }
   }
 

@@ -20,33 +20,35 @@
  */
 /* eslint-disable no-console */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+type LogLevel = 'debug' | 'info' | 'warn' | 'error'
 
 // Sentry global type
 interface SentryGlobal {
-  captureException: (error: Error, context?: { extra?: Record<string, unknown> }) => void;
-  captureMessage: (message: string, context?: { level?: string; extra?: Record<string, unknown> }) => void;
+  captureException: (error: Error, context?: { extra?: Record<string, unknown> }) => void
+  captureMessage: (
+    message: string,
+    context?: { level?: string; extra?: Record<string, unknown> }
+  ) => void
 }
 
 interface LoggerConfig {
-  enabled: boolean;
-  minLevel: LogLevel;
-  sendToSentry: boolean;
-  prefix?: string;
+  enabled: boolean
+  minLevel: LogLevel
+  sendToSentry: boolean
+  prefix?: string
 }
 
 class Logger {
-  private config: LoggerConfig;
+  private config: LoggerConfig
   private readonly logLevels: Record<LogLevel, number> = {
     debug: 0,
     info: 1,
     warn: 2,
     error: 3,
-  };
+  }
 
   constructor(config?: Partial<LoggerConfig>) {
-    const isDevelopment = import.meta.env.MODE === 'development' ||
-                         import.meta.env.DEV === true;
+    const isDevelopment = import.meta.env.MODE === 'development' || import.meta.env.DEV === true
 
     this.config = {
       enabled: isDevelopment,
@@ -54,7 +56,7 @@ class Logger {
       sendToSentry: !isDevelopment,
       prefix: '',
       ...config,
-    };
+    }
   }
 
   /**
@@ -62,24 +64,24 @@ class Logger {
    */
   private shouldLog(level: LogLevel): boolean {
     if (!this.config.enabled) {
-      return false;
+      return false
     }
 
-    const currentLevelValue = this.logLevels[level];
-    const minLevelValue = this.logLevels[this.config.minLevel];
+    const currentLevelValue = this.logLevels[level]
+    const minLevelValue = this.logLevels[this.config.minLevel]
 
-    return currentLevelValue >= minLevelValue;
+    return currentLevelValue >= minLevelValue
   }
 
   /**
    * Format log message with timestamp and prefix
    */
   private formatMessage(level: LogLevel, message: string): string {
-    const timestamp = new Date().toISOString();
-    const prefix = this.config.prefix ? `[${this.config.prefix}]` : '';
-    const levelStr = level.toUpperCase().padEnd(5);
+    const timestamp = new Date().toISOString()
+    const prefix = this.config.prefix ? `[${this.config.prefix}]` : ''
+    const levelStr = level.toUpperCase().padEnd(5)
 
-    return `${timestamp} ${levelStr} ${prefix} ${message}`;
+    return `${timestamp} ${levelStr} ${prefix} ${message}`
   }
 
   /**
@@ -87,23 +89,23 @@ class Logger {
    */
   private sendToSentry(error: Error | string, context?: Record<string, unknown>): void {
     if (!this.config.sendToSentry) {
-      return;
+      return
     }
 
     // Check if Sentry is available
     if (typeof window !== 'undefined' && (window as Window & { Sentry?: SentryGlobal }).Sentry) {
-      const Sentry = (window as Window & { Sentry?: SentryGlobal }).Sentry;
+      const Sentry = (window as Window & { Sentry?: SentryGlobal }).Sentry
 
       if (Sentry) {
         if (error instanceof Error) {
           Sentry.captureException(error, {
             extra: context,
-          });
+          })
         } else {
           Sentry.captureMessage(error, {
             level: 'error',
             extra: context,
-          });
+          })
         }
       }
     }
@@ -114,7 +116,7 @@ class Logger {
    */
   debug(message: string, ...args: unknown[]): void {
     if (this.shouldLog('debug')) {
-      console.debug(this.formatMessage('debug', message), ...args);
+      console.debug(this.formatMessage('debug', message), ...args)
     }
   }
 
@@ -123,7 +125,7 @@ class Logger {
    */
   info(message: string, ...args: unknown[]): void {
     if (this.shouldLog('info')) {
-      console.info(this.formatMessage('info', message), ...args);
+      console.info(this.formatMessage('info', message), ...args)
     }
   }
 
@@ -132,7 +134,7 @@ class Logger {
    */
   warn(message: string, ...args: unknown[]): void {
     if (this.shouldLog('warn')) {
-      console.warn(this.formatMessage('warn', message), ...args);
+      console.warn(this.formatMessage('warn', message), ...args)
     }
   }
 
@@ -141,14 +143,14 @@ class Logger {
    */
   error(message: string, error?: Error | unknown, context?: Record<string, unknown>): void {
     if (this.shouldLog('error')) {
-      console.error(this.formatMessage('error', message), error, context);
+      console.error(this.formatMessage('error', message), error, context)
     }
 
     // Send to Sentry in production
     if (error instanceof Error) {
-      this.sendToSentry(error, { message, ...context });
+      this.sendToSentry(error, { message, ...context })
     } else if (error) {
-      this.sendToSentry(new Error(message), { originalError: error, ...context });
+      this.sendToSentry(new Error(message), { originalError: error, ...context })
     }
   }
 
@@ -158,10 +160,8 @@ class Logger {
   child(prefix: string): Logger {
     return new Logger({
       ...this.config,
-      prefix: this.config.prefix
-        ? `${this.config.prefix}:${prefix}`
-        : prefix,
-    });
+      prefix: this.config.prefix ? `${this.config.prefix}:${prefix}` : prefix,
+    })
   }
 
   /**
@@ -170,9 +170,9 @@ class Logger {
   group(label: string, collapsed: boolean = false): void {
     if (this.shouldLog('debug')) {
       if (collapsed) {
-        console.groupCollapsed(this.formatMessage('debug', label));
+        console.groupCollapsed(this.formatMessage('debug', label))
       } else {
-        console.group(this.formatMessage('debug', label));
+        console.group(this.formatMessage('debug', label))
       }
     }
   }
@@ -182,7 +182,7 @@ class Logger {
    */
   groupEnd(): void {
     if (this.shouldLog('debug')) {
-      console.groupEnd();
+      console.groupEnd()
     }
   }
 
@@ -191,7 +191,7 @@ class Logger {
    */
   table(data: unknown): void {
     if (this.shouldLog('debug')) {
-      console.table(data);
+      console.table(data)
     }
   }
 
@@ -200,7 +200,7 @@ class Logger {
    */
   time(label: string): void {
     if (this.shouldLog('debug')) {
-      console.time(label);
+      console.time(label)
     }
   }
 
@@ -209,7 +209,7 @@ class Logger {
    */
   timeEnd(label: string): void {
     if (this.shouldLog('debug')) {
-      console.timeEnd(label);
+      console.timeEnd(label)
     }
   }
 
@@ -218,39 +218,39 @@ class Logger {
    */
   assert(condition: boolean, message: string): void {
     if (this.shouldLog('error')) {
-      console.assert(condition, this.formatMessage('error', message));
+      console.assert(condition, this.formatMessage('error', message))
     }
 
     if (!condition) {
-      this.sendToSentry(new Error(`Assertion failed: ${message}`));
+      this.sendToSentry(new Error(`Assertion failed: ${message}`))
     }
   }
 }
 
 // Export singleton instance
-export const logger = new Logger();
+export const logger = new Logger()
 
 // Export class for custom instances
-export { Logger };
+export { Logger }
 
 // Export type for configuration
-export type { LoggerConfig, LogLevel };
+export type { LoggerConfig, LogLevel }
 
 // Convenience exports for common patterns
 export const createLogger = (prefix: string): Logger => {
-  return logger.child(prefix);
-};
+  return logger.child(prefix)
+}
 
 // Development-only logger (never logs in production)
 export const devLogger = new Logger({
   enabled: import.meta.env.MODE === 'development',
   minLevel: 'debug',
   sendToSentry: false,
-});
+})
 
 // Production-only logger (only errors in production)
 export const prodLogger = new Logger({
   enabled: true,
   minLevel: 'error',
   sendToSentry: true,
-});
+})

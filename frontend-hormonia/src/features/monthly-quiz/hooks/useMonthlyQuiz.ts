@@ -3,9 +3,9 @@
  *
  * React hook for managing monthly quiz via link functionality.
  */
-import { useState, useCallback } from 'react';
-import { apiClient } from '@/lib/api-client';
-import type { QuizLinkStatus as ApiQuizLinkStatus } from '@/lib/api-client/monthly-quiz';
+import { useState, useCallback } from 'react'
+import { apiClient } from '@/lib/api-client'
+import type { QuizLinkStatus as ApiQuizLinkStatus } from '@/lib/api-client/monthly-quiz'
 
 // Define types inline since ../types doesn't exist
 interface MonthlyQuizLinkCreate {
@@ -54,114 +54,117 @@ export interface UseMonthlyQuizReturn {
   getQuizLinkStatus: (sessionId: string) => Promise<ApiQuizLinkStatus | null>
   getQuizStats: (startDate?: string, endDate?: string) => Promise<MonthlyQuizStats | null>
   accessQuiz: (token: string) => Promise<MonthlyQuizAccess | null>
-  submitQuizResponse: (submitData: MonthlyQuizSubmit) => Promise<{ success: boolean; message: string } | null>
+  submitQuizResponse: (
+    submitData: MonthlyQuizSubmit
+  ) => Promise<{ success: boolean; message: string } | null>
 }
 
 export function useMonthlyQuiz(): UseMonthlyQuizReturn {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   /**
    * Create a monthly quiz link for a patient
    */
-  const createQuizLink = useCallback(async (
-    linkData: MonthlyQuizLinkCreate
-  ): Promise<MonthlyQuizLink | null> => {
-    setLoading(true);
-    setError(null);
+  const createQuizLink = useCallback(
+    async (linkData: MonthlyQuizLinkCreate): Promise<MonthlyQuizLink | null> => {
+      setLoading(true)
+      setError(null)
 
-    try {
-      const response = await apiClient.monthlyQuiz.createLink(linkData);
-      return response;
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create quiz link';
-      setError(errorMessage);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      try {
+        const response = await apiClient.monthlyQuiz.createLink(linkData)
+        return response
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to create quiz link'
+        setError(errorMessage)
+        return null
+      } finally {
+        setLoading(false)
+      }
+    },
+    []
+  )
 
   /**
    * Create quiz links for multiple patients
    */
-  const createBulkQuizLinks = useCallback(async (
-    bulkData: BulkQuizLinkCreate
-  ): Promise<BulkQuizLinkResponse | null> => {
-    setLoading(true);
-    setError(null);
+  const createBulkQuizLinks = useCallback(
+    async (bulkData: BulkQuizLinkCreate): Promise<BulkQuizLinkResponse | null> => {
+      setLoading(true)
+      setError(null)
 
-    try {
-      const response = await apiClient.monthlyQuiz.bulkCreate(bulkData);
-      return response;
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create bulk quiz links';
-      setError(errorMessage);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      try {
+        const response = await apiClient.monthlyQuiz.bulkCreate(bulkData)
+        return response
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to create bulk quiz links'
+        setError(errorMessage)
+        return null
+      } finally {
+        setLoading(false)
+      }
+    },
+    []
+  )
 
   /**
    * Get quiz link status
    */
-  const getQuizLinkStatus = useCallback(async (
-    sessionId: string
-  ): Promise<ApiQuizLinkStatus | null> => {
-    setLoading(true);
-    setError(null);
+  const getQuizLinkStatus = useCallback(
+    async (sessionId: string): Promise<ApiQuizLinkStatus | null> => {
+      setLoading(true)
+      setError(null)
 
-    try {
-      const response = await apiClient.monthlyQuiz.getStatus(sessionId);
-      return response;
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to get quiz link status';
-      setError(errorMessage);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      try {
+        const response = await apiClient.monthlyQuiz.getStatus(sessionId)
+        return response
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to get quiz link status'
+        setError(errorMessage)
+        return null
+      } finally {
+        setLoading(false)
+      }
+    },
+    []
+  )
 
   /**
    * Get monthly quiz statistics
    */
-  const getQuizStats = useCallback(async (
-    startDate?: string,
-    endDate?: string
-  ): Promise<MonthlyQuizStats | null> => {
-    setLoading(true);
-    setError(null);
+  const getQuizStats = useCallback(
+    async (startDate?: string, endDate?: string): Promise<MonthlyQuizStats | null> => {
+      setLoading(true)
+      setError(null)
 
-    try {
-      const params = new URLSearchParams();
-      if (startDate) params.append('start_date', startDate);
-      if (endDate) params.append('end_date', endDate);
+      try {
+        const params = new URLSearchParams()
+        if (startDate) params.append('start_date', startDate)
+        if (endDate) params.append('end_date', endDate)
 
-      const statsParams: { start_date?: string; end_date?: string } = {}
-      if (startDate) statsParams.start_date = startDate
-      if (endDate) statsParams.end_date = endDate
+        const statsParams: { start_date?: string; end_date?: string } = {}
+        if (startDate) statsParams.start_date = startDate
+        if (endDate) statsParams.end_date = endDate
 
-      const response = await apiClient.monthlyQuiz.getStats(statsParams);
-      return response;
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to get quiz statistics';
-      setError(errorMessage);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        const response = await apiClient.monthlyQuiz.getStats(statsParams)
+        return response
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to get quiz statistics'
+        setError(errorMessage)
+        return null
+      } finally {
+        setLoading(false)
+      }
+    },
+    []
+  )
 
   /**
    * Access quiz via token (public endpoint)
    */
-  const accessQuiz = useCallback(async (
-    token: string
-  ): Promise<MonthlyQuizAccess | null> => {
-    setLoading(true);
-    setError(null);
+  const accessQuiz = useCallback(async (token: string): Promise<MonthlyQuizAccess | null> => {
+    setLoading(true)
+    setError(null)
 
     try {
       // Backend expects GET with token query param at /monthly/public/current
@@ -169,51 +172,54 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
       const response = await apiClient.request<MonthlyQuizAccess>(
         `/api/v2/quiz-extensions/monthly/public/current?token=${encodeURIComponent(token)}`,
         {
-          method: 'GET'
+          method: 'GET',
         }
-      );
-      return response;
+      )
+      return response
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to access quiz';
-      setError(errorMessage);
-      return null;
+      const errorMessage = err instanceof Error ? err.message : 'Failed to access quiz'
+      setError(errorMessage)
+      return null
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, []);
+  }, [])
 
   /**
    * Submit quiz response via token (public endpoint)
    */
-  const submitQuizResponse = useCallback(async (
-    submitData: MonthlyQuizSubmit
-  ): Promise<{ success: boolean; message: string } | null> => {
-    setLoading(true);
-    setError(null);
+  const submitQuizResponse = useCallback(
+    async (
+      submitData: MonthlyQuizSubmit
+    ): Promise<{ success: boolean; message: string } | null> => {
+      setLoading(true)
+      setError(null)
 
-    try {
-      // Backend expects POST at /monthly/public/{quiz_id}/submit
-      // Mounted at /api/v2/quiz-extensions
-      if (!submitData.quiz_id) {
-        throw new Error('Quiz ID is required for submission');
-      }
-
-      const response = await apiClient.request<{ success: boolean; message: string }>(
-        `/api/v2/quiz-extensions/monthly/public/${submitData.quiz_id}/submit`,
-        {
-          method: 'POST',
-          body: JSON.stringify(submitData)
+      try {
+        // Backend expects POST at /monthly/public/{quiz_id}/submit
+        // Mounted at /api/v2/quiz-extensions
+        if (!submitData.quiz_id) {
+          throw new Error('Quiz ID is required for submission')
         }
-      );
-      return response;
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to submit quiz response';
-      setError(errorMessage);
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+
+        const response = await apiClient.request<{ success: boolean; message: string }>(
+          `/api/v2/quiz-extensions/monthly/public/${submitData.quiz_id}/submit`,
+          {
+            method: 'POST',
+            body: JSON.stringify(submitData),
+          }
+        )
+        return response
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to submit quiz response'
+        setError(errorMessage)
+        return null
+      } finally {
+        setLoading(false)
+      }
+    },
+    []
+  )
 
   return {
     loading,
@@ -223,6 +229,6 @@ export function useMonthlyQuiz(): UseMonthlyQuizReturn {
     getQuizLinkStatus,
     getQuizStats,
     accessQuiz,
-    submitQuizResponse
-  };
+    submitQuizResponse,
+  }
 }

@@ -22,15 +22,13 @@ export function MessageForm({
   onFormChange,
   onFileUpload,
   onSubmit,
-  isPending
+  isPending,
 }: MessageFormProps) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Send Message</CardTitle>
-        <CardDescription>
-          Send message via {selectedInstance}
-        </CardDescription>
+        <CardDescription>Send message via {selectedInstance}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
@@ -64,7 +62,8 @@ export function MessageForm({
           />
           {formState.mediaFile && (
             <div className="mt-2 p-2 bg-gray-50 rounded text-sm">
-              Selected: {formState.mediaFile.name} ({(formState.mediaFile.size / 1024 / 1024).toFixed(2)}MB)
+              Selected: {formState.mediaFile.name} (
+              {(formState.mediaFile.size / 1024 / 1024).toFixed(2)}MB)
             </div>
           )}
         </div>
@@ -81,11 +80,7 @@ export function MessageForm({
           </div>
         )}
 
-        <Button
-          onClick={onSubmit}
-          disabled={isPending}
-          className="w-full"
-        >
+        <Button onClick={onSubmit} disabled={isPending} className="w-full">
           {isPending ? (
             <>
               <RefreshCw className="w-4 h-4 mr-2 animate-spin" />

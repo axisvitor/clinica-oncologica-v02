@@ -2,11 +2,12 @@
  * WhatsApp Integration Dashboard
  * Main component that combines instance management, messaging, and statistics
  */
-import React, { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
+import React, { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import {
   MessageSquare,
   Activity,
@@ -15,119 +16,129 @@ import {
   CheckCircle,
   Clock,
   Phone,
-  BarChart3
-} from 'lucide-react';
-import { WhatsAppInstanceManager } from './WhatsAppInstanceManager';
-import { WhatsAppMessageSender } from './WhatsAppMessageSender';
-import { whatsAppService } from '../../services/whatsapp/WhatsAppService';
-import { useConfig } from '@/lib/config-initializer';
-import { createLogger } from '@/lib/logger';
+  BarChart3,
+} from 'lucide-react'
+import { WhatsAppInstanceManager } from './WhatsAppInstanceManager'
+import { WhatsAppMessageSender } from './WhatsAppMessageSender'
+import { whatsAppService } from '../../services/whatsapp/WhatsAppService'
+import { apiClient } from '@/lib/api-client'
+import { createLogger } from '@/lib/logger'
 
 export interface WhatsAppInstance {
-  name: string;
-  isConnected: boolean;
-  phoneNumber?: string;
-  profileName?: string;
-  status: string;
-  createdAt: string;
+  name: string
+  isConnected: boolean
+  phoneNumber?: string
+  profileName?: string
+  status: string
+  createdAt: string
 }
 
 export interface QueueStats {
-  pending: number;
-  scheduled: number;
-  retryScheduled: number;
-  deadLetter: number;
+  pending: number
+  scheduled: number
+  retryScheduled: number
+  deadLetter: number
 }
 
 interface StatCard {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  description?: string;
+  title: string
+  value: string | number
+  icon: React.ReactNode
+  description?: string
   trend?: {
-    value: number;
-    isPositive: boolean;
-  };
+    value: number
+    isPositive: boolean
+  }
 }
 
-const logger = createLogger('WhatsAppDashboard');
+interface WuzAPISessionStatus {
+  connected: boolean
+  logged_in: boolean
+  timestamp: string
+  mock?: boolean
+  error?: string
+}
+
+const logger = createLogger('WhatsAppDashboard')
 
 export const WhatsAppDashboard: React.FC = () => {
-  const { config } = useConfig()
-  const [selectedInstance, setSelectedInstance] = useState<WhatsAppInstance | null>(null);
-  const [queueStats, setQueueStats] = useState<QueueStats | null>(null);
-  const [messageStats, setMessageStats] = useState<Record<string, number> | null>(null);
-  const [_loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isEvolutionEnabled, setIsEvolutionEnabled] = useState(false);
+  const [selectedInstance, setSelectedInstance] = useState<WhatsAppInstance | null>(null)
+  const [queueStats, setQueueStats] = useState<QueueStats | null>(null)
+  const [messageStats, setMessageStats] = useState<Record<string, number> | null>(null)
+  const [_loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    // Check if Evolution API is enabled
-    setIsEvolutionEnabled(config?.VITE_ENABLE_EVOLUTION === 'true');
-
-    if (config?.VITE_ENABLE_EVOLUTION === 'true') {
-      loadDashboardData();
-
-      // Refresh data every 30 seconds
-      const interval = setInterval(loadDashboardData, 30000);
-      return () => clearInterval(interval);
-    }
-
-    // Return undefined if Evolution API is disabled
-    return undefined;
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadDashboardData is stable, only config changes should trigger reload
-  }, [config]);
+  const {
+    data: wuzStatus,
+    isLoading: isWuzStatusLoading,
+    isError: isWuzStatusError,
+  } = useQuery<WuzAPISessionStatus>({
+    queryKey: ['wuzapi', 'session', 'status'],
+    queryFn: () => apiClient.get('/api/v2/monitoring/wuzapi/session/status'),
+    refetchInterval: 30_000,
+    retry: 2,
+  })
 
   const loadDashboardData = async () => {
     try {
-      setLoading(true);
-      setError(null);
+      setLoading(true)
+      setError(null)
 
       // Load queue statistics
-      const queueResponse = await whatsAppService.getQueueStats();
-      setQueueStats(queueResponse.queueStatistics);
+      const queueResponse = await whatsAppService.getQueueStats()
+      setQueueStats(queueResponse.queueStatistics)
 
       // Load message statistics for selected instance
       if (selectedInstance) {
-        const statsResponse = await whatsAppService.getMessageStatistics(selectedInstance.name);
-        setMessageStats(statsResponse.statistics);
+        const statsResponse = await whatsAppService.getMessageStatistics(selectedInstance.name)
+        setMessageStats(statsResponse.statistics)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard data')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
+  useEffect(() => {
+    loadDashboardData()
+
+    const interval = setInterval(loadDashboardData, 30000)
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadDashboardData depends on selectedInstance lifecycle
+  }, [selectedInstance])
 
   const handleInstanceSelected = (instance: WhatsAppInstance) => {
-    setSelectedInstance(instance);
+    setSelectedInstance(instance)
     // Load statistics for the selected instance
     if (instance.isConnected) {
-      loadMessageStatistics(instance.name);
+      loadMessageStatistics(instance.name)
     }
-  };
+  }
 
   const loadMessageStatistics = async (instanceName: string) => {
     try {
-      const response = await whatsAppService.getMessageStatistics(instanceName);
-      setMessageStats(response.statistics);
+      const response = await whatsAppService.getMessageStatistics(instanceName)
+      setMessageStats(response.statistics)
     } catch (err) {
-      logger.error('Failed to load message statistics:', err);
+      logger.error('Failed to load message statistics:', err)
     }
-  };
+  }
 
   const getStatCards = (): StatCard[] => {
-    const cards: StatCard[] = [];
+    const cards: StatCard[] = []
 
     if (selectedInstance) {
       cards.push({
         title: 'Instance Status',
         value: selectedInstance.isConnected ? 'Connected' : 'Disconnected',
-        icon: selectedInstance.isConnected ?
-          <CheckCircle className="w-5 h-5 text-green-500" /> :
-          <AlertCircle className="w-5 h-5 text-red-500" />,
-        description: selectedInstance.phoneNumber || 'No phone number'
-      });
+        icon: selectedInstance.isConnected ? (
+          <CheckCircle className="w-5 h-5 text-green-500" />
+        ) : (
+          <AlertCircle className="w-5 h-5 text-red-500" />
+        ),
+        description: selectedInstance.phoneNumber || 'No phone number',
+      })
     }
 
     if (queueStats) {
@@ -136,21 +147,21 @@ export const WhatsAppDashboard: React.FC = () => {
           title: 'Pending Messages',
           value: queueStats.pending,
           icon: <Clock className="w-5 h-5 text-orange-500" />,
-          description: 'Messages in queue'
+          description: 'Messages in queue',
         },
         {
           title: 'Scheduled Messages',
           value: queueStats.scheduled,
           icon: <TrendingUp className="w-5 h-5 text-blue-500" />,
-          description: 'Future deliveries'
+          description: 'Future deliveries',
         },
         {
           title: 'Failed Messages',
           value: queueStats.deadLetter,
           icon: <AlertCircle className="w-5 h-5 text-red-500" />,
-          description: 'Requires attention'
+          description: 'Requires attention',
         }
-      );
+      )
     }
 
     if (messageStats) {
@@ -159,45 +170,65 @@ export const WhatsAppDashboard: React.FC = () => {
           title: 'Total Messages',
           value: messageStats['total'] || 0,
           icon: <MessageSquare className="w-5 h-5 text-blue-500" />,
-          description: 'All time'
+          description: 'All time',
         },
         {
           title: 'Delivered Today',
           value: messageStats['delivered'] || 0,
           icon: <CheckCircle className="w-5 h-5 text-green-500" />,
-          description: 'Successfully delivered'
+          description: 'Successfully delivered',
         },
         {
           title: 'Read Rate',
-          value: messageStats && messageStats['total'] && messageStats['total'] > 0 ?
-            `${Math.round(((messageStats['read'] || 0) / messageStats['total']) * 100)}%` : '0%',
+          value:
+            messageStats && messageStats['total'] && messageStats['total'] > 0
+              ? `${Math.round(((messageStats['read'] || 0) / messageStats['total']) * 100)}%`
+              : '0%',
           icon: <Activity className="w-5 h-5 text-purple-500" />,
-          description: 'Message engagement'
+          description: 'Message engagement',
         }
-      );
+      )
     }
 
-    return cards;
-  };
+    return cards
+  }
 
-  if (!isEvolutionEnabled) {
+  if (isWuzStatusLoading) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <Activity className="w-16 h-16 mx-auto mb-4 text-gray-400 animate-spin" />
+          <h2 className="text-xl font-semibold mb-2">Checking WhatsApp connection...</h2>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (isWuzStatusError || wuzStatus?.error) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <AlertCircle className="w-16 h-16 mx-auto mb-4 text-red-500" />
+          <h2 className="text-xl font-semibold mb-2">WhatsApp (WuzAPI) connection status unavailable</h2>
+          <p className="text-gray-600">Check server configuration.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (!wuzStatus?.connected) {
     return (
       <Card>
         <CardContent className="p-8 text-center">
           <Phone className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-          <h2 className="text-xl font-semibold mb-2">WhatsApp Integration Disabled</h2>
-          <p className="text-gray-600 mb-4">
-            WhatsApp integration is currently disabled. To enable it, set <code>VITE_ENABLE_EVOLUTION=true</code> in your environment variables.
+          <h2 className="text-xl font-semibold mb-2">WhatsApp (WuzAPI) not connected</h2>
+          <p className="text-gray-600">
+            Last check:{' '}
+            {wuzStatus?.timestamp ? new Date(wuzStatus.timestamp).toLocaleString() : 'Unavailable'}
           </p>
-          <Alert>
-            <AlertCircle className="w-4 h-4" />
-            <AlertDescription>
-              Make sure you have Evolution API configured and running before enabling this feature.
-            </AlertDescription>
-          </Alert>
         </CardContent>
       </Card>
-    );
+    )
   }
 
   return (
@@ -209,7 +240,10 @@ export const WhatsAppDashboard: React.FC = () => {
           <p className="text-gray-600">Manage WhatsApp instances and send messages to patients</p>
         </div>
         {selectedInstance && (
-          <Badge variant={selectedInstance.isConnected ? "default" : "secondary"} className="px-3 py-1">
+          <Badge
+            variant={selectedInstance.isConnected ? 'default' : 'secondary'}
+            className="px-3 py-1"
+          >
             {selectedInstance.name} - {selectedInstance.isConnected ? 'Connected' : 'Disconnected'}
           </Badge>
         )}
@@ -272,7 +306,7 @@ export const WhatsAppDashboard: React.FC = () => {
               instanceName={selectedInstance.name}
               onMessageSent={(_response) => {
                 // Refresh statistics after sending a message
-                loadMessageStatistics(selectedInstance.name);
+                loadMessageStatistics(selectedInstance.name)
               }}
               onError={setError}
             />
@@ -304,19 +338,27 @@ export const WhatsAppDashboard: React.FC = () => {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="text-center p-3 bg-blue-50 rounded">
-                        <p className="text-2xl font-bold text-blue-600">{messageStats['total'] || 0}</p>
+                        <p className="text-2xl font-bold text-blue-600">
+                          {messageStats['total'] || 0}
+                        </p>
                         <p className="text-sm text-blue-600">Total Messages</p>
                       </div>
                       <div className="text-center p-3 bg-green-50 rounded">
-                        <p className="text-2xl font-bold text-green-600">{messageStats['sent'] || 0}</p>
+                        <p className="text-2xl font-bold text-green-600">
+                          {messageStats['sent'] || 0}
+                        </p>
                         <p className="text-sm text-green-600">Sent</p>
                       </div>
                       <div className="text-center p-3 bg-orange-50 rounded">
-                        <p className="text-2xl font-bold text-orange-600">{messageStats['delivered'] || 0}</p>
+                        <p className="text-2xl font-bold text-orange-600">
+                          {messageStats['delivered'] || 0}
+                        </p>
                         <p className="text-sm text-orange-600">Delivered</p>
                       </div>
                       <div className="text-center p-3 bg-purple-50 rounded">
-                        <p className="text-2xl font-bold text-purple-600">{messageStats['read'] || 0}</p>
+                        <p className="text-2xl font-bold text-purple-600">
+                          {messageStats['read'] || 0}
+                        </p>
                         <p className="text-sm text-purple-600">Read</p>
                       </div>
                     </div>
@@ -380,7 +422,7 @@ export const WhatsAppDashboard: React.FC = () => {
         </TabsContent>
       </Tabs>
     </div>
-  );
-};
+  )
+}
 
-export default WhatsAppDashboard;
+export default WhatsAppDashboard

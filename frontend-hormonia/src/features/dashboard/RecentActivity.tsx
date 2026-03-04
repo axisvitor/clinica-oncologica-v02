@@ -1,13 +1,7 @@
 import React from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { 
-  MessageSquare, 
-  UserPlus, 
-  AlertTriangle, 
-  FileText,
-  Activity
-} from 'lucide-react'
+import { MessageSquare, UserPlus, AlertTriangle, FileText, Activity } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -89,9 +83,7 @@ export function RecentActivity({ activities }: RecentActivityProps) {
       <Card>
         <CardHeader>
           <CardTitle>Atividade Recente</CardTitle>
-          <CardDescription>
-            Últimas ações no sistema
-          </CardDescription>
+          <CardDescription>Últimas ações no sistema</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
@@ -107,9 +99,7 @@ export function RecentActivity({ activities }: RecentActivityProps) {
     <Card>
       <CardHeader>
         <CardTitle>Atividade Recente</CardTitle>
-        <CardDescription>
-          Últimas {activities.length} ações no sistema
-        </CardDescription>
+        <CardDescription>Últimas {activities.length} ações no sistema</CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollArea className="h-[300px]">
@@ -117,30 +107,28 @@ export function RecentActivity({ activities }: RecentActivityProps) {
             {activities.map((activity) => {
               const Icon = getActivityIcon(activity.type)
               const colorClass = getActivityColor(activity.type)
-              
+
               return (
                 <div key={activity.id} className="flex items-start space-x-3">
-                  <div className={`flex items-center justify-center w-8 h-8 rounded-full ${colorClass}`}>
+                  <div
+                    className={`flex items-center justify-center w-8 h-8 rounded-full ${colorClass}`}
+                  >
                     <Icon className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-900">
-                        {activity.description}
-                      </p>
+                      <p className="text-sm font-medium text-gray-900">{activity.description}</p>
                       <Badge variant="outline" className="text-xs">
                         {getActivityLabel(activity.type)}
                       </Badge>
                     </div>
                     {activity.patient_name && (
-                      <p className="text-sm text-gray-600">
-                        Paciente: {activity.patient_name}
-                      </p>
+                      <p className="text-sm text-gray-600">Paciente: {activity.patient_name}</p>
                     )}
                     <p className="text-xs text-gray-500">
                       {formatDistanceToNow(new Date(activity.timestamp), {
                         addSuffix: true,
-                        locale: ptBR
+                        locale: ptBR,
                       })}
                     </p>
                   </div>

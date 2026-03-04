@@ -21,37 +21,30 @@ interface FlowTemplateListProps {
   onCreateNew: () => void
 }
 
-export const FlowTemplateList = memo<FlowTemplateListProps>(({
-  templates,
-  loading,
-  error,
-  page,
-  totalPages,
-  onPageChange,
-  onRefresh,
-  onCreateNew,
-}) => {
-  return (
-    <TemplateListFrame
-      error={error}
-      loading={loading}
-      isEmpty={templates.length === 0}
-      emptyIcon={Workflow}
-      emptyMessage="Nenhum template encontrado"
-      emptyActionLabel="Criar Primeiro Template"
-      onEmptyAction={onCreateNew}
-      onRefresh={onRefresh}
-      page={page}
-      totalPages={totalPages}
-      onPageChange={onPageChange}
-    >
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {templates.map((template) => (
-          <FlowTemplateCard key={template.id} template={template} />
-        ))}
-      </div>
-    </TemplateListFrame>
-  )
-})
+export const FlowTemplateList = memo<FlowTemplateListProps>(
+  ({ templates, loading, error, page, totalPages, onPageChange, onRefresh, onCreateNew }) => {
+    return (
+      <TemplateListFrame
+        error={error}
+        loading={loading}
+        isEmpty={templates.length === 0}
+        emptyIcon={Workflow}
+        emptyMessage="Nenhum template encontrado"
+        emptyActionLabel="Criar Primeiro Template"
+        onEmptyAction={onCreateNew}
+        onRefresh={onRefresh}
+        page={page}
+        totalPages={totalPages}
+        onPageChange={onPageChange}
+      >
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {templates.map((template) => (
+            <FlowTemplateCard key={template.id} template={template} />
+          ))}
+        </div>
+      </TemplateListFrame>
+    )
+  }
+)
 
 FlowTemplateList.displayName = 'FlowTemplateList'

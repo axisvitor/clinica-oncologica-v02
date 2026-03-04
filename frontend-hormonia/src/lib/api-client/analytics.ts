@@ -34,7 +34,12 @@ export interface DashboardAnalyticsData {
   completed_quizzes: number
   quizzes_change: number
   avg_response_time: number
-  engagement_chart: Array<{ date: string; messages_sent: number; responses_received: number; response_rate: number }>
+  engagement_chart: Array<{
+    date: string
+    messages_sent: number
+    responses_received: number
+    response_rate: number
+  }>
   recent_alerts: Alert[]
   recent_activity: ActivityItem[]
   total_quizzes: number
@@ -172,7 +177,9 @@ function normalizeMonthPoint(point: CompletionTrendPoint) {
   }
 }
 
-function buildEngagementDistribution(engagementData: PatientEngagementResponse): EngagementDistributionItem[] {
+function buildEngagementDistribution(
+  engagementData: PatientEngagementResponse
+): EngagementDistributionItem[] {
   const total = engagementData.total_active_patients || 0
   const levels = engagementData.engagement_levels
   const entries: Array<[string, number]> = [
@@ -218,14 +225,12 @@ export function createAnalyticsApi(client: ApiClientCore) {
       const totalPatients = overview.total_patients ?? 0
       const responseRate = overview.completion_rate ?? 0
 
-      const engagementChart = (trend.trend ?? [])
-        .map(normalizeMonthPoint)
-        .map(point => ({
-          date: point.date,
-          messages_sent: point.total,
-          responses_received: point.completed,
-          response_rate: Math.round(point.response_rate),
-        }))
+      const engagementChart = (trend.trend ?? []).map(normalizeMonthPoint).map((point) => ({
+        date: point.date,
+        messages_sent: point.total,
+        responses_received: point.completed,
+        response_rate: Math.round(point.response_rate),
+      }))
 
       return {
         total_patients: totalPatients,
@@ -334,7 +339,7 @@ export function createAnalyticsApi(client: ApiClientCore) {
       total_unread: number
     }> {
       return client.get('/api/v2/alerts/summary')
-    }
+    },
   }
 }
 

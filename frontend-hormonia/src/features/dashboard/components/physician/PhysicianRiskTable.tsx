@@ -1,6 +1,13 @@
 import React from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -25,7 +32,7 @@ export function PhysicianRiskTable({
   page,
   size,
   onPageChange,
-  onPatientClick
+  onPatientClick,
 }: PhysicianRiskTableProps) {
   return (
     <>
@@ -45,18 +52,13 @@ export function PhysicianRiskTable({
             <TableBody>
               {patients.map((patient) => (
                 <TableRow key={patient.patient_id}>
-                  <TableCell className="font-medium">
-                    {patient.patient_name}
-                  </TableCell>
+                  <TableCell className="font-medium">{patient.patient_name}</TableCell>
                   <TableCell>
                     <RiskBadge level={patient.risk_level} />
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Progress
-                        value={(patient.risk_score / 10) * 100}
-                        className="w-20"
-                      />
+                      <Progress value={(patient.risk_score / 10) * 100} className="w-20" />
                       <span className="text-sm tabular-nums">
                         {patient.risk_score.toFixed(1)}/10
                       </span>

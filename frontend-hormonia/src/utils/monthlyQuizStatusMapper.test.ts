@@ -9,7 +9,7 @@ import {
   isValidUIStatus,
   getStatusLabel,
   isBackendStatus,
-  isUIStatus
+  isUIStatus,
 } from './monthlyQuizStatusMapper'
 
 describe('monthlyQuizStatusMapper', () => {
@@ -158,7 +158,7 @@ describe('monthlyQuizStatusMapper', () => {
     it('should handle round-trip conversion', () => {
       const uiStatuses = ['active', 'expired', 'completed', 'pending']
 
-      uiStatuses.forEach(uiStatus => {
+      uiStatuses.forEach((uiStatus) => {
         const backendStatus = mapUIToBackendStatus(uiStatus)
         const backToUI = mapBackendStatus(backendStatus)
 

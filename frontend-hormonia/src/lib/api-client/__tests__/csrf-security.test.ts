@@ -10,141 +10,139 @@
  * Coverage Goals: 100% for security-critical paths
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ApiClientCore } from "../core";
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { ApiClientCore } from '../core'
 
-describe("CSRF Race Condition Prevention", () => {
-  let apiClient: ApiClientCore;
+describe('CSRF Race Condition Prevention', () => {
+  let apiClient: ApiClientCore
 
   beforeEach(() => {
-    apiClient = new ApiClientCore("http://localhost:8000");
-    vi.clearAllMocks();
+    apiClient = new ApiClientCore('http://localhost:8000')
+    vi.clearAllMocks()
 
     // Clear any existing CSRF token promise
-    (apiClient as any).csrfTokenPromise = null;
-  });
+    ;(apiClient as any).csrfTokenPromise = null
+  })
 
-  it("should prevent concurrent CSRF token fetches with singleton lock", async () => {
-    let fetchCount = 0;
+  it('should prevent concurrent CSRF token fetches with singleton lock', async () => {
+    let fetchCount = 0
 
     // Mock fetch to track calls
     global.fetch = vi.fn(() => {
-      fetchCount++;
+      fetchCount++
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ csrf_token: `token-${fetchCount}` }),
         headers: new Headers(),
-      } as Response);
-    });
+      } as Response)
+    })
 
     // Initiate 10 concurrent CSRF fetches
     const promises = Array(10)
       .fill(null)
-      .map(() => apiClient.fetchCsrfToken());
+      .map(() => apiClient.fetchCsrfToken())
 
-    await Promise.all(promises);
+    await Promise.all(promises)
 
     // Should only fetch once (singleton lock prevents duplicates)
-    expect(fetchCount).toBe(1);
-  });
+    expect(fetchCount).toBe(1)
+  })
 
-  it("should return same promise for concurrent fetchCsrfToken calls", async () => {
+  it('should return same promise for concurrent fetchCsrfToken calls', async () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ csrf_token: "test-token" }),
+        json: () => Promise.resolve({ csrf_token: 'test-token' }),
       } as Response)
-    );
+    )
 
-    const promise1 = apiClient.fetchCsrfToken();
-    const promise2 = apiClient.fetchCsrfToken();
-    const promise3 = apiClient.fetchCsrfToken();
+    const promise1 = apiClient.fetchCsrfToken()
+    const promise2 = apiClient.fetchCsrfToken()
+    const promise3 = apiClient.fetchCsrfToken()
 
     // All should reference the same promise
-    expect(promise1).toBe(promise2);
-    expect(promise2).toBe(promise3);
+    expect(promise1).toBe(promise2)
+    expect(promise2).toBe(promise3)
 
-    await Promise.all([promise1, promise2, promise3]);
-  });
+    await Promise.all([promise1, promise2, promise3])
+  })
 
-  it("should allow new fetch after previous completes", async () => {
-    let callCount = 0;
+  it('should allow new fetch after previous completes', async () => {
+    let callCount = 0
 
     global.fetch = vi.fn(() => {
-      callCount++;
+      callCount++
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ csrf_token: `token-${callCount}` }),
-      } as Response);
-    });
+      } as Response)
+    })
 
     // First fetch
-    await apiClient.fetchCsrfToken();
-    expect(callCount).toBe(1);
+    await apiClient.fetchCsrfToken()
+    expect(callCount).toBe(1)
 
     // Second fetch (should be allowed after first completes)
-    await apiClient.fetchCsrfToken();
-    expect(callCount).toBe(2);
-  });
+    await apiClient.fetchCsrfToken()
+    expect(callCount).toBe(2)
+  })
 
-  it("should handle fetch failures gracefully without blocking", async () => {
-    global.fetch = vi.fn(() =>
-      Promise.reject(new Error("Network error"))
-    );
+  it('should handle fetch failures gracefully without blocking', async () => {
+    global.fetch = vi.fn(() => Promise.reject(new Error('Network error')))
 
     // Should not throw
-    await expect(apiClient.fetchCsrfToken()).resolves.toBeUndefined();
+    await expect(apiClient.fetchCsrfToken()).resolves.toBeUndefined()
 
     // CSRF token should remain null
-    expect(apiClient.getCsrfToken()).toBeNull();
-  });
+    expect(apiClient.getCsrfToken()).toBeNull()
+  })
 
-  it("should timeout CSRF fetch after 5 seconds", async () => {
-    vi.useFakeTimers();
+  it('should timeout CSRF fetch after 5 seconds', async () => {
+    vi.useFakeTimers()
 
     global.fetch = vi.fn(
       () =>
         new Promise((_resolve) => {
           // Never resolves (simulates hanging request)
         })
-    );
+    )
 
-    const fetchPromise = apiClient.fetchCsrfToken();
+    const fetchPromise = apiClient.fetchCsrfToken()
 
     // Fast-forward 5.001 seconds to ensure it triggers the 5s timeout in core.ts
-    await vi.advanceTimersByTimeAsync(5001);
+    await vi.advanceTimersByTimeAsync(5001)
 
-    await fetchPromise;
+    await fetchPromise
 
     // Should timeout gracefully
-    expect(apiClient.getCsrfToken()).toBeNull();
+    expect(apiClient.getCsrfToken()).toBeNull()
 
-    vi.useRealTimers();
-  });
-});
+    vi.useRealTimers()
+  })
+})
 
-describe("CSRF Auto-Healing on 403 Errors", () => {
-  let apiClient: ApiClientCore;
+describe('CSRF Auto-Healing on 403 Errors', () => {
+  let apiClient: ApiClientCore
 
   beforeEach(() => {
-    apiClient = new ApiClientCore("http://localhost:8000");
-    apiClient.setBaseURL("http://localhost:8000");
-  });
+    apiClient = new ApiClientCore('http://localhost:8000')
+    apiClient.setBaseURL('http://localhost:8000')
+  })
 
-  it("should retry request after fetching new CSRF token on 403", async () => {
-    let callCount = 0;
-    let currentToken = "old-token";
+  it('should retry request after fetching new CSRF token on 403', async () => {
+    let callCount = 0
+    let currentToken = 'old-token'
 
     global.fetch = vi.fn((url: string) => {
-      callCount++;
+      callCount++
 
       // CSRF token endpoint
-      if (typeof url === 'string' && url.includes("/csrf-token")) {
-        currentToken = "new-token";
+      if (typeof url === 'string' && url.includes('/csrf-token')) {
+        currentToken = 'new-token'
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ csrf_token: currentToken }),
-        } as Response);
+        } as Response)
       }
 
       // API endpoint
@@ -153,8 +151,8 @@ describe("CSRF Auto-Healing on 403 Errors", () => {
         return Promise.resolve({
           ok: false,
           status: 403,
-          json: () => Promise.resolve({ detail: "CSRF validation failed" }),
-        } as Response);
+          json: () => Promise.resolve({ detail: 'CSRF validation failed' }),
+        } as Response)
       }
 
       // Second call succeeds (after token refresh)
@@ -162,330 +160,330 @@ describe("CSRF Auto-Healing on 403 Errors", () => {
         ok: true,
         status: 200,
         json: () => Promise.resolve({ success: true }),
-      } as Response);
-    });
+      } as Response)
+    })
 
     // Set initial CSRF token
-    (apiClient as any).csrfToken = "old-token";
+    ;(apiClient as any).csrfToken = 'old-token'
 
     // Make request that will initially fail with 403
     try {
-      await apiClient.post("/api/v2/users", { name: "Test" });
+      await apiClient.post('/api/v2/users', { name: 'Test' })
     } catch {
       // Expected to retry internally
     }
 
     // Should have fetched new token
-    expect(currentToken).toBe("new-token");
-  });
+    expect(currentToken).toBe('new-token')
+  })
 
-  it("should not infinitely retry on persistent 403 errors", async () => {
-    let fetchCount = 0;
+  it('should not infinitely retry on persistent 403 errors', async () => {
+    let fetchCount = 0
 
     global.fetch = vi.fn(() => {
-      fetchCount++;
+      fetchCount++
       return Promise.resolve({
         ok: false,
         status: 403,
-        json: () => Promise.resolve({ detail: "Forbidden" }),
-      } as Response);
-    });
-
-    (apiClient as any).csrfToken = "token";
+        json: () => Promise.resolve({ detail: 'Forbidden' }),
+      } as Response)
+    })
+    ;(apiClient as any).csrfToken = 'token'
 
     try {
-      await apiClient.post("/api/v2/users", { name: "Test" });
+      await apiClient.post('/api/v2/users', { name: 'Test' })
     } catch {
       // Expected to fail after max retries
     }
 
     // Should not exceed retry limit (3 retries = 4 total attempts)
-    expect(fetchCount).toBeLessThanOrEqual(4);
-  });
-});
+    expect(fetchCount).toBeLessThanOrEqual(4)
+  })
+})
 
-describe("Session Recovery on F5 Refresh", () => {
-  let apiClient: ApiClientCore;
+describe('Session Recovery on F5 Refresh', () => {
+  let apiClient: ApiClientCore
 
   beforeEach(() => {
-    apiClient = new ApiClientCore("http://localhost:8000");
-    apiClient.setBaseURL("http://localhost:8000");
+    apiClient = new ApiClientCore('http://localhost:8000')
+    apiClient.setBaseURL('http://localhost:8000')
 
     // Clear cookies
-    document.cookie.split(";").forEach((c) => {
+    document.cookie.split(';').forEach((c) => {
       document.cookie = c
-        .replace(/^ +/, "")
-        .replace(/=.*/, "=;expires=" + new Date().toGMTString() + ";path=/");
-    });
-  });
+        .replace(/^ +/, '')
+        .replace(/=.*/, '=;expires=' + new Date().toGMTString() + ';path=/')
+    })
+  })
 
-  it("should restore CSRF token from cookie on page load", async () => {
+  it('should restore CSRF token from cookie on page load', async () => {
     // Simulate cookie set by backend
-    document.cookie = "fastapi-csrf-token=restored-token; path=/";
+    document.cookie = 'fastapi-csrf-token=restored-token; path=/'
 
     // Fetch CSRF token (should not make network request if cookie exists)
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ csrf_token: "new-token" }),
+        json: () => Promise.resolve({ csrf_token: 'new-token' }),
       } as Response)
-    );
+    )
 
-    await apiClient.fetchCsrfToken();
+    await apiClient.fetchCsrfToken()
 
     // Should have set token from response
-    expect(apiClient.getCsrfToken()).toBeTruthy();
-  });
+    expect(apiClient.getCsrfToken()).toBeTruthy()
+  })
 
-  it("should handle expired cookies gracefully", async () => {
+  it('should handle expired cookies gracefully', async () => {
     // Set expired cookie
-    document.cookie = "fastapi-csrf-token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    document.cookie = 'fastapi-csrf-token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
 
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ csrf_token: "fresh-token" }),
+        json: () => Promise.resolve({ csrf_token: 'fresh-token' }),
       } as Response)
-    );
+    )
 
-    await apiClient.fetchCsrfToken();
+    await apiClient.fetchCsrfToken()
 
     // Should fetch new token
-    expect(apiClient.getCsrfToken()).toBe("fresh-token");
-  });
+    expect(apiClient.getCsrfToken()).toBe('fresh-token')
+  })
 
-  it("should include credentials in all requests for cookie handling", async () => {
-    let capturedInit: RequestInit | undefined;
+  it('should include credentials in all requests for cookie handling', async () => {
+    let capturedInit: RequestInit | undefined
 
     global.fetch = vi.fn((url, init) => {
-      capturedInit = init;
+      capturedInit = init
       return Promise.resolve({
         ok: true,
         status: 200,
         json: () => Promise.resolve({ data: [] }),
-      } as Response);
-    });
+      } as Response)
+    })
 
-    await apiClient.get("/api/v2/users");
+    await apiClient.get('/api/v2/users')
 
     // Should include credentials for cookie-based auth
-    expect(capturedInit?.credentials).toBe("include");
-  });
-});
+    expect(capturedInit?.credentials).toBe('include')
+  })
+})
 
-describe("CSRF Token Format Validation", () => {
-  let apiClient: ApiClientCore;
+describe('CSRF Token Format Validation', () => {
+  let apiClient: ApiClientCore
 
   beforeEach(() => {
-    apiClient = new ApiClientCore("http://localhost:8000");
-  });
+    apiClient = new ApiClientCore('http://localhost:8000')
+  })
 
-  it("should handle array format CSRF token from backend", async () => {
+  it('should handle array format CSRF token from backend', async () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({
-          csrf_token: ["action", "actual-token-value"],
-        }),
+        json: () =>
+          Promise.resolve({
+            csrf_token: ['action', 'actual-token-value'],
+          }),
       } as Response)
-    );
+    )
 
-    await apiClient.fetchCsrfToken();
+    await apiClient.fetchCsrfToken()
 
     // Should extract second element from array
-    expect(apiClient.getCsrfToken()).toBe("actual-token-value");
-  });
+    expect(apiClient.getCsrfToken()).toBe('actual-token-value')
+  })
 
-  it("should handle string format CSRF token", async () => {
+  it('should handle string format CSRF token', async () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ csrf_token: "string-token" }),
+        json: () => Promise.resolve({ csrf_token: 'string-token' }),
       } as Response)
-    );
+    )
 
-    await apiClient.fetchCsrfToken();
+    await apiClient.fetchCsrfToken()
 
-    expect(apiClient.getCsrfToken()).toBe("string-token");
-  });
+    expect(apiClient.getCsrfToken()).toBe('string-token')
+  })
 
-  it("should reject invalid CSRF token formats", async () => {
+  it('should reject invalid CSRF token formats', async () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ csrf_token: { invalid: "object" } }),
+        json: () => Promise.resolve({ csrf_token: { invalid: 'object' } }),
       } as Response)
-    );
+    )
 
-    await apiClient.fetchCsrfToken();
+    await apiClient.fetchCsrfToken()
 
     // Should not set invalid token
-    expect(apiClient.getCsrfToken()).toBeNull();
-  });
+    expect(apiClient.getCsrfToken()).toBeNull()
+  })
 
-  it("should validate hexadecimal format of CSRF token", async () => {
-    const validHexToken = "1234567890.abcdef0123456789.fedcba9876543210";
+  it('should validate hexadecimal format of CSRF token', async () => {
+    const validHexToken = '1234567890.abcdef0123456789.fedcba9876543210'
 
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ csrf_token: validHexToken }),
       } as Response)
-    );
+    )
 
-    await apiClient.fetchCsrfToken();
+    await apiClient.fetchCsrfToken()
 
-    const token = apiClient.getCsrfToken();
-    expect(token).toBe(validHexToken);
+    const token = apiClient.getCsrfToken()
+    expect(token).toBe(validHexToken)
 
     // Validate format: timestamp.random.signature
-    const parts = token?.split(".");
-    expect(parts?.length).toBe(3);
-  });
-});
+    const parts = token?.split('.')
+    expect(parts?.length).toBe(3)
+  })
+})
 
-describe("CSRF Token Header Injection", () => {
-  let apiClient: ApiClientCore;
+describe('CSRF Token Header Injection', () => {
+  let apiClient: ApiClientCore
 
   beforeEach(() => {
-    apiClient = new ApiClientCore("http://localhost:8000");
-    apiClient.setBaseURL("http://localhost:8000");
-  });
+    apiClient = new ApiClientCore('http://localhost:8000')
+    apiClient.setBaseURL('http://localhost:8000')
+  })
 
-  it("should include CSRF token in POST request headers", async () => {
-    (apiClient as any).csrfToken = "test-csrf-token";
+  it('should include CSRF token in POST request headers', async () => {
+    ;(apiClient as any).csrfToken = 'test-csrf-token'
 
-    let capturedHeaders: Headers | undefined;
+    let capturedHeaders: Headers | undefined
 
     global.fetch = vi.fn((url, init) => {
-      capturedHeaders = new Headers(init?.headers);
+      capturedHeaders = new Headers(init?.headers)
       return Promise.resolve({
         ok: true,
         status: 200,
         json: () => Promise.resolve({ success: true }),
-      } as Response);
-    });
+      } as Response)
+    })
 
-    await apiClient.post("/api/v2/users", { name: "Test" });
+    await apiClient.post('/api/v2/users', { name: 'Test' })
 
-    expect(capturedHeaders?.get("X-CSRF-Token")).toBe("test-csrf-token");
-  });
+    expect(capturedHeaders?.get('X-CSRF-Token')).toBe('test-csrf-token')
+  })
 
-  it("should include CSRF token in PUT request headers", async () => {
-    (apiClient as any).csrfToken = "test-csrf-token";
+  it('should include CSRF token in PUT request headers', async () => {
+    ;(apiClient as any).csrfToken = 'test-csrf-token'
 
-    let capturedHeaders: Headers | undefined;
+    let capturedHeaders: Headers | undefined
 
     global.fetch = vi.fn((url, init) => {
-      capturedHeaders = new Headers(init?.headers);
+      capturedHeaders = new Headers(init?.headers)
       return Promise.resolve({
         ok: true,
         status: 200,
         json: () => Promise.resolve({ success: true }),
-      } as Response);
-    });
+      } as Response)
+    })
 
-    await apiClient.put("/api/v2/users/1", { name: "Updated" });
+    await apiClient.put('/api/v2/users/1', { name: 'Updated' })
 
-    expect(capturedHeaders?.get("X-CSRF-Token")).toBe("test-csrf-token");
-  });
+    expect(capturedHeaders?.get('X-CSRF-Token')).toBe('test-csrf-token')
+  })
 
-  it("should include CSRF token in DELETE request headers", async () => {
-    (apiClient as any).csrfToken = "test-csrf-token";
+  it('should include CSRF token in DELETE request headers', async () => {
+    ;(apiClient as any).csrfToken = 'test-csrf-token'
 
-    let capturedHeaders: Headers | undefined;
+    let capturedHeaders: Headers | undefined
 
     global.fetch = vi.fn((url, init) => {
-      capturedHeaders = new Headers(init?.headers);
+      capturedHeaders = new Headers(init?.headers)
       return Promise.resolve({
         ok: true,
         status: 200,
         json: () => Promise.resolve({ success: true }),
-      } as Response);
-    });
+      } as Response)
+    })
 
-    await apiClient.delete("/api/v2/users/1");
+    await apiClient.delete('/api/v2/users/1')
 
-    expect(capturedHeaders?.get("X-CSRF-Token")).toBe("test-csrf-token");
-  });
+    expect(capturedHeaders?.get('X-CSRF-Token')).toBe('test-csrf-token')
+  })
 
-  it("should NOT include CSRF token in GET request headers", async () => {
-    (apiClient as any).csrfToken = "test-csrf-token";
+  it('should NOT include CSRF token in GET request headers', async () => {
+    ;(apiClient as any).csrfToken = 'test-csrf-token'
 
-    let capturedHeaders: Headers | undefined;
+    let capturedHeaders: Headers | undefined
 
     global.fetch = vi.fn((url, init) => {
-      capturedHeaders = new Headers(init?.headers);
+      capturedHeaders = new Headers(init?.headers)
       return Promise.resolve({
         ok: true,
         status: 200,
         json: () => Promise.resolve({ data: [] }),
-      } as Response);
-    });
+      } as Response)
+    })
 
-    await apiClient.get("/api/v2/users");
+    await apiClient.get('/api/v2/users')
 
     // GET requests should not include CSRF token (safe method)
-    expect(capturedHeaders?.get("X-CSRF-Token")).toBeNull();
-  });
-});
+    expect(capturedHeaders?.get('X-CSRF-Token')).toBeNull()
+  })
+})
 
-describe("CSRF Error Handling", () => {
-  let apiClient: ApiClientCore;
+describe('CSRF Error Handling', () => {
+  let apiClient: ApiClientCore
 
   beforeEach(() => {
-    apiClient = new ApiClientCore("http://localhost:8000");
-    apiClient.setBaseURL("http://localhost:8000");
-  });
+    apiClient = new ApiClientCore('http://localhost:8000')
+    apiClient.setBaseURL('http://localhost:8000')
+  })
 
-  it("should provide user-friendly error message on 403 CSRF failure", async () => {
+  it('should provide user-friendly error message on 403 CSRF failure', async () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: false,
         status: 403,
-        statusText: "Forbidden",
+        statusText: 'Forbidden',
         json: () =>
           Promise.resolve({
-            detail: "CSRF validation failed",
-            error: { message: "Token mismatch" },
+            detail: 'CSRF validation failed',
+            error: { message: 'Token mismatch' },
           }),
       } as Response)
-    );
+    )
 
     try {
-      await apiClient.post("/api/v2/users", { name: "Test" });
-      expect.fail("Should have thrown error");
+      await apiClient.post('/api/v2/users', { name: 'Test' })
+      expect.fail('Should have thrown error')
     } catch (error: any) {
-      expect(error.status).toBe(403);
-      expect(error.userFriendlyMessage).toContain("permissão");
+      expect(error.status).toBe(403)
+      expect(error.userFriendlyMessage).toContain('permissão')
     }
-  });
+  })
 
-  it("should mark 403 errors as non-retryable (auth issue)", async () => {
+  it('should mark 403 errors as non-retryable (auth issue)', async () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: false,
         status: 403,
-        json: () => Promise.resolve({ detail: "Forbidden" }),
+        json: () => Promise.resolve({ detail: 'Forbidden' }),
       } as Response)
-    );
+    )
 
     try {
-      await apiClient.post("/api/v2/users", { name: "Test" });
+      await apiClient.post('/api/v2/users', { name: 'Test' })
     } catch (error: any) {
-      expect(error.retryable).toBe(false);
+      expect(error.retryable).toBe(false)
     }
-  });
-});
+  })
+})
 
-describe("CSRF Non-Blocking Behavior", () => {
-  it("should not block app initialization on CSRF fetch failure", async () => {
-    const apiClient = new ApiClientCore("http://localhost:8000");
+describe('CSRF Non-Blocking Behavior', () => {
+  it('should not block app initialization on CSRF fetch failure', async () => {
+    const apiClient = new ApiClientCore('http://localhost:8000')
 
-    global.fetch = vi.fn(() => Promise.reject(new Error("Network down")));
+    global.fetch = vi.fn(() => Promise.reject(new Error('Network down')))
 
     // Should resolve without throwing
-    await expect(apiClient.fetchCsrfToken()).resolves.toBeUndefined();
+    await expect(apiClient.fetchCsrfToken()).resolves.toBeUndefined()
 
     // App should still be usable (GET requests don't need CSRF)
     global.fetch = vi.fn(() =>
@@ -493,25 +491,25 @@ describe("CSRF Non-Blocking Behavior", () => {
         ok: true,
         json: () => Promise.resolve({ data: [] }),
       } as Response)
-    );
+    )
 
-    const result = await apiClient.get("/api/v2/users");
-    expect(result).toBeDefined();
-  });
+    const result = await apiClient.get('/api/v2/users')
+    expect(result).toBeDefined()
+  })
 
-  it("should log warnings but not throw on CSRF timeout", async () => {
-    vi.useFakeTimers();
+  it('should log warnings but not throw on CSRF timeout', async () => {
+    vi.useFakeTimers()
 
-    const apiClient = new ApiClientCore("http://localhost:8000");
+    const apiClient = new ApiClientCore('http://localhost:8000')
 
-    global.fetch = vi.fn(() => new Promise(() => { })); // Never resolves
+    global.fetch = vi.fn(() => new Promise(() => {})) // Never resolves
 
-    const promise = apiClient.fetchCsrfToken();
+    const promise = apiClient.fetchCsrfToken()
 
-    vi.advanceTimersByTime(5001);
+    vi.advanceTimersByTime(5001)
 
-    await expect(promise).resolves.toBeUndefined();
+    await expect(promise).resolves.toBeUndefined()
 
-    vi.useRealTimers();
-  });
-});
+    vi.useRealTimers()
+  })
+})

@@ -28,8 +28,12 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { id: 'users.create', label: 'Criar', description: 'Criar novos usuários' },
       { id: 'users.update', label: 'Editar', description: 'Editar usuários existentes' },
       { id: 'users.delete', label: 'Excluir', description: 'Excluir usuários' },
-      { id: 'users.manage_permissions', label: 'Gerenciar Permissões', description: 'Alterar permissões de usuários' }
-    ]
+      {
+        id: 'users.manage_permissions',
+        label: 'Gerenciar Permissões',
+        description: 'Alterar permissões de usuários',
+      },
+    ],
   },
   {
     name: 'patients',
@@ -40,8 +44,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { id: 'patients.create', label: 'Criar', description: 'Criar novos pacientes' },
       { id: 'patients.update', label: 'Editar', description: 'Editar pacientes existentes' },
       { id: 'patients.delete', label: 'Excluir', description: 'Excluir pacientes' },
-      { id: 'patients.export', label: 'Exportar', description: 'Exportar dados de pacientes' }
-    ]
+      { id: 'patients.export', label: 'Exportar', description: 'Exportar dados de pacientes' },
+    ],
   },
   {
     name: 'flows',
@@ -53,8 +57,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       { id: 'flows.update', label: 'Editar', description: 'Editar fluxos existentes' },
       { id: 'flows.delete', label: 'Excluir', description: 'Excluir fluxos' },
       { id: 'flows.start', label: 'Iniciar', description: 'Iniciar fluxos para pacientes' },
-      { id: 'flows.pause', label: 'Pausar', description: 'Pausar fluxos em andamento' }
-    ]
+      { id: 'flows.pause', label: 'Pausar', description: 'Pausar fluxos em andamento' },
+    ],
   },
   {
     name: 'messages',
@@ -63,8 +67,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     permissions: [
       { id: 'messages.view', label: 'Visualizar', description: 'Ver mensagens' },
       { id: 'messages.send', label: 'Enviar', description: 'Enviar mensagens' },
-      { id: 'messages.retry', label: 'Reenviar', description: 'Reenviar mensagens falhadas' }
-    ]
+      { id: 'messages.retry', label: 'Reenviar', description: 'Reenviar mensagens falhadas' },
+    ],
   },
   {
     name: 'analytics',
@@ -72,8 +76,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     description: 'Visualização de análises e métricas',
     permissions: [
       { id: 'analytics.view', label: 'Visualizar', description: 'Ver dashboards e métricas' },
-      { id: 'analytics.export', label: 'Exportar', description: 'Exportar relatórios' }
-    ]
+      { id: 'analytics.export', label: 'Exportar', description: 'Exportar relatórios' },
+    ],
   },
   {
     name: 'settings',
@@ -81,10 +85,18 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     description: 'Configurações do sistema',
     permissions: [
       { id: 'settings.view', label: 'Visualizar', description: 'Ver configurações' },
-      { id: 'settings.update', label: 'Atualizar', description: 'Modificar configurações do sistema' },
+      {
+        id: 'settings.update',
+        label: 'Atualizar',
+        description: 'Modificar configurações do sistema',
+      },
       { id: 'settings.ai', label: 'IA', description: 'Configurar IA e automação' },
-      { id: 'settings.integrations', label: 'Integrações', description: 'Configurar integrações externas' }
-    ]
+      {
+        id: 'settings.integrations',
+        label: 'Integrações',
+        description: 'Configurar integrações externas',
+      },
+    ],
   },
   {
     name: 'audit',
@@ -92,9 +104,9 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     description: 'Logs e auditoria do sistema',
     permissions: [
       { id: 'audit.view', label: 'Visualizar', description: 'Ver logs de auditoria' },
-      { id: 'audit.export', label: 'Exportar', description: 'Exportar logs' }
-    ]
-  }
+      { id: 'audit.export', label: 'Exportar', description: 'Exportar logs' },
+    ],
+  },
 ]
 
 interface UserPermissionsEditorProps {
@@ -106,27 +118,27 @@ interface UserPermissionsEditorProps {
 export function UserPermissionsEditor({
   selectedPermissions,
   onChange,
-  disabled = false
+  disabled = false,
 }: UserPermissionsEditorProps) {
   const handlePermissionToggle = (permissionId: string) => {
     if (selectedPermissions.includes(permissionId)) {
-      onChange(selectedPermissions.filter(p => p !== permissionId))
+      onChange(selectedPermissions.filter((p) => p !== permissionId))
     } else {
       onChange([...selectedPermissions, permissionId])
     }
   }
 
   const handleGroupToggle = (group: PermissionGroup) => {
-    const groupPermissionIds = group.permissions.map(p => p.id)
-    const allSelected = groupPermissionIds.every(id => selectedPermissions.includes(id))
+    const groupPermissionIds = group.permissions.map((p) => p.id)
+    const allSelected = groupPermissionIds.every((id) => selectedPermissions.includes(id))
 
     if (allSelected) {
       // Deselect all in group
-      onChange(selectedPermissions.filter(p => !groupPermissionIds.includes(p)))
+      onChange(selectedPermissions.filter((p) => !groupPermissionIds.includes(p)))
     } else {
       // Select all in group
       const newPermissions = [...selectedPermissions]
-      groupPermissionIds.forEach(id => {
+      groupPermissionIds.forEach((id) => {
         if (!newPermissions.includes(id)) {
           newPermissions.push(id)
         }
@@ -136,13 +148,13 @@ export function UserPermissionsEditor({
   }
 
   const isGroupSelected = (group: PermissionGroup) => {
-    const groupPermissionIds = group.permissions.map(p => p.id)
-    return groupPermissionIds.every(id => selectedPermissions.includes(id))
+    const groupPermissionIds = group.permissions.map((p) => p.id)
+    return groupPermissionIds.every((id) => selectedPermissions.includes(id))
   }
 
   const isGroupPartiallySelected = (group: PermissionGroup) => {
-    const groupPermissionIds = group.permissions.map(p => p.id)
-    const selectedCount = groupPermissionIds.filter(id => selectedPermissions.includes(id)).length
+    const groupPermissionIds = group.permissions.map((p) => p.id)
+    const selectedCount = groupPermissionIds.filter((id) => selectedPermissions.includes(id)).length
     return selectedCount > 0 && selectedCount < groupPermissionIds.length
   }
 
@@ -155,9 +167,7 @@ export function UserPermissionsEditor({
             Selecione as permissões que este usuário deve ter
           </p>
         </div>
-        <Badge variant="secondary">
-          {selectedPermissions.length} selecionadas
-        </Badge>
+        <Badge variant="secondary">{selectedPermissions.length} selecionadas</Badge>
       </div>
 
       <ScrollArea className="h-[400px]">
@@ -174,16 +184,11 @@ export function UserPermissionsEditor({
                       disabled={disabled}
                       className={isGroupPartiallySelected(group) ? 'opacity-50' : ''}
                     />
-                    <Label
-                      htmlFor={`group-${group.name}`}
-                      className="font-semibold cursor-pointer"
-                    >
+                    <Label htmlFor={`group-${group.name}`} className="font-semibold cursor-pointer">
                       {group.label}
                     </Label>
                   </div>
-                  <p className="text-sm text-muted-foreground ml-6">
-                    {group.description}
-                  </p>
+                  <p className="text-sm text-muted-foreground ml-6">{group.description}</p>
                 </div>
               </div>
 
@@ -198,15 +203,10 @@ export function UserPermissionsEditor({
                       className="mt-1"
                     />
                     <div className="flex-1">
-                      <Label
-                        htmlFor={permission.id}
-                        className="text-sm font-medium cursor-pointer"
-                      >
+                      <Label htmlFor={permission.id} className="text-sm font-medium cursor-pointer">
                         {permission.label}
                       </Label>
-                      <p className="text-xs text-muted-foreground">
-                        {permission.description}
-                      </p>
+                      <p className="text-xs text-muted-foreground">{permission.description}</p>
                     </div>
                   </div>
                 ))}

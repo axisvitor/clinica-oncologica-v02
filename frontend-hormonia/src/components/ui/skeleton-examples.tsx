@@ -9,7 +9,7 @@ import {
   TableSkeleton,
   ListSkeleton,
   PatientListSkeleton,
-  MetricCardSkeleton
+  MetricCardSkeleton,
 } from './skeleton'
 
 /**

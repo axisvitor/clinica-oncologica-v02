@@ -36,12 +36,15 @@ import { useUserFilters } from './useUserFilters'
  * const { data: activity, isLoading } = useUserActivity('user-123')
  * ```
  */
-export function useUserActivity(userId: string | null | undefined, options?: { enabled?: boolean }) {
+export function useUserActivity(
+  userId: string | null | undefined,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: ['admin-user-activity', userId],
     queryFn: () => apiClient.adminUsers.getActivity(userId!, { page: 1, size: 50 }),
-    enabled: !!userId && (options?.enabled !== false),
-    staleTime: 30000 // 30 seconds
+    enabled: !!userId && options?.enabled !== false,
+    staleTime: 30000, // 30 seconds
   })
 }
 
@@ -86,7 +89,7 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
     realTimeUpdates = true,
     refreshInterval = 30000,
     enableRetry = true,
-    pageSize = 10
+    pageSize = 10,
   } = options
 
   const queryClient = useQueryClient()
@@ -102,7 +105,7 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
     setPageSize,
     resetFilters,
     hasActiveFilters,
-    activeFilterCount
+    activeFilterCount,
   } = useUserFilters({ pageSize })
 
   // ============================================================================
@@ -117,11 +120,11 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
     isLoading: usersLoading,
     error: usersError,
     refetch: refetchUsers,
-    hasMore
+    hasMore,
   } = useUserList({
     filters,
     refetchInterval: realTimeUpdates ? refreshInterval : false,
-    enableRetry
+    enableRetry,
   })
 
   // ============================================================================
@@ -131,11 +134,11 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
     isConnected: isRealTimeConnected,
     sendMessage,
     reconnect: reconnectWebSocket,
-    disconnect: disconnectWebSocket
+    disconnect: disconnectWebSocket,
   } = useUserWebSocket({
     enabled: realTimeUpdates,
     maxReconnectAttempts: 10,
-    reconnectDelay: 1000
+    reconnectDelay: 1000,
   })
 
   // ============================================================================
@@ -162,11 +165,11 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
     isBulkActivating,
     isBulkDeactivating,
     isUpdatingPermissions,
-    isResettingPassword
+    isResettingPassword,
   } = useUserMutations({
     realTimeUpdates,
     sendMessage,
-    isConnected: isRealTimeConnected
+    isConnected: isRealTimeConnected,
   })
 
   // ============================================================================
@@ -177,11 +180,11 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
     metrics,
     isLoading: statsLoading,
     error: statsError,
-    refetch: refetchStats
+    refetch: refetchStats,
   } = useUserStats({
     usersData: { items: users, total: totalUsers },
     refetchInterval: realTimeUpdates ? refreshInterval : false,
-    enabled: users.length > 0
+    enabled: users.length > 0,
   })
 
   // ============================================================================
@@ -206,9 +209,12 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
   /**
    * Pagination handlers
    */
-  const goToPage = useCallback((page: number) => {
-    setPage(page)
-  }, [setPage])
+  const goToPage = useCallback(
+    (page: number) => {
+      setPage(page)
+    },
+    [setPage]
+  )
 
   const nextPage = useCallback(() => {
     if (currentPage < totalPages) {
@@ -295,6 +301,6 @@ export function useUserAdmin(options: UseUserAdminOptions = {}) {
     // WebSocket
     isRealTimeConnected,
     reconnectWebSocket,
-    disconnectWebSocket
+    disconnectWebSocket,
   }
 }

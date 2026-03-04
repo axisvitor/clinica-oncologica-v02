@@ -22,7 +22,7 @@ import type {
   PaginatedResponse,
   BulkMessageResponse,
   AlertListFilters as AlertQueryParams,
-  CreateAlertRequest
+  CreateAlertRequest,
 } from '@/lib/api-client/types'
 import { FlowType, FlowStatus, ResponseType } from '@/lib/api-client/types'
 import type { Patient } from '@/lib/api-client/patients'
@@ -50,7 +50,7 @@ export type {
   UpdateFlowTemplateRequest,
   StartFlowRequest,
   AlertQueryParams,
-  CreateAlertRequest
+  CreateAlertRequest,
 }
 export { FlowType, FlowStatus, ResponseType }
 
@@ -64,7 +64,7 @@ export type Flow = FlowState
 export enum ChatRole {
   USER = 'user',
   ASSISTANT = 'assistant',
-  SYSTEM = 'system'
+  SYSTEM = 'system',
 }
 
 export interface AIChatMessage {
@@ -96,7 +96,7 @@ export enum InsightType {
   RISK = 'risk',
   OPPORTUNITY = 'opportunity',
   PATTERN = 'pattern',
-  ANOMALY = 'anomaly'
+  ANOMALY = 'anomaly',
 }
 
 // AIInsight moved to @/lib/api-client/types
@@ -132,7 +132,7 @@ export enum PatientStatus {
   INACTIVE = 'inactive',
   PAUSED = 'paused',
   COMPLETED = 'completed',
-  CANCELLED = 'cancelled'
+  CANCELLED = 'cancelled',
 }
 
 /**
@@ -143,7 +143,15 @@ export enum PatientStatus {
 export interface TimelineEvent {
   id: string
   patient_id: string
-  event_type: 'message' | 'appointment' | 'quiz' | 'note' | 'system' | 'alert' | 'flow_change' | 'report'
+  event_type:
+    | 'message'
+    | 'appointment'
+    | 'quiz'
+    | 'note'
+    | 'system'
+    | 'alert'
+    | 'flow_change'
+    | 'report'
   title: string
   description?: string
   metadata?: Record<string, unknown>
@@ -162,7 +170,7 @@ export interface PatientTimeline {
 
 export enum MessageDirection {
   INBOUND = 'inbound',
-  OUTBOUND = 'outbound'
+  OUTBOUND = 'outbound',
 }
 
 export enum MessageType {
@@ -173,7 +181,7 @@ export enum MessageType {
   DOCUMENT = 'document',
   LOCATION = 'location',
   INTERACTIVE = 'interactive',
-  TEMPLATE = 'template'
+  TEMPLATE = 'template',
 }
 
 export enum MessageStatus {
@@ -181,7 +189,7 @@ export enum MessageStatus {
   SENT = 'sent',
   DELIVERED = 'delivered',
   READ = 'read',
-  FAILED = 'failed'
+  FAILED = 'failed',
 }
 
 export interface Message {
@@ -231,7 +239,7 @@ export enum AlertType {
   INFO = 'info',
   WARNING = 'warning',
   ERROR = 'error',
-  CRITICAL = 'critical'
+  CRITICAL = 'critical',
 }
 
 // ============================================================================
@@ -242,14 +250,14 @@ export enum ReportType {
   PATIENT_SUMMARY = 'patient_summary',
   ENGAGEMENT = 'engagement',
   ANALYTICS = 'analytics',
-  CUSTOM = 'custom'
+  CUSTOM = 'custom',
 }
 
 export enum ReportStatus {
   PENDING = 'pending',
   GENERATING = 'generating',
   COMPLETED = 'completed',
-  FAILED = 'failed'
+  FAILED = 'failed',
 }
 
 /**
@@ -267,12 +275,12 @@ export interface Report {
   generated_by: string
   generated_at?: string
   file_url?: string
-  file_path?: string  // Alternative to file_url for some backends
-  content?: string  // Report content for preview
+  file_path?: string // Alternative to file_url for some backends
+  content?: string // Report content for preview
   parameters?: Record<string, unknown>
-  metadata?: Record<string, unknown>  // Additional metadata
+  metadata?: Record<string, unknown> // Additional metadata
   created_at: string
-  completed_at?: string  // When report generation completed
+  completed_at?: string // When report generation completed
 }
 
 export interface ReportQueryParams {
@@ -296,21 +304,21 @@ export enum QuestionType {
   MULTIPLE_CHOICE = 'multiple_choice',
   TEXT = 'text',
   SCALE = 'scale',
-  YES_NO = 'yes_no'
+  YES_NO = 'yes_no',
 }
 
 export enum ScoringMethod {
   SUM = 'sum',
   AVERAGE = 'average',
   WEIGHTED = 'weighted',
-  CUSTOM = 'custom'
+  CUSTOM = 'custom',
 }
 
 export enum QuizSessionStatus {
   NOT_STARTED = 'not_started',
   IN_PROGRESS = 'in_progress',
   COMPLETED = 'completed',
-  EXPIRED = 'expired'
+  EXPIRED = 'expired',
 }
 
 // QuizQuestion and QuizTemplate are now re-exported from @/lib/api-client/types
@@ -319,7 +327,15 @@ export enum QuizSessionStatus {
  * QuizLinkStatus - Status values for quiz links
  * Represents the current state of a quiz link sent to a patient
  */
-export type QuizLinkStatusValue = 'not_sent' | 'sent' | 'accessed' | 'completed' | 'expired' | 'active' | 'cancelled' | 'pending'
+export type QuizLinkStatusValue =
+  | 'not_sent'
+  | 'sent'
+  | 'accessed'
+  | 'completed'
+  | 'expired'
+  | 'active'
+  | 'cancelled'
+  | 'pending'
 
 /**
  * QuizLinkStatus - Complete quiz link status information
@@ -356,7 +372,7 @@ export interface MonthlyQuizStatusData {
 
 /**
  * QuizResponse - A single answer to a quiz question
- * 
+ *
  * @example
  * ```typescript
  * const response: QuizResponse = {
@@ -380,10 +396,10 @@ export interface QuizResponse {
 
 /**
  * QuizHistory - Historical record of a completed quiz
- * 
+ *
  * Represents a completed quiz session with all responses and scoring.
  * Used for tracking patient progress over time.
- * 
+ *
  * @example
  * ```typescript
  * const history: QuizHistory = {
@@ -482,8 +498,8 @@ export interface User {
   updated_at?: string | undefined
   firebase_uid?: string
   session_id?: string
-  token?: string  // Optional for WebSocket/API auth
-  avatar_url?: string  // Optional for profile picture
+  token?: string // Optional for WebSocket/API auth
+  avatar_url?: string // Optional for profile picture
 }
 
 export interface LoginCredentials {
@@ -499,7 +515,7 @@ export interface AuthTokens {
   access_token: string
   refresh_token?: string
   token_type?: string
-  expires_in?: number  // Token expiration time in seconds
+  expires_in?: number // Token expiration time in seconds
 }
 
 /**
@@ -509,17 +525,17 @@ export interface AuthTokens {
 export interface LoginResponse {
   user: User
   tokens: AuthTokens
-  session_id?: string  // Optional session ID for Redis-based session management
+  session_id?: string // Optional session ID for Redis-based session management
 }
 
 /**
  * CursorPage<T> - Generic cursor-based pagination response
- * 
+ *
  * Used for efficient pagination of large datasets. Instead of page numbers,
  * uses a cursor to track position in the result set.
- * 
+ *
  * @template T - The type of items in the data array
- * 
+ *
  * @example
  * ```typescript
  * const page: CursorPage<Patient> = {
@@ -528,7 +544,7 @@ export interface LoginResponse {
  *   has_more: true,
  *   total: 150
  * }
- * 
+ *
  * // Fetch next page using the cursor
  * const nextPage = await api.patients.list({ cursor: page.next_cursor })
  * ```

@@ -3,7 +3,7 @@ import {
   MessageType,
   type FlowTemplate,
   type MessageTemplate,
-  type Condition
+  type Condition,
 } from '@/lib/api-client/types'
 import { apiClient } from '../api-client'
 import { createLogger } from '../logger'
@@ -38,7 +38,7 @@ export class TemplateManager {
       metadata: {
         version: '1.0',
         created_by: 'system',
-        last_updated: new Date().toISOString()
+        last_updated: new Date().toISOString(),
       },
       is_active: true,
       steps: [],
@@ -48,72 +48,81 @@ export class TemplateManager {
         1: {
           id: 'day_1_welcome',
           day: 1,
-          content: 'Olá {patient_name}! 👋 Sou a Hormon[IA], sua companheira nesta jornada. Estou aqui para te apoiar e tornar tudo mais simples. Como você está se sentindo hoje?',
+          content:
+            'Olá {patient_name}! 👋 Sou a Hormon[IA], sua companheira nesta jornada. Estou aqui para te apoiar e tornar tudo mais simples. Como você está se sentindo hoje?',
           message_type: MessageType.TEXT,
           personalization_hints: ['greeting_style', 'warmth_level'],
-          ai_instructions: 'Crie uma mensagem de boas-vindas calorosa que use o nome do paciente e estabeleça um vínculo inicial de confiança.',
+          ai_instructions:
+            'Crie uma mensagem de boas-vindas calorosa que use o nome do paciente e estabeleça um vínculo inicial de confiança.',
           follow_up: [
             {
               intent: 'explain_purpose',
               delay_seconds: 30,
-              ai_instructions: 'Explique o propósito da assistente de forma conversacional e tranquilizadora.'
-            }
-          ]
+              ai_instructions:
+                'Explique o propósito da assistente de forma conversacional e tranquilizadora.',
+            },
+          ],
         },
         2: {
           id: 'day_2_check_in',
           day: 2,
-          content: 'Bom dia, {patient_name}! ☀️ Como foi sua primeira noite? Lembre-se: estou aqui sempre que precisar. Que tal me contar como está se sentindo?',
+          content:
+            'Bom dia, {patient_name}! ☀️ Como foi sua primeira noite? Lembre-se: estou aqui sempre que precisar. Que tal me contar como está se sentindo?',
           message_type: MessageType.TEXT,
           personalization_hints: ['time_of_day', 'emotional_support'],
-          ai_instructions: 'Faça um check-in empático focando no bem-estar emocional.'
+          ai_instructions: 'Faça um check-in empático focando no bem-estar emocional.',
         },
         3: {
           id: 'day_3_education',
           day: 3,
-          content: 'Oi {patient_name}! 💙 Hoje quero compartilhar algo importante com você. Você sabia que manter uma rotina pode ajudar muito no seu tratamento?',
+          content:
+            'Oi {patient_name}! 💙 Hoje quero compartilhar algo importante com você. Você sabia que manter uma rotina pode ajudar muito no seu tratamento?',
           message_type: MessageType.INTERACTIVE,
           interactive_elements: {
             buttons: [
               { id: 'want_tips', text: 'Quero dicas!', action: 'routine_tips' },
               { id: 'tell_more', text: 'Me conte mais', action: 'routine_info' },
-              { id: 'not_now', text: 'Talvez depois', action: 'routine_later' }
-            ]
+              { id: 'not_now', text: 'Talvez depois', action: 'routine_later' },
+            ],
           },
-          personalization_hints: ['education_style', 'engagement_level']
+          personalization_hints: ['education_style', 'engagement_level'],
         },
         7: {
           id: 'day_7_milestone',
           day: 7,
-          content: 'Parabéns, {patient_name}! 🎉 Você completou sua primeira semana comigo. Como está se sentindo? Estou muito orgulhosa de você!',
+          content:
+            'Parabéns, {patient_name}! 🎉 Você completou sua primeira semana comigo. Como está se sentindo? Estou muito orgulhosa de você!',
           message_type: MessageType.TEXT,
           personalization_hints: ['celebration_style', 'achievement_recognition'],
-          ai_instructions: 'Celebre o marco de uma semana de forma genuína e encorajadora.'
+          ai_instructions: 'Celebre o marco de uma semana de forma genuína e encorajadora.',
         },
         10: {
           id: 'day_10_support',
           day: 10,
-          content: 'Olá, querida {patient_name}! 💕 Estamos chegando na metade do nosso primeiro ciclo juntas. Como posso te apoiar melhor?',
+          content:
+            'Olá, querida {patient_name}! 💕 Estamos chegando na metade do nosso primeiro ciclo juntas. Como posso te apoiar melhor?',
           message_type: MessageType.INTERACTIVE,
           interactive_elements: {
             quick_replies: [
               'Preciso de informações',
               'Apoio emocional',
               'Dicas práticas',
-              'Só conversar'
-            ]
+              'Só conversar',
+            ],
           },
-          personalization_hints: ['support_type', 'communication_preference']
+          personalization_hints: ['support_type', 'communication_preference'],
         },
         15: {
           id: 'day_15_completion',
           day: 15,
-          content: 'Que jornada incrível, {patient_name}! 🌟 Completamos nossos primeiros 15 dias juntas. Você está pronta para a próxima fase?',
+          content:
+            'Que jornada incrível, {patient_name}! 🌟 Completamos nossos primeiros 15 dias juntas. Você está pronta para a próxima fase?',
           message_type: MessageType.TEXT,
           personalization_hints: ['completion_celebration', 'transition_preparation'],
-          ai_instructions: 'Celebre a conclusão dos 15 dias e prepare para a transição para a próxima fase.'
-        }
-      }
+          ai_instructions:
+            'Celebre a conclusão dos 15 dias e prepare para a transição para a próxima fase.',
+        },
+      },
     }
 
     this.templates.set(FlowType.ONBOARDING, onboardingTemplate)
@@ -181,12 +190,7 @@ export class TemplateManager {
 
   // Validate message structure
   private validateMessage(message: MessageTemplate): boolean {
-    return !!(
-      message.id &&
-      message.day &&
-      message.content &&
-      message.message_type
-    )
+    return !!(message.id && message.day && message.content && message.message_type)
   }
 
   // Create new template
@@ -198,7 +202,9 @@ export class TemplateManager {
 
     try {
       logger.info('Creating template', { templateId: template.id, flowType: template.flow_type })
-      const createdTemplate = await apiClient.flows.createTemplate(template as unknown as CreateFlowTemplateRequest)
+      const createdTemplate = await apiClient.flows.createTemplate(
+        template as unknown as CreateFlowTemplateRequest
+      )
       this.templates.set(template.flow_type, createdTemplate as unknown as FlowTemplate)
       logger.info('Template created successfully', { templateId: createdTemplate.id })
       return createdTemplate as unknown as FlowTemplate

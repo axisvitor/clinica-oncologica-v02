@@ -48,15 +48,16 @@ const AppErrorFallback = memo<{ error: Error }>(({ error }) => (
     <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
       <div className="text-red-600 mb-4">
         <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z"
+          />
         </svg>
       </div>
-      <h1 className="text-xl font-bold text-gray-900 mb-2">
-        Erro na Aplicação
-      </h1>
-      <p className="text-gray-600 mb-4">
-        Ocorreu um erro inesperado. Nossa equipe foi notificada.
-      </p>
+      <h1 className="text-xl font-bold text-gray-900 mb-2">Erro na Aplicação</h1>
+      <p className="text-gray-600 mb-4">Ocorreu um erro inesperado. Nossa equipe foi notificada.</p>
       <button
         onClick={() => window.location.reload()}
         className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500"
@@ -85,7 +86,6 @@ export const AppProvider = memo<AppProviderProps>(({ children }) => {
 
   return (
     <ErrorBoundary
-
       fallback={<AppErrorFallback error={new Error('Critical application error')} />}
       onError={(error, errorInfo) => {
         logger.error('Critical app error:', { error, errorInfo })
@@ -96,8 +96,6 @@ export const AppProvider = memo<AppProviderProps>(({ children }) => {
           <AuthProvider>
             <Suspense fallback={<AppLoadingFallback />}>
               <ErrorBoundary
-
-
                 onError={(error, errorInfo) => {
                   logger.warn('Page-level error:', { error, errorInfo })
                 }}

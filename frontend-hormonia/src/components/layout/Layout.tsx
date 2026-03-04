@@ -21,9 +21,7 @@ export function Layout({ children }: LayoutProps) {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(true)} />
         <main id="main-content" className="flex-1 overflow-y-auto p-4 md:p-6" tabIndex={-1}>
-          <div className="max-w-[1600px] mx-auto w-full">
-            {children}
-          </div>
+          <div className="max-w-[1600px] mx-auto w-full">{children}</div>
         </main>
       </div>
     </div>

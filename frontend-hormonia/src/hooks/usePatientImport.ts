@@ -8,118 +8,114 @@
  * - Import history
  */
 
-import { useState, useCallback } from 'react';
-import { apiClient } from '@/lib/api-client';
-import { useAuth } from '@/hooks/useAuth';
+import { useState, useCallback } from 'react'
+import { apiClient } from '@/lib/api-client'
+import { useAuth } from '@/hooks/useAuth'
 import type {
   ImportOptions,
   ValidationResult,
   ImportResult,
   ImportHistoryEntry,
   ImportHistoryFilters,
-} from '@/types/import';
+} from '@/types/import'
 
 interface UsePatientImportReturn {
   // State
-  uploading: boolean;
-  validating: boolean;
-  importing: boolean;
-  progress: number;
-  validationResult: ValidationResult | null;
-  importResult: ImportResult | null;
-  error: string | null;
+  uploading: boolean
+  validating: boolean
+  importing: boolean
+  progress: number
+  validationResult: ValidationResult | null
+  importResult: ImportResult | null
+  error: string | null
 
   // Actions
-  validateFile: (file: File) => Promise<ValidationResult | null>;
-  importFile: (file: File, options?: ImportOptions) => Promise<ImportResult | null>;
-  downloadTemplate: (format?: 'csv' | 'xlsx') => Promise<void>;
-  getImportHistory: (filters?: ImportHistoryFilters) => Promise<ImportHistoryEntry[]>;
-  reset: () => void;
+  validateFile: (file: File) => Promise<ValidationResult | null>
+  importFile: (file: File, options?: ImportOptions) => Promise<ImportResult | null>
+  downloadTemplate: (format?: 'csv' | 'xlsx') => Promise<void>
+  getImportHistory: (filters?: ImportHistoryFilters) => Promise<ImportHistoryEntry[]>
+  reset: () => void
 }
 
 /**
  * Hook for managing patient import operations
  */
 export function usePatientImport(): UsePatientImportReturn {
-
   // State
-  const [uploading, setUploading] = useState(false);
-  const [validating, setValidating] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
-  const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false)
+  const [validating, setValidating] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null)
+  const [importResult, setImportResult] = useState<ImportResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   /**
    * Validate import file
    */
-  const validateFile = useCallback(
-    async (file: File): Promise<ValidationResult | null> => {
-      // Reset state
-      setError(null);
-      setValidationResult(null);
-      setValidating(true);
-      setProgress(0);
+  const validateFile = useCallback(async (file: File): Promise<ValidationResult | null> => {
+    // Reset state
+    setError(null)
+    setValidationResult(null)
+    setValidating(true)
+    setProgress(0)
 
-      try {
-        // Validate file size (max 10MB)
-        const maxSize = 10 * 1024 * 1024; // 10MB
-        if (file.size > maxSize) {
-          throw new Error('Arquivo muito grande. O tamanho máximo é 10MB.');
-        }
-
-        // Validate file type
-        const allowedExtensions = ['.csv', '.xlsx', '.xls'];
-        const fileExtension = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
-        if (!allowedExtensions.includes(fileExtension)) {
-          throw new Error('Formato de arquivo inválido. Use CSV ou Excel (.xlsx, .xls).');
-        }
-
-        setProgress(30);
-
-        // Call API to validate
-        const result = await apiClient.patients.validateImport(file);
-
-        setProgress(100);
-
-        // Transform API response to ValidationResult
-        const validationResult: ValidationResult = {
-          valid: result.valid,
-          totalRows: result.totalRows,
-          validRows: result.validRows,
-          errorRows: result.errorRows,
-          warningRows: result.warningRows,
-          errors: result.errors.map(err => ({
-            row: err.row,
-            column: err.column,
-            message: err.message,
-            severity: err.severity,
-            code: undefined,
-          })),
-          warnings: result.warnings.map(warn => ({
-            row: warn.row,
-            column: warn.column,
-            message: warn.message,
-            code: undefined,
-          })),
-          preview: result.preview,
-          format: result.format,
-          fileSize: result.fileSize,
-        };
-
-        setValidationResult(validationResult);
-        return validationResult;
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Erro ao validar arquivo';
-        setError(errorMessage);
-        return null;
-      } finally {
-        setValidating(false);
+    try {
+      // Validate file size (max 10MB)
+      const maxSize = 10 * 1024 * 1024 // 10MB
+      if (file.size > maxSize) {
+        throw new Error('Arquivo muito grande. O tamanho máximo é 10MB.')
       }
-    },
-    []
-  );
+
+      // Validate file type
+      const allowedExtensions = ['.csv', '.xlsx', '.xls']
+      const fileExtension = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
+      if (!allowedExtensions.includes(fileExtension)) {
+        throw new Error('Formato de arquivo inválido. Use CSV ou Excel (.xlsx, .xls).')
+      }
+
+      setProgress(30)
+
+      // Call API to validate
+      const result = await apiClient.patients.validateImport(file)
+
+      setProgress(100)
+
+      // Transform API response to ValidationResult
+      const validationResult: ValidationResult = {
+        valid: result.valid,
+        totalRows: result.totalRows,
+        validRows: result.validRows,
+        errorRows: result.errorRows,
+        warningRows: result.warningRows,
+        errors: result.errors.map((err) => ({
+          row: err.row,
+          column: err.column,
+          message: err.message,
+          severity: err.severity,
+          code: undefined,
+        })),
+        warnings: result.warnings.map((warn) => ({
+          row: warn.row,
+          column: warn.column,
+          message: warn.message,
+          code: undefined,
+        })),
+        preview: result.preview,
+        format: result.format,
+        fileSize: result.fileSize,
+      }
+
+      setValidationResult(validationResult)
+      return validationResult
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao validar arquivo'
+      setError(errorMessage)
+      return null
+    } finally {
+      setValidating(false)
+    }
+  }, [])
 
   /**
    * Import patients from file
@@ -127,30 +123,30 @@ export function usePatientImport(): UsePatientImportReturn {
   const importFile = useCallback(
     async (file: File, options: ImportOptions = {}): Promise<ImportResult | null> => {
       // Reset state
-      setError(null);
-      setImportResult(null);
-      setImporting(true);
-      setProgress(0);
+      setError(null)
+      setImportResult(null)
+      setImporting(true)
+      setProgress(0)
 
       try {
         // Validate file first if not already validated
         if (!validationResult) {
-          const validation = await validateFile(file);
+          const validation = await validateFile(file)
           if (!validation || !validation.valid) {
-            throw new Error('Arquivo contém erros. Corrija os erros antes de importar.');
+            throw new Error('Arquivo contém erros. Corrija os erros antes de importar.')
           }
         }
 
-        setProgress(20);
+        setProgress(20)
 
         // Call API to import
         const result = await apiClient.patients.importPatients(file, {
           skipDuplicates: options.skipDuplicates,
           updateExisting: options.updateExisting,
           validateOnly: options.validateOnly,
-        });
+        })
 
-        setProgress(100);
+        setProgress(100)
 
         // Transform API response to ImportResult
         const importResult: ImportResult = {
@@ -159,56 +155,53 @@ export function usePatientImport(): UsePatientImportReturn {
           failed: result.failed,
           skipped: 0,
           updated: 0,
-          errors: result.errors.map(err => ({
+          errors: result.errors.map((err) => ({
             row: err.row,
             patientName: `Linha ${err.row}`,
             message: err.message,
             code: 'IMPORT_ERROR',
           })),
           sessionId: `import-${Date.now()}`,
-        };
+        }
 
-        setImportResult(importResult);
-        return importResult;
+        setImportResult(importResult)
+        return importResult
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Erro ao importar pacientes';
-        setError(errorMessage);
-        return null;
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao importar pacientes'
+        setError(errorMessage)
+        return null
       } finally {
-        setImporting(false);
+        setImporting(false)
       }
     },
     [validationResult, validateFile]
-  );
+  )
 
   /**
    * Download import template
    */
-  const downloadTemplate = useCallback(
-    async (format: 'csv' | 'xlsx' = 'csv'): Promise<void> => {
-      try {
-        setUploading(true);
-        const blob = await apiClient.patients.downloadTemplate(format);
+  const downloadTemplate = useCallback(async (format: 'csv' | 'xlsx' = 'csv'): Promise<void> => {
+    try {
+      setUploading(true)
+      const blob = await apiClient.patients.downloadTemplate(format)
 
-        // Create download link
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `modelo-importacao-pacientes.${format}`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Erro ao baixar modelo';
-        setError(errorMessage);
-        throw err;
-      } finally {
-        setUploading(false);
-      }
-    },
-    []
-  );
+      // Create download link
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `modelo-importacao-pacientes.${format}`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao baixar modelo'
+      setError(errorMessage)
+      throw err
+    } finally {
+      setUploading(false)
+    }
+  }, [])
 
   /**
    * Get import history
@@ -223,10 +216,10 @@ export function usePatientImport(): UsePatientImportReturn {
           endDate: filters?.endDate,
           page: filters?.page,
           size: filters?.size,
-        });
+        })
 
         // Transform API response to ImportHistoryEntry[]
-        return result.items.map(item => ({
+        return result.items.map((item) => ({
           id: item.id,
           userId: item.userId,
           userName: item.userName,
@@ -241,28 +234,28 @@ export function usePatientImport(): UsePatientImportReturn {
           startedAt: item.startedAt,
           completedAt: item.completedAt,
           duration: item.duration,
-        }));
+        }))
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar histórico';
-        setError(errorMessage);
-        return [];
+        const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar histórico'
+        setError(errorMessage)
+        return []
       }
     },
     []
-  );
+  )
 
   /**
    * Reset all state
    */
   const reset = useCallback(() => {
-    setUploading(false);
-    setValidating(false);
-    setImporting(false);
-    setProgress(0);
-    setValidationResult(null);
-    setImportResult(null);
-    setError(null);
-  }, []);
+    setUploading(false)
+    setValidating(false)
+    setImporting(false)
+    setProgress(0)
+    setValidationResult(null)
+    setImportResult(null)
+    setError(null)
+  }, [])
 
   return {
     // State
@@ -280,7 +273,7 @@ export function usePatientImport(): UsePatientImportReturn {
     downloadTemplate,
     getImportHistory,
     reset,
-  };
+  }
 }
 
 /**
@@ -288,18 +281,18 @@ export function usePatientImport(): UsePatientImportReturn {
  * Only admins and doctors can import patients
  */
 export function useCanImportPatients(): boolean {
-  const { hasAnyRole, isAdmin, isAuthenticated } = useAuth();
+  const { hasAnyRole, isAdmin, isAuthenticated } = useAuth()
 
   // Not authenticated = no access
   if (!isAuthenticated) {
-    return false;
+    return false
   }
 
   // Admin always has access
   if (isAdmin()) {
-    return true;
+    return true
   }
 
   // Check for doctor role
-  return hasAnyRole(['admin', 'doctor', 'physician']);
+  return hasAnyRole(['admin', 'doctor', 'physician'])
 }

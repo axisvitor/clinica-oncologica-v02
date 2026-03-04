@@ -77,11 +77,14 @@ export interface QuizStats {
   }
 
   // Breakdown by doctor
-  by_doctor?: Record<string, {
-    sent: number
-    completed: number
-    completion_rate: number
-  }>
+  by_doctor?: Record<
+    string,
+    {
+      sent: number
+      completed: number
+      completion_rate: number
+    }
+  >
 }
 
 // Import and re-export types from centralized types
@@ -89,7 +92,7 @@ import type {
   QuizLinkStatus as ApiQuizLinkStatus,
   QuizLinkStatusValue,
   QuizTemplate,
-  QuizSession
+  QuizSession,
 } from '@/types/api'
 export type QuizLinkStatus = ApiQuizLinkStatus
 export type { QuizLinkStatusValue, QuizTemplate, QuizSession }
@@ -155,7 +158,9 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
     /**
      * Create quiz links for multiple patients (bulk)
      */
-    bulkCreate: async (data: QuizLinkBulkCreate): Promise<{
+    bulkCreate: async (
+      data: QuizLinkBulkCreate
+    ): Promise<{
       success: number
       failed: number
       links: QuizLink[]
@@ -226,7 +231,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
       return client.get<PaginatedResponse<QuizLink>>('/api/v2/quiz-extensions/links/', {
         page,
         size,
-        ...filters
+        ...filters,
       })
     },
 
@@ -238,7 +243,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
       method?: 'whatsapp' | 'email' | 'sms'
     ): Promise<{ message: string; sent_at: string }> => {
       return client.post(`/api/v2/quiz-extensions/links/${sessionId}/resend`, {
-        delivery_method: method
+        delivery_method: method,
       })
     },
 
@@ -246,9 +251,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
      * Cancel quiz link
      */
     cancel: async (sessionId: string): Promise<{ message: string }> => {
-      return client.post<{ message: string }>(
-        `/api/v2/quiz-extensions/links/${sessionId}/cancel`
-      )
+      return client.post<{ message: string }>(`/api/v2/quiz-extensions/links/${sessionId}/cancel`)
     },
 
     /**
@@ -270,7 +273,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
      */
     listTemplates: async (activeOnly: boolean = true): Promise<QuizTemplate[]> => {
       return client.get<QuizTemplate[]>('/api/v2/quiz-extensions/templates/', {
-        active_only: activeOnly
+        active_only: activeOnly,
       })
     },
 
@@ -306,12 +309,14 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
       start_date?: string
       end_date?: string
       doctor_id?: string
-    }): Promise<Array<{
-      date: string
-      sent: number
-      completed: number
-      completion_rate: number
-    }>> => {
+    }): Promise<
+      Array<{
+        date: string
+        sent: number
+        completed: number
+        completion_rate: number
+      }>
+    > => {
       return client.get('/api/v2/quiz-extensions/stats/completion-trend/', params)
     },
 
@@ -327,11 +332,14 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
       engaged_patients: number
       engagement_rate: number
       average_response_time_hours: number
-      by_delivery_method: Record<string, {
-        sent: number
-        completed: number
-        completion_rate: number
-      }>
+      by_delivery_method: Record<
+        string,
+        {
+          sent: number
+          completed: number
+          completion_rate: number
+        }
+      >
     }> => {
       return client.get('/api/v2/quiz-extensions/stats/engagement/', params)
     },
@@ -361,7 +369,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
           headers: {
             ...client.getSessionHeaders(),
           },
-          credentials: 'include'
+          credentials: 'include',
         }
       )
 
@@ -375,10 +383,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
     /**
      * Generate quiz report (PDF)
      */
-    generateReport: async (
-      sessionId: string,
-      format: 'pdf' | 'html' = 'pdf'
-    ): Promise<Blob> => {
+    generateReport: async (sessionId: string, format: 'pdf' | 'html' = 'pdf'): Promise<Blob> => {
       const response = await fetch(
         `${client.getBaseURL()}/api/v2/quiz-extensions/sessions/${sessionId}/report?format=${format}`,
         {
@@ -386,7 +391,7 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
           headers: {
             ...client.getSessionHeaders(),
           },
-          credentials: 'include'
+          credentials: 'include',
         }
       )
 
@@ -415,16 +420,18 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
     /**
      * Get scheduled quiz jobs
      */
-    getScheduledJobs: async (): Promise<Array<{
-      id: string
-      template_id: string
-      template_name: string
-      schedule_type: string
-      schedule_time: string
-      next_run: string
-      is_active: boolean
-      created_at: string
-    }>> => {
+    getScheduledJobs: async (): Promise<
+      Array<{
+        id: string
+        template_id: string
+        template_name: string
+        schedule_type: string
+        schedule_time: string
+        next_run: string
+        is_active: boolean
+        created_at: string
+      }>
+    > => {
       return client.get('/api/v2/quiz-extensions/schedules/')
     },
 
@@ -432,10 +439,8 @@ export function createMonthlyQuizApi(client: ApiClientCore) {
      * Cancel scheduled quiz job
      */
     cancelScheduledJob: async (scheduleId: string): Promise<{ message: string }> => {
-      return client.delete<{ message: string }>(
-        `/api/v2/quiz-extensions/schedules/${scheduleId}`
-      )
-    }
+      return client.delete<{ message: string }>(`/api/v2/quiz-extensions/schedules/${scheduleId}`)
+    },
   }
 }
 

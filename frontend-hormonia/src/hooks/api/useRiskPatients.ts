@@ -66,11 +66,11 @@ export function useRiskPatients(
         lastInteraction: assessment.last_response ?? '',
         sentiment: 0,
         adherence: 0,
-        alerts: assessment.risk_factors ?? []
+        alerts: assessment.risk_factors ?? [],
       }))
     },
     staleTime: 60000, // 60 seconds
     refetchInterval,
-    retry: 2
+    retry: 2,
   })
 }

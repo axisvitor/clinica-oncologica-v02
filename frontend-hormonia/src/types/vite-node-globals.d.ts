@@ -22,4 +22,3 @@ declare module 'path' {
   export function dirname(path: string): string
   export function resolve(...paths: string[]): string
 }
-

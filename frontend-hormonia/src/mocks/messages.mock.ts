@@ -22,7 +22,7 @@ export const MOCK_MESSAGES: MockMessage[] = [
     type: 'sent',
     status: 'delivered',
     created_at: '2024-09-30T10:00:00-03:00',
-    delivered_at: '2024-09-30T10:00:15-03:00'
+    delivered_at: '2024-09-30T10:00:15-03:00',
   },
   {
     id: 'msg-002',
@@ -32,7 +32,7 @@ export const MOCK_MESSAGES: MockMessage[] = [
     status: 'delivered',
     created_at: '2024-09-30T10:05:00-03:00',
     delivered_at: '2024-09-30T10:05:05-03:00',
-    read_at: '2024-09-30T10:06:00-03:00'
+    read_at: '2024-09-30T10:06:00-03:00',
   },
   {
     id: 'msg-003',
@@ -41,7 +41,7 @@ export const MOCK_MESSAGES: MockMessage[] = [
     type: 'sent',
     status: 'delivered',
     created_at: '2024-09-29T14:00:00-03:00',
-    delivered_at: '2024-09-29T14:00:10-03:00'
+    delivered_at: '2024-09-29T14:00:10-03:00',
   },
   {
     id: 'msg-004',
@@ -51,7 +51,7 @@ export const MOCK_MESSAGES: MockMessage[] = [
     status: 'delivered',
     created_at: '2024-09-29T14:30:00-03:00',
     delivered_at: '2024-09-29T14:30:05-03:00',
-    read_at: '2024-09-29T15:00:00-03:00'
+    read_at: '2024-09-29T15:00:00-03:00',
   },
   {
     id: 'msg-005',
@@ -60,7 +60,7 @@ export const MOCK_MESSAGES: MockMessage[] = [
     type: 'sent',
     status: 'delivered',
     created_at: '2024-10-01T08:00:00-03:00',
-    delivered_at: '2024-10-01T08:00:12-03:00'
+    delivered_at: '2024-10-01T08:00:12-03:00',
   },
   {
     id: 'msg-006',
@@ -69,7 +69,7 @@ export const MOCK_MESSAGES: MockMessage[] = [
     type: 'sent',
     status: 'delivered',
     created_at: '2024-09-28T11:00:00-03:00',
-    delivered_at: '2024-09-28T11:00:08-03:00'
+    delivered_at: '2024-09-28T11:00:08-03:00',
   },
   {
     id: 'msg-007',
@@ -78,7 +78,7 @@ export const MOCK_MESSAGES: MockMessage[] = [
     type: 'sent',
     status: 'delivered',
     created_at: '2024-10-01T09:00:00-03:00',
-    delivered_at: '2024-10-01T09:00:15-03:00'
+    delivered_at: '2024-10-01T09:00:15-03:00',
   },
   {
     id: 'msg-008',
@@ -88,23 +88,25 @@ export const MOCK_MESSAGES: MockMessage[] = [
     status: 'delivered',
     created_at: '2024-10-01T09:15:00-03:00',
     delivered_at: '2024-10-01T09:15:05-03:00',
-    read_at: '2024-10-01T09:20:00-03:00'
-  }
+    read_at: '2024-10-01T09:20:00-03:00',
+  },
 ]
 
 /**
  * Get mock messages with pagination
  */
-export function getMockMessages(params?: {
-  patient_id?: string
-  page?: number
-  size?: number
-}): { items: MockMessage[]; total: number; page: number; size: number; pages: number } {
+export function getMockMessages(params?: { patient_id?: string; page?: number; size?: number }): {
+  items: MockMessage[]
+  total: number
+  page: number
+  size: number
+  pages: number
+} {
   let filtered = [...MOCK_MESSAGES]
 
   // Filter by patient
   if (params?.patient_id) {
-    filtered = filtered.filter(m => m.patient_id === params.patient_id)
+    filtered = filtered.filter((m) => m.patient_id === params.patient_id)
   }
 
   // Sort by created_at descending
@@ -122,7 +124,7 @@ export function getMockMessages(params?: {
     total,
     page,
     size,
-    pages
+    pages,
   }
 }
 
@@ -130,7 +132,7 @@ export function getMockMessages(params?: {
  * Get mock messages for patient
  */
 export function getMockMessagesByPatient(patientId: string): MockMessage[] {
-  return MOCK_MESSAGES.filter(m => m.patient_id === patientId).sort(
+  return MOCK_MESSAGES.filter((m) => m.patient_id === patientId).sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   )
 }

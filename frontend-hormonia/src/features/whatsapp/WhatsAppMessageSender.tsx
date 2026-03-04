@@ -2,15 +2,21 @@
  * WhatsApp Message Sender Component
  * Handles sending text, media, and template messages
  */
-import React, { useState, useRef } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Progress } from '@/components/ui/progress';
+import React, { useState, useRef } from 'react'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Progress } from '@/components/ui/progress'
 import {
   Send,
   Image,
@@ -19,178 +25,190 @@ import {
   CheckCircle,
   AlertCircle,
   Upload,
-  MessageSquare
-} from 'lucide-react';
-import { whatsAppService, MessageRequest, MessageResponse } from '../../services/whatsapp/WhatsAppService';
+  MessageSquare,
+} from 'lucide-react'
+import {
+  whatsAppService,
+  MessageRequest,
+  MessageResponse,
+} from '../../services/whatsapp/WhatsAppService'
 
 interface WhatsAppMessageSenderProps {
-  instanceName: string;
-  onMessageSent?: (response: MessageResponse) => void;
-  onError?: (error: string) => void;
+  instanceName: string
+  onMessageSent?: (response: MessageResponse) => void
+  onError?: (error: string) => void
 }
 
 export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
   instanceName,
   onMessageSent,
-  onError
+  onError,
 }) => {
-  const [recipient, setRecipient] = useState('');
-  const [messageType, setMessageType] = useState<'text' | 'image' | 'document'>('text');
-  const [textMessage, setTextMessage] = useState('');
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaCaption, setMediaCaption] = useState('');
-  const [sending, setSending] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isValidNumber, setIsValidNumber] = useState<boolean | null>(null);
-  const [checkingNumber, setCheckingNumber] = useState(false);
+  const [recipient, setRecipient] = useState('')
+  const [messageType, setMessageType] = useState<'text' | 'image' | 'document'>('text')
+  const [textMessage, setTextMessage] = useState('')
+  const [mediaFile, setMediaFile] = useState<File | null>(null)
+  const [mediaCaption, setMediaCaption] = useState('')
+  const [sending, setSending] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [success, setSuccess] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isValidNumber, setIsValidNumber] = useState<boolean | null>(null)
+  const [checkingNumber, setCheckingNumber] = useState(false)
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const validateAndFormatNumber = async (phoneNumber: string) => {
     if (!phoneNumber.trim()) {
-      setIsValidNumber(null);
-      return;
+      setIsValidNumber(null)
+      return
     }
 
     try {
-      setCheckingNumber(true);
-      const validation = whatsAppService.validatePhoneNumber(phoneNumber);
+      setCheckingNumber(true)
+      const validation = whatsAppService.validatePhoneNumber(phoneNumber)
 
       if (validation.isValid) {
         // Check if number is on WhatsApp
-        const response = await whatsAppService.checkWhatsAppNumber(instanceName, validation.formatted);
-        setIsValidNumber(response.isWhatsappUser);
-        setRecipient(validation.formatted || '');
+        const response = await whatsAppService.checkWhatsAppNumber(
+          instanceName,
+          validation.formatted
+        )
+        setIsValidNumber(response.isWhatsappUser)
+        setRecipient(validation.formatted || '')
       } else {
-        setIsValidNumber(false);
-        setError(validation.error || '');
+        setIsValidNumber(false)
+        setError(validation.error || '')
       }
     } catch {
-      setIsValidNumber(false);
-      setError('Failed to validate phone number');
+      setIsValidNumber(false)
+      setError('Failed to validate phone number')
     } finally {
-      setCheckingNumber(false);
+      setCheckingNumber(false)
     }
-  };
+  }
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+    const file = event.target.files?.[0]
     if (file) {
       // Validate file size (16MB max for WhatsApp)
       if (file.size > 16 * 1024 * 1024) {
-        setError('File size must be less than 16MB');
-        return;
+        setError('File size must be less than 16MB')
+        return
       }
 
       // Validate file type
       const validTypes = {
         image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-        document: ['application/pdf', 'text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-      };
-
-      const isValidType = messageType === 'image'
-        ? validTypes.image.includes(file.type)
-        : validTypes.document.includes(file.type);
-
-      if (!isValidType) {
-        setError(`Invalid file type for ${messageType} message`);
-        return;
+        document: [
+          'application/pdf',
+          'text/plain',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ],
       }
 
-      setMediaFile(file);
-      setError(null);
+      const isValidType =
+        messageType === 'image'
+          ? validTypes.image.includes(file.type)
+          : validTypes.document.includes(file.type)
+
+      if (!isValidType) {
+        setError(`Invalid file type for ${messageType} message`)
+        return
+      }
+
+      setMediaFile(file)
+      setError(null)
     }
-  };
+  }
 
   const uploadMedia = async (file: File): Promise<string> => {
     try {
-      setUploadProgress(0);
-      const response = await whatsAppService.uploadMedia(file);
-      setUploadProgress(100);
-      return response.url;
+      setUploadProgress(0)
+      const response = await whatsAppService.uploadMedia(file)
+      setUploadProgress(100)
+      return response.url
     } catch {
-      throw new Error('Failed to upload media file');
+      throw new Error('Failed to upload media file')
     }
-  };
+  }
 
   const sendMessage = async () => {
     if (!recipient.trim()) {
-      setError('Recipient phone number is required');
-      return;
+      setError('Recipient phone number is required')
+      return
     }
 
     if (messageType === 'text' && !textMessage.trim()) {
-      setError('Message text is required');
-      return;
+      setError('Message text is required')
+      return
     }
 
     if ((messageType === 'image' || messageType === 'document') && !mediaFile) {
-      setError('Please select a file to send');
-      return;
+      setError('Please select a file to send')
+      return
     }
 
     try {
-      setSending(true);
-      setError(null);
-      setSuccess(null);
+      setSending(true)
+      setError(null)
+      setSuccess(null)
 
       const request: MessageRequest = {
         instanceName,
         to: recipient,
         messageType,
-      };
+      }
 
       if (messageType === 'text') {
-        request.text = textMessage;
+        request.text = textMessage
       } else {
         // Upload media file first
-        const mediaUrl = await uploadMedia(mediaFile!);
-        request.mediaUrl = mediaUrl;
+        const mediaUrl = await uploadMedia(mediaFile!)
+        request.mediaUrl = mediaUrl
         if (mediaCaption) {
-          request.mediaCaption = mediaCaption;
+          request.mediaCaption = mediaCaption
         }
 
         if (messageType === 'document') {
-          request.filename = mediaFile!.name;
+          request.filename = mediaFile!.name
         }
       }
 
-      const response = await whatsAppService.sendMessage(request);
+      const response = await whatsAppService.sendMessage(request)
 
-      setSuccess(`Message sent successfully! ID: ${response.id}`);
-      onMessageSent?.(response);
+      setSuccess(`Message sent successfully! ID: ${response.id}`)
+      onMessageSent?.(response)
 
       // Reset form
       if (messageType === 'text') {
-        setTextMessage('');
+        setTextMessage('')
       } else {
-        setMediaFile(null);
-        setMediaCaption('');
+        setMediaFile(null)
+        setMediaCaption('')
         if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+          fileInputRef.current.value = ''
         }
       }
-      setUploadProgress(0);
-
+      setUploadProgress(0)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
-      setError(errorMessage);
-      onError?.(errorMessage);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send message'
+      setError(errorMessage)
+      onError?.(errorMessage)
     } finally {
-      setSending(false);
+      setSending(false)
     }
-  };
+  }
 
   const clearMediaFile = () => {
-    setMediaFile(null);
-    setMediaCaption('');
-    setUploadProgress(0);
+    setMediaFile(null)
+    setMediaCaption('')
+    setUploadProgress(0)
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = ''
     }
-  };
+  }
 
   return (
     <Card>
@@ -226,8 +244,11 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
               onBlur={() => validateAndFormatNumber(recipient)}
               placeholder="+55 11 99999-9999"
               className={`flex-1 ${
-                isValidNumber === true ? 'border-green-500' :
-                isValidNumber === false ? 'border-red-500' : ''
+                isValidNumber === true
+                  ? 'border-green-500'
+                  : isValidNumber === false
+                    ? 'border-red-500'
+                    : ''
               }`}
             />
             {checkingNumber && (
@@ -257,15 +278,18 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
         {/* Message Type */}
         <div className="space-y-2">
           <Label htmlFor="messageType">Message Type</Label>
-          <Select value={messageType} onValueChange={(value: 'text' | 'image' | 'document') => {
-            setMessageType(value);
-            setMediaFile(null);
-            setMediaCaption('');
-            setUploadProgress(0);
-            if (fileInputRef.current) {
-              fileInputRef.current.value = '';
-            }
-          }}>
+          <Select
+            value={messageType}
+            onValueChange={(value: 'text' | 'image' | 'document') => {
+              setMessageType(value)
+              setMediaFile(null)
+              setMediaCaption('')
+              setUploadProgress(0)
+              if (fileInputRef.current) {
+                fileInputRef.current.value = ''
+              }
+            }}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -304,9 +328,7 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
               rows={4}
               maxLength={4096}
             />
-            <p className="text-sm text-gray-500 text-right">
-              {textMessage.length}/4096 characters
-            </p>
+            <p className="text-sm text-gray-500 text-right">{textMessage.length}/4096 characters</p>
           </div>
         )}
 
@@ -339,8 +361,7 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
                   <p className="text-sm text-gray-500">
                     {messageType === 'image'
                       ? 'JPEG, PNG, GIF, WebP (max 16MB)'
-                      : 'PDF, DOC, DOCX, TXT (max 16MB)'
-                    }
+                      : 'PDF, DOC, DOCX, TXT (max 16MB)'}
                   </p>
                 </div>
               ) : (
@@ -369,7 +390,7 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
 
                   {uploadProgress > 0 && uploadProgress < 100 && (
                     <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-sm">
                         <span>Uploading…</span>
                         <span>{uploadProgress}%</span>
                       </div>
@@ -438,7 +459,7 @@ export const WhatsAppMessageSender: React.FC<WhatsAppMessageSenderProps> = ({
         </div>
       </CardContent>
     </Card>
-  );
-};
+  )
+}
 
-export default WhatsAppMessageSender;
+export default WhatsAppMessageSender

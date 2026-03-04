@@ -20,9 +20,7 @@ interface UsePhysicianRiskAssessmentsOptions {
   enabled?: boolean
 }
 
-export function usePhysicianRiskAssessments(
-  options?: UsePhysicianRiskAssessmentsOptions
-) {
+export function usePhysicianRiskAssessments(options?: UsePhysicianRiskAssessmentsOptions) {
   const { patient_id, risk_level, search, page = 1, size = 20, enabled = true } = options ?? {}
 
   return useQuery({
@@ -37,19 +35,21 @@ export function usePhysicianRiskAssessments(
 
       const endpoint = `/api/v2/physician/risk-assessments?${params}`
       const response = await apiClient.request<RiskAssessmentsResponse>(endpoint)
-      return response ?? {
-        assessments: [],
-        summary: {
-          total_patients: 0,
-          by_risk_level: { critical: 0, high: 0, medium: 0, low: 0 },
-          requiring_attention: 0
-        },
-        last_updated: new Date().toISOString()
-      }
+      return (
+        response ?? {
+          assessments: [],
+          summary: {
+            total_patients: 0,
+            by_risk_level: { critical: 0, high: 0, medium: 0, low: 0 },
+            requiring_attention: 0,
+          },
+          last_updated: new Date().toISOString(),
+        }
+      )
     },
     staleTime: 60000, // 1 minute (match backend cache)
     refetchOnWindowFocus: false,
     enabled,
-    retry: 2
+    retry: 2,
   } as UseQueryOptions<RiskAssessmentsResponse>)
 }

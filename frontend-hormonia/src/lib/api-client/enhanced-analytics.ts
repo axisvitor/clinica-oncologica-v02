@@ -3,10 +3,10 @@
  * Handles AI-powered analytics endpoints
  */
 
-import axios, { AxiosInstance } from 'axios';
-import { createLogger } from '@/utils/logger';
+import axios, { AxiosInstance } from 'axios'
+import { createLogger } from '@/utils/logger'
 
-const logger = createLogger('EnhancedAnalytics');
+const logger = createLogger('EnhancedAnalytics')
 import {
   EnhancedDashboard,
   Prediction,
@@ -18,14 +18,19 @@ import {
   PredictionsResponse,
   TrendsResponse,
   ReportResponse,
-} from '../../types/enhanced-analytics';
+} from '../../types/enhanced-analytics'
 
 export class EnhancedAnalyticsApi {
-  private client: AxiosInstance;
-  private baseUrl: string;
+  private client: AxiosInstance
+  private baseUrl: string
 
   constructor(baseUrl?: string) {
-    this.baseUrl = baseUrl || process.env['REACT_APP_API_URL'] || import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_URL || "http://localhost:8000");
+    this.baseUrl =
+      baseUrl ||
+      process.env['REACT_APP_API_URL'] ||
+      import.meta.env.VITE_API_BASE_URL ||
+      import.meta.env.VITE_API_URL ||
+      'http://localhost:8000'
     this.client = axios.create({
       baseURL: `${this.baseUrl}/api/v2/enhanced-analytics/`,
       headers: {
@@ -33,17 +38,17 @@ export class EnhancedAnalyticsApi {
       },
       withCredentials: true,
       timeout: 30000, // AI operations may take longer
-    });
+    })
 
     // Add auth token interceptor
     this.client.interceptors.request.use((config) => {
-      const token = localStorage.getItem('session_id') || localStorage.getItem('auth_token');
+      const token = localStorage.getItem('session_id') || localStorage.getItem('auth_token')
       if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-        config.headers['X-Session-ID'] = token;
+        config.headers.Authorization = `Bearer ${token}`
+        config.headers['X-Session-ID'] = token
       }
-      return config;
-    });
+      return config
+    })
 
     // Add response error handler
     this.client.interceptors.response.use(
@@ -51,11 +56,11 @@ export class EnhancedAnalyticsApi {
       (error) => {
         if (error.response?.status === 401) {
           // Redirect to login or refresh token
-          window.location.href = '/login';
+          window.location.href = '/login'
         }
-        return Promise.reject(error);
+        return Promise.reject(error)
       }
-    );
+    )
   }
 
   /**
@@ -65,16 +70,16 @@ export class EnhancedAnalyticsApi {
     try {
       const response = await this.client.get<DashboardResponse>('dashboard', {
         params: filters,
-      });
+      })
 
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to fetch dashboard');
+        throw new Error(response.data.error || 'Failed to fetch dashboard')
       }
 
-      return response.data.data;
+      return response.data.data
     } catch (error) {
-      logger.error('Error fetching enhanced dashboard', error instanceof Error ? error : undefined);
-      throw this.handleError(error);
+      logger.error('Error fetching enhanced dashboard', error instanceof Error ? error : undefined)
+      throw this.handleError(error)
     }
   }
 
@@ -95,16 +100,16 @@ export class EnhancedAnalyticsApi {
           page,
           page_size: pageSize,
         },
-      });
+      })
 
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to fetch predictions');
+        throw new Error(response.data.error || 'Failed to fetch predictions')
       }
 
-      return response.data.data;
+      return response.data.data
     } catch (error) {
-      logger.error('Error fetching predictions', error instanceof Error ? error : undefined);
-      throw this.handleError(error);
+      logger.error('Error fetching predictions', error instanceof Error ? error : undefined)
+      throw this.handleError(error)
     }
   }
 
@@ -119,16 +124,16 @@ export class EnhancedAnalyticsApi {
           period,
           ...filters,
         },
-      });
+      })
 
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to fetch trends');
+        throw new Error(response.data.error || 'Failed to fetch trends')
       }
 
-      return response.data.data;
+      return response.data.data
     } catch (error) {
-      logger.error('Error fetching trends', error instanceof Error ? error : undefined);
-      throw this.handleError(error);
+      logger.error('Error fetching trends', error instanceof Error ? error : undefined)
+      throw this.handleError(error)
     }
   }
 
@@ -137,16 +142,16 @@ export class EnhancedAnalyticsApi {
    */
   async generateCustomReport(config: ReportConfig): Promise<CustomReport> {
     try {
-      const response = await this.client.post<ReportResponse>('custom-report', config);
+      const response = await this.client.post<ReportResponse>('custom-report', config)
 
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to generate report');
+        throw new Error(response.data.error || 'Failed to generate report')
       }
 
-      return response.data.data;
+      return response.data.data
     } catch (error) {
-      logger.error('Error generating custom report', error instanceof Error ? error : undefined);
-      throw this.handleError(error);
+      logger.error('Error generating custom report', error instanceof Error ? error : undefined)
+      throw this.handleError(error)
     }
   }
 
@@ -158,12 +163,12 @@ export class EnhancedAnalyticsApi {
       const response = await this.client.get(`/reports/${reportId}/download`, {
         params: { format },
         responseType: 'blob',
-      });
+      })
 
-      return response.data;
+      return response.data
     } catch (error) {
-      logger.error('Error downloading report', error instanceof Error ? error : undefined);
-      throw this.handleError(error);
+      logger.error('Error downloading report', error instanceof Error ? error : undefined)
+      throw this.handleError(error)
     }
   }
 
@@ -172,16 +177,16 @@ export class EnhancedAnalyticsApi {
    */
   async getAvailableMetrics(): Promise<string[]> {
     try {
-      const response = await this.client.get<{ success: boolean; data: string[] }>('metrics');
+      const response = await this.client.get<{ success: boolean; data: string[] }>('metrics')
 
       if (!response.data.success) {
-        throw new Error('Failed to fetch available metrics');
+        throw new Error('Failed to fetch available metrics')
       }
 
-      return response.data.data;
+      return response.data.data
     } catch (error) {
-      logger.error('Error fetching available metrics', error instanceof Error ? error : undefined);
-      throw this.handleError(error);
+      logger.error('Error fetching available metrics', error instanceof Error ? error : undefined)
+      throw this.handleError(error)
     }
   }
 
@@ -190,10 +195,10 @@ export class EnhancedAnalyticsApi {
    */
   async acknowledgeAlert(alertId: string): Promise<void> {
     try {
-      await this.client.post(`/alerts/${alertId}/acknowledge`);
+      await this.client.post(`/alerts/${alertId}/acknowledge`)
     } catch (error) {
-      logger.error('Error acknowledging alert', error instanceof Error ? error : undefined);
-      throw this.handleError(error);
+      logger.error('Error acknowledging alert', error instanceof Error ? error : undefined)
+      throw this.handleError(error)
     }
   }
 
@@ -209,12 +214,12 @@ export class EnhancedAnalyticsApi {
           params: { format },
           responseType: 'blob',
         }
-      );
+      )
 
-      return response.data;
+      return response.data
     } catch (error) {
-      logger.error('Error exporting dashboard', error instanceof Error ? error : undefined);
-      throw this.handleError(error);
+      logger.error('Error exporting dashboard', error instanceof Error ? error : undefined)
+      throw this.handleError(error)
     }
   }
 
@@ -225,16 +230,16 @@ export class EnhancedAnalyticsApi {
     try {
       const response = await this.client.post<PredictionsResponse>(
         `/predictions/${patientId}/refresh`
-      );
+      )
 
       if (!response.data.success) {
-        throw new Error(response.data.error || 'Failed to refresh predictions');
+        throw new Error(response.data.error || 'Failed to refresh predictions')
       }
 
-      return response.data.data;
+      return response.data.data
     } catch (error) {
-      logger.error('Error refreshing predictions', error instanceof Error ? error : undefined);
-      throw this.handleError(error);
+      logger.error('Error refreshing predictions', error instanceof Error ? error : undefined)
+      throw this.handleError(error)
     }
   }
 
@@ -243,15 +248,15 @@ export class EnhancedAnalyticsApi {
    */
   private handleError(error: unknown): Error {
     if (axios.isAxiosError(error)) {
-      const message = error.response?.data?.message || error.message;
-      return new Error(`API Error: ${message}`);
+      const message = error.response?.data?.message || error.message
+      return new Error(`API Error: ${message}`)
     }
     if (error instanceof Error) {
-      return error;
+      return error
     }
-    return new Error('An unknown error occurred');
+    return new Error('An unknown error occurred')
   }
 }
 
 // Export singleton instance
-export const enhancedAnalyticsApi = new EnhancedAnalyticsApi();
+export const enhancedAnalyticsApi = new EnhancedAnalyticsApi()

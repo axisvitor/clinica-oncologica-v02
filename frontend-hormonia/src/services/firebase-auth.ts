@@ -52,10 +52,7 @@ export function clearSessionId(): void {
  * Login user with email/password
  * Creates session in backend with Redis storage
  */
-export async function loginUser(
-  email: string,
-  password: string
-): Promise<LoginResponse> {
+export async function loginUser(email: string, password: string): Promise<LoginResponse> {
   try {
     logger.log('Attempting Firebase login:', email)
 
@@ -69,7 +66,9 @@ export async function loginUser(
     if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
       if (baseURL.startsWith('http://')) {
         logger.error('🚨 CRITICAL: HTTP detected in HTTPS page')
-        throw new Error('Security error: Cannot connect to insecure backend from secure page. Please contact support.')
+        throw new Error(
+          'Security error: Cannot connect to insecure backend from secure page. Please contact support.'
+        )
       }
     }
 
@@ -99,11 +98,11 @@ export async function loginUser(
 
     // Step 3: Create backend session via apiClient
     // SECURITY FIX: Session ID is returned in response for Header-Based Auth
-    let sessionData;
+    let sessionData
     try {
       sessionData = await apiClient.auth.createSession(firebaseToken, {
         user_agent: navigator.userAgent,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       })
 
       if (!sessionData.valid) {
@@ -116,10 +115,18 @@ export async function loginUser(
 
       // Provide helpful error message
       if (error instanceof Error) {
-        if (isErrorWithMessage(error) && error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-          throw new Error('Cannot connect to server. Please check your internet connection and try again.')
+        if (
+          (isErrorWithMessage(error) && error.message.includes('Failed to fetch')) ||
+          error.message.includes('NetworkError')
+        ) {
+          throw new Error(
+            'Cannot connect to server. Please check your internet connection and try again.'
+          )
         }
-        if (isErrorWithMessage(error) && error.message.includes('blocked') || error.message.includes('CORS')) {
+        if (
+          (isErrorWithMessage(error) && error.message.includes('blocked')) ||
+          error.message.includes('CORS')
+        ) {
           throw new Error('Security error: Connection blocked. Please contact support.')
         }
       }
@@ -136,7 +143,10 @@ export async function loginUser(
     if (sessionData.session_id) {
       currentSessionId = sessionData.session_id
       apiClient.setAuthToken(sessionData.session_id)
-      logger.log('Session ID stored and set as Auth Token:', sessionData.session_id.substring(0, 8) + '...')
+      logger.log(
+        'Session ID stored and set as Auth Token:',
+        sessionData.session_id.substring(0, 8) + '...'
+      )
     } else {
       // Fallback: No session_id means backend didn't return one - this is an error
       logger.error('Backend did not return session_id - login will fail')
@@ -157,10 +167,10 @@ export async function loginUser(
     return {
       user: userResponse.data,
       tokens: {
-        access_token: sessionData.session_id || firebaseToken
+        access_token: sessionData.session_id || firebaseToken,
         // refresh_token is omitted (optional property)
       },
-      session_id: sessionData.session_id || 'cookie'
+      session_id: sessionData.session_id || 'cookie',
     }
   } catch (error: unknown) {
     logger.error('Login failed:', error)
@@ -296,7 +306,7 @@ export async function getCurrentUser(): Promise<User | null> {
         logger.log('Session validated via cookie only')
         return {
           ...response.data,
-          session_id: 'cookie'
+          session_id: 'cookie',
         }
       }
       return null
@@ -314,7 +324,7 @@ export async function getCurrentUser(): Promise<User | null> {
 
     return {
       ...response.data,
-      session_id: currentSessionId
+      session_id: currentSessionId,
     }
   } catch (error) {
     logger.error('Get current user failed:', error)

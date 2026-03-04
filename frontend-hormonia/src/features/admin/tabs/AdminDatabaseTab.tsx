@@ -18,7 +18,7 @@ interface ClearCacheResponse {
 interface AdminDatabaseTabProps {
   isLoading: boolean
   setIsLoading: (loading: boolean) => void
-  setMessage: (message: { type: 'success' | 'error', text: string } | null) => void
+  setMessage: (message: { type: 'success' | 'error'; text: string } | null) => void
 }
 
 /**
@@ -32,7 +32,11 @@ interface AdminDatabaseTabProps {
  *
  * @note Operations are performed with proper error handling and user feedback
  */
-export default function AdminDatabaseTab({ isLoading, setIsLoading, setMessage }: AdminDatabaseTabProps) {
+export default function AdminDatabaseTab({
+  isLoading,
+  setIsLoading,
+  setMessage,
+}: AdminDatabaseTabProps) {
   const handleBackup = async () => {
     setIsLoading(true)
     try {
@@ -45,7 +49,7 @@ export default function AdminDatabaseTab({ isLoading, setIsLoading, setMessage }
         headers: {
           ...apiClient.getSessionHeaders(),
         },
-        credentials: 'include'
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -72,7 +76,7 @@ export default function AdminDatabaseTab({ isLoading, setIsLoading, setMessage }
     setIsLoading(true)
     try {
       await apiClient.request<ClearCacheResponse>('/admin/cache/clear', {
-        method: 'POST'
+        method: 'POST',
       })
 
       setMessage({ type: 'success', text: 'Cache limpo com sucesso!' })
@@ -94,19 +98,13 @@ export default function AdminDatabaseTab({ isLoading, setIsLoading, setMessage }
             </div>
             <div>
               <CardTitle>Gestão de Dados</CardTitle>
-              <CardDescription>
-                Operações de backup, manutenção e otimização
-              </CardDescription>
+              <CardDescription>Operações de backup, manutenção e otimização</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6 pt-6">
           <div className="grid grid-cols-2 gap-4">
-            <Button
-              onClick={handleBackup}
-              disabled={isLoading}
-              variant="outline"
-            >
+            <Button onClick={handleBackup} disabled={isLoading} variant="outline">
               <Download className="mr-2 h-4 w-4" />
               Fazer Backup
             </Button>
@@ -116,11 +114,7 @@ export default function AdminDatabaseTab({ isLoading, setIsLoading, setMessage }
               Restaurar Backup
             </Button>
 
-            <Button
-              onClick={handleClearCache}
-              disabled={isLoading}
-              variant="outline"
-            >
+            <Button onClick={handleClearCache} disabled={isLoading} variant="outline">
               <RefreshCw className="mr-2 h-4 w-4" />
               Limpar Cache
             </Button>
@@ -135,8 +129,8 @@ export default function AdminDatabaseTab({ isLoading, setIsLoading, setMessage }
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>Atenção</AlertTitle>
             <AlertDescription>
-              Operações de banco de dados podem afetar o desempenho do sistema.
-              Execute durante períodos de baixa atividade.
+              Operações de banco de dados podem afetar o desempenho do sistema. Execute durante
+              períodos de baixa atividade.
             </AlertDescription>
           </Alert>
         </CardContent>

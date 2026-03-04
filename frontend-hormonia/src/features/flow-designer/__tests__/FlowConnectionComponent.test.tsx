@@ -14,14 +14,14 @@ function createTestNodes(): FlowNode[] {
       id: 'node-1',
       type: FlowNodeType.START,
       position: { x: 100, y: 100 },
-      data: { label: 'Start', config: {} }
+      data: { label: 'Start', config: {} },
     },
     {
       id: 'node-2',
       type: FlowNodeType.MESSAGE,
       position: { x: 300, y: 200 },
-      data: { label: 'Message', config: {} }
-    }
+      data: { label: 'Message', config: {} },
+    },
   ]
 }
 
@@ -31,7 +31,7 @@ function createTestConnection(overrides: Partial<FlowConnection> = {}): FlowConn
     id: 'conn-1',
     source: 'node-1',
     target: 'node-2',
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -46,7 +46,7 @@ describe('FlowConnectionComponent', () => {
     nodes: createTestNodes(),
     selected: false,
     errors: [],
-    onSelect: vi.fn()
+    onSelect: vi.fn(),
   }
 
   beforeEach(() => {
@@ -68,7 +68,7 @@ describe('FlowConnectionComponent', () => {
     it('should not render when source node is missing', () => {
       const props = {
         ...defaultProps,
-        connection: createTestConnection({ source: 'nonexistent' })
+        connection: createTestConnection({ source: 'nonexistent' }),
       }
       render(
         <SvgWrapper>
@@ -84,7 +84,7 @@ describe('FlowConnectionComponent', () => {
     it('should not render when target node is missing', () => {
       const props = {
         ...defaultProps,
-        connection: createTestConnection({ target: 'nonexistent' })
+        connection: createTestConnection({ target: 'nonexistent' }),
       }
       render(
         <SvgWrapper>
@@ -189,7 +189,7 @@ describe('FlowConnectionComponent', () => {
 
       const textElements = document.querySelectorAll('text')
       // Should only have error indicator text or none
-      const labelText = Array.from(textElements).find(t => !t.textContent?.includes('!'))
+      const labelText = Array.from(textElements).find((t) => !t.textContent?.includes('!'))
       expect(labelText).toBeFalsy()
     })
 
@@ -220,7 +220,12 @@ describe('FlowConnectionComponent', () => {
   describe('Errors', () => {
     it('should show error indicator when has errors', () => {
       const errors = [
-        { id: 'e1', type: 'invalid_config' as const, message: 'Invalid connection', connection_id: 'conn-1' }
+        {
+          id: 'e1',
+          type: 'invalid_config' as const,
+          message: 'Invalid connection',
+          connection_id: 'conn-1',
+        },
       ]
       render(
         <SvgWrapper>
@@ -234,7 +239,12 @@ describe('FlowConnectionComponent', () => {
 
     it('should apply red stroke color when has errors', () => {
       const errors = [
-        { id: 'e1', type: 'invalid_config' as const, message: 'Invalid connection', connection_id: 'conn-1' }
+        {
+          id: 'e1',
+          type: 'invalid_config' as const,
+          message: 'Invalid connection',
+          connection_id: 'conn-1',
+        },
       ]
       render(
         <SvgWrapper>
@@ -258,7 +268,7 @@ describe('FlowConnectionComponent', () => {
 
     it('should render error circle', () => {
       const errors = [
-        { id: 'e1', type: 'invalid_config' as const, message: 'Error', connection_id: 'conn-1' }
+        { id: 'e1', type: 'invalid_config' as const, message: 'Error', connection_id: 'conn-1' },
       ]
       render(
         <SvgWrapper>
@@ -359,7 +369,7 @@ describe('FlowConnectionComponent', () => {
     it('should call onSelect when clicking error indicator', () => {
       const onSelect = vi.fn()
       const errors = [
-        { id: 'e1', type: 'invalid_config' as const, message: 'Error', connection_id: 'conn-1' }
+        { id: 'e1', type: 'invalid_config' as const, message: 'Error', connection_id: 'conn-1' },
       ]
       render(
         <SvgWrapper>

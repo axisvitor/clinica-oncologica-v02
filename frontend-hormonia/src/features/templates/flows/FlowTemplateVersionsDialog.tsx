@@ -5,10 +5,22 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useTemplates, type FlowTemplate, type FlowTemplateVersionList } from '@/hooks/useTemplates'
 
@@ -18,12 +30,16 @@ interface FlowTemplateVersionsDialogProps {
   template: FlowTemplate
 }
 
-export function FlowTemplateVersionsDialog({ open, onOpenChange, template }: FlowTemplateVersionsDialogProps) {
+export function FlowTemplateVersionsDialog({
+  open,
+  onOpenChange,
+  template,
+}: FlowTemplateVersionsDialogProps) {
   const {
     listFlowTemplateVersions,
     compareFlowTemplateVersions,
     rollbackFlowTemplateVersion,
-    publishFlowTemplateVersion
+    publishFlowTemplateVersion,
   } = useTemplates()
 
   const [versions, setVersions] = useState<FlowTemplateVersionList | null>(null)
@@ -80,7 +96,8 @@ export function FlowTemplateVersionsDialog({ open, onOpenChange, template }: Flo
   }
 
   const renderDiff = (content: string) => {
-    if (!content) return <p className="text-sm text-muted-foreground">Sem alteracoes para mostrar</p>
+    if (!content)
+      return <p className="text-sm text-muted-foreground">Sem alteracoes para mostrar</p>
 
     return (
       <pre className="text-xs whitespace-pre-wrap rounded-md bg-muted p-3">
@@ -88,8 +105,8 @@ export function FlowTemplateVersionsDialog({ open, onOpenChange, template }: Flo
           const colorClass = line.startsWith('+')
             ? 'text-green-700'
             : line.startsWith('-')
-            ? 'text-red-700'
-            : 'text-muted-foreground'
+              ? 'text-red-700'
+              : 'text-muted-foreground'
           return (
             <div key={`${idx}-${line.slice(0, 12)}`} className={colorClass}>
               {line}
@@ -142,7 +159,10 @@ export function FlowTemplateVersionsDialog({ open, onOpenChange, template }: Flo
               </Select>
             </div>
 
-            <Button onClick={handleCompare} disabled={isLoading || !leftVersionId || !rightVersionId}>
+            <Button
+              onClick={handleCompare}
+              disabled={isLoading || !leftVersionId || !rightVersionId}
+            >
               Comparar
             </Button>
           </div>
@@ -180,7 +200,11 @@ export function FlowTemplateVersionsDialog({ open, onOpenChange, template }: Flo
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={handleRollback} disabled={isLoading || !leftVersionId}>
+            <Button
+              variant="outline"
+              onClick={handleRollback}
+              disabled={isLoading || !leftVersionId}
+            >
               Rollback
             </Button>
             <Button onClick={handlePublish} disabled={isLoading || !leftVersionId}>

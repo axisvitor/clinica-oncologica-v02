@@ -19,11 +19,7 @@ export function LanguageSettings() {
   const { preferences, updatePreferences } = useUserPreferences()
 
   return (
-    <SettingsSection
-      title="Idioma & Região"
-      description="Localização e formato"
-      icon={Globe}
-    >
+    <SettingsSection title="Idioma & Região" description="Localização e formato" icon={Globe}>
       <div className="space-y-6">
         {/* Language Selection */}
         <div>

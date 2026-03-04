@@ -9,13 +9,13 @@ vi.mock('@sentry/react', () => ({
   captureException: vi.fn(() => 'test-event-id'),
   captureMessage: vi.fn(() => 'test-message-id'),
   startTransaction: vi.fn(() => ({
-    finish: vi.fn()
+    finish: vi.fn(),
   })),
   setContext: vi.fn(),
   setMeasurement: vi.fn(),
   ErrorBoundary: () => null,
   withErrorBoundary: vi.fn(),
-  withSentryConfig: vi.fn()
+  withSentryConfig: vi.fn(),
 }))
 
 describe('SentryMonitoring', () => {
@@ -29,7 +29,7 @@ describe('SentryMonitoring', () => {
         id: 'user-123',
         email: 'test@example.com',
         name: 'Test User',
-        role: 'admin'
+        role: 'admin',
       }
 
       SentryMonitoring.setUserContext(user)
@@ -75,7 +75,7 @@ describe('SentryMonitoring', () => {
 
     it('should track clinical dashboard interactions', () => {
       SentryMonitoring.trackClinicalDashboard('view_patient', 'PatientCard', {
-        componentType: 'card'
+        componentType: 'card',
       })
       expect(true).toBe(true)
     })

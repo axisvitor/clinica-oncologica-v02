@@ -17,15 +17,15 @@
  * - Lighthouse score: +15 points (estimated)
  */
 
-import React, { Suspense, lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { ErrorBoundary } from '@/components/error/ErrorBoundary';
-import { createLogger } from '@/lib/logger';
-import type { AdminLoginCredentials, AdminLoginResponse } from '@/types/admin';
+import React, { Suspense, lazy } from 'react'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
+import { createLogger } from '@/lib/logger'
+import type { AdminLoginCredentials, AdminLoginResponse } from '@/types/admin'
 
-import { UserRole, AuthProvider } from '@/types/rbac';
+import { UserRole, AuthProvider } from '@/types/rbac'
 
-const logger = createLogger('AdminRoutes.lazy');
+const logger = createLogger('AdminRoutes.lazy')
 
 // ============================================================================
 // Loading Components
@@ -49,7 +49,7 @@ const PageLoadingSkeleton: React.FC = () => (
       </div>
     </div>
   </div>
-);
+)
 
 /**
  * Dashboard Loading Skeleton
@@ -75,7 +75,7 @@ const DashboardLoadingSkeleton: React.FC = () => (
       <div className="h-48 bg-gray-200 rounded"></div>
     </div>
   </div>
-);
+)
 
 /**
  * Simple Loading Spinner
@@ -85,7 +85,7 @@ const LoadingSpinner: React.FC = () => (
   <div className="flex items-center justify-center min-h-[400px]">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
   </div>
-);
+)
 
 // ============================================================================
 // Lazy-Loaded Components
@@ -93,33 +93,35 @@ const LoadingSpinner: React.FC = () => (
 
 // Core Pages (High Priority - preload on app start)
 const AdminDashboard = lazy(() => {
-  logger.info('Loading AdminDashboard...');
-  return import('@/features/admin/AdminDashboard').then(module => {
-    logger.info('AdminDashboard loaded successfully');
-    return module;
-  });
-});
+  logger.info('Loading AdminDashboard...')
+  return import('@/features/admin/AdminDashboard').then((module) => {
+    logger.info('AdminDashboard loaded successfully')
+    return module
+  })
+})
 
 const AdminLoginForm = lazy(() => {
-  logger.info('Loading AdminLoginForm...');
-  return import('@/features/admin/AdminLoginForm');
-});
+  logger.info('Loading AdminLoginForm...')
+  return import('@/features/admin/AdminLoginForm')
+})
 
 const AdminProtectedRoute = lazy(() => {
-  logger.info('Loading AdminProtectedRoute...');
-  return import('@/features/admin/AdminProtectedRoute');
-});
+  logger.info('Loading AdminProtectedRoute...')
+  return import('@/features/admin/AdminProtectedRoute')
+})
 
 // Feature Pages (Medium Priority - load on demand)
 export const TemplateManagementPage = lazy(() => {
-  logger.info('Loading TemplateManagementPage...');
-  return import('@/features/templates/TemplateManagementPage');
-});
+  logger.info('Loading TemplateManagementPage...')
+  return import('@/features/templates/TemplateManagementPage')
+})
 
 export const AdminUserActivityMonitor = lazy(() => {
-  logger.info('Loading AdminUserActivityMonitor...');
-  return import('@/features/admin/AdminUserActivityMonitor').then(module => ({ default: module.AdminUserActivityMonitor }));
-});
+  logger.info('Loading AdminUserActivityMonitor...')
+  return import('@/features/admin/AdminUserActivityMonitor').then((module) => ({
+    default: module.AdminUserActivityMonitor,
+  }))
+})
 
 // Placeholder pages can be inline (Low Priority)
 const AdminUsersPage = lazy(() =>
@@ -129,9 +131,9 @@ const AdminUsersPage = lazy(() =>
         <h1 className="text-2xl font-bold mb-4">User Management</h1>
         <p className="text-gray-600">User management interface will be implemented here.</p>
       </div>
-    )
+    ),
   })
-);
+)
 
 const AdminSecurityPage = lazy(() =>
   Promise.resolve({
@@ -140,9 +142,9 @@ const AdminSecurityPage = lazy(() =>
         <h1 className="text-2xl font-bold mb-4">Security</h1>
         <p className="text-gray-600">Security management interface will be implemented here.</p>
       </div>
-    )
+    ),
   })
-);
+)
 
 const AdminAuditLogsPage = lazy(() =>
   Promise.resolve({
@@ -153,9 +155,9 @@ const AdminAuditLogsPage = lazy(() =>
           <AdminUserActivityMonitor />
         </Suspense>
       </div>
-    )
+    ),
   })
-);
+)
 
 const AdminSystemPage = lazy(() =>
   Promise.resolve({
@@ -164,9 +166,9 @@ const AdminSystemPage = lazy(() =>
         <h1 className="text-2xl font-bold mb-4">System Management</h1>
         <p className="text-gray-600">System management interface will be implemented here.</p>
       </div>
-    )
+    ),
   })
-);
+)
 
 const AdminReportsPage = lazy(() =>
   Promise.resolve({
@@ -175,9 +177,9 @@ const AdminReportsPage = lazy(() =>
         <h1 className="text-2xl font-bold mb-4">Reports</h1>
         <p className="text-gray-600">Reports interface will be implemented here.</p>
       </div>
-    )
+    ),
   })
-);
+)
 
 const AdminTemplatesPage = lazy(() =>
   Promise.resolve({
@@ -187,9 +189,9 @@ const AdminTemplatesPage = lazy(() =>
           <TemplateManagementPage />
         </Suspense>
       </div>
-    )
+    ),
   })
-);
+)
 
 const AdminSettingsPage = lazy(() =>
   Promise.resolve({
@@ -198,9 +200,9 @@ const AdminSettingsPage = lazy(() =>
         <h1 className="text-2xl font-bold mb-4">Settings</h1>
         <p className="text-gray-600">Settings interface will be implemented here.</p>
       </div>
-    )
+    ),
   })
-);
+)
 
 const AdminProfilePage = lazy(() =>
   Promise.resolve({
@@ -209,9 +211,9 @@ const AdminProfilePage = lazy(() =>
         <h1 className="text-2xl font-bold mb-4">Profile Settings</h1>
         <p className="text-gray-600">Profile settings interface will be implemented here.</p>
       </div>
-    )
+    ),
   })
-);
+)
 
 // ============================================================================
 // Preloading Functions
@@ -223,23 +225,23 @@ const AdminProfilePage = lazy(() =>
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export const preloadCriticalComponents = () => {
-  logger.info('Preloading critical components...');
+  logger.info('Preloading critical components...')
 
   // Preload dashboard (most visited page)
-  const dashboardPreload = import('@/features/admin/AdminDashboard');
+  const dashboardPreload = import('@/features/admin/AdminDashboard')
 
   // Preload protected route wrapper
-  const protectedRoutePreload = import('@/features/admin/AdminProtectedRoute');
+  const protectedRoutePreload = import('@/features/admin/AdminProtectedRoute')
 
   // Return promises for tracking if needed
   return Promise.all([dashboardPreload, protectedRoutePreload])
     .then(() => {
-      logger.info('Critical components preloaded successfully');
+      logger.info('Critical components preloaded successfully')
     })
     .catch((error) => {
-      logger.error('Failed to preload critical components:', error);
-    });
-};
+      logger.error('Failed to preload critical components:', error)
+    })
+}
 
 /**
  * Preload component on hover (prefetch optimization)
@@ -247,22 +249,22 @@ export const preloadCriticalComponents = () => {
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export const preloadOnHover = (route: string) => {
-  logger.debug(`Preloading ${route} on hover...`);
+  logger.debug(`Preloading ${route} on hover...`)
 
   switch (route) {
     case 'dashboard':
-      import('@/features/admin/AdminDashboard');
-      break;
+      import('@/features/admin/AdminDashboard')
+      break
     case 'templates':
-      import('@/features/templates/TemplateManagementPage');
-      break;
+      import('@/features/templates/TemplateManagementPage')
+      break
     case 'users':
       // Already inline, no need to preload
-      break;
+      break
     default:
-      logger.warn(`Unknown route for preload: ${route}`);
+      logger.warn(`Unknown route for preload: ${route}`)
   }
-};
+}
 
 // ============================================================================
 // Admin Login Page Component
@@ -312,8 +314,8 @@ const AdminLoginPage: React.FC = () => {
         <AdminLoginForm onLogin={handleLogin} />
       </Suspense>
     </ErrorBoundary>
-  );
-};
+  )
+}
 
 // ============================================================================
 // Main Routes Component
@@ -326,15 +328,12 @@ const AdminLoginPage: React.FC = () => {
  * loading states. Error boundaries catch loading errors gracefully.
  */
 const AdminRoutes: React.FC = () => {
-  logger.debug('Rendering AdminRoutes with lazy loading');
+  logger.debug('Rendering AdminRoutes with lazy loading')
 
   return (
     <Routes>
       {/* Public Route - Login */}
-      <Route
-        path="/login"
-        element={<AdminLoginPage />}
-      />
+      <Route path="/login" element={<AdminLoginPage />} />
 
       {/* Protected Routes - All wrapped in lazy-loaded ProtectedRoute */}
       <Route
@@ -472,7 +471,7 @@ const AdminRoutes: React.FC = () => {
         }
       />
     </Routes>
-  );
-};
+  )
+}
 
-export default AdminRoutes;
+export default AdminRoutes

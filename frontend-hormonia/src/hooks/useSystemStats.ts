@@ -17,14 +17,14 @@ interface UseSystemStatsOptions {
 export function useSystemStats(options: UseSystemStatsOptions = {}) {
   const {
     realTimeUpdates = true,
-    refreshInterval = 30000 // 30 seconds default
+    refreshInterval = 30000, // 30 seconds default
   } = options
 
   const {
     data: stats,
     isLoading,
     error,
-    refetch
+    refetch,
   } = useQuery<AdminDashboardStats>({
     queryKey: ['admin-system-stats'],
     queryFn: async () => {
@@ -33,14 +33,14 @@ export function useSystemStats(options: UseSystemStatsOptions = {}) {
     },
     refetchInterval: realTimeUpdates ? refreshInterval : false,
     staleTime: 10000, // 10 seconds
-    retry: 3
+    retry: 3,
   })
 
   return {
     stats,
     isLoading,
     error,
-    refetch
+    refetch,
   }
 }
 
@@ -50,23 +50,23 @@ function mapDashboardMetricsToAdminStats(metrics: DashboardMetrics): AdminDashbo
       total: metrics.total_patients,
       active: metrics.active_patients,
       locked: 0,
-      new_today: 0
+      new_today: 0,
     },
     security: {
       failed_logins: 0,
       active_sessions: metrics.active_patients,
-      blocked_ips: 0
+      blocked_ips: 0,
     },
     system: {
       uptime: 0,
       memory_usage: 0,
       cpu_usage: 0,
-      disk_usage: 0
+      disk_usage: 0,
     },
     audit: {
       total_logs: metrics.completed_appointments,
       critical_events: 0,
-      warnings: 0
-    }
+      warnings: 0,
+    },
   }
 }

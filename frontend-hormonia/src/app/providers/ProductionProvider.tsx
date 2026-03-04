@@ -18,30 +18,31 @@ import { initializeReact19Optimizations } from '@/lib/react-optimizations'
 import { createLogger } from '@/lib/logger'
 
 // Query client configuration optimized for production
-const createQueryClient = () => new QueryClient({
-  defaultOptions: {
-    queries: {
-      // Stale time based on environment
-      staleTime: environment.isProduction ? 5 * 60 * 1000 : 1000, // 5min in prod, 1s in dev
+const createQueryClient = () =>
+  new QueryClient({
+    defaultOptions: {
+      queries: {
+        // Stale time based on environment
+        staleTime: environment.isProduction ? 5 * 60 * 1000 : 1000, // 5min in prod, 1s in dev
 
-      // Cache time optimized for Railway
-      gcTime: environment.isRailway ? 10 * 60 * 1000 : 5 * 60 * 1000, // 10min on Railway
+        // Cache time optimized for Railway
+        gcTime: environment.isRailway ? 10 * 60 * 1000 : 5 * 60 * 1000, // 10min on Railway
 
-      // Retry configuration for production stability
-      retry: environment.isProduction ? 3 : 1,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+        // Retry configuration for production stability
+        retry: environment.isProduction ? 3 : 1,
+        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
 
-      // Background refetch optimized for Railway
-      refetchOnWindowFocus: !environment.isProduction,
-      refetchOnReconnect: true,
-      refetchInterval: false, // Only manual refetch in production
+        // Background refetch optimized for Railway
+        refetchOnWindowFocus: !environment.isProduction,
+        refetchOnReconnect: true,
+        refetchInterval: false, // Only manual refetch in production
+      },
+      mutations: {
+        retry: environment.isProduction ? 2 : 0,
+        retryDelay: 1000,
+      },
     },
-    mutations: {
-      retry: environment.isProduction ? 2 : 0,
-      retryDelay: 1000,
-    },
-  },
-})
+  })
 
 const providerLogger = createLogger('ProductionProvider')
 
@@ -64,7 +65,7 @@ const PerformanceWrapper = memo<{ children: React.ReactNode }>(({ children }) =>
             logger.warn('Slow operation detected', {
               name: entry.name,
               duration: entry.duration,
-              timestamp: entry.startTime
+              timestamp: entry.startTime,
             })
           }
         }
@@ -74,7 +75,7 @@ const PerformanceWrapper = memo<{ children: React.ReactNode }>(({ children }) =>
 
       return () => observer.disconnect()
     }
-    
+
     // Return cleanup function even when performance monitoring is disabled
     return () => {}
   }, [])
@@ -92,9 +93,7 @@ const GlobalErrorFallback = memo<{ error: Error }>(({ error }) => (
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
           Sistema Temporariamente Indisponível
         </h1>
-        <p className="text-gray-600">
-          Estamos trabalhando para resolver o problema.
-        </p>
+        <p className="text-gray-600">Estamos trabalhando para resolver o problema.</p>
       </div>
 
       {environment.isDevelopment && (
@@ -102,9 +101,7 @@ const GlobalErrorFallback = memo<{ error: Error }>(({ error }) => (
           <summary className="cursor-pointer text-sm font-medium text-gray-700">
             Detalhes Técnicos (Desenvolvimento)
           </summary>
-          <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto">
-            {error.stack}
-          </pre>
+          <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto">{error.stack}</pre>
         </details>
       )}
 
@@ -130,11 +127,7 @@ GlobalErrorFallback.displayName = 'GlobalErrorFallback'
 
 // App loading fallback
 const AppLoadingFallback = memo(() => (
-  <PageSkeleton
-    showHeader={true}
-    showNavigation={true}
-    className="animate-pulse"
-  >
+  <PageSkeleton showHeader={true} showNavigation={true} className="animate-pulse">
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {Array.from({ length: 4 }, (_, i) => (
@@ -159,7 +152,7 @@ export const ProductionProvider = memo<ProductionProviderProps>(({ children }) =
         environment: environment.isProduction ? 'production' : 'development',
         railway: environment.isRailway,
         features: PRODUCTION_FLAGS,
-        railwayConfig: RAILWAY_CONFIG
+        railwayConfig: RAILWAY_CONFIG,
       })
     }
 
@@ -171,16 +164,20 @@ export const ProductionProvider = memo<ProductionProviderProps>(({ children }) =
       event.preventDefault()
 
       // Check if it's a WebSocket error (common and non-critical)
-      if (event.reason?.message?.includes('WebSocket') ||
-          event.reason?.message?.includes('ws://') ||
-          event.reason?.message?.includes('wss://')) {
+      if (
+        event.reason?.message?.includes('WebSocket') ||
+        event.reason?.message?.includes('ws://') ||
+        event.reason?.message?.includes('wss://')
+      ) {
         logger.warn('WebSocket error handled gracefully', event.reason.message)
         return
       }
 
       if (environment.enableErrorReporting) {
         // Report to monitoring service
-        const windowWithSentry = window as Window & { Sentry?: { captureException: (error: unknown) => void } }
+        const windowWithSentry = window as Window & {
+          Sentry?: { captureException: (error: unknown) => void }
+        }
         if (windowWithSentry.Sentry) {
           windowWithSentry.Sentry.captureException(event.reason)
         }
@@ -192,7 +189,9 @@ export const ProductionProvider = memo<ProductionProviderProps>(({ children }) =
 
       if (environment.enableErrorReporting) {
         // Report to monitoring service
-        const windowWithSentry = window as Window & { Sentry?: { captureException: (error: unknown) => void } }
+        const windowWithSentry = window as Window & {
+          Sentry?: { captureException: (error: unknown) => void }
+        }
         if (windowWithSentry.Sentry) {
           windowWithSentry.Sentry.captureException(event.error)
         }

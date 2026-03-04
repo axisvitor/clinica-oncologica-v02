@@ -20,7 +20,7 @@ import {
   TREATMENT_PHASES,
   TIMEZONES,
   type CreatePatientFormData,
-  type UpdatePatientFormData
+  type UpdatePatientFormData,
 } from '../schemas/patientSchema'
 
 interface MedicalInfoSectionProps {
@@ -29,16 +29,19 @@ interface MedicalInfoSectionProps {
 }
 
 export function MedicalInfoSection({ form, mode }: MedicalInfoSectionProps) {
-  const { register, setValue, watch, formState: { errors } } = form
+  const {
+    register,
+    setValue,
+    watch,
+    formState: { errors },
+  } = form
 
   return (
     <div className="space-y-4">
       {/* Tipo de tratamento e Data de início */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="treatment_type">
-            Tipo de tratamento {mode === 'create' && '*'}
-          </Label>
+          <Label htmlFor="treatment_type">Tipo de tratamento {mode === 'create' && '*'}</Label>
           <Select
             name="treatment_type"
             value={watch('treatment_type') ?? ''}
@@ -62,11 +65,7 @@ export function MedicalInfoSection({ form, mode }: MedicalInfoSectionProps) {
 
         <div className="space-y-2">
           <Label htmlFor="treatment_start_date">Data de início do tratamento</Label>
-          <Input
-            id="treatment_start_date"
-            type="date"
-            {...register('treatment_start_date')}
-          />
+          <Input id="treatment_start_date" type="date" {...register('treatment_start_date')} />
         </div>
       </div>
 
@@ -77,7 +76,18 @@ export function MedicalInfoSection({ form, mode }: MedicalInfoSectionProps) {
           <Select
             name="treatment_phase"
             value={watch('treatment_phase') ?? ''}
-            onValueChange={(value) => setValue('treatment_phase', value as 'initial' | 'adjustment' | 'maintenance' | 'monitoring' | 'followup' | 'completed')}
+            onValueChange={(value) =>
+              setValue(
+                'treatment_phase',
+                value as
+                  | 'initial'
+                  | 'adjustment'
+                  | 'maintenance'
+                  | 'monitoring'
+                  | 'followup'
+                  | 'completed'
+              )
+            }
           >
             <SelectTrigger id="treatment_phase">
               <SelectValue placeholder="Selecione a fase" />
@@ -94,11 +104,7 @@ export function MedicalInfoSection({ form, mode }: MedicalInfoSectionProps) {
 
         <div className="space-y-2">
           <Label htmlFor="birth_date">Data de nascimento</Label>
-          <Input
-            id="birth_date"
-            type="date"
-            {...register('birth_date')}
-          />
+          <Input id="birth_date" type="date" {...register('birth_date')} />
         </div>
       </div>
 

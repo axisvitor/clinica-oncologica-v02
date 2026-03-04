@@ -7,15 +7,12 @@ import { z } from 'zod'
 import { cpfRefinement, cleanCPF } from '@/lib/utils/cpf'
 import { normalizePhone } from '@/lib/utils/phone'
 
-const optionalEmailSchema = z.preprocess(
-  (value) => {
-    if (typeof value === 'string' && value.trim() === '') {
-      return undefined
-    }
-    return value
-  },
-  z.string().email('Email inválido').optional().nullable()
-)
+const optionalEmailSchema = z.preprocess((value) => {
+  if (typeof value === 'string' && value.trim() === '') {
+    return undefined
+  }
+  return value
+}, z.string().email('Email inválido').optional().nullable())
 
 /**
  * Schema base para campos comuns de paciente
@@ -23,7 +20,8 @@ const optionalEmailSchema = z.preprocess(
 const basePatientFields = {
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
 
-  phone: z.string()
+  phone: z
+    .string()
     .min(10, 'Telefone deve ter pelo menos 10 dígitos')
     .transform(normalizePhone)
     .refine(
@@ -33,23 +31,19 @@ const basePatientFields = {
 
   email: optionalEmailSchema,
 
-  cpf: z.string()
+  cpf: z
+    .string()
     .optional()
     .refine(cpfRefinement, { message: 'CPF inválido' })
-    .transform(val => val ? cleanCPF(val) : undefined),
+    .transform((val) => (val ? cleanCPF(val) : undefined)),
 
   birth_date: z.string().optional(),
 
   treatment_type: z.string().min(1, 'Selecione um tipo de tratamento'),
 
-  treatment_phase: z.enum([
-    'initial',
-    'adjustment',
-    'maintenance',
-    'monitoring',
-    'followup',
-    'completed'
-  ]).optional(),
+  treatment_phase: z
+    .enum(['initial', 'adjustment', 'maintenance', 'monitoring', 'followup', 'completed'])
+    .optional(),
 
   treatment_start_date: z.string().optional(),
 
@@ -57,7 +51,7 @@ const basePatientFields = {
 
   doctor_notes: z.string().optional(),
 
-  timezone: z.string().default('America/Sao_Paulo')
+  timezone: z.string().default('America/Sao_Paulo'),
 }
 
 /**
@@ -71,10 +65,11 @@ export const createPatientSchema = z.object(basePatientFields)
 export const updatePatientSchema = z.object({
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').optional(),
 
-  phone: z.string()
+  phone: z
+    .string()
     .min(10, 'Telefone deve ter pelo menos 10 dígitos')
     .optional()
-    .transform(value => value ? normalizePhone(value) : value)
+    .transform((value) => (value ? normalizePhone(value) : value))
     .refine(
       (value) => !value || /^\+[1-9]\d{9,14}$/.test(value),
       'Telefone deve incluir código do país (ex: +5511999999999)'
@@ -82,23 +77,19 @@ export const updatePatientSchema = z.object({
 
   email: optionalEmailSchema,
 
-  cpf: z.string()
+  cpf: z
+    .string()
     .optional()
     .refine(cpfRefinement, { message: 'CPF inválido' })
-    .transform(val => val ? cleanCPF(val) : undefined),
+    .transform((val) => (val ? cleanCPF(val) : undefined)),
 
   birth_date: z.string().optional(),
 
   treatment_type: z.string().optional(),
 
-  treatment_phase: z.enum([
-    'initial',
-    'adjustment',
-    'maintenance',
-    'monitoring',
-    'followup',
-    'completed'
-  ]).optional(),
+  treatment_phase: z
+    .enum(['initial', 'adjustment', 'maintenance', 'monitoring', 'followup', 'completed'])
+    .optional(),
 
   treatment_start_date: z.string().optional(),
 
@@ -106,7 +97,7 @@ export const updatePatientSchema = z.object({
 
   doctor_notes: z.string().optional(),
 
-  timezone: z.string().optional()
+  timezone: z.string().optional(),
 })
 
 /**
@@ -122,7 +113,7 @@ export const TREATMENT_TYPES = [
   { value: 'Terapia Hormonal Feminina', label: 'Terapia Hormonal Feminina' },
   { value: 'Terapia Hormonal Masculina', label: 'Terapia Hormonal Masculina' },
   { value: 'Reposição Hormonal', label: 'Reposição Hormonal' },
-  { value: 'Tratamento Personalizado', label: 'Tratamento Personalizado' }
+  { value: 'Tratamento Personalizado', label: 'Tratamento Personalizado' },
 ] as const
 
 export const TREATMENT_PHASES = [
@@ -131,7 +122,7 @@ export const TREATMENT_PHASES = [
   { value: 'maintenance', label: 'Manutenção' },
   { value: 'monitoring', label: 'Monitoramento' },
   { value: 'followup', label: 'Acompanhamento' },
-  { value: 'completed', label: 'Concluído' }
+  { value: 'completed', label: 'Concluído' },
 ] as const
 
 export const TIMEZONES = [
@@ -144,5 +135,5 @@ export const TIMEZONES = [
   { value: 'America/Campo_Grande', label: 'Campo Grande (GMT-4)' },
   { value: 'America/Porto_Velho', label: 'Porto Velho (GMT-4)' },
   { value: 'America/Rio_Branco', label: 'Rio Branco (GMT-5)' },
-  { value: 'America/Noronha', label: 'Fernando de Noronha (GMT-2)' }
+  { value: 'America/Noronha', label: 'Fernando de Noronha (GMT-2)' },
 ] as const

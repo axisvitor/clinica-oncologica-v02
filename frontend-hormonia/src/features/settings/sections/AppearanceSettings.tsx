@@ -17,7 +17,7 @@ const themeColors = {
   green: 'bg-green-600',
   purple: 'bg-purple-600',
   orange: 'bg-orange-600',
-  red: 'bg-red-600'
+  red: 'bg-red-600',
 } as const
 
 type _AccentColor = keyof typeof themeColors
@@ -31,11 +31,7 @@ export function AppearanceSettings() {
   const { preferences, updatePreferences } = useUserPreferences()
 
   return (
-    <SettingsSection
-      title="Aparência"
-      description="Tema e interface"
-      icon={Palette}
-    >
+    <SettingsSection title="Aparência" description="Tema e interface" icon={Palette}>
       <div className="space-y-6">
         {/* Theme Selection */}
         <div>
@@ -59,7 +55,9 @@ export function AppearanceSettings() {
           <h3 className="text-lg font-medium mb-4">Densidade da Interface</h3>
           <Select
             value={preferences?.density || 'comfortable'}
-            onValueChange={(value) => updatePreferences({ density: value as 'compact' | 'comfortable' | 'spacious' })}
+            onValueChange={(value) =>
+              updatePreferences({ density: value as 'compact' | 'comfortable' | 'spacious' })
+            }
           >
             <SelectTrigger className="w-[200px]">
               <SelectValue placeholder="Selecione a densidade" />

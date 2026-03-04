@@ -11,7 +11,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 export function FlowsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
-  const { data: flowsData, isLoading: flowsLoading, error: flowsError, refetch } = useFlows({
+  const {
+    data: flowsData,
+    isLoading: flowsLoading,
+    error: flowsError,
+    refetch,
+  } = useFlows({
     ...(statusFilter !== 'all' && { isActive: statusFilter === 'active' }),
   })
 
@@ -26,16 +31,9 @@ export function FlowsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold mb-2">Fluxos de Atendimento</h1>
-          <p className="text-muted-foreground">
-            Gerencie fluxos automatizados de mensagens
-          </p>
+          <p className="text-muted-foreground">Gerencie fluxos automatizados de mensagens</p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={flowsLoading}
-        >
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={flowsLoading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${flowsLoading ? 'animate-spin' : ''}`} />
           Atualizar
         </Button>
@@ -58,16 +56,10 @@ export function FlowsPage() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Fluxos Ativos</h2>
-          <FlowsFilters
-            selectedStatus={statusFilter}
-            onStatusChange={setStatusFilter}
-          />
+          <FlowsFilters selectedStatus={statusFilter} onStatusChange={setStatusFilter} />
         </div>
 
-        <FlowsTable
-          flows={flowsData || []}
-          isLoading={flowsLoading}
-        />
+        <FlowsTable flows={flowsData || []} isLoading={flowsLoading} />
       </div>
     </div>
   )

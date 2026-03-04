@@ -48,6 +48,6 @@ export function useTreatmentDistribution(
     },
     staleTime: 5 * 60 * 1000, // 5 minutes (match backend cache)
     enabled: options?.enabled ?? true,
-    retry: 2
+    retry: 2,
   } as UseQueryOptions<TreatmentDistribution>)
 }

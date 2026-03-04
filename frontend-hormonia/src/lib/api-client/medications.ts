@@ -8,47 +8,47 @@
  * @module lib/api-client/medications
  */
 
-import type { ApiClientCore } from "./core";
-import type { PaginatedResponse } from "./core";
+import type { ApiClientCore } from './core'
+import type { PaginatedResponse } from './core'
 
 /**
  * Medication route of administration
  */
 export type MedicationRoute =
-  | "oral"
-  | "intravenous"
-  | "topical"
-  | "subcutaneous"
-  | "intramuscular"
-  | "inhalation"
-  | "other";
+  | 'oral'
+  | 'intravenous'
+  | 'topical'
+  | 'subcutaneous'
+  | 'intramuscular'
+  | 'inhalation'
+  | 'other'
 
 /**
  * Brief patient information for medication response
  */
 export interface PatientBrief {
-  id: string;
-  name: string;
-  email?: string;
+  id: string
+  name: string
+  email?: string
 }
 
 /**
  * Brief prescriber information for medication response
  */
 export interface PrescriberBrief {
-  id: string;
-  name: string;
-  email?: string;
+  id: string
+  name: string
+  email?: string
 }
 
 /**
  * Brief treatment information for medication response
  */
 export interface TreatmentBrief {
-  id: string;
-  treatment_type: string;
-  status: string;
-  start_date?: string;
+  id: string
+  treatment_type: string
+  status: string
+  start_date?: string
 }
 
 /**
@@ -57,100 +57,100 @@ export interface TreatmentBrief {
  */
 export interface MedicationSchedule {
   /** Frequency of medication (e.g., "1x ao dia", "a cada 8 horas") */
-  frequency: string;
+  frequency: string
   /** Start date for the medication */
-  start_date: string;
+  start_date: string
   /** Optional end date for the medication */
-  end_date?: string;
+  end_date?: string
   /** Instructions for taking the medication */
-  instructions?: string;
+  instructions?: string
   /** Time of day to take medication (e.g., ["08:00", "20:00"]) */
-  schedule_times?: string[];
+  schedule_times?: string[]
 }
 
 /**
  * Complete Medication entity
  */
 export interface Medication {
-  id: string;
-  patient_id: string;
-  prescribed_by_id?: string;
-  treatment_id?: string;
-  name: string;
-  active_ingredient?: string;
-  dosage: string;
-  frequency: string;
-  route?: MedicationRoute;
-  prescription_date: string;
-  start_date: string;
-  end_date?: string;
-  quantity?: number;
-  refills_allowed: number;
-  refills_remaining: number;
-  instructions?: string;
-  warnings?: string;
-  side_effects?: string;
-  is_active: boolean;
-  discontinued_date?: string;
-  discontinuation_reason?: string;
-  created_at: string;
-  updated_at: string;
+  id: string
+  patient_id: string
+  prescribed_by_id?: string
+  treatment_id?: string
+  name: string
+  active_ingredient?: string
+  dosage: string
+  frequency: string
+  route?: MedicationRoute
+  prescription_date: string
+  start_date: string
+  end_date?: string
+  quantity?: number
+  refills_allowed: number
+  refills_remaining: number
+  instructions?: string
+  warnings?: string
+  side_effects?: string
+  is_active: boolean
+  discontinued_date?: string
+  discontinuation_reason?: string
+  created_at: string
+  updated_at: string
 
   // Optional eager-loaded relationships
-  patient?: PatientBrief;
-  prescribed_by?: PrescriberBrief;
-  treatment?: TreatmentBrief;
+  patient?: PatientBrief
+  prescribed_by?: PrescriberBrief
+  treatment?: TreatmentBrief
 }
 
 /**
  * Request schema for creating a new medication
  */
 export interface MedicationCreate {
-  patient_id: string;
-  prescribed_by_id?: string;
-  treatment_id?: string;
-  name: string;
-  active_ingredient?: string;
-  dosage: string;
-  frequency: string;
-  route?: MedicationRoute;
-  prescription_date: string;
-  start_date: string;
-  end_date?: string;
-  quantity?: number;
-  refills_allowed?: number;
-  refills_remaining?: number;
-  instructions?: string;
-  warnings?: string;
-  side_effects?: string;
-  is_active?: boolean;
-  discontinued_date?: string;
-  discontinuation_reason?: string;
+  patient_id: string
+  prescribed_by_id?: string
+  treatment_id?: string
+  name: string
+  active_ingredient?: string
+  dosage: string
+  frequency: string
+  route?: MedicationRoute
+  prescription_date: string
+  start_date: string
+  end_date?: string
+  quantity?: number
+  refills_allowed?: number
+  refills_remaining?: number
+  instructions?: string
+  warnings?: string
+  side_effects?: string
+  is_active?: boolean
+  discontinued_date?: string
+  discontinuation_reason?: string
 }
 
 /**
  * Request schema for updating a medication (partial update)
  */
 export interface MedicationUpdate {
-  prescribed_by_id?: string;
-  treatment_id?: string;
-  name?: string;
-  active_ingredient?: string;
-  dosage?: string;
-  frequency?: string;
-  route?: MedicationRoute;
-  prescription_date?: string;
-  start_date?: string;
-  end_date?: string;
-  quantity?: number;
-  refills_allowed?: number;
-  refills_remaining?: number;
-  instructions?: string;
-  warnings?: string;
-  side_effects?: string;
-  is_active?: boolean;
-  discontinued_date?: string;
-  discontinuation_reason?: string;
+  prescribed_by_id?: string
+  treatment_id?: string
+  name?: string
+  active_ingredient?: string
+  dosage?: string
+  frequency?: string
+  route?: MedicationRoute
+  prescription_date?: string
+  start_date?: string
+  end_date?: string
+  quantity?: number
+  refills_allowed?: number
+  refills_remaining?: number
+  instructions?: string
+  warnings?: string
+  side_effects?: string
+  is_active?: boolean
+  discontinued_date?: string
+  discontinuation_reason?: string
 }
 
 /**
@@ -158,35 +158,35 @@ export interface MedicationUpdate {
  */
 export interface MedicationFilters {
   /** Search by medication name */
-  search?: string;
+  search?: string
   /** Filter by patient ID */
-  patient_id?: string;
+  patient_id?: string
   /** Filter by prescriber ID */
-  prescribed_by_id?: string;
+  prescribed_by_id?: string
   /** Filter by treatment ID */
-  treatment_id?: string;
+  treatment_id?: string
   /** Filter by active status */
-  is_active?: boolean;
+  is_active?: boolean
   /** Filter by route of administration */
-  route?: MedicationRoute;
+  route?: MedicationRoute
   /** Cursor for pagination */
-  cursor?: string;
+  cursor?: string
   /** Number of items per page (default: 20) */
-  limit?: number;
+  limit?: number
   /** Fields to include in response (e.g., "id,name,dosage") */
-  fields?: string;
+  fields?: string
   /** Relationships to eager-load (e.g., "patient,prescribed_by,treatment") */
-  include?: string;
+  include?: string
 }
 
 /**
  * Medication statistics response
  */
 export interface MedicationStats {
-  total_medications: number;
-  active_medications: number;
-  discontinued_medications: number;
-  by_route: Record<string, number>;
+  total_medications: number
+  active_medications: number
+  discontinued_medications: number
+  by_route: Record<string, number>
 }
 
 /**
@@ -232,7 +232,7 @@ export interface MedicationStats {
  * ```
  */
 export class MedicationsApi {
-  constructor(private client: ApiClientCore) { }
+  constructor(private client: ApiClientCore) {}
 
   /**
    * List medications with cursor-based pagination
@@ -264,25 +264,25 @@ export class MedicationsApi {
    * ```
    */
   async list(filters?: MedicationFilters): Promise<PaginatedResponse<Medication>> {
-    const params: Record<string, string | number | boolean> = {};
+    const params: Record<string, string | number | boolean> = {}
 
-    if (filters?.search) params['search'] = filters.search;
-    if (filters?.patient_id) params['patient_id'] = filters.patient_id;
-    if (filters?.prescribed_by_id) params['prescribed_by_id'] = filters.prescribed_by_id;
-    if (filters?.treatment_id) params['treatment_id'] = filters.treatment_id;
-    if (filters?.is_active !== undefined) params['is_active'] = filters.is_active;
-    if (filters?.route) params['route'] = filters.route;
-    if (filters?.cursor) params['cursor'] = filters.cursor;
-    if (filters?.limit) params['limit'] = filters.limit;
-    if (filters?.fields) params['fields'] = filters.fields;
-    if (filters?.include) params['include'] = filters.include;
+    if (filters?.search) params['search'] = filters.search
+    if (filters?.patient_id) params['patient_id'] = filters.patient_id
+    if (filters?.prescribed_by_id) params['prescribed_by_id'] = filters.prescribed_by_id
+    if (filters?.treatment_id) params['treatment_id'] = filters.treatment_id
+    if (filters?.is_active !== undefined) params['is_active'] = filters.is_active
+    if (filters?.route) params['route'] = filters.route
+    if (filters?.cursor) params['cursor'] = filters.cursor
+    if (filters?.limit) params['limit'] = filters.limit
+    if (filters?.fields) params['fields'] = filters.fields
+    if (filters?.include) params['include'] = filters.include
 
     const response = await this.client.get<{
-      data: Medication[];
-      next_cursor?: string;
-      has_more: boolean;
-      total?: number;
-    }>("/api/v2/medications", params);
+      data: Medication[]
+      next_cursor?: string
+      has_more: boolean
+      total?: number
+    }>('/api/v2/medications', params)
 
     return {
       items: response.data || [],
@@ -290,7 +290,7 @@ export class MedicationsApi {
       page: 1, // Cursor-based pagination doesn't use page numbers
       size: filters?.limit ?? 20,
       pages: 0, // Not applicable for cursor pagination
-    };
+    }
   }
 
   /**
@@ -316,14 +316,14 @@ export class MedicationsApi {
     medicationId: string,
     options?: { fields?: string; include?: string }
   ): Promise<Medication> {
-    const params: Record<string, string> = {};
-    if (options?.fields) params['fields'] = options.fields;
-    if (options?.include) params['include'] = options.include;
+    const params: Record<string, string> = {}
+    if (options?.fields) params['fields'] = options.fields
+    if (options?.include) params['include'] = options.include
 
     return this.client.get<Medication>(
       `/api/v2/medications/${medicationId}`,
       Object.keys(params).length > 0 ? params : undefined
-    );
+    )
   }
 
   /**
@@ -346,13 +346,13 @@ export class MedicationsApi {
    */
   async getByPatient(
     patientId: string,
-    filters?: Omit<MedicationFilters, "patient_id">
+    filters?: Omit<MedicationFilters, 'patient_id'>
   ): Promise<Medication[]> {
     const response = await this.list({
       ...filters,
       patient_id: patientId,
-    });
-    return response.items;
+    })
+    return response.items
   }
 
   /**
@@ -380,7 +380,7 @@ export class MedicationsApi {
    * ```
    */
   async create(data: MedicationCreate): Promise<Medication> {
-    return this.client.post<Medication>("/api/v2/medications", data);
+    return this.client.post<Medication>('/api/v2/medications', data)
   }
 
   /**
@@ -405,7 +405,7 @@ export class MedicationsApi {
    * ```
    */
   async update(medicationId: string, data: MedicationUpdate): Promise<Medication> {
-    return this.client.patch<Medication>(`/api/v2/medications/${medicationId}`, data);
+    return this.client.patch<Medication>(`/api/v2/medications/${medicationId}`, data)
   }
 
   /**
@@ -420,7 +420,7 @@ export class MedicationsApi {
    * ```
    */
   async delete(medicationId: string): Promise<void> {
-    return this.client.delete<void>(`/api/v2/medications/${medicationId}`);
+    return this.client.delete<void>(`/api/v2/medications/${medicationId}`)
   }
 
   /**
@@ -443,7 +443,7 @@ export class MedicationsApi {
       `/api/v2/medications/${medicationId}/discontinue`,
       undefined,
       { reason }
-    );
+    )
   }
 
   /**
@@ -459,7 +459,7 @@ export class MedicationsApi {
    * ```
    */
   async refill(medicationId: string): Promise<Medication> {
-    return this.client.patch<Medication>(`/api/v2/medications/${medicationId}/refill`);
+    return this.client.patch<Medication>(`/api/v2/medications/${medicationId}/refill`)
   }
 
   /**
@@ -481,14 +481,14 @@ export class MedicationsApi {
    */
   async getActive(filters?: MedicationFilters): Promise<Medication[]> {
     const response = await this.client.get<{
-      data: Medication[];
-      total: number;
+      data: Medication[]
+      total: number
     }>(
-      "/api/v2/medications/active",
+      '/api/v2/medications/active',
       filters as Record<string, string | number | boolean> | undefined
-    );
+    )
 
-    return response.data || [];
+    return response.data || []
   }
 
   /**
@@ -505,10 +505,10 @@ export class MedicationsApi {
    * ```
    */
   async search(query: string, limit: number = 20): Promise<Medication[]> {
-    return this.client.get<Medication[]>("/api/v2/medications/search", {
+    return this.client.get<Medication[]>('/api/v2/medications/search', {
       q: query,
       limit: Math.min(limit, 50),
-    });
+    })
   }
 
   /**
@@ -525,7 +525,7 @@ export class MedicationsApi {
    * ```
    */
   async getStats(): Promise<MedicationStats> {
-    return this.client.get<MedicationStats>("/api/v2/medications/stats");
+    return this.client.get<MedicationStats>('/api/v2/medications/stats')
   }
 
   /**
@@ -547,7 +547,7 @@ export class MedicationsApi {
       start_date: medication.start_date,
       end_date: medication.end_date,
       instructions: medication.instructions,
-    };
+    }
   }
 }
 
@@ -558,5 +558,5 @@ export class MedicationsApi {
  * @returns MedicationsApi instance
  */
 export function createMedicationsApi(client: ApiClientCore): MedicationsApi {
-  return new MedicationsApi(client);
+  return new MedicationsApi(client)
 }

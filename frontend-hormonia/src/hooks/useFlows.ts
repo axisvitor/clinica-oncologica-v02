@@ -5,15 +5,15 @@
  * Connects to V2 API endpoints for flow management.
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { FlowState, FlowAnalytics, PaginatedResponse } from '@/lib/api-client/types';
-import { apiClient } from '@/lib/api-client';
-import { createLogger } from '@/utils/logger';
-import { smartMapFlowResponse } from '@/lib/flow-engine/mappers/flowResponseMapper';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { FlowState, FlowAnalytics, PaginatedResponse } from '@/lib/api-client/types'
+import { apiClient } from '@/lib/api-client'
+import { createLogger } from '@/utils/logger'
+import { smartMapFlowResponse } from '@/lib/flow-engine/mappers/flowResponseMapper'
 
-const logger = createLogger('useFlows');
+const logger = createLogger('useFlows')
 
-type FlowListResponse = FlowState[] | PaginatedResponse<FlowState>;
+type FlowListResponse = FlowState[] | PaginatedResponse<FlowState>
 
 /**
  * Flow data interface with UI-specific fields
@@ -26,35 +26,35 @@ export interface FlowData extends FlowState {
  * Hook options interface
  */
 export interface UseFlowsOptions {
-  flowType?: string;
-  isActive?: boolean;
-  search?: string;
-  limit?: number;
-  enabled?: boolean;
+  flowType?: string
+  isActive?: boolean
+  search?: string
+  limit?: number
+  enabled?: boolean
 }
 
 /**
  * Hook return type
  */
 export interface UseFlowsReturn {
-  data: FlowData[];
-  flows: FlowData[]; // Legacy alias
-  analytics: FlowAnalytics | null;
-  isLoading: boolean;
-  error: Error | null;
-  refetch: () => void;
-  hasMore: boolean;
-  total: number | null;
+  data: FlowData[]
+  flows: FlowData[] // Legacy alias
+  analytics: FlowAnalytics | null
+  isLoading: boolean
+  error: Error | null
+  refetch: () => void
+  hasMore: boolean
+  total: number | null
 }
 
 /**
  * Flow stats return type
  */
 export interface UseFlowStatsReturn {
-  data: FlowAnalytics | null;
-  isLoading: boolean;
-  error: Error | null;
-  refetch: () => void;
+  data: FlowAnalytics | null
+  isLoading: boolean
+  error: Error | null
+  refetch: () => void
 }
 
 /**
@@ -64,24 +64,22 @@ export function useFlows(options?: UseFlowsOptions): UseFlowsReturn {
   const { data, isLoading, error, refetch } = useQuery<FlowListResponse, Error>({
     queryKey: ['flows', options?.flowType, options?.isActive, options?.search, options?.limit],
     queryFn: async (): Promise<FlowListResponse> => {
-      logger.debug('Fetching flows', { options });
+      logger.debug('Fetching flows', { options })
       const response = await apiClient.flows.list({
         flow_type: options?.flowType,
         is_active: options?.isActive,
         search: options?.search,
         limit: options?.limit ?? 50,
-      });
-      return response as FlowListResponse;
+      })
+      return response as FlowListResponse
     },
     enabled: options?.enabled !== false,
     staleTime: 30000, // 30 seconds
     refetchInterval: 60000, // 1 minute
-  });
+  })
 
-  const rawItems = Array.isArray(data)
-    ? data
-    : (data?.data ?? data?.items ?? []);
-  const flows = rawItems.map((flow: FlowState) => smartMapFlowResponse(flow)) as FlowData[];
+  const rawItems = Array.isArray(data) ? data : (data?.data ?? data?.items ?? [])
+  const flows = rawItems.map((flow: FlowState) => smartMapFlowResponse(flow)) as FlowData[]
 
   return {
     data: flows,
@@ -92,7 +90,7 @@ export function useFlows(options?: UseFlowsOptions): UseFlowsReturn {
     refetch,
     hasMore: Array.isArray(data) ? false : (data?.has_more ?? false),
     total: Array.isArray(data) ? data.length : (data?.total ?? null),
-  };
+  }
 }
 
 /**
@@ -102,46 +100,46 @@ export function useFlowStats(): UseFlowStatsReturn {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['flow-stats'],
     queryFn: async () => {
-      logger.debug('Fetching flow statistics');
-      const analytics = await apiClient.flows.getAnalytics();
-      return analytics as FlowAnalytics;
+      logger.debug('Fetching flow statistics')
+      const analytics = await apiClient.flows.getAnalytics()
+      return analytics as FlowAnalytics
     },
     staleTime: 60000, // 1 minute
     refetchInterval: 300000, // 5 minutes
-  });
+  })
 
   return {
     data: data ?? null,
     isLoading,
     error: error as Error | null,
     refetch,
-  };
+  }
 }
 
 /**
  * Hook for pausing a flow - POST /api/v2/flows/{patientId}/pause
  */
 export function usePauseFlow() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
   const mutation = useMutation({
     mutationFn: async (patientId: string) => {
-      logger.debug(`Pausing flow for patient: ${patientId}`);
-      return await apiClient.flows.pause(patientId);
+      logger.debug(`Pausing flow for patient: ${patientId}`)
+      return await apiClient.flows.pause(patientId)
     },
     onSuccess: (data: FlowState, patientId: string) => {
-      logger.info(`Flow paused successfully for patient: ${patientId}`);
+      logger.info(`Flow paused successfully for patient: ${patientId}`)
       // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ['flows'] });
-      queryClient.invalidateQueries({ queryKey: ['flow-state', patientId] });
-      queryClient.invalidateQueries({ queryKey: ['flow-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['flows'] })
+      queryClient.invalidateQueries({ queryKey: ['flow-state', patientId] })
+      queryClient.invalidateQueries({ queryKey: ['flow-stats'] })
       // Update cache with new state
-      queryClient.setQueryData(['flow-state', patientId], data);
+      queryClient.setQueryData(['flow-state', patientId], data)
     },
     onError: (error: Error, patientId: string) => {
-      logger.error(`Failed to pause flow for patient: ${patientId}`, { error });
+      logger.error(`Failed to pause flow for patient: ${patientId}`, { error })
     },
-  });
+  })
 
   return {
     mutate: mutation.mutate,
@@ -151,33 +149,33 @@ export function usePauseFlow() {
     error: mutation.error,
     isSuccess: mutation.isSuccess,
     reset: mutation.reset,
-  };
+  }
 }
 
 /**
  * Hook for resuming a flow - POST /api/v2/flows/{patientId}/resume
  */
 export function useResumeFlow() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
   const mutation = useMutation({
     mutationFn: async (patientId: string) => {
-      logger.debug(`Resuming flow for patient: ${patientId}`);
-      return await apiClient.flows.resume(patientId);
+      logger.debug(`Resuming flow for patient: ${patientId}`)
+      return await apiClient.flows.resume(patientId)
     },
     onSuccess: (data: FlowState, patientId: string) => {
-      logger.info(`Flow resumed successfully for patient: ${patientId}`);
+      logger.info(`Flow resumed successfully for patient: ${patientId}`)
       // Invalidate relevant queries
-      queryClient.invalidateQueries({ queryKey: ['flows'] });
-      queryClient.invalidateQueries({ queryKey: ['flow-state', patientId] });
-      queryClient.invalidateQueries({ queryKey: ['flow-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['flows'] })
+      queryClient.invalidateQueries({ queryKey: ['flow-state', patientId] })
+      queryClient.invalidateQueries({ queryKey: ['flow-stats'] })
       // Update cache with new state
-      queryClient.setQueryData(['flow-state', patientId], data);
+      queryClient.setQueryData(['flow-state', patientId], data)
     },
     onError: (error: Error, patientId: string) => {
-      logger.error(`Failed to resume flow for patient: ${patientId}`, { error });
+      logger.error(`Failed to resume flow for patient: ${patientId}`, { error })
     },
-  });
+  })
 
   return {
     mutate: mutation.mutate,
@@ -187,7 +185,7 @@ export function useResumeFlow() {
     error: mutation.error,
     isSuccess: mutation.isSuccess,
     reset: mutation.reset,
-  };
+  }
 }
 
 /**
@@ -197,18 +195,18 @@ export function useFlowState(patientId: string) {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['flow-state', patientId],
     queryFn: async () => {
-      logger.debug(`Fetching flow state for patient: ${patientId}`);
-      return await apiClient.flows.getState(patientId);
+      logger.debug(`Fetching flow state for patient: ${patientId}`)
+      return await apiClient.flows.getState(patientId)
     },
     enabled: !!patientId,
     staleTime: 30000, // 30 seconds
     refetchInterval: 60000, // 1 minute
-  });
+  })
 
   return {
     data: data as FlowState | null,
     isLoading,
     error: error as Error | null,
     refetch,
-  };
+  }
 }

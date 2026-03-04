@@ -17,7 +17,11 @@ import { AlertCircle, Lock, ShieldX } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from './alert'
 import { Button } from './button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './card'
-import { UserFriendlyError, AuthErrorType, createUserFriendlyError } from '../../lib/auth-error-handler'
+import {
+  UserFriendlyError,
+  AuthErrorType,
+  createUserFriendlyError,
+} from '../../lib/auth-error-handler'
 import { createLogger } from '../../lib/logger'
 
 const logger = createLogger('PermissionErrorFeedback')
@@ -38,7 +42,7 @@ export function PermissionError({
   onAction,
   className = '',
   variant = 'alert',
-  showActions = true
+  showActions = true,
 }: PermissionErrorProps) {
   const getIcon = () => {
     switch (error.type) {
@@ -128,9 +132,7 @@ export function PermissionError({
           </div>
         </CardHeader>
         <CardContent>
-          <CardDescription className="mb-4">
-            {error.message}
-          </CardDescription>
+          <CardDescription className="mb-4">{error.message}</CardDescription>
           {renderActions()}
         </CardContent>
       </Card>
@@ -142,9 +144,7 @@ export function PermissionError({
       <div className={`min-h-[50vh] flex items-center justify-center ${className}`}>
         <div className="text-center max-w-md mx-auto p-6">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-red-100 dark:bg-red-900/20 rounded-full">
-              {getIcon()}
-            </div>
+            <div className="p-3 bg-red-100 dark:bg-red-900/20 rounded-full">{getIcon()}</div>
           </div>
           <h1 className="text-2xl font-bold mb-2">{error.title}</h1>
           <p className="text-muted-foreground mb-6">{error.message}</p>
@@ -156,7 +156,10 @@ export function PermissionError({
 
   // Default alert variant
   return (
-    <Alert variant={getVariant() as 'default' | 'destructive' | null | undefined} className={className}>
+    <Alert
+      variant={getVariant() as 'default' | 'destructive' | null | undefined}
+      className={className}
+    >
       {getIcon()}
       <AlertTitle>{error.title}</AlertTitle>
       <AlertDescription>
@@ -175,7 +178,7 @@ export function RLSViolationError({
   action,
   onContactSupport,
   onGoBack,
-  className = ''
+  className = '',
 }: {
   resource?: string
   action?: string
@@ -183,9 +186,10 @@ export function RLSViolationError({
   onGoBack?: () => void
   className?: string
 }) {
-  const contextMessage = resource && action
-    ? `You don't have permission to ${action} ${resource}.`
-    : "You don't have permission to perform this action."
+  const contextMessage =
+    resource && action
+      ? `You don't have permission to ${action} ${resource}.`
+      : "You don't have permission to perform this action."
 
   const error: UserFriendlyError = {
     type: AuthErrorType.RLS_VIOLATION,
@@ -196,13 +200,13 @@ export function RLSViolationError({
     actions: {
       primary: {
         label: 'Contact Support',
-        action: 'contact_support'
+        action: 'contact_support',
       },
       secondary: {
         label: 'Go Back',
-        action: 'go_back'
-      }
-    }
+        action: 'go_back',
+      },
+    },
   }
 
   return (
@@ -229,7 +233,7 @@ export function RLSViolationError({
 export function AuthRequiredError({
   onSignIn,
   message,
-  className = ''
+  className = '',
 }: {
   onSignIn?: () => void
   message?: string
@@ -244,9 +248,9 @@ export function AuthRequiredError({
     actions: {
       primary: {
         label: 'Sign In',
-        action: 'sign_in'
-      }
-    }
+        action: 'sign_in',
+      },
+    },
   }
 
   return (
@@ -268,7 +272,7 @@ export function AuthRequiredError({
  */
 export function SessionExpiredError({
   onSignIn,
-  className = ''
+  className = '',
 }: {
   onSignIn?: () => void
   className?: string
@@ -282,9 +286,9 @@ export function SessionExpiredError({
     actions: {
       primary: {
         label: 'Sign In Again',
-        action: 'sign_in'
-      }
-    }
+        action: 'sign_in',
+      },
+    },
   }
 
   return (
@@ -306,7 +310,7 @@ export function SessionExpiredError({
  */
 export function NetworkError({
   onRetry,
-  className = ''
+  className = '',
 }: {
   onRetry?: () => void
   className?: string
@@ -314,15 +318,16 @@ export function NetworkError({
   const error: UserFriendlyError = {
     type: AuthErrorType.NETWORK_ERROR,
     title: 'Connection Error',
-    message: 'Unable to connect to the server. Please check your internet connection and try again.',
+    message:
+      'Unable to connect to the server. Please check your internet connection and try again.',
     actionable: true,
     retryable: true,
     actions: {
       primary: {
         label: 'Retry',
-        action: 'retry'
-      }
-    }
+        action: 'retry',
+      },
+    },
   }
 
   return (
@@ -345,7 +350,7 @@ export function PermissionGuard({
   children,
   fallback,
   hasPermission,
-  fallbackType = 'alert'
+  fallbackType = 'alert',
 }: {
   children: React.ReactNode
   fallback?: React.ReactNode
@@ -360,11 +365,7 @@ export function PermissionGuard({
     return <>{fallback}</>
   }
 
-  return (
-    <RLSViolationError
-      className={fallbackType === 'full-page' ? 'min-h-[200px]' : ''}
-    />
-  )
+  return <RLSViolationError className={fallbackType === 'full-page' ? 'min-h-[200px]' : ''} />
 }
 
 /**
@@ -392,7 +393,7 @@ export function useErrorHandler() {
 
   return {
     showError,
-    handleAuthError
+    handleAuthError,
   }
 }
 

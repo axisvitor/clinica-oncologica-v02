@@ -23,11 +23,7 @@ export interface UsePatientFiltersOptions {
 }
 
 export function usePatientFilters(options: UsePatientFiltersOptions = {}) {
-  const {
-    initialFilters = {},
-    debounceMs = 300,
-    pageSize = 20
-  } = options
+  const { initialFilters = {}, debounceMs = 300, pageSize = 20 } = options
 
   const [filters, setFilters] = useState<PatientFilters>(() => ({
     search: '',
@@ -36,7 +32,7 @@ export function usePatientFilters(options: UsePatientFiltersOptions = {}) {
     start_date_to: '',
     page: 1,
     size: pageSize,
-    ...initialFilters
+    ...initialFilters,
   }))
 
   // Debounce search to avoid excessive API calls
@@ -46,7 +42,7 @@ export function usePatientFilters(options: UsePatientFiltersOptions = {}) {
   const queryParams = useMemo(() => {
     const params: Record<string, unknown> = {
       page: filters['page'] || 1,
-      size: filters.size || pageSize
+      size: filters.size || pageSize,
     }
 
     if (debouncedSearch) {
@@ -72,29 +68,38 @@ export function usePatientFilters(options: UsePatientFiltersOptions = {}) {
     }
 
     return params
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- filters object properties are explicitly destructured for precise dependency tracking
-  }, [debouncedSearch, filters.status, filters.treatment_type, filters.start_date_from, filters.start_date_to, filters.page, filters.size, pageSize])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- filters object properties are explicitly destructured for precise dependency tracking
+  }, [
+    debouncedSearch,
+    filters.status,
+    filters.treatment_type,
+    filters.start_date_from,
+    filters.start_date_to,
+    filters.page,
+    filters.size,
+    pageSize,
+  ])
 
   // Update specific filter
-  const updateFilter = useCallback(<K extends keyof PatientFilters>(
-    key: K,
-    value: PatientFilters[K]
-  ) => {
-    setFilters(prev => ({
-      ...prev,
-      [key]: value,
-      // Reset to page 1 when filter changes (except for page)
-      ...(key !== 'page' ? { page: 1 } : {})
-    }))
-  }, [])
+  const updateFilter = useCallback(
+    <K extends keyof PatientFilters>(key: K, value: PatientFilters[K]) => {
+      setFilters((prev) => ({
+        ...prev,
+        [key]: value,
+        // Reset to page 1 when filter changes (except for page)
+        ...(key !== 'page' ? { page: 1 } : {}),
+      }))
+    },
+    []
+  )
 
   // Update multiple filters at once
   const updateFilters = useCallback((newFilters: Partial<PatientFilters>) => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
       ...newFilters,
       // Reset to page 1 when filters change
-      page: 1
+      page: 1,
     }))
   }, [])
 
@@ -106,7 +111,7 @@ export function usePatientFilters(options: UsePatientFiltersOptions = {}) {
       start_date_from: '',
       start_date_to: '',
       page: 1,
-      size: pageSize
+      size: pageSize,
     })
   }, [pageSize])
 
@@ -138,14 +143,16 @@ export function usePatientFilters(options: UsePatientFiltersOptions = {}) {
     updateFilters,
     resetFilters,
     hasActiveFilters,
-    activeFilterCount
+    activeFilterCount,
   }
 }
 
 export function usePatients(filterOptions?: UsePatientFiltersOptions) {
   const queryClient = useQueryClient()
   // Maintain cursor map per page and persistent total across pages
-  const [cursorsByPage, setCursorsByPage] = useState<Record<number, string | undefined>>({ 1: undefined })
+  const [cursorsByPage, setCursorsByPage] = useState<Record<number, string | undefined>>({
+    1: undefined,
+  })
   const [persistedTotal, setPersistedTotal] = useState<number>(0)
   const {
     filters,
@@ -154,7 +161,7 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
     updateFilters,
     resetFilters,
     hasActiveFilters,
-    activeFilterCount
+    activeFilterCount,
   } = usePatientFilters(filterOptions)
 
   // Reset cursors when non-page filters change
@@ -178,26 +185,23 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
   }, [queryParams, filters.page, cursorsByPage, filterOptions?.pageSize])
 
   // Fetch patients with current filters
-  const {
-    data,
-    isLoading,
-    isSuccess,
-    isError,
-    error,
-    refetch,
-    isFetching
-  } = useQuery<PaginatedApiResponse<Patient>>({
+  const { data, isLoading, isSuccess, isError, error, refetch, isFetching } = useQuery<
+    PaginatedApiResponse<Patient>
+  >({
     queryKey: ['patients', effectiveParams, filters.page],
     queryFn: async () => {
-      const response = await apiClient.patients.list(effectiveParams) as unknown as Partial<PaginatedApiResponse<Patient>> & {
+      const response = (await apiClient.patients.list(effectiveParams)) as unknown as Partial<
+        PaginatedApiResponse<Patient>
+      > & {
         items?: Patient[]
         pages?: number
       }
 
       // Prefer has_more from API; fallback to pages computation only if absent
-      const has_more = (typeof response?.has_more === 'boolean')
-        ? response.has_more
-        : (typeof response?.pages === 'number' && (response?.page ?? 1) < response.pages)
+      const has_more =
+        typeof response?.has_more === 'boolean'
+          ? response.has_more
+          : typeof response?.pages === 'number' && (response?.page ?? 1) < response.pages
 
       const normalized: PaginatedApiResponse<Patient> = {
         data: (response?.data ?? response?.items) || [],
@@ -205,14 +209,14 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
         page: filters.page || 1,
         size: Number(effectiveParams['limit'] || 20),
         has_more,
-        next_cursor: response?.next_cursor
+        next_cursor: response?.next_cursor,
       }
 
       return normalized
     },
     staleTime: 60000, // 60 seconds (optimized from 30s)
     retry: 2,
-    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000)
+    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
   })
 
   // Handle success effects since we removed onSuccess for typing compatibility
@@ -223,7 +227,7 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
     }
     const currentPage = filters.page || 1
     if (data?.next_cursor) {
-      setCursorsByPage(prev => ({ ...prev, [currentPage + 1]: data.next_cursor }))
+      setCursorsByPage((prev) => ({ ...prev, [currentPage + 1]: data.next_cursor }))
     }
   }, [data, filters.page])
 
@@ -243,13 +247,16 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
       queryClient.prefetchQuery<PaginatedApiResponse<Patient>>({
         queryKey: ['patients', nextParams, nextPage],
         queryFn: async () => {
-          const response = await apiClient.patients.list(nextParams) as unknown as Partial<PaginatedApiResponse<Patient>> & {
+          const response = (await apiClient.patients.list(nextParams)) as unknown as Partial<
+            PaginatedApiResponse<Patient>
+          > & {
             items?: Patient[]
             pages?: number
           }
-          const has_more = (typeof response?.has_more === 'boolean')
-            ? response.has_more
-            : (typeof response?.pages === 'number' && (response?.page ?? 1) < response.pages)
+          const has_more =
+            typeof response?.has_more === 'boolean'
+              ? response.has_more
+              : typeof response?.pages === 'number' && (response?.page ?? 1) < response.pages
 
           return {
             data: (response?.data ?? response?.items) || [],
@@ -257,19 +264,27 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
             page: nextPage,
             size: limit,
             has_more,
-            next_cursor: response?.next_cursor
+            next_cursor: response?.next_cursor,
           } as PaginatedApiResponse<Patient>
         },
-        staleTime: 60000 // Aligned with main query
+        staleTime: 60000, // Aligned with main query
       })
     }
-  }, [data, filters.page, queryParams, filterOptions?.pageSize, effectiveParams, cursorsByPage, queryClient])
+  }, [
+    data,
+    filters.page,
+    queryParams,
+    filterOptions?.pageSize,
+    effectiveParams,
+    cursorsByPage,
+    queryClient,
+  ])
 
   const normalizedData = useMemo(() => {
     if (!data) return undefined
     return {
       ...data,
-      items: data.data
+      items: data.data,
     }
   }, [data])
 
@@ -277,9 +292,9 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
     // Data
     patients: data?.data || [],
     data: normalizedData,
-    total: (persistedTotal || data?.total || 0),
+    total: persistedTotal || data?.total || 0,
     page: filters.page || 1,
-    limit: data?.size || (queryParams['size'] as number || 20),
+    limit: data?.size || (queryParams['size'] as number) || 20,
     hasMore: data?.has_more || false,
 
     // Loading states
@@ -295,14 +310,13 @@ export function usePatients(filterOptions?: UsePatientFiltersOptions) {
     hasActiveFilters,
     activeFilterCount,
 
-
     // Actions
     updateFilter,
     updateFilters,
     resetFilters,
     refetch,
     invalidatePatients,
-    prefetchNextPage
+    prefetchNextPage,
   }
 }
 
@@ -319,10 +333,10 @@ export function useTreatmentTypes() {
         'Reposição Hormonal',
         'Tratamento Personalizado',
         'Acompanhamento Nutricional',
-        'Suplementação Hormonal'
+        'Suplementação Hormonal',
       ]
     },
     staleTime: Infinity, // These don't change often
-    gcTime: Infinity
+    gcTime: Infinity,
   })
 }

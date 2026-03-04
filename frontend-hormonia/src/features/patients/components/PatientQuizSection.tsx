@@ -36,7 +36,7 @@ export function PatientQuizSection({
   quizCompletionRate,
   onSendQuiz,
   onResendQuiz,
-  onCancelQuiz
+  onCancelQuiz,
 }: PatientQuizSectionProps) {
   return (
     <Card>
@@ -53,18 +53,13 @@ export function PatientQuizSection({
             />
           )}
         </CardTitle>
-        <CardDescription>
-          Gerencie o questionário mensal de bem-estar
-        </CardDescription>
+        <CardDescription>Gerencie o questionário mensal de bem-estar</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           {/* Action Buttons */}
           <div className="flex items-center space-x-2">
-            <Button
-              onClick={onSendQuiz}
-              disabled={quizStatus?.status === 'active'}
-            >
+            <Button onClick={onSendQuiz} disabled={quizStatus?.status === 'active'}>
               <Send className="mr-2 h-4 w-4" />
               {quizStatus?.status === 'active' ? 'Link Ativo' : 'Enviar Link'}
             </Button>
@@ -101,18 +96,14 @@ export function PatientQuizSection({
                   <CheckCircle className="h-5 w-5 text-green-600" />
                   <span className="text-sm text-gray-600">Completados</span>
                 </div>
-                <p className="text-2xl font-bold mt-2">
-                  {completedQuizCount}
-                </p>
+                <p className="text-2xl font-bold mt-2">{completedQuizCount}</p>
               </div>
               <div className="p-4 border rounded-lg">
                 <div className="flex items-center space-x-2">
                   <TrendingUp className="h-5 w-5 text-purple-600" />
                   <span className="text-sm text-gray-600">Taxa de Conclusão</span>
                 </div>
-                <p className="text-2xl font-bold mt-2">
-                  {quizCompletionRate}%
-                </p>
+                <p className="text-2xl font-bold mt-2">{quizCompletionRate}%</p>
               </div>
             </div>
           )}
@@ -122,31 +113,37 @@ export function PatientQuizSection({
             <div className="flex items-center justify-center py-4">
               <LoadingSpinner />
             </div>
-          ) : quizHistory && quizHistory.length > 0 && (
-            <div className="mt-4">
-              <h4 className="text-sm font-semibold text-gray-900 mb-2">Histórico</h4>
-              <div className="space-y-2">
-                {quizHistory.slice(0, 5).map((entry: QuizHistoryEntry) => (
-                  <div key={entry.id} className="flex items-center justify-between p-2 border rounded">
-                    <div>
-                      <p className="text-sm font-medium">{entry.quiz_template_name}</p>
-                      <p className="text-xs text-gray-500">
-                        {entry.sent_at && new Date(entry.sent_at).toLocaleDateString('pt-BR')}
-                      </p>
+          ) : (
+            quizHistory &&
+            quizHistory.length > 0 && (
+              <div className="mt-4">
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Histórico</h4>
+                <div className="space-y-2">
+                  {quizHistory.slice(0, 5).map((entry: QuizHistoryEntry) => (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between p-2 border rounded"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{entry.quiz_template_name}</p>
+                        <p className="text-xs text-gray-500">
+                          {entry.sent_at && new Date(entry.sent_at).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                      {patientId && (
+                        <QuizLinkStatus
+                          patientId={patientId}
+                          {...(entry.sent_at && { lastSent: new Date(entry.sent_at) })}
+                          {...(entry.accessed_at && { lastResponse: new Date(entry.accessed_at) })}
+                          linkStatus={entry.status}
+                          {...(entry.expires_at && { expiresAt: new Date(entry.expires_at) })}
+                        />
+                      )}
                     </div>
-                    {patientId && (
-                      <QuizLinkStatus
-                        patientId={patientId}
-                        {...(entry.sent_at && { lastSent: new Date(entry.sent_at) })}
-                        {...(entry.accessed_at && { lastResponse: new Date(entry.accessed_at) })}
-                        linkStatus={entry.status}
-                        {...(entry.expires_at && { expiresAt: new Date(entry.expires_at) })}
-                      />
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )
           )}
         </div>
       </CardContent>

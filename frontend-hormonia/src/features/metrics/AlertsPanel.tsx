@@ -4,86 +4,88 @@
  * Displays active alerts with severity-based styling, acknowledgment actions,
  * and real-time updates for healthcare system monitoring.
  */
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import React, { useState } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
-  AlertTriangle, Clock, CheckCircle, Filter,
-  AlertCircle, Info, Zap, Heart
-} from 'lucide-react';
+  AlertTriangle,
+  Clock,
+  CheckCircle,
+  Filter,
+  AlertCircle,
+  Info,
+  Zap,
+  Heart,
+} from 'lucide-react'
 
 interface AlertType {
-  id: string;
-  title: string;
-  description: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  category: 'system' | 'healthcare' | 'security' | 'performance' | 'data_integrity' | 'ai_service';
-  created_at: string;
-  current_value?: number;
-  threshold_value?: number;
-  source: string;
-  metadata: Record<string, unknown>;
+  id: string
+  title: string
+  description: string
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  category: 'system' | 'healthcare' | 'security' | 'performance' | 'data_integrity' | 'ai_service'
+  created_at: string
+  current_value?: number
+  threshold_value?: number
+  source: string
+  metadata: Record<string, unknown>
 }
 
 interface AlertsPanelProps {
-  alerts: AlertType[];
-  onAcknowledge: (alertId: string) => Promise<void>;
-  userRole: 'doctor' | 'admin';
+  alerts: AlertType[]
+  onAcknowledge: (alertId: string) => Promise<void>
+  userRole: 'doctor' | 'admin'
 }
 
-export const AlertsPanel: React.FC<AlertsPanelProps> = ({
-  alerts,
-  onAcknowledge,
-  userRole
-}) => {
-  const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [acknowledging, setAcknowledging] = useState<Set<string>>(new Set());
+export const AlertsPanel: React.FC<AlertsPanelProps> = ({ alerts, onAcknowledge, userRole }) => {
+  const [selectedSeverity, setSelectedSeverity] = useState<string>('all')
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [acknowledging, setAcknowledging] = useState<Set<string>>(new Set())
 
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
       case 'critical':
-        return <AlertTriangle className="w-4 h-4 text-red-600" />;
+        return <AlertTriangle className="w-4 h-4 text-red-600" />
       case 'high':
-        return <AlertCircle className="w-4 h-4 text-orange-600" />;
+        return <AlertCircle className="w-4 h-4 text-orange-600" />
       case 'medium':
-        return <Info className="w-4 h-4 text-yellow-600" />;
+        return <Info className="w-4 h-4 text-yellow-600" />
       case 'low':
-        return <Info className="w-4 h-4 text-blue-600" />;
+        return <Info className="w-4 h-4 text-blue-600" />
       default:
-        return <Info className="w-4 h-4 text-gray-600" />;
+        return <Info className="w-4 h-4 text-gray-600" />
     }
-  };
+  }
 
   const getSeverityBadge = (severity: string) => {
     const variants = {
       critical: 'bg-red-100 text-red-800 hover:bg-red-200',
       high: 'bg-orange-100 text-orange-800 hover:bg-orange-200',
       medium: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200',
-      low: 'bg-blue-100 text-blue-800 hover:bg-blue-200'
-    };
+      low: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
+    }
 
     return (
       <Badge className={variants[severity as keyof typeof variants] || variants.low}>
         {severity.toUpperCase()}
       </Badge>
-    );
-  };
+    )
+  }
 
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'healthcare':
-        return <Heart className="w-4 h-4" />;
+        return <Heart className="w-4 h-4" />
       case 'ai_service':
-        return <Zap className="w-4 h-4" />;
+        return <Zap className="w-4 h-4" />
       case 'performance':
-        return <Clock className="w-4 h-4" />;
+        return <Clock className="w-4 h-4" />
       default:
-        return <AlertTriangle className="w-4 h-4" />;
+        return <AlertTriangle className="w-4 h-4" />
     }
-  };
+  }
 
   const getCategoryLabel = (category: string) => {
     const labels = {
@@ -92,59 +94,59 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({
       security: 'Segurança',
       performance: 'Performance',
       data_integrity: 'Dados',
-      ai_service: 'IA'
-    };
-    return labels[category as keyof typeof labels] || category;
-  };
+      ai_service: 'IA',
+    }
+    return labels[category as keyof typeof labels] || category
+  }
 
   const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000)
 
     if (diffInSeconds < 60) {
-      return 'há poucos segundos';
+      return 'há poucos segundos'
     } else if (diffInSeconds < 3600) {
-      const minutes = Math.floor(diffInSeconds / 60);
-      return `há ${minutes} minuto${minutes > 1 ? 's' : ''}`;
+      const minutes = Math.floor(diffInSeconds / 60)
+      return `há ${minutes} minuto${minutes > 1 ? 's' : ''}`
     } else if (diffInSeconds < 86400) {
-      const hours = Math.floor(diffInSeconds / 3600);
-      return `há ${hours} hora${hours > 1 ? 's' : ''}`;
+      const hours = Math.floor(diffInSeconds / 3600)
+      return `há ${hours} hora${hours > 1 ? 's' : ''}`
     } else {
-      const days = Math.floor(diffInSeconds / 86400);
-      return `há ${days} dia${days > 1 ? 's' : ''}`;
+      const days = Math.floor(diffInSeconds / 86400)
+      return `há ${days} dia${days > 1 ? 's' : ''}`
     }
-  };
+  }
 
   const handleAcknowledge = async (alertId: string) => {
-    setAcknowledging(prev => new Set(prev).add(alertId));
+    setAcknowledging((prev) => new Set(prev).add(alertId))
     try {
-      await onAcknowledge(alertId);
+      await onAcknowledge(alertId)
     } finally {
-      setAcknowledging(prev => {
-        const next = new Set(prev);
-        next.delete(alertId);
-        return next;
-      });
+      setAcknowledging((prev) => {
+        const next = new Set(prev)
+        next.delete(alertId)
+        return next
+      })
     }
-  };
+  }
 
-  const filteredAlerts = alerts.filter(alert => {
+  const filteredAlerts = alerts.filter((alert) => {
     if (selectedSeverity !== 'all' && alert.severity !== selectedSeverity) {
-      return false;
+      return false
     }
     if (selectedCategory !== 'all' && alert.category !== selectedCategory) {
-      return false;
+      return false
     }
     // Role-based filtering
     if (userRole === 'doctor' && alert.category === 'system') {
-      return false;
+      return false
     }
-    return true;
-  });
+    return true
+  })
 
-  const criticalAlerts = filteredAlerts.filter(alert => alert.severity === 'critical');
-  const highAlerts = filteredAlerts.filter(alert => alert.severity === 'high');
+  const criticalAlerts = filteredAlerts.filter((alert) => alert.severity === 'critical')
+  const highAlerts = filteredAlerts.filter((alert) => alert.severity === 'high')
 
   return (
     <div className="space-y-6">
@@ -154,9 +156,7 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold text-red-600">
-                  {criticalAlerts.length}
-                </div>
+                <div className="text-2xl font-bold text-red-600">{criticalAlerts.length}</div>
                 <div className="text-sm text-muted-foreground">Críticos</div>
               </div>
               <AlertTriangle className="w-8 h-8 text-red-600" />
@@ -168,9 +168,7 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold text-orange-600">
-                  {highAlerts.length}
-                </div>
+                <div className="text-2xl font-bold text-orange-600">{highAlerts.length}</div>
                 <div className="text-sm text-muted-foreground">Alta Prioridade</div>
               </div>
               <AlertCircle className="w-8 h-8 text-orange-600" />
@@ -182,9 +180,7 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <div className="text-2xl font-bold text-blue-600">
-                  {filteredAlerts.length}
-                </div>
+                <div className="text-2xl font-bold text-blue-600">{filteredAlerts.length}</div>
                 <div className="text-sm text-muted-foreground">Total Ativo</div>
               </div>
               <AlertTriangle className="w-8 h-8 text-blue-600" />
@@ -255,9 +251,7 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({
       <Card>
         <CardHeader>
           <CardTitle>Alertas Ativos</CardTitle>
-          <CardDescription>
-            {filteredAlerts.length} alertas requerem atenção
-          </CardDescription>
+          <CardDescription>{filteredAlerts.length} alertas requerem atenção</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {filteredAlerts.length === 0 ? (
@@ -269,20 +263,19 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({
             filteredAlerts
               .sort((a, b) => {
                 // Sort by severity first (critical > high > medium > low)
-                const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 };
-                const severityDiff = (severityOrder[b.severity as keyof typeof severityOrder] || 0) -
-                                  (severityOrder[a.severity as keyof typeof severityOrder] || 0);
-                if (severityDiff !== 0) return severityDiff;
+                const severityOrder = { critical: 4, high: 3, medium: 2, low: 1 }
+                const severityDiff =
+                  (severityOrder[b.severity as keyof typeof severityOrder] || 0) -
+                  (severityOrder[a.severity as keyof typeof severityOrder] || 0)
+                if (severityDiff !== 0) return severityDiff
 
                 // Then by creation time (newest first)
-                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
               })
               .map((alert) => (
                 <Alert key={alert.id} className="relative">
                   <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 mt-1">
-                      {getSeverityIcon(alert.severity)}
-                    </div>
+                    <div className="flex-shrink-0 mt-1">{getSeverityIcon(alert.severity)}</div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between">
@@ -310,11 +303,13 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({
 
                             <span>Fonte: {alert.source}</span>
 
-                            {alert.current_value !== undefined && alert.threshold_value !== undefined && (
-                              <span className="bg-gray-100 px-2 py-1 rounded">
-                                {alert.current_value.toFixed(2)} / {alert.threshold_value.toFixed(2)}
-                              </span>
-                            )}
+                            {alert.current_value !== undefined &&
+                              alert.threshold_value !== undefined && (
+                                <span className="bg-gray-100 px-2 py-1 rounded">
+                                  {alert.current_value.toFixed(2)} /{' '}
+                                  {alert.threshold_value.toFixed(2)}
+                                </span>
+                              )}
                           </div>
 
                           {/* Alert Metadata */}
@@ -361,5 +356,5 @@ export const AlertsPanel: React.FC<AlertsPanelProps> = ({
         </CardContent>
       </Card>
     </div>
-  );
-};
+  )
+}

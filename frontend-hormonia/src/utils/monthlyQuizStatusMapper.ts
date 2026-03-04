@@ -10,7 +10,14 @@ import { createLogger } from '../lib/logger'
 const logger = createLogger('MonthlyQuizStatusMapper')
 
 export type BackendStatus = 'active' | 'expired' | 'used' | 'cancelled' | string
-export type UIStatus = 'active' | 'expired' | 'completed' | 'pending' | 'not_sent' | 'sent' | 'accessed'
+export type UIStatus =
+  | 'active'
+  | 'expired'
+  | 'completed'
+  | 'pending'
+  | 'not_sent'
+  | 'sent'
+  | 'accessed'
 
 /**
  * Maps backend status to UI status following the mapping rules:
@@ -103,7 +110,7 @@ export function isValidUIStatus(status: string): boolean {
     'pending',
     'not_sent',
     'sent',
-    'accessed'
+    'accessed',
   ]
 
   return validStatuses.includes(status as UIStatus)
@@ -142,7 +149,10 @@ export function getStatusLabel(status: string): string {
  * Type guard to check if a value is a valid backend status
  */
 export function isBackendStatus(value: unknown): value is BackendStatus {
-  return typeof value === 'string' && ['active', 'expired', 'used', 'cancelled'].includes(value.toLowerCase())
+  return (
+    typeof value === 'string' &&
+    ['active', 'expired', 'used', 'cancelled'].includes(value.toLowerCase())
+  )
 }
 
 /**

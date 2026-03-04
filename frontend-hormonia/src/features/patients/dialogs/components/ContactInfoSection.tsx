@@ -15,41 +15,36 @@ interface ContactInfoSectionProps {
 }
 
 export function ContactInfoSection({ form, mode }: ContactInfoSectionProps) {
-  const { register, formState: { errors } } = form
+  const {
+    register,
+    formState: { errors },
+  } = form
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Nome completo */}
         <div className="space-y-2">
-          <Label htmlFor="name">
-            Nome completo {mode === 'create' && '*'}
-          </Label>
+          <Label htmlFor="name">Nome completo {mode === 'create' && '*'}</Label>
           <Input
             id="name"
             placeholder="Nome do paciente"
             autoComplete="name"
             {...register('name')}
           />
-          {errors.name && (
-            <p className="text-sm text-red-600">{errors.name.message}</p>
-          )}
+          {errors.name && <p className="text-sm text-red-600">{errors.name.message}</p>}
         </div>
 
         {/* Telefone */}
         <div className="space-y-2">
-          <Label htmlFor="phone">
-            Telefone {mode === 'create' && '*'}
-          </Label>
+          <Label htmlFor="phone">Telefone {mode === 'create' && '*'}</Label>
           <Input
             id="phone"
             placeholder="+55 11 99999-9999"
             autoComplete="tel"
             {...register('phone')}
           />
-          {errors.phone && (
-            <p className="text-sm text-red-600">{errors.phone.message}</p>
-          )}
+          {errors.phone && <p className="text-sm text-red-600">{errors.phone.message}</p>}
         </div>
       </div>
 
@@ -64,23 +59,14 @@ export function ContactInfoSection({ form, mode }: ContactInfoSectionProps) {
             autoComplete="email"
             {...register('email')}
           />
-          {errors.email && (
-            <p className="text-sm text-red-600">{errors.email.message}</p>
-          )}
+          {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
         </div>
 
         {/* CPF */}
         <div className="space-y-2">
           <Label htmlFor="cpf">CPF</Label>
-          <Input
-            id="cpf"
-            placeholder="000.000.000-00"
-            autoComplete="off"
-            {...register('cpf')}
-          />
-          {errors.cpf && (
-            <p className="text-sm text-red-600">{errors.cpf.message}</p>
-          )}
+          <Input id="cpf" placeholder="000.000.000-00" autoComplete="off" {...register('cpf')} />
+          {errors.cpf && <p className="text-sm text-red-600">{errors.cpf.message}</p>}
         </div>
       </div>
     </div>

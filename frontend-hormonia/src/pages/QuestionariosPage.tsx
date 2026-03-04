@@ -41,19 +41,23 @@ const questionSchema = z.object({
   text: z.string().min(1, 'Texto da pergunta é obrigatório'),
   description: z.string().optional(),
   required: z.boolean().default(true),
-  options: z.array(z.object({
-    id: z.string(),
-    text: z.string(),
-    value: z.union([z.string(), z.number()]),
-    is_correct: z.boolean().optional()
-  })).optional(),
+  options: z
+    .array(
+      z.object({
+        id: z.string(),
+        text: z.string(),
+        value: z.union([z.string(), z.number()]),
+        is_correct: z.boolean().optional(),
+      })
+    )
+    .optional(),
 })
 
 const createQuizSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório').max(255, 'Nome muito longo'),
   version: z.string().min(1, 'Versão é obrigatória').max(50, 'Versão muito longa'),
   questions: z.array(questionSchema).min(1, 'Pelo menos uma pergunta é obrigatória'),
-  is_active: z.boolean().default(true)
+  is_active: z.boolean().default(true),
 })
 
 /**
@@ -74,7 +78,7 @@ export function QuestionariosPage() {
     type: 'all',
     status: 'all',
     sortBy: 'created_at',
-    sortOrder: 'desc'
+    sortOrder: 'desc',
   })
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -88,7 +92,7 @@ export function QuestionariosPage() {
     data: templatesData,
     isLoading: isLoadingTemplates,
     error: templatesError,
-    refetch: refetchTemplates
+    refetch: refetchTemplates,
   } = useQuestionarios({
     search: filters.search,
     type: filters.type,
@@ -96,7 +100,7 @@ export function QuestionariosPage() {
     sortBy: filters.sortBy,
     sortOrder: filters.sortOrder,
     page: currentPage,
-    size: pageSize
+    size: pageSize,
   })
 
   // React Hook Form setup
@@ -114,19 +118,19 @@ export function QuestionariosPage() {
           required: true,
           options: [
             { id: 'opt1', text: 'Opção 1', value: 'option1' },
-            { id: 'opt2', text: 'Opção 2', value: 'option2' }
-          ]
-        }
+            { id: 'opt2', text: 'Opção 2', value: 'option2' },
+          ],
+        },
       ],
-      is_active: true
-    }
+      is_active: true,
+    },
   })
 
   const {
     reset,
     watch,
     setValue,
-    formState: { isSubmitting = false }
+    formState: { isSubmitting = false },
   } = form
 
   const questions = watch('questions')
@@ -135,15 +139,12 @@ export function QuestionariosPage() {
     [templatesData]
   )
 
-  const {
-    totalTemplates,
-    activeTemplates,
-    totalResponses,
-    averageCompletionRate,
-  } = useMemo(() => {
-    const items = (templatesData?.items ?? []) as Array<QuizTemplate & {
-      analytics?: { total_responses?: number; completion_rate?: number }
-    }>
+  const { totalTemplates, activeTemplates, totalResponses, averageCompletionRate } = useMemo(() => {
+    const items = (templatesData?.items ?? []) as Array<
+      QuizTemplate & {
+        analytics?: { total_responses?: number; completion_rate?: number }
+      }
+    >
     let activeCount = 0
     let responsesTotal = 0
     let completionSum = 0
@@ -160,7 +161,7 @@ export function QuestionariosPage() {
       totalTemplates: templatesData?.total ?? 0,
       activeTemplates: activeCount,
       totalResponses: responsesTotal,
-      averageCompletionRate: items.length > 0 ? completionSum / items.length : 0
+      averageCompletionRate: items.length > 0 ? completionSum / items.length : 0,
     }
   }, [templatesData])
 
@@ -170,12 +171,12 @@ export function QuestionariosPage() {
       logger.info('Creating quiz template', { name: data.name, version: data.version })
       const payload: QuizTemplatePayload = {
         ...data,
-        questions: data.questions.map(q => ({
+        questions: data.questions.map((q) => ({
           question_text: q.text,
           question_type: q.type,
-          options: q.options?.map(o => o.text),
-          required: q.required
-        }))
+          options: q.options?.map((o) => o.text),
+          required: q.required,
+        })),
       }
       return apiClient.quizzes.createTemplate(payload)
     },
@@ -193,10 +194,12 @@ export function QuestionariosPage() {
       logger.error('Create quiz error', { error })
       toast({
         title: 'Erro ao criar questionário',
-        description: (error as { data?: { message?: string } })?.data?.message || 'Não foi possível criar o questionário.',
+        description:
+          (error as { data?: { message?: string } })?.data?.message ||
+          'Não foi possível criar o questionário.',
         variant: 'destructive',
       })
-    }
+    },
   })
 
   const deleteMutation = useMutation({
@@ -216,10 +219,12 @@ export function QuestionariosPage() {
       logger.error('Delete quiz error', { error })
       toast({
         title: 'Erro ao excluir questionário',
-        description: (error as { data?: { message?: string } })?.data?.message || 'Não foi possível excluir o questionário.',
+        description:
+          (error as { data?: { message?: string } })?.data?.message ||
+          'Não foi possível excluir o questionário.',
         variant: 'destructive',
       })
-    }
+    },
   })
 
   const updateMutation = useMutation({
@@ -227,12 +232,12 @@ export function QuestionariosPage() {
       logger.info('Updating quiz template', { templateId: id, name: data.name })
       const payload: QuizTemplateUpdatePayload = {
         ...data,
-        questions: data.questions.map(q => ({
+        questions: data.questions.map((q) => ({
           question_text: q.text,
           question_type: q.type,
-          options: q.options?.map(o => o.text),
-          required: q.required
-        }))
+          options: q.options?.map((o) => o.text),
+          required: q.required,
+        })),
       }
       return apiClient.quizzes.updateTemplate(id, payload)
     },
@@ -251,10 +256,12 @@ export function QuestionariosPage() {
       logger.error('Update quiz error', { error })
       toast({
         title: 'Erro ao atualizar questionário',
-        description: (error as { data?: { message?: string } })?.data?.message || 'Não foi possível atualizar o questionário.',
+        description:
+          (error as { data?: { message?: string } })?.data?.message ||
+          'Não foi possível atualizar o questionário.',
         variant: 'destructive',
       })
-    }
+    },
   })
 
   // Performance logging
@@ -270,59 +277,71 @@ export function QuestionariosPage() {
           type: filters.type,
           status: filters.status,
           sortBy: filters.sortBy,
-          sortOrder: filters.sortOrder
-        }
+          sortOrder: filters.sortOrder,
+        },
       })
     }
   }, [templatesData, filters])
 
   // Event handlers
-  const handleSearch = useCallback((value: string) => {
-    setFilters((prev: QuestionariosFiltersConfig) => ({ ...prev, search: value }))
-    setCurrentPage(1)
-  }, [setFilters, setCurrentPage])
+  const handleSearch = useCallback(
+    (value: string) => {
+      setFilters((prev: QuestionariosFiltersConfig) => ({ ...prev, search: value }))
+      setCurrentPage(1)
+    },
+    [setFilters, setCurrentPage]
+  )
 
-  const handleFilterChange = useCallback(<K extends keyof QuestionariosFiltersConfig,>(
-    key: K,
-    value: QuestionariosFiltersConfig[K]
-  ) => {
-    setFilters((prev: QuestionariosFiltersConfig) => ({ ...prev, [key]: value }))
-    setCurrentPage(1)
-  }, [setFilters, setCurrentPage])
+  const handleFilterChange = useCallback(
+    <K extends keyof QuestionariosFiltersConfig>(key: K, value: QuestionariosFiltersConfig[K]) => {
+      setFilters((prev: QuestionariosFiltersConfig) => ({ ...prev, [key]: value }))
+      setCurrentPage(1)
+    },
+    [setFilters, setCurrentPage]
+  )
 
-  const onSubmit = useCallback((data: CreateQuizFormData) => {
-    if (editingTemplate) {
-      updateMutation.mutate({ id: editingTemplate.id, data })
-    } else {
-      createMutation.mutate(data)
-    }
-  }, [createMutation, editingTemplate, updateMutation])
+  const onSubmit = useCallback(
+    (data: CreateQuizFormData) => {
+      if (editingTemplate) {
+        updateMutation.mutate({ id: editingTemplate.id, data })
+      } else {
+        createMutation.mutate(data)
+      }
+    },
+    [createMutation, editingTemplate, updateMutation]
+  )
 
-  const handleDeleteTemplate = useCallback((id: string) => {
-    if (confirmDeleteId === id) {
-      setConfirmDeleteId(null)
-      deleteMutation.mutate(id)
-      return
-    }
-    setConfirmDeleteId(id)
-    toast({
-      title: 'Confirme a desativação',
-      description: 'Clique novamente para desativar este questionário.',
-      variant: 'destructive'
-    })
-    setTimeout(() => {
-      setConfirmDeleteId((prev) => (prev === id ? null : prev))
-    }, 3000)
-  }, [confirmDeleteId, deleteMutation, toast])
+  const handleDeleteTemplate = useCallback(
+    (id: string) => {
+      if (confirmDeleteId === id) {
+        setConfirmDeleteId(null)
+        deleteMutation.mutate(id)
+        return
+      }
+      setConfirmDeleteId(id)
+      toast({
+        title: 'Confirme a desativação',
+        description: 'Clique novamente para desativar este questionário.',
+        variant: 'destructive',
+      })
+      setTimeout(() => {
+        setConfirmDeleteId((prev) => (prev === id ? null : prev))
+      }, 3000)
+    },
+    [confirmDeleteId, deleteMutation, toast]
+  )
 
-  const handleEditTemplate = useCallback((template: QuizTemplate) => {
-    setEditingTemplate(template)
-    setValue('name', template.name)
-    setValue('version', template.version)
-    setValue('questions', template.questions)
-    setValue('is_active', template.is_active)
-    setIsEditDialogOpen(true)
-  }, [setValue])
+  const handleEditTemplate = useCallback(
+    (template: QuizTemplate) => {
+      setEditingTemplate(template)
+      setValue('name', template.name)
+      setValue('version', template.version)
+      setValue('questions', template.questions)
+      setValue('is_active', template.is_active)
+      setIsEditDialogOpen(true)
+    },
+    [setValue]
+  )
 
   const handleCloseEditDialog = useCallback(() => {
     setIsEditDialogOpen(false)
@@ -339,27 +358,36 @@ export function QuestionariosPage() {
       required: true,
       options: [
         { id: 'opt1', text: 'Opção 1', value: 'option1' },
-        { id: 'opt2', text: 'Opção 2', value: 'option2' }
-      ]
+        { id: 'opt2', text: 'Opção 2', value: 'option2' },
+      ],
     }
     setValue('questions', [...questions, newQuestion])
   }, [questions, setValue])
 
-  const removeQuestion = useCallback((index: number) => {
-    setValue('questions', questions.filter((_: unknown, i: number) => i !== index))
-  }, [questions, setValue])
+  const removeQuestion = useCallback(
+    (index: number) => {
+      setValue(
+        'questions',
+        questions.filter((_: unknown, i: number) => i !== index)
+      )
+    },
+    [questions, setValue]
+  )
 
-  const updateQuestion = useCallback((index: number, field: string, value: unknown) => {
-    const updatedQuestions = [...questions]
-    const currentQuestion = updatedQuestions[index]
-    if (!currentQuestion) return
+  const updateQuestion = useCallback(
+    (index: number, field: string, value: unknown) => {
+      const updatedQuestions = [...questions]
+      const currentQuestion = updatedQuestions[index]
+      if (!currentQuestion) return
 
-    updatedQuestions[index] = {
-      ...currentQuestion,
-      [field]: value
-    }
-    setValue('questions', updatedQuestions)
-  }, [questions, setValue])
+      updatedQuestions[index] = {
+        ...currentQuestion,
+        [field]: value,
+      }
+      setValue('questions', updatedQuestions)
+    },
+    [questions, setValue]
+  )
 
   return (
     <div className="container mx-auto py-4 sm:py-6 lg:py-8 px-3 sm:px-4 lg:px-6 max-w-7xl">

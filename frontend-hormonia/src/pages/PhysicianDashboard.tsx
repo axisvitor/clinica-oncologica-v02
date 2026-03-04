@@ -1,13 +1,28 @@
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { TriangleAlert as AlertTriangle, Users, Brain, MessageSquare, Search, Download, RefreshCw, X } from 'lucide-react'
+import {
+  TriangleAlert as AlertTriangle,
+  Users,
+  Brain,
+  MessageSquare,
+  Search,
+  Download,
+  RefreshCw,
+  X,
+} from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { PhysicianDashboardSkeleton } from '@/features/dashboard/PhysicianDashboardSkeleton'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
@@ -26,17 +41,19 @@ import type {
   Alert as ApiAlert,
   PaginatedResponse,
   AIInsights,
-  AIRecommendations
+  AIRecommendations,
 } from '@/lib/api-client/types'
 
 const logger = createLogger('PhysicianDashboard')
 
 const AIAnalyticsDashboard = lazy(() =>
-  import('@/features/ai/AIAnalyticsDashboard').then((module) => ({ default: module.AIAnalyticsDashboard }))
+  import('@/features/ai/AIAnalyticsDashboard').then((module) => ({
+    default: module.AIAnalyticsDashboard,
+  }))
 )
 const PhysicianInsightsPanel = lazy(() =>
   import('@/features/dashboard/components/physician/PhysicianInsightsPanel').then((module) => ({
-    default: module.PhysicianInsightsPanel
+    default: module.PhysicianInsightsPanel,
   }))
 )
 
@@ -70,14 +87,18 @@ export default function PhysicianDashboard() {
   // Permission check
   // Case-insensitive role check - supports doctor, physician, DOCTOR, PHYSICIAN, admin, ADMIN, etc.
   const canAccessDashboard =
-    hasRole('doctor') || hasRole('physician') || hasRole('medico') || hasRole('admin') || hasRole('superadmin')
+    hasRole('doctor') ||
+    hasRole('physician') ||
+    hasRole('medico') ||
+    hasRole('admin') ||
+    hasRole('superadmin')
 
   // State management
   const [filters, setFilters] = useState({
     search: '',
     risk_level: 'all' as 'all' | 'low' | 'medium' | 'high' | 'critical',
     page: 1,
-    size: 20
+    size: 20,
   })
   const [chatOpen, setChatOpen] = useState(false)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -100,7 +121,7 @@ export default function PhysicianDashboard() {
       return response as unknown as DashboardMetrics
     },
     staleTime: 60000, // 1 minute
-    refetchInterval: 120000 // 2 minutes
+    refetchInterval: 120000, // 2 minutes
   })
 
   // PERFORMANCE: Single API call replacing 51 individual calls (Wave 2 Fix)
@@ -114,7 +135,7 @@ export default function PhysicianDashboard() {
   } = {
     page: filters.page,
     size: filters.size,
-    enabled: canAccessDashboard
+    enabled: canAccessDashboard,
   }
 
   // Only include optional parameters if they have values (avoid passing undefined)
@@ -129,7 +150,7 @@ export default function PhysicianDashboard() {
     data: riskData,
     isLoading: patientsLoading,
     error: patientsError,
-    refetch: refetchPatients
+    refetch: refetchPatients,
   } = usePhysicianRiskAssessments(filterParams)
 
   // Patients are filtered server-side
@@ -143,7 +164,7 @@ export default function PhysicianDashboard() {
         patientsLoaded: riskData.summary.total_patients,
         highRiskCount: riskData.summary.requiring_attention,
         improvement: '98% fewer API calls',
-        speedup: '10-15x faster'
+        speedup: '10-15x faster',
       })
     }
   }, [riskData])
@@ -155,11 +176,11 @@ export default function PhysicianDashboard() {
       return apiClient.alerts.list({
         severity: 'high',
         status: 'pending',
-        size: 10
+        size: 10,
       })
     },
     enabled: canAccessDashboard,
-    staleTime: 60000
+    staleTime: 60000,
   })
 
   const shouldLoadAiData =
@@ -170,24 +191,23 @@ export default function PhysicianDashboard() {
   const {
     data: selectedPatientInsights,
     isLoading: insightsLoading,
-    error: insightsError
+    error: insightsError,
   } = useQuery<AIInsights>({
     queryKey: ['physician-patient-insights', selectedPatientId, 'week'],
     queryFn: () => apiClient.ai.insights(selectedPatientId, 'week'),
     enabled: shouldLoadAiData,
     staleTime: 300000,
-    retry: 1
+    retry: 1,
   })
 
-  const { data: selectedPatientRecommendations, isLoading: recommendationsLoading } = useQuery<
-    AIRecommendations
-  >({
-    queryKey: ['physician-patient-recommendations', selectedPatientId],
-    queryFn: () => apiClient.ai.recommendations(selectedPatientId),
-    enabled: shouldLoadAiData,
-    staleTime: 300000,
-    retry: 1
-  })
+  const { data: selectedPatientRecommendations, isLoading: recommendationsLoading } =
+    useQuery<AIRecommendations>({
+      queryKey: ['physician-patient-recommendations', selectedPatientId],
+      queryFn: () => apiClient.ai.recommendations(selectedPatientId),
+      enabled: shouldLoadAiData,
+      staleTime: 300000,
+      retry: 1,
+    })
 
   useEffect(() => {
     if (patients.length === 0) {
@@ -208,7 +228,7 @@ export default function PhysicianDashboard() {
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
       const response = await apiClient.ai.chat(message, {
-        message_type: 'clinical_guidance'
+        message_type: 'clinical_guidance',
       })
       return response
     },
@@ -220,8 +240,8 @@ export default function PhysicianDashboard() {
           id: Date.now().toString(),
           role: ChatRole.ASSISTANT,
           content: data.message ?? data.response ?? '',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       ])
     },
     onError: (error: unknown) => {
@@ -232,10 +252,10 @@ export default function PhysicianDashboard() {
           id: Date.now().toString(),
           role: ChatRole.ASSISTANT,
           content: 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       ])
-    }
+    },
   })
 
   const selectedPatientLabel = useMemo(() => {
@@ -248,7 +268,8 @@ export default function PhysicianDashboard() {
 
     const createdAt = selectedPatientInsights.generated_at ?? new Date().toISOString()
     const priority: AIInsight['priority'] =
-      selectedPatientInsights.risk_level === 'critical' || selectedPatientInsights.risk_level === 'high'
+      selectedPatientInsights.risk_level === 'critical' ||
+      selectedPatientInsights.risk_level === 'high'
         ? 'high'
         : 'medium'
 
@@ -260,7 +281,7 @@ export default function PhysicianDashboard() {
       confidence: 0.75,
       priority,
       patient_id: selectedPatientId || undefined,
-      created_at: createdAt
+      created_at: createdAt,
     }))
   }, [selectedPatientInsights, selectedPatientId])
 
@@ -275,7 +296,7 @@ export default function PhysicianDashboard() {
       description: recommendation.description,
       priority: recommendation.priority,
       type: recommendation.type,
-      rationale: recommendation.rationale
+      rationale: recommendation.rationale,
     }))
   }, [selectedPatientRecommendations, selectedPatientId])
 
@@ -288,7 +309,7 @@ export default function PhysicianDashboard() {
         aiInsights: selectedPatientInsights?.key_insights ?? [],
         aiRecommendations: panelRecommendations,
         generatedAt: new Date().toISOString(),
-        generatedBy: user?.full_name
+        generatedBy: user?.full_name,
       }
 
       // Generate report file
@@ -304,7 +325,7 @@ export default function PhysicianDashboard() {
     },
     onSuccess: () => {
       setExportDialogOpen(false)
-    }
+    },
   })
 
   // Calculate risk counts from aggregated data
@@ -328,7 +349,7 @@ export default function PhysicianDashboard() {
       id: Date.now().toString(),
       role: ChatRole.USER,
       content: chatInput,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     }
 
     setChatMessages((prev) => [...prev, userMessage])
@@ -387,7 +408,9 @@ export default function PhysicianDashboard() {
             <Brain className="h-8 w-8 text-primary" />
             Dashboard do Médico
           </h1>
-          <p className="text-muted-foreground mt-1">Análise de risco dos pacientes e acompanhamento clínico</p>
+          <p className="text-muted-foreground mt-1">
+            Análise de risco dos pacientes e acompanhamento clínico
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={handleRefresh}>
@@ -475,7 +498,7 @@ export default function PhysicianDashboard() {
                         setFilters((currentFilters) => ({
                           ...currentFilters,
                           search: e.target.value,
-                          page: 1
+                          page: 1,
                         }))
                       }
                       className="pl-10 max-w-md"
@@ -495,7 +518,7 @@ export default function PhysicianDashboard() {
                     setFilters((currentFilters) => ({
                       ...currentFilters,
                       risk_level: value,
-                      page: 1
+                      page: 1,
                     }))
                   }
                 >
@@ -566,7 +589,7 @@ export default function PhysicianDashboard() {
               onPageChange={(page) =>
                 setFilters((currentFilters) => ({
                   ...currentFilters,
-                  page
+                  page,
                 }))
               }
               onPatientClick={handlePatientClick}
@@ -599,7 +622,9 @@ export default function PhysicianDashboard() {
                   </Select>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">Sem pacientes disponíveis para análise no momento.</p>
+                <p className="text-sm text-muted-foreground">
+                  Sem pacientes disponíveis para análise no momento.
+                </p>
               )}
             </CardContent>
           </Card>
@@ -650,7 +675,9 @@ export default function PhysicianDashboard() {
                   </Select>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">Sem pacientes disponíveis para analytics no momento.</p>
+                <p className="text-sm text-muted-foreground">
+                  Sem pacientes disponíveis para analytics no momento.
+                </p>
               )}
             </CardContent>
           </Card>

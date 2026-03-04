@@ -31,7 +31,7 @@ vi.mock('lucide-react', () => ({
   Lock: () => <div data-testid="lock-icon" />,
   ArrowUpDown: () => <div data-testid="sort-icon" />,
   ChevronLeft: () => <div data-testid="chevron-left" />,
-  ChevronRight: () => <div data-testid="chevron-right" />
+  ChevronRight: () => <div data-testid="chevron-right" />,
 }))
 
 // Sample test data
@@ -49,7 +49,7 @@ const mockUsers: AdminUser[] = [
     locked_until: null,
     permissions: ['read', 'write'],
     two_factor_enabled: false,
-    failed_login_attempts: 0
+    failed_login_attempts: 0,
   },
   {
     id: '2',
@@ -64,7 +64,7 @@ const mockUsers: AdminUser[] = [
     locked_until: '2024-12-31T23:59:59-03:00',
     permissions: ['read', 'write', 'admin'],
     two_factor_enabled: true,
-    failed_login_attempts: 3
+    failed_login_attempts: 3,
   },
   {
     id: '3',
@@ -79,8 +79,8 @@ const mockUsers: AdminUser[] = [
     locked_until: null,
     permissions: ['read'],
     two_factor_enabled: false,
-    failed_login_attempts: 0
-  }
+    failed_login_attempts: 0,
+  },
 ]
 
 const defaultProps = {
@@ -98,7 +98,7 @@ const defaultProps = {
   onUserSelect: vi.fn(),
   sortBy: 'created_at' as const,
   sortOrder: 'desc' as const,
-  onSort: vi.fn()
+  onSort: vi.fn(),
 }
 
 describe('UsersTable', () => {
@@ -124,7 +124,7 @@ describe('UsersTable', () => {
     it('renders user data in table rows', () => {
       render(<UsersTable {...defaultProps} />)
 
-      mockUsers.forEach(user => {
+      mockUsers.forEach((user) => {
         expect(screen.getByText(user['full_name'])).toBeInTheDocument()
         expect(screen.getByText(user['email'])).toBeInTheDocument()
       })
@@ -175,7 +175,9 @@ describe('UsersTable', () => {
       render(<UsersTable {...defaultProps} users={[]} />)
 
       expect(screen.getByText('Nenhum usuário encontrado')).toBeInTheDocument()
-      expect(screen.getByText('Não há usuários cadastrados ou que atendam aos filtros aplicados.')).toBeInTheDocument()
+      expect(
+        screen.getByText('Não há usuários cadastrados ou que atendam aos filtros aplicados.')
+      ).toBeInTheDocument()
     })
 
     it('shows create user suggestion in empty state', () => {
@@ -382,7 +384,7 @@ describe('UsersTable', () => {
     const paginationProps = {
       ...defaultProps,
       currentPage: 2,
-      totalPages: 5
+      totalPages: 5,
     }
 
     it('shows pagination controls when multiple pages', () => {
@@ -441,7 +443,9 @@ describe('UsersTable', () => {
 
     it('calls onBulkAction for bulk activate', async () => {
       const onBulkAction = vi.fn()
-      render(<UsersTable {...defaultProps} selectedUsers={['1', '2']} onBulkAction={onBulkAction} />)
+      render(
+        <UsersTable {...defaultProps} selectedUsers={['1', '2']} onBulkAction={onBulkAction} />
+      )
 
       const activateButton = screen.getByRole('button', { name: /ativar/i })
       await user.click(activateButton)
@@ -451,7 +455,9 @@ describe('UsersTable', () => {
 
     it('calls onBulkAction for bulk deactivate', async () => {
       const onBulkAction = vi.fn()
-      render(<UsersTable {...defaultProps} selectedUsers={['1', '2']} onBulkAction={onBulkAction} />)
+      render(
+        <UsersTable {...defaultProps} selectedUsers={['1', '2']} onBulkAction={onBulkAction} />
+      )
 
       const deactivateButton = screen.getByRole('button', { name: /desativar/i })
       await user.click(deactivateButton)
@@ -461,7 +467,9 @@ describe('UsersTable', () => {
 
     it('calls onBulkAction for bulk delete', async () => {
       const onBulkAction = vi.fn()
-      render(<UsersTable {...defaultProps} selectedUsers={['1', '2']} onBulkAction={onBulkAction} />)
+      render(
+        <UsersTable {...defaultProps} selectedUsers={['1', '2']} onBulkAction={onBulkAction} />
+      )
 
       const deleteButton = screen.getByRole('button', { name: /excluir/i })
       await user.click(deleteButton)
@@ -490,8 +498,8 @@ describe('UsersTable', () => {
         login_count: i,
         locked_until: null,
         permissions: ['read'],
-    two_factor_enabled: false,
-    failed_login_attempts: 0
+        two_factor_enabled: false,
+        failed_login_attempts: 0,
       }))
 
       const startTime = performance.now()
@@ -589,8 +597,8 @@ describe('UsersTable', () => {
           last_login: null,
           login_count: 0,
           locked_until: null,
-          permissions: []
-        }
+          permissions: [],
+        },
       ]
 
       expect(() => {
@@ -603,8 +611,8 @@ describe('UsersTable', () => {
         {
           ...mockUsers[0],
           created_at: 'invalid-date',
-          last_login: 'another-invalid-date'
-        }
+          last_login: 'another-invalid-date',
+        },
       ]
 
       expect(() => {

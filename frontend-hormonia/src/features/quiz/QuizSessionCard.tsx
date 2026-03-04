@@ -84,7 +84,7 @@ const QuizSessionCardComponent = ({ session, onContinue, onView }: QuizSessionCa
   // Calculate progress for started sessions
   const totalQuestions = Object.keys(session.responses || {}).length
   const answeredQuestions = Object.values(session.responses || {}).filter(
-    answer => answer !== null && answer !== '' && answer !== undefined
+    (answer) => answer !== null && answer !== '' && answer !== undefined
   ).length
   const progressPercentage = totalQuestions > 0 ? (answeredQuestions / totalQuestions) * 100 : 0
 
@@ -97,9 +97,7 @@ const QuizSessionCardComponent = ({ session, onContinue, onView }: QuizSessionCa
               <StatusIcon className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <CardTitle className="text-lg">
-                {session.template_name || 'Questionário'}
-              </CardTitle>
+              <CardTitle className="text-lg">{session.template_name || 'Questionário'}</CardTitle>
               <CardDescription className="flex items-center space-x-2">
                 <User className="h-3 w-3" />
                 <span>{session.patient_name || 'Paciente não encontrado'}</span>
@@ -137,7 +135,7 @@ const QuizSessionCardComponent = ({ session, onContinue, onView }: QuizSessionCa
               <span>
                 {formatDistanceToNow(new Date(session.created_at || new Date()), {
                   addSuffix: true,
-                  locale: ptBR
+                  locale: ptBR,
                 })}
               </span>
             </div>
@@ -148,7 +146,7 @@ const QuizSessionCardComponent = ({ session, onContinue, onView }: QuizSessionCa
                 <span>
                   {formatDistanceToNow(new Date(session.started_at ?? new Date()), {
                     addSuffix: true,
-                    locale: ptBR
+                    locale: ptBR,
                   })}
                 </span>
               </div>
@@ -160,7 +158,7 @@ const QuizSessionCardComponent = ({ session, onContinue, onView }: QuizSessionCa
                 <span>
                   {formatDistanceToNow(new Date(session.completed_at), {
                     addSuffix: true,
-                    locale: ptBR
+                    locale: ptBR,
                   })}
                 </span>
               </div>
@@ -170,11 +168,7 @@ const QuizSessionCardComponent = ({ session, onContinue, onView }: QuizSessionCa
           {/* Actions */}
           <div className="flex space-x-2">
             {session.status === 'in_progress' ? (
-              <Button
-                size="sm"
-                onClick={() => onContinue?.(session.id)}
-                className="flex-1"
-              >
+              <Button size="sm" onClick={() => onContinue?.(session.id)} className="flex-1">
                 <Play className="mr-2 h-4 w-4" />
                 Continuar
               </Button>
@@ -189,11 +183,7 @@ const QuizSessionCardComponent = ({ session, onContinue, onView }: QuizSessionCa
                 Visualizar
               </Button>
             ) : (
-              <Button
-                size="sm"
-                onClick={() => onContinue?.(session.id)}
-                className="flex-1"
-              >
+              <Button size="sm" onClick={() => onContinue?.(session.id)} className="flex-1">
                 <Play className="mr-2 h-4 w-4" />
                 Iniciar
               </Button>
@@ -221,8 +211,7 @@ function arePropsEqual(prevProps: QuizSessionCardProps, nextProps: QuizSessionCa
     JSON.stringify(prevProps.session.responses) === JSON.stringify(nextProps.session.responses)
 
   const callbacksEqual =
-    prevProps.onContinue === nextProps.onContinue &&
-    prevProps.onView === nextProps.onView
+    prevProps.onContinue === nextProps.onContinue && prevProps.onView === nextProps.onView
 
   return sessionEqual && callbacksEqual
 }

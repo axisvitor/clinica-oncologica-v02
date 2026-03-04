@@ -22,7 +22,7 @@ import {
   createPatientSchema,
   updatePatientSchema,
   type CreatePatientFormData,
-  type UpdatePatientFormData
+  type UpdatePatientFormData,
 } from '../schemas/patientSchema'
 
 interface UsePatientFormProps {
@@ -50,7 +50,7 @@ export function usePatientForm({
   patient,
   doctorId,
   onSuccess,
-  onClose
+  onClose,
 }: UsePatientFormProps): UsePatientFormReturn {
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -65,29 +65,43 @@ export function usePatientForm({
   // Configuração do form baseada no modo
   const form = useForm<CreatePatientFormData | UpdatePatientFormData>({
     resolver: zodResolver(mode === 'create' ? createPatientSchema : updatePatientSchema),
-    defaultValues: mode === 'edit' && patient ? {
-      name: patient.name,
-      phone: patient.phone,
-      email: patient.email || '',
-      cpf: patient.cpf || '',
-      birth_date: patient.birth_date || '',
-      treatment_type: patient.treatment_type,
-      treatment_phase: patient.treatment_phase as 'initial' | 'adjustment' | 'maintenance' | 'monitoring' | 'followup' | 'completed' | undefined,
-      treatment_start_date: patient.treatment_start_date || '',
-      diagnosis: patient.diagnosis || '',
-      doctor_notes: patient.doctor_notes || '',
-      timezone: patient.timezone || 'America/Sao_Paulo'
-    } : {
-      timezone: 'America/Sao_Paulo'
-    }
+    defaultValues:
+      mode === 'edit' && patient
+        ? {
+            name: patient.name,
+            phone: patient.phone,
+            email: patient.email || '',
+            cpf: patient.cpf || '',
+            birth_date: patient.birth_date || '',
+            treatment_type: patient.treatment_type,
+            treatment_phase: patient.treatment_phase as
+              | 'initial'
+              | 'adjustment'
+              | 'maintenance'
+              | 'monitoring'
+              | 'followup'
+              | 'completed'
+              | undefined,
+            treatment_start_date: patient.treatment_start_date || '',
+            diagnosis: patient.diagnosis || '',
+            doctor_notes: patient.doctor_notes || '',
+            timezone: patient.timezone || 'America/Sao_Paulo',
+          }
+        : {
+            timezone: 'America/Sao_Paulo',
+          },
   })
 
-  type PatientListCache = PaginatedApiResponse<Patient> & PatientListCacheBase & {
-    items?: Patient[]
-    limit?: number
-  }
+  type PatientListCache = PaginatedApiResponse<Patient> &
+    PatientListCacheBase & {
+      items?: Patient[]
+      limit?: number
+    }
 
-  const shouldInsertPatientInCache = (params: Record<string, unknown> | undefined, patient: Patient) => {
+  const shouldInsertPatientInCache = (
+    params: Record<string, unknown> | undefined,
+    patient: Patient
+  ) => {
     if (!params) return true
     if (params['cursor']) return false
     const search = params['search']
@@ -119,9 +133,7 @@ export function usePatientForm({
       if (!shouldInsertPatientInCache(params, newPatient)) return
       if (currentPatients.some((patient) => patient.id === newPatient.id)) return
 
-      const limit = Number(
-        params?.['limit'] ?? params?.['size'] ?? cache.size ?? cache.limit ?? 0
-      )
+      const limit = Number(params?.['limit'] ?? params?.['size'] ?? cache.size ?? cache.limit ?? 0)
       const nextPatients = [newPatient, ...currentPatients]
       const trimmed = limit > 0 ? nextPatients.slice(0, limit) : nextPatients
       const nextTotal = typeof cache.total === 'number' ? cache.total + 1 : cache.total
@@ -148,7 +160,7 @@ export function usePatientForm({
         timezone: data.timezone,
         cpf: data.cpf,
         diagnosis: data.diagnosis,
-        treatment_phase: data.treatment_phase
+        treatment_phase: data.treatment_phase,
       }
 
       // Only include optional fields if they have values
@@ -162,8 +174,8 @@ export function usePatientForm({
         cleanData as Parameters<typeof apiClient.patients.create>[0],
         {
           headers: {
-            'X-Idempotency-Key': idempotencyKeyRef.current
-          }
+            'X-Idempotency-Key': idempotencyKeyRef.current,
+          },
         }
       )
     },
@@ -176,7 +188,8 @@ export function usePatientForm({
       queryClient.invalidateQueries({ queryKey: ['patients'], refetchType: 'inactive' })
       toast({
         title: 'Paciente criado com sucesso',
-        description: 'O novo paciente foi adicionado e o fluxo de onboarding foi iniciado via WhatsApp.',
+        description:
+          'O novo paciente foi adicionado e o fluxo de onboarding foi iniciado via WhatsApp.',
       })
       form.reset()
       onSuccess?.()
@@ -186,9 +199,9 @@ export function usePatientForm({
       toast({
         title: 'Erro ao criar paciente',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   // Mutation para atualização
@@ -203,8 +216,8 @@ export function usePatientForm({
 
       return apiClient.patients.update(patient.id, cleanData, {
         headers: {
-          'X-Idempotency-Key': `patient-update-${patient.id}-${Date.now()}`
-        }
+          'X-Idempotency-Key': `patient-update-${patient.id}-${Date.now()}`,
+        },
       })
     },
     onSuccess: () => {
@@ -222,9 +235,9 @@ export function usePatientForm({
       toast({
         title: 'Erro ao atualizar paciente',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   // Reseta form quando paciente muda (modo edit)
@@ -237,11 +250,18 @@ export function usePatientForm({
         cpf: patient.cpf || '',
         birth_date: patient.birth_date || '',
         treatment_type: patient.treatment_type,
-        treatment_phase: patient.treatment_phase as 'initial' | 'adjustment' | 'maintenance' | 'monitoring' | 'followup' | 'completed' | undefined,
+        treatment_phase: patient.treatment_phase as
+          | 'initial'
+          | 'adjustment'
+          | 'maintenance'
+          | 'monitoring'
+          | 'followup'
+          | 'completed'
+          | undefined,
         treatment_start_date: patient.treatment_start_date || '',
         diagnosis: patient.diagnosis || '',
         doctor_notes: patient.doctor_notes || '',
-        timezone: patient.timezone || 'America/Sao_Paulo'
+        timezone: patient.timezone || 'America/Sao_Paulo',
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- form object reference is stable, only form.reset needed
@@ -262,7 +282,6 @@ export function usePatientForm({
     onSubmit,
     isPending: mutation.isPending,
     reset: form.reset,
-    resetIdempotencyKey
+    resetIdempotencyKey,
   }
 }
-

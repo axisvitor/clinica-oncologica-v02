@@ -1,10 +1,10 @@
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useUserStats } from '../useUserStats';
-import { apiClient } from '@/lib/api-client';
+import { useUserStats } from '../useUserStats'
+import { apiClient } from '@/lib/api-client'
 
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
@@ -15,7 +15,7 @@ vi.mock('@/lib/api-client', () => ({
       },
     },
   },
-}));
+}))
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -24,11 +24,11 @@ function createWrapper() {
         retry: false,
       },
     },
-  });
+  })
 
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+  )
 }
 
 const usersData = {
@@ -57,15 +57,15 @@ const usersData = {
       locked_until: '2099-01-01T00:00:00Z',
     },
   ],
-};
+}
 
 describe('useUserStats', () => {
-  const mockSystemStats = vi.mocked(apiClient.admin.system.systemStats);
-  const mockSystemHealth = vi.mocked(apiClient.admin.system.getHealth);
+  const mockSystemStats = vi.mocked(apiClient.admin.system.systemStats)
+  const mockSystemHealth = vi.mocked(apiClient.admin.system.getHealth)
 
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
+    vi.clearAllMocks()
+  })
 
   it('fetches system stats and computes metrics', async () => {
     mockSystemStats.mockResolvedValue({
@@ -73,51 +73,51 @@ describe('useUserStats', () => {
         total: 10,
         active_now: 8,
       },
-    } as any);
-    mockSystemHealth.mockResolvedValue({ status: 'healthy' } as any);
+    } as any)
+    mockSystemHealth.mockResolvedValue({ status: 'healthy' } as any)
 
     const { result } = renderHook(() => useUserStats({ usersData }), {
       wrapper: createWrapper(),
-    });
+    })
 
     await waitFor(() => {
-      expect(result.current.stats?.users.total).toBe(10);
-    });
+      expect(result.current.stats?.users.total).toBe(10)
+    })
 
-    expect(result.current.stats?.users.active).toBe(8);
-    expect(result.current.metrics?.activePercentage).toBe(80);
-    expect(mockSystemStats).toHaveBeenCalledTimes(1);
-    expect(mockSystemHealth).toHaveBeenCalledTimes(1);
-  });
+    expect(result.current.stats?.users.active).toBe(8)
+    expect(result.current.metrics?.activePercentage).toBe(80)
+    expect(mockSystemStats).toHaveBeenCalledTimes(1)
+    expect(mockSystemHealth).toHaveBeenCalledTimes(1)
+  })
 
   it('falls back to derived stats when API calls fail', async () => {
-    mockSystemStats.mockRejectedValue(new Error('down'));
-    mockSystemHealth.mockRejectedValue(new Error('down'));
+    mockSystemStats.mockRejectedValue(new Error('down'))
+    mockSystemHealth.mockRejectedValue(new Error('down'))
 
     const { result } = renderHook(() => useUserStats({ usersData }), {
       wrapper: createWrapper(),
-    });
+    })
 
     await waitFor(() => {
-      expect(result.current.stats?.users.total).toBe(3);
-    });
+      expect(result.current.stats?.users.total).toBe(3)
+    })
 
-    expect(result.current.stats?.users.active).toBe(2);
-    expect(result.current.stats?.security.failed_logins).toBe(6);
-    expect(result.current.stats?.users.locked).toBe(1);
-  });
+    expect(result.current.stats?.users.active).toBe(2)
+    expect(result.current.stats?.security.failed_logins).toBe(6)
+    expect(result.current.stats?.users.locked).toBe(1)
+  })
 
   it('does not run query when usersData is not provided', async () => {
     const { result } = renderHook(() => useUserStats(), {
       wrapper: createWrapper(),
-    });
+    })
 
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
+      expect(result.current.isLoading).toBe(false)
+    })
 
-    expect(mockSystemStats).not.toHaveBeenCalled();
-    expect(mockSystemHealth).not.toHaveBeenCalled();
-    expect(result.current.stats).toBeUndefined();
-  });
-});
+    expect(mockSystemStats).not.toHaveBeenCalled()
+    expect(mockSystemHealth).not.toHaveBeenCalled()
+    expect(result.current.stats).toBeUndefined()
+  })
+})

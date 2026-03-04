@@ -7,7 +7,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend
+  Legend,
 } from '@/components/ui/charts/RechartsPrimitives'
 import { ChartSkeleton } from '@/components/ui/chart-skeleton'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -38,12 +38,12 @@ interface CustomTooltipProps {
 
 export function EngagementChart({ data }: EngagementChartProps) {
   // Format data for chart
-  const chartData = data.map(item => ({
+  const chartData = data.map((item) => ({
     ...item,
     date: new Date(item.date).toLocaleDateString('pt-BR', {
       day: '2-digit',
-      month: '2-digit'
-    })
+      month: '2-digit',
+    }),
   }))
 
   const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
@@ -68,9 +68,7 @@ export function EngagementChart({ data }: EngagementChartProps) {
       <Card>
         <CardHeader>
           <CardTitle>Engajamento dos Pacientes</CardTitle>
-          <CardDescription>
-            Mensagens enviadas e taxa de resposta
-          </CardDescription>
+          <CardDescription>Mensagens enviadas e taxa de resposta</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="h-[300px] flex items-center justify-center">
@@ -85,9 +83,7 @@ export function EngagementChart({ data }: EngagementChartProps) {
     <Card>
       <CardHeader>
         <CardTitle>Engajamento dos Pacientes</CardTitle>
-        <CardDescription>
-          Mensagens enviadas e taxa de resposta nos últimos 7 dias
-        </CardDescription>
+        <CardDescription>Mensagens enviadas e taxa de resposta nos últimos 7 dias</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
@@ -95,22 +91,9 @@ export function EngagementChart({ data }: EngagementChartProps) {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis
-                  dataKey="date"
-                  stroke="#666"
-                  fontSize={12}
-                />
-                <YAxis
-                  yAxisId="left"
-                  stroke="#666"
-                  fontSize={12}
-                />
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  stroke="#666"
-                  fontSize={12}
-                />
+                <XAxis dataKey="date" stroke="#666" fontSize={12} />
+                <YAxis yAxisId="left" stroke="#666" fontSize={12} />
+                <YAxis yAxisId="right" orientation="right" stroke="#666" fontSize={12} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
                 <Line

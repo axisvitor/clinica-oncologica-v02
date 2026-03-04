@@ -47,12 +47,12 @@ const queryConfig: DefaultOptions = {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
 
     // REFETCH BEHAVIOR: Smart refetching to keep data fresh
-    refetchOnWindowFocus: true,  // Refresh when user returns to tab
-    refetchOnReconnect: true,    // Refresh after network reconnection
-    refetchOnMount: false,        // Don't refetch if cache is valid
+    refetchOnWindowFocus: true, // Refresh when user returns to tab
+    refetchOnReconnect: true, // Refresh after network reconnection
+    refetchOnMount: false, // Don't refetch if cache is valid
 
     // NETWORK MODE: How to handle offline scenarios
-    networkMode: 'online',        // Only fetch when online
+    networkMode: 'online', // Only fetch when online
 
     // PERFORMANCE: Keep previous data while fetching new data
     // Prevents UI flicker during background refetch
@@ -122,9 +122,9 @@ export const queryPresets = {
    * - Aggressive refetching
    */
   realtime: {
-    staleTime: 10 * 1000,        // 10 seconds
-    gcTime: 2 * 60 * 1000,       // 2 minutes
-    refetchInterval: 10 * 1000,  // Poll every 10s
+    staleTime: 10 * 1000, // 10 seconds
+    gcTime: 2 * 60 * 1000, // 2 minutes
+    refetchInterval: 10 * 1000, // Poll every 10s
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   },
@@ -136,8 +136,8 @@ export const queryPresets = {
    * - No automatic refetching
    */
   static: {
-    staleTime: 60 * 60 * 1000,   // 1 hour
-    gcTime: Infinity,             // Never garbage collect
+    staleTime: 60 * 60 * 1000, // 1 hour
+    gcTime: Infinity, // Never garbage collect
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
@@ -150,8 +150,8 @@ export const queryPresets = {
    * - Prefetch adjacent pages
    */
   paginated: {
-    staleTime: 30 * 1000,        // 30 seconds
-    gcTime: 5 * 60 * 1000,       // 5 minutes
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
     placeholderData: (previousData: unknown) => previousData,
     refetchOnWindowFocus: false, // Don't refetch pagination on focus
   },
@@ -163,8 +163,8 @@ export const queryPresets = {
    * - Refetch on important events
    */
   userSpecific: {
-    staleTime: 60 * 1000,        // 1 minute
-    gcTime: 10 * 60 * 1000,      // 10 minutes
+    staleTime: 60 * 1000, // 1 minute
+    gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   },

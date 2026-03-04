@@ -2,13 +2,13 @@
  * WhatsApp Instance Manager Component
  * Manages WhatsApp instances, QR codes, and connection status
  */
-import React, { useState, useEffect, useCallback } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import React, { useState, useEffect, useCallback } from 'react'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Phone,
   QrCode,
@@ -19,81 +19,81 @@ import {
   XCircle,
   Clock,
   User,
-  Activity
-} from 'lucide-react';
-import { whatsAppService, WhatsAppInstance } from '../../services/whatsapp/WhatsAppService';
-import { createLogger } from '@/lib/logger';
-import { useToast } from '@/components/ui/use-toast';
+  Activity,
+} from 'lucide-react'
+import { whatsAppService, WhatsAppInstance } from '../../services/whatsapp/WhatsAppService'
+import { createLogger } from '@/lib/logger'
+import { useToast } from '@/components/ui/use-toast'
 
 interface WhatsAppInstanceManagerProps {
-  onInstanceSelected?: (instance: WhatsAppInstance) => void;
+  onInstanceSelected?: (instance: WhatsAppInstance) => void
 }
 
-const logger = createLogger('WhatsAppInstanceManager');
+const logger = createLogger('WhatsAppInstanceManager')
 
 export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = ({
-  onInstanceSelected
+  onInstanceSelected,
 }) => {
   const { toast } = useToast()
-  const [instances, setInstances] = useState<WhatsAppInstance[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [newInstanceName, setNewInstanceName] = useState('');
-  const [creatingInstance, setCreatingInstance] = useState(false);
-  const [qrCodes, setQrCodes] = useState<Record<string, string>>({});
-  const [selectedInstance, setSelectedInstance] = useState<string | null>(null);
-  const [confirmDeleteName, setConfirmDeleteName] = useState<string | null>(null);
+  const [instances, setInstances] = useState<WhatsAppInstance[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [newInstanceName, setNewInstanceName] = useState('')
+  const [creatingInstance, setCreatingInstance] = useState(false)
+  const [qrCodes, setQrCodes] = useState<Record<string, string>>({})
+  const [selectedInstance, setSelectedInstance] = useState<string | null>(null)
+  const [confirmDeleteName, setConfirmDeleteName] = useState<string | null>(null)
 
   const loadInstances = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const response = await whatsAppService.listInstances();
-      setInstances(response.instances);
+      setLoading(true)
+      setError(null)
+      const response = await whatsAppService.listInstances()
+      setInstances(response.instances)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load instances');
+      setError(err instanceof Error ? err.message : 'Failed to load instances')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, []);
+  }, [])
 
   const createInstance = async () => {
     if (!newInstanceName.trim()) {
-      setError('Instance name is required');
-      return;
+      setError('Instance name is required')
+      return
     }
 
     try {
-      setCreatingInstance(true);
-      setError(null);
+      setCreatingInstance(true)
+      setError(null)
 
-      await whatsAppService.createInstance(newInstanceName.trim());
-      setNewInstanceName('');
-      await loadInstances();
+      await whatsAppService.createInstance(newInstanceName.trim())
+      setNewInstanceName('')
+      await loadInstances()
 
       // Auto-load QR code for new instance
-      setTimeout(() => loadQrCode(newInstanceName.trim()), 1000);
+      setTimeout(() => loadQrCode(newInstanceName.trim()), 1000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create instance');
+      setError(err instanceof Error ? err.message : 'Failed to create instance')
     } finally {
-      setCreatingInstance(false);
+      setCreatingInstance(false)
     }
-  };
+  }
 
   const deleteInstance = async (instanceName: string) => {
     if (confirmDeleteName === instanceName) {
       setConfirmDeleteName(null)
       try {
-        setError(null);
-        await whatsAppService.deleteInstance(instanceName);
-        await loadInstances();
-        setQrCodes(prev => {
-          const updated = { ...prev };
-          delete updated[instanceName];
-          return updated;
-        });
+        setError(null)
+        await whatsAppService.deleteInstance(instanceName)
+        await loadInstances()
+        setQrCodes((prev) => {
+          const updated = { ...prev }
+          delete updated[instanceName]
+          return updated
+        })
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to delete instance');
+        setError(err instanceof Error ? err.message : 'Failed to delete instance')
       }
       return
     }
@@ -101,80 +101,91 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
     toast({
       title: 'Confirm deletion',
       description: `Click delete again to remove instance "${instanceName}"`,
-      variant: 'destructive'
+      variant: 'destructive',
     })
     setTimeout(() => {
       setConfirmDeleteName((prev) => (prev === instanceName ? null : prev))
     }, 3000)
-  };
+  }
 
   const restartInstance = async (instanceName: string) => {
     try {
-      setError(null);
-      await whatsAppService.restartInstance(instanceName);
-      await loadInstances();
+      setError(null)
+      await whatsAppService.restartInstance(instanceName)
+      await loadInstances()
 
       // Load QR code after restart
-      setTimeout(() => loadQrCode(instanceName), 2000);
+      setTimeout(() => loadQrCode(instanceName), 2000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to restart instance');
+      setError(err instanceof Error ? err.message : 'Failed to restart instance')
     }
-  };
+  }
 
   const loadQrCode = async (instanceName: string) => {
     try {
-      const response = await whatsAppService.getQrCode(instanceName);
-      setQrCodes(prev => ({
+      const response = await whatsAppService.getQrCode(instanceName)
+      setQrCodes((prev) => ({
         ...prev,
-        [instanceName]: response.qr_code
-      }));
+        [instanceName]: response.qr_code,
+      }))
     } catch (err) {
       // QR code might not be available if already connected
-      logger.log(`QR code not available for ${instanceName}:`, err);
+      logger.log(`QR code not available for ${instanceName}:`, err)
     }
-  };
+  }
 
   const refreshInstanceStatus = async (instanceName: string) => {
     try {
-      const instance = await whatsAppService.getInstanceStatus(instanceName);
-      setInstances(prev =>
-        prev.map(inst =>
-          inst.name === instanceName
-            ? { ...inst, ...instance }
-            : inst
-        )
-      );
+      const instance = await whatsAppService.getInstanceStatus(instanceName)
+      setInstances((prev) =>
+        prev.map((inst) => (inst.name === instanceName ? { ...inst, ...instance } : inst))
+      )
 
       if (!instance.isConnected) {
-        await loadQrCode(instanceName);
+        await loadQrCode(instanceName)
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to refresh status');
+      setError(err instanceof Error ? err.message : 'Failed to refresh status')
     }
-  };
+  }
 
   const handleInstanceSelect = (instance: WhatsAppInstance) => {
-    setSelectedInstance(instance.name);
-    onInstanceSelected?.(instance);
-  };
+    setSelectedInstance(instance.name)
+    onInstanceSelected?.(instance)
+  }
 
   const getStatusBadge = (instance: WhatsAppInstance) => {
     if (instance.isConnected) {
-      return <Badge variant="default" className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" />Connected</Badge>;
+      return (
+        <Badge variant="default" className="bg-green-500">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Connected
+        </Badge>
+      )
     } else if (instance.status === 'created' || instance.status === 'disconnected') {
-      return <Badge variant="secondary"><Clock className="w-3 h-3 mr-1" />Waiting</Badge>;
+      return (
+        <Badge variant="secondary">
+          <Clock className="w-3 h-3 mr-1" />
+          Waiting
+        </Badge>
+      )
     } else {
-      return <Badge variant="destructive"><XCircle className="w-3 h-3 mr-1" />Disconnected</Badge>;
+      return (
+        <Badge variant="destructive">
+          <XCircle className="w-3 h-3 mr-1" />
+          Disconnected
+        </Badge>
+      )
     }
-  };
+  }
 
   useEffect(() => {
-    loadInstances();
+    loadInstances()
 
     // Refresh instances every 30 seconds
-    const interval = setInterval(loadInstances, 30000);
-    return () => clearInterval(interval);
-  }, [loadInstances]);
+    const interval = setInterval(loadInstances, 30000)
+    return () => clearInterval(interval)
+  }, [loadInstances])
 
   return (
     <div className="space-y-6">
@@ -209,7 +220,11 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
                 onClick={createInstance}
                 disabled={creatingInstance || !newInstanceName.trim()}
               >
-                {creatingInstance ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                {creatingInstance ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
                 Create
               </Button>
             </div>
@@ -279,8 +294,8 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
                           variant="outline"
                           size="sm"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            refreshInstanceStatus(instance.name);
+                            e.stopPropagation()
+                            refreshInstanceStatus(instance.name)
                           }}
                           aria-label="Atualizar status"
                         >
@@ -324,8 +339,8 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
                           variant="outline"
                           size="sm"
                           onClick={(e) => {
-                            e.stopPropagation();
-                            loadQrCode(instance.name);
+                            e.stopPropagation()
+                            loadQrCode(instance.name)
                           }}
                         >
                           <QrCode className="w-3 h-3 mr-1" />
@@ -337,8 +352,8 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
                         variant="outline"
                         size="sm"
                         onClick={(e) => {
-                          e.stopPropagation();
-                          restartInstance(instance.name);
+                          e.stopPropagation()
+                          restartInstance(instance.name)
                         }}
                       >
                         <RefreshCw className="w-3 h-3 mr-1" />
@@ -349,8 +364,8 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
                         variant="outline"
                         size="sm"
                         onClick={(e) => {
-                          e.stopPropagation();
-                          deleteInstance(instance.name);
+                          e.stopPropagation()
+                          deleteInstance(instance.name)
                         }}
                         className="text-red-600 hover:text-red-700"
                       >
@@ -366,7 +381,7 @@ export const WhatsAppInstanceManager: React.FC<WhatsAppInstanceManagerProps> = (
         </CardContent>
       </Card>
     </div>
-  );
-};
+  )
+}
 
-export default WhatsAppInstanceManager;
+export default WhatsAppInstanceManager

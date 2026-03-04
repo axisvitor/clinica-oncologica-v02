@@ -10,11 +10,16 @@ import { ReportCard } from '@/features/reports/ReportCard'
 import { ReportGenerator } from '@/features/reports/ReportGenerator'
 import { useToast } from '@/components/ui/use-toast'
 import { createLogger } from '@/lib/logger'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import type { Report } from '@/lib/api-client/types'
 
 const logger = createLogger('ReportsPage')
-
 
 export function ReportsPage() {
   const currentPage = 1
@@ -27,12 +32,15 @@ export function ReportsPage() {
   const { toast } = useToast()
 
   const { data: reportsData, isLoading } = useQuery({
-    queryKey: ['reports', { page: currentPage, size: 20, search: searchQuery, status: statusFilter, type: typeFilter }],
+    queryKey: [
+      'reports',
+      { page: currentPage, size: 20, search: searchQuery, status: statusFilter, type: typeFilter },
+    ],
     queryFn: async () => {
       // Build query parameters from filters
       const params: Record<string, string | number> = {
         page: currentPage,
-        size: 20
+        size: 20,
       }
 
       if (searchQuery.trim()) {
@@ -48,11 +56,14 @@ export function ReportsPage() {
       }
 
       return apiClient.reports.list(params)
-    }
+    },
   })
 
   const handleViewReport = (reportId: string) => {
-    toast({ title: 'Visualização de relatório', description: `Preview do relatório ${reportId} em breve.` })
+    toast({
+      title: 'Visualização de relatório',
+      description: `Preview do relatório ${reportId} em breve.`,
+    })
   }
 
   const handleDownloadReport = async (reportId: string) => {
@@ -60,13 +71,16 @@ export function ReportsPage() {
       setDownloading(reportId)
 
       // Make direct request to download endpoint to get blob
-      const response = await fetch(`${apiClient.getBaseURL()}/api/v2/reports/${reportId}/download`, {
-        method: 'GET',
-        headers: {
-          ...apiClient.getSessionHeaders(),
-        },
-        credentials: 'include'
-      })
+      const response = await fetch(
+        `${apiClient.getBaseURL()}/api/v2/reports/${reportId}/download`,
+        {
+          method: 'GET',
+          headers: {
+            ...apiClient.getSessionHeaders(),
+          },
+          credentials: 'include',
+        }
+      )
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Download failed' }))
@@ -80,7 +94,9 @@ export function ReportsPage() {
       // Extract filename from content-disposition header or generate default
       let filename = `report-${reportId}-${Date.now()}`
       if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=(['"]?)([^'"\n]*\.[^'"\n]*)\1?/)
+        const filenameMatch = contentDisposition.match(
+          /filename[^;=\n]*=(['"]?)([^'"\n]*\.[^'"\n]*)\1?/
+        )
         if (filenameMatch && filenameMatch[2]) {
           filename = filenameMatch[2]
         }
@@ -120,11 +136,12 @@ export function ReportsPage() {
       })
     } catch (error: unknown) {
       logger.error('Download error', { reportId, error })
-      const errorMessage = error instanceof Error ? error.message : 'Não foi possível baixar o relatório.'
+      const errorMessage =
+        error instanceof Error ? error.message : 'Não foi possível baixar o relatório.'
       toast({
         title: 'Erro no download',
         description: errorMessage,
-        variant: 'destructive'
+        variant: 'destructive',
       })
     } finally {
       setDownloading(null)
@@ -137,7 +154,7 @@ export function ReportsPage() {
       total: reportsData?.total || 0,
       completed: reports.filter((r: Report) => r.status === 'completed').length,
       generating: reports.filter((r: Report) => r.status === 'generating').length,
-      failed: reports.filter((r: Report) => r.status === 'failed').length
+      failed: reports.filter((r: Report) => r.status === 'failed').length,
     }
   }
 
@@ -149,9 +166,7 @@ export function ReportsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Relatórios</h1>
-          <p className="text-gray-600">
-            Gere e gerencie relatórios médicos detalhados
-          </p>
+          <p className="text-gray-600">Gere e gerencie relatórios médicos detalhados</p>
         </div>
         <Button onClick={() => setShowGenerateDialog(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -163,61 +178,45 @@ export function ReportsPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total de Relatórios
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Relatórios</CardTitle>
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">
-              Relatórios no sistema
-            </p>
+            <p className="text-xs text-muted-foreground">Relatórios no sistema</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Concluídos
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Concluídos</CardTitle>
             <Download className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.completed}</div>
-            <p className="text-xs text-muted-foreground">
-              Prontos para download
-            </p>
+            <p className="text-xs text-muted-foreground">Prontos para download</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Em Processamento
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Em Processamento</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.generating}</div>
-            <p className="text-xs text-muted-foreground">
-              Sendo gerados
-            </p>
+            <p className="text-xs text-muted-foreground">Sendo gerados</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Com Erro
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Com Erro</CardTitle>
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.failed}</div>
-            <p className="text-xs text-muted-foreground">
-              Falharam na geração
-            </p>
+            <p className="text-xs text-muted-foreground">Falharam na geração</p>
           </CardContent>
         </Card>
       </div>
@@ -325,10 +324,7 @@ export function ReportsPage() {
       </div>
 
       {/* Generate Report Dialog */}
-      <ReportGenerator
-        open={showGenerateDialog}
-        onOpenChange={setShowGenerateDialog}
-      />
+      <ReportGenerator open={showGenerateDialog} onOpenChange={setShowGenerateDialog} />
     </div>
   )
 }

@@ -9,9 +9,9 @@ vi.mock('@/lib/api-client', () => ({
   apiClient: {
     quizzes: {
       listTemplates: vi.fn(),
-      getTemplateAnalytics: vi.fn()
-    }
-  }
+      getTemplateAnalytics: vi.fn(),
+    },
+  },
 }))
 
 // Test data
@@ -23,7 +23,7 @@ const mockTemplates = [
     questions: [],
     is_active: true,
     created_at: '2024-01-15T10:00:00-03:00',
-    updated_at: '2024-01-15T10:00:00-03:00'
+    updated_at: '2024-01-15T10:00:00-03:00',
   },
   {
     id: '2',
@@ -32,7 +32,7 @@ const mockTemplates = [
     questions: [],
     is_active: true,
     created_at: '2024-01-10T10:00:00-03:00',
-    updated_at: '2024-01-10T10:00:00-03:00'
+    updated_at: '2024-01-10T10:00:00-03:00',
   },
   {
     id: '3',
@@ -41,7 +41,7 @@ const mockTemplates = [
     questions: [],
     is_active: false,
     created_at: '2024-01-20T10:00:00-03:00',
-    updated_at: '2024-01-20T10:00:00-03:00'
+    updated_at: '2024-01-20T10:00:00-03:00',
   },
   {
     id: '4',
@@ -50,14 +50,14 @@ const mockTemplates = [
     questions: [],
     is_active: true,
     created_at: '2024-01-05T10:00:00-03:00',
-    updated_at: '2024-01-05T10:00:00-03:00'
-  }
+    updated_at: '2024-01-05T10:00:00-03:00',
+  },
 ]
 
 const mockAnalytics = {
   total_responses: 42,
   completion_rate: 0.85,
-  average_completion_time: 300
+  average_completion_time: 300,
 }
 
 // Helper to create wrapper with QueryClient
@@ -66,9 +66,9 @@ function createWrapper() {
     defaultOptions: {
       queries: {
         retry: false,
-        gcTime: 0
-      }
-    }
+        gcTime: 0,
+      },
+    },
   })
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -84,7 +84,7 @@ describe('useQuestionarios', () => {
 
   it('should fetch all templates by default', async () => {
     const { result } = renderHook(() => useQuestionarios({ queryOverrides: { retry: 0 } }), {
-      wrapper: createWrapper()
+      wrapper: createWrapper(),
     })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
@@ -134,7 +134,7 @@ describe('useQuestionarios', () => {
 
     expect(result.current.data?.items).toHaveLength(2)
     expect(result.current.data?.total).toBe(2)
-    result.current.data?.items.forEach(template => {
+    result.current.data?.items.forEach((template) => {
       expect(template.name.toLowerCase()).toContain('wellness')
     })
   })
@@ -175,7 +175,7 @@ describe('useQuestionarios', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
-    const names = result.current.data?.items.map(t => t.name) || []
+    const names = result.current.data?.items.map((t) => t.name) || []
     expect(names[0]).toBe('Medical Health Check')
     expect(names[1]).toBe('Medical Oncology Assessment')
   })
@@ -195,7 +195,7 @@ describe('useQuestionarios', () => {
 
   it('should sort by created_at descending (default)', async () => {
     const { result } = renderHook(() => useQuestionarios(), {
-      wrapper: createWrapper()
+      wrapper: createWrapper(),
     })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
@@ -208,7 +208,8 @@ describe('useQuestionarios', () => {
 
   it('should sort by created_at ascending', async () => {
     const { result } = renderHook(
-      () => useQuestionarios({ sortBy: 'created_at', sortOrder: 'asc', queryOverrides: { retry: 0 } }),
+      () =>
+        useQuestionarios({ sortBy: 'created_at', sortOrder: 'asc', queryOverrides: { retry: 0 } }),
       { wrapper: createWrapper() }
     )
 
@@ -254,7 +255,7 @@ describe('useQuestionarios', () => {
           type: 'medical',
           status: 'active',
           search: 'oncology',
-          queryOverrides: { retry: 0 }
+          queryOverrides: { retry: 0 },
         }),
       { wrapper: createWrapper() }
     )
@@ -268,7 +269,7 @@ describe('useQuestionarios', () => {
 
   it('should fetch analytics for each template', async () => {
     const { result } = renderHook(() => useQuestionarios(), {
-      wrapper: createWrapper()
+      wrapper: createWrapper(),
     })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
@@ -286,7 +287,7 @@ describe('useQuestionarios', () => {
     )
 
     const { result } = renderHook(() => useQuestionarios(), {
-      wrapper: createWrapper()
+      wrapper: createWrapper(),
     })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
@@ -295,19 +296,16 @@ describe('useQuestionarios', () => {
       expect(template.analytics).toEqual({
         total_responses: 0,
         completion_rate: 0,
-        average_completion_time: null
+        average_completion_time: null,
       })
     })
   })
 
   it('should update query key when filters change', async () => {
-    const { result, rerender } = renderHook(
-      ({ options }) => useQuestionarios(options),
-      {
-        wrapper: createWrapper(),
-        initialProps: { options: { search: 'medical', queryOverrides: { retry: 0 } } }
-      }
-    )
+    const { result, rerender } = renderHook(({ options }) => useQuestionarios(options), {
+      wrapper: createWrapper(),
+      initialProps: { options: { search: 'medical', queryOverrides: { retry: 0 } } },
+    })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(result.current.data?.total).toBe(2)
@@ -334,12 +332,10 @@ describe('useQuestionarios', () => {
   })
 
   it('should handle API error', async () => {
-    vi.mocked(apiClient.quizzes.listTemplates).mockRejectedValue(
-      new Error('API Error')
-    )
+    vi.mocked(apiClient.quizzes.listTemplates).mockRejectedValue(new Error('API Error'))
 
     const { result } = renderHook(() => useQuestionarios({ queryOverrides: { retry: 0 } }), {
-      wrapper: createWrapper()
+      wrapper: createWrapper(),
     })
 
     await waitFor(() => expect(result.current.isError).toBe(true))
@@ -349,7 +345,7 @@ describe('useQuestionarios', () => {
 
   it('should use correct staleTime and gcTime', () => {
     const { result } = renderHook(() => useQuestionarios(), {
-      wrapper: createWrapper()
+      wrapper: createWrapper(),
     })
 
     // Query options are set correctly
@@ -365,13 +361,15 @@ describe('useQuestionarios', () => {
       .mockResolvedValueOnce({ total_responses: 30, completion_rate: 0.85 })
 
     const { result } = renderHook(
-      () => useQuestionarios({ sortBy: 'responses', sortOrder: 'desc', queryOverrides: { retry: 0 } }),
+      () =>
+        useQuestionarios({ sortBy: 'responses', sortOrder: 'desc', queryOverrides: { retry: 0 } }),
       { wrapper: createWrapper() }
     )
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
-    const responses = result.current.data?.items.map((t: any) => t.analytics?.total_responses || 0) || []
+    const responses =
+      result.current.data?.items.map((t: any) => t.analytics?.total_responses || 0) || []
     for (let i = 0; i < responses.length - 1; i++) {
       expect(responses[i]).toBeGreaterThanOrEqual(responses[i + 1])
     }

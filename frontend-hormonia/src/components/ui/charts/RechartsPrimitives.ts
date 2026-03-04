@@ -31,6 +31,6 @@ export {
   Cross,
   Dot,
   Polygon,
-} from 'recharts';
+} from 'recharts'
 
-export type { TooltipProps } from 'recharts';
+export type { TooltipProps } from 'recharts'

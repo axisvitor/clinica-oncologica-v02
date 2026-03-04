@@ -2,11 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { createLogger } from '@/lib/logger'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { apiClient } from '@/lib/api-client'
-import { useConfig } from '@/lib/config-initializer'
 import { Settings } from 'lucide-react'
 
 const logger = createLogger('AdminSettingsTab')
@@ -26,7 +24,7 @@ interface SettingsPayload {
 interface AdminSettingsTabProps {
   isLoading: boolean
   setIsLoading: (loading: boolean) => void
-  setMessage: (message: { type: 'success' | 'error', text: string } | null) => void
+  setMessage: (message: { type: 'success' | 'error'; text: string } | null) => void
 }
 
 /**
@@ -36,10 +34,13 @@ interface AdminSettingsTabProps {
  * - AI and automation settings
  * - System maintenance mode
  * - Debug mode
- * - External integrations (Evolution API, Gemini)
+ * - External integrations
  */
-export default function AdminSettingsTab({ isLoading, setIsLoading, setMessage }: AdminSettingsTabProps) {
-  const { config } = useConfig()
+export default function AdminSettingsTab({
+  isLoading,
+  setIsLoading,
+  setMessage,
+}: AdminSettingsTabProps) {
   const [aiEnabled, setAiEnabled] = useState(true)
   const [autoReply, setAutoReply] = useState(true)
   const [maintenanceMode, setMaintenanceMode] = useState(false)
@@ -56,7 +57,7 @@ export default function AdminSettingsTab({ isLoading, setIsLoading, setMessage }
           maintenance_mode: boolean
           debug_mode: boolean
         }>('/admin/settings', {
-          method: 'GET'
+          method: 'GET',
         })
 
         if (response && typeof response === 'object') {
@@ -88,12 +89,12 @@ export default function AdminSettingsTab({ isLoading, setIsLoading, setMessage }
         ai_enabled: aiEnabled,
         auto_reply: autoReply,
         maintenance_mode: maintenanceMode,
-        debug_mode: debugMode
+        debug_mode: debugMode,
       }
 
       await apiClient.request<SaveSettingsResponse>('/admin/settings', {
         method: 'PUT',
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       })
 
       setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' })
@@ -115,9 +116,7 @@ export default function AdminSettingsTab({ isLoading, setIsLoading, setMessage }
             </div>
             <div>
               <CardTitle>Configurações do Sistema</CardTitle>
-              <CardDescription>
-                Ajuste o comportamento e funcionalidades do sistema
-              </CardDescription>
+              <CardDescription>Ajuste o comportamento e funcionalidades do sistema</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -125,18 +124,20 @@ export default function AdminSettingsTab({ isLoading, setIsLoading, setMessage }
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
             <div className="space-y-1 flex-1">
               <div className="flex items-center gap-2">
-                <Label htmlFor="ai-enabled" className="font-semibold">IA Habilitada</Label>
-                {aiEnabled && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Ativo</span>}
+                <Label htmlFor="ai-enabled" className="font-semibold">
+                  IA Habilitada
+                </Label>
+                {aiEnabled && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                    Ativo
+                  </span>
+                )}
               </div>
               <p className="text-sm text-gray-600">
                 Ativa o processamento de IA para mensagens e respostas automáticas
               </p>
             </div>
-            <Switch
-              id="ai-enabled"
-              checked={aiEnabled}
-              onCheckedChange={setAiEnabled}
-            />
+            <Switch id="ai-enabled" checked={aiEnabled} onCheckedChange={setAiEnabled} />
           </div>
 
           <div className="flex items-center justify-between">
@@ -146,19 +147,13 @@ export default function AdminSettingsTab({ isLoading, setIsLoading, setMessage }
                 Responde automaticamente às mensagens dos pacientes
               </p>
             </div>
-            <Switch
-              id="auto-reply"
-              checked={autoReply}
-              onCheckedChange={setAutoReply}
-            />
+            <Switch id="auto-reply" checked={autoReply} onCheckedChange={setAutoReply} />
           </div>
 
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label htmlFor="maintenance">Modo de Manutenção</Label>
-              <p className="text-sm text-gray-600">
-                Desativa o sistema para manutenção
-              </p>
+              <p className="text-sm text-gray-600">Desativa o sistema para manutenção</p>
             </div>
             <Switch
               id="maintenance"
@@ -170,22 +165,12 @@ export default function AdminSettingsTab({ isLoading, setIsLoading, setMessage }
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <Label htmlFor="debug">Modo Debug</Label>
-              <p className="text-sm text-gray-600">
-                Ativa logs detalhados para debugging
-              </p>
+              <p className="text-sm text-gray-600">Ativa logs detalhados para debugging</p>
             </div>
-            <Switch
-              id="debug"
-              checked={debugMode}
-              onCheckedChange={setDebugMode}
-            />
+            <Switch id="debug" checked={debugMode} onCheckedChange={setDebugMode} />
           </div>
 
-          <Button
-            onClick={handleSaveSettings}
-            disabled={isLoading}
-            className="w-full"
-          >
+          <Button onClick={handleSaveSettings} disabled={isLoading} className="w-full">
             {isLoading ? 'Salvando...' : 'Salvar Configurações'}
           </Button>
         </CardContent>
@@ -194,20 +179,9 @@ export default function AdminSettingsTab({ isLoading, setIsLoading, setMessage }
       <Card>
         <CardHeader>
           <CardTitle>Integrações</CardTitle>
-          <CardDescription>
-            Configure as integrações externas
-          </CardDescription>
+          <CardDescription>Configure as integrações externas</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="evolution-url">Evolution API URL</Label>
-            <Input
-              id="evolution-url"
-              placeholder="https://api.evolution.com"
-              defaultValue={config?.VITE_EVOLUTION_API_URL || ''}
-            />
-          </div>
-
           <Button className="w-full">Atualizar Integrações</Button>
         </CardContent>
       </Card>

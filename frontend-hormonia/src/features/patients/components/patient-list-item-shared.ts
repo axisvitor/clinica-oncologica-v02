@@ -71,10 +71,7 @@ export function handleNavigateOnKeyboard(
   }
 }
 
-export function getPatientNavigateProps(
-  onNavigate: (id: string) => void,
-  patient: Patient
-) {
+export function getPatientNavigateProps(onNavigate: (id: string) => void, patient: Patient) {
   return {
     onClick: () => onNavigate(patient.id),
     onKeyDown: (event: React.KeyboardEvent<HTMLElement>) =>

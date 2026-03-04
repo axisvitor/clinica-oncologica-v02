@@ -1,13 +1,7 @@
-import React, { useState, useEffect, Suspense } from 'react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LineChart, PieChart, RadarChart } from '@/components/ui/charts/LazyRechartsComponents';
+import React, { useState, useEffect, Suspense } from 'react'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { LineChart, PieChart, RadarChart } from '@/components/ui/charts/LazyRechartsComponents'
 import {
   Line,
   Pie,
@@ -22,13 +16,13 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
-} from '@/components/ui/charts/RechartsPrimitives';
-import { ChartSkeleton } from '@/components/ui/chart-skeleton';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
+} from '@/components/ui/charts/RechartsPrimitives'
+import { ChartSkeleton } from '@/components/ui/chart-skeleton'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Activity,
   AlertTriangle,
@@ -39,88 +33,88 @@ import {
   Brain,
   ClipboardCheck,
   RefreshCw,
-} from 'lucide-react';
-import { useWebSocket } from '@/hooks/useWebSocket';
-import { useClinicalMetrics } from '@/hooks/api/useClinicalMetrics';
-import { useRiskPatients } from '@/hooks/api/useRiskPatients';
-import type { PatientRisk } from '@/hooks/api/useRiskPatients';
-import { useAdherenceData } from '@/hooks/api/useAdherenceData';
-import { useQueryClient } from '@tanstack/react-query';
-
+} from 'lucide-react'
+import { useWebSocket } from '@/hooks/useWebSocket'
+import { useClinicalMetrics } from '@/hooks/api/useClinicalMetrics'
+import { useRiskPatients } from '@/hooks/api/useRiskPatients'
+import type { PatientRisk } from '@/hooks/api/useRiskPatients'
+import { useAdherenceData } from '@/hooks/api/useAdherenceData'
+import { useQueryClient } from '@tanstack/react-query'
 
 const ClinicalMonitoringDashboard: React.FC = () => {
-  const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '30d' | '90d'>('7d');
-  const [refreshing, setRefreshing] = useState(false);
-  const queryClient = useQueryClient();
+  const [selectedTimeRange, setSelectedTimeRange] = useState<'7d' | '30d' | '90d'>('7d')
+  const [refreshing, setRefreshing] = useState(false)
+  const queryClient = useQueryClient()
 
   // React Query hooks for data fetching
   const {
     data: metrics,
     isLoading: isLoadingMetrics,
     error: metricsError,
-    refetch: refetchMetrics
+    refetch: refetchMetrics,
   } = useClinicalMetrics({
     timeRange: selectedTimeRange,
-    refetchInterval: 30000
-  });
+    refetchInterval: 30000,
+  })
 
   const {
     data: riskPatients = [],
     isLoading: isLoadingRisk,
-    refetch: refetchRisk
-  } = useRiskPatients();
+    refetch: refetchRisk,
+  } = useRiskPatients()
 
   const {
     data: adherenceData = [],
     isLoading: isLoadingAdherence,
-    refetch: refetchAdherence
+    refetch: refetchAdherence,
   } = useAdherenceData({
-    days: parseInt(selectedTimeRange.replace('d', ''))
-  });
+    days: parseInt(selectedTimeRange.replace('d', '')),
+  })
 
-  const isLoading = isLoadingMetrics || isLoadingRisk || isLoadingAdherence;
+  const isLoading = isLoadingMetrics || isLoadingRisk || isLoadingAdherence
 
   // WebSocket para atualizações em tempo real
-  const { lastMessage: wsData } = useWebSocket({ url: '/clinical-metrics' });
+  const { lastMessage: wsData } = useWebSocket({ url: '/clinical-metrics' })
 
   // Atualizar com dados do WebSocket
   useEffect(() => {
     if (wsData?.type === 'metrics_update') {
-      queryClient.invalidateQueries({ queryKey: ['clinical', 'metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['clinical', 'metrics'] })
     }
     if (wsData?.type === 'risk_alert') {
-      queryClient.invalidateQueries({ queryKey: ['clinical', 'risk-patients'] });
+      queryClient.invalidateQueries({ queryKey: ['clinical', 'risk-patients'] })
     }
-  }, [wsData, queryClient]);
+  }, [wsData, queryClient])
 
   const handleRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([
-      refetchMetrics(),
-      refetchRisk(),
-      refetchAdherence()
-    ]);
-    setRefreshing(false);
-  };
+    setRefreshing(true)
+    await Promise.all([refetchMetrics(), refetchRisk(), refetchAdherence()])
+    setRefreshing(false)
+  }
 
   // Dados para gráficos (PLACEHOLDER - aguardando integração com API real)
   const sentimentDistribution = [
     { name: 'Positivo', value: 45, color: '#10b981' },
     { name: 'Neutro', value: 35, color: '#6b7280' },
     { name: 'Negativo', value: 20, color: '#ef4444' },
-  ];
+  ]
 
   const getRiskColor = (level: string) => {
     switch (level) {
-      case 'low': return '#10b981';
-      case 'medium': return '#f59e0b';
-      case 'high': return '#ef4444';
-      case 'critical': return '#7c3aed';
-      default: return '#6b7280';
+      case 'low':
+        return '#10b981'
+      case 'medium':
+        return '#f59e0b'
+      case 'high':
+        return '#ef4444'
+      case 'critical':
+        return '#7c3aed'
+      default:
+        return '#6b7280'
     }
-  };
+  }
 
-  const formatPercentage = (value: number) => `${(value * 100).toFixed(1)}%`;
+  const formatPercentage = (value: number) => `${(value * 100).toFixed(1)}%`
 
   // Loading state with skeleton
   if (isLoading && !metrics) {
@@ -128,11 +122,13 @@ const ClinicalMonitoringDashboard: React.FC = () => {
       <div className="p-6 space-y-6">
         <Skeleton className="h-12 w-96" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-32" />)}
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
         </div>
         <Skeleton className="h-96 w-full" />
       </div>
-    );
+    )
   }
 
   // Error state
@@ -150,12 +146,12 @@ const ClinicalMonitoringDashboard: React.FC = () => {
           </AlertDescription>
         </Alert>
       </div>
-    );
+    )
   }
 
   // Ensure metrics is defined before rendering
   if (!metrics) {
-    return null;
+    return null
   }
 
   return (
@@ -164,7 +160,9 @@ const ClinicalMonitoringDashboard: React.FC = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Monitoramento Clínico</h1>
-          <p className="text-gray-500">Acompanhamento em tempo real do engajamento e bem-estar dos pacientes</p>
+          <p className="text-gray-500">
+            Acompanhamento em tempo real do engajamento e bem-estar dos pacientes
+          </p>
         </div>
         <div className="flex gap-2">
           <select
@@ -176,11 +174,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
             <option value="30d">Últimos 30 dias</option>
             <option value="90d">Últimos 90 dias</option>
           </select>
-          <Button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            variant="outline"
-          >
+          <Button onClick={handleRefresh} disabled={refreshing} variant="outline">
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
@@ -234,7 +228,11 @@ const ClinicalMonitoringDashboard: React.FC = () => {
             <div className="mt-2">
               <Badge
                 variant="outline"
-                className={metrics.averageSentiment > 0.3 ? 'bg-green-100 text-green-800 border-green-300' : 'bg-yellow-100 text-yellow-800 border-yellow-300'}
+                className={
+                  metrics.averageSentiment > 0.3
+                    ? 'bg-green-100 text-green-800 border-green-300'
+                    : 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                }
               >
                 {metrics.averageSentiment > 0.3 ? 'Positivo' : 'Atenção'}
               </Badge>
@@ -326,7 +324,9 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, value }: { name: string; value: number }) => `${name}: ${value}%`}
+                        label={({ name, value }: { name: string; value: number }) =>
+                          `${name}: ${value}%`
+                        }
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
@@ -373,14 +373,15 @@ const ClinicalMonitoringDashboard: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Pacientes Requerendo Atenção</CardTitle>
-              <CardDescription>
-                Lista de pacientes com indicadores de risco elevado
-              </CardDescription>
+              <CardDescription>Lista de pacientes com indicadores de risco elevado</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {riskPatients.map((patient: PatientRisk) => (
-                  <Alert key={patient.id} variant={patient.riskLevel === 'critical' ? 'destructive' : 'default'}>
+                  <Alert
+                    key={patient.id}
+                    variant={patient.riskLevel === 'critical' ? 'destructive' : 'default'}
+                  >
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle className="flex justify-between">
                       <span>{patient.name}</span>
@@ -429,18 +430,26 @@ const ClinicalMonitoringDashboard: React.FC = () => {
               <Suspense fallback={<ChartSkeleton height="400px" />}>
                 <ResponsiveContainer width="100%" height={400}>
                   {/* PLACEHOLDER - Aguardando integração com useAdherenceData */}
-                  <RadarChart data={[
-                    { metric: 'Mensagens', value: 75 },
-                    { metric: 'Quiz', value: 65 },
-                    { metric: 'Check-ins', value: 80 },
-                    { metric: 'Consultas', value: 90 },
-                    { metric: 'Feedback', value: 55 },
-                    { metric: 'App Usage', value: 70 },
-                  ]}>
+                  <RadarChart
+                    data={[
+                      { metric: 'Mensagens', value: 75 },
+                      { metric: 'Quiz', value: 65 },
+                      { metric: 'Check-ins', value: 80 },
+                      { metric: 'Consultas', value: 90 },
+                      { metric: 'Feedback', value: 55 },
+                      { metric: 'App Usage', value: 70 },
+                    ]}
+                  >
                     <PolarGrid />
                     <PolarAngleAxis dataKey="metric" />
                     <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                    <Radar name="Engajamento" dataKey="value" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.6} />
+                    <Radar
+                      name="Engajamento"
+                      dataKey="value"
+                      stroke="#8b5cf6"
+                      fill="#8b5cf6"
+                      fillOpacity={0.6}
+                    />
                   </RadarChart>
                 </ResponsiveContainer>
               </Suspense>
@@ -453,9 +462,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Recomendações Clínicas</CardTitle>
-          <CardDescription>
-            Sugestões baseadas na análise dos dados
-          </CardDescription>
+          <CardDescription>Sugestões baseadas na análise dos dados</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -464,7 +471,8 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Engajamento Baixo</AlertTitle>
                 <AlertDescription>
-                  Considere revisar o conteúdo das mensagens ou aumentar a frequência de check-ins motivacionais.
+                  Considere revisar o conteúdo das mensagens ou aumentar a frequência de check-ins
+                  motivacionais.
                 </AlertDescription>
               </Alert>
             )}
@@ -474,7 +482,8 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Baixa Conclusão de Questionários</AlertTitle>
                 <AlertDescription>
-                  Simplifique os questionários ou envie lembretes adicionais para aumentar a taxa de conclusão.
+                  Simplifique os questionários ou envie lembretes adicionais para aumentar a taxa de
+                  conclusão.
                 </AlertDescription>
               </Alert>
             )}
@@ -484,7 +493,8 @@ const ClinicalMonitoringDashboard: React.FC = () => {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Múltiplos Pacientes em Risco</AlertTitle>
                 <AlertDescription>
-                  {metrics.riskPatients} pacientes requerem atenção imediata. Priorize contato direto.
+                  {metrics.riskPatients} pacientes requerem atenção imediata. Priorize contato
+                  direto.
                 </AlertDescription>
               </Alert>
             )}
@@ -502,7 +512,7 @@ const ClinicalMonitoringDashboard: React.FC = () => {
         </CardContent>
       </Card>
     </div>
-  );
-};
+  )
+}
 
-export default ClinicalMonitoringDashboard;
+export default ClinicalMonitoringDashboard

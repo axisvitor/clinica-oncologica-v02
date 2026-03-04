@@ -1,6 +1,12 @@
 import React from 'react'
 import { FileText, Download } from 'lucide-react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 
 interface PhysicianExportDialogProps {
@@ -14,7 +20,7 @@ export function PhysicianExportDialog({
   open,
   onOpenChange,
   onExport,
-  isPending
+  isPending,
 }: PhysicianExportDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -24,9 +30,7 @@ export function PhysicianExportDialog({
             <FileText className="h-5 w-5" />
             Exportar Relatório
           </DialogTitle>
-          <DialogDescription>
-            Escolha o formato do relatório para exportação
-          </DialogDescription>
+          <DialogDescription>Escolha o formato do relatório para exportação</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">

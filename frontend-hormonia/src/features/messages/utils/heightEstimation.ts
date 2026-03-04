@@ -19,7 +19,8 @@ export const HEIGHT_CONSTANTS = {
  */
 export const estimateMessageHeight = (contentLength: number): number => {
   const estimatedLines = Math.ceil(contentLength / HEIGHT_CONSTANTS.CHARS_PER_LINE)
-  const calculatedHeight = HEIGHT_CONSTANTS.MESSAGE_BASE + (estimatedLines * HEIGHT_CONSTANTS.MESSAGE_LINE_HEIGHT)
+  const calculatedHeight =
+    HEIGHT_CONSTANTS.MESSAGE_BASE + estimatedLines * HEIGHT_CONSTANTS.MESSAGE_LINE_HEIGHT
 
   // Clamp between min and max
   return Math.min(

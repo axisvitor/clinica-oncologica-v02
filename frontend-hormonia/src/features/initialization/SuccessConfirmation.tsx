@@ -1,5 +1,18 @@
 import React, { useState, useEffect } from 'react'
-import { CheckCircle, Download, ExternalLink, Copy, PartyPopper, Users, Calendar, FileText, Activity, Shield, Settings, ArrowRight } from 'lucide-react'
+import {
+  CheckCircle,
+  Download,
+  ExternalLink,
+  Copy,
+  PartyPopper,
+  Users,
+  Calendar,
+  FileText,
+  Activity,
+  Shield,
+  Settings,
+  ArrowRight,
+} from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -25,10 +38,7 @@ interface SuccessConfirmationProps {
   }
 }
 
-export function SuccessConfirmation({
-  onComplete,
-  setupData
-}: SuccessConfirmationProps) {
+export function SuccessConfirmation({ onComplete, setupData }: SuccessConfirmationProps) {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [showCredentials, setShowCredentials] = useState(false)
   const { toast } = useToast()
@@ -42,7 +52,7 @@ export function SuccessConfirmation({
       title: '🎉 Sistema Configurado com Sucesso!',
       description: 'Sua clínica oncológica está pronta para uso.',
     })
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable and should only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is stable and should only run on mount
   }, [])
 
   const handleGenerateReport = async () => {
@@ -59,8 +69,8 @@ export function SuccessConfirmation({
           'Configurar perfis de usuários adicionais',
           'Importar dados de pacientes (se necessário)',
           'Configurar preferências da clínica',
-          'Testar funcionalidades principais'
-        ]
+          'Testar funcionalidades principais',
+        ],
       }
 
       // In production, this would generate a PDF or send via email
@@ -73,13 +83,12 @@ export function SuccessConfirmation({
         title: 'Relatório Gerado',
         description: 'Relatório de configuração copiado para a área de transferência.',
       })
-
     } catch (error) {
       logger.error('Failed to generate report:', error)
       toast({
         title: 'Erro ao Gerar Relatório',
         description: 'Não foi possível gerar o relatório de configuração.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
     } finally {
       setIsGeneratingReport(false)
@@ -113,7 +122,7 @@ IMPORTANTE:
       toast({
         title: 'Erro ao Copiar',
         description: 'Não foi possível copiar as credenciais.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
     }
   }
@@ -122,33 +131,33 @@ IMPORTANTE:
     {
       icon: <Users className="w-5 h-5 text-blue-500" />,
       title: 'Gestão de Pacientes',
-      description: 'Cadastro e acompanhamento completo'
+      description: 'Cadastro e acompanhamento completo',
     },
     {
       icon: <Calendar className="w-5 h-5 text-green-500" />,
       title: 'Agendamento',
-      description: 'Sistema inteligente com notificações'
+      description: 'Sistema inteligente com notificações',
     },
     {
       icon: <FileText className="w-5 h-5 text-purple-500" />,
       title: 'Prontuários Digitais',
-      description: 'Documentação médica eletrônica'
+      description: 'Documentação médica eletrônica',
     },
     {
       icon: <Activity className="w-5 h-5 text-orange-500" />,
       title: 'Monitoramento',
-      description: 'Acompanhamento em tempo real'
+      description: 'Acompanhamento em tempo real',
     },
     {
       icon: <Shield className="w-5 h-5 text-red-500" />,
       title: 'Segurança',
-      description: 'Proteção de dados certificada'
+      description: 'Proteção de dados certificada',
     },
     {
       icon: <Settings className="w-5 h-5 text-gray-500" />,
       title: 'Administração',
-      description: 'Controle total do sistema'
-    }
+      description: 'Controle total do sistema',
+    },
   ]
 
   const nextSteps = [
@@ -156,32 +165,32 @@ IMPORTANTE:
       title: 'Primeiro Acesso',
       description: 'Faça login com as credenciais de administrador criadas',
       action: 'Ir para Login',
-      priority: 'high'
+      priority: 'high',
     },
     {
       title: 'Configurar Perfil',
       description: 'Complete seu perfil profissional e preferências',
       action: 'Configurar',
-      priority: 'high'
+      priority: 'high',
     },
     {
       title: 'Adicionar Usuários',
       description: 'Convide sua equipe e configure permissões',
       action: 'Gerenciar Usuários',
-      priority: 'medium'
+      priority: 'medium',
     },
     {
       title: 'Importar Dados',
       description: 'Migre dados existentes de pacientes (opcional)',
       action: 'Importar',
-      priority: 'low'
+      priority: 'low',
     },
     {
       title: 'Explorar Recursos',
       description: 'Conheça todas as funcionalidades disponíveis',
       action: 'Tour Guiado',
-      priority: 'low'
-    }
+      priority: 'low',
+    },
   ]
 
   return (
@@ -268,8 +277,8 @@ IMPORTANTE:
             <Alert className="bg-yellow-50 border-yellow-200">
               <Shield className="h-4 w-4 text-yellow-600" />
               <AlertDescription className="text-yellow-800">
-                <strong>Importante:</strong> Guarde suas credenciais em local seguro.
-                Estas informações são necessárias para o primeiro acesso.
+                <strong>Importante:</strong> Guarde suas credenciais em local seguro. Estas
+                informações são necessárias para o primeiro acesso.
               </AlertDescription>
             </Alert>
 
@@ -284,9 +293,15 @@ IMPORTANTE:
 
               {showCredentials && setupData?.adminUser && (
                 <div className="p-3 bg-gray-50 rounded-lg text-sm">
-                  <div><strong>Email:</strong> {setupData.adminUser.email}</div>
-                  <div><strong>Nome:</strong> {setupData.adminUser.name}</div>
-                  <div><strong>Função:</strong> {setupData.adminUser.role}</div>
+                  <div>
+                    <strong>Email:</strong> {setupData.adminUser.email}
+                  </div>
+                  <div>
+                    <strong>Nome:</strong> {setupData.adminUser.name}
+                  </div>
+                  <div>
+                    <strong>Função:</strong> {setupData.adminUser.role}
+                  </div>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -307,9 +322,7 @@ IMPORTANTE:
       <Card>
         <CardHeader>
           <CardTitle>Recursos Disponíveis</CardTitle>
-          <CardDescription>
-            Explore as funcionalidades do seu novo sistema
-          </CardDescription>
+          <CardDescription>Explore as funcionalidades do seu novo sistema</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -318,9 +331,7 @@ IMPORTANTE:
                 key={index}
                 className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors"
               >
-                <div className="flex-shrink-0 mt-1">
-                  {feature.icon}
-                </div>
+                <div className="flex-shrink-0 mt-1">{feature.icon}</div>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-medium text-sm">{feature.title}</h4>
                   <p className="text-xs text-gray-600 mt-1">{feature.description}</p>
@@ -335,36 +346,39 @@ IMPORTANTE:
       <Card>
         <CardHeader>
           <CardTitle>Próximos Passos</CardTitle>
-          <CardDescription>
-            Recomendações para começar a usar o sistema
-          </CardDescription>
+          <CardDescription>Recomendações para começar a usar o sistema</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {nextSteps.map((step, index) => (
               <div
                 key={index}
-                className={`flex items-center justify-between p-4 rounded-lg border-l-4 ${step.priority === 'high'
-                  ? 'border-l-red-400 bg-red-50'
-                  : step.priority === 'medium'
-                    ? 'border-l-yellow-400 bg-yellow-50'
-                    : 'border-l-gray-400 bg-gray-50'
-                  }`}
+                className={`flex items-center justify-between p-4 rounded-lg border-l-4 ${
+                  step.priority === 'high'
+                    ? 'border-l-red-400 bg-red-50'
+                    : step.priority === 'medium'
+                      ? 'border-l-yellow-400 bg-yellow-50'
+                      : 'border-l-gray-400 bg-gray-50'
+                }`}
               >
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-1">
                     <h4 className="font-medium">{step.title}</h4>
                     <Badge
                       variant="outline"
-                      className={`text-xs ${step.priority === 'high'
-                        ? 'border-red-300 text-red-700'
-                        : step.priority === 'medium'
-                          ? 'border-yellow-300 text-yellow-700'
-                          : 'border-gray-300 text-gray-700'
-                        }`}
+                      className={`text-xs ${
+                        step.priority === 'high'
+                          ? 'border-red-300 text-red-700'
+                          : step.priority === 'medium'
+                            ? 'border-yellow-300 text-yellow-700'
+                            : 'border-gray-300 text-gray-700'
+                      }`}
                     >
-                      {step.priority === 'high' ? 'Prioritário' :
-                        step.priority === 'medium' ? 'Importante' : 'Opcional'}
+                      {step.priority === 'high'
+                        ? 'Prioritário'
+                        : step.priority === 'medium'
+                          ? 'Importante'
+                          : 'Opcional'}
                     </Badge>
                   </div>
                   <p className="text-sm text-gray-600">{step.description}</p>
@@ -406,11 +420,7 @@ IMPORTANTE:
           Documentação
         </Button>
 
-        <Button
-          onClick={onComplete}
-          className="flex-1"
-          size="lg"
-        >
+        <Button onClick={onComplete} className="flex-1" size="lg">
           <CheckCircle className="w-5 h-5 mr-2" />
           Começar a Usar Sistema
         </Button>
@@ -421,8 +431,8 @@ IMPORTANTE:
         <Activity className="h-4 w-4 text-blue-600" />
         <AlertDescription className="text-blue-800">
           <strong>Precisa de Ajuda?</strong> Nossa equipe de suporte está disponível para auxiliar
-          no treinamento e configurações adicionais. Entre em contato através do chat do sistema
-          ou pelo email suporte@clinica-oncologica.com
+          no treinamento e configurações adicionais. Entre em contato através do chat do sistema ou
+          pelo email suporte@clinica-oncologica.com
         </AlertDescription>
       </Alert>
     </div>

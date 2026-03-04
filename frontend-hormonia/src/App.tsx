@@ -1,21 +1,21 @@
-import React, { Suspense, useEffect } from "react";
-import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
-import { Toaster } from "@/components/ui/toaster";
-import { AuthProvider } from "@/app/providers/AuthContext";
-import { ErrorBoundary } from "@/components/error/ErrorBoundary";
-import { queryClient, persister } from "@/lib/react-query/queryClient";
-import { prefetchCriticalRoutes } from "@/utils/route-prefetch";
-import { createLogger } from "@/utils/logger";
+import React, { Suspense, useEffect } from 'react'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
+import { Toaster } from '@/components/ui/toaster'
+import { AuthProvider } from '@/app/providers/AuthContext'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
+import { queryClient, persister } from '@/lib/react-query/queryClient'
+import { prefetchCriticalRoutes } from '@/utils/route-prefetch'
+import { createLogger } from '@/utils/logger'
 
-const logger = createLogger('App');
+const logger = createLogger('App')
 import {
   publicRoutes,
   protectedRoutes,
   adminRoutes,
   physicianRoutes,
   PageLoader,
-} from "@/app/routes";
+} from '@/app/routes'
 
 // 404 Not Found component with React Router navigation
 const NotFoundPage = () => (
@@ -31,7 +31,7 @@ const NotFoundPage = () => (
       </Link>
     </div>
   </div>
-);
+)
 
 /**
  * React Query Configuration - Phase 2.2 Enhanced with IndexedDB Persistence
@@ -59,11 +59,11 @@ function App() {
   // Prefetch critical routes after initial load for better performance
   useEffect(() => {
     // Only prefetch in production or when explicitly enabled
-    if (import.meta.env.PROD || import.meta.env['VITE_ENABLE_PREFETCH'] === "true") {
-      logger.info('Initializing critical route prefetch');
-      prefetchCriticalRoutes();
+    if (import.meta.env.PROD || import.meta.env['VITE_ENABLE_PREFETCH'] === 'true') {
+      logger.info('Initializing critical route prefetch')
+      prefetchCriticalRoutes()
     }
-  }, []);
+  }, [])
 
   return (
     <ErrorBoundary>
@@ -104,7 +104,7 @@ function App() {
         </AuthProvider>
       </PersistQueryClientProvider>
     </ErrorBoundary>
-  );
+  )
 }
 
-export default App;
+export default App

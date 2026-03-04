@@ -7,7 +7,7 @@ import {
   Activity,
   Users,
   HardDrive,
-  FileText
+  FileText,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -57,38 +57,38 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
       id: 'connection',
       name: 'Conexão com Banco',
       description: 'Verifica se é possível conectar ao banco de dados',
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'tables',
       name: 'Estrutura de Tabelas',
       description: 'Verifica se todas as tabelas necessárias existem',
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'indexes',
       name: 'Índices de Performance',
       description: 'Verifica se os índices de busca estão criados',
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'permissions',
       name: 'Permissões de Usuário',
       description: 'Verifica se o usuário tem as permissões necessárias',
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'migrations',
       name: 'Estado das Migrações',
       description: 'Verifica se todas as migrações foram aplicadas',
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'performance',
       name: 'Teste de Performance',
       description: 'Executa consultas de teste para medir performance',
-      status: 'pending'
-    }
+      status: 'pending',
+    },
   ])
 
   const [stats, setStats] = useState<DatabaseStats>({})
@@ -103,11 +103,9 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
     error?: string,
     details?: DatabaseTestDetails
   ) => {
-    setTests(prev => prev.map(test =>
-      test.id === id
-        ? { ...test, status, duration, error, details }
-        : test
-    ))
+    setTests((prev) =>
+      prev.map((test) => (test.id === id ? { ...test, status, duration, error, details } : test))
+    )
   }
 
   const loadDatabaseStats = async () => {
@@ -137,13 +135,16 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
     try {
       const data = await apiClient.get<{ tables: string[] }>('/admin/database/tables')
       const requiredTables = [
-        'users', 'patients', 'consultations', 'treatments',
-        'medications', 'reports', 'audit_logs'
+        'users',
+        'patients',
+        'consultations',
+        'treatments',
+        'medications',
+        'reports',
+        'audit_logs',
       ]
 
-      const missingTables = requiredTables.filter(
-        table => !data.tables.includes(table)
-      )
+      const missingTables = requiredTables.filter((table) => !data.tables.includes(table))
 
       if (missingTables.length > 0) {
         throw new Error(`Tabelas em falta: ${missingTables.join(', ')}`)
@@ -160,14 +161,18 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
     updateTestStatus('indexes', 'running')
     const start = performance.now()
     try {
-      const data = await apiClient.get<{ indexes: Array<{ name: string }> }>('/admin/database/indexes')
+      const data = await apiClient.get<{ indexes: Array<{ name: string }> }>(
+        '/admin/database/indexes'
+      )
       const requiredIndexes = [
-        'idx_users_email', 'idx_patients_cpf', 'idx_consultations_date',
-        'idx_treatments_patient_id'
+        'idx_users_email',
+        'idx_patients_cpf',
+        'idx_consultations_date',
+        'idx_treatments_patient_id',
       ]
 
       const missingIndexes = requiredIndexes.filter(
-        index => !data.indexes.some((idx) => idx.name === index)
+        (index) => !data.indexes.some((idx) => idx.name === index)
       )
 
       if (missingIndexes.length > 0) {
@@ -189,7 +194,7 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
       const requiredPermissions = ['SELECT', 'INSERT', 'UPDATE', 'DELETE']
 
       const missingPermissions = requiredPermissions.filter(
-        perm => !data.permissions.includes(perm)
+        (perm) => !data.permissions.includes(perm)
       )
 
       if (missingPermissions.length > 0) {
@@ -238,7 +243,7 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
 
       updateTestStatus('performance', 'success', performance.now() - start, undefined, {
         'Tempo Médio': `${data.averageQueryTime}ms`,
-        'Queries Lentas': data.slowQueries || 0
+        'Queries Lentas': data.slowQueries || 0,
       })
     } catch (error) {
       updateTestStatus('performance', 'error', undefined, (error as Error).message)
@@ -277,7 +282,7 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
 
     try {
       // Reset all tests to pending
-      setTests(prev => prev.map(test => ({ ...test, status: 'pending' as const })))
+      setTests((prev) => prev.map((test) => ({ ...test, status: 'pending' as const })))
 
       // Load database stats
       await loadDatabaseStats()
@@ -299,13 +304,13 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
         setOverallProgress(progress)
 
         // Small delay for visual feedback
-        await new Promise(resolve => setTimeout(resolve, 500))
+        await new Promise((resolve) => setTimeout(resolve, 500))
       }
 
       // Check results
-      const failedTests = tests.filter(t => t.status === 'error')
+      const failedTests = tests.filter((t) => t.status === 'error')
       if (failedTests.length > 0) {
-        onError(`Testes de banco falharam: ${failedTests.map(t => t.name).join(', ')}`)
+        onError(`Testes de banco falharam: ${failedTests.map((t) => t.name).join(', ')}`)
       } else {
         toast({
           title: 'Banco de Dados Verificado',
@@ -313,7 +318,6 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
         })
         onComplete()
       }
-
     } catch (error) {
       logger.error('Database check failed:', error)
       onError('Falha na verificação do banco de dados: ' + (error as Error).message)
@@ -325,7 +329,7 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
   useEffect(() => {
     // Auto-start database checks
     handleCheckDatabase()
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckDatabase is intentionally only called on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckDatabase is intentionally only called on mount
   }, [])
 
   const getStatusIcon = (status: DatabaseTest['status']) => {
@@ -344,11 +348,19 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
   const getStatusBadge = (status: DatabaseTest['status']) => {
     switch (status) {
       case 'success':
-        return <Badge variant="default" className="bg-green-100 text-green-800">OK</Badge>
+        return (
+          <Badge variant="default" className="bg-green-100 text-green-800">
+            OK
+          </Badge>
+        )
       case 'error':
         return <Badge variant="destructive">Erro</Badge>
       case 'running':
-        return <Badge variant="default" className="bg-blue-100 text-blue-800">Testando</Badge>
+        return (
+          <Badge variant="default" className="bg-blue-100 text-blue-800">
+            Testando
+          </Badge>
+        )
       default:
         return <Badge variant="outline">Pendente</Badge>
     }
@@ -370,9 +382,7 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
                 <Database className="w-5 h-5" />
                 <span>Verificação do Banco de Dados</span>
               </CardTitle>
-              <CardDescription>
-                Executando testes de conectividade e integridade
-              </CardDescription>
+              <CardDescription>Executando testes de conectividade e integridade</CardDescription>
             </div>
             <div className="text-right">
               <div className="text-2xl font-bold text-blue-600">{overallProgress}%</div>
@@ -383,8 +393,7 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
             <div className="mt-4">
               <Progress value={overallProgress} />
               <div className="text-sm text-gray-600 mt-2">
-                Teste {currentTestIndex + 1} de {tests.length}:
-                {tests[currentTestIndex]?.name}
+                Teste {currentTestIndex + 1} de {tests.length}:{tests[currentTestIndex]?.name}
               </div>
             </div>
           )}
@@ -447,18 +456,15 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
       <Card>
         <CardHeader>
           <CardTitle>Resultados dos Testes</CardTitle>
-          <CardDescription>
-            Status detalhado de cada verificação do banco de dados
-          </CardDescription>
+          <CardDescription>Status detalhado de cada verificação do banco de dados</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {tests.map((test, index) => (
             <div
               key={test.id}
-              className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${index === currentTestIndex && isChecking
-                ? 'bg-blue-50 border-blue-200'
-                : ''
-                }`}
+              className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${
+                index === currentTestIndex && isChecking ? 'bg-blue-50 border-blue-200' : ''
+              }`}
             >
               <div className="flex items-start space-x-3 flex-1">
                 {getStatusIcon(test.status)}
@@ -488,9 +494,7 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
                   )}
                 </div>
               </div>
-              <div className="flex-shrink-0">
-                {getStatusBadge(test.status)}
-              </div>
+              <div className="flex-shrink-0">{getStatusBadge(test.status)}</div>
             </div>
           ))}
         </CardContent>
@@ -498,11 +502,7 @@ export function DatabaseChecker({ onComplete, onError }: DatabaseCheckerProps) {
 
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <Button
-          onClick={handleCheckDatabase}
-          disabled={isChecking}
-          className="flex-1"
-        >
+        <Button onClick={handleCheckDatabase} disabled={isChecking} className="flex-1">
           {isChecking ? (
             <>
               <RefreshCw className="w-4 h-4 mr-2 animate-spin" />

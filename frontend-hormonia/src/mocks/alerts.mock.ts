@@ -23,7 +23,7 @@ export const MOCK_ALERTS: MockAlert[] = [
     severity: 'medium',
     title: 'Paciente sem resposta há 3 dias',
     message: 'Roberto Silva Santos não responde mensagens há 3 dias',
-    created_at: '2024-10-01T10:00:00-03:00'
+    created_at: '2024-10-01T10:00:00-03:00',
   },
   {
     id: 'alert-002',
@@ -32,7 +32,7 @@ export const MOCK_ALERTS: MockAlert[] = [
     severity: 'high',
     title: 'Consulta perdida',
     message: 'Carlos Eduardo Lima faltou à consulta agendada',
-    created_at: '2024-09-30T14:00:00-03:00'
+    created_at: '2024-09-30T14:00:00-03:00',
   },
   {
     id: 'alert-003',
@@ -41,7 +41,7 @@ export const MOCK_ALERTS: MockAlert[] = [
     title: 'Atualização de sistema disponível',
     message: 'Nova versão do sistema disponível para atualização',
     created_at: '2024-09-29T08:00:00-03:00',
-    acknowledged_at: '2024-09-29T09:00:00-03:00'
+    acknowledged_at: '2024-09-29T09:00:00-03:00',
   },
   {
     id: 'alert-004',
@@ -50,8 +50,8 @@ export const MOCK_ALERTS: MockAlert[] = [
     severity: 'critical',
     title: 'Medicação atrasada',
     message: 'Maria Helena Ferreira não tomou medicação prescrita',
-    created_at: '2024-10-02T07:00:00-03:00'
-  }
+    created_at: '2024-10-02T07:00:00-03:00',
+  },
 ]
 
 /**
@@ -66,14 +66,14 @@ export function getMockAlerts(params?: {
   let filtered = [...MOCK_ALERTS]
 
   if (params?.severity) {
-    filtered = filtered.filter(a => a.severity === params.severity)
+    filtered = filtered.filter((a) => a.severity === params.severity)
   }
 
   if (params?.acknowledged !== undefined) {
     if (params.acknowledged) {
-      filtered = filtered.filter(a => a.acknowledged_at !== undefined)
+      filtered = filtered.filter((a) => a.acknowledged_at !== undefined)
     } else {
-      filtered = filtered.filter(a => a.acknowledged_at === undefined)
+      filtered = filtered.filter((a) => a.acknowledged_at === undefined)
     }
   }
 
@@ -92,6 +92,6 @@ export function getMockAlerts(params?: {
     total,
     page,
     size,
-    pages
+    pages,
   }
 }

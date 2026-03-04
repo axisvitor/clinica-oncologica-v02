@@ -23,7 +23,7 @@ export function InstanceCard({
   onRestart,
   onDelete,
   isRestartPending,
-  isDeletePending
+  isDeletePending,
 }: InstanceCardProps) {
   return (
     <Card className={isSelected ? 'border-blue-500' : ''}>
@@ -35,16 +35,13 @@ export function InstanceCard({
               {instance.name}
             </CardTitle>
             <CardDescription>
-              {instance.profile_name || 'No profile name'} | {instance.phone_number || 'No phone number'}
+              {instance.profile_name || 'No profile name'} |{' '}
+              {instance.phone_number || 'No phone number'}
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge status={instance.status} />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onSelect}
-            >
+            <Button variant="outline" size="sm" onClick={onSelect}>
               {isSelected ? 'Selected' : 'Select'}
             </Button>
           </div>
@@ -52,21 +49,11 @@ export function InstanceCard({
       </CardHeader>
       <CardContent>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRestart}
-            disabled={isRestartPending}
-          >
+          <Button variant="outline" size="sm" onClick={onRestart} disabled={isRestartPending}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Restart
           </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={onDelete}
-            disabled={isDeletePending}
-          >
+          <Button variant="destructive" size="sm" onClick={onDelete} disabled={isDeletePending}>
             <X className="w-4 h-4 mr-2" />
             Delete
           </Button>

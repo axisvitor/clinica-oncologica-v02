@@ -7,11 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Calendar as CalendarComponent } from '@/components/ui/calendar'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -35,7 +31,7 @@ export function PatientsFilters({
   onFiltersChange,
   treatmentTypes = [],
   isLoadingTreatmentTypes = false,
-  disabled = false
+  disabled = false,
 }: PatientsFiltersProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
 
@@ -44,7 +40,7 @@ export function PatientsFilters({
     if (filters.start_date_from || filters.start_date_to) {
       const newDateRange: DateRange = {
         from: filters.start_date_from ? new Date(filters.start_date_from) : undefined,
-        to: filters.start_date_to ? new Date(filters.start_date_to) : undefined
+        to: filters.start_date_to ? new Date(filters.start_date_to) : undefined,
       }
       setDateRange(newDateRange)
     } else {
@@ -65,7 +61,7 @@ export function PatientsFilters({
     filters.search,
     filters.status,
     filters.treatment_type,
-    filters.start_date_from || filters.start_date_to
+    filters.start_date_from || filters.start_date_to,
   ].filter(Boolean).length
 
   const updateFilter = (key: keyof PatientFilters, value: string | number | undefined) => {
@@ -73,7 +69,7 @@ export function PatientsFilters({
       ...filters,
       [key]: value,
       // Reset page when filters change
-      page: key === 'page' ? (value as number) : 1
+      page: key === 'page' ? (value as number) : 1,
     })
   }
 
@@ -85,7 +81,7 @@ export function PatientsFilters({
       start_date_from: '',
       start_date_to: '',
       page: 1,
-      ...(filters.size !== undefined && { size: filters.size })
+      ...(filters.size !== undefined && { size: filters.size }),
     }
     onFiltersChange(resetFiltersObj)
   }
@@ -95,7 +91,7 @@ export function PatientsFilters({
   }
 
   const handleStatusChange = (value: string) => {
-    updateFilter('status', value === 'all' ? undefined : value as PatientFilters['status'])
+    updateFilter('status', value === 'all' ? undefined : (value as PatientFilters['status']))
   }
 
   const handleTreatmentTypeChange = (value: string) => {
@@ -114,7 +110,7 @@ export function PatientsFilters({
       ...filters,
       start_date_from: '',
       start_date_to: '',
-      page: 1
+      page: 1,
     })
   }
 
@@ -123,7 +119,7 @@ export function PatientsFilters({
       active: 'Ativo',
       paused: 'Pausado',
       completed: 'Concluído',
-      inactive: 'Inativo'
+      inactive: 'Inativo',
     }
     return statusLabels[status as keyof typeof statusLabels] || status
   }
@@ -226,22 +222,22 @@ export function PatientsFilters({
                 variant="outline"
                 disabled={disabled}
                 className={cn(
-                  "w-full justify-start text-left font-normal",
-                  !dateRange?.from && "text-muted-foreground"
+                  'w-full justify-start text-left font-normal',
+                  !dateRange?.from && 'text-muted-foreground'
                 )}
               >
                 <Calendar className="mr-2 h-4 w-4" />
                 {dateRange?.from ? (
                   dateRange?.to ? (
                     <>
-                      {format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
-                      {format(dateRange.to, "dd/MM/yyyy", { locale: ptBR })}
+                      {format(dateRange.from, 'dd/MM/yyyy', { locale: ptBR })} -{' '}
+                      {format(dateRange.to, 'dd/MM/yyyy', { locale: ptBR })}
                     </>
                   ) : (
-                    format(dateRange.from, "dd/MM/yyyy", { locale: ptBR })
+                    format(dateRange.from, 'dd/MM/yyyy', { locale: ptBR })
                   )
                 ) : (
-                  "Selecionar período"
+                  'Selecionar período'
                 )}
               </Button>
             </PopoverTrigger>
@@ -271,7 +267,6 @@ export function PatientsFilters({
             </PopoverContent>
           </Popover>
         </div>
-
       </div>
 
       {/* Active filters display */}
@@ -323,15 +318,13 @@ export function PatientsFilters({
             <div className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-800 rounded-md text-sm">
               <Calendar className="h-3 w-3" />
               <span>
-                {dateRange?.from && dateRange?.to ? (
-                  `${format(dateRange.from, "dd/MM/yy")} - ${format(dateRange.to, "dd/MM/yy")}`
-                ) : dateRange?.from ? (
-                  `A partir de ${format(dateRange.from, "dd/MM/yy")}`
-                ) : dateRange?.to ? (
-                  `Até ${format(dateRange.to, "dd/MM/yy")}`
-                ) : (
-                  'Data'
-                )}
+                {dateRange?.from && dateRange?.to
+                  ? `${format(dateRange.from, 'dd/MM/yy')} - ${format(dateRange.to, 'dd/MM/yy')}`
+                  : dateRange?.from
+                    ? `A partir de ${format(dateRange.from, 'dd/MM/yy')}`
+                    : dateRange?.to
+                      ? `Até ${format(dateRange.to, 'dd/MM/yy')}`
+                      : 'Data'}
               </span>
               <button
                 onClick={clearDateRange}
@@ -344,7 +337,6 @@ export function PatientsFilters({
           )}
         </div>
       )}
-
     </div>
   )
 }

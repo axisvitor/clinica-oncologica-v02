@@ -20,14 +20,16 @@ import {
 import { toast } from '../../../hooks/use-toast'
 import { Shield, Loader2 } from 'lucide-react'
 
-const passwordSchema = z.object({
-  current_password: z.string().min(1, 'Senha atual é obrigatória'),
-  new_password: z.string().min(6, 'Nova senha deve ter pelo menos 6 caracteres'),
-  confirm_password: z.string(),
-}).refine((data) => data['new_password'] === data['confirm_password'], {
-  message: 'Senhas não coincidem',
-  path: ['confirm_password'],
-})
+const passwordSchema = z
+  .object({
+    current_password: z.string().min(1, 'Senha atual é obrigatória'),
+    new_password: z.string().min(6, 'Nova senha deve ter pelo menos 6 caracteres'),
+    confirm_password: z.string(),
+  })
+  .refine((data) => data['new_password'] === data['confirm_password'], {
+    message: 'Senhas não coincidem',
+    path: ['confirm_password'],
+  })
 
 type PasswordFormData = z.infer<typeof passwordSchema>
 
@@ -53,17 +55,16 @@ export function SecuritySettings() {
   }
 
   return (
-    <SettingsSection
-      title="Segurança"
-      description="Senha e autenticação"
-      icon={Shield}
-    >
+    <SettingsSection title="Segurança" description="Senha e autenticação" icon={Shield}>
       <div className="space-y-6">
         {/* Password Change Form */}
         <div>
           <h3 className="text-lg font-medium mb-4">Alterar Senha</h3>
           <Form {...passwordForm}>
-            <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4 max-w-md">
+            <form
+              onSubmit={passwordForm.handleSubmit(onPasswordSubmit)}
+              className="space-y-4 max-w-md"
+            >
               <FormField
                 control={passwordForm.control}
                 name="current_password"
@@ -87,9 +88,7 @@ export function SecuritySettings() {
                     <FormControl>
                       <Input type="password" placeholder="Nova senha" {...field} />
                     </FormControl>
-                    <FormDescription>
-                      A senha deve ter pelo menos 6 caracteres.
-                    </FormDescription>
+                    <FormDescription>A senha deve ter pelo menos 6 caracteres.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -131,9 +130,14 @@ export function SecuritySettings() {
               <div>
                 <p className="font-medium">Sessão atual</p>
                 <p className="text-sm text-gray-500">
-                  {navigator.userAgent.includes('Chrome') ? 'Chrome' :
-                   navigator.userAgent.includes('Firefox') ? 'Firefox' :
-                   navigator.userAgent.includes('Safari') ? 'Safari' : 'Navegador'} • Agora
+                  {navigator.userAgent.includes('Chrome')
+                    ? 'Chrome'
+                    : navigator.userAgent.includes('Firefox')
+                      ? 'Firefox'
+                      : navigator.userAgent.includes('Safari')
+                        ? 'Safari'
+                        : 'Navegador'}{' '}
+                  • Agora
                 </p>
               </div>
               <Badge variant="outline">Atual</Badge>

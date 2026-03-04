@@ -11,9 +11,9 @@
  * @module useOptimizedQuery
  */
 
-import { useState, useEffect } from 'react';
-import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
-import type { LoadingState, QueryPerformanceMetrics } from './useOptimizedQuery.helpers';
+import { useState, useEffect } from 'react'
+import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query'
+import type { LoadingState, QueryPerformanceMetrics } from './useOptimizedQuery.helpers'
 import {
   getLoadingState,
   getQueryMetrics,
@@ -23,24 +23,29 @@ import {
   usePerformanceMetricsTracking,
   useSafeRefetch,
   useSuccessTracker,
-} from './useOptimizedQuery.helpers';
+} from './useOptimizedQuery.helpers'
 
-export { getQueryMetrics, getAverageQueryDuration, getCacheHitRate, clearQueryMetrics } from './useOptimizedQuery.helpers';
+export {
+  getQueryMetrics,
+  getAverageQueryDuration,
+  getCacheHitRate,
+  clearQueryMetrics,
+} from './useOptimizedQuery.helpers'
 
-export type { QueryPerformanceMetrics, LoadingState } from './useOptimizedQuery.helpers';
+export type { QueryPerformanceMetrics, LoadingState } from './useOptimizedQuery.helpers'
 
 /**
  * Options for the optimized query hook
  */
 interface UseOptimizedQueryOptions<TData, TError> extends UseQueryOptions<TData, TError> {
   /** Enable performance tracking (default: true in dev) */
-  enableMetrics?: boolean;
+  enableMetrics?: boolean
   /** Custom error handler */
-  onError?: (error: TError) => void;
+  onError?: (error: TError) => void
   /** Custom success handler */
-  onSuccess?: (data: TData) => void;
+  onSuccess?: (data: TData) => void
   /** Deduplicate requests within this time window (ms) */
-  deduplicationWindow?: number;
+  deduplicationWindow?: number
 }
 
 /**
@@ -48,11 +53,11 @@ interface UseOptimizedQueryOptions<TData, TError> extends UseQueryOptions<TData,
  */
 type OptimizedQueryResult<TData, TError> = UseQueryResult<TData, TError> & {
   /** Extended loading states */
-  loadingState: LoadingState;
+  loadingState: LoadingState
   /** Performance metrics (if enabled) */
-  metrics?: QueryPerformanceMetrics | undefined;
+  metrics?: QueryPerformanceMetrics | undefined
   /** Manually trigger a refetch with error handling */
-  safeRefetch: () => Promise<void>;
+  safeRefetch: () => Promise<void>
 }
 
 /**
@@ -76,20 +81,20 @@ export function useOptimizedQuery<TData = unknown, TError = Error>(
     onSuccess,
     deduplicationWindow = 1000,
     ...queryOptions
-  } = options;
+  } = options
 
-  const typedQueryOptions = queryOptions as UseQueryOptions<TData, TError>;
+  const typedQueryOptions = queryOptions as UseQueryOptions<TData, TError>
 
-  const queryKeyString = JSON.stringify(typedQueryOptions.queryKey ?? []);
+  const queryKeyString = JSON.stringify(typedQueryOptions.queryKey ?? [])
   const dedupeAwareQueryFn = useDedupeAwareQueryFn<TData>({
     queryKeyString,
     deduplicationWindow,
     originalQueryFn: typedQueryOptions.queryFn,
-  });
+  })
 
-  const queryResult = useConfiguredQuery<TData, TError>(typedQueryOptions, dedupeAwareQueryFn);
+  const queryResult = useConfiguredQuery<TData, TError>(typedQueryOptions, dedupeAwareQueryFn)
 
-  const { data, error, isLoading, isFetching, isSuccess, isError, refetch } = queryResult;
+  const { data, error, isLoading, isFetching, isSuccess, isError, refetch } = queryResult
 
   const metrics = usePerformanceMetricsTracking<TError>({
     enableMetrics,
@@ -98,30 +103,30 @@ export function useOptimizedQuery<TData = unknown, TError = Error>(
     isError,
     error,
     queryKeyString,
-  });
+  })
 
   const hasEverSucceeded = useSuccessTracker({
     data,
     isSuccess,
     onSuccess,
-  });
+  })
 
-  useErrorNotifier({ isError, error, onError });
+  useErrorNotifier({ isError, error, onError })
 
   const loadingState = getLoadingState({
     isLoading,
     isFetching,
     hasEverSucceeded,
-  });
+  })
 
-  const safeRefetch = useSafeRefetch(refetch, onError);
+  const safeRefetch = useSafeRefetch(refetch, onError)
 
   return {
     ...queryResult,
     loadingState,
     metrics,
     safeRefetch,
-  };
+  }
 }
 
 /**
@@ -151,20 +156,20 @@ export function useQueryPerformanceStats() {
     cacheHitRate: 0,
     slowestQuery: '',
     fastestQuery: '',
-  });
+  })
 
   useEffect(() => {
     const updateStats = () => {
-      const metrics = getQueryMetrics();
+      const metrics = getQueryMetrics()
 
       if (metrics.length === 0) {
-        return;
+        return
       }
 
-      const totalDuration = metrics.reduce((sum, m) => sum + m.duration, 0);
-      const cacheHits = metrics.filter(m => m.fromCache).length;
+      const totalDuration = metrics.reduce((sum, m) => sum + m.duration, 0)
+      const cacheHits = metrics.filter((m) => m.fromCache).length
 
-      const sorted = [...metrics].sort((a, b) => b.duration - a.duration);
+      const sorted = [...metrics].sort((a, b) => b.duration - a.duration)
 
       setStats({
         totalQueries: metrics.length,
@@ -172,14 +177,14 @@ export function useQueryPerformanceStats() {
         cacheHitRate: Math.round((cacheHits / metrics.length) * 100),
         slowestQuery: sorted[0]?.queryKey || '',
         fastestQuery: sorted[sorted.length - 1]?.queryKey || '',
-      });
-    };
+      })
+    }
 
-    updateStats();
-    const interval = setInterval(updateStats, 5000); // Update every 5s
+    updateStats()
+    const interval = setInterval(updateStats, 5000) // Update every 5s
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => clearInterval(interval)
+  }, [])
 
-  return stats;
+  return stats
 }

@@ -22,10 +22,5 @@ export function Landing() {
   }
 
   // Smart redirect based on actual auth state
-  return (
-    <Navigate
-      to={isAuthenticated ? '/dashboard' : '/login'}
-      replace
-    />
-  )
+  return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />
 }

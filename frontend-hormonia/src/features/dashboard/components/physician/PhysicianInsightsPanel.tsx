@@ -20,7 +20,11 @@ interface PhysicianInsightsPanelProps {
   recommendations: Recommendation[] | undefined
 }
 
-export function PhysicianInsightsPanel({ isLoading, insights, recommendations }: PhysicianInsightsPanelProps) {
+export function PhysicianInsightsPanel({
+  isLoading,
+  insights,
+  recommendations,
+}: PhysicianInsightsPanelProps) {
   if (isLoading) {
     return (
       <Card>
@@ -56,16 +60,20 @@ export function PhysicianInsightsPanel({ isLoading, insights, recommendations }:
             <Lightbulb className="h-5 w-5" />
             Análises principais
           </CardTitle>
-          <CardDescription>
-            Padrões e recomendações detectadas automaticamente
-          </CardDescription>
+          <CardDescription>Padrões e recomendações detectadas automaticamente</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {insights?.slice(0, 5).map((insight) => (
             <div key={insight.id} className="border rounded-lg p-4 space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="font-medium">{insight.title}</h4>
-                <Badge variant={insight.priority === 'high' || insight.priority === 'critical' ? 'destructive' : 'default'}>
+                <Badge
+                  variant={
+                    insight.priority === 'high' || insight.priority === 'critical'
+                      ? 'destructive'
+                      : 'default'
+                  }
+                >
                   {insight.priority}
                 </Badge>
               </div>
@@ -86,9 +94,7 @@ export function PhysicianInsightsPanel({ isLoading, insights, recommendations }:
             <Brain className="h-5 w-5" />
             Recomendações IA
           </CardTitle>
-          <CardDescription>
-            Ações sugeridas baseadas em análise de dados
-          </CardDescription>
+          <CardDescription>Ações sugeridas baseadas em análise de dados</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {recommendations?.slice(0, 5).map((rec) => (

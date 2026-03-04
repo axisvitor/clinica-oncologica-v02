@@ -62,54 +62,50 @@ interface QuestionariosGridProps {
  * />
  * ```
  */
-export const QuestionariosGrid = React.memo<QuestionariosGridProps>(({
-  templatesData,
-  isLoading,
-  error,
-  filters,
-  pageSize,
-  currentPage,
-  onPageChange,
-  onDelete,
-  onEdit,
-  onCreate,
-  onRetry
-}) => {
-  return (
-    <LoadingOverlay isLoading={isLoading}>
-      {error ? (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" aria-hidden="true" />
-          <AlertDescription>
-            Erro ao carregar questionários: {error?.message || 'Erro desconhecido'}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRetry}
-              className="ml-4"
-            >
-              Tentar novamente
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : (
-        !templatesData?.items || templatesData.items.length === 0 ? (
+export const QuestionariosGrid = React.memo<QuestionariosGridProps>(
+  ({
+    templatesData,
+    isLoading,
+    error,
+    filters,
+    pageSize,
+    currentPage,
+    onPageChange,
+    onDelete,
+    onEdit,
+    onCreate,
+    onRetry,
+  }) => {
+    return (
+      <LoadingOverlay isLoading={isLoading}>
+        {error ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" aria-hidden="true" />
+            <AlertDescription>
+              Erro ao carregar questionários: {error?.message || 'Erro desconhecido'}
+              <Button variant="outline" size="sm" onClick={onRetry} className="ml-4">
+                Tentar novamente
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : !templatesData?.items || templatesData.items.length === 0 ? (
           <Card className="p-6 text-center">
             <CardContent className="p-0">
-              <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" aria-hidden="true" />
+              <FileText
+                className="mx-auto h-12 w-12 text-muted-foreground mb-4"
+                aria-hidden="true"
+              />
               <h3 className="text-lg font-semibold mb-2">
                 {filters.search || filters.type !== 'all' || filters.status !== 'all'
                   ? 'Nenhum questionário encontrado com os filtros aplicados'
-                  : 'Nenhum questionário criado ainda'
-                }
+                  : 'Nenhum questionário criado ainda'}
               </h3>
               <p className="text-muted-foreground mb-6">
                 {filters.search || filters.type !== 'all' || filters.status !== 'all'
                   ? 'Tente ajustar os filtros de busca.'
-                  : 'Crie seu primeiro questionário para começar a coletar respostas dos pacientes.'
-                }
+                  : 'Crie seu primeiro questionário para começar a coletar respostas dos pacientes.'}
               </p>
-              {(!filters.search && filters.type === 'all' && filters.status === 'all') && (
+              {!filters.search && filters.type === 'all' && filters.status === 'all' && (
                 <Button onClick={onCreate}>
                   <Plus className="h-4 w-4 mr-2" aria-hidden="true" />
                   Criar Primeiro Questionário
@@ -160,10 +156,10 @@ export const QuestionariosGrid = React.memo<QuestionariosGridProps>(({
               </div>
             )}
           </>
-        )
-      )}
-    </LoadingOverlay>
-  )
-})
+        )}
+      </LoadingOverlay>
+    )
+  }
+)
 
 QuestionariosGrid.displayName = 'QuestionariosGrid'

@@ -52,7 +52,7 @@ export function ProfileSettings() {
   const getInitials = (name: string) => {
     return name
       .split(' ')
-      .map(n => n[0])
+      .map((n) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -63,7 +63,7 @@ export function ProfileSettings() {
       email: data.email,
       full_name: data.full_name,
       ...(data.phone && { phone: data.phone }),
-      ...(data.specialty && { specialty: data.specialty })
+      ...(data.specialty && { specialty: data.specialty }),
     }
     updateProfile(profileData)
   }
@@ -97,17 +97,13 @@ export function ProfileSettings() {
   }
 
   return (
-    <SettingsSection
-      title="Perfil"
-      description="Suas informações pessoais"
-      icon={User}
-    >
+    <SettingsSection title="Perfil" description="Suas informações pessoais" icon={User}>
       <div className="space-y-6">
         {/* Avatar Section */}
         <div className="flex items-center space-x-4">
           <div className="relative">
             <Avatar className="h-20 w-20">
-              <AvatarImage src={user?.avatar_url || ""} alt={user?.full_name} />
+              <AvatarImage src={user?.avatar_url || ''} alt={user?.full_name} />
               <AvatarFallback className="bg-blue-600 text-white text-lg">
                 {user?.full_name ? getInitials(user['full_name']) : 'U'}
               </AvatarFallback>

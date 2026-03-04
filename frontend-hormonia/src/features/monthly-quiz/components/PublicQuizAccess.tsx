@@ -4,70 +4,72 @@
  * Public-facing component for patients to access and complete quizzes via link.
  * This component does not require authentication.
  */
-import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useMonthlyQuiz } from '../hooks/useMonthlyQuiz';
-import { MonthlyQuizAccess } from '../types';
+import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { useMonthlyQuiz } from '../hooks/useMonthlyQuiz'
+import { MonthlyQuizAccess } from '../types'
 
 export const PublicQuizAccess: React.FC = () => {
-  const [searchParams] = useSearchParams();
-  const { accessQuiz, submitQuizResponse, loading, error } = useMonthlyQuiz();
-  const [quizData, setQuizData] = useState<MonthlyQuizAccess | null>(null);
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [isCompleted, setIsCompleted] = useState(false);
-  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams()
+  const { accessQuiz, submitQuizResponse, loading, error } = useMonthlyQuiz()
+  const [quizData, setQuizData] = useState<MonthlyQuizAccess | null>(null)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [isCompleted, setIsCompleted] = useState(false)
+  const [submissionError, setSubmissionError] = useState<string | null>(null)
 
-  const token = searchParams.get('token');
+  const token = searchParams.get('token')
 
   useEffect(() => {
     if (token) {
-      loadQuiz();
+      loadQuiz()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadQuiz is stable and should only run when token changes
-  }, [token]);
+  }, [token])
 
   const loadQuiz = async () => {
-    if (!token) return;
+    if (!token) return
 
-    setSubmissionError(null);
-    const data = await accessQuiz(token);
+    setSubmissionError(null)
+    const data = await accessQuiz(token)
     if (data) {
-      setQuizData(data);
-      setCurrentQuestionIndex(data.current_question_index);
+      setQuizData(data)
+      setCurrentQuestionIndex(data.current_question_index)
     }
-  };
+  }
 
   const handleAnswer = (questionId: string, value: string) => {
-    setAnswers({ ...answers, [questionId]: value });
-  };
+    setAnswers({ ...answers, [questionId]: value })
+  }
 
   const handleSubmit = async () => {
-    if (!token || !quizData) return;
+    if (!token || !quizData) return
 
-    const currentQuestion = quizData.questions[currentQuestionIndex];
-    if (!currentQuestion) return;
+    const currentQuestion = quizData.questions[currentQuestionIndex]
+    if (!currentQuestion) return
 
     const response = await submitQuizResponse({
       token,
       quiz_id: quizData.quiz_id,
       question_id: currentQuestion.id,
-      response_value: answers[currentQuestion.id] || ''
-    });
+      response_value: answers[currentQuestion.id] || '',
+    })
 
     if (!response || !response.success) {
-      setSubmissionError(response?.message || 'Não foi possível registrar sua resposta. Tente novamente.');
-      return;
+      setSubmissionError(
+        response?.message || 'Não foi possível registrar sua resposta. Tente novamente.'
+      )
+      return
     }
 
-    setSubmissionError(null);
+    setSubmissionError(null)
 
     if (currentQuestionIndex < quizData.total_questions - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setCurrentQuestionIndex(currentQuestionIndex + 1)
     } else {
-      setIsCompleted(true);
+      setIsCompleted(true)
     }
-  };
+  }
 
   if (!token) {
     return (
@@ -76,7 +78,7 @@ export const PublicQuizAccess: React.FC = () => {
           <p className="text-red-600">Token de acesso inválido</p>
         </div>
       </div>
-    );
+    )
   }
 
   if (loading) {
@@ -87,7 +89,7 @@ export const PublicQuizAccess: React.FC = () => {
           <p>Carregando quiz...</p>
         </div>
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -103,7 +105,7 @@ export const PublicQuizAccess: React.FC = () => {
           </button>
         </div>
       </div>
-    );
+    )
   }
 
   if (isCompleted) {
@@ -113,22 +115,23 @@ export const PublicQuizAccess: React.FC = () => {
           <div className="text-green-600 text-5xl mb-4">✓</div>
           <h2 className="text-2xl font-bold mb-4">Quiz Concluído!</h2>
           <p className="text-gray-600">
-            Obrigado por completar o questionário mensal. Suas respostas foram registradas com sucesso.
+            Obrigado por completar o questionário mensal. Suas respostas foram registradas com
+            sucesso.
           </p>
         </div>
       </div>
-    );
+    )
   }
 
   if (!quizData) {
-    return null;
+    return null
   }
 
-  const currentQuestion = quizData.questions[currentQuestionIndex];
+  const currentQuestion = quizData.questions[currentQuestionIndex]
   if (!currentQuestion) {
-    return null;
+    return null
   }
-  const progress = ((currentQuestionIndex + 1) / quizData.total_questions) * 100;
+  const progress = ((currentQuestionIndex + 1) / quizData.total_questions) * 100
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4">
@@ -141,7 +144,9 @@ export const PublicQuizAccess: React.FC = () => {
           {/* Progress Bar */}
           <div className="mt-4">
             <div className="flex justify-between text-sm text-gray-600 mb-2">
-              <span>Pergunta {currentQuestionIndex + 1} de {quizData.total_questions}</span>
+              <span>
+                Pergunta {currentQuestionIndex + 1} de {quizData.total_questions}
+              </span>
               <span>{Math.round(progress)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -165,7 +170,10 @@ export const PublicQuizAccess: React.FC = () => {
           {currentQuestion.type === 'multiple_choice' && (
             <div className="space-y-2">
               {currentQuestion.options?.map((option: { id: string; text: string }) => (
-                <label key={option.id} className="flex items-center p-3 border rounded hover:bg-gray-50 cursor-pointer">
+                <label
+                  key={option.id}
+                  className="flex items-center p-3 border rounded hover:bg-gray-50 cursor-pointer"
+                >
                   <input
                     type="radio"
                     name={currentQuestion.id}
@@ -206,9 +214,7 @@ export const PublicQuizAccess: React.FC = () => {
             </div>
           )}
 
-          {submissionError && (
-            <p className="mt-4 text-sm text-red-600">{submissionError}</p>
-          )}
+          {submissionError && <p className="mt-4 text-sm text-red-600">{submissionError}</p>}
 
           {/* Submit Button */}
           <button
@@ -221,6 +227,5 @@ export const PublicQuizAccess: React.FC = () => {
         </div>
       </div>
     </div>
-  );
-};
-
+  )
+}

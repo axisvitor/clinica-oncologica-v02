@@ -1,16 +1,16 @@
-import React, { ErrorInfo } from 'react';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import React, { ErrorInfo } from 'react'
+import { AlertTriangle, RefreshCw, Home } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 
 export interface ErrorFallbackProps {
-  error: Error | null;
-  errorInfo: ErrorInfo | null;
-  errorId?: string | null;
-  level?: 'page' | 'component' | 'critical';
-  retryCount?: number;
-  maxRetries?: number;
-  onReset: () => void;
-  onRetry?: () => void;
+  error: Error | null
+  errorInfo: ErrorInfo | null
+  errorId?: string | null
+  level?: 'page' | 'component' | 'critical'
+  retryCount?: number
+  maxRetries?: number
+  onReset: () => void
+  onRetry?: () => void
 }
 
 /**
@@ -27,13 +27,13 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
   onReset,
   onRetry,
 }) => {
-  const isDevelopment = import.meta.env['MODE'] === 'development';
-  const isProduction = import.meta.env['NODE_ENV'] === 'production';
-  const canRetry = onRetry && retryCount < maxRetries;
+  const isDevelopment = import.meta.env['MODE'] === 'development'
+  const isProduction = import.meta.env['NODE_ENV'] === 'production'
+  const canRetry = onRetry && retryCount < maxRetries
 
   const handleGoHome = (): void => {
-    window.location.href = '/';
-  };
+    window.location.href = '/'
+  }
 
   const getSeverityInfo = () => {
     switch (level) {
@@ -41,24 +41,24 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
         return {
           title: 'Erro Crítico do Sistema',
           description: 'O sistema encontrou um erro crítico e precisa ser reiniciado',
-          color: 'text-red-600 bg-red-50'
-        };
+          color: 'text-red-600 bg-red-50',
+        }
       case 'page':
         return {
           title: 'Erro na Página',
           description: 'Esta página encontrou um erro e não pôde ser carregada',
-          color: 'text-yellow-600 bg-yellow-50'
-        };
+          color: 'text-yellow-600 bg-yellow-50',
+        }
       default:
         return {
           title: 'Erro no Componente',
           description: 'Um componente da página encontrou um erro',
-          color: 'text-blue-600 bg-blue-50'
-        };
+          color: 'text-blue-600 bg-blue-50',
+        }
     }
-  };
+  }
 
-  const severityInfo = getSeverityInfo();
+  const severityInfo = getSeverityInfo()
 
   // Critical errors get full page treatment
   if (level === 'critical') {
@@ -69,26 +69,22 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
             <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-6">
               <AlertTriangle className="h-8 w-8 text-red-600" />
             </div>
-            <h1 className="text-xl font-bold text-gray-900 mb-2">
-              {severityInfo.title}
-            </h1>
-            <p className="text-gray-600 mb-6">
-              {severityInfo.description}
-            </p>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">{severityInfo.title}</h1>
+            <p className="text-gray-600 mb-6">{severityInfo.description}</p>
 
             <div className="space-y-3">
-            <button
-              onClick={onReset}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition-colors"
-            >
+              <button
+                onClick={onReset}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 transition-colors"
+              >
                 <RefreshCw className="h-5 w-5" />
                 <span>Recarregar Sistema</span>
               </button>
 
-            <button
-              onClick={handleGoHome}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 transition-colors"
-            >
+              <button
+                onClick={handleGoHome}
+                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-500 focus-visible:ring-offset-2 transition-colors"
+              >
                 <Home className="h-5 w-5" />
                 <span>Ir para Início</span>
               </button>
@@ -97,14 +93,15 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
             {errorId && (
               <div className="mt-6 pt-4 border-t border-gray-200">
                 <p className="text-xs text-gray-500">
-                  ID do Erro: <code className="bg-gray-100 px-2 py-1 rounded text-xs">{errorId}</code>
+                  ID do Erro:{' '}
+                  <code className="bg-gray-100 px-2 py-1 rounded text-xs">{errorId}</code>
                 </p>
               </div>
             )}
           </div>
         </div>
       </div>
-    );
+    )
   }
 
   return (
@@ -117,16 +114,16 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
               <AlertTriangle className="h-12 w-12 text-red-500" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {severityInfo.title}
-              </h1>
-              <p className="text-gray-600 mt-1">
-                {severityInfo.description}
-              </p>
+              <h1 className="text-2xl font-bold text-gray-900">{severityInfo.title}</h1>
+              <p className="text-gray-600 mt-1">{severityInfo.description}</p>
             </div>
           </div>
           <Badge variant="secondary" className={severityInfo.color}>
-            {(level as string) === 'critical' ? 'Crítico' : (level as string) === 'page' ? 'Página' : 'Componente'}
+            {(level as string) === 'critical'
+              ? 'Crítico'
+              : (level as string) === 'page'
+                ? 'Página'
+                : 'Componente'}
           </Badge>
         </div>
 
@@ -135,8 +132,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
           <p className="text-sm font-medium text-red-800">
             {isProduction
               ? 'Ocorreu um erro inesperado. Nossa equipe foi notificada automaticamente.'
-              : error?.message || 'Erro desconhecido'
-            }
+              : error?.message || 'Erro desconhecido'}
           </p>
         </div>
 
@@ -158,17 +154,11 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
             </summary>
             <div className="mt-3 bg-gray-50 rounded-md p-4 overflow-auto">
               <div className="mb-4">
-                <h3 className="text-xs font-semibold text-gray-700 mb-2">
-                  Stack Trace:
-                </h3>
-                <pre className="text-xs text-gray-600 whitespace-pre-wrap">
-                  {error?.stack}
-                </pre>
+                <h3 className="text-xs font-semibold text-gray-700 mb-2">Stack Trace:</h3>
+                <pre className="text-xs text-gray-600 whitespace-pre-wrap">{error?.stack}</pre>
               </div>
               <div>
-                <h3 className="text-xs font-semibold text-gray-700 mb-2">
-                  Component Stack:
-                </h3>
+                <h3 className="text-xs font-semibold text-gray-700 mb-2">Component Stack:</h3>
                 <pre className="text-xs text-gray-600 whitespace-pre-wrap">
                   {errorInfo.componentStack}
                 </pre>
@@ -179,9 +169,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
 
         {/* User Actions */}
         <div className="space-y-3">
-          <p className="text-sm text-gray-600">
-            Você pode tentar as seguintes ações:
-          </p>
+          <p className="text-sm text-gray-600">Você pode tentar as seguintes ações:</p>
 
           <div className="flex flex-col sm:flex-row gap-3">
             {canRetry && (
@@ -190,7 +178,9 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
                 className="flex-1 flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors"
               >
                 <RefreshCw className="h-5 w-5" />
-                <span>Tentar Novamente ({retryCount}/{maxRetries})</span>
+                <span>
+                  Tentar Novamente ({retryCount}/{maxRetries})
+                </span>
               </button>
             )}
 
@@ -230,7 +220,7 @@ export const ErrorFallback: React.FC<ErrorFallbackProps> = ({
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default ErrorFallback;
+export default ErrorFallback

@@ -1,25 +1,20 @@
-import React, { ReactNode } from "react";
-import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
-import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import {
-  getRolePermissions,
-  isAdmin,
-  isDoctor,
-  type RolePermissions,
-} from "@/types/shared";
+import React, { ReactNode } from 'react'
+import { Navigate, useLocation } from 'react-router-dom'
+import { useAuth } from '@/contexts/AuthContext'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { getRolePermissions, isAdmin, isDoctor, type RolePermissions } from '@/types/shared'
 
 interface ProtectedRouteProps {
-  children: ReactNode;
+  children: ReactNode
   /**
    * Required permission key from RolePermissions
    * @example "canAccessAdmin", "canManageUsers", "canManagePatients"
    */
-  requiredPermission?: keyof RolePermissions;
+  requiredPermission?: keyof RolePermissions
   /**
    * Redirect path for unauthorized access (default: /unauthorized)
    */
-  redirectTo?: string;
+  redirectTo?: string
 }
 
 /**
@@ -52,41 +47,41 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({
   children,
   requiredPermission,
-  redirectTo = "/unauthorized",
+  redirectTo = '/unauthorized',
 }: ProtectedRouteProps) {
-  const auth = useAuth();
-  const { isAuthenticated, isInitializing, user } = auth;
-  const location = useLocation();
-  const isLoading = isInitializing || (auth as { isLoading?: boolean }).isLoading || false;
+  const auth = useAuth()
+  const { isAuthenticated, isInitializing, user } = auth
+  const location = useLocation()
+  const isLoading = isInitializing || (auth as { isLoading?: boolean }).isLoading || false
 
   // Show loading spinner while checking authentication
   if (isLoading) {
     return (
-      <div
-        data-testid="loading-spinner"
-        className="flex items-center justify-center min-h-screen"
-      >
+      <div data-testid="loading-spinner" className="flex items-center justify-center min-h-screen">
         <LoadingSpinner size="lg" />
       </div>
-    );
+    )
   }
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />
   }
 
   // Get user role (with fallback)
-  const userRole = user?.role || "";
+  const userRole = user?.role || ''
 
   // Permission-based access control (NEW - Preferred)
   if (requiredPermission) {
-    const rolePermissions = getRolePermissions(userRole);
-    const permissionKey = String(requiredPermission);
-    const hasRoleScopedPermission = Object.prototype.hasOwnProperty.call(rolePermissions, permissionKey);
+    const rolePermissions = getRolePermissions(userRole)
+    const permissionKey = String(requiredPermission)
+    const hasRoleScopedPermission = Object.prototype.hasOwnProperty.call(
+      rolePermissions,
+      permissionKey
+    )
     const hasAccess = hasRoleScopedPermission
       ? Boolean(rolePermissions[requiredPermission])
-      : auth.hasPermission(permissionKey);
+      : auth.hasPermission(permissionKey)
     if (!hasAccess) {
       return (
         <Navigate
@@ -94,12 +89,12 @@ export function ProtectedRoute({
           state={{ from: location, requiredPermission, userRole }}
           replace
         />
-      );
+      )
     }
   }
 
   // All checks passed - render children
-  return <>{children}</>;
+  return <>{children}</>
 }
 
 /**
@@ -114,9 +109,9 @@ export function ProtectedRoute({
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function useRoleGuard() {
-  const { user, isAuthenticated } = useAuth();
-  const userRole = user?.role || "";
-  const permissions = getRolePermissions(userRole);
+  const { user, isAuthenticated } = useAuth()
+  const userRole = user?.role || ''
+  const permissions = getRolePermissions(userRole)
 
   return {
     isAuthenticated,
@@ -136,7 +131,7 @@ export function useRoleGuard() {
      * Check if user has doctor role
      */
     hasDoctorAccess: () => isDoctor(userRole),
-  };
+  }
 }
 
 /**
@@ -157,15 +152,15 @@ export function PermissionGate({
   children,
   fallback = null,
 }: {
-  permission: keyof RolePermissions;
-  children: ReactNode;
-  fallback?: ReactNode;
+  permission: keyof RolePermissions
+  children: ReactNode
+  fallback?: ReactNode
 }) {
-  const { canAccess } = useRoleGuard();
+  const { canAccess } = useRoleGuard()
 
   if (!canAccess(permission)) {
-    return <>{fallback}</>;
+    return <>{fallback}</>
   }
 
-  return <>{children}</>;
+  return <>{children}</>
 }

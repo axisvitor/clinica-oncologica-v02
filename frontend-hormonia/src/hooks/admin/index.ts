@@ -13,7 +13,11 @@ export type { UseUserAdminOptions } from './useUserAdmin'
 
 // Individual feature hooks (for advanced usage)
 export { useUserList } from './useUserList'
-export type { UseUserListOptions, UseUserListResult, UserFilters as UserListFilters } from './useUserList'
+export type {
+  UseUserListOptions,
+  UseUserListResult,
+  UserFilters as UserListFilters,
+} from './useUserList'
 
 export { useUserMutations } from './useUserMutations'
 export type { UseUserMutationsOptions, BulkOperationResult } from './useUserMutations'

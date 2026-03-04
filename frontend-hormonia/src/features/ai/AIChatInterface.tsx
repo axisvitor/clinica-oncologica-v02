@@ -22,11 +22,11 @@ interface AIChatInterfaceProps {
   className?: string
 }
 
-export function AIChatInterface({ 
-  patientId, 
-  sessionId, 
+export function AIChatInterface({
+  patientId,
+  sessionId,
   onSessionChange,
-  className 
+  className,
 }: AIChatInterfaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
@@ -58,7 +58,7 @@ export function AIChatInterface({
     } else {
       createNewSession()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSession and createNewSession are stable functions
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSession and createNewSession are stable functions
   }, [sessionId, patientId])
 
   // Check if AI features are enabled
@@ -82,17 +82,17 @@ export function AIChatInterface({
       // const sessionData = await apiClient.ai.getSession(id)
       // setSession(sessionData)
       // setMessages(sessionData.messages)
-      
+
       // Mock session for demo
       const mockSession: ChatSession = {
         id,
-        patient_id: patientId || "",
+        patient_id: patientId || '',
         user_id: 'current-user',
         title: 'Chat com IA',
         messages: [],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        status: 'active'
+        status: 'active',
       }
       setSession(mockSession)
       setMessages([])
@@ -101,7 +101,7 @@ export function AIChatInterface({
       toast({
         title: 'Erro',
         description: 'Não foi possível carregar a sessão de chat',
-        variant: 'destructive'
+        variant: 'destructive',
       })
     }
   }
@@ -110,19 +110,19 @@ export function AIChatInterface({
     try {
       const newSession: ChatSession = {
         id: `session-${Date.now()}`,
-        patient_id: patientId || "",
+        patient_id: patientId || '',
         user_id: 'current-user',
         title: patientId ? `Chat - Paciente ${patientId}` : 'Chat com IA',
         messages: [],
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        status: 'active'
+        status: 'active',
       }
-      
+
       setSession(newSession)
       setMessages([])
       onSessionChange?.(newSession)
-      
+
       // Add welcome message
       const welcomeMessage: ChatMessage = {
         id: `msg-${Date.now()}`,
@@ -133,7 +133,7 @@ export function AIChatInterface({
         timestamp: new Date().toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        ...(patientId && { patient_id: patientId })
+        ...(patientId && { patient_id: patientId }),
       }
 
       setMessages([welcomeMessage])
@@ -152,19 +152,19 @@ export function AIChatInterface({
       timestamp: new Date().toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      ...(patientId && { patient_id: patientId })
+      ...(patientId && { patient_id: patientId }),
     }
 
-    setMessages(prev => [...prev, userMessage])
+    setMessages((prev) => [...prev, userMessage])
     setInputValue('')
     setIsLoading(true)
 
     try {
       // Build context for AI
       const context = {
-        patient_id: patientId || "",
+        patient_id: patientId || '',
         session_id: session?.id,
-        conversation_history: messages.slice(-10) // Last 10 messages for context
+        conversation_history: messages.slice(-10), // Last 10 messages for context
       }
 
       // Mock response for demo when API is not available
@@ -180,20 +180,23 @@ export function AIChatInterface({
       try {
         // Define API response structure
         interface AIChatApiResponse {
-          message?: string;
-          response?: string;
-          confidence?: number;
-          intent?: string;
-          suggestions?: string[];
-          requires_human_review?: boolean;
+          message?: string
+          response?: string
+          confidence?: number
+          intent?: string
+          suggestions?: string[]
+          requires_human_review?: boolean
         }
-        const apiResponse = await apiClient.ai.chat(userMessage.content, context) as AIChatApiResponse
+        const apiResponse = (await apiClient.ai.chat(
+          userMessage.content,
+          context
+        )) as AIChatApiResponse
         response = {
           message: apiResponse.message || apiResponse.response || 'Resposta da IA',
           confidence: apiResponse.confidence,
           intent: apiResponse.intent,
           suggestions: apiResponse.suggestions,
-          requires_human_review: apiResponse.requires_human_review
+          requires_human_review: apiResponse.requires_human_review,
         }
       } catch {
         // Fallback to mock response
@@ -202,10 +205,10 @@ export function AIChatInterface({
           confidence: 0.85,
           intent: 'general_inquiry',
           suggestions: ['Como posso ajudar mais?', 'Precisa de informações específicas?'],
-          requires_human_review: false
+          requires_human_review: false,
         }
       }
-      
+
       const assistantMessage: ChatMessage = {
         id: `msg-${Date.now() + 1}`,
         role: ChatRole.ASSISTANT,
@@ -217,17 +220,19 @@ export function AIChatInterface({
         metadata: {
           confidence: response.confidence,
           ...(response.intent && { intent: response.intent }),
-          ...(response.requires_human_review && { requires_review: response.requires_human_review })
-        }
+          ...(response.requires_human_review && {
+            requires_review: response.requires_human_review,
+          }),
+        },
       }
 
-      setMessages(prev => [...prev, assistantMessage])
+      setMessages((prev) => [...prev, assistantMessage])
 
       // Show suggestions if available
       if (response.suggestions && response.suggestions.length > 0) {
         toast({
           title: 'Sugestões',
-          description: response.suggestions.join(', ')
+          description: response.suggestions.join(', '),
         })
       }
 
@@ -236,10 +241,9 @@ export function AIChatInterface({
         toast({
           title: 'Revisão Necessária',
           description: 'Esta resposta pode precisar de revisão humana',
-          variant: 'destructive'
+          variant: 'destructive',
         })
       }
-
     } catch (error) {
       logger.error('Failed to send message:', error)
 
@@ -250,15 +254,15 @@ export function AIChatInterface({
         timestamp: new Date().toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        ...(patientId && { patient_id: patientId })
+        ...(patientId && { patient_id: patientId }),
       }
-      
-      setMessages(prev => [...prev, errorMessage])
-      
+
+      setMessages((prev) => [...prev, errorMessage])
+
       toast({
         title: 'Erro',
         description: 'Não foi possível enviar a mensagem',
-        variant: 'destructive'
+        variant: 'destructive',
       })
     } finally {
       setIsLoading(false)
@@ -275,7 +279,7 @@ export function AIChatInterface({
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString('pt-BR', {
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     })
   }
 
@@ -292,7 +296,7 @@ export function AIChatInterface({
 
   const getConfidenceBadge = (confidence?: number) => {
     if (!confidence) return null
-    
+
     const variant = confidence > 0.8 ? 'default' : confidence > 0.6 ? 'secondary' : 'destructive'
     return (
       <Badge variant={variant} className="text-xs">
@@ -307,12 +311,10 @@ export function AIChatInterface({
         <CardTitle className="flex items-center gap-2">
           <Bot className="h-5 w-5" />
           Chat com IA
-          {patientId && (
-            <Badge variant="outline">Paciente: {patientId}</Badge>
-          )}
+          {patientId && <Badge variant="outline">Paciente: {patientId}</Badge>}
         </CardTitle>
       </CardHeader>
-      
+
       <CardContent className="p-0">
         <ScrollArea className="h-96 p-4">
           <div className="space-y-4">
@@ -330,8 +332,10 @@ export function AIChatInterface({
                     </div>
                   </div>
                 )}
-                
-                <div className={`max-w-[80%] ${message.role === ChatRole.USER ? 'order-first' : ''}`}>
+
+                <div
+                  className={`max-w-[80%] ${message.role === ChatRole.USER ? 'order-first' : ''}`}
+                >
                   <div
                     className={`rounded-lg p-3 ${
                       message.role === ChatRole.USER
@@ -341,12 +345,12 @@ export function AIChatInterface({
                   >
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   </div>
-                  
+
                   <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                     <span>{formatTime(message.timestamp)}</span>
                     {message.metadata?.['confidence'] != null &&
-                     isNumber(message.metadata['confidence']) &&
-                     toReactNode(getConfidenceBadge(message.metadata['confidence']))}
+                      isNumber(message.metadata['confidence']) &&
+                      toReactNode(getConfidenceBadge(message.metadata['confidence']))}
 
                     {message.metadata?.['requires_review'] != null && (
                       <AlertTriangle className="h-3 w-3 text-yellow-500" />
@@ -358,7 +362,7 @@ export function AIChatInterface({
                     )}
                   </div>
                 </div>
-                
+
                 {message.role === ChatRole.USER && (
                   <div className="flex-shrink-0">
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -368,7 +372,7 @@ export function AIChatInterface({
                 )}
               </div>
             ))}
-            
+
             {isLoading && (
               <div className="flex gap-3 justify-start">
                 <div className="flex-shrink-0">
@@ -384,13 +388,13 @@ export function AIChatInterface({
                 </div>
               </div>
             )}
-            
+
             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
-        
+
         <Separator />
-        
+
         <div className="p-4">
           <div className="flex gap-2">
             <Input
@@ -409,7 +413,7 @@ export function AIChatInterface({
               onClick={sendMessage}
               disabled={!inputValue.trim() || isLoading}
               size="icon"
-              aria-label={isLoading ? "Enviando mensagem…" : "Enviar mensagem"}
+              aria-label={isLoading ? 'Enviando mensagem…' : 'Enviar mensagem'}
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

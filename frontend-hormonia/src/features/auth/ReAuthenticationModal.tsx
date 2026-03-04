@@ -107,9 +107,7 @@ export function ReAuthenticationModal({
               <DialogTitle className="text-xl">{title}</DialogTitle>
             </div>
           </div>
-          <DialogDescription className="text-base">
-            {description}
-          </DialogDescription>
+          <DialogDescription className="text-base">{description}</DialogDescription>
         </DialogHeader>
 
         {error && (
@@ -154,10 +152,10 @@ export function ReAuthenticationModal({
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Verificando…
-                </>
-              ) : (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verificando…
+                  </>
+                ) : (
                   <>
                     <Shield className="mr-2 h-4 w-4" />
                     Confirmar

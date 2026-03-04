@@ -14,7 +14,11 @@ export interface MedicoAuthContextValue {
   isLoading: boolean
   error: string | null
   medico: MedicoProfile | null
-  signIn: (identifier: string, password: string, remember?: boolean) => Promise<{ success: boolean; error?: string }>
+  signIn: (
+    identifier: string,
+    password: string,
+    remember?: boolean
+  ) => Promise<{ success: boolean; error?: string }>
   signOut: () => Promise<{ success: boolean }>
 }
 
@@ -25,7 +29,10 @@ export function useMedicoAuth(): MedicoAuthContextValue {
   const error = null as string | null
   const medico = user
     ? {
-        full_name: (user as { full_name?: string; name?: string }).full_name || (user as { name?: string }).name || '',
+        full_name:
+          (user as { full_name?: string; name?: string }).full_name ||
+          (user as { name?: string }).name ||
+          '',
         crm: (user as { crm?: string }).crm || '',
       }
     : null

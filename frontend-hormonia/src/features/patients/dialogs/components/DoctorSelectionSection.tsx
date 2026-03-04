@@ -36,7 +36,7 @@ export function DoctorSelectionSection({
   onDoctorChange,
   isLoading = false,
   currentUserName,
-  showError = false
+  showError = false,
 }: DoctorSelectionSectionProps) {
   const hasDoctorOptions = doctorOptions.length > 0
 
@@ -81,9 +81,7 @@ export function DoctorSelectionSection({
             ? 'Carregando médicos...'
             : 'Nenhum médico disponível. Cadastre um médico para seguir com o cadastro.'}
         </div>
-        {showError && (
-          <p className="text-sm text-red-600">Selecione o médico responsável.</p>
-        )}
+        {showError && <p className="text-sm text-red-600">Selecione o médico responsável.</p>}
       </div>
     )
   }

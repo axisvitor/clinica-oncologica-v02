@@ -45,24 +45,24 @@ export function mapSystemStats(backendResponse: SystemStatsResponse): AdminDashb
       total: backendResponse.users.total,
       active: backendResponse.users.active_now,
       locked: 0, // Not provided by backend - would need separate endpoint
-      new_today: 0 // Not provided by backend - would need separate endpoint
+      new_today: 0, // Not provided by backend - would need separate endpoint
     },
     security: {
       failed_logins: 0, // Not provided by backend - would need separate endpoint
       active_sessions: backendResponse.users.active_now, // Use active users as proxy
-      blocked_ips: 0 // Not provided by backend - would need separate endpoint
+      blocked_ips: 0, // Not provided by backend - would need separate endpoint
     },
     system: {
       uptime: backendResponse.system.uptime_seconds / 86400, // Convert seconds to days
       memory_usage: backendResponse.system.memory_percent,
       cpu_usage: backendResponse.system.cpu_percent,
-      disk_usage: backendResponse.system.disk_percent
+      disk_usage: backendResponse.system.disk_percent,
     },
     audit: {
       total_logs: backendResponse.database.total_records,
       critical_events: 0, // Not provided by backend - would need separate endpoint
-      warnings: 0 // Not provided by backend - would need separate endpoint
-    }
+      warnings: 0, // Not provided by backend - would need separate endpoint
+    },
   }
 }
 

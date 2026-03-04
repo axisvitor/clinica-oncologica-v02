@@ -47,17 +47,17 @@ export interface UseUserFiltersOptions {
  * ```
  */
 export function useUserFilters(options: UseUserFiltersOptions = {}) {
-  const {
-    initialFilters = {},
-    pageSize = 10
-  } = options
+  const { initialFilters = {}, pageSize = 10 } = options
 
   // Initialize filters with defaults - memoized to prevent recreating on each render
-  const defaultFilters: UserFilters = useMemo(() => ({
-    page: 1,
-    size: pageSize,
-    ...initialFilters
-  }), [pageSize, initialFilters])
+  const defaultFilters: UserFilters = useMemo(
+    () => ({
+      page: 1,
+      size: pageSize,
+      ...initialFilters,
+    }),
+    [pageSize, initialFilters]
+  )
 
   const [filters, setFilters] = useState<UserFilters>(defaultFilters)
 
@@ -66,33 +66,36 @@ export function useUserFilters(options: UseUserFiltersOptions = {}) {
    * Resets pagination when filters change to show first page of results
    */
   const updateFilters = useCallback((newFilters: Partial<UserFilters>) => {
-    setFilters(prev => ({
+    setFilters((prev) => ({
       ...prev,
       ...newFilters,
       // Reset to first page when filters change (unless page is explicitly set)
-      page: newFilters.page ?? 1
+      page: newFilters.page ?? 1,
     }))
   }, [])
 
   /**
    * Update a single filter value
    */
-  const updateFilter = useCallback((key: keyof UserFilters, value: string | number | undefined) => {
-    updateFilters({ [key]: value })
-  }, [updateFilters])
+  const updateFilter = useCallback(
+    (key: keyof UserFilters, value: string | number | undefined) => {
+      updateFilters({ [key]: value })
+    },
+    [updateFilters]
+  )
 
   /**
    * Update page number
    */
   const setPage = useCallback((page: number) => {
-    setFilters(prev => ({ ...prev, page }))
+    setFilters((prev) => ({ ...prev, page }))
   }, [])
 
   /**
    * Update page size and reset to page 1
    */
   const setPageSize = useCallback((size: number) => {
-    setFilters(prev => ({ ...prev, size, page: 1 }))
+    setFilters((prev) => ({ ...prev, size, page: 1 }))
   }, [])
 
   // Use ref to store defaultFilters for resetFilters callback
@@ -162,7 +165,7 @@ export function useUserFilters(options: UseUserFiltersOptions = {}) {
     if (params['page']) newFilters.page = parseInt(params['page'], 10)
     if (params['size']) newFilters.size = parseInt(params['size'], 10)
 
-    setFilters(prev => ({ ...prev, ...newFilters }))
+    setFilters((prev) => ({ ...prev, ...newFilters }))
   }, [])
 
   return {
@@ -185,6 +188,6 @@ export function useUserFilters(options: UseUserFiltersOptions = {}) {
     /** Convert filters to URL query params */
     toQueryParams,
     /** Set filters from URL query params */
-    fromQueryParams
+    fromQueryParams,
   }
 }

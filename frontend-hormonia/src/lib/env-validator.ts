@@ -71,28 +71,28 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
         return 'Development URL detected'
       }
       return true
-    }
+    },
   },
 
   VITE_API_BASE_URL: {
     required: false,
     type: 'url',
     format: /^https?:\/\/.+/,
-    description: 'Backend API base URL (sem o sufixo /api)'
+    description: 'Backend API base URL (sem o sufixo /api)',
   },
 
   VITE_WS_URL: {
     required: false,
     type: 'string',
     format: /^wss?:\/\//,
-    description: 'WebSocket server URL'
+    description: 'WebSocket server URL',
   },
 
   VITE_WS_BASE_URL: {
     required: false,
     type: 'string',
     format: /^wss?:\/\//,
-    description: 'WebSocket server base URL (alias for VITE_WS_URL)'
+    description: 'WebSocket server base URL (alias for VITE_WS_URL)',
   },
 
   // Application Configuration
@@ -101,7 +101,7 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     type: 'string',
     minLength: 3,
     maxLength: 50,
-    description: 'WhatsApp integration instance name'
+    description: 'WhatsApp integration instance name',
   },
 
   // Firebase Client Configuration (Optional)
@@ -112,50 +112,50 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     description: 'Firebase API key',
     security: {
       sensitive: true,
-      shouldNotBeHardcoded: true
-    }
+      shouldNotBeHardcoded: true,
+    },
   },
 
   VITE_FIREBASE_AUTH_DOMAIN: {
     required: false,
     type: 'string',
     format: /^[a-zA-Z0-9-]+\.firebaseapp\.com$/,
-    description: 'Firebase auth domain'
+    description: 'Firebase auth domain',
   },
 
   VITE_FIREBASE_PROJECT_ID: {
     required: false,
     type: 'string',
     minLength: 3,
-    description: 'Firebase project ID'
+    description: 'Firebase project ID',
   },
 
   VITE_FIREBASE_STORAGE_BUCKET: {
     required: false,
     type: 'string',
     format: /^[a-zA-Z0-9-]+\.appspot\.com$/,
-    description: 'Firebase storage bucket'
+    description: 'Firebase storage bucket',
   },
 
   VITE_FIREBASE_MESSAGING_SENDER_ID: {
     required: false,
     type: 'string',
     format: /^\d+$/,
-    description: 'Firebase messaging sender ID'
+    description: 'Firebase messaging sender ID',
   },
 
   VITE_FIREBASE_APP_ID: {
     required: false,
     type: 'string',
     minLength: 20,
-    description: 'Firebase app ID'
+    description: 'Firebase app ID',
   },
 
   VITE_FIREBASE_MEASUREMENT_ID: {
     required: false,
     type: 'string',
     format: /^G-[A-Z0-9]+$/,
-    description: 'Firebase measurement ID (Google Analytics)'
+    description: 'Firebase measurement ID (Google Analytics)',
   },
 
   // Feature Flags
@@ -163,35 +163,35 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     required: false,
     type: 'boolean',
     allowedValues: ['true', 'false'],
-    description: 'Enable AI chat features'
+    description: 'Enable AI chat features',
   },
 
   VITE_AI_ANALYTICS_ENABLED: {
     required: false,
     type: 'boolean',
     allowedValues: ['true', 'false'],
-    description: 'Enable AI analytics features'
+    description: 'Enable AI analytics features',
   },
 
   VITE_AI_SUMMARY_ENABLED: {
     required: false,
     type: 'boolean',
     allowedValues: ['true', 'false'],
-    description: 'Enable AI patient summary features'
+    description: 'Enable AI patient summary features',
   },
 
   VITE_AI_INSIGHTS_ENABLED: {
     required: false,
     type: 'boolean',
     allowedValues: ['true', 'false'],
-    description: 'Enable AI insights features'
+    description: 'Enable AI insights features',
   },
 
   VITE_AI_RECOMMENDATIONS_ENABLED: {
     required: false,
     type: 'boolean',
     allowedValues: ['true', 'false'],
-    description: 'Enable AI recommendations features'
+    description: 'Enable AI recommendations features',
   },
 
   // Monitoring & Analytics
@@ -201,14 +201,14 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     format: /^https:\/\/[a-f0-9]+@[a-z0-9]+\.ingest\.sentry\.io\/[0-9]+$/,
     description: 'Sentry error tracking DSN',
     security: {
-      sensitive: true
-    }
+      sensitive: true,
+    },
   },
 
   VITE_ANALYTICS_TRACKING_ID: {
     required: false,
     type: 'string',
-    description: 'Analytics tracking ID'
+    description: 'Analytics tracking ID',
   },
 
   // Environment Settings
@@ -216,14 +216,14 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     required: false,
     type: 'string',
     allowedValues: ['development', 'staging', 'production'],
-    description: 'Application environment'
+    description: 'Application environment',
   },
 
   VITE_DEBUG_MODE: {
     required: false,
     type: 'boolean',
     allowedValues: ['true', 'false'],
-    description: 'Enable debug mode'
+    description: 'Enable debug mode',
   },
 
   VITE_SESSION_TIMEOUT: {
@@ -233,7 +233,7 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
       const num = parseInt(value)
       return num > 0 && num <= 86400000 // Max 24 hours
     },
-    description: 'Session timeout in milliseconds'
+    description: 'Session timeout in milliseconds',
   },
 
   VITE_TOKEN_REFRESH_THRESHOLD: {
@@ -243,7 +243,7 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
       const num = parseInt(value)
       return num > 0 && num <= 3600000 // Max 1 hour
     },
-    description: 'Token refresh threshold in milliseconds'
+    description: 'Token refresh threshold in milliseconds',
   },
 
   VITE_MAX_FILE_SIZE: {
@@ -253,13 +253,13 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
       const num = parseInt(value)
       return num > 0 && num <= 104857600 // Max 100MB
     },
-    description: 'Maximum file upload size in bytes'
+    description: 'Maximum file upload size in bytes',
   },
 
   VITE_SUPPORTED_FILE_TYPES: {
     required: false,
     type: 'string',
-    description: 'Comma-separated list of supported file MIME types'
+    description: 'Comma-separated list of supported file MIME types',
   },
 
   // Evolution and Demo Configuration
@@ -267,27 +267,31 @@ const ENV_VALIDATION_RULES: Record<keyof RuntimeConfig, ValidationRule> = {
     required: false,
     type: 'boolean',
     allowedValues: ['true', 'false'],
-    description: 'Enable evolution features'
+    description: 'Enable evolution features',
   },
 
   VITE_EVOLUTION_API_URL: {
     required: false,
     type: 'url',
-    description: 'Evolution API URL'
+    description: 'Evolution API URL',
   },
 
   VITE_SHOW_DEMO_CREDENTIALS: {
     required: false,
     type: 'boolean',
     allowedValues: ['true', 'false'],
-    description: 'Show demo credentials in UI'
-  }
+    description: 'Show demo credentials in UI',
+  },
 }
 
 /**
  * Validates a single environment variable
  */
-function validateField(key: string, value: string | undefined, rule: ValidationRule): {
+function validateField(
+  key: string,
+  value: string | undefined,
+  rule: ValidationRule
+): {
   errors: ValidationError[]
   warnings: ValidationWarning[]
 } {
@@ -311,7 +315,7 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
       field: key,
       message: `Required environment variable is missing`,
       severity: 'critical',
-      suggestion: `Set ${key} in your .env file. ${rule.description}`
+      suggestion: `Set ${key} in your .env file. ${rule.description}`,
     })
     return { errors, warnings }
   }
@@ -330,7 +334,7 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
             field: key,
             message: `Must be a valid number`,
             severity: 'error',
-            suggestion: `Provide a numeric value for ${key}`
+            suggestion: `Provide a numeric value for ${key}`,
           })
         }
         break
@@ -341,7 +345,7 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
             field: key,
             message: `Must be 'true' or 'false'`,
             severity: 'error',
-            suggestion: `Set ${key} to either 'true' or 'false'`
+            suggestion: `Set ${key} to either 'true' or 'false'`,
           })
         }
         break
@@ -353,7 +357,7 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
             errors.push({
               field: key,
               message: `Must be a valid HTTP/HTTPS/WS/WSS URL`,
-              severity: 'error'
+              severity: 'error',
             })
           }
         } catch {
@@ -361,7 +365,7 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
             field: key,
             message: `Must be a valid URL`,
             severity: 'error',
-            suggestion: `Provide a valid URL for ${key} (e.g., https://example.com)`
+            suggestion: `Provide a valid URL for ${key} (e.g., https://example.com)`,
           })
         }
         break
@@ -372,7 +376,7 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
           errors.push({
             field: key,
             message: `Must be a valid email address`,
-            severity: 'error'
+            severity: 'error',
           })
         }
         break
@@ -386,7 +390,7 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
       field: key,
       message: `Does not match required format`,
       severity: 'error',
-      suggestion: `Check the format requirements for ${key}`
+      suggestion: `Check the format requirements for ${key}`,
     })
   }
 
@@ -395,7 +399,7 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
     errors.push({
       field: key,
       message: `Must be at least ${rule.minLength} characters long`,
-      severity: 'error'
+      severity: 'error',
     })
   }
 
@@ -403,7 +407,7 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
     errors.push({
       field: key,
       message: `Must not exceed ${rule.maxLength} characters`,
-      severity: 'error'
+      severity: 'error',
     })
   }
 
@@ -412,7 +416,7 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
     errors.push({
       field: key,
       message: `Must be one of: ${rule.allowedValues.join(', ')}`,
-      severity: 'error'
+      severity: 'error',
     })
   }
 
@@ -424,13 +428,13 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
         warnings.push({
           field: key,
           message: result,
-          suggestion: `Review the configuration for ${key}`
+          suggestion: `Review the configuration for ${key}`,
         })
       } else {
         errors.push({
           field: key,
           message: `Custom validation failed`,
-          severity: 'error'
+          severity: 'error',
         })
       }
     }
@@ -439,11 +443,15 @@ function validateField(key: string, value: string | undefined, rule: ValidationR
   // Security checks
   if (rule.security?.shouldNotBeHardcoded) {
     // Check if this appears to be a hardcoded value (very basic check)
-    if (normalizedValue.length > 20 && !normalizedValue.includes('$') && !normalizedValue.includes('{')) {
+    if (
+      normalizedValue.length > 20 &&
+      !normalizedValue.includes('$') &&
+      !normalizedValue.includes('{')
+    ) {
       warnings.push({
         field: key,
         message: `Appears to be hardcoded. Consider using environment variables.`,
-        suggestion: `Move this value to a secure environment variable`
+        suggestion: `Move this value to a secure environment variable`,
       })
     }
   }
@@ -481,7 +489,7 @@ export function validateRuntimeConfig(config: Partial<RuntimeConfig>): Validatio
       warnings.push({
         field: 'VITE_DEBUG_MODE',
         message: 'Debug mode is enabled in production',
-        suggestion: 'Set VITE_DEBUG_MODE=false for production'
+        suggestion: 'Set VITE_DEBUG_MODE=false for production',
       })
     }
 
@@ -490,7 +498,7 @@ export function validateRuntimeConfig(config: Partial<RuntimeConfig>): Validatio
         field: 'VITE_API_URL',
         message: 'Using localhost URL in production',
         severity: 'critical',
-        suggestion: 'Use production API URL'
+        suggestion: 'Use production API URL',
       })
     }
   }
@@ -500,18 +508,18 @@ export function validateRuntimeConfig(config: Partial<RuntimeConfig>): Validatio
     validated,
     errors: errors.length,
     warnings: warnings.length,
-    missing: Object.keys(ENV_VALIDATION_RULES).filter(key => {
+    missing: Object.keys(ENV_VALIDATION_RULES).filter((key) => {
       const rule = ENV_VALIDATION_RULES[key as keyof RuntimeConfig]
       const value = config[key as keyof RuntimeConfig]
       return rule.required && (!value || value.trim() === '')
-    }).length
+    }).length,
   }
 
   return {
     isValid: errors.length === 0,
     errors,
     warnings,
-    summary
+    summary,
   }
 }
 
@@ -523,7 +531,7 @@ export function validateAndLogConfig(config: Partial<RuntimeConfig>): boolean {
 
   if (result.errors.length > 0) {
     logger.group('❌ Environment Configuration Errors')
-    result.errors.forEach(error => {
+    result.errors.forEach((error) => {
       logger.error(`${error.field}: ${error.message}`)
       if (error.suggestion) {
         logger.info(`💡 Suggestion: ${error.suggestion}`)
@@ -534,7 +542,7 @@ export function validateAndLogConfig(config: Partial<RuntimeConfig>): boolean {
 
   if (result.warnings.length > 0) {
     logger.group('⚠️ Environment Configuration Warnings')
-    result.warnings.forEach(warning => {
+    result.warnings.forEach((warning) => {
       logger.warn(`${warning.field}: ${warning.message}`)
       if (warning.suggestion) {
         logger.info(`💡 Suggestion: ${warning.suggestion}`)
@@ -584,12 +592,11 @@ export function maskSensitiveConfig(config: Partial<RuntimeConfig>): Partial<Run
   const masked = { ...config }
   const sensitiveFields = getSensitiveEnvVars()
 
-  sensitiveFields.forEach(field => {
+  sensitiveFields.forEach((field) => {
     const value = masked[field as keyof RuntimeConfig]
     if (value && typeof value === 'string') {
-      masked[field as keyof RuntimeConfig] = value.length > 8
-        ? `${value.substring(0, 4)}...${value.substring(value.length - 4)}`
-        : '***'
+      masked[field as keyof RuntimeConfig] =
+        value.length > 8 ? `${value.substring(0, 4)}...${value.substring(value.length - 4)}` : '***'
     }
   })
 

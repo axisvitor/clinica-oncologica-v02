@@ -15,7 +15,7 @@
  */
 export enum UserRole {
   ADMIN = 'admin',
-  DOCTOR = 'doctor'
+  DOCTOR = 'doctor',
 }
 
 /**
@@ -24,7 +24,7 @@ export enum UserRole {
  */
 export enum AuthProvider {
   LOCAL = 'local',
-  FIREBASE = 'firebase'
+  FIREBASE = 'firebase',
 }
 
 // ============================================================================
@@ -102,7 +102,7 @@ export enum Permission {
   API_ACCESS = 'api:access',
   API_RATE_LIMIT_BYPASS = 'api:rate_limit_bypass',
   WEBHOOK_MANAGE = 'webhook:manage',
-  INTEGRATION_MANAGE = 'integration:manage'
+  INTEGRATION_MANAGE = 'integration:manage',
 }
 
 /**
@@ -114,7 +114,7 @@ export enum SecurityLevel {
   AUTHENTICATED = 'authenticated',
   VERIFIED = 'verified',
   PRIVILEGED = 'privileged',
-  RESTRICTED = 'restricted'
+  RESTRICTED = 'restricted',
 }
 
 // ============================================================================
@@ -186,14 +186,14 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleDefinition> = {
       Permission.NOTIFICATION_MANAGE,
       Permission.API_ACCESS,
       Permission.WEBHOOK_MANAGE,
-      Permission.INTEGRATION_MANAGE
+      Permission.INTEGRATION_MANAGE,
     ],
     security_level: SecurityLevel.PRIVILEGED,
     description: 'Administrative access with management capabilities',
     is_default: false,
     requires_verification: true,
     max_auto_grant_duration_ms: 24 * 60 * 60 * 1000, // 24 hours
-    allowed_domains: ['hormonia.io', 'admin.local', 'clinica.med.br']
+    allowed_domains: ['hormonia.io', 'admin.local', 'clinica.med.br'],
   },
   [UserRole.DOCTOR]: {
     name: 'Doctor',
@@ -220,14 +220,14 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleDefinition> = {
       Permission.TEMPLATE_READ,
       Permission.TEMPLATE_CREATE,
       Permission.MESSAGE_SEND,
-      Permission.API_ACCESS
+      Permission.API_ACCESS,
     ],
     security_level: SecurityLevel.VERIFIED,
     description: 'Medical professional with patient care access',
     is_default: true,
     requires_verification: true,
-    allowed_domains: ['med.br', 'saude.gov.br', 'crm.org.br', 'hospital.com.br']
-  }
+    allowed_domains: ['med.br', 'saude.gov.br', 'crm.org.br', 'hospital.com.br'],
+  },
 }
 
 // ============================================================================
@@ -237,12 +237,29 @@ export const ROLE_DEFINITIONS: Record<UserRole, RoleDefinition> = {
 /**
  * Permission resource types for access control
  */
-export type PermissionResource = 'user' | 'patient' | 'quiz' | 'report' | 'analytics' | 'admin' | 'template' | 'flow' | 'message' | 'webhook'
+export type PermissionResource =
+  | 'user'
+  | 'patient'
+  | 'quiz'
+  | 'report'
+  | 'analytics'
+  | 'admin'
+  | 'template'
+  | 'flow'
+  | 'message'
+  | 'webhook'
 
 /**
  * Permission actions for resource access
  */
-export type PermissionAction = 'create' | 'read' | 'update' | 'delete' | 'list' | 'execute' | 'manage'
+export type PermissionAction =
+  | 'create'
+  | 'read'
+  | 'update'
+  | 'delete'
+  | 'list'
+  | 'execute'
+  | 'manage'
 
 /**
  * Permission check request
@@ -296,7 +313,7 @@ export const PERMISSION_MAP: Record<string, Permission> = {
   'template:update': Permission.TEMPLATE_UPDATE,
   'template:delete': Permission.TEMPLATE_DELETE,
   'message:send': Permission.MESSAGE_SEND,
-  'webhook:manage': Permission.WEBHOOK_MANAGE
+  'webhook:manage': Permission.WEBHOOK_MANAGE,
 }
 
 // ============================================================================
@@ -345,14 +362,14 @@ export function hasPermission(role: UserRole, permission: Permission): boolean {
  * Check if a role has any of the specified permissions
  */
 export function hasAnyPermission(role: UserRole, permissions: Permission[]): boolean {
-  return permissions.some(p => hasPermission(role, p))
+  return permissions.some((p) => hasPermission(role, p))
 }
 
 /**
  * Check if a role has all of the specified permissions
  */
 export function hasAllPermissions(role: UserRole, permissions: Permission[]): boolean {
-  return permissions.every(p => hasPermission(role, p))
+  return permissions.every((p) => hasPermission(role, p))
 }
 
 /**
@@ -378,7 +395,7 @@ export function canAccessResource(
   if (!requiredPermission) {
     return {
       allowed: false,
-      reason: `Unknown resource action: ${permissionKey}`
+      reason: `Unknown resource action: ${permissionKey}`,
     }
   }
 
@@ -394,7 +411,7 @@ export function canAccessResource(
       [SecurityLevel.AUTHENTICATED]: 1,
       [SecurityLevel.VERIFIED]: 2,
       [SecurityLevel.PRIVILEGED]: 3,
-      [SecurityLevel.RESTRICTED]: 4
+      [SecurityLevel.RESTRICTED]: 4,
     }
 
     const userLevelValue = userLevel ? levelHierarchy[userLevel] : 0
@@ -404,7 +421,7 @@ export function canAccessResource(
       return {
         allowed: false,
         reason: 'Insufficient security level',
-        required_permission: requiredPermission
+        required_permission: requiredPermission,
       }
     }
   }
@@ -412,7 +429,7 @@ export function canAccessResource(
   return {
     allowed: hasBasePermission,
     reason: hasBasePermission ? undefined : `Missing permission: ${requiredPermission}`,
-    required_permission: requiredPermission
+    required_permission: requiredPermission,
   }
 }
 
@@ -449,7 +466,10 @@ export function validateRoleAssignment(
     roleDef.security_level === SecurityLevel.RESTRICTED
   ) {
     if (roleDef.allowed_domains && !roleDef.allowed_domains.includes(domain)) {
-      return { is_valid: false, reason: `Domain ${domain} is not approved for restricted role ${proposedRole}` }
+      return {
+        is_valid: false,
+        reason: `Domain ${domain} is not approved for restricted role ${proposedRole}`,
+      }
     }
   }
 
@@ -533,7 +553,7 @@ export function getPermissionName(permission: Permission): string {
     [Permission.API_ACCESS]: 'Acesso à API',
     [Permission.API_RATE_LIMIT_BYPASS]: 'Bypass de Rate Limit',
     [Permission.WEBHOOK_MANAGE]: 'Gerenciar Webhooks',
-    [Permission.INTEGRATION_MANAGE]: 'Gerenciar Integrações'
+    [Permission.INTEGRATION_MANAGE]: 'Gerenciar Integrações',
   }
   return names[permission] || permission
 }

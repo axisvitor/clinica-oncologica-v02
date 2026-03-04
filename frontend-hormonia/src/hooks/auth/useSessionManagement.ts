@@ -14,7 +14,7 @@ interface UseSessionManagementOptions {
 export function useSessionManagement({
   onRefreshNeeded,
   onSessionExpired,
-  autoRefresh = true
+  autoRefresh = true,
 }: UseSessionManagementOptions) {
   const [sessionExpiry, setSessionExpiry] = useState<number | null>(null)
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -34,7 +34,7 @@ export function useSessionManagement({
   const isSessionExpiring = useCallback((): boolean => {
     if (!sessionExpiry) return false
     const now = Date.now()
-    return (sessionExpiry - now) <= TOKEN_REFRESH_THRESHOLD
+    return sessionExpiry - now <= TOKEN_REFRESH_THRESHOLD
   }, [sessionExpiry])
 
   const getTimeToExpiry = useCallback((): number => {
@@ -43,37 +43,43 @@ export function useSessionManagement({
     return Math.max(0, sessionExpiry - now)
   }, [sessionExpiry])
 
-  const setupSession = useCallback((expiresIn: number) => {
-    const now = Date.now()
-    const expiry = now + (expiresIn * 1000)
-    setSessionExpiry(expiry)
+  const setupSession = useCallback(
+    (expiresIn: number) => {
+      const now = Date.now()
+      const expiry = now + expiresIn * 1000
+      setSessionExpiry(expiry)
 
-    clearTimeouts()
+      clearTimeouts()
 
-    if (autoRefresh) {
-      // Setup refresh token timer (5 minutes before expiry)
-      const refreshTime = Math.max(0, (expiresIn * 1000) - TOKEN_REFRESH_THRESHOLD)
-      refreshTimeoutRef.current = setTimeout(() => {
-        onRefreshNeeded().catch((error) => {
-          logger.error('Auto refresh failed:', error)
-        })
-      }, refreshTime)
-    }
+      if (autoRefresh) {
+        // Setup refresh token timer (5 minutes before expiry)
+        const refreshTime = Math.max(0, expiresIn * 1000 - TOKEN_REFRESH_THRESHOLD)
+        refreshTimeoutRef.current = setTimeout(() => {
+          onRefreshNeeded().catch((error) => {
+            logger.error('Auto refresh failed:', error)
+          })
+        }, refreshTime)
+      }
 
-    // Setup session timeout (logout when session expires)
-    const timeoutDuration = Math.min(expiresIn * 1000, SESSION_TIMEOUT)
-    sessionTimeoutRef.current = setTimeout(() => {
-      onSessionExpired()
-    }, timeoutDuration)
-  }, [autoRefresh, onRefreshNeeded, onSessionExpired, clearTimeouts])
+      // Setup session timeout (logout when session expires)
+      const timeoutDuration = Math.min(expiresIn * 1000, SESSION_TIMEOUT)
+      sessionTimeoutRef.current = setTimeout(() => {
+        onSessionExpired()
+      }, timeoutDuration)
+    },
+    [autoRefresh, onRefreshNeeded, onSessionExpired, clearTimeouts]
+  )
 
-  const updateSessionFromTokens = useCallback((tokens: AuthTokens) => {
-    if (tokens.expires_in) {
-      setupSession(tokens.expires_in)
-      // SECURITY: Session managed by httpOnly cookies (backend)
-      // No localStorage storage needed - cookies are automatic
-    }
-  }, [setupSession])
+  const updateSessionFromTokens = useCallback(
+    (tokens: AuthTokens) => {
+      if (tokens.expires_in) {
+        setupSession(tokens.expires_in)
+        // SECURITY: Session managed by httpOnly cookies (backend)
+        // No localStorage storage needed - cookies are automatic
+      }
+    },
+    [setupSession]
+  )
 
   const clearSession = useCallback(() => {
     clearTimeouts()
@@ -91,7 +97,7 @@ export function useSessionManagement({
   const sessionData: SessionData = {
     expiry: sessionExpiry,
     isExpiring: isSessionExpiring(),
-    timeToExpiry: getTimeToExpiry()
+    timeToExpiry: getTimeToExpiry(),
   }
 
   // Cleanup on unmount
@@ -106,6 +112,6 @@ export function useSessionManagement({
     clearSession,
     restoreSessionFromStorage,
     isSessionExpiring,
-    getTimeToExpiry
+    getTimeToExpiry,
   }
 }

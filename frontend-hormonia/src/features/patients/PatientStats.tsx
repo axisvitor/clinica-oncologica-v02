@@ -9,7 +9,7 @@ import type { Patient } from '@/lib/api-client'
 export function PatientStats() {
   const { data: patientsData, isLoading } = useQuery({
     queryKey: ['patients', { size: 100 }],
-    queryFn: () => apiClient.patients.list({ size: 100 })
+    queryFn: () => apiClient.patients.list({ size: 100 }),
   })
 
   if (isLoading) {
@@ -30,13 +30,13 @@ export function PatientStats() {
 
   // Handle different possible response shapes from API
   interface PatientListResponse {
-    items?: Patient[];
-    data?: Patient[];
+    items?: Patient[]
+    data?: Patient[]
   }
   const typedPatientsData = patientsData as PatientListResponse | Patient[] | undefined
   const patients: Patient[] = Array.isArray(typedPatientsData)
     ? typedPatientsData
-    : (typedPatientsData?.items || typedPatientsData?.data || [])
+    : typedPatientsData?.items || typedPatientsData?.data || []
   const totalPatients = patients.length
   const activePatients = patients.filter((p: Patient) => p.status === 'active').length
   const pausedPatients = patients.filter((p: Patient) => p.status === 'paused').length
@@ -47,26 +47,26 @@ export function PatientStats() {
       title: 'Total de Pacientes',
       value: totalPatients,
       icon: Users,
-      description: 'Pacientes cadastrados'
+      description: 'Pacientes cadastrados',
     },
     {
       title: 'Pacientes Ativos',
       value: activePatients,
       icon: Activity,
-      description: 'Em tratamento ativo'
+      description: 'Em tratamento ativo',
     },
     {
       title: 'Pacientes Pausados',
       value: pausedPatients,
       icon: Clock,
-      description: 'Tratamento pausado'
+      description: 'Tratamento pausado',
     },
     {
       title: 'Tratamentos Concluídos',
       value: completedPatients,
       icon: CheckCircle,
-      description: 'Finalizados com sucesso'
-    }
+      description: 'Finalizados com sucesso',
+    },
   ]
 
   return (
@@ -76,16 +76,12 @@ export function PatientStats() {
         return (
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {stat.title}
-              </CardTitle>
+              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
               <Icon className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground">
-                {stat.description}
-              </p>
+              <p className="text-xs text-muted-foreground">{stat.description}</p>
             </CardContent>
           </Card>
         )

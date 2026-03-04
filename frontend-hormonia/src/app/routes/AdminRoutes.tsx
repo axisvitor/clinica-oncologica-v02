@@ -48,8 +48,6 @@ const AdminReportsPage = () => (
   </div>
 )
 
-
-
 const AdminTemplatesPage = () => (
   <div className="p-0">
     <TemplateManagementPage />
@@ -81,7 +79,7 @@ const AdminLoginPage: React.FC = () => {
 
       // Return success response in AdminLoginResponse format
       const response: AdminLoginResponse = {
-        success: true
+        success: true,
       }
 
       if (user) {
@@ -95,7 +93,7 @@ const AdminLoginPage: React.FC = () => {
       // Return error response in AdminLoginResponse format
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Login failed'
+        error: error instanceof Error ? error.message : 'Login failed',
       }
     }
   }
@@ -106,16 +104,12 @@ const AdminLoginPage: React.FC = () => {
     // This prevents email enumeration attacks and ensures proper identity verification
     toast({
       title: 'Recuperação de senha',
-      description: 'Por segurança (LGPD), entre em contato com o administrador do sistema para redefinir sua senha.'
+      description:
+        'Por segurança (LGPD), entre em contato com o administrador do sistema para redefinir sua senha.',
     })
   }
 
-  return (
-    <AdminLoginForm
-      onLogin={handleLogin}
-      onForgotPassword={handleForgotPassword}
-    />
-  )
+  return <AdminLoginForm onLogin={handleLogin} onForgotPassword={handleForgotPassword} />
 }
 
 // Main admin routes configuration

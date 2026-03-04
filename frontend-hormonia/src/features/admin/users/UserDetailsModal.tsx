@@ -19,7 +19,13 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -45,7 +51,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
     formState: { errors },
     setValue,
     watch,
-    reset
+    reset,
   } = useForm<UpdateUserFormData>({
     resolver: zodResolver(updateUserSchema),
     defaultValues: {
@@ -54,8 +60,8 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
       role: user['role'],
       permissions: user.permissions,
       is_active: user.is_active,
-      two_factor_enabled: user.two_factor_enabled ?? false
-    }
+      two_factor_enabled: user.two_factor_enabled ?? false,
+    },
   })
 
   React.useEffect(() => {
@@ -65,7 +71,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
       role: user['role'],
       permissions: user.permissions,
       is_active: user.is_active,
-      two_factor_enabled: user.two_factor_enabled ?? false
+      two_factor_enabled: user.two_factor_enabled ?? false,
     })
   }, [user, reset])
 
@@ -74,25 +80,26 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
       // Clean null values to undefined for API compatibility
       const cleanedData = Object.fromEntries(
         Object.entries(data).map(([key, value]) => [key, value === null ? undefined : value])
-      ) as Parameters<typeof apiClient.adminUsers.update>[1];
-      return apiClient.adminUsers.update(user['id'], cleanedData);
+      ) as Parameters<typeof apiClient.adminUsers.update>[1]
+      return apiClient.adminUsers.update(user['id'], cleanedData)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       toast({
         title: 'Usuário atualizado com sucesso',
-        description: 'As informações do usuário foram atualizadas.'
+        description: 'As informações do usuário foram atualizadas.',
       })
       setIsEditing(false)
     },
     onError: (error: unknown) => {
-      const message = (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.';
+      const message =
+        (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.'
       toast({
         title: 'Erro ao atualizar usuário',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const resetPasswordMutation = useMutation({
@@ -103,7 +110,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
       // Send password to backend for user update
       await apiClient.adminUsers.resetPassword(user['id'], {
         new_password: tempPassword,
-        force_change: true
+        force_change: true,
       })
 
       // Return generated password for display
@@ -112,17 +119,18 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
     onSuccess: (data: { temporary_password: string }) => {
       toast({
         title: 'Senha resetada com sucesso',
-        description: `Senha temporária: ${data.temporary_password}`
+        description: `Senha temporária: ${data.temporary_password}`,
       })
     },
     onError: (error: unknown) => {
-      const message = (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.';
+      const message =
+        (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.'
       toast({
         title: 'Erro ao resetar senha',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const onSubmit = (data: UpdateUserFormData) => {
@@ -147,7 +155,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
     try {
       return formatDistanceToNow(new Date(lastLogin), {
         addSuffix: true,
-        locale: ptBR
+        locale: ptBR,
       })
     } catch {
       return 'Data inválida'
@@ -285,7 +293,11 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
                     >
                       Cancelar
                     </Button>
-                    <Button type="submit" disabled={updateMutation.isPending} className="w-full sm:w-auto">
+                    <Button
+                      type="submit"
+                      disabled={updateMutation.isPending}
+                      className="w-full sm:w-auto"
+                    >
                       {updateMutation.isPending && (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       )}
@@ -293,7 +305,11 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
                     </Button>
                   </>
                 ) : (
-                  <Button type="button" onClick={() => setIsEditing(true)} className="w-full sm:w-auto">
+                  <Button
+                    type="button"
+                    onClick={() => setIsEditing(true)}
+                    className="w-full sm:w-auto"
+                  >
                     Editar
                   </Button>
                 )}
@@ -354,9 +370,7 @@ export function UserDetailsModal({ user, open, onOpenChange }: UserDetailsModalP
                     <Key className="h-5 w-5 text-muted-foreground" />
                     <div>
                       <p className="font-medium">Resetar Senha</p>
-                      <p className="text-sm text-muted-foreground">
-                        Gerar nova senha temporária
-                      </p>
+                      <p className="text-sm text-muted-foreground">Gerar nova senha temporária</p>
                     </div>
                   </div>
                   <Button

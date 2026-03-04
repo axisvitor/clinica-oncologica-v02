@@ -48,9 +48,7 @@ export function OverviewRadialChart<TData extends Record<string, unknown>>({
               verticalAlign="middle"
               align="right"
             />
-            <Tooltip
-              formatter={(value: ValueType) => [formatValue(value), tooltipLabel]}
-            />
+            <Tooltip formatter={(value: ValueType) => [formatValue(value), tooltipLabel]} />
           </RadialBarChart>
         </ResponsiveContainer>
       </Suspense>

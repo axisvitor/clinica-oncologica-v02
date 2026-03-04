@@ -21,7 +21,7 @@ export function InstancesTab({ selectedInstance, onSelectInstance }: InstancesTa
     restartInstance,
     isRestarting,
     deleteInstance,
-    isDeleting
+    isDeleting,
   } = useWhatsAppInstances()
 
   const handleCreateInstance = (e: React.FormEvent<HTMLFormElement>) => {
@@ -39,9 +39,7 @@ export function InstancesTab({ selectedInstance, onSelectInstance }: InstancesTa
       <Card>
         <CardHeader>
           <CardTitle>Create New Instance</CardTitle>
-          <CardDescription>
-            Create a new WhatsApp instance for messaging
-          </CardDescription>
+          <CardDescription>Create a new WhatsApp instance for messaging</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleCreateInstance}>
@@ -51,10 +49,7 @@ export function InstancesTab({ selectedInstance, onSelectInstance }: InstancesTa
                 placeholder="Instance name (e.g., clinica-main)"
                 className="flex-1"
               />
-              <Button
-                type="submit"
-                disabled={isCreating}
-              >
+              <Button type="submit" disabled={isCreating}>
                 {isCreating ? 'Creating...' : 'Create Instance'}
               </Button>
             </div>

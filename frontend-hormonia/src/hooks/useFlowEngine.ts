@@ -9,7 +9,7 @@ import {
   type InboundMessage,
   type FlowEvent,
   type FlowState,
-  type ResponseResult
+  type ResponseResult,
 } from '@/lib/api-client/types'
 
 const logger = createLogger('useFlowEngine')
@@ -57,7 +57,7 @@ export function useFlowEngine() {
   return {
     isInitialized,
     flowEngine,
-    templateManager
+    templateManager,
   }
 }
 
@@ -69,7 +69,7 @@ export function useFlowState(patientId: string) {
     queryFn: () => flowEngine.getFlowState(patientId),
     enabled: !!patientId,
     staleTime: 30000, // 30 seconds
-    refetchInterval: 60000 // 1 minute
+    refetchInterval: 60000, // 1 minute
   })
 }
 
@@ -79,7 +79,7 @@ export function useFlowTemplates() {
   return useQuery({
     queryKey: ['flow-templates'],
     queryFn: () => templateManager.getAllTemplates(),
-    staleTime: 300000 // 5 minutes
+    staleTime: 300000, // 5 minutes
   })
 }
 
@@ -90,7 +90,7 @@ export function useFlowAnalytics() {
     queryKey: ['flow-analytics'],
     queryFn: () => flowEngine.getAnalytics(),
     staleTime: 60000, // 1 minute
-    refetchInterval: 300000 // 5 minutes
+    refetchInterval: 300000, // 5 minutes
   })
 }
 
@@ -105,7 +105,7 @@ export function useStartFlow() {
       queryClient.invalidateQueries({ queryKey: ['flows'] })
       queryClient.invalidateQueries({ queryKey: ['flow-state', variables.patientId] })
       queryClient.setQueryData(['flow-state', variables.patientId], data)
-    }
+    },
   })
 }
 
@@ -120,7 +120,7 @@ export function useAdvanceFlow() {
       queryClient.invalidateQueries({ queryKey: ['flows'] })
       queryClient.invalidateQueries({ queryKey: ['flow-state', variables.patientId] })
       queryClient.setQueryData(['flow-state', variables.patientId], data)
-    }
+    },
   })
 }
 
@@ -134,7 +134,7 @@ export function usePauseFlow() {
       queryClient.invalidateQueries({ queryKey: ['flows'] })
       queryClient.invalidateQueries({ queryKey: ['flow-state', patientId] })
       queryClient.setQueryData(['flow-state', patientId], data)
-    }
+    },
   })
 }
 
@@ -148,7 +148,7 @@ export function useResumeFlow() {
       queryClient.invalidateQueries({ queryKey: ['flows'] })
       queryClient.invalidateQueries({ queryKey: ['flow-state', patientId] })
       queryClient.setQueryData(['flow-state', patientId], data)
-    }
+    },
   })
 }
 
@@ -159,11 +159,14 @@ export function useProcessResponse() {
   return useMutation({
     mutationFn: ({ patientId, message }: { patientId: string; message: InboundMessage }) =>
       flowEngine.processResponse(patientId, message),
-    onSuccess: (data: ResponseResult, variables: { patientId: string; message: InboundMessage }) => {
+    onSuccess: (
+      data: ResponseResult,
+      variables: { patientId: string; message: InboundMessage }
+    ) => {
       queryClient.invalidateQueries({ queryKey: ['flows'] })
       queryClient.invalidateQueries({ queryKey: ['flow-state', variables.patientId] })
       queryClient.invalidateQueries({ queryKey: ['messages', variables.patientId] })
-    }
+    },
   })
 }
 
@@ -175,7 +178,7 @@ export function useCreateTemplate() {
     mutationFn: (template: FlowTemplate) => templateManager.createTemplate(template),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['flow-templates'] })
-    }
+    },
   })
 }
 
@@ -187,7 +190,7 @@ export function useUpdateTemplate() {
     mutationFn: (template: FlowTemplate) => templateManager.updateTemplate(template),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['flow-templates'] })
-    }
+    },
   })
 }
 
@@ -200,7 +203,7 @@ export function useDeleteTemplate() {
       templateManager.deleteTemplate(templateId, flowType),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['flow-templates'] })
-    }
+    },
   })
 }
 
@@ -213,33 +216,44 @@ export function useFlowOperations(patientId: string) {
   const processResponse = useProcessResponse()
 
   const operations = {
-    start: useCallback((flowType: FlowType) => 
-      startFlow.mutate({ patientId, flowType }), [startFlow, patientId]),
-    
-    advance: useCallback((forceDay?: number) =>
-      advanceFlow.mutate({ patientId, ...(forceDay !== undefined && { forceDay }) }), [advanceFlow, patientId]),
-    
-    pause: useCallback(() => 
-      pauseFlow.mutate(patientId), [pauseFlow, patientId]),
-    
-    resume: useCallback(() => 
-      resumeFlow.mutate(patientId), [resumeFlow, patientId]),
-    
-    processResponse: useCallback((message: InboundMessage) => 
-      processResponse.mutate({ patientId, message }), [processResponse, patientId])
+    start: useCallback(
+      (flowType: FlowType) => startFlow.mutate({ patientId, flowType }),
+      [startFlow, patientId]
+    ),
+
+    advance: useCallback(
+      (forceDay?: number) =>
+        advanceFlow.mutate({ patientId, ...(forceDay !== undefined && { forceDay }) }),
+      [advanceFlow, patientId]
+    ),
+
+    pause: useCallback(() => pauseFlow.mutate(patientId), [pauseFlow, patientId]),
+
+    resume: useCallback(() => resumeFlow.mutate(patientId), [resumeFlow, patientId]),
+
+    processResponse: useCallback(
+      (message: InboundMessage) => processResponse.mutate({ patientId, message }),
+      [processResponse, patientId]
+    ),
   }
 
-  const isLoading = startFlow.isPending || advanceFlow.isPending || 
-                   pauseFlow.isPending || resumeFlow.isPending || 
-                   processResponse.isPending
+  const isLoading =
+    startFlow.isPending ||
+    advanceFlow.isPending ||
+    pauseFlow.isPending ||
+    resumeFlow.isPending ||
+    processResponse.isPending
 
-  const error = startFlow.error || advanceFlow.error || 
-               pauseFlow.error || resumeFlow.error || 
-               processResponse.error
+  const error =
+    startFlow.error ||
+    advanceFlow.error ||
+    pauseFlow.error ||
+    resumeFlow.error ||
+    processResponse.error
 
   return {
     operations,
     isLoading,
-    error
+    error,
   }
 }

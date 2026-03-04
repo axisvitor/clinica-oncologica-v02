@@ -14,7 +14,7 @@ import {
   AdminLoginCredentials,
   PasswordStrength,
   AdminLoginResponse,
-  AdminAuthError
+  AdminAuthError,
 } from '@/types/admin'
 import { createLogger } from '@/lib/logger'
 
@@ -78,10 +78,7 @@ const calculatePasswordStrength = (password: string): PasswordStrength => {
 
 // Validation schema
 const adminLoginSchema = z.object({
-  email: z
-    .string()
-    .min(1, 'Email é obrigatório')
-    .email('Formato de email inválido'),
+  email: z.string().min(1, 'Email é obrigatório').email('Formato de email inválido'),
   password: z
     .string()
     .min(1, 'Senha é obrigatória')
@@ -90,9 +87,9 @@ const adminLoginSchema = z.object({
     .string()
     .optional()
     .refine((code) => !code || /^\d{6}$/.test(code), {
-      message: 'Código 2FA deve ter 6 dígitos'
+      message: 'Código 2FA deve ter 6 dígitos',
     }),
-  rememberMe: z.boolean().optional()
+  rememberMe: z.boolean().optional(),
 })
 
 type AdminLoginFormData = z.infer<typeof adminLoginSchema>
@@ -114,7 +111,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
   requiresTwoFactor = false,
   lockoutTime = 0,
   maxAttempts = 5,
-  currentAttempts = 0
+  currentAttempts = 0,
 }) => {
   const [showPassword, setShowPassword] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState<PasswordStrength | null>(null)
@@ -128,15 +125,15 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
     watch,
     formState: { errors, isSubmitting },
     setValue,
-    clearErrors
+    clearErrors,
   } = useForm<AdminLoginFormData>({
     resolver: zodResolver(adminLoginSchema),
     defaultValues: {
       email: '',
       password: '',
       twoFactorCode: '',
-      rememberMe: false
-    }
+      rememberMe: false,
+    },
   })
 
   const watchedPassword = watch('password')
@@ -155,7 +152,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
   React.useEffect(() => {
     if (timeRemaining > 0) {
       const timer = setTimeout(() => {
-        setTimeRemaining(time => {
+        setTimeRemaining((time) => {
           const newTime = time - 1
           if (newTime <= 0) {
             setIsLocked(false)
@@ -210,39 +207,42 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
     }
   }
 
-  const onSubmit = useCallback(async (data: AdminLoginFormData) => {
-    if (isLocked) return
+  const onSubmit = useCallback(
+    async (data: AdminLoginFormData) => {
+      if (isLocked) return
 
-    try {
-      setLoginError(null)
-      clearErrors()
+      try {
+        setLoginError(null)
+        clearErrors()
 
-      const response = await onLogin({
-        email: data['email'],
-        password: data['password'],
-        ...(data.twoFactorCode ? { twoFactorCode: data.twoFactorCode } : {}),
-        ...(data.rememberMe !== undefined ? { rememberMe: data.rememberMe } : {})
-      })
+        const response = await onLogin({
+          email: data['email'],
+          password: data['password'],
+          ...(data.twoFactorCode ? { twoFactorCode: data.twoFactorCode } : {}),
+          ...(data.rememberMe !== undefined ? { rememberMe: data.rememberMe } : {}),
+        })
 
-      if (!response.success) {
-        throw new AdminAuthError(response.error || 'Falha no login')
-      }
-    } catch (error) {
-      logger.error('Login error', { error })
-
-      if (error instanceof AdminAuthError) {
-        setLoginError(error.message)
-
-        // Handle account lockout
-        if (error.code === 'ACCOUNT_LOCKED') {
-          setIsLocked(true)
-          setTimeRemaining(lockoutTime)
+        if (!response.success) {
+          throw new AdminAuthError(response.error || 'Falha no login')
         }
-      } else {
-        setLoginError('Ocorreu um erro inesperado. Tente novamente.')
+      } catch (error) {
+        logger.error('Login error', { error })
+
+        if (error instanceof AdminAuthError) {
+          setLoginError(error.message)
+
+          // Handle account lockout
+          if (error.code === 'ACCOUNT_LOCKED') {
+            setIsLocked(true)
+            setTimeRemaining(lockoutTime)
+          }
+        } else {
+          setLoginError('Ocorreu um erro inesperado. Tente novamente.')
+        }
       }
-    }
-  }, [onLogin, isLocked, clearErrors, lockoutTime])
+    },
+    [onLogin, isLocked, clearErrors, lockoutTime]
+  )
 
   const handleForgotPassword = useCallback(() => {
     if (onForgotPassword && watchedEmail) {
@@ -282,9 +282,7 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
           {loginError && (
             <Alert className="border-red-200 bg-red-50">
               <AlertCircle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-800">
-                {loginError}
-              </AlertDescription>
+              <AlertDescription className="text-red-800">{loginError}</AlertDescription>
             </Alert>
           )}
 
@@ -293,7 +291,10 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
             <Alert className="border-yellow-200 bg-yellow-50">
               <AlertCircle className="h-4 w-4 text-yellow-600" />
               <AlertDescription className="text-yellow-800">
-                Aviso: {remainingAttempts} {remainingAttempts !== 1 ? 'tentativas de login restantes' : 'tentativa de login restante'}
+                Aviso: {remainingAttempts}{' '}
+                {remainingAttempts !== 1
+                  ? 'tentativas de login restantes'
+                  : 'tentativa de login restante'}
               </AlertDescription>
             </Alert>
           )}
@@ -349,9 +350,15 @@ export const AdminLoginForm: React.FC<AdminLoginFormProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-600">Força da Senha:</span>
-                    <span className={`text-xs font-medium ${passwordStrength.score >= 3 ? 'text-green-600' :
-                        passwordStrength.score >= 2 ? 'text-yellow-600' : 'text-red-600'
-                      }`}>
+                    <span
+                      className={`text-xs font-medium ${
+                        passwordStrength.score >= 3
+                          ? 'text-green-600'
+                          : passwordStrength.score >= 2
+                            ? 'text-yellow-600'
+                            : 'text-red-600'
+                      }`}
+                    >
                       {getPasswordStrengthText(passwordStrength.score)}
                     </span>
                   </div>

@@ -48,11 +48,7 @@ export interface WebSocketMessage {
  * ```
  */
 export function useUserWebSocket(options: UseUserWebSocketOptions = {}) {
-  const {
-    enabled = true,
-    maxReconnectAttempts = 10,
-    reconnectDelay = 1000
-  } = options
+  const { enabled = true, maxReconnectAttempts = 10, reconnectDelay = 1000 } = options
 
   const queryClient = useQueryClient()
   const [wsConnection, setWsConnection] = useState<WebSocket | null>(null)
@@ -86,45 +82,51 @@ export function useUserWebSocket(options: UseUserWebSocketOptions = {}) {
   /**
    * Setup heartbeat to keep connection alive
    */
-  const setupHeartbeat = useCallback((ws: WebSocket) => {
-    clearHeartbeat()
+  const setupHeartbeat = useCallback(
+    (ws: WebSocket) => {
+      clearHeartbeat()
 
-    heartbeatIntervalRef.current = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'ping' }))
-      }
-    }, 30000) // Ping every 30 seconds
-  }, [clearHeartbeat])
+      heartbeatIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }))
+        }
+      }, 30000) // Ping every 30 seconds
+    },
+    [clearHeartbeat]
+  )
 
   /**
    * Handle incoming WebSocket messages
    */
-  const handleMessage = useCallback((event: MessageEvent) => {
-    try {
-      const message: WebSocketMessage = JSON.parse(event.data)
+  const handleMessage = useCallback(
+    (event: MessageEvent) => {
+      try {
+        const message: WebSocketMessage = JSON.parse(event.data)
 
-      // Handle different message types
-      switch (message.type) {
-        case 'user_created':
-        case 'user_updated':
-        case 'user_deleted':
-          // Invalidate queries to refresh data
-          queryClient.invalidateQueries({ queryKey: ['admin-users'] })
-          queryClient.invalidateQueries({ queryKey: ['admin-stats'] })
-          logger.debug(`Received ${message.type} event, invalidating queries`)
-          break
+        // Handle different message types
+        switch (message.type) {
+          case 'user_created':
+          case 'user_updated':
+          case 'user_deleted':
+            // Invalidate queries to refresh data
+            queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+            queryClient.invalidateQueries({ queryKey: ['admin-stats'] })
+            logger.debug(`Received ${message.type} event, invalidating queries`)
+            break
 
-        case 'pong':
-          // Heartbeat response
-          break
+          case 'pong':
+            // Heartbeat response
+            break
 
-        default:
-          logger.warn('Unknown message type:', message.type)
+          default:
+            logger.warn('Unknown message type:', message.type)
+        }
+      } catch (error) {
+        logger.error('Error parsing WebSocket message', error instanceof Error ? error : undefined)
       }
-    } catch (error) {
-      logger.error('Error parsing WebSocket message', error instanceof Error ? error : undefined)
-    }
-  }, [queryClient])
+    },
+    [queryClient]
+  )
 
   /**
    * Connect to WebSocket with exponential backoff
@@ -168,7 +170,7 @@ export function useUserWebSocket(options: UseUserWebSocketOptions = {}) {
         logger.warn('WebSocket connection closed:', {
           code: event.code,
           reason: event.reason,
-          wasClean: event.wasClean
+          wasClean: event.wasClean,
         })
 
         setIsConnected(false)
@@ -178,10 +180,12 @@ export function useUserWebSocket(options: UseUserWebSocketOptions = {}) {
         // Attempt to reconnect with exponential backoff
         if (enabled && reconnectAttempts < maxReconnectAttempts) {
           const delay = reconnectDelay * Math.pow(2, reconnectAttempts)
-          logger.debug(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`)
+          logger.debug(
+            `Reconnecting in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`
+          )
 
           reconnectTimeoutRef.current = setTimeout(() => {
-            setReconnectAttempts(prev => prev + 1)
+            setReconnectAttempts((prev) => prev + 1)
             connectWebSocket()
           }, delay)
         }
@@ -189,7 +193,10 @@ export function useUserWebSocket(options: UseUserWebSocketOptions = {}) {
 
       return ws
     } catch (error) {
-      logger.error('Failed to create WebSocket connection', error instanceof Error ? error : undefined)
+      logger.error(
+        'Failed to create WebSocket connection',
+        error instanceof Error ? error : undefined
+      )
       setIsConnected(false)
       return null
     }
@@ -201,20 +208,23 @@ export function useUserWebSocket(options: UseUserWebSocketOptions = {}) {
     handleMessage,
     setupHeartbeat,
     clearHeartbeat,
-    clearReconnectTimeout
+    clearReconnectTimeout,
   ])
 
   /**
    * Send message through WebSocket
    */
-  const sendMessage = useCallback((message: WebSocketMessage) => {
-    if (wsConnection && isConnected && wsConnection.readyState === WebSocket.OPEN) {
-      wsConnection.send(JSON.stringify(message))
-      logger.debug('Message sent:', message.type)
-    } else {
-      logger.warn('Cannot send message: WebSocket not connected')
-    }
-  }, [wsConnection, isConnected])
+  const sendMessage = useCallback(
+    (message: WebSocketMessage) => {
+      if (wsConnection && isConnected && wsConnection.readyState === WebSocket.OPEN) {
+        wsConnection.send(JSON.stringify(message))
+        logger.debug('Message sent:', message.type)
+      } else {
+        logger.warn('Cannot send message: WebSocket not connected')
+      }
+    },
+    [wsConnection, isConnected]
+  )
 
   /**
    * Manually reconnect WebSocket
@@ -269,6 +279,6 @@ export function useUserWebSocket(options: UseUserWebSocketOptions = {}) {
     /** Manually reconnect */
     reconnect,
     /** Disconnect WebSocket */
-    disconnect
+    disconnect,
   }
 }

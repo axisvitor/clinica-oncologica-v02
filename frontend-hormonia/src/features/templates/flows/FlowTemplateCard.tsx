@@ -4,57 +4,57 @@
  * Displays individual flow template with actions (edit, version, delete).
  */
 
-import React, { memo, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { FlowDesignerDialog } from './FlowDesignerDialog';
-import { FlowTemplateVersionsDialog } from './FlowTemplateVersionsDialog';
-import type { FlowTemplate } from '@/hooks/useTemplates';
-import { useTemplates } from '@/hooks/useTemplates';
-import { useToast } from '@/components/ui/use-toast';
-import { logger } from '@/lib/logger';
+import React, { memo, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { FlowDesignerDialog } from './FlowDesignerDialog'
+import { FlowTemplateVersionsDialog } from './FlowTemplateVersionsDialog'
+import type { FlowTemplate } from '@/hooks/useTemplates'
+import { useTemplates } from '@/hooks/useTemplates'
+import { useToast } from '@/components/ui/use-toast'
+import { logger } from '@/lib/logger'
 
 interface FlowTemplateCardProps {
-  template: FlowTemplate;
+  template: FlowTemplate
 }
 
 export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
-  const { toast } = useToast();
-  const { deleteFlowTemplate } = useTemplates();
-  const [showEditor, setShowEditor] = useState(false);
-  const [showVersions, setShowVersions] = useState(false);
-  const [editMode, setEditMode] = useState<'edit' | 'version' | null>(null);
+  const { toast } = useToast()
+  const { deleteFlowTemplate } = useTemplates()
+  const [showEditor, setShowEditor] = useState(false)
+  const [showVersions, setShowVersions] = useState(false)
+  const [editMode, setEditMode] = useState<'edit' | 'version' | null>(null)
 
   const handleEdit = () => {
-    setEditMode('edit');
-    setShowEditor(true);
-  };
+    setEditMode('edit')
+    setShowEditor(true)
+  }
 
   const handleNewVersion = () => {
-    setEditMode('version');
-    setShowEditor(true);
-  };
+    setEditMode('version')
+    setShowEditor(true)
+  }
 
   const handleDelete = async () => {
     try {
-      const success = await deleteFlowTemplate(template.id, true);
+      const success = await deleteFlowTemplate(template.id, true)
       if (success) {
-        toast({ title: 'Template desativado' });
+        toast({ title: 'Template desativado' })
       }
     } catch (error) {
-      logger.error('Failed to delete template', error);
+      logger.error('Failed to delete template', error)
       toast({
         title: 'Erro',
         description: 'Falha ao desativar template',
         variant: 'destructive',
-      });
+      })
     }
-  };
+  }
 
   const stepsCount = Array.isArray(template.steps)
     ? template.steps.length
-    : Object.keys(template.steps || {}).length;
+    : Object.keys(template.steps || {}).length
 
   return (
     <>
@@ -104,8 +104,8 @@ export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
         template={editMode === 'edit' ? template : undefined}
         createNewVersion={editMode === 'version' ? template : undefined}
         onSuccess={() => {
-          setShowEditor(false);
-          setEditMode(null);
+          setShowEditor(false)
+          setEditMode(null)
         }}
       />
 
@@ -115,7 +115,7 @@ export const FlowTemplateCard = memo<FlowTemplateCardProps>(({ template }) => {
         template={template}
       />
     </>
-  );
-});
+  )
+})
 
-FlowTemplateCard.displayName = 'FlowTemplateCard';
+FlowTemplateCard.displayName = 'FlowTemplateCard'

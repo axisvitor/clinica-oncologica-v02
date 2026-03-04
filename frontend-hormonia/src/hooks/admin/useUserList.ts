@@ -74,19 +74,9 @@ export interface UseUserListResult {
  * ```
  */
 export function useUserList(options: UseUserListOptions = {}): UseUserListResult {
-  const {
-    filters = {},
-    refetchInterval = false,
-    enableRetry = true,
-    enabled = true
-  } = options
+  const { filters = {}, refetchInterval = false, enableRetry = true, enabled = true } = options
 
-  const {
-    data,
-    isLoading,
-    error,
-    refetch
-  } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['admin-users', filters],
     queryFn: async () => {
       logger.debug('Fetching users with filters:', filters)
@@ -94,7 +84,7 @@ export function useUserList(options: UseUserListOptions = {}): UseUserListResult
       // Build query parameters
       const params: Record<string, string | number | boolean> = {
         page: filters.page || 1,
-        size: filters.size || 10
+        size: filters.size || 10,
       }
 
       if (filters.search) {
@@ -128,7 +118,7 @@ export function useUserList(options: UseUserListOptions = {}): UseUserListResult
       logger.debug('Users fetched successfully:', {
         total: response.total,
         page: response.page,
-        items: response.items?.length
+        items: response.items?.length,
       })
 
       return response
@@ -148,7 +138,9 @@ export function useUserList(options: UseUserListOptions = {}): UseUserListResult
     pageSize: data?.size || filters.size || 10,
     isLoading,
     error: error as Error | null,
-    refetch: () => { refetch() },
-    hasMore: data?.has_more ?? false
+    refetch: () => {
+      refetch()
+    },
+    hasMore: data?.has_more ?? false,
   }
 }

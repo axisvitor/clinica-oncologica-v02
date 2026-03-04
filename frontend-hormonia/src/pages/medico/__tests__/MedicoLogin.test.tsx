@@ -43,7 +43,7 @@ describe('MedicoLogin', () => {
     return render(
       <BrowserRouter>
         <MedicoLogin />
-      </BrowserRouter>,
+      </BrowserRouter>
     )
   }
 

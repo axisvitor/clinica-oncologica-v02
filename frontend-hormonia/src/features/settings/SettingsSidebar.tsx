@@ -17,43 +17,43 @@ const settingsTabs: SettingsTab[] = [
     label: 'Perfil',
     icon: User,
     description: 'Suas informações pessoais',
-    path: '/settings/profile'
+    path: '/settings/profile',
   },
   {
     id: 'notifications',
     label: 'Notificações',
     icon: Bell,
     description: 'Preferências de alerta',
-    path: '/settings/notifications'
+    path: '/settings/notifications',
   },
   {
     id: 'appearance',
     label: 'Aparência',
     icon: Palette,
     description: 'Tema e interface',
-    path: '/settings/appearance'
+    path: '/settings/appearance',
   },
   {
     id: 'language',
     label: 'Idioma & Região',
     icon: Globe,
     description: 'Localização e formato',
-    path: '/settings/language'
+    path: '/settings/language',
   },
   {
     id: 'security',
     label: 'Segurança',
     icon: Shield,
     description: 'Senha e autenticação',
-    path: '/settings/security'
+    path: '/settings/security',
   },
   {
     id: 'data',
     label: 'Dados & Privacidade',
     icon: Database,
     description: 'Gerenciar seus dados',
-    path: '/settings/data'
-  }
+    path: '/settings/data',
+  },
 ]
 
 /**
@@ -67,7 +67,7 @@ export function SettingsSidebar() {
   // Determine active tab from current path
   const getActiveTab = () => {
     const path = location.pathname
-    const activeTab = settingsTabs.find(tab => path.includes(tab.id))
+    const activeTab = settingsTabs.find((tab) => path.includes(tab.id))
     return activeTab?.id || 'profile'
   }
 
@@ -90,16 +90,10 @@ export function SettingsSidebar() {
                 key={tab.id}
                 onClick={() => handleTabClick(tab)}
                 className={`w-full flex items-start gap-3 px-3 py-3 text-sm font-medium text-left transition-[background-color,color,box-shadow] rounded-lg ${
-                  isActive
-                    ? 'bg-blue-50 text-blue-700 shadow-sm'
-                    : 'text-gray-700 hover:bg-gray-50'
+                  isActive ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
-                <div className={`p-2 rounded-lg ${
-                  isActive
-                    ? 'bg-blue-100'
-                    : 'bg-gray-100'
-                }`}>
+                <div className={`p-2 rounded-lg ${isActive ? 'bg-blue-100' : 'bg-gray-100'}`}>
                   <Icon className="h-4 w-4" />
                 </div>
                 <div className="flex-1 text-left">

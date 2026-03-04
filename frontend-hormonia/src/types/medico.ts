@@ -159,13 +159,13 @@ export const MEDICO_PERMISSIONS = {
   SCHEDULE_CONSULTAS: 'schedule:consultas',
 
   /** Access medical reports */
-  READ_RELATORIOS: 'read:relatorios'
+  READ_RELATORIOS: 'read:relatorios',
 } as const
 
 /**
  * Medico Permission Type
  */
-export type MedicoPermission = typeof MEDICO_PERMISSIONS[keyof typeof MEDICO_PERMISSIONS]
+export type MedicoPermission = (typeof MEDICO_PERMISSIONS)[keyof typeof MEDICO_PERMISSIONS]
 
 /**
  * Medico Role Validation
@@ -214,7 +214,8 @@ export function isMedicoUser(user: unknown): user is MedicoUser {
  */
 export function isSuccessfulMedicoLogin(
   response: MedicoLoginResponse
-): response is Required<Pick<MedicoLoginResponse, 'success' | 'user' | 'token'>> & MedicoLoginResponse {
+): response is Required<Pick<MedicoLoginResponse, 'success' | 'user' | 'token'>> &
+  MedicoLoginResponse {
   return response.success === true && !!response.user && !!response.token
 }
 
@@ -227,7 +228,13 @@ export function isSuccessfulMedicoLogin(
  */
 export type MedicoCreateData = Omit<
   MedicoUser,
-  'id' | 'created_at' | 'updated_at' | 'last_login' | 'login_count' | 'failed_login_attempts' | 'locked_until'
+  | 'id'
+  | 'created_at'
+  | 'updated_at'
+  | 'last_login'
+  | 'login_count'
+  | 'failed_login_attempts'
+  | 'locked_until'
 >
 
 /**

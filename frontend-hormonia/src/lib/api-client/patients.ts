@@ -172,7 +172,7 @@ const getTimelineDate = (event: BackendTimelineEvent): string | undefined => {
     event.date,
     metadata['timestamp'],
     metadata['created_at'],
-    metadata['date']
+    metadata['date'],
   ]
   for (const candidate of candidates) {
     const normalized = normalizeTimelineDate(candidate)
@@ -200,11 +200,9 @@ const normalizeTimelineEvent = (
     title,
     description,
     metadata: event.metadata ?? {},
-    created_at: createdAt
+    created_at: createdAt,
   }
 }
-
-
 
 /**
  * Patients API methods
@@ -215,7 +213,9 @@ export function createPatientsApi(client: ApiClientCore) {
      * List patients with pagination and filters
      */
     list: async (
-      pageOrOptions: number | (PatientFilters & { page?: number; size?: number; cursor?: string; limit?: number }) = 1,
+      pageOrOptions:
+        | number
+        | (PatientFilters & { page?: number; size?: number; cursor?: string; limit?: number }) = 1,
       size: number = 20,
       filters?: PatientFilters
     ): Promise<PaginatedResponse<Patient>> => {
@@ -230,9 +230,15 @@ export function createPatientsApi(client: ApiClientCore) {
         limit = size ?? 20
         rest = { ...(filters || {}) }
       } else {
-        const { page: optPage = 1, size: optionSize = 20, cursor: optCursor, limit: optLimit, ...other } = pageOrOptions
+        const {
+          page: optPage = 1,
+          size: optionSize = 20,
+          cursor: optCursor,
+          limit: optLimit,
+          ...other
+        } = pageOrOptions
         page = optPage
-        limit = (optLimit ?? optionSize) ?? 20
+        limit = optLimit ?? optionSize ?? 20
         cursor = optCursor
         rest = other
       }
@@ -240,10 +246,18 @@ export function createPatientsApi(client: ApiClientCore) {
       const query = {
         limit,
         ...(cursor ? { cursor } : {}),
-        ...rest
+        ...rest,
       }
 
-      const res = await client.get<{ data?: BackendPatient[]; items?: BackendPatient[]; total?: number; total_count?: number; pages?: number; has_more?: boolean; next_cursor?: string }>('/api/v2/patients/', query)
+      const res = await client.get<{
+        data?: BackendPatient[]
+        items?: BackendPatient[]
+        total?: number
+        total_count?: number
+        pages?: number
+        has_more?: boolean
+        next_cursor?: string
+      }>('/api/v2/patients/', query)
 
       // Normalize to keep backward compatibility with components expecting `items`
       const rawItems = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
@@ -251,7 +265,11 @@ export function createPatientsApi(client: ApiClientCore) {
       const total = res?.total ?? res?.total_count ?? items.length ?? 0
       const has_more = res?.has_more ?? (typeof res?.pages === 'number' && page < res.pages)
       const next_cursor = res?.next_cursor ?? null
-      const normalized: PaginatedResponse<Patient> & { data: Patient[]; has_more: boolean; next_cursor: string | null } = {
+      const normalized: PaginatedResponse<Patient> & {
+        data: Patient[]
+        has_more: boolean
+        next_cursor: string | null
+      } = {
         items,
         total,
         page,
@@ -260,7 +278,7 @@ export function createPatientsApi(client: ApiClientCore) {
         has_more,
         next_cursor,
         // keep v2 shape as well for newer consumers
-        data: items
+        data: items,
       }
 
       return normalized as PaginatedResponse<Patient>
@@ -292,8 +310,8 @@ export function createPatientsApi(client: ApiClientCore) {
           method: 'POST',
           body: JSON.stringify(backendData),
           headers: {
-            ...options.headers
-          }
+            ...options.headers,
+          },
         })
         return normalizePatient(patient)
       }
@@ -305,7 +323,11 @@ export function createPatientsApi(client: ApiClientCore) {
     /**
      * Update patient
      */
-    update: async (patientId: string, data: PatientUpdate, options?: { headers?: Record<string, string> }): Promise<Patient> => {
+    update: async (
+      patientId: string,
+      data: PatientUpdate,
+      options?: { headers?: Record<string, string> }
+    ): Promise<Patient> => {
       // Denormalize frontend data to backend format before sending
       const backendData = denormalizePatient(data as PatientCreate | PatientUpdate)
 
@@ -317,13 +339,16 @@ export function createPatientsApi(client: ApiClientCore) {
           body: JSON.stringify(backendData),
           headers: {
             'Content-Type': 'application/json',
-            ...options.headers
-          }
+            ...options.headers,
+          },
         })
         return normalizePatient(patient)
       }
 
-      const patient = await client.patch<BackendPatient>(`/api/v2/patients/${patientId}`, backendData)
+      const patient = await client.patch<BackendPatient>(
+        `/api/v2/patients/${patientId}`,
+        backendData
+      )
       return normalizePatient(patient)
     },
 
@@ -347,7 +372,10 @@ export function createPatientsApi(client: ApiClientCore) {
     activate: async (patientId: string): Promise<Patient> => {
       // Using update to set status to active
       const backendData = denormalizePatient({ status: 'active' } as PatientUpdate)
-      const patient = await client.patch<BackendPatient>(`/api/v2/patients/${patientId}`, backendData)
+      const patient = await client.patch<BackendPatient>(
+        `/api/v2/patients/${patientId}`,
+        backendData
+      )
       return normalizePatient(patient)
     },
 
@@ -357,7 +385,10 @@ export function createPatientsApi(client: ApiClientCore) {
     deactivate: async (patientId: string): Promise<Patient> => {
       // Using update to set status to paused
       const backendData = denormalizePatient({ status: 'paused' } as PatientUpdate)
-      const patient = await client.patch<BackendPatient>(`/api/v2/patients/${patientId}`, backendData)
+      const patient = await client.patch<BackendPatient>(
+        `/api/v2/patients/${patientId}`,
+        backendData
+      )
       return normalizePatient(patient)
     },
 
@@ -370,15 +401,14 @@ export function createPatientsApi(client: ApiClientCore) {
         events?: BackendTimelineEvent[]
         items?: BackendTimelineEvent[]
       }>(`/api/v2/patients/${patientId}/timeline`)
-      const rawEvents = Array.isArray(response?.events)
-        ? response.events
-        : (response?.items ?? [])
+      const rawEvents = Array.isArray(response?.events) ? response.events : (response?.items ?? [])
       const resolvedPatientId = response?.patient_id ?? patientId
       return {
-        events: rawEvents.map((event, index) => normalizeTimelineEvent(event, resolvedPatientId, index))
+        events: rawEvents.map((event, index) =>
+          normalizeTimelineEvent(event, resolvedPatientId, index)
+        ),
       }
     },
-
 
     /**
      * REMOVED: Medical History, Appointments, Documents
@@ -417,7 +447,7 @@ export function createPatientsApi(client: ApiClientCore) {
           headers: {
             ...client.getSessionHeaders(),
           },
-          credentials: 'include'
+          credentials: 'include',
         }
       )
 
@@ -431,7 +461,9 @@ export function createPatientsApi(client: ApiClientCore) {
     /**
      * Import patients from CSV (V2)
      */
-    importFromCsv: async (file: File): Promise<{
+    importFromCsv: async (
+      file: File
+    ): Promise<{
       success: number
       failed: number
       errors?: Array<{ row: number; message: string }>
@@ -439,17 +471,14 @@ export function createPatientsApi(client: ApiClientCore) {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch(
-        `${client.getBaseURL()}/api/v2/patients/import`,
-        {
-          method: 'POST',
-          headers: {
-            ...client.getSessionHeaders(),
-          },
-          credentials: 'include',
-          body: formData
-        }
-      )
+      const response = await fetch(`${client.getBaseURL()}/api/v2/patients/import`, {
+        method: 'POST',
+        headers: {
+          ...client.getSessionHeaders(),
+        },
+        credentials: 'include',
+        body: formData,
+      })
 
       if (!response.ok) {
         throw new Error('Failed to import patients')
@@ -462,10 +491,9 @@ export function createPatientsApi(client: ApiClientCore) {
      * Validate CPF (Brazilian tax ID)
      */
     validateCpf: async (cpf: string): Promise<{ valid: boolean; message?: string }> => {
-      return client.post<{ valid: boolean; message?: string }>(
-        '/api/v2/patients/validate-cpf',
-        { cpf }
-      )
+      return client.post<{ valid: boolean; message?: string }>('/api/v2/patients/validate-cpf', {
+        cpf,
+      })
     },
 
     /**
@@ -483,14 +511,14 @@ export function createPatientsApi(client: ApiClientCore) {
     importPatients: async (
       file: File,
       options?: {
-        skipDuplicates?: boolean;
-        updateExisting?: boolean;
-        validateOnly?: boolean;
+        skipDuplicates?: boolean
+        updateExisting?: boolean
+        validateOnly?: boolean
       }
     ): Promise<{
-      success: number;
-      failed: number;
-      errors: Array<{ row: number; message: string }>;
+      success: number
+      failed: number
+      errors: Array<{ row: number; message: string }>
     }> => {
       const formData = new FormData()
       formData.append('file', file)
@@ -503,17 +531,14 @@ export function createPatientsApi(client: ApiClientCore) {
 
       const queryString = params.toString() ? `?${params.toString()}` : ''
 
-      const response = await fetch(
-        `${client.getBaseURL()}/api/v2/patients/import${queryString}`,
-        {
-          method: 'POST',
-          headers: {
-            ...client.getSessionHeaders(),
-          },
-          credentials: 'include',
-          body: formData
-        }
-      )
+      const response = await fetch(`${client.getBaseURL()}/api/v2/patients/import${queryString}`, {
+        method: 'POST',
+        headers: {
+          ...client.getSessionHeaders(),
+        },
+        credentials: 'include',
+        body: formData,
+      })
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Import failed' }))
@@ -525,39 +550,43 @@ export function createPatientsApi(client: ApiClientCore) {
       return {
         success: result.success || 0,
         failed: result.failed || 0,
-        errors: result.errors || []
+        errors: result.errors || [],
       }
     },
 
     /**
      * Validate import file without importing
      */
-    validateImport: async (file: File): Promise<{
-      valid: boolean;
-      totalRows: number;
-      validRows: number;
-      errorRows: number;
-      warningRows: number;
-      errors: Array<{ row: number; column?: string; message: string; severity: 'error' | 'warning' }>;
-      warnings: Array<{ row: number; column?: string; message: string }>;
-      preview: Array<{ row: number; name: string; email?: string; phone?: string; cpf?: string }>;
-      format: 'csv' | 'xlsx';
-      fileSize: number;
+    validateImport: async (
+      file: File
+    ): Promise<{
+      valid: boolean
+      totalRows: number
+      validRows: number
+      errorRows: number
+      warningRows: number
+      errors: Array<{
+        row: number
+        column?: string
+        message: string
+        severity: 'error' | 'warning'
+      }>
+      warnings: Array<{ row: number; column?: string; message: string }>
+      preview: Array<{ row: number; name: string; email?: string; phone?: string; cpf?: string }>
+      format: 'csv' | 'xlsx'
+      fileSize: number
     }> => {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch(
-        `${client.getBaseURL()}/api/v2/patients/import/validate`,
-        {
-          method: 'POST',
-          headers: {
-            ...client.getSessionHeaders(),
-          },
-          credentials: 'include',
-          body: formData
-        }
-      )
+      const response = await fetch(`${client.getBaseURL()}/api/v2/patients/import/validate`, {
+        method: 'POST',
+        headers: {
+          ...client.getSessionHeaders(),
+        },
+        credentials: 'include',
+        body: formData,
+      })
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Validation failed' }))
@@ -578,7 +607,7 @@ export function createPatientsApi(client: ApiClientCore) {
           headers: {
             ...client.getSessionHeaders(),
           },
-          credentials: 'include'
+          credentials: 'include',
         }
       )
 
@@ -593,32 +622,32 @@ export function createPatientsApi(client: ApiClientCore) {
      * Get import history
      */
     getImportHistory: async (filters?: {
-      userId?: string;
-      status?: 'pending' | 'processing' | 'completed' | 'failed';
-      startDate?: string;
-      endDate?: string;
-      page?: number;
-      size?: number;
+      userId?: string
+      status?: 'pending' | 'processing' | 'completed' | 'failed'
+      startDate?: string
+      endDate?: string
+      page?: number
+      size?: number
     }): Promise<{
       items: Array<{
-        id: string;
-        userId: string;
-        userName: string;
-        filename: string;
-        format: 'csv' | 'xlsx';
-        status: 'pending' | 'processing' | 'completed' | 'failed';
-        totalRows: number;
-        successfulRows: number;
-        failedRows: number;
-        skippedRows: number;
-        startedAt: string;
-        completedAt?: string;
-        duration?: number;
-      }>;
-      total: number;
-      page: number;
-      size: number;
-      pages: number;
+        id: string
+        userId: string
+        userName: string
+        filename: string
+        format: 'csv' | 'xlsx'
+        status: 'pending' | 'processing' | 'completed' | 'failed'
+        totalRows: number
+        successfulRows: number
+        failedRows: number
+        skippedRows: number
+        startedAt: string
+        completedAt?: string
+        duration?: number
+      }>
+      total: number
+      page: number
+      size: number
+      pages: number
     }> => {
       const params: Record<string, string | number> = {}
       if (filters?.userId) params['user_id'] = filters.userId
@@ -629,7 +658,7 @@ export function createPatientsApi(client: ApiClientCore) {
       if (filters?.size) params['size'] = filters.size
 
       return client.get('/api/v2/patients/import/history/', params)
-    }
+    },
   }
 }
 

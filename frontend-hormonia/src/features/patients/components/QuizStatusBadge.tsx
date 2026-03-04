@@ -23,17 +23,14 @@ export const QuizStatusBadge: React.FC<QuizStatusBadgeProps> = ({
   patientName,
   onSendQuiz,
   isResending = false,
-  compact = false
+  compact = false,
 }) => {
   const { data: quizStatus, isLoading } = useMonthlyQuizStatus(patientId)
   const resendQuizLinkMutation = useResendQuizLink()
 
   if (isLoading) {
     return (
-      <Badge
-        variant="outline"
-        className={`animate-pulse ${compact ? 'text-xs' : ''}`}
-      >
+      <Badge variant="outline" className={`animate-pulse ${compact ? 'text-xs' : ''}`}>
         Carregando...
       </Badge>
     )
@@ -64,7 +61,7 @@ export const QuizStatusBadge: React.FC<QuizStatusBadgeProps> = ({
       {...(quizStatus.completion_date && { completionDate: quizStatus.completion_date })}
       {...(quizStatus.expires_at && { expiresAt: quizStatus.expires_at })}
       {...(quizStatus.session_id && {
-        onResend: () => resendQuizLinkMutation.mutate(quizStatus.session_id!)
+        onResend: () => resendQuizLinkMutation.mutate(quizStatus.session_id!),
       })}
       isResending={isResending}
     />

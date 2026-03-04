@@ -100,8 +100,8 @@ function mapBackendToFrontend(backend: BackendUserPreferences): UserPreferences 
       reports_completed: frontendOnly.notification_reports_completed ?? false,
       quiz_completed: frontendOnly.notification_quiz_completed ?? false,
       browser_notifications: false, // Not supported by backend
-      email_notifications: backend.notification_email ?? false
-    }
+      email_notifications: backend.notification_email ?? false,
+    },
   }
 }
 
@@ -116,14 +116,17 @@ function mapFrontendToBackend(frontend: Partial<UserPreferences>): Partial<Backe
   // Map only supported notification fields
   if (frontend.notifications) {
     const notif = frontend.notifications
-    if (notif.email_notifications !== undefined) backend.notification_email = notif.email_notifications
+    if (notif.email_notifications !== undefined)
+      backend.notification_email = notif.email_notifications
     // notification_sms and notification_whatsapp are not currently used in frontend
   }
 
   return backend
 }
 
-function extractFrontendOnlyPreferences(frontend: Partial<UserPreferences>): Partial<FrontendOnlyPreferences> {
+function extractFrontendOnlyPreferences(
+  frontend: Partial<UserPreferences>
+): Partial<FrontendOnlyPreferences> {
   const frontendOnly: Partial<FrontendOnlyPreferences> = {}
 
   // Extract UI-only fields
@@ -135,9 +138,12 @@ function extractFrontendOnlyPreferences(frontend: Partial<UserPreferences>): Par
   if (frontend.notifications) {
     const notif = frontend.notifications
     if (notif.new_alerts !== undefined) frontendOnly.notification_new_alerts = notif.new_alerts
-    if (notif.patient_messages !== undefined) frontendOnly.notification_patient_messages = notif.patient_messages
-    if (notif.reports_completed !== undefined) frontendOnly.notification_reports_completed = notif.reports_completed
-    if (notif.quiz_completed !== undefined) frontendOnly.notification_quiz_completed = notif.quiz_completed
+    if (notif.patient_messages !== undefined)
+      frontendOnly.notification_patient_messages = notif.patient_messages
+    if (notif.reports_completed !== undefined)
+      frontendOnly.notification_reports_completed = notif.reports_completed
+    if (notif.quiz_completed !== undefined)
+      frontendOnly.notification_quiz_completed = notif.quiz_completed
   }
 
   return frontendOnly
@@ -149,7 +155,7 @@ const settingsApi = {
   updateProfile: async (data: Partial<UserProfile>) => {
     const response = await apiClient.request<UserProfile>('/api/v2/auth/profile', {
       method: 'PUT',
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
     })
     return response
   },
@@ -162,8 +168,8 @@ const settingsApi = {
     const response = await apiClient.request<{ message: string }>('/api/v2/auth/password', {
       method: 'PUT',
       body: JSON.stringify({
-        new_password: data.new_password
-      })
+        new_password: data.new_password,
+      }),
     })
     return response
   },
@@ -203,7 +209,7 @@ const settingsApi = {
       updated_at: string
     }>('/api/v2/users/preferences', {
       method: 'PATCH',
-      body: JSON.stringify(backendData)
+      body: JSON.stringify(backendData),
     })
     // Backend returns { user_id, preferences, updated_at } - extract and map preferences
     return mapBackendToFrontend(response.preferences)
@@ -216,11 +222,11 @@ const settingsApi = {
 
     const response = await apiClient.request<{ avatar_url: string }>('/api/v2/auth/avatar', {
       method: 'POST',
-      body: formData
+      body: formData,
       // Don't set headers - browser will set correct multipart boundary
     })
     return response
-  }
+  },
 }
 
 // Hook for user profile management
@@ -237,13 +243,14 @@ export function useUserProfile() {
       })
     },
     onError: (error: unknown) => {
-      const errorMessage = error instanceof Error ? error.message : 'Não foi possível atualizar suas informações.';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Não foi possível atualizar suas informações.'
       toast({
         title: 'Erro ao atualizar perfil',
         description: errorMessage,
         variant: 'destructive',
       })
-    }
+    },
   })
 
   const uploadAvatarMutation = useMutation({
@@ -256,13 +263,14 @@ export function useUserProfile() {
       })
     },
     onError: (error: unknown) => {
-      const errorMessage = error instanceof Error ? error.message : 'Não foi possível fazer o upload da imagem.';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Não foi possível fazer o upload da imagem.'
       toast({
         title: 'Erro ao fazer upload',
         description: errorMessage,
         variant: 'destructive',
       })
-    }
+    },
   })
 
   return {
@@ -284,13 +292,14 @@ export function usePasswordChange() {
       })
     },
     onError: (error: unknown) => {
-      const errorMessage = error instanceof Error ? error.message : 'Não foi possível alterar sua senha.';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Não foi possível alterar sua senha.'
       toast({
         title: 'Erro ao alterar senha',
         description: errorMessage,
         variant: 'destructive',
       })
-    }
+    },
   })
 
   return {
@@ -319,13 +328,14 @@ export function useUserPreferences() {
       })
     },
     onError: (error: unknown) => {
-      const errorMessage = error instanceof Error ? error.message : 'Não foi possível salvar suas preferências.';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Não foi possível salvar suas preferências.'
       toast({
         title: 'Erro ao salvar preferências',
         description: errorMessage,
         variant: 'destructive',
       })
-    }
+    },
   })
 
   return {
@@ -349,7 +359,9 @@ export function useTheme() {
     root.classList.remove('light', 'dark')
 
     if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light'
       root.classList.add(systemTheme)
     } else {
       root.classList.add(theme)
@@ -382,7 +394,10 @@ export function useTheme() {
 export function useNotificationPreferences() {
   const { preferences, updatePreferences } = useUserPreferences()
 
-  const updateNotificationSetting = (key: keyof UserPreferences['notifications'], value: boolean) => {
+  const updateNotificationSetting = (
+    key: keyof UserPreferences['notifications'],
+    value: boolean
+  ) => {
     const currentNotifications = preferences?.notifications || {
       new_alerts: true,
       patient_messages: true,
@@ -396,7 +411,7 @@ export function useNotificationPreferences() {
       notifications: {
         ...currentNotifications,
         [key]: value,
-      }
+      },
     })
   }
 

@@ -41,7 +41,7 @@ export type {
   SummaryContent,
   PatientSummaryResponse,
   PatientSummaryListResponse,
-  GenerateSummaryRequest
+  GenerateSummaryRequest,
 } from './api'
 
 // Flow types from api.ts
@@ -53,7 +53,7 @@ export type {
   FollowUpAction,
   ResponseResult,
   FlowAnalytics,
-  DailyMetric
+  DailyMetric,
 } from './api'
 export { FlowType, FlowStatus, ResponseType } from './api'
 
@@ -73,7 +73,7 @@ export interface User {
   name: string
   role: string
   avatar?: string
-  token?: string  // Add token property for WebSocket usage
+  token?: string // Add token property for WebSocket usage
   createdAt: string
   updatedAt: string
 }
@@ -85,10 +85,10 @@ export interface Patient {
   phone: string
   dateOfBirth: string
   diagnosis?: string
-  status: 'active' | 'inactive' | 'completed' | 'paused' | 'cancelled'  // Extended to match API PatientStatus
+  status: 'active' | 'inactive' | 'completed' | 'paused' | 'cancelled' // Extended to match API PatientStatus
   lastVisit?: string
   nextAppointment?: string
-  current_day?: number  // Add missing property for compatibility
+  current_day?: number // Add missing property for compatibility
   createdAt: string
   updatedAt: string
   // doctor_id can be null when patient is unassigned
@@ -138,7 +138,7 @@ export interface TreatmentType {
 
 // Enhanced PaginatedResponse for component compatibility - matches backend format
 export interface PaginatedResponse<T> {
-  items: T[]  // Primary data array property (backend format)
+  items: T[] // Primary data array property (backend format)
   total: number
   page: number
   size: number
@@ -146,9 +146,9 @@ export interface PaginatedResponse<T> {
   has_next: boolean
   has_prev: boolean
   // Alternative formats for backwards compatibility
-  data?: T[]  // Legacy compatibility
-  limit?: number  // Alternative naming
-  has_more?: boolean  // Alternative naming
-  current_page?: number  // Alternative naming
-  page_size?: number  // Alternative naming
+  data?: T[] // Legacy compatibility
+  limit?: number // Alternative naming
+  has_more?: boolean // Alternative naming
+  current_page?: number // Alternative naming
+  page_size?: number // Alternative naming
 }

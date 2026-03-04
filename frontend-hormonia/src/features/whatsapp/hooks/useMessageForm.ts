@@ -12,14 +12,14 @@ export function useMessageForm(selectedInstance: string) {
     to: '',
     text: '',
     mediaFile: null,
-    mediaCaption: ''
+    mediaCaption: '',
   })
 
   const sendMessageMutation = useMutation({
     mutationFn: (messageData: SendMessageData) =>
       apiClient.request('/api/v2/whatsapp/messages', {
         method: 'POST',
-        body: JSON.stringify(messageData)
+        body: JSON.stringify(messageData),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-recent-messages'] })
@@ -32,29 +32,32 @@ export function useMessageForm(selectedInstance: string) {
       toast({
         title: 'Failed to send message',
         description: errorMessage,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      const maxSize = 16 * 1024 * 1024 // 16MB
-      if (file.size > maxSize) {
-        toast({
-          title: 'File too large',
-          description: 'Maximum file size is 16MB',
-          variant: 'destructive'
-        })
-        return
+  const handleFileUpload = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0]
+      if (file) {
+        const maxSize = 16 * 1024 * 1024 // 16MB
+        if (file.size > maxSize) {
+          toast({
+            title: 'File too large',
+            description: 'Maximum file size is 16MB',
+            variant: 'destructive',
+          })
+          return
+        }
+        setFormState((prev) => ({ ...prev, mediaFile: file }))
       }
-      setFormState(prev => ({ ...prev, mediaFile: file }))
-    }
-  }, [toast])
+    },
+    [toast]
+  )
 
   const handleFormChange = useCallback((updates: Partial<MessageFormState>) => {
-    setFormState(prev => ({ ...prev, ...updates }))
+    setFormState((prev) => ({ ...prev, ...updates }))
   }, [])
 
   const handleSendMessage = useCallback(() => {
@@ -62,7 +65,7 @@ export function useMessageForm(selectedInstance: string) {
       toast({
         title: 'No instance selected',
         description: 'Please select a WhatsApp instance first',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
@@ -71,7 +74,7 @@ export function useMessageForm(selectedInstance: string) {
       toast({
         title: 'Phone number required',
         description: 'Please enter a recipient phone number',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
@@ -80,7 +83,7 @@ export function useMessageForm(selectedInstance: string) {
       toast({
         title: 'Message content required',
         description: 'Please enter a message or select a media file',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
@@ -104,7 +107,7 @@ export function useMessageForm(selectedInstance: string) {
       message_type: messageType,
       text: formState.text.trim() || undefined,
       media_file: formState.mediaFile || undefined,
-      media_caption: formState.mediaCaption || undefined
+      media_caption: formState.mediaCaption || undefined,
     }
 
     sendMessageMutation.mutate(messageData)
@@ -115,6 +118,6 @@ export function useMessageForm(selectedInstance: string) {
     handleFormChange,
     handleFileUpload,
     handleSendMessage,
-    isPending: sendMessageMutation.isPending
+    isPending: sendMessageMutation.isPending,
   }
 }

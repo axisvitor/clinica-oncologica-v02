@@ -37,7 +37,7 @@ export const PatientActions: React.FC<PatientActionsProps> = ({
   onActivate,
   onDeactivate,
   compact = false,
-  canDelete = true
+  canDelete = true,
 }) => {
   return (
     <DropdownMenu>

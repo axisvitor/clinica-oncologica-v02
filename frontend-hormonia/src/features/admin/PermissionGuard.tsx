@@ -5,7 +5,7 @@ import type { User } from '@/types/auth'
 const RESTRICTED_ADMIN_PERMISSIONS = [
   'admin.system.delete',
   'admin.users.delete_admin',
-  'admin.backup.delete'
+  'admin.backup.delete',
 ]
 
 type PermissionLevel = 'none' | 'read' | 'write' | 'admin'
@@ -32,10 +32,15 @@ interface AccessHelpers {
   getPermissionLevel: (resource: string) => PermissionLevel
 }
 
-const createHelpers = (hasPermission: (permission: string) => boolean, hasRole: (role: string) => boolean): AccessHelpers => {
-  const hasAnyPermission = (permissions: string[]) => permissions.some(permission => hasPermission(permission))
-  const hasAllPermissions = (permissions: string[]) => permissions.every(permission => hasPermission(permission))
-  const hasAnyRole = (roles: string[]) => roles.some(role => hasRole(role))
+const createHelpers = (
+  hasPermission: (permission: string) => boolean,
+  hasRole: (role: string) => boolean
+): AccessHelpers => {
+  const hasAnyPermission = (permissions: string[]) =>
+    permissions.some((permission) => hasPermission(permission))
+  const hasAllPermissions = (permissions: string[]) =>
+    permissions.every((permission) => hasPermission(permission))
+  const hasAnyRole = (roles: string[]) => roles.some((role) => hasRole(role))
   const isAdminUser = () => hasRole('admin')
   const isSuperAdminUser = () => hasRole('super_admin') || hasRole('superadmin')
   const canAccessResource = (resource?: string, action: string = 'read') => {
@@ -61,17 +66,11 @@ const createHelpers = (hasPermission: (permission: string) => boolean, hasRole: 
       return 'admin'
     }
 
-    if (
-      hasPermission(`${resource}.write`) ||
-      hasPermission(`${resource}.edit`)
-    ) {
+    if (hasPermission(`${resource}.write`) || hasPermission(`${resource}.edit`)) {
       return 'write'
     }
 
-    if (
-      hasPermission(`${resource}.read`) ||
-      hasPermission(`${resource}.view`)
-    ) {
+    if (hasPermission(`${resource}.read`) || hasPermission(`${resource}.view`)) {
       return 'read'
     }
 
@@ -85,7 +84,7 @@ const createHelpers = (hasPermission: (permission: string) => boolean, hasRole: 
     isAdminUser,
     isSuperAdminUser,
     canAccessResource,
-    getPermissionLevel
+    getPermissionLevel,
   }
 }
 
@@ -98,16 +97,10 @@ export function PermissionGuard({
   customCheck,
   fallback = null,
   children,
-  allowUnauthenticated = false
+  allowUnauthenticated = false,
 }: PermissionGuardProps) {
   const auth = useAuth()
-  const {
-    user,
-    isAuthenticated,
-    isInitializing,
-    hasPermission,
-    hasRole
-  } = auth
+  const { user, isAuthenticated, isInitializing, hasPermission, hasRole } = auth
 
   const helpers = React.useMemo(
     () => createHelpers(hasPermission, hasRole),
@@ -122,12 +115,7 @@ export function PermissionGuard({
     return <>{fallback}</>
   }
 
-  if (
-    permissions.length === 0 &&
-    roles.length === 0 &&
-    !resource &&
-    !customCheck
-  ) {
+  if (permissions.length === 0 && roles.length === 0 && !resource && !customCheck) {
     return <>{children}</>
   }
 
@@ -154,14 +142,11 @@ export function PermissionGuard({
 
     if (roles.length > 0) {
       hasAccess =
-        hasAccess ||
-        (requireAll
-          ? roles.every(role => hasRole(role))
-          : helpers.hasAnyRole(roles))
+        hasAccess || (requireAll ? roles.every((role) => hasRole(role)) : helpers.hasAnyRole(roles))
     }
 
     if (!hasAccess && helpers.isAdminUser()) {
-      const hasRestrictedPermission = permissions.some(permission =>
+      const hasRestrictedPermission = permissions.some((permission) =>
         RESTRICTED_ADMIN_PERMISSIONS.includes(permission)
       )
 
@@ -209,7 +194,7 @@ export function usePermissionGuard() {
         action = 'read',
         requireAll = false,
         customCheck,
-        allowUnauthenticated = false
+        allowUnauthenticated = false,
       } = guardProps
 
       const { user, isAuthenticated } = auth
@@ -218,12 +203,7 @@ export function usePermissionGuard() {
         return false
       }
 
-      if (
-        permissions.length === 0 &&
-        roles.length === 0 &&
-        !resource &&
-        !customCheck
-      ) {
+      if (permissions.length === 0 && roles.length === 0 && !resource && !customCheck) {
         return true
       }
 
@@ -251,13 +231,11 @@ export function usePermissionGuard() {
         if (roles.length > 0) {
           hasAccess =
             hasAccess ||
-            (requireAll
-              ? roles.every(role => auth.hasRole(role))
-              : helpers.hasAnyRole(roles))
+            (requireAll ? roles.every((role) => auth.hasRole(role)) : helpers.hasAnyRole(roles))
         }
 
         if (!hasAccess && helpers.isAdminUser()) {
-          const hasRestrictedPermission = permissions.some(permission =>
+          const hasRestrictedPermission = permissions.some((permission) =>
             RESTRICTED_ADMIN_PERMISSIONS.includes(permission)
           )
 
@@ -275,7 +253,7 @@ export function usePermissionGuard() {
   return React.useMemo(
     () => ({
       checkAccess,
-      ...auth
+      ...auth,
     }),
     [auth, checkAccess]
   )
@@ -294,7 +272,7 @@ export function PermissionLevel({
   write,
   admin,
   resource,
-  fallback = null
+  fallback = null,
 }: PermissionLevelProps) {
   const auth = useAuth()
   const helpers = React.useMemo(

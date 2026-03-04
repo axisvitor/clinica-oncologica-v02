@@ -56,6 +56,6 @@ export function useSystemStats(
       return response
     },
     staleTime: 20000, // Consider data stale after 20s
-    ...options
+    ...options,
   })
 }

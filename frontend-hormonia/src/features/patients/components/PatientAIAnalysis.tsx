@@ -13,7 +13,7 @@ interface PatientAIAnalysisProps {
 export function PatientAIAnalysis({
   patientId,
   patientName,
-  showChat = true
+  showChat = true,
 }: PatientAIAnalysisProps) {
   if (!showChat) {
     return null
@@ -27,13 +27,9 @@ export function PatientAIAnalysis({
             <Brain className="h-5 w-5" />
             Chat com IA - Contexto do Paciente
           </CardTitle>
-          <CardDescription>
-            Tire dúvidas e obtenha orientações sobre {patientName}
-          </CardDescription>
+          <CardDescription>Tire dúvidas e obtenha orientações sobre {patientName}</CardDescription>
         </CardHeader>
-        <CardContent>
-          {patientId && <AIChatInterface patientId={patientId} />}
-        </CardContent>
+        <CardContent>{patientId && <AIChatInterface patientId={patientId} />}</CardContent>
       </Card>
     </TabsContent>
   )

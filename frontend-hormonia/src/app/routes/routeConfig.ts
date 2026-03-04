@@ -51,23 +51,23 @@ export const ROUTES = {
     DASHBOARD: '/physician/dashboard',
     PATIENT_DETAIL: '/physician/patients/:id',
   },
-} as const;
+} as const
 
 /**
  * Helper function to build patient detail route
  */
 export const buildPatientDetailRoute = (id: string | number): string => {
-  return `/patients/${id}`;
-};
+  return `/patients/${id}`
+}
 
 /**
  * Helper function to build physician patient detail route
  */
 export const buildPhysicianPatientDetailRoute = (id: string | number): string => {
-  return `/physician/patients/${id}`;
-};
+  return `/physician/patients/${id}`
+}
 
 /**
  * Type for route keys
  */
-export type RouteKey = keyof typeof ROUTES;
+export type RouteKey = keyof typeof ROUTES

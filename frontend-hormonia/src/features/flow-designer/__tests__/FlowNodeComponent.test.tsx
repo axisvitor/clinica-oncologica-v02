@@ -18,9 +18,9 @@ function createTestNode(
     position: { x: 100, y: 100 },
     data: {
       label: 'Test Node',
-      config: {}
+      config: {},
     },
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -33,7 +33,7 @@ describe('FlowNodeComponent', () => {
     onSelect: vi.fn(),
     onDrag: vi.fn(),
     onConnectionStart: vi.fn(),
-    onConnectionEnd: vi.fn()
+    onConnectionEnd: vi.fn(),
   }
 
   beforeEach(() => {
@@ -52,8 +52,8 @@ describe('FlowNodeComponent', () => {
         data: {
           label: 'Test',
           description: 'Test description',
-          config: {}
-        }
+          config: {},
+        },
       })
       render(<FlowNodeComponent {...defaultProps} node={node} />)
 
@@ -80,7 +80,7 @@ describe('FlowNodeComponent', () => {
   describe('Node Types', () => {
     it('should render START node with correct styling', () => {
       const node = createTestNode(FlowNodeType.START, {
-        data: { label: 'Início', config: {} }
+        data: { label: 'Início', config: {} },
       })
       render(<FlowNodeComponent {...defaultProps} node={node} />)
 
@@ -89,7 +89,7 @@ describe('FlowNodeComponent', () => {
 
     it('should render MESSAGE node with correct styling', () => {
       const node = createTestNode(FlowNodeType.MESSAGE, {
-        data: { label: 'Mensagem', config: {} }
+        data: { label: 'Mensagem', config: {} },
       })
       render(<FlowNodeComponent {...defaultProps} node={node} />)
 
@@ -98,7 +98,7 @@ describe('FlowNodeComponent', () => {
 
     it('should render CONDITION node with correct styling', () => {
       const node = createTestNode(FlowNodeType.CONDITION, {
-        data: { label: 'Condição', config: {} }
+        data: { label: 'Condição', config: {} },
       })
       render(<FlowNodeComponent {...defaultProps} node={node} />)
 
@@ -107,7 +107,7 @@ describe('FlowNodeComponent', () => {
 
     it('should render DELAY node with correct styling', () => {
       const node = createTestNode(FlowNodeType.DELAY, {
-        data: { label: 'Atraso', config: {} }
+        data: { label: 'Atraso', config: {} },
       })
       render(<FlowNodeComponent {...defaultProps} node={node} />)
 
@@ -116,7 +116,7 @@ describe('FlowNodeComponent', () => {
 
     it('should render ACTION node with correct styling', () => {
       const node = createTestNode(FlowNodeType.ACTION, {
-        data: { label: 'Ação', config: {} }
+        data: { label: 'Ação', config: {} },
       })
       render(<FlowNodeComponent {...defaultProps} node={node} />)
 
@@ -125,7 +125,7 @@ describe('FlowNodeComponent', () => {
 
     it('should render END node with correct styling', () => {
       const node = createTestNode(FlowNodeType.END, {
-        data: { label: 'Fim', config: {} }
+        data: { label: 'Fim', config: {} },
       })
       render(<FlowNodeComponent {...defaultProps} node={node} />)
 
@@ -134,7 +134,7 @@ describe('FlowNodeComponent', () => {
 
     it('should render AI_RESPONSE node with correct styling', () => {
       const node = createTestNode(FlowNodeType.AI_RESPONSE, {
-        data: { label: 'IA', config: {} }
+        data: { label: 'IA', config: {} },
       })
       render(<FlowNodeComponent {...defaultProps} node={node} />)
 
@@ -143,7 +143,7 @@ describe('FlowNodeComponent', () => {
 
     it('should render QUIZ node with correct styling', () => {
       const node = createTestNode(FlowNodeType.QUIZ, {
-        data: { label: 'Quiz', config: {} }
+        data: { label: 'Quiz', config: {} },
       })
       render(<FlowNodeComponent {...defaultProps} node={node} />)
 
@@ -152,7 +152,7 @@ describe('FlowNodeComponent', () => {
 
     it('should render WEBHOOK node with correct styling', () => {
       const node = createTestNode(FlowNodeType.WEBHOOK, {
-        data: { label: 'Webhook', config: {} }
+        data: { label: 'Webhook', config: {} },
       })
       render(<FlowNodeComponent {...defaultProps} node={node} />)
 
@@ -242,11 +242,7 @@ describe('FlowNodeComponent', () => {
     it('should not call onSelect in CONNECT mode', () => {
       const onSelect = vi.fn()
       render(
-        <FlowNodeComponent
-          {...defaultProps}
-          mode={DesignerMode.CONNECT}
-          onSelect={onSelect}
-        />
+        <FlowNodeComponent {...defaultProps} mode={DesignerMode.CONNECT} onSelect={onSelect} />
       )
 
       const node = screen.getByText('Test Node').closest('.cursor-pointer')!
@@ -270,13 +266,7 @@ describe('FlowNodeComponent', () => {
 
     it('should not drag in CONNECT mode', () => {
       const onDrag = vi.fn()
-      render(
-        <FlowNodeComponent
-          {...defaultProps}
-          mode={DesignerMode.CONNECT}
-          onDrag={onDrag}
-        />
-      )
+      render(<FlowNodeComponent {...defaultProps} mode={DesignerMode.CONNECT} onDrag={onDrag} />)
 
       const node = screen.getByText('Test Node').closest('.cursor-pointer')!
       fireEvent.mouseDown(node)
@@ -289,7 +279,7 @@ describe('FlowNodeComponent', () => {
   describe('Errors', () => {
     it('should display error indicator when has errors', () => {
       const errors = [
-        { id: 'e1', type: 'invalid_config' as const, message: 'Test error', node_id: 'test-node' }
+        { id: 'e1', type: 'invalid_config' as const, message: 'Test error', node_id: 'test-node' },
       ]
       render(<FlowNodeComponent {...defaultProps} errors={errors} />)
 
@@ -300,7 +290,7 @@ describe('FlowNodeComponent', () => {
 
     it('should apply error styling when has errors', () => {
       const errors = [
-        { id: 'e1', type: 'invalid_config' as const, message: 'Test error', node_id: 'test-node' }
+        { id: 'e1', type: 'invalid_config' as const, message: 'Test error', node_id: 'test-node' },
       ]
       render(<FlowNodeComponent {...defaultProps} errors={errors} />)
 
@@ -311,7 +301,7 @@ describe('FlowNodeComponent', () => {
     it('should display multiple errors', () => {
       const errors = [
         { id: 'e1', type: 'invalid_config' as const, message: 'Error 1', node_id: 'test-node' },
-        { id: 'e2', type: 'invalid_config' as const, message: 'Error 2', node_id: 'test-node' }
+        { id: 'e2', type: 'invalid_config' as const, message: 'Error 2', node_id: 'test-node' },
       ]
       render(<FlowNodeComponent {...defaultProps} errors={errors} />)
 
@@ -329,7 +319,7 @@ describe('FlowNodeComponent', () => {
   describe('Position', () => {
     it('should position node according to position prop', () => {
       const node = createTestNode(FlowNodeType.MESSAGE, {
-        position: { x: 200, y: 300 }
+        position: { x: 200, y: 300 },
       })
       render(<FlowNodeComponent {...defaultProps} node={node} />)
 

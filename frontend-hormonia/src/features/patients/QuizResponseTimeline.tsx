@@ -22,33 +22,44 @@ interface TimelineSession {
   responseCount: number
 }
 
-export function QuizResponseTimeline({ patientId, onSessionClick, className }: QuizResponseTimelineProps) {
+export function QuizResponseTimeline({
+  patientId,
+  onSessionClick,
+  className,
+}: QuizResponseTimelineProps) {
   // Fetch patient quiz sessions
-  const { data: sessionsData, isLoading, error } = useQuery<PatientQuizResponses>({
+  const {
+    data: sessionsData,
+    isLoading,
+    error,
+  } = useQuery<PatientQuizResponses>({
     queryKey: ['patient-quiz-sessions-timeline', patientId],
     queryFn: async () => {
       const result = await apiClient.quiz.getPatientResponses(patientId, {
         page: 1,
-        size: 100 // Get more sessions for timeline
+        size: 100, // Get more sessions for timeline
       })
       return result
-    }
+    },
   })
 
   // Convert sessions to timeline format
   const sessions = React.useMemo<TimelineSession[]>(() => {
     if (!sessionsData?.sessions) return []
 
-    return sessionsData.sessions.map((session: QuizSession) => ({
-      id: session.id,
-      template_name: 'Quiz', // Default name, could be enhanced with template lookup
-      template_version: '1.0',
-      status: session.status,
-      date: session.created_at,
-      responseCount: 0 // This could be fetched separately if needed
-    })).sort((a: TimelineSession, b: TimelineSession) =>
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    )
+    return sessionsData.sessions
+      .map((session: QuizSession) => ({
+        id: session.id,
+        template_name: 'Quiz', // Default name, could be enhanced with template lookup
+        template_version: '1.0',
+        status: session.status,
+        date: session.created_at,
+        responseCount: 0, // This could be fetched separately if needed
+      }))
+      .sort(
+        (a: TimelineSession, b: TimelineSession) =>
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+      )
   }, [sessionsData])
 
   // Format date
@@ -59,7 +70,7 @@ export function QuizResponseTimeline({ patientId, onSessionClick, className }: Q
       month: 'short',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     })
   }
 
@@ -92,7 +103,9 @@ export function QuizResponseTimeline({ patientId, onSessionClick, className }: Q
   }
 
   // Get status badge variant
-  const getStatusBadgeVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
+  const getStatusBadgeVariant = (
+    status: string
+  ): 'default' | 'secondary' | 'destructive' | 'outline' => {
     switch (status) {
       case 'completed':
         return 'default'
@@ -134,10 +147,9 @@ export function QuizResponseTimeline({ patientId, onSessionClick, className }: Q
       <CardHeader>
         <CardTitle>Timeline de Quiz</CardTitle>
         <CardDescription>
-          {sessions.length === 0 
+          {sessions.length === 0
             ? 'Nenhuma sessão de quiz encontrada'
-            : `${sessions.length} ${sessions.length === 1 ? 'sessão' : 'sessões'} de quiz`
-          }
+            : `${sessions.length} ${sessions.length === 1 ? 'sessão' : 'sessões'} de quiz`}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -155,7 +167,7 @@ export function QuizResponseTimeline({ patientId, onSessionClick, className }: Q
               {sessions.map((session, index) => {
                 const Icon = getStatusIcon(session.status)
                 const colorClass = getStatusColor(session.status)
-                
+
                 return (
                   <div
                     key={session.id}
@@ -164,10 +176,12 @@ export function QuizResponseTimeline({ patientId, onSessionClick, className }: Q
                     }`}
                   >
                     {/* Timeline dot */}
-                    <div className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full ${colorClass} flex items-center justify-center`}>
+                    <div
+                      className={`absolute -left-[9px] top-0 w-4 h-4 rounded-full ${colorClass} flex items-center justify-center`}
+                    >
                       <div className="w-2 h-2 rounded-full bg-white" />
                     </div>
-                    
+
                     {/* Content */}
                     {onSessionClick ? (
                       <button
@@ -176,24 +190,27 @@ export function QuizResponseTimeline({ patientId, onSessionClick, className }: Q
                         onClick={() => onSessionClick(session.id)}
                         aria-label={`Abrir sessao ${session.template_name}`}
                       >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Icon className={`h-4 w-4 ${colorClass.split(' ')[0]}`} />
-                            <span className="font-medium text-sm">{session.template_name}</span>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Icon className={`h-4 w-4 ${colorClass.split(' ')[0]}`} />
+                              <span className="font-medium text-sm">{session.template_name}</span>
+                            </div>
+
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              <div>Versão: {session.template_version}</div>
+                              <div>{formatDate(session.date)}</div>
+                              <div>
+                                {session.responseCount}{' '}
+                                {session.responseCount === 1 ? 'resposta' : 'respostas'}
+                              </div>
+                            </div>
                           </div>
-                          
-                          <div className="text-xs text-muted-foreground space-y-1">
-                            <div>Versão: {session.template_version}</div>
-                            <div>{formatDate(session.date)}</div>
-                            <div>{session.responseCount} {session.responseCount === 1 ? 'resposta' : 'respostas'}</div>
-                          </div>
+
+                          <Badge variant={getStatusBadgeVariant(session.status)}>
+                            {session.status}
+                          </Badge>
                         </div>
-                        
-                        <Badge variant={getStatusBadgeVariant(session.status)}>
-                          {session.status}
-                        </Badge>
-                      </div>
                       </button>
                     ) : (
                       <div className="flex-1 ml-8 p-4 rounded-lg border bg-white">
@@ -203,14 +220,17 @@ export function QuizResponseTimeline({ patientId, onSessionClick, className }: Q
                               <Icon className={`h-4 w-4 ${colorClass.split(' ')[0]}`} />
                               <span className="font-medium text-sm">{session.template_name}</span>
                             </div>
-                            
+
                             <div className="text-xs text-muted-foreground space-y-1">
                               <div>Versão: {session.template_version}</div>
                               <div>{formatDate(session.date)}</div>
-                              <div>{session.responseCount} {session.responseCount === 1 ? 'resposta' : 'respostas'}</div>
+                              <div>
+                                {session.responseCount}{' '}
+                                {session.responseCount === 1 ? 'resposta' : 'respostas'}
+                              </div>
                             </div>
                           </div>
-                          
+
                           <Badge variant={getStatusBadgeVariant(session.status)}>
                             {session.status}
                           </Badge>
@@ -227,4 +247,3 @@ export function QuizResponseTimeline({ patientId, onSessionClick, className }: Q
     </Card>
   )
 }
-

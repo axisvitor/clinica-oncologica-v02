@@ -1,4 +1,4 @@
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from '@/components/ui/use-toast'
 import {
   Toast,
   ToastClose,
@@ -6,20 +6,23 @@ import {
   ToastProvider,
   ToastTitle,
   ToastViewport,
-} from "@/components/ui/toast"
+} from '@/components/ui/toast'
 
 export function Toaster() {
   const { toasts } = useToast()
 
   // Group toasts by position to create multiple viewports
-  const toastsByPosition = toasts.reduce((acc, toast) => {
-    const position = 'bottom-right' // Default position since position property doesn't exist
-    if (!acc[position]) {
-      acc[position] = []
-    }
-    acc[position].push(toast)
-    return acc
-  }, {} as Record<string, typeof toasts>)
+  const toastsByPosition = toasts.reduce(
+    (acc, toast) => {
+      const position = 'bottom-right' // Default position since position property doesn't exist
+      if (!acc[position]) {
+        acc[position] = []
+      }
+      acc[position].push(toast)
+      return acc
+    },
+    {} as Record<string, typeof toasts>
+  )
 
   return (
     <ToastProvider>
@@ -30,9 +33,7 @@ export function Toaster() {
               <Toast key={id} {...props}>
                 <div className="grid gap-1">
                   {title && <ToastTitle>{title}</ToastTitle>}
-                  {description && (
-                    <ToastDescription>{description}</ToastDescription>
-                  )}
+                  {description && <ToastDescription>{description}</ToastDescription>}
                 </div>
                 {action}
                 <ToastClose />
@@ -40,7 +41,15 @@ export function Toaster() {
             )
           })}
           <ToastViewport
-            position={position as "top-left" | "top-center" | "top-right" | "bottom-left" | "bottom-center" | "bottom-right"}
+            position={
+              position as
+                | 'top-left'
+                | 'top-center'
+                | 'top-right'
+                | 'bottom-left'
+                | 'bottom-center'
+                | 'bottom-right'
+            }
           />
         </div>
       ))}

@@ -16,24 +16,24 @@ export interface ImportOptions {
    * Skip patients with duplicate CPF/email
    * @default false
    */
-  skipDuplicates?: boolean;
+  skipDuplicates?: boolean
 
   /**
    * Update existing patients instead of creating new ones
    * @default false
    */
-  updateExisting?: boolean;
+  updateExisting?: boolean
 
   /**
    * Only validate the file without importing
    * @default false
    */
-  validateOnly?: boolean;
+  validateOnly?: boolean
 
   /**
    * Doctor ID to assign to all imported patients (if not specified in CSV)
    */
-  defaultDoctorId?: string;
+  defaultDoctorId?: string
 }
 
 /**
@@ -43,27 +43,27 @@ export interface ValidationError {
   /**
    * Row number (1-based index)
    */
-  row: number;
+  row: number
 
   /**
    * Column name where error occurred
    */
-  column?: string;
+  column?: string
 
   /**
    * Error message
    */
-  message: string;
+  message: string
 
   /**
    * Severity level
    */
-  severity: 'error' | 'warning';
+  severity: 'error' | 'warning'
 
   /**
    * Error code for programmatic handling
    */
-  code?: string;
+  code?: string
 }
 
 /**
@@ -73,37 +73,37 @@ export interface ValidationWarning {
   /**
    * Row number (1-based index)
    */
-  row: number;
+  row: number
 
   /**
    * Column name where warning occurred
    */
-  column?: string;
+  column?: string
 
   /**
    * Warning message
    */
-  message: string;
+  message: string
 
   /**
    * Warning code
    */
-  code?: string;
+  code?: string
 }
 
 /**
  * Patient preview from validation
  */
 export interface PatientPreview {
-  row: number;
-  name: string;
-  email?: string;
-  phone?: string;
-  cpf?: string;
-  birth_date?: string;
-  gender?: 'M' | 'F' | 'other';
-  doctor_id?: string;
-  treatment_type?: string;
+  row: number
+  name: string
+  email?: string
+  phone?: string
+  cpf?: string
+  birth_date?: string
+  gender?: 'M' | 'F' | 'other'
+  doctor_id?: string
+  treatment_type?: string
 }
 
 /**
@@ -113,52 +113,52 @@ export interface ValidationResult {
   /**
    * Whether the file is valid and can be imported
    */
-  valid: boolean;
+  valid: boolean
 
   /**
    * Total rows in the file (excluding header)
    */
-  totalRows: number;
+  totalRows: number
 
   /**
    * Number of valid rows
    */
-  validRows: number;
+  validRows: number
 
   /**
    * Number of rows with errors
    */
-  errorRows: number;
+  errorRows: number
 
   /**
    * Number of rows with warnings
    */
-  warningRows: number;
+  warningRows: number
 
   /**
    * List of validation errors
    */
-  errors: ValidationError[];
+  errors: ValidationError[]
 
   /**
    * List of validation warnings
    */
-  warnings: ValidationWarning[];
+  warnings: ValidationWarning[]
 
   /**
    * Preview of first N patients
    */
-  preview: PatientPreview[];
+  preview: PatientPreview[]
 
   /**
    * Detected file format
    */
-  format: 'csv' | 'xlsx';
+  format: 'csv' | 'xlsx'
 
   /**
    * File size in bytes
    */
-  fileSize: number;
+  fileSize: number
 }
 
 /**
@@ -168,27 +168,27 @@ export interface ImportError {
   /**
    * Row number (1-based index)
    */
-  row: number;
+  row: number
 
   /**
    * Patient name (if available)
    */
-  patientName?: string;
+  patientName?: string
 
   /**
    * Error message
    */
-  message: string;
+  message: string
 
   /**
    * Error code
    */
-  code?: string;
+  code?: string
 
   /**
    * Detailed error information
    */
-  details?: Record<string, unknown>;
+  details?: Record<string, unknown>
 }
 
 /**
@@ -198,42 +198,42 @@ export interface ImportResult {
   /**
    * Total number of rows processed
    */
-  total: number;
+  total: number
 
   /**
    * Number of successfully imported patients
    */
-  successful: number;
+  successful: number
 
   /**
    * Number of failed imports
    */
-  failed: number;
+  failed: number
 
   /**
    * Number of skipped rows (duplicates)
    */
-  skipped: number;
+  skipped: number
 
   /**
    * Number of updated patients
    */
-  updated: number;
+  updated: number
 
   /**
    * List of import errors
    */
-  errors: ImportError[];
+  errors: ImportError[]
 
   /**
    * Import duration in milliseconds
    */
-  duration?: number;
+  duration?: number
 
   /**
    * Import session ID for tracking
    */
-  sessionId?: string;
+  sessionId?: string
 }
 
 /**
@@ -243,82 +243,82 @@ export interface ImportHistoryEntry {
   /**
    * History entry ID
    */
-  id: string;
+  id: string
 
   /**
    * User who performed the import
    */
-  userId: string;
+  userId: string
 
   /**
    * User's full name
    */
-  userName: string;
+  userName: string
 
   /**
    * Original filename
    */
-  filename: string;
+  filename: string
 
   /**
    * File format
    */
-  format: 'csv' | 'xlsx';
+  format: 'csv' | 'xlsx'
 
   /**
    * Import status
    */
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed'
 
   /**
    * Total rows processed
    */
-  totalRows: number;
+  totalRows: number
 
   /**
    * Successfully imported rows
    */
-  successfulRows: number;
+  successfulRows: number
 
   /**
    * Failed rows
    */
-  failedRows: number;
+  failedRows: number
 
   /**
    * Skipped rows
    */
-  skippedRows: number;
+  skippedRows: number
 
   /**
    * Import options used
    */
-  options: ImportOptions;
+  options: ImportOptions
 
   /**
    * Error summary
    */
-  errorSummary?: string;
+  errorSummary?: string
 
   /**
    * Import started timestamp
    */
-  startedAt: string;
+  startedAt: string
 
   /**
    * Import completed timestamp
    */
-  completedAt?: string;
+  completedAt?: string
 
   /**
    * Import duration in milliseconds
    */
-  duration?: number;
+  duration?: number
 
   /**
    * Additional metadata
    */
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -328,32 +328,32 @@ export interface ImportHistoryFilters {
   /**
    * Filter by user ID
    */
-  userId?: string;
+  userId?: string
 
   /**
    * Filter by status
    */
-  status?: ImportHistoryEntry['status'];
+  status?: ImportHistoryEntry['status']
 
   /**
    * Filter by start date (ISO 8601)
    */
-  startDate?: string;
+  startDate?: string
 
   /**
    * Filter by end date (ISO 8601)
    */
-  endDate?: string;
+  endDate?: string
 
   /**
    * Page number for pagination
    */
-  page?: number;
+  page?: number
 
   /**
    * Page size
    */
-  size?: number;
+  size?: number
 }
 
 /**
@@ -363,47 +363,47 @@ export interface ImportProgress {
   /**
    * Import session ID
    */
-  sessionId: string;
+  sessionId: string
 
   /**
    * Current status
    */
-  status: 'validating' | 'importing' | 'completed' | 'failed';
+  status: 'validating' | 'importing' | 'completed' | 'failed'
 
   /**
    * Current progress (0-100)
    */
-  progress: number;
+  progress: number
 
   /**
    * Current row being processed
    */
-  currentRow: number;
+  currentRow: number
 
   /**
    * Total rows to process
    */
-  totalRows: number;
+  totalRows: number
 
   /**
    * Number of successful imports so far
    */
-  successful: number;
+  successful: number
 
   /**
    * Number of failed imports so far
    */
-  failed: number;
+  failed: number
 
   /**
    * Estimated time remaining in milliseconds
    */
-  estimatedTimeRemaining?: number;
+  estimatedTimeRemaining?: number
 
   /**
    * Current operation message
    */
-  message?: string;
+  message?: string
 }
 
 /**
@@ -413,10 +413,10 @@ export interface TemplateDownloadOptions {
   /**
    * Include sample data
    */
-  includeSampleData?: boolean;
+  includeSampleData?: boolean
 
   /**
    * Format to download
    */
-  format?: 'csv' | 'xlsx';
+  format?: 'csv' | 'xlsx'
 }

@@ -19,7 +19,7 @@ export function InitializationPage() {
     toast({
       title: 'Sistema Inicializado',
       description: 'Redirecionando para o dashboard principal...',
-      duration: 3000
+      duration: 3000,
     })
 
     // Redirect to main application after a brief delay
@@ -39,12 +39,8 @@ export function InitializationPage() {
           <div className="w-20 h-20 mx-auto bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center">
             <span className="text-3xl">✅</span>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">
-            Sistema Configurado com Sucesso!
-          </h2>
-          <p className="text-gray-600">
-            Redirecionando para o sistema...
-          </p>
+          <h2 className="text-2xl font-bold text-gray-900">Sistema Configurado com Sucesso!</h2>
+          <p className="text-gray-600">Redirecionando para o sistema...</p>
           <div className="flex justify-center">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
           </div>

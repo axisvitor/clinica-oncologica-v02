@@ -14,35 +14,35 @@
  * @module persistentCache
  */
 
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { PersistedClient, Persister } from '@tanstack/react-query-persist-client';
-import { createLogger } from '@/lib/logger';
+import { openDB, DBSchema, IDBPDatabase } from 'idb'
+import { PersistedClient, Persister } from '@tanstack/react-query-persist-client'
+import { createLogger } from '@/lib/logger'
 
-const logger = createLogger('QueryCache');
+const logger = createLogger('QueryCache')
 
 /**
  * IndexedDB schema for React Query cache
  */
 interface QueryCacheDB extends DBSchema {
   queryCache: {
-    key: string;
-    value: PersistedClient;
-  };
+    key: string
+    value: PersistedClient
+  }
   metadata: {
-    key: string;
-    value: CacheMetadata;
-  };
+    key: string
+    value: CacheMetadata
+  }
 }
 
 /**
  * Cache metadata for monitoring and management
  */
 interface CacheMetadata {
-  version: number;
-  createdAt: number;
-  lastAccessed: number;
-  size: number;
-  queryCount: number;
+  version: number
+  createdAt: number
+  lastAccessed: number
+  size: number
+  queryCount: number
 }
 
 /**
@@ -50,22 +50,22 @@ interface CacheMetadata {
  */
 interface CacheConfig {
   /** Database name for IndexedDB */
-  dbName?: string;
+  dbName?: string
   /** Cache version for migrations */
-  version?: number;
+  version?: number
   /** Time-to-live in milliseconds (default: 7 days) */
-  ttl?: number;
+  ttl?: number
   /** Maximum cache size in bytes (default: 50MB) */
-  maxSize?: number;
+  maxSize?: number
   /** Enable debug logging */
-  debug?: boolean;
+  debug?: boolean
 }
 
 // Constants
-const DEFAULT_DB_NAME = 'react-query-cache';
-const DEFAULT_CACHE_VERSION = 1;
-const DEFAULT_CACHE_TTL = 1000 * 60 * 60 * 24 * 7; // 7 days
-const DEFAULT_MAX_SIZE = 50 * 1024 * 1024; // 50MB
+const DEFAULT_DB_NAME = 'react-query-cache'
+const DEFAULT_CACHE_VERSION = 1
+const DEFAULT_CACHE_TTL = 1000 * 60 * 60 * 24 * 7 // 7 days
+const DEFAULT_MAX_SIZE = 50 * 1024 * 1024 // 50MB
 
 /**
  * Logger utility for cache operations
@@ -75,16 +75,16 @@ class CacheLogger {
 
   info(message: string, ...args: unknown[]) {
     if (this.debug) {
-      logger.info(`[QueryCache] ${message}`, ...args);
+      logger.info(`[QueryCache] ${message}`, ...args)
     }
   }
 
   warn(message: string, ...args: unknown[]) {
-    logger.warn(`[QueryCache] ${message}`, ...args);
+    logger.warn(`[QueryCache] ${message}`, ...args)
   }
 
   error(message: string, ...args: unknown[]) {
-    logger.error(`[QueryCache] ${message}`, ...args);
+    logger.error(`[QueryCache] ${message}`, ...args)
   }
 }
 
@@ -109,65 +109,65 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
     ttl = DEFAULT_CACHE_TTL,
     maxSize = DEFAULT_MAX_SIZE,
     debug = false,
-  } = config;
+  } = config
 
-  const logger = new CacheLogger(debug);
-  let db: IDBPDatabase<QueryCacheDB> | null = null;
-  let initializationPromise: Promise<IDBPDatabase<QueryCacheDB>> | null = null;
+  const logger = new CacheLogger(debug)
+  let db: IDBPDatabase<QueryCacheDB> | null = null
+  let initializationPromise: Promise<IDBPDatabase<QueryCacheDB>> | null = null
 
   /**
    * Initialize or retrieve the IndexedDB instance
    */
   async function getDB(): Promise<IDBPDatabase<QueryCacheDB>> {
-    if (db) return db;
+    if (db) return db
 
     if (initializationPromise) {
-      return initializationPromise;
+      return initializationPromise
     }
 
     initializationPromise = (async () => {
       try {
-        logger.info('Initializing IndexedDB', { dbName, version });
+        logger.info('Initializing IndexedDB', { dbName, version })
 
         const database = await openDB<QueryCacheDB>(dbName, version, {
           upgrade(db, oldVersion, newVersion, _transaction) {
-            logger.info('Upgrading database', { oldVersion, newVersion });
+            logger.info('Upgrading database', { oldVersion, newVersion })
 
             // Create object stores if they don't exist
             if (!db.objectStoreNames.contains('queryCache')) {
-              db.createObjectStore('queryCache');
-              logger.info('Created queryCache store');
+              db.createObjectStore('queryCache')
+              logger.info('Created queryCache store')
             }
 
             if (!db.objectStoreNames.contains('metadata')) {
-              db.createObjectStore('metadata');
-              logger.info('Created metadata store');
+              db.createObjectStore('metadata')
+              logger.info('Created metadata store')
             }
           },
           blocked() {
-            logger.warn('Database upgrade blocked by another tab');
+            logger.warn('Database upgrade blocked by another tab')
           },
           blocking() {
-            logger.warn('This tab is blocking database upgrade');
+            logger.warn('This tab is blocking database upgrade')
           },
           terminated() {
-            logger.error('Database connection terminated unexpectedly');
-            db = null;
-            initializationPromise = null;
+            logger.error('Database connection terminated unexpectedly')
+            db = null
+            initializationPromise = null
           },
-        });
+        })
 
-        db = database;
-        logger.info('IndexedDB initialized successfully');
-        return database;
+        db = database
+        logger.info('IndexedDB initialized successfully')
+        return database
       } catch (error) {
-        logger.error('Failed to initialize IndexedDB', error);
-        initializationPromise = null;
-        throw error;
+        logger.error('Failed to initialize IndexedDB', error)
+        initializationPromise = null
+        throw error
       }
-    })();
+    })()
 
-    return initializationPromise;
+    return initializationPromise
   }
 
   /**
@@ -175,12 +175,12 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
    */
   async function getMetadata(database: IDBPDatabase<QueryCacheDB>): Promise<CacheMetadata> {
     try {
-      const existing = await database.get('metadata', 'info');
+      const existing = await database.get('metadata', 'info')
       if (existing) {
-        return existing;
+        return existing
       }
     } catch (error) {
-      logger.warn('Failed to retrieve metadata', error);
+      logger.warn('Failed to retrieve metadata', error)
     }
 
     // Create default metadata
@@ -190,15 +190,15 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
       lastAccessed: Date.now(),
       size: 0,
       queryCount: 0,
-    };
-
-    try {
-      await database.put('metadata', metadata, 'info');
-    } catch (error) {
-      logger.warn('Failed to store metadata', error);
     }
 
-    return metadata;
+    try {
+      await database.put('metadata', metadata, 'info')
+    } catch (error) {
+      logger.warn('Failed to store metadata', error)
+    }
+
+    return metadata
   }
 
   /**
@@ -209,16 +209,16 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
     updates: Partial<CacheMetadata>
   ): Promise<void> {
     try {
-      const current = await getMetadata(database);
+      const current = await getMetadata(database)
       const updated: CacheMetadata = {
         ...current,
         ...updates,
         lastAccessed: Date.now(),
-      };
-      await database.put('metadata', updated, 'info');
-      logger.info('Metadata updated', updates);
+      }
+      await database.put('metadata', updated, 'info')
+      logger.info('Metadata updated', updates)
     } catch (error) {
-      logger.warn('Failed to update metadata', error);
+      logger.warn('Failed to update metadata', error)
     }
   }
 
@@ -227,9 +227,9 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
    */
   function calculateSize(client: PersistedClient): number {
     try {
-      return JSON.stringify(client).length * 2; // Approximate UTF-16 bytes
+      return JSON.stringify(client).length * 2 // Approximate UTF-16 bytes
     } catch {
-      return 0;
+      return 0
     }
   }
 
@@ -238,17 +238,17 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
    */
   async function checkCacheSize(database: IDBPDatabase<QueryCacheDB>): Promise<boolean> {
     try {
-      const metadata = await getMetadata(database);
+      const metadata = await getMetadata(database)
       if (metadata.size > maxSize) {
         logger.warn('Cache size exceeded limit', {
           size: metadata.size,
-          maxSize
-        });
-        return true;
+          maxSize,
+        })
+        return true
       }
-      return false;
+      return false
     } catch {
-      return false;
+      return false
     }
   }
 
@@ -256,11 +256,11 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
    * Clear cache if it's too large
    */
   async function clearIfOversized(database: IDBPDatabase<QueryCacheDB>): Promise<void> {
-    const isOversized = await checkCacheSize(database);
+    const isOversized = await checkCacheSize(database)
     if (isOversized) {
-      logger.info('Clearing oversized cache');
-      await database.delete('queryCache', 'state');
-      await updateMetadata(database, { size: 0, queryCount: 0 });
+      logger.info('Clearing oversized cache')
+      await database.delete('queryCache', 'state')
+      await updateMetadata(database, { size: 0, queryCount: 0 })
     }
   }
 
@@ -270,23 +270,23 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
      */
     async persistClient(client: PersistedClient): Promise<void> {
       try {
-        const database = await getDB();
+        const database = await getDB()
 
         // Check cache size before persisting
-        await clearIfOversized(database);
+        await clearIfOversized(database)
 
         // Store the client state
-        await database.put('queryCache', client, 'state');
+        await database.put('queryCache', client, 'state')
 
         // Update metadata
-        const size = calculateSize(client);
-        const queryCount = client.clientState.queries?.length || 0;
+        const size = calculateSize(client)
+        const queryCount = client.clientState.queries?.length || 0
 
-        await updateMetadata(database, { size, queryCount });
+        await updateMetadata(database, { size, queryCount })
 
-        logger.info('Client state persisted', { size, queryCount });
+        logger.info('Client state persisted', { size, queryCount })
       } catch (error) {
-        logger.error('Failed to persist client state', error);
+        logger.error('Failed to persist client state', error)
         // Don't throw - allow app to continue without persistence
       }
     },
@@ -296,33 +296,33 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
      */
     async restoreClient(): Promise<PersistedClient | undefined> {
       try {
-        const database = await getDB();
-        const cache = await database.get('queryCache', 'state');
+        const database = await getDB()
+        const cache = await database.get('queryCache', 'state')
 
         if (!cache) {
-          logger.info('No cached state found');
-          return undefined;
+          logger.info('No cached state found')
+          return undefined
         }
 
         // Check if cache has expired
-        const age = Date.now() - cache.timestamp;
+        const age = Date.now() - cache.timestamp
         if (age > ttl) {
-          logger.info('Cache expired, clearing', { age, ttl });
-          await database.delete('queryCache', 'state');
-          await updateMetadata(database, { size: 0, queryCount: 0 });
-          return undefined;
+          logger.info('Cache expired, clearing', { age, ttl })
+          await database.delete('queryCache', 'state')
+          await updateMetadata(database, { size: 0, queryCount: 0 })
+          return undefined
         }
 
         // Update last accessed time
-        await updateMetadata(database, {});
+        await updateMetadata(database, {})
 
-        const queryCount = cache.clientState.queries?.length || 0;
-        logger.info('Client state restored', { age, queryCount });
+        const queryCount = cache.clientState.queries?.length || 0
+        logger.info('Client state restored', { age, queryCount })
 
-        return cache;
+        return cache
       } catch (error) {
-        logger.error('Failed to restore client state', error);
-        return undefined;
+        logger.error('Failed to restore client state', error)
+        return undefined
       }
     },
 
@@ -331,15 +331,15 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
      */
     async removeClient(): Promise<void> {
       try {
-        const database = await getDB();
-        await database.delete('queryCache', 'state');
-        await updateMetadata(database, { size: 0, queryCount: 0 });
-        logger.info('Client state removed');
+        const database = await getDB()
+        await database.delete('queryCache', 'state')
+        await updateMetadata(database, { size: 0, queryCount: 0 })
+        logger.info('Client state removed')
       } catch (error) {
-        logger.error('Failed to remove client state', error);
+        logger.error('Failed to remove client state', error)
       }
     },
-  };
+  }
 }
 
 /**
@@ -354,13 +354,13 @@ export function createIndexedDBPersister(config: CacheConfig = {}): Persister {
  */
 export async function clearQueryCache(dbName: string = DEFAULT_DB_NAME): Promise<void> {
   try {
-    const db = await openDB<QueryCacheDB>(dbName, DEFAULT_CACHE_VERSION);
-    await db.clear('queryCache');
-    await db.clear('metadata');
-    logger.info('[QueryCache] Cache cleared successfully');
+    const db = await openDB<QueryCacheDB>(dbName, DEFAULT_CACHE_VERSION)
+    await db.clear('queryCache')
+    await db.clear('metadata')
+    logger.info('[QueryCache] Cache cleared successfully')
   } catch (error) {
-    logger.error('[QueryCache] Failed to clear cache', error);
-    throw error;
+    logger.error('[QueryCache] Failed to clear cache', error)
+    throw error
   }
 }
 
@@ -376,14 +376,16 @@ export async function clearQueryCache(dbName: string = DEFAULT_DB_NAME): Promise
  * console.log(`Cache size: ${stats?.size} bytes`);
  * ```
  */
-export async function getCacheStats(dbName: string = DEFAULT_DB_NAME): Promise<CacheMetadata | null> {
+export async function getCacheStats(
+  dbName: string = DEFAULT_DB_NAME
+): Promise<CacheMetadata | null> {
   try {
-    const db = await openDB<QueryCacheDB>(dbName, DEFAULT_CACHE_VERSION);
-    const metadata = await db.get('metadata', 'info');
-    return metadata || null;
+    const db = await openDB<QueryCacheDB>(dbName, DEFAULT_CACHE_VERSION)
+    const metadata = await db.get('metadata', 'info')
+    return metadata || null
   } catch (error) {
-    logger.error('[QueryCache] Failed to get cache stats', error);
-    return null;
+    logger.error('[QueryCache] Failed to get cache stats', error)
+    return null
   }
 }
 
@@ -395,13 +397,13 @@ export async function getCacheStats(dbName: string = DEFAULT_DB_NAME): Promise<C
  */
 export async function exportCacheData(dbName: string = DEFAULT_DB_NAME): Promise<string | null> {
   try {
-    const db = await openDB<QueryCacheDB>(dbName, DEFAULT_CACHE_VERSION);
-    const cache = await db.get('queryCache', 'state');
-    const metadata = await db.get('metadata', 'info');
+    const db = await openDB<QueryCacheDB>(dbName, DEFAULT_CACHE_VERSION)
+    const cache = await db.get('queryCache', 'state')
+    const metadata = await db.get('metadata', 'info')
 
-    return JSON.stringify({ cache, metadata }, null, 2);
+    return JSON.stringify({ cache, metadata }, null, 2)
   } catch (error) {
-    logger.error('[QueryCache] Failed to export cache data', error);
-    return null;
+    logger.error('[QueryCache] Failed to export cache data', error)
+    return null
   }
 }

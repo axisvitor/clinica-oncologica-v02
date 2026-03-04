@@ -20,15 +20,15 @@
  */
 
 // Base query keys
-const PATIENTS = 'patients' as const;
-const ANALYTICS = 'analytics' as const;
-const MESSAGES = 'messages' as const;
-const QUIZ = 'quiz' as const;
-const FLOWS = 'flows' as const;
-const ALERTS = 'alerts' as const;
-const REPORTS = 'reports' as const;
-const ADMIN = 'admin' as const;
-const AUTH = 'auth' as const;
+const PATIENTS = 'patients' as const
+const ANALYTICS = 'analytics' as const
+const MESSAGES = 'messages' as const
+const QUIZ = 'quiz' as const
+const FLOWS = 'flows' as const
+const ALERTS = 'alerts' as const
+const REPORTS = 'reports' as const
+const ADMIN = 'admin' as const
+const AUTH = 'auth' as const
 
 import type { QueryClient, Query } from '@tanstack/react-query'
 
@@ -53,8 +53,13 @@ export const queryKeys = {
   patients: {
     all: [PATIENTS] as const,
     lists: () => [PATIENTS, 'list'] as const,
-    list: (filters: { page?: number; size?: number; search?: string; status?: string; treatment_type?: string }) =>
-      [PATIENTS, 'list', filters] as const,
+    list: (filters: {
+      page?: number
+      size?: number
+      search?: string
+      status?: string
+      treatment_type?: string
+    }) => [PATIENTS, 'list', filters] as const,
     details: () => [PATIENTS, 'detail'] as const,
     detail: (id: string) => [PATIENTS, 'detail', id] as const,
     timeline: (id: string) => [PATIENTS, 'timeline', id] as const,
@@ -106,8 +111,7 @@ export const queryKeys = {
   flows: {
     all: [FLOWS] as const,
     lists: () => [FLOWS, 'list'] as const,
-    list: (filters: { patient_id?: string; status?: string }) =>
-      [FLOWS, 'list', filters] as const,
+    list: (filters: { patient_id?: string; status?: string }) => [FLOWS, 'list', filters] as const,
     detail: (id: string) => [FLOWS, 'detail', id] as const,
     state: (patientId: string) => [FLOWS, 'state', patientId] as const,
     analytics: () => [FLOWS, 'analytics'] as const,
@@ -130,8 +134,7 @@ export const queryKeys = {
   reports: {
     all: [REPORTS] as const,
     lists: () => [REPORTS, 'list'] as const,
-    list: (filters: { page?: number; size?: number }) =>
-      [REPORTS, 'list', filters] as const,
+    list: (filters: { page?: number; size?: number }) => [REPORTS, 'list', filters] as const,
     detail: (id: string) => [REPORTS, 'detail', id] as const,
     preview: (id: string) => [REPORTS, 'preview', id] as const,
   },
@@ -141,15 +144,20 @@ export const queryKeys = {
    */
   admin: {
     all: [ADMIN] as const,
-    users: (filters: { page?: number; size?: number; search?: string; role?: string; is_active?: boolean }) =>
-      [ADMIN, 'users', filters] as const,
+    users: (filters: {
+      page?: number
+      size?: number
+      search?: string
+      role?: string
+      is_active?: boolean
+    }) => [ADMIN, 'users', filters] as const,
     user: (id: string) => [ADMIN, 'user', id] as const,
     activity: (userId: string, filters?: { page?: number; size?: number }) =>
       [ADMIN, 'activity', userId, filters] as const,
     auditLogs: (filters?: { page?: number; size?: number }) =>
       [ADMIN, 'audit-logs', filters] as const,
   },
-} as const;
+} as const
 
 /**
  * Cache invalidation helpers
@@ -159,23 +167,23 @@ export const invalidateQueries = {
    * Invalidate all patient queries
    */
   allPatients: (queryClient: QueryClient) => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.patients.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.patients.all })
   },
 
   /**
    * Invalidate specific patient
    */
   patient: (queryClient: QueryClient, id: string) => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.patients.detail(id) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.patients.timeline(id) });
-    queryClient.invalidateQueries({ queryKey: queryKeys.patients.stats(id) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.patients.detail(id) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.patients.timeline(id) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.patients.stats(id) })
   },
 
   /**
    * Invalidate analytics
    */
   analytics: (queryClient: QueryClient) => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.analytics.all })
   },
 
   /**
@@ -185,12 +193,12 @@ export const invalidateQueries = {
     queryClient.invalidateQueries({
       queryKey: queryKeys.messages.lists(),
       predicate: (query: Query) => {
-        const filters = query.queryKey[2] as { patient_id?: string };
-        return filters?.patient_id === patientId;
-      }
-    });
+        const filters = query.queryKey[2] as { patient_id?: string }
+        return filters?.patient_id === patientId
+      },
+    })
   },
-};
+}
 
 /**
  * Prefetch helpers for optimistic loading
@@ -199,22 +207,29 @@ export const prefetchQueries = {
   /**
    * Prefetch patient details when hovering over patient card
    */
-  patientDetail: async (queryClient: QueryClient, apiClient: { patients: { get: (id: string) => Promise<unknown> } }, id: string) => {
+  patientDetail: async (
+    queryClient: QueryClient,
+    apiClient: { patients: { get: (id: string) => Promise<unknown> } },
+    id: string
+  ) => {
     await queryClient.prefetchQuery({
       queryKey: queryKeys.patients.detail(id),
       queryFn: () => apiClient.patients.get(id),
       staleTime: 5 * 60 * 1000, // 5 minutes
-    });
+    })
   },
 
   /**
    * Prefetch dashboard analytics on app load
    */
-  dashboardAnalytics: async (queryClient: QueryClient, apiClient: { analytics: { dashboard: () => Promise<unknown> } }) => {
+  dashboardAnalytics: async (
+    queryClient: QueryClient,
+    apiClient: { analytics: { dashboard: () => Promise<unknown> } }
+  ) => {
     await queryClient.prefetchQuery({
       queryKey: queryKeys.analytics.dashboard(),
       queryFn: () => apiClient.analytics.dashboard(),
       staleTime: 3 * 60 * 1000, // 3 minutes
-    });
+    })
   },
-};
+}

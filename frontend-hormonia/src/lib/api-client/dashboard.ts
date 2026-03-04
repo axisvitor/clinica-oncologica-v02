@@ -235,7 +235,7 @@ export function createDashboardApi(client: ApiClientCore) {
         avg_response_time: Math.round(fm.avg_completion_days || 0),
         engagement_chart: [], // Will be populated from another endpoint if needed
         recent_alerts: [], // Convert from recent_activity if type is alert
-        recent_activity: (response.recent_activity || []).map(activity => ({
+        recent_activity: (response.recent_activity || []).map((activity) => ({
           id: activity.id,
           type: activity.type as 'message' | 'quiz' | 'flow' | 'alert' | 'system',
           description: activity.description,
@@ -254,13 +254,13 @@ export function createDashboardApi(client: ApiClientCore) {
           critical: am.critical_alerts || 0,
           high: am.high_alerts || 0,
           medium: am.medium_alerts || 0,
-          low: am.low_alerts || 0
+          low: am.low_alerts || 0,
         },
         flow_breakdown: {
           active: fm.active_flows || 0,
           paused: fm.paused_flows || 0,
-          completed: fm.completed_flows || 0
-        }
+          completed: fm.completed_flows || 0,
+        },
       }
     },
 
@@ -306,7 +306,7 @@ export function createDashboardApi(client: ApiClientCore) {
           active_patients: response.metrics?.patients_active ?? response.active_sessions ?? 0,
           pending_messages: response.recent_activity_1h ?? 0,
           unread_alerts: 0, // Not available in this endpoint
-          last_updated: response.timestamp ?? new Date().toISOString()
+          last_updated: response.timestamp ?? new Date().toISOString(),
         }
       } catch {
         // Fallback to dashboard/main if enhanced-analytics not available
@@ -315,10 +315,10 @@ export function createDashboardApi(client: ApiClientCore) {
           active_patients: mainData.active_patients ?? 0,
           pending_messages: mainData.messages_sent ?? 0,
           unread_alerts: mainData.alerts_pending ?? 0,
-          last_updated: new Date().toISOString()
+          last_updated: new Date().toISOString(),
         }
       }
-    }
+    },
   }
 }
 

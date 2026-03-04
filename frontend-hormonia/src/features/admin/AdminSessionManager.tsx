@@ -64,7 +64,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
       setSessionWarning({
         type: 'expired',
         message: 'Session extension failed. Please login again.',
-        action: 'logout'
+        action: 'logout',
       })
     } finally {
       setIsExtending(false)
@@ -93,7 +93,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
         setSessionWarning({
           type: 'expired',
           message: 'Your session has expired. Please login again.',
-          action: 'logout'
+          action: 'logout',
         })
         return
       }
@@ -104,7 +104,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
           type: 'expiring',
           message: 'Your session will expire soon. Would you like to extend it?',
           timeRemaining: Math.floor(timeRemaining / 1000),
-          action: 'extend'
+          action: 'extend',
         })
         return
       }
@@ -130,7 +130,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     sessionWarning,
     showInactivityDialog,
     getTimeRemaining,
-    getTimeSinceActivity
+    getTimeSinceActivity,
   ])
 
   // Handle inactivity countdown
@@ -158,12 +158,12 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
       updateActivity()
     }
 
-    events.forEach(event => {
+    events.forEach((event) => {
       document.addEventListener(event, activityHandler, true)
     })
 
     return () => {
-      events.forEach(event => {
+      events.forEach((event) => {
         document.removeEventListener(event, activityHandler, true)
       })
     }
@@ -219,9 +219,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
             {sessionExpiry && (
               <div className="flex items-center space-x-2 text-sm text-gray-600">
                 <Clock className="h-4 w-4" />
-                <span>
-                  Expires in: {formatTime(getTimeRemaining())}
-                </span>
+                <span>Expires in: {formatTime(getTimeRemaining())}</span>
               </div>
             )}
           </div>
@@ -262,15 +260,21 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
 
       {/* Session Warning Alert */}
       {sessionWarning && (
-        <Alert className={`mx-6 mt-4 ${sessionWarning.type === 'expired'
-            ? 'border-red-200 bg-red-50'
-            : 'border-yellow-200 bg-yellow-50'
-          }`}>
-          <AlertTriangle className={`h-4 w-4 ${sessionWarning.type === 'expired' ? 'text-red-600' : 'text-yellow-600'
-            }`} />
-          <AlertDescription className={
-            sessionWarning.type === 'expired' ? 'text-red-800' : 'text-yellow-800'
-          }>
+        <Alert
+          className={`mx-6 mt-4 ${
+            sessionWarning.type === 'expired'
+              ? 'border-red-200 bg-red-50'
+              : 'border-yellow-200 bg-yellow-50'
+          }`}
+        >
+          <AlertTriangle
+            className={`h-4 w-4 ${
+              sessionWarning.type === 'expired' ? 'text-red-600' : 'text-yellow-600'
+            }`}
+          />
+          <AlertDescription
+            className={sessionWarning.type === 'expired' ? 'text-red-800' : 'text-yellow-800'}
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium">{sessionWarning.message}</p>
@@ -282,28 +286,16 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
               </div>
               <div className="flex space-x-2">
                 {sessionWarning.action === 'extend' && (
-                  <Button
-                    size="sm"
-                    onClick={handleExtendSession}
-                    disabled={isExtending}
-                  >
+                  <Button size="sm" onClick={handleExtendSession} disabled={isExtending}>
                     {isExtending ? 'Extending...' : 'Extend Session'}
                   </Button>
                 )}
                 {sessionWarning.action === 'logout' && (
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={handleLogout}
-                  >
+                  <Button size="sm" variant="destructive" onClick={handleLogout}>
                     Logout Now
                   </Button>
                 )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setSessionWarning(null)}
-                >
+                <Button size="sm" variant="outline" onClick={() => setSessionWarning(null)}>
                   Dismiss
                 </Button>
               </div>
@@ -321,31 +313,21 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
               <span>Inactivity Detected</span>
             </DialogTitle>
             <DialogDescription>
-              You have been inactive for an extended period. Your session will be terminated
-              for security reasons unless you take action.
+              You have been inactive for an extended period. Your session will be terminated for
+              security reasons unless you take action.
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4">
             <div className="text-center space-y-4">
-              <div className="text-2xl font-bold text-red-600">
-                {inactivityCountdown}
-              </div>
-              <p className="text-sm text-gray-600">
-                seconds remaining before automatic logout
-              </p>
-              <Progress
-                value={((60 - inactivityCountdown) / 60) * 100}
-                className="w-full h-2"
-              />
+              <div className="text-2xl font-bold text-red-600">{inactivityCountdown}</div>
+              <p className="text-sm text-gray-600">seconds remaining before automatic logout</p>
+              <Progress value={((60 - inactivityCountdown) / 60) * 100} className="w-full h-2" />
             </div>
           </div>
 
           <DialogFooter className="space-x-2">
-            <Button
-              variant="outline"
-              onClick={handleLogout}
-            >
+            <Button variant="outline" onClick={handleLogout}>
               Logout Now
             </Button>
             <Button

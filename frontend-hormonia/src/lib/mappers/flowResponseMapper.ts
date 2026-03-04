@@ -53,7 +53,7 @@ export function mapFlowResponse(backendResponse: BackendFlowResponse): FlowState
       ...flow_state.metadata,
       next_scheduled: advancement_result?.next_scheduled,
       messages_sent: advancement_result?.messages_sent,
-      completion_percentage: advancement_result?.completion_percentage
+      completion_percentage: advancement_result?.completion_percentage,
     },
     started_at: flow_state.created_at || new Date().toISOString(),
     created_at: flow_state.created_at || new Date().toISOString(),
@@ -65,7 +65,7 @@ export function mapFlowResponse(backendResponse: BackendFlowResponse): FlowState
     paused_at: flow_state.status === 'paused' ? flow_state.updated_at : undefined,
     completed_at: flow_state.status === 'completed' ? flow_state.updated_at : undefined,
     patient_name: undefined,
-    monthly_cycle: undefined
+    monthly_cycle: undefined,
   } as FlowState
 }
 

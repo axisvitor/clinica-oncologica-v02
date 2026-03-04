@@ -16,7 +16,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     sent: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
     delivered: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
     read: { color: 'bg-green-100 text-green-800', icon: CheckCircle },
-    failed: { color: 'bg-red-100 text-red-800', icon: AlertCircle }
+    failed: { color: 'bg-red-100 text-red-800', icon: AlertCircle },
   }
 
   const config = statusConfig[status as keyof typeof statusConfig]

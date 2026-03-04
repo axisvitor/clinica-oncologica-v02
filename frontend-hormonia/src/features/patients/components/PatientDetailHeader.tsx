@@ -39,9 +39,7 @@ export function PatientDetailHeader({ patientName, status }: PatientDetailHeader
           <p className="text-gray-600">Detalhes do paciente</p>
         </div>
       </div>
-      <div className="flex items-center space-x-2">
-        {getStatusBadge(status || 'inactive')}
-      </div>
+      <div className="flex items-center space-x-2">{getStatusBadge(status || 'inactive')}</div>
     </div>
   )
 }

@@ -37,13 +37,13 @@ export function MessagesPage() {
   const { data: patientsData, isLoading: patientsLoading } = useQuery({
     queryKey: ['patients', { search: debouncedSearch, size: 50 }],
     queryFn: () => apiClient.patients.list({ search: debouncedSearch, size: 50 }),
-    enabled: debouncedSearch.length === 0 || debouncedSearch.length >= 2
+    enabled: debouncedSearch.length === 0 || debouncedSearch.length >= 2,
   })
 
   const { data: messagesData, isLoading: messagesLoading } = useQuery({
     queryKey: ['messages', { patient_id: selectedPatient?.id }],
     queryFn: () => apiClient.messages.list({ patient_id: selectedPatient!.id }),
-    enabled: !!selectedPatient
+    enabled: !!selectedPatient,
   })
 
   // Auto-select patient from URL params
@@ -58,7 +58,7 @@ export function MessagesPage() {
   }, [searchParams, patientsData])
 
   const getInitials = (name: string) => {
-    const parts = name.split(' ').filter(n => n.length > 0)
+    const parts = name.split(' ').filter((n) => n.length > 0)
     if (parts.length >= 2) {
       return `${parts[0]?.[0] || ''}${parts[parts.length - 1]?.[0] || ''}`.toUpperCase()
     }
@@ -74,7 +74,7 @@ export function MessagesPage() {
       'bg-teal-500',
       'bg-orange-500',
       'bg-cyan-500',
-      'bg-emerald-500'
+      'bg-emerald-500',
     ]
     const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
     return colors[hash % colors.length]
@@ -98,7 +98,7 @@ export function MessagesPage() {
 
       return date.toLocaleDateString('pt-BR', {
         day: '2-digit',
-        month: '2-digit'
+        month: '2-digit',
       })
     } catch {
       return 'Data inválida'
@@ -107,9 +107,10 @@ export function MessagesPage() {
 
   const filteredPatients = useMemo(() => {
     if (!patientsData?.items) return []
-    return patientsData.items.filter((patient: Patient) =>
-      (patient.name || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      patient.phone?.includes(debouncedSearch)
+    return patientsData.items.filter(
+      (patient: Patient) =>
+        (patient.name || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        patient.phone?.includes(debouncedSearch)
     )
   }, [patientsData, debouncedSearch])
 
@@ -118,9 +119,7 @@ export function MessagesPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Mensagens</h1>
-        <p className="text-sm md:text-base text-gray-600">
-          Gerencie conversas com os pacientes
-        </p>
+        <p className="text-sm md:text-base text-gray-600">Gerencie conversas com os pacientes</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 min-h-[calc(100dvh-10rem)] md:min-h-[calc(100dvh-12rem)]">
@@ -128,9 +127,7 @@ export function MessagesPage() {
         <Card className="lg:col-span-1 flex flex-col max-h-[calc(100dvh-10rem)]">
           <CardHeader>
             <CardTitle>Conversas</CardTitle>
-            <CardDescription>
-              Selecione um paciente para visualizar as mensagens
-            </CardDescription>
+            <CardDescription>Selecione um paciente para visualizar as mensagens</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="p-4 border-b">
@@ -160,32 +157,31 @@ export function MessagesPage() {
                   {filteredPatients.map((patient: Patient) => (
                     <div
                       key={patient.id}
-                      className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${selectedPatient?.id === patient.id
-                        ? 'bg-blue-50 border border-blue-200'
-                        : 'hover:bg-gray-50'
-                        }`}
+                      className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                        selectedPatient?.id === patient.id
+                          ? 'bg-blue-50 border border-blue-200'
+                          : 'hover:bg-gray-50'
+                      }`}
                       onClick={() => setSelectedPatient(patient)}
                     >
                       <Avatar className="h-12 w-12 flex-shrink-0">
                         <AvatarImage src="" alt={patient.name} />
-                        <AvatarFallback className={`${getAvatarColor(patient.name)} text-white text-sm font-semibold`}>
+                        <AvatarFallback
+                          className={`${getAvatarColor(patient.name)} text-white text-sm font-semibold`}
+                        >
                           {getInitials(patient.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
-                          <p className="font-semibold text-gray-900 truncate">
-                            {patient.name}
-                          </p>
+                          <p className="font-semibold text-gray-900 truncate">{patient.name}</p>
                           <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
                             {formatLastContact(patient.last_contact)}
                           </span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <Phone className="h-3 w-3 text-gray-400 flex-shrink-0" />
-                          <p className="text-sm text-gray-500 truncate">
-                            {patient.phone}
-                          </p>
+                          <p className="text-sm text-gray-500 truncate">{patient.phone}</p>
                         </div>
                         <div className="flex items-center justify-between mt-1">
                           <Badge variant="outline" className="text-xs">
@@ -224,7 +220,7 @@ export function MessagesPage() {
                 onMessageSent={() => {
                   // Refresh messages query for real-time updates
                   queryClient.invalidateQueries({
-                    queryKey: ['messages', { patient_id: selectedPatient.id }]
+                    queryKey: ['messages', { patient_id: selectedPatient.id }],
                   })
                 }}
               />
@@ -236,9 +232,7 @@ export function MessagesPage() {
                   <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-gray-100 mb-4">
                     <MessageSquare className="h-6 w-6 text-gray-400" />
                   </div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Selecione uma conversa
-                  </h3>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Selecione uma conversa</h3>
                   <p className="text-gray-500">
                     Escolha um paciente da lista para visualizar e enviar mensagens
                   </p>

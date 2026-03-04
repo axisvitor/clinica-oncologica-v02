@@ -46,7 +46,7 @@ function isJwtExpired(token: string): boolean {
   const payload = getJwtPayload(token)
   if (!payload || typeof payload.exp !== 'number') return false
   const nowSeconds = Math.floor(Date.now() / 1000)
-  return nowSeconds >= (payload.exp - TOKEN_EXPIRY_SKEW_SECONDS)
+  return nowSeconds >= payload.exp - TOKEN_EXPIRY_SKEW_SECONDS
 }
 
 function resolveWsBaseUrl(): string | null {
@@ -79,7 +79,7 @@ if (!WS_BASE_URL && import.meta.env.MODE === 'production') {
 
 const APP_CONFIG = {
   reconnectAttempts: 5,
-  reconnectDelay: 1000
+  reconnectDelay: 1000,
 }
 
 export interface WebSocketMessage {
@@ -106,8 +106,8 @@ const PROTOCOL_MAP: Record<string, string> = {
   'unsubscribe:quiz': 'unsubscribe',
   'subscribe:flow': 'subscribe',
   'unsubscribe:flow': 'unsubscribe',
-  'ping': 'ping',
-  'pong': 'pong'
+  ping: 'ping',
+  pong: 'pong',
 }
 
 class WebSocketManager {
@@ -175,7 +175,7 @@ class WebSocketManager {
           this.emit('connected', {})
 
           // Rejoin rooms after reconnection
-          this.roomSubscriptions.forEach(room => {
+          this.roomSubscriptions.forEach((room) => {
             const [type, id] = room.split(':')
             if (type === 'patient' && id) {
               this.joinPatientRoom(id)
@@ -272,7 +272,7 @@ class WebSocketManager {
     // Handle generic events
     const handlers = this.eventHandlers.get(message.event)
     if (handlers) {
-      handlers.forEach(handler => {
+      handlers.forEach((handler) => {
         try {
           handler(message.data)
         } catch (error) {
@@ -287,23 +287,23 @@ class WebSocketManager {
    */
   private convertBackendToFrontend(backendMsg: BackendMessage): WebSocketMessage {
     const typeToEvent: Record<string, string> = {
-      'connected': 'system:connected',
-      'disconnected': 'system:disconnected',
-      'authenticated': 'system:authenticated',
-      'ping': 'system:ping',
-      'pong': 'system:pong',
-      'error': 'system:error',
-      'patient_updated': 'patient:updated',
-      'patient_flow_changed': 'patient:flow_changed',
-      'patient_status_changed': 'patient:status_changed',
-      'flow_state_changed': 'flow:state_changed',
-      'flow_message_sent': 'flow:message_sent',
-      'flow_progression': 'flow:progression',
-      'quiz_started': 'quiz:started',
-      'quiz_response_submitted': 'quiz:response_submitted',
-      'quiz_completed': 'quiz:completed',
-      'new_message': 'message:new',
-      'message_status_updated': 'message:status_updated'
+      connected: 'system:connected',
+      disconnected: 'system:disconnected',
+      authenticated: 'system:authenticated',
+      ping: 'system:ping',
+      pong: 'system:pong',
+      error: 'system:error',
+      patient_updated: 'patient:updated',
+      patient_flow_changed: 'patient:flow_changed',
+      patient_status_changed: 'patient:status_changed',
+      flow_state_changed: 'flow:state_changed',
+      flow_message_sent: 'flow:message_sent',
+      flow_progression: 'flow:progression',
+      quiz_started: 'quiz:started',
+      quiz_response_submitted: 'quiz:response_submitted',
+      quiz_completed: 'quiz:completed',
+      new_message: 'message:new',
+      message_status_updated: 'message:status_updated',
     }
 
     const data = backendMsg.data || {}
@@ -313,7 +313,7 @@ class WebSocketManager {
       data: data,
       timestamp: (data['timestamp'] as string) || new Date().toISOString(),
       patient_id: data['patient_id'] as string,
-      session_id: data['session_id'] as string
+      session_id: data['session_id'] as string,
     }
   }
 
@@ -372,7 +372,7 @@ class WebSocketManager {
   private emit(event: string, data: Record<string, unknown>) {
     const handlers = this.eventHandlers.get(event)
     if (handlers) {
-      handlers.forEach(handler => {
+      handlers.forEach((handler) => {
         try {
           handler(data)
         } catch (error) {
@@ -396,8 +396,8 @@ class WebSocketManager {
         type: backendType,
         data: {
           ...data,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       }
 
       this.ws.send(JSON.stringify(backendMessage))
@@ -441,7 +441,7 @@ class WebSocketManager {
     // Enhanced endpoint uses 'subscribe' with channel parameter
     this.send('subscribe:quiz', {
       channel: `quiz:${sessionId}`,
-      session_id: sessionId
+      session_id: sessionId,
     })
   }
 
@@ -454,7 +454,7 @@ class WebSocketManager {
     // Enhanced endpoint uses 'unsubscribe' with channel parameter
     this.send('unsubscribe:quiz', {
       channel: `quiz:${sessionId}`,
-      session_id: sessionId
+      session_id: sessionId,
     })
   }
 
@@ -467,7 +467,7 @@ class WebSocketManager {
     // Enhanced endpoint uses 'subscribe' with channel parameter
     this.send('subscribe:flow', {
       channel: `flow:${flowId}`,
-      flow_id: flowId
+      flow_id: flowId,
     })
   }
 
@@ -480,7 +480,7 @@ class WebSocketManager {
     // Enhanced endpoint uses 'unsubscribe' with channel parameter
     this.send('unsubscribe:flow', {
       channel: `flow:${flowId}`,
-      flow_id: flowId
+      flow_id: flowId,
     })
   }
 

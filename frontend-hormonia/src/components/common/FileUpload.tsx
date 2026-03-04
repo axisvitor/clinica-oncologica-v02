@@ -22,7 +22,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   onUpload,
   onRemove,
   disabled = false,
-  className = ''
+  className = '',
 }) => {
   const { toast } = useToast()
   const [files, setFiles] = useState<File[]>([])
@@ -30,40 +30,45 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0)
   const [dragActive, setDragActive] = useState(false)
 
-  const validateFile = useCallback((file: File): boolean => {
-    const maxSizeBytes = maxSize * 1024 * 1024
+  const validateFile = useCallback(
+    (file: File): boolean => {
+      const maxSizeBytes = maxSize * 1024 * 1024
 
-    if (file.size > maxSizeBytes) {
-      toast({
-        variant: 'destructive',
-        title: 'File too large',
-        description: `File "${file.name}" exceeds the maximum size of ${maxSize}MB`
-      })
-      return false
-    }
-
-    if (accept !== '*') {
-      const acceptedTypes = accept.split(',').map(type => type.trim())
-      const fileType = file.type || ''
-      const fileExtension = `.${file.name.split('.').pop()}`
-
-      const isAccepted = acceptedTypes.some(type =>
-        type === fileType || type === fileExtension ||
-        (type.endsWith('/*') && fileType.startsWith(type.replace('/*', '')))
-      )
-
-      if (!isAccepted) {
+      if (file.size > maxSizeBytes) {
         toast({
           variant: 'destructive',
-          title: 'Invalid file type',
-          description: `File "${file.name}" is not an accepted file type`
+          title: 'File too large',
+          description: `File "${file.name}" exceeds the maximum size of ${maxSize}MB`,
         })
         return false
       }
-    }
 
-    return true
-  }, [maxSize, accept, toast])
+      if (accept !== '*') {
+        const acceptedTypes = accept.split(',').map((type) => type.trim())
+        const fileType = file.type || ''
+        const fileExtension = `.${file.name.split('.').pop()}`
+
+        const isAccepted = acceptedTypes.some(
+          (type) =>
+            type === fileType ||
+            type === fileExtension ||
+            (type.endsWith('/*') && fileType.startsWith(type.replace('/*', '')))
+        )
+
+        if (!isAccepted) {
+          toast({
+            variant: 'destructive',
+            title: 'Invalid file type',
+            description: `File "${file.name}" is not an accepted file type`,
+          })
+          return false
+        }
+      }
+
+      return true
+    },
+    [maxSize, accept, toast]
+  )
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -111,7 +116,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       toast({
         variant: 'destructive',
         title: 'No files selected',
-        description: 'Please select at least one file to upload'
+        description: 'Please select at least one file to upload',
       })
       return
     }
@@ -122,7 +127,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     try {
       // Simulate progress (in real app, track actual upload progress)
       const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 10, 90))
+        setUploadProgress((prev) => Math.min(prev + 10, 90))
       }, 200)
 
       await onUpload(files)
@@ -133,7 +138,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       toast({
         variant: 'success',
         title: 'Upload successful',
-        description: `Successfully uploaded ${files.length} file(s)`
+        description: `Successfully uploaded ${files.length} file(s)`,
       })
 
       setFiles([])
@@ -142,7 +147,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       toast({
         variant: 'destructive',
         title: 'Upload failed',
-        description: error instanceof Error ? error.message : 'An error occurred during upload'
+        description: error instanceof Error ? error.message : 'An error occurred during upload',
       })
     } finally {
       setUploading(false)
@@ -197,9 +202,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             className="flex flex-col items-center justify-center cursor-pointer"
           >
             <Upload className="h-10 w-10 text-gray-400 mb-3" />
-            <p className="text-sm font-medium text-gray-700">
-              Click to upload or drag and drop
-            </p>
+            <p className="text-sm font-medium text-gray-700">Click to upload or drag and drop</p>
             <p className="text-xs text-gray-500 mt-1">
               {accept === '*' ? 'Any file type' : `Accepted: ${accept}`}
             </p>
@@ -239,18 +242,12 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       {uploading && (
         <div className="mt-4">
           <Progress value={uploadProgress} className="h-2" />
-          <p className="text-xs text-gray-500 mt-1 text-center">
-            Uploading... {uploadProgress}%
-          </p>
+          <p className="text-xs text-gray-500 mt-1 text-center">Uploading... {uploadProgress}%</p>
         </div>
       )}
 
       {files.length > 0 && !uploading && (
-        <Button
-          className="mt-4 w-full"
-          onClick={handleUpload}
-          disabled={disabled}
-        >
+        <Button className="mt-4 w-full" onClick={handleUpload} disabled={disabled}>
           Upload {files.length} file{files.length !== 1 ? 's' : ''}
         </Button>
       )}

@@ -19,10 +19,10 @@ function createEmptyDesign(): FlowDesign {
       author: 'test',
       tags: [],
       category: 'test',
-      complexity_level: 'simple'
+      complexity_level: 'simple',
     },
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   }
 }
 
@@ -33,8 +33,8 @@ function createNode(id: string, type: FlowNodeType, label = 'Test Node'): FlowNo
     position: { x: 0, y: 0 },
     data: {
       label,
-      config: {}
-    }
+      config: {},
+    },
   }
 }
 
@@ -52,10 +52,7 @@ describe('FlowValidator', () => {
   describe('Basic Structure Validation', () => {
     it('should report error when no start node exists', () => {
       const design = createEmptyDesign()
-      design.nodes = [
-        createNode('1', FlowNodeType.MESSAGE),
-        createNode('2', FlowNodeType.END)
-      ]
+      design.nodes = [createNode('1', FlowNodeType.MESSAGE), createNode('2', FlowNodeType.END)]
       design.connections = [createConnection('c1', '1', '2')]
 
       const result = validator.validate(design)
@@ -64,7 +61,7 @@ describe('FlowValidator', () => {
       expect(result.errors).toContainEqual(
         expect.objectContaining({
           id: 'no-start-node',
-          type: 'missing_connection'
+          type: 'missing_connection',
         })
       )
     })
@@ -74,12 +71,9 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('1', FlowNodeType.START),
         createNode('2', FlowNodeType.START),
-        createNode('3', FlowNodeType.END)
+        createNode('3', FlowNodeType.END),
       ]
-      design.connections = [
-        createConnection('c1', '1', '3'),
-        createConnection('c2', '2', '3')
-      ]
+      design.connections = [createConnection('c1', '1', '3'), createConnection('c2', '2', '3')]
 
       const result = validator.validate(design)
 
@@ -87,17 +81,14 @@ describe('FlowValidator', () => {
       expect(result.errors).toContainEqual(
         expect.objectContaining({
           id: 'multiple-start-nodes',
-          type: 'invalid_config'
+          type: 'invalid_config',
         })
       )
     })
 
     it('should report error when no end node exists', () => {
       const design = createEmptyDesign()
-      design.nodes = [
-        createNode('1', FlowNodeType.START),
-        createNode('2', FlowNodeType.MESSAGE)
-      ]
+      design.nodes = [createNode('1', FlowNodeType.START), createNode('2', FlowNodeType.MESSAGE)]
       design.connections = [createConnection('c1', '1', '2')]
 
       const result = validator.validate(design)
@@ -106,7 +97,7 @@ describe('FlowValidator', () => {
       expect(result.errors).toContainEqual(
         expect.objectContaining({
           id: 'no-end-node',
-          type: 'missing_connection'
+          type: 'missing_connection',
         })
       )
     })
@@ -116,12 +107,12 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('msg', FlowNodeType.MESSAGE, 'Mensagem'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { content: 'Hello' }
       design.connections = [
         createConnection('c1', 'start', 'msg'),
-        createConnection('c2', 'msg', 'end')
+        createConnection('c2', 'msg', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -136,7 +127,7 @@ describe('FlowValidator', () => {
       const design = createEmptyDesign()
       design.nodes = [
         createNode('start', FlowNodeType.START, ''),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.connections = [createConnection('c1', 'start', 'end')]
 
@@ -146,7 +137,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'invalid_config',
           node_id: 'start',
-          message: 'O nó deve ter um rótulo'
+          message: 'O nó deve ter um rótulo',
         })
       )
     })
@@ -157,13 +148,13 @@ describe('FlowValidator', () => {
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('msg', FlowNodeType.MESSAGE, 'Mensagem'),
         createNode('isolated', FlowNodeType.MESSAGE, 'Isolado'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { content: 'Hello' }
       design.nodes[2].data.config = { content: 'Isolated' }
       design.connections = [
         createConnection('c1', 'start', 'msg'),
-        createConnection('c2', 'msg', 'end')
+        createConnection('c2', 'msg', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -171,7 +162,7 @@ describe('FlowValidator', () => {
       expect(result.warnings).toContainEqual(
         expect.objectContaining({
           type: 'best_practice',
-          node_id: 'isolated'
+          node_id: 'isolated',
         })
       )
     })
@@ -183,12 +174,12 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('msg', FlowNodeType.MESSAGE, 'Mensagem'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { content: '' }
       design.connections = [
         createConnection('c1', 'start', 'msg'),
-        createConnection('c2', 'msg', 'end')
+        createConnection('c2', 'msg', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -197,7 +188,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'invalid_config',
           node_id: 'msg',
-          message: 'Mensagem deve ter conteúdo'
+          message: 'Mensagem deve ter conteúdo',
         })
       )
     })
@@ -207,12 +198,12 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('msg', FlowNodeType.MESSAGE, 'Mensagem'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { content: 'A'.repeat(1001) }
       design.connections = [
         createConnection('c1', 'start', 'msg'),
-        createConnection('c2', 'msg', 'end')
+        createConnection('c2', 'msg', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -221,7 +212,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'best_practice',
           node_id: 'msg',
-          message: 'Mensagem muito longa (>1000 caracteres)'
+          message: 'Mensagem muito longa (>1000 caracteres)',
         })
       )
     })
@@ -233,12 +224,12 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('cond', FlowNodeType.CONDITION, 'Condição'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { conditions: [] }
       design.connections = [
         createConnection('c1', 'start', 'cond'),
-        createConnection('c2', 'cond', 'end')
+        createConnection('c2', 'cond', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -247,7 +238,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'invalid_config',
           node_id: 'cond',
-          message: 'Nó de condição deve ter pelo menos uma condição'
+          message: 'Nó de condição deve ter pelo menos uma condição',
         })
       )
     })
@@ -259,12 +250,12 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('delay', FlowNodeType.DELAY, 'Atraso'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { duration: 0, unit: 'minutes' }
       design.connections = [
         createConnection('c1', 'start', 'delay'),
-        createConnection('c2', 'delay', 'end')
+        createConnection('c2', 'delay', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -273,7 +264,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'invalid_config',
           node_id: 'delay',
-          message: 'Duração do atraso deve ser maior que zero'
+          message: 'Duração do atraso deve ser maior que zero',
         })
       )
     })
@@ -285,13 +276,13 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('msg', FlowNodeType.MESSAGE, 'Mensagem'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { content: 'Hello' }
       design.connections = [
         createConnection('c1', 'start', 'msg'),
         createConnection('c2', 'msg', 'msg'), // Self-connection
-        createConnection('c3', 'msg', 'end')
+        createConnection('c3', 'msg', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -300,7 +291,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'invalid_config',
           connection_id: 'c2',
-          message: 'Nó não pode se conectar a si mesmo'
+          message: 'Nó não pode se conectar a si mesmo',
         })
       )
     })
@@ -309,11 +300,9 @@ describe('FlowValidator', () => {
       const design = createEmptyDesign()
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
-      design.connections = [
-        createConnection('c1', 'nonexistent', 'end')
-      ]
+      design.connections = [createConnection('c1', 'nonexistent', 'end')]
 
       const result = validator.validate(design)
 
@@ -321,7 +310,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'missing_connection',
           connection_id: 'c1',
-          message: 'Nó de origem da conexão não existe'
+          message: 'Nó de origem da conexão não existe',
         })
       )
     })
@@ -330,11 +319,11 @@ describe('FlowValidator', () => {
       const design = createEmptyDesign()
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.connections = [
         createConnection('c1', 'start', 'end'),
-        createConnection('c2', 'start', 'end')
+        createConnection('c2', 'start', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -342,7 +331,7 @@ describe('FlowValidator', () => {
       expect(result.errors).toContainEqual(
         expect.objectContaining({
           type: 'invalid_config',
-          message: expect.stringContaining('Conexão duplicada')
+          message: expect.stringContaining('Conexão duplicada'),
         })
       )
     })
@@ -355,7 +344,7 @@ describe('FlowValidator', () => {
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('a', FlowNodeType.MESSAGE, 'A'),
         createNode('b', FlowNodeType.MESSAGE, 'B'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { content: 'A' }
       design.nodes[2].data.config = { content: 'B' }
@@ -363,14 +352,14 @@ describe('FlowValidator', () => {
         createConnection('c1', 'start', 'a'),
         createConnection('c2', 'a', 'b'),
         createConnection('c3', 'b', 'a'), // Creates cycle
-        createConnection('c4', 'b', 'end')
+        createConnection('c4', 'b', 'end'),
       ]
 
       const result = validator.validate(design)
 
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: 'circular_dependency'
+          type: 'circular_dependency',
         })
       )
     })
@@ -381,13 +370,13 @@ describe('FlowValidator', () => {
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('msg', FlowNodeType.MESSAGE, 'Mensagem'),
         createNode('unreachable', FlowNodeType.MESSAGE, 'Inacessível'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { content: 'Hello' }
       design.nodes[2].data.config = { content: 'Never reached' }
       design.connections = [
         createConnection('c1', 'start', 'msg'),
-        createConnection('c2', 'msg', 'end')
+        createConnection('c2', 'msg', 'end'),
         // unreachable has no incoming connections from start
       ]
 
@@ -397,7 +386,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'best_practice',
           node_id: 'unreachable',
-          message: 'Nó não é alcançável a partir do início'
+          message: 'Nó não é alcançável a partir do início',
         })
       )
     })
@@ -409,12 +398,12 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('webhook', FlowNodeType.WEBHOOK, 'Webhook'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { url: 'not-a-valid-url' }
       design.connections = [
         createConnection('c1', 'start', 'webhook'),
-        createConnection('c2', 'webhook', 'end')
+        createConnection('c2', 'webhook', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -423,7 +412,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'invalid_config',
           node_id: 'webhook',
-          message: 'URL do webhook deve ser válida'
+          message: 'URL do webhook deve ser válida',
         })
       )
     })
@@ -433,17 +422,17 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('webhook', FlowNodeType.WEBHOOK, 'Webhook'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { url: 'https://api.example.com/webhook' }
       design.connections = [
         createConnection('c1', 'start', 'webhook'),
-        createConnection('c2', 'webhook', 'end')
+        createConnection('c2', 'webhook', 'end'),
       ]
 
       const result = validator.validate(design)
 
-      const webhookErrors = result.errors.filter(e => e.node_id === 'webhook')
+      const webhookErrors = result.errors.filter((e) => e.node_id === 'webhook')
       expect(webhookErrors).toHaveLength(0)
     })
   })
@@ -454,12 +443,12 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('ai', FlowNodeType.AI_RESPONSE, 'AI'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { prompt_template: '' }
       design.connections = [
         createConnection('c1', 'start', 'ai'),
-        createConnection('c2', 'ai', 'end')
+        createConnection('c2', 'ai', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -468,7 +457,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'invalid_config',
           node_id: 'ai',
-          message: 'Template do prompt é obrigatório'
+          message: 'Template do prompt é obrigatório',
         })
       )
     })
@@ -478,12 +467,12 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('ai', FlowNodeType.AI_RESPONSE, 'AI'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { prompt_template: 'Respond to {message}' }
       design.connections = [
         createConnection('c1', 'start', 'ai'),
-        createConnection('c2', 'ai', 'end')
+        createConnection('c2', 'ai', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -492,7 +481,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'best_practice',
           node_id: 'ai',
-          message: 'Recomendado ter mensagem de fallback'
+          message: 'Recomendado ter mensagem de fallback',
         })
       )
     })
@@ -504,12 +493,12 @@ describe('FlowValidator', () => {
       design.nodes = [
         createNode('start', FlowNodeType.START, 'Início'),
         createNode('quiz', FlowNodeType.QUIZ, 'Quiz'),
-        createNode('end', FlowNodeType.END, 'Fim')
+        createNode('end', FlowNodeType.END, 'Fim'),
       ]
       design.nodes[1].data.config = { questions: [] }
       design.connections = [
         createConnection('c1', 'start', 'quiz'),
-        createConnection('c2', 'quiz', 'end')
+        createConnection('c2', 'quiz', 'end'),
       ]
 
       const result = validator.validate(design)
@@ -518,7 +507,7 @@ describe('FlowValidator', () => {
         expect.objectContaining({
           type: 'invalid_config',
           node_id: 'quiz',
-          message: 'Quiz deve ter pelo menos uma pergunta'
+          message: 'Quiz deve ter pelo menos uma pergunta',
         })
       )
     })

@@ -74,19 +74,24 @@ export function usePasswordChange(): UsePasswordChangeReturn {
 
       // Step 2: Send password change request to backend (server-side validation + update)
       try {
-        const response = await apiClient.put<{ message: string; success?: boolean }>('/auth/password', {
-          current_password: data.current_password,
-          new_password: data.new_password,
-        })
+        const response = await apiClient.put<{ message: string; success?: boolean }>(
+          '/auth/password',
+          {
+            current_password: data.current_password,
+            new_password: data.new_password,
+          }
+        )
 
         // Handle both direct success and nested data.success responses
-        const isSuccess = response?.success ||
-                         (response && typeof response === 'object' && 'success' in response && response.success)
+        const isSuccess =
+          response?.success ||
+          (response && typeof response === 'object' && 'success' in response && response.success)
 
         if (isSuccess) {
           toast({
             title: 'Senha alterada com sucesso',
-            description: 'Por segurança, você será desconectado em breve. Faça login novamente com sua nova senha.',
+            description:
+              'Por segurança, você será desconectado em breve. Faça login novamente com sua nova senha.',
           })
 
           // Force logout after 3 seconds
@@ -98,8 +103,8 @@ export function usePasswordChange(): UsePasswordChangeReturn {
         logger.error('Backend password change failed', apiError)
 
         const error = apiError as { response?: { data?: { detail?: string } } }
-        const errorMessage = error.response?.data?.detail ||
-                            'Erro ao alterar senha. Por favor, tente novamente.'
+        const errorMessage =
+          error.response?.data?.detail || 'Erro ao alterar senha. Por favor, tente novamente.'
 
         setError(errorMessage)
         toast({

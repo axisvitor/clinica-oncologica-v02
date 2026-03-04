@@ -21,7 +21,7 @@ export type {
   NotificationType,
   LoadingState,
   ValidationError,
-  AuditMetadata
+  AuditMetadata,
 } from '@/types/shared'
 export * from '@/types/websocket'
 
@@ -98,7 +98,7 @@ export type {
   FlowTemplate,
   FlowStep,
   CreateFlowTemplateRequest,
-  UpdateFlowTemplateRequest
+  UpdateFlowTemplateRequest,
 } from '@/types/api'
 
 export type {
@@ -120,7 +120,7 @@ export type {
   // WebSocket handlers and subscriptions
   WebSocketEventHandler,
   UseWebSocketReturn,
-  EventSubscription as WebSocketSubscription
+  EventSubscription as WebSocketSubscription,
 } from '@/types/websocket'
 
 // ============================================================================

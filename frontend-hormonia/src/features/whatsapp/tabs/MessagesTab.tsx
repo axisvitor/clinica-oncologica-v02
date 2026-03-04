@@ -14,13 +14,8 @@ interface MessagesTabProps {
 
 export function MessagesTab({ selectedInstance }: MessagesTabProps) {
   const { recentMessages } = useWhatsAppMessages(selectedInstance)
-  const {
-    formState,
-    handleFormChange,
-    handleFileUpload,
-    handleSendMessage,
-    isPending
-  } = useMessageForm(selectedInstance)
+  const { formState, handleFormChange, handleFileUpload, handleSendMessage, isPending } =
+    useMessageForm(selectedInstance)
 
   if (!selectedInstance) {
     return (
@@ -47,16 +42,12 @@ export function MessagesTab({ selectedInstance }: MessagesTabProps) {
       <Card>
         <CardHeader>
           <CardTitle>Recent Messages</CardTitle>
-          <CardDescription>
-            Latest messages from {selectedInstance}
-          </CardDescription>
+          <CardDescription>Latest messages from {selectedInstance}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {recentMessages.length === 0 ? (
-              <div className="text-center text-muted-foreground py-4">
-                No messages found
-              </div>
+              <div className="text-center text-muted-foreground py-4">No messages found</div>
             ) : (
               recentMessages.map((message: WhatsAppMessage) => (
                 <div key={message.id} className="border rounded p-3">
@@ -75,7 +66,9 @@ export function MessagesTab({ selectedInstance }: MessagesTabProps) {
                     {message.media_url && (
                       <div className="mt-2 flex items-center text-muted-foreground">
                         {message.message_type === 'image' && <Image className="w-4 h-4 mr-1" />}
-                        {message.message_type === 'document' && <FileText className="w-4 h-4 mr-1" />}
+                        {message.message_type === 'document' && (
+                          <FileText className="w-4 h-4 mr-1" />
+                        )}
                         Media attachment
                       </div>
                     )}

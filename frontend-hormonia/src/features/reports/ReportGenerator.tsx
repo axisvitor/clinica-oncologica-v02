@@ -37,7 +37,7 @@ const generateReportSchema = z.object({
   include_messages: z.boolean().default(true),
   include_quizzes: z.boolean().default(true),
   include_alerts: z.boolean().default(false),
-  include_timeline: z.boolean().default(true)
+  include_timeline: z.boolean().default(true),
 })
 
 type GenerateReportFormData = z.infer<typeof generateReportSchema>
@@ -48,7 +48,11 @@ interface ReportGeneratorProps {
   preselectedPatientId?: string
 }
 
-export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: ReportGeneratorProps) {
+export function ReportGenerator({
+  open,
+  onOpenChange,
+  preselectedPatientId,
+}: ReportGeneratorProps) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
@@ -58,7 +62,7 @@ export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: Re
     formState: { errors },
     reset,
     setValue,
-    watch
+    watch,
   } = useForm<GenerateReportFormData>({
     resolver: zodResolver(generateReportSchema),
     defaultValues: {
@@ -67,13 +71,13 @@ export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: Re
       include_messages: true,
       include_quizzes: true,
       include_alerts: false,
-      include_timeline: true
-    }
+      include_timeline: true,
+    },
   })
 
   const { data: patientsData } = useQuery({
     queryKey: ['patients', { size: 100 }],
-    queryFn: () => apiClient.patients.list({ size: 100 })
+    queryFn: () => apiClient.patients.list({ size: 100 }),
   })
 
   const generateReportMutation = useMutation({
@@ -84,7 +88,7 @@ export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: Re
         include_messages: data.include_messages,
         include_quizzes: data.include_quizzes,
         include_alerts: data.include_alerts,
-        include_timeline: data.include_timeline
+        include_timeline: data.include_timeline,
       }
 
       return apiClient.reports.generate(data.patient_id, data.type, config)
@@ -93,7 +97,8 @@ export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: Re
       queryClient.invalidateQueries({ queryKey: ['reports'] })
       toast({
         title: 'Relatório iniciado',
-        description: 'A geração do relatório foi iniciada. Você será notificado quando estiver pronto.',
+        description:
+          'A geração do relatório foi iniciada. Você será notificado quando estiver pronto.',
       })
       reset()
       onOpenChange(false)
@@ -102,9 +107,9 @@ export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: Re
       toast({
         title: 'Erro ao gerar relatório',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const onSubmit = (data: GenerateReportFormData) => {
@@ -118,10 +123,26 @@ export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: Re
 
   const reportTypes = [
     { value: 'monthly', label: 'Relatório Mensal', description: 'Resumo das atividades do mês' },
-    { value: 'quarterly', label: 'Relatório Trimestral', description: 'Análise trimestral do progresso' },
-    { value: 'treatment_progress', label: 'Progresso do Tratamento', description: 'Evolução do tratamento hormonal' },
-    { value: 'engagement', label: 'Relatório de Engajamento', description: 'Análise de participação e respostas' },
-    { value: 'custom', label: 'Relatório Personalizado', description: 'Relatório com configurações específicas' }
+    {
+      value: 'quarterly',
+      label: 'Relatório Trimestral',
+      description: 'Análise trimestral do progresso',
+    },
+    {
+      value: 'treatment_progress',
+      label: 'Progresso do Tratamento',
+      description: 'Evolução do tratamento hormonal',
+    },
+    {
+      value: 'engagement',
+      label: 'Relatório de Engajamento',
+      description: 'Análise de participação e respostas',
+    },
+    {
+      value: 'custom',
+      label: 'Relatório Personalizado',
+      description: 'Relatório com configurações específicas',
+    },
   ]
 
   return (
@@ -164,10 +185,7 @@ export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: Re
           {/* Report Type */}
           <div className="space-y-2">
             <Label htmlFor="type">Tipo de Relatório *</Label>
-            <Select
-              value={watch('type')}
-              onValueChange={(value) => setValue('type', value)}
-            >
+            <Select value={watch('type')} onValueChange={(value) => setValue('type', value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione o tipo de relatório" />
               </SelectTrigger>
@@ -182,28 +200,18 @@ export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: Re
                 ))}
               </SelectContent>
             </Select>
-            {errors.type && (
-              <p className="text-sm text-red-600">{errors.type.message}</p>
-            )}
+            {errors.type && <p className="text-sm text-red-600">{errors.type.message}</p>}
           </div>
 
           {/* Date Range */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="start_date">Data de Início</Label>
-              <Input
-                id="start_date"
-                type="date"
-                {...register('start_date')}
-              />
+              <Input id="start_date" type="date" {...register('start_date')} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="end_date">Data de Fim</Label>
-              <Input
-                id="end_date"
-                type="date"
-                {...register('end_date')}
-              />
+              <Input id="end_date" type="date" {...register('end_date')} />
             </div>
           </div>
 
@@ -211,9 +219,7 @@ export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: Re
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Conteúdo do Relatório</CardTitle>
-              <CardDescription>
-                Selecione quais informações incluir no relatório
-              </CardDescription>
+              <CardDescription>Selecione quais informações incluir no relatório</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center space-x-2">
@@ -275,10 +281,7 @@ export function ReportGenerator({ open, onOpenChange, preselectedPatientId }: Re
             >
               Cancelar
             </Button>
-            <Button
-              type="submit"
-              disabled={generateReportMutation.isPending}
-            >
+            <Button type="submit" disabled={generateReportMutation.isPending}>
               {generateReportMutation.isPending ? (
                 <>
                   <LoadingSpinner size="sm" className="mr-2" />

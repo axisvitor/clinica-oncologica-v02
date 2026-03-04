@@ -40,42 +40,32 @@ interface RowData {
   canDelete: boolean
 }
 
-const GRID_COLS = "grid-cols-[2.5fr_1.5fr_1fr_1fr_1fr_0.8fr_1.2fr_70px]"
+const GRID_COLS = 'grid-cols-[2.5fr_1.5fr_1fr_1fr_1fr_0.8fr_1.2fr_70px]'
 
 export function PatientsTable({
   patients,
   currentPage,
   totalPages,
   onPageChange,
-  onEditPatient
+  onEditPatient,
 }: PatientsTableProps) {
   const navigate = useNavigate()
   const resendQuizLinkMutation = useResendQuizLink()
 
-  const {
-    handleDelete,
-    handleActivate,
-    handleDeactivate,
-    confirmDeleteId,
-    canDelete
-  } = usePatientActions()
+  const { handleDelete, handleActivate, handleDeactivate, confirmDeleteId, canDelete } =
+    usePatientActions()
 
   const {
     selectedPatient,
     showSendQuizModal,
     handleSendQuiz,
     handleQuizSuccess,
-    setShowSendQuizModal
+    setShowSendQuizModal,
   } = usePatientTable()
 
   if (patients.length === 0) {
     return (
-      <div
-        className="text-center py-8"
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-      >
+      <div className="text-center py-8" role="status" aria-live="polite" aria-atomic="true">
         <p className="text-gray-500">Nenhum paciente encontrado</p>
         <p className="text-sm text-gray-400 mt-1">
           Tente ajustar os filtros ou criar um novo paciente
@@ -94,14 +84,14 @@ export function PatientsTable({
     onSendQuiz: handleSendQuiz,
     confirmDeleteId,
     isResending: resendQuizLinkMutation.isPending,
-    canDelete
+    canDelete,
   }
 
   return (
     <div className="space-y-4 h-[calc(100dvh-220px)] min-h-[500px] flex flex-col">
       {/* Desktop Table - hidden on mobile */}
       <div className="hidden md:flex flex-1 flex-col overflow-hidden border md:rounded-lg">
-        <div className={cn("grid bg-muted/50 font-medium text-sm border-b", GRID_COLS)}>
+        <div className={cn('grid bg-muted/50 font-medium text-sm border-b', GRID_COLS)}>
           <div className="px-4 py-3">Paciente</div>
           <div className="px-4 py-3">Contato</div>
           <div className="px-4 py-3">Tratamento</div>
@@ -143,7 +133,7 @@ export function PatientsTable({
               {MobilePatientCard}
             </FixedSizeList>
           )}
-          </AutoSizer>
+        </AutoSizer>
       </div>
 
       {totalPages > 1 && (

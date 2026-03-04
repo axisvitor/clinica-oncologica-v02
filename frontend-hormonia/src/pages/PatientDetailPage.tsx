@@ -32,7 +32,8 @@ export function PatientDetailPage() {
   const defaultTab = searchParams.get('tab') || 'overview'
   const [showSendQuizModal, setShowSendQuizModal] = useState(false)
   const { hasRole } = useAuth()
-  const { useQuizLinkStatus, useQuizLinkHistory, resendQuizLink, cancelQuizLink } = useMonthlyQuizAdmin()
+  const { useQuizLinkStatus, useQuizLinkHistory, resendQuizLink, cancelQuizLink } =
+    useMonthlyQuizAdmin()
   const canAccessAiSummary = FEATURES.AI_SUMMARY && (hasRole('doctor') || hasRole('admin'))
   const canAccessAiChat = FEATURES.AI_CHAT && (hasRole('doctor') || hasRole('admin'))
 
@@ -42,7 +43,7 @@ export function PatientDetailPage() {
       if (!id) throw new Error('Patient ID is required')
       return apiClient.patients.get(id)
     },
-    enabled: !!id
+    enabled: !!id,
   })
 
   const { data: timeline, isLoading: timelineLoading } = useQuery({
@@ -51,7 +52,7 @@ export function PatientDetailPage() {
       if (!id) throw new Error('Patient ID is required')
       return apiClient.patients.timeline(id)
     },
-    enabled: !!id
+    enabled: !!id,
   })
 
   const { data: quizStatus } = useQuizLinkStatus(id || '')
@@ -64,17 +65,22 @@ export function PatientDetailPage() {
       if (!id) throw new Error('Patient ID is required')
       return apiClient.messages.list({ patient_id: id })
     },
-    enabled: !!id
+    enabled: !!id,
   })
 
   const totalQuizzes = quizHistory?.length ?? 0
-  const completedQuizCount = useMemo(() => quizHistory
-    ? quizHistory.filter((entry: QuizHistoryEntry) => entry.status === 'completed').length
-    : 0, [quizHistory])
+  const completedQuizCount = useMemo(
+    () =>
+      quizHistory
+        ? quizHistory.filter((entry: QuizHistoryEntry) => entry.status === 'completed').length
+        : 0,
+    [quizHistory]
+  )
 
-  const quizCompletionRate = useMemo(() => totalQuizzes > 0
-    ? Math.round((completedQuizCount / totalQuizzes) * 100)
-    : 0, [totalQuizzes, completedQuizCount])
+  const quizCompletionRate = useMemo(
+    () => (totalQuizzes > 0 ? Math.round((completedQuizCount / totalQuizzes) * 100) : 0),
+    [totalQuizzes, completedQuizCount]
+  )
 
   if (patientLoading) {
     return <PatientDetailSkeleton />
@@ -83,9 +89,7 @@ export function PatientDetailPage() {
   if (!patient) {
     return (
       <div className="text-center py-8">
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          Paciente não encontrado
-        </h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">Paciente não encontrado</h2>
         <p className="text-gray-600 mb-4">
           O paciente solicitado não foi encontrado ou você não tem permissão para visualizá-lo.
         </p>
@@ -126,12 +130,8 @@ export function PatientDetailPage() {
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="timeline">Linha do Tempo</TabsTrigger>
           <TabsTrigger value="quiz-responses">Respostas de Quiz</TabsTrigger>
-          {canAccessAiSummary && (
-            <TabsTrigger value="ai-summary">Resumo IA</TabsTrigger>
-          )}
-          {canAccessAiChat && (
-            <TabsTrigger value="ai-chat">Chat IA</TabsTrigger>
-          )}
+          {canAccessAiSummary && <TabsTrigger value="ai-summary">Resumo IA</TabsTrigger>}
+          {canAccessAiChat && <TabsTrigger value="ai-chat">Chat IA</TabsTrigger>}
           <TabsTrigger value="messages">Mensagens</TabsTrigger>
         </TabsList>
 
@@ -168,9 +168,7 @@ export function PatientDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column - Quiz Responses */}
             <div className="lg:col-span-2">
-              {id && patient && (
-                <QuizResponseViewer patientId={id} patientName={patient.name} />
-              )}
+              {id && patient && <QuizResponseViewer patientId={id} patientName={patient.name} />}
             </div>
 
             {/* Right Column - Timeline and Actions */}
@@ -199,9 +197,7 @@ export function PatientDetailPage() {
 
         {canAccessAiSummary && (
           <TabsContent value="ai-summary" className="space-y-6">
-            {id && patient && (
-              <PatientAISummary patientId={id} patientName={patient.name} />
-            )}
+            {id && patient && <PatientAISummary patientId={id} patientName={patient.name} />}
           </TabsContent>
         )}
         {canAccessAiChat && (
@@ -219,7 +215,9 @@ export function PatientDetailPage() {
                 <MessageSquare className="h-5 w-5" />
                 Mensagens
               </CardTitle>
-              <CardDescription>Histórico de comunicação com o paciente via WhatsApp</CardDescription>
+              <CardDescription>
+                Histórico de comunicação com o paciente via WhatsApp
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {id && patient && (
@@ -233,7 +231,7 @@ export function PatientDetailPage() {
                     <MessageComposer
                       patientId={id}
                       patientName={patient.name}
-                      onMessageSent={() => { }}
+                      onMessageSent={() => {}}
                     />
                   </div>
                 </>

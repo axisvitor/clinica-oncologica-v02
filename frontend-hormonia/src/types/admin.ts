@@ -247,10 +247,10 @@ export interface AdminNavItem {
 export interface AdminUserActivity {
   id: string
   user_id: string
-  user_email?: string  // Optional to support existing data
+  user_email?: string // Optional to support existing data
   action: string
   resource: string
-  resource_id?: string  // Added missing property (aliased as resource in some components)
+  resource_id?: string // Added missing property (aliased as resource in some components)
   details: Record<string, unknown>
   timestamp: string
   ip_address: string
@@ -442,7 +442,7 @@ export type {
   PermissionCheckResponse,
   RoleAssignmentRequest,
   RoleAssignmentResponse,
-  RoleAssignmentValidation
+  RoleAssignmentValidation,
 } from './rbac'
 
 // ============================================================================
@@ -478,12 +478,7 @@ export interface ExtendedAdminDashboardStats extends AdminDashboardStats {
  * Patient flow state enumeration
  * Must match backend FlowState enum
  */
-export type PatientFlowState =
-  | 'onboarding'
-  | 'active'
-  | 'paused'
-  | 'completed'
-  | 'cancelled'
+export type PatientFlowState = 'onboarding' | 'active' | 'paused' | 'completed' | 'cancelled'
 
 /**
  * Complete Patient interface with all fields

@@ -28,7 +28,7 @@ export function QuizTemplateCard({
   onPreview,
   onEdit,
   onDelete,
-  showAdminActions = false
+  showAdminActions = false,
 }: QuizTemplateCardProps) {
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -39,13 +39,11 @@ export function QuizTemplateCard({
             <div>
               <CardTitle className="text-lg">{template.name}</CardTitle>
               {template.description && (
-                <CardDescription className="mt-1">
-                  {template.description}
-                </CardDescription>
+                <CardDescription className="mt-1">{template.description}</CardDescription>
               )}
             </div>
           </div>
-          <Badge variant={template.is_active ? "default" : "secondary"}>
+          <Badge variant={template.is_active ? 'default' : 'secondary'}>
             {template.is_active ? 'Ativo' : 'Inativo'}
           </Badge>
         </div>
@@ -55,9 +53,7 @@ export function QuizTemplateCard({
           <div className="flex items-center justify-between text-sm text-gray-600">
             <span>{template.questions?.length || 0} perguntas</span>
             {template.created_at && (
-              <span>
-                Criado em {new Date(template.created_at).toLocaleDateString('pt-BR')}
-              </span>
+              <span>Criado em {new Date(template.created_at).toLocaleDateString('pt-BR')}</span>
             )}
           </div>
 
@@ -73,18 +69,10 @@ export function QuizTemplateCard({
                   <Edit className="mr-2 h-4 w-4" />
                   Editar
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onPreview?.(template.id)}
-                >
+                <Button variant="outline" size="sm" onClick={() => onPreview?.(template.id)}>
                   <Eye className="h-4 w-4" />
                 </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => onDelete?.(template.id)}
-                >
+                <Button variant="destructive" size="sm" onClick={() => onDelete?.(template.id)}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </>

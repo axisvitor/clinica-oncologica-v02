@@ -14,11 +14,11 @@ export function FlowConnectionComponent({
   nodes,
   selected,
   errors,
-  onSelect
+  onSelect,
 }: FlowConnectionComponentProps) {
   // Find source and target nodes
-  const sourceNode = nodes.find(node => node.id === connection.source)
-  const targetNode = nodes.find(node => node.id === connection.target)
+  const sourceNode = nodes.find((node) => node.id === connection.source)
+  const targetNode = nodes.find((node) => node.id === connection.target)
 
   if (!sourceNode || !targetNode) {
     return null
@@ -27,28 +27,28 @@ export function FlowConnectionComponent({
   // Calculate connection points
   const sourcePoint = {
     x: sourceNode.position.x + 60, // Assuming node width of 120px
-    y: sourceNode.position.y + 40  // Assuming node height of 80px
+    y: sourceNode.position.y + 40, // Assuming node height of 80px
   }
 
   const targetPoint = {
     x: targetNode.position.x + 60,
-    y: targetNode.position.y + 40
+    y: targetNode.position.y + 40,
   }
 
   // Calculate control points for curved line
   const dx = targetPoint.x - sourcePoint.x
   const dy = targetPoint.y - sourcePoint.y
   const distance = Math.sqrt(dx * dx + dy * dy)
-  
+
   // Control points for smooth curve
   const controlOffset = Math.min(distance * 0.3, 100)
   const control1 = {
     x: sourcePoint.x + controlOffset,
-    y: sourcePoint.y
+    y: sourcePoint.y,
   }
   const control2 = {
     x: targetPoint.x - controlOffset,
-    y: targetPoint.y
+    y: targetPoint.y,
   }
 
   // Create SVG path
@@ -57,7 +57,7 @@ export function FlowConnectionComponent({
   // Calculate midpoint for label
   const midPoint = {
     x: (sourcePoint.x + targetPoint.x) / 2,
-    y: (sourcePoint.y + targetPoint.y) / 2
+    y: (sourcePoint.y + targetPoint.y) / 2,
   }
 
   const hasErrors = errors.length > 0
@@ -104,13 +104,10 @@ export function FlowConnectionComponent({
           refY="3.5"
           orient="auto"
         >
-          <polygon
-            points="0 0, 10 3.5, 0 7"
-            fill={strokeColor}
-          />
+          <polygon points="0 0, 10 3.5, 0 7" fill={strokeColor} />
         </marker>
       </defs>
-      
+
       <path
         d={pathData}
         fill="none"

@@ -1,15 +1,15 @@
 import React, { useState, useCallback } from 'react'
-import { 
-  MessageSquare, 
-  GitBranch, 
-  Clock, 
-  Zap, 
-  Play, 
+import {
+  MessageSquare,
+  GitBranch,
+  Clock,
+  Zap,
+  Play,
   Square,
   Bot,
   HelpCircle,
   Webhook,
-  AlertTriangle
+  AlertTriangle,
 } from 'lucide-react'
 import { FlowNode, FlowNodeType, DesignerMode, FlowValidationError } from '@/types/flow-designer'
 
@@ -32,43 +32,52 @@ export function FlowNodeComponent({
   onSelect,
   onDrag,
   onConnectionStart,
-  onConnectionEnd
+  onConnectionEnd,
 }: FlowNodeComponentProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    
-    if (mode === DesignerMode.SELECT) {
-      setIsDragging(true)
-      setDragStart({
-        x: e.clientX - node.position.x,
-        y: e.clientY - node.position.y
-      })
-      onSelect(e.ctrlKey || e.metaKey)
-    } else if (mode === DesignerMode.CONNECT) {
-      onConnectionStart()
-    }
-  }, [mode, node.position, onSelect, onConnectionStart])
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isDragging && mode === DesignerMode.SELECT) {
-      onDrag({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      })
-    }
-  }, [isDragging, mode, dragStart, onDrag])
+      if (mode === DesignerMode.SELECT) {
+        setIsDragging(true)
+        setDragStart({
+          x: e.clientX - node.position.x,
+          y: e.clientY - node.position.y,
+        })
+        onSelect(e.ctrlKey || e.metaKey)
+      } else if (mode === DesignerMode.CONNECT) {
+        onConnectionStart()
+      }
+    },
+    [mode, node.position, onSelect, onConnectionStart]
+  )
 
-  const handleMouseUp = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    setIsDragging(false)
-    
-    if (mode === DesignerMode.CONNECT) {
-      onConnectionEnd()
-    }
-  }, [mode, onConnectionEnd])
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (isDragging && mode === DesignerMode.SELECT) {
+        onDrag({
+          x: e.clientX - dragStart.x,
+          y: e.clientY - dragStart.y,
+        })
+      }
+    },
+    [isDragging, mode, dragStart, onDrag]
+  )
+
+  const handleMouseUp = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      setIsDragging(false)
+
+      if (mode === DesignerMode.CONNECT) {
+        onConnectionEnd()
+      }
+    },
+    [mode, onConnectionEnd]
+  )
 
   const getNodeIcon = (type: FlowNodeType) => {
     switch (type) {
@@ -121,8 +130,8 @@ export function FlowNodeComponent({
   }
 
   const hasErrors = errors.length > 0
-  const nodeColorClass = hasErrors 
-    ? 'bg-red-100 border-red-500 text-red-800' 
+  const nodeColorClass = hasErrors
+    ? 'bg-red-100 border-red-500 text-red-800'
     : getNodeColor(node.type)
 
   return (
@@ -135,7 +144,7 @@ export function FlowNodeComponent({
       style={{
         left: node.position.x,
         top: node.position.y,
-        transform: isDragging ? 'scale(1.05)' : 'scale(1)'
+        transform: isDragging ? 'scale(1.05)' : 'scale(1)',
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -154,19 +163,13 @@ export function FlowNodeComponent({
         {/* Node Header */}
         <div className="flex items-center gap-2 mb-1">
           {getNodeIcon(node.type)}
-          <span className="font-medium text-sm truncate">
-            {node.data.label}
-          </span>
-          {hasErrors && (
-            <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
-          )}
+          <span className="font-medium text-sm truncate">{node.data.label}</span>
+          {hasErrors && <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />}
         </div>
 
         {/* Node Description */}
         {node.data.description && (
-          <div className="text-xs opacity-75 truncate">
-            {node.data.description}
-          </div>
+          <div className="text-xs opacity-75 truncate">{node.data.description}</div>
         )}
 
         {/* Connection Points */}
@@ -195,7 +198,7 @@ export function FlowNodeComponent({
       {hasErrors && (
         <div className="absolute top-full left-0 mt-2 p-2 bg-red-50 border border-red-200 rounded-md shadow-lg z-50 min-w-[200px]">
           <div className="text-xs font-medium text-red-800 mb-1">Erros:</div>
-          {errors.map(error => (
+          {errors.map((error) => (
             <div key={error.id} className="text-xs text-red-600">
               • {error.message}
             </div>

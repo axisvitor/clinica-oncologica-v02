@@ -16,9 +16,7 @@ export function AnalyticsTab({ selectedInstance }: AnalyticsTabProps) {
     return (
       <Alert>
         <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Please select a WhatsApp instance to view analytics.
-        </AlertDescription>
+        <AlertDescription>Please select a WhatsApp instance to view analytics.</AlertDescription>
       </Alert>
     )
   }
@@ -27,25 +25,20 @@ export function AnalyticsTab({ selectedInstance }: AnalyticsTabProps) {
     return (
       <Card>
         <CardContent className="pt-6">
-          <div className="text-center text-muted-foreground">
-            Loading analytics...
-          </div>
+          <div className="text-center text-muted-foreground">Loading analytics...</div>
         </CardContent>
       </Card>
     )
   }
 
-  const deliveryRate = messageStats.total > 0
-    ? Math.round((messageStats.delivered / messageStats.total) * 100)
-    : 0
+  const deliveryRate =
+    messageStats.total > 0 ? Math.round((messageStats.delivered / messageStats.total) * 100) : 0
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Message Statistics</CardTitle>
-        <CardDescription>
-          Analytics for {selectedInstance}
-        </CardDescription>
+        <CardDescription>Analytics for {selectedInstance}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
@@ -76,10 +69,7 @@ export function AnalyticsTab({ selectedInstance }: AnalyticsTabProps) {
             <span>Delivery Rate</span>
             <span>{deliveryRate}%</span>
           </div>
-          <Progress
-            value={deliveryRate}
-            className="h-2"
-          />
+          <Progress value={deliveryRate} className="h-2" />
         </div>
       </CardContent>
     </Card>

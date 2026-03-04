@@ -14,15 +14,21 @@ interface HealthCheckResponse {
 }
 
 export function SystemStatus() {
-  const { data: status, isLoading, error } = useQuery<HealthCheckResponse>({
+  const {
+    data: status,
+    isLoading,
+    error,
+  } = useQuery<HealthCheckResponse>({
     queryKey: ['system-status'],
     queryFn: async () => {
-      const response = await apiClient.get<{ data?: HealthCheckResponse } | HealthCheckResponse>('/api/v2/health')
+      const response = await apiClient.get<{ data?: HealthCheckResponse } | HealthCheckResponse>(
+        '/api/v2/health'
+      )
       return (response as { data?: HealthCheckResponse }).data ?? (response as HealthCheckResponse)
     },
     refetchInterval: 30000,
     retry: 2,
-    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000)
+    retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
   })
 
   // Handle error state (HTTP 503, timeout, etc.)
@@ -37,11 +43,10 @@ export function SystemStatus() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-red-700">
-            Não foi possível verificar o status do sistema. O backend pode estar em manutenção ou fora do ar.
+            Não foi possível verificar o status do sistema. O backend pode estar em manutenção ou
+            fora do ar.
           </p>
-          <p className="text-xs text-red-600 mt-2">
-            Tentando reconectar automaticamente...
-          </p>
+          <p className="text-xs text-red-600 mt-2">Tentando reconectar automaticamente...</p>
         </CardContent>
       </Card>
     )
@@ -83,9 +88,7 @@ export function SystemStatus() {
     <Card>
       <CardHeader>
         <CardTitle>Status do Sistema</CardTitle>
-        <CardDescription>
-          Monitoramento em tempo real dos serviços
-        </CardDescription>
+        <CardDescription>Monitoramento em tempo real dos serviços</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">

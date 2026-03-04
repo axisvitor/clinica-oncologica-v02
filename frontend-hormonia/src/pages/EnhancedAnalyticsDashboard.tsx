@@ -3,25 +3,25 @@
  * Advanced analytics with predictions, trends, and insights
  */
 
-import React, { useState } from 'react';
-import { createLogger } from '@/utils/logger';
-import { useEnhancedAnalytics, usePredictions } from '@/hooks/useEnhancedAnalytics';
+import React, { useState } from 'react'
+import { createLogger } from '@/utils/logger'
+import { useEnhancedAnalytics, usePredictions } from '@/hooks/useEnhancedAnalytics'
 
-const logger = createLogger('EnhancedAnalyticsDashboard');
-import { AIPredictionsPanel } from '@/features/analytics/AIPredictionsPanel';
+const logger = createLogger('EnhancedAnalyticsDashboard')
+import { AIPredictionsPanel } from '@/features/analytics/AIPredictionsPanel'
 import {
   DashboardFilters,
   AIInsight,
   AnalyticsAlert,
   TrendSummary,
   ReportConfig,
-} from '@/types/enhanced-analytics';
+} from '@/types/enhanced-analytics'
 
 export const EnhancedAnalyticsDashboard: React.FC = () => {
-  const [filters] = useState<DashboardFilters>({});
-  const [selectedMetric, setSelectedMetric] = useState<string>('patient_engagement');
-  const [selectedPeriod, setSelectedPeriod] = useState<string>('30d');
-  const [showReportBuilder, setShowReportBuilder] = useState(false);
+  const [filters] = useState<DashboardFilters>({})
+  const [selectedMetric, setSelectedMetric] = useState<string>('patient_engagement')
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('30d')
+  const [showReportBuilder, setShowReportBuilder] = useState(false)
 
   const {
     dashboard,
@@ -31,21 +31,21 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
     generateReport,
     exportDashboard,
     acknowledgeAlert,
-  } = useEnhancedAnalytics({ filters, autoRefresh: true, refreshInterval: 300000 });
+  } = useEnhancedAnalytics({ filters, autoRefresh: true, refreshInterval: 300000 })
 
   const {
     predictions,
     loading: predictionsLoading,
     refreshForPatient,
-  } = usePredictions({ autoRefresh: true, refreshInterval: 600000 });
+  } = usePredictions({ autoRefresh: true, refreshInterval: 600000 })
 
   const handleExport = async (format: 'pdf' | 'csv') => {
     try {
-      await exportDashboard(format);
+      await exportDashboard(format)
     } catch (error) {
-      logger.error('Export failed', error instanceof Error ? error : undefined);
+      logger.error('Export failed', error instanceof Error ? error : undefined)
     }
-  };
+  }
 
   const handleGenerateReport = async () => {
     const config: ReportConfig = {
@@ -56,16 +56,16 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
       include_visualizations: true,
       include_predictions: true,
       include_recommendations: true,
-    };
+    }
 
     try {
-      await generateReport(config);
+      await generateReport(config)
       // Report generated successfully
-      setShowReportBuilder(false);
+      setShowReportBuilder(false)
     } catch (error) {
-      logger.error('Report generation failed', error instanceof Error ? error : undefined);
+      logger.error('Report generation failed', error instanceof Error ? error : undefined)
     }
-  };
+  }
 
   const renderInsightCard = (insight: AIInsight) => {
     const severityColors = {
@@ -73,14 +73,14 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
       medium: 'border-yellow-200 bg-yellow-50',
       high: 'border-orange-200 bg-orange-50',
       critical: 'border-red-200 bg-red-50',
-    };
+    }
 
     const severityIcons = {
       low: '💡',
       medium: '⚠️',
       high: '🔴',
       critical: '🚨',
-    };
+    }
 
     return (
       <div
@@ -115,8 +115,8 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
           </div>
         )}
       </div>
-    );
-  };
+    )
+  }
 
   const renderAlertCard = (alert: AnalyticsAlert) => {
     const severityColors = {
@@ -124,20 +124,22 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
       medium: 'bg-yellow-100 text-yellow-800',
       high: 'bg-orange-100 text-orange-800',
       critical: 'bg-red-100 text-red-800',
-    };
+    }
 
     return (
       <div
         key={alert.id}
-        className={`p-3 rounded-lg ${alert.acknowledged ? 'opacity-50' : ''
-          } border border-gray-200`}
+        className={`p-3 rounded-lg ${
+          alert.acknowledged ? 'opacity-50' : ''
+        } border border-gray-200`}
       >
         <div className="flex items-start justify-between">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
               <span
-                className={`px-2 py-1 rounded text-xs font-semibold ${severityColors[alert.severity]
-                  }`}
+                className={`px-2 py-1 rounded text-xs font-semibold ${
+                  severityColors[alert.severity]
+                }`}
               >
                 {alert.severity.toUpperCase()}
               </span>
@@ -161,21 +163,21 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
           )}
         </div>
       </div>
-    );
-  };
+    )
+  }
 
   const renderTrendSummary = (trend: TrendSummary) => {
     const directionIcons = {
       up: '📈',
       down: '📉',
       stable: '➡️',
-    };
+    }
 
     const directionColors = {
       up: 'text-green-600',
       down: 'text-red-600',
       stable: 'text-gray-600',
-    };
+    }
 
     return (
       <div key={trend.metric} className="bg-white p-4 rounded-lg border border-gray-200">
@@ -192,19 +194,20 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
             <p className="text-xs text-gray-600">vs {trend.period}</p>
           </div>
           <span
-            className={`px-2 py-1 rounded text-xs font-semibold ${trend.significance === 'high'
+            className={`px-2 py-1 rounded text-xs font-semibold ${
+              trend.significance === 'high'
                 ? 'bg-red-100 text-red-800'
                 : trend.significance === 'medium'
                   ? 'bg-yellow-100 text-yellow-800'
                   : 'bg-gray-100 text-gray-800'
-              }`}
+            }`}
           >
             {trend.significance}
           </span>
         </div>
       </div>
-    );
-  };
+    )
+  }
 
   if (dashboardError) {
     return (
@@ -233,7 +236,7 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
           Retry
         </button>
       </div>
-    );
+    )
   }
 
   return (
@@ -243,7 +246,7 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Enhanced Analytics</h1>
-          <p className="text-gray-600 mt-1">Insights e previsoes do sistema</p>
+            <p className="text-gray-600 mt-1">Insights e previsoes do sistema</p>
           </div>
 
           <div className="flex gap-3">
@@ -394,9 +397,7 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
             <h3 className="text-xl font-semibold mb-4">Generate Custom Report</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Report Title
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Report Title</label>
                 <input
                   type="text"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg"
@@ -444,7 +445,7 @@ export const EnhancedAnalyticsDashboard: React.FC = () => {
         </div>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default EnhancedAnalyticsDashboard;
+export default EnhancedAnalyticsDashboard

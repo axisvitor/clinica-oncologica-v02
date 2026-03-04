@@ -29,43 +29,43 @@ export function usePatientValidation(): UsePatientValidationReturn {
 
   const validateCPFField = useCallback((cpf: string): boolean => {
     if (!cpf) {
-      setErrors(prev => ({ ...prev, cpf: undefined }))
+      setErrors((prev) => ({ ...prev, cpf: undefined }))
       return true
     }
 
     const isValid = validateCPF(cpf)
-    setErrors(prev => ({
+    setErrors((prev) => ({
       ...prev,
-      cpf: isValid ? undefined : 'CPF inválido'
+      cpf: isValid ? undefined : 'CPF inválido',
     }))
     return isValid
   }, [])
 
   const validatePhoneField = useCallback((phone: string): boolean => {
     if (!phone) {
-      setErrors(prev => ({ ...prev, phone: undefined }))
+      setErrors((prev) => ({ ...prev, phone: undefined }))
       return true
     }
 
     const isValid = isValidBrazilianPhone(phone)
-    setErrors(prev => ({
+    setErrors((prev) => ({
       ...prev,
-      phone: isValid ? undefined : 'Telefone inválido'
+      phone: isValid ? undefined : 'Telefone inválido',
     }))
     return isValid
   }, [])
 
   const validateEmailField = useCallback((email: string): boolean => {
     if (!email) {
-      setErrors(prev => ({ ...prev, email: undefined }))
+      setErrors((prev) => ({ ...prev, email: undefined }))
       return true
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     const isValid = emailRegex.test(email)
-    setErrors(prev => ({
+    setErrors((prev) => ({
       ...prev,
-      email: isValid ? undefined : 'Email inválido'
+      email: isValid ? undefined : 'Email inválido',
     }))
     return isValid
   }, [])
@@ -79,6 +79,6 @@ export function usePatientValidation(): UsePatientValidationReturn {
     validateCPFField,
     validatePhoneField,
     validateEmailField,
-    clearErrors
+    clearErrors,
   }
 }

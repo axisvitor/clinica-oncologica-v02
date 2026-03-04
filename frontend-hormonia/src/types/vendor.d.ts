@@ -60,24 +60,15 @@ declare module 'firebase/auth' {
     password: string
   ): Promise<UserCredential>
   export function signOut(auth: Auth): Promise<void>
-  export function onAuthStateChanged(
-    auth: Auth,
-    callback: (user: User | null) => void
-  ): () => void
-  export function onIdTokenChanged(
-    auth: Auth,
-    callback: (user: User | null) => void
-  ): () => void
+  export function onAuthStateChanged(auth: Auth, callback: (user: User | null) => void): () => void
+  export function onIdTokenChanged(auth: Auth, callback: (user: User | null) => void): () => void
   export function updateProfile(
     user: User,
     profile: { displayName?: string | null; photoURL?: string | null }
   ): Promise<void>
   export function sendPasswordResetEmail(auth: Auth, email: string): Promise<void>
   export function sendEmailVerification(user: User): Promise<void>
-  export function setPersistence(
-    auth: Auth,
-    persistence: AuthPersistence
-  ): Promise<void>
+  export function setPersistence(auth: Auth, persistence: AuthPersistence): Promise<void>
   export const browserLocalPersistence: AuthPersistence
   export const browserSessionPersistence: AuthPersistence
 
@@ -93,7 +84,7 @@ declare module 'firebase/auth' {
 declare module 'react-hook-form' {
   export type FieldValues = object
   export type FieldPath<TFieldValues extends FieldValues = FieldValues> = [
-    keyof TFieldValues
+    keyof TFieldValues,
   ] extends [never]
     ? string
     : Extract<keyof TFieldValues, string>
@@ -108,11 +99,10 @@ declare module 'react-hook-form' {
   }
 
   export interface UseFormReturn<TFieldValues extends FieldValues = FieldValues> {
-    register: (
-      name: FieldPath<TFieldValues>,
-      options?: unknown
-    ) => Record<string, unknown>
-    handleSubmit: (handler: (values: TFieldValues) => void | Promise<void>) => (event?: unknown) => void
+    register: (name: FieldPath<TFieldValues>, options?: unknown) => Record<string, unknown>
+    handleSubmit: (
+      handler: (values: TFieldValues) => void | Promise<void>
+    ) => (event?: unknown) => void
     control: unknown
     formState: FormState<TFieldValues>
     reset: (values?: Partial<TFieldValues>) => void
@@ -123,19 +113,19 @@ declare module 'react-hook-form' {
     watch(names: FieldPath<TFieldValues>[]): Array<TFieldValues[FieldPath<TFieldValues>]>
     trigger: (name?: FieldPath<TFieldValues> | FieldPath<TFieldValues>[]) => Promise<boolean>
     clearErrors: (name?: FieldPath<TFieldValues> | FieldPath<TFieldValues>[]) => void
-    setError: (
-      name: FieldPath<TFieldValues>,
-      error: { type?: string; message?: string }
-    ) => void
+    setError: (name: FieldPath<TFieldValues>, error: { type?: string; message?: string }) => void
     setFocus: (name: FieldPath<TFieldValues>) => void
-    getFieldState: (name: FieldPath<TFieldValues>, formState: FormState<TFieldValues>) => {
+    getFieldState: (
+      name: FieldPath<TFieldValues>,
+      formState: FormState<TFieldValues>
+    ) => {
       error?: { message?: string }
     }
   }
 
   export interface ControllerProps<
     TFieldValues extends FieldValues = FieldValues,
-    TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>
+    TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
   > {
     name: TName
     control?: unknown
@@ -152,7 +142,9 @@ declare module 'react-hook-form' {
   export function FormProvider<TFieldValues extends FieldValues = FieldValues>(
     props: { children: import('react').ReactNode } & UseFormReturn<TFieldValues>
   ): import('react').ReactElement
-  export function useFormContext<TFieldValues extends FieldValues = FieldValues>(): UseFormReturn<TFieldValues>
+  export function useFormContext<
+    TFieldValues extends FieldValues = FieldValues,
+  >(): UseFormReturn<TFieldValues>
   export function useForm<TFieldValues extends FieldValues = FieldValues>(
     options?: Record<string, unknown>
   ): UseFormReturn<TFieldValues>

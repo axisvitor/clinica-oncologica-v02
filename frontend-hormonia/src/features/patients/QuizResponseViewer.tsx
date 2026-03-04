@@ -4,7 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { ChevronLeft, ChevronRight, FileText, Calendar } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { QuizAnalysisCard } from './QuizAnalysisCard'
@@ -13,7 +20,7 @@ import type {
   PatientQuizResponsesResponse,
   QuizAnalysisResponse,
   QuizSession,
-  QuizSessionListResponse
+  QuizSessionListResponse,
 } from '@/types/quiz'
 
 interface QuizResponseViewerProps {
@@ -22,18 +29,26 @@ interface QuizResponseViewerProps {
   className?: string
 }
 
-export function QuizResponseViewer({ patientId, patientName = 'Paciente', className }: QuizResponseViewerProps) {
+export function QuizResponseViewer({
+  patientId,
+  patientName = 'Paciente',
+  className,
+}: QuizResponseViewerProps) {
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null)
   const pageSize = 20
 
   // Fetch patient quiz sessions
-  const { data: sessionsData, isLoading: responsesLoading, error: responsesError } = useQuery<QuizSessionListResponse>({
+  const {
+    data: sessionsData,
+    isLoading: responsesLoading,
+    error: responsesError,
+  } = useQuery<QuizSessionListResponse>({
     queryKey: ['patient-quiz-sessions', patientId, currentPage],
     queryFn: async () => {
       const result = await apiClient.quiz.getPatientResponses(patientId, {
         page: currentPage,
-        size: pageSize
+        size: pageSize,
       })
       // Adapt the result to match PatientQuizResponsesResponse interface if needed
       // The API returns { patient_id, sessions, total }
@@ -44,9 +59,9 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
         total: result.total,
         page: currentPage,
         size: pageSize,
-        pages: Math.ceil(result.total / pageSize)
+        pages: Math.ceil(result.total / pageSize),
       } as unknown as QuizSessionListResponse
-    }
+    },
   })
 
   // Fetch analysis for selected session
@@ -69,19 +84,20 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
 
         // Map analysis fields from the inner record using bracket notation
         risk_score: (result.analysis?.['risk_score'] as number) || 0,
-        risk_level: (result.analysis?.['risk_level'] as 'low' | 'medium' | 'high' | 'critical') || 'low',
+        risk_level:
+          (result.analysis?.['risk_level'] as 'low' | 'medium' | 'high' | 'critical') || 'low',
         sentiment_score: (result.analysis?.['sentiment_score'] as number) || 0,
         key_concerns: (result.analysis?.['key_concerns'] as string[]) || [],
         recommendations: (result.analysis?.['recommendations'] as string[]) || [],
 
         // Map stats
         total_responses: result.total_questions,
-        flagged_responses: 0 // Default as not in source
+        flagged_responses: 0, // Default as not in source
       }
 
       return analysis
     },
-    enabled: !!selectedSessionId && !!sessionsData
+    enabled: !!selectedSessionId && !!sessionsData,
   })
 
   // Mock response data for display (replace with actual response fetching if needed)
@@ -91,7 +107,7 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
     total: totalResponses,
     page: currentPage,
     size: pageSize,
-    pages: totalResponses ? Math.ceil(totalResponses / pageSize) : 0
+    pages: totalResponses ? Math.ceil(totalResponses / pageSize) : 0,
   }
 
   // Format date
@@ -102,7 +118,7 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     })
   }
 
@@ -122,7 +138,7 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
       template_name: 'Quiz',
       template_version: '1.0',
       status: session.status,
-      date: session.created_at
+      date: session.created_at,
     }))
   }, [sessionsData])
 
@@ -180,7 +196,8 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
               Sessões de Quiz
             </CardTitle>
             <CardDescription>
-              {sessions.length} {sessions.length === 1 ? 'sessão encontrada' : 'sessões encontradas'}
+              {sessions.length}{' '}
+              {sessions.length === 1 ? 'sessão encontrada' : 'sessões encontradas'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -188,10 +205,11 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
               {sessions.map((session) => (
                 <div
                   key={session.id}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedSessionId === session.id
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                    selectedSessionId === session.id
+                      ? 'border-blue-600 bg-blue-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
                   onClick={() => setSelectedSessionId(session.id)}
                 >
                   <div className="space-y-2">
@@ -199,9 +217,7 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
                     <div className="text-xs text-muted-foreground">
                       Versão: {session.template_version}
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatDate(session.date)}
-                    </div>
+                    <div className="text-xs text-muted-foreground">{formatDate(session.date)}</div>
                     {session.status && (
                       <Badge variant={session.status === 'completed' ? 'default' : 'secondary'}>
                         {session.status}
@@ -216,9 +232,7 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
       )}
 
       {/* AI Analysis Card */}
-      {selectedSessionId && analysisData && (
-        <QuizAnalysisCard analysis={analysisData} />
-      )}
+      {selectedSessionId && analysisData && <QuizAnalysisCard analysis={analysisData} />}
 
       {selectedSessionId && analysisLoading && (
         <Card>
@@ -308,4 +322,3 @@ export function QuizResponseViewer({ patientId, patientName = 'Paciente', classN
     </div>
   )
 }
-

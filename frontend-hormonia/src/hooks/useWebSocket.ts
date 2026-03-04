@@ -28,12 +28,14 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
     onMessage,
     onError,
     onOpen,
-    onClose
+    onClose,
   } = options
 
   const { user, token, websocketToken, refreshToken } = useAuth()
   const [isConnected, setIsConnected] = useState(false)
-  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('disconnected')
+  const [connectionState, setConnectionState] = useState<
+    'connecting' | 'connected' | 'disconnected' | 'error'
+  >('disconnected')
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null)
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -62,7 +64,10 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
 
     // CRITICAL FIX: Prevent duplicate connections
     // Check if WebSocket is already connecting or open
-    if (wsRef.current?.readyState === WebSocket.CONNECTING || wsRef.current?.readyState === WebSocket.OPEN) {
+    if (
+      wsRef.current?.readyState === WebSocket.CONNECTING ||
+      wsRef.current?.readyState === WebSocket.OPEN
+    ) {
       logger.debug('WebSocket already connecting or connected, skipping duplicate connection')
       return
     }
@@ -78,7 +83,8 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       } else {
         // Relative path - backend only exposes /ws/connect, ignore path from component
         // All WebSocket connections go to the same endpoint, use rooms for routing
-        finalUrl = config?.VITE_WS_BASE_URL || config?.VITE_WS_URL || 'ws://localhost:8000/ws/connect'
+        finalUrl =
+          config?.VITE_WS_BASE_URL || config?.VITE_WS_URL || 'ws://localhost:8000/ws/connect'
       }
 
       // Normalize URL to ensure proper protocol format (wss:// not wss:)
@@ -108,7 +114,9 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       }
 
       wsRef.current.onclose = (event) => {
-        logger.info(`WebSocket connection closed (code: ${event.code}, reason: ${event.reason || 'none'})`)
+        logger.info(
+          `WebSocket connection closed (code: ${event.code}, reason: ${event.reason || 'none'})`
+        )
         setIsConnected(false)
         setConnectionState('disconnected')
         onClose?.()
@@ -118,7 +126,9 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
         // 2. Haven't exceeded max reconnect attempts
         if (shouldReconnectRef.current && reconnectCountRef.current < reconnectAttempts) {
           reconnectCountRef.current++
-          logger.info(`Scheduling reconnection attempt ${reconnectCountRef.current}/${reconnectAttempts} in ${reconnectInterval}ms`)
+          logger.info(
+            `Scheduling reconnection attempt ${reconnectCountRef.current}/${reconnectAttempts} in ${reconnectInterval}ms`
+          )
           reconnectTimeoutRef.current = setTimeout(() => {
             connect()
           }, reconnectInterval)
@@ -137,7 +147,19 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       setConnectionState('error')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- config is stable and adding it causes infinite reconnection loops
-  }, [url, user?.token, token, websocketToken, refreshToken, reconnectAttempts, reconnectInterval, onMessage, onError, onOpen, onClose])
+  }, [
+    url,
+    user?.token,
+    token,
+    websocketToken,
+    refreshToken,
+    reconnectAttempts,
+    reconnectInterval,
+    onMessage,
+    onError,
+    onOpen,
+    onClose,
+  ])
 
   const disconnect = useCallback(() => {
     logger.info('Disconnecting WebSocket (intentional)')
@@ -162,7 +184,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const fullMessage: WebSocketMessage = {
         ...message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       }
       wsRef.current.send(JSON.stringify(fullMessage))
       return true
@@ -177,7 +199,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
     const authToken = websocketToken || user?.token || token
     if (authToken) {
       logger.debug('Authentication token available, connecting WebSocket')
-      shouldReconnectRef.current = true  // Enable reconnections
+      shouldReconnectRef.current = true // Enable reconnections
       connect()
     } else {
       logger.debug('No authentication token, disconnecting WebSocket')
@@ -198,7 +220,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
     lastMessage,
     connect,
     disconnect,
-    sendMessage
+    sendMessage,
   }
 }
 
@@ -211,18 +233,18 @@ export function useSystemNotifications() {
 
   const handleMessage = useCallback((message: WebSocketMessage<SystemNotification>) => {
     if (message.type === 'system_notification' && message.data) {
-      setNotifications(prev => [message.data!, ...prev.slice(0, 49)]) // Keep last 50
+      setNotifications((prev) => [message.data!, ...prev.slice(0, 49)]) // Keep last 50
     }
   }, [])
 
   const { isConnected } = useWebSocket({
-    onMessage: handleMessage as (message: WebSocketMessage<unknown>) => void
+    onMessage: handleMessage as (message: WebSocketMessage<unknown>) => void,
   })
 
   return {
     notifications,
     isConnected,
-    clearNotifications: () => setNotifications([])
+    clearNotifications: () => setNotifications([]),
   }
 }
 
@@ -235,17 +257,17 @@ export function usePatientUpdates() {
 
   const handleMessage = useCallback((message: WebSocketMessage<PatientUpdate>) => {
     if (message.type === 'patient_update' && message.data) {
-      setUpdates(prev => [message.data!, ...prev.slice(0, 99)]) // Keep last 100
+      setUpdates((prev) => [message.data!, ...prev.slice(0, 99)]) // Keep last 100
     }
   }, [])
 
   const { isConnected } = useWebSocket({
-    onMessage: handleMessage as (message: WebSocketMessage<unknown>) => void
+    onMessage: handleMessage as (message: WebSocketMessage<unknown>) => void,
   })
 
   return {
     updates,
     isConnected,
-    clearUpdates: () => setUpdates([])
+    clearUpdates: () => setUpdates([]),
   }
 }

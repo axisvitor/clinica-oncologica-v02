@@ -1,5 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react'
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+  useCallback,
+  useMemo,
+} from 'react'
 import { apiClient } from '@/lib/api-client'
 import { User } from '@/types/api'
 import { isMockAuthEnabled } from '@/config/mock.config'
@@ -22,10 +30,7 @@ export const safeLocalStorage = {
       logger.log(`localStorage.setItem('${key}') succeeded`)
       return true
     } catch (error) {
-      logger.warn(
-        `localStorage.setItem('${key}') failed (likely private mode):`,
-        error
-      )
+      logger.warn(`localStorage.setItem('${key}') failed (likely private mode):`, error)
       return false
     }
   },
@@ -71,7 +76,7 @@ export const createAuthLock = (
     const now = Date.now()
     const currentLock = authLockRef.current
 
-    if (currentLock.locked && (now - currentLock.timestamp) < AUTH_LOCK_TIMEOUT_MS) {
+    if (currentLock.locked && now - currentLock.timestamp < AUTH_LOCK_TIMEOUT_MS) {
       lockLogger.warn(
         `Auth lock active (operation=${currentLock.operation ?? 'unknown'}), rejecting ${operation}`
       )
@@ -81,7 +86,7 @@ export const createAuthLock = (
     authLockRef.current = {
       locked: true,
       timestamp: now,
-      operation
+      operation,
     }
     lockLogger.log(`Auth lock acquired for ${operation}`)
     return true
@@ -92,7 +97,7 @@ export const createAuthLock = (
     authLockRef.current = {
       locked: false,
       timestamp: 0,
-      operation: null
+      operation: null,
     }
     lockLogger.log(`Auth lock released${previousOperation ? ` (${previousOperation})` : ''}`)
   }
@@ -138,7 +143,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const authLockRef = React.useRef<AuthLockState>({
     locked: false,
     timestamp: 0,
-    operation: null
+    operation: null,
   })
   const isAuthenticatingRef = React.useRef(false) // Legacy ref for compatibility
   const { acquireAuthLock, releaseAuthLock } = React.useMemo(
@@ -151,113 +156,123 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const isAuthenticated = !!user
 
   // Permission and role checking functions
-  const hasPermission = useCallback((permission: string): boolean => {
-    if (isMockAuthEnabled()) {
-      return mockAuthService.hasPermission(permission)
-    }
+  const hasPermission = useCallback(
+    (permission: string): boolean => {
+      if (isMockAuthEnabled()) {
+        return mockAuthService.hasPermission(permission)
+      }
 
-    if (!user) {
-      return false
-    }
-
-    const role = String(user.role ?? '').toLowerCase()
-    if (role === 'admin') {
-      return true
-    }
-
-    const rawPermissions = Array.isArray(user.permissions) ? user.permissions : []
-    if (rawPermissions.length === 0) {
-      return false
-    }
-
-    const normalizedPermission = String(permission).toLowerCase()
-
-    return rawPermissions.some(userPermission => {
-      if (!userPermission) {
+      if (!user) {
         return false
       }
-      const normalizedUserPermission = String(userPermission).toLowerCase()
 
-      if (normalizedUserPermission === normalizedPermission) {
+      const role = String(user.role ?? '').toLowerCase()
+      if (role === 'admin') {
         return true
       }
 
-      if (normalizedUserPermission.endsWith('.*')) {
-        const basePermission = normalizedUserPermission.slice(0, -2)
-        return (
-          normalizedPermission === basePermission ||
-          normalizedPermission.startsWith(`${basePermission}.`)
-        )
+      const rawPermissions = Array.isArray(user.permissions) ? user.permissions : []
+      if (rawPermissions.length === 0) {
+        return false
       }
 
-      return false
-    })
-  }, [user])
+      const normalizedPermission = String(permission).toLowerCase()
 
-  const hasRole = useCallback((role: string): boolean => {
-    if (isMockAuthEnabled()) {
-      return mockAuthService.hasRole(role)
-    }
+      return rawPermissions.some((userPermission) => {
+        if (!userPermission) {
+          return false
+        }
+        const normalizedUserPermission = String(userPermission).toLowerCase()
 
-    if (!user || !user.role) {
-      return false
-    }
-
-    const userRole = String(user.role).toLowerCase()
-    const checkRole = String(role).toLowerCase()
-    return userRole === checkRole
-  }, [user])
-
-  // Helper to transform Firebase user to app User
-  const transformFirebaseUser = useCallback(async (_firebaseUser: FirebaseUser): Promise<User | null> => {
-    try {
-      // IMPORTANT: Do NOT use Firebase JWT as auth token for API calls
-      // The backend expects session_id (UUID from Redis), not Firebase JWT
-      // auth.me() uses httpOnly cookie automatically via credentials: 'include'
-
-      try {
-        // Call /auth/me - relies on session cookie, NOT Authorization header
-        // auth.me() in auth.ts uses fetchSession() which explicitly doesn't send Bearer token
-        const response = await apiClient.auth.me()
-
-        if (!response || !response.data) {
-          // No user data returned, force sign out (lazy loaded)
-          logger.warn('No user data from /auth/me, signing out')
-          await firebaseAuthLazy.signOut()
-
-          toast({
-            title: 'Sessão expirada',
-            description: 'Sua sessão expirou. Por favor, faça login novamente.',
-            variant: 'destructive'
-          })
-
-          return null
+        if (normalizedUserPermission === normalizedPermission) {
+          return true
         }
 
-        return response.data
-      } finally {
-        // CRITICAL FIX: Clear any auth token to prevent Firebase JWT being used
-        // API calls should use session_id (UUID) from login or rely on httpOnly cookie
-        logger.log('transformFirebaseUser completed - API uses cookie/session_id, not Firebase JWT')
+        if (normalizedUserPermission.endsWith('.*')) {
+          const basePermission = normalizedUserPermission.slice(0, -2)
+          return (
+            normalizedPermission === basePermission ||
+            normalizedPermission.startsWith(`${basePermission}.`)
+          )
+        }
+
+        return false
+      })
+    },
+    [user]
+  )
+
+  const hasRole = useCallback(
+    (role: string): boolean => {
+      if (isMockAuthEnabled()) {
+        return mockAuthService.hasRole(role)
       }
 
-    } catch (error: unknown) {
-      // ANY error from /auth/me = force sign out (lazy loaded)
-      logger.error('/auth/me failed, signing out user', { error })
+      if (!user || !user.role) {
+        return false
+      }
 
-      // Don't use fallback data - always sign out
-      await firebaseAuthLazy.signOut()
+      const userRole = String(user.role).toLowerCase()
+      const checkRole = String(role).toLowerCase()
+      return userRole === checkRole
+    },
+    [user]
+  )
 
-      // Show error to user
-      toast({
-        title: 'Sessão expirada',
-        description: 'Sua sessão expirou. Por favor, faça login novamente.',
-        variant: 'destructive'
-      })
+  // Helper to transform Firebase user to app User
+  const transformFirebaseUser = useCallback(
+    async (_firebaseUser: FirebaseUser): Promise<User | null> => {
+      try {
+        // IMPORTANT: Do NOT use Firebase JWT as auth token for API calls
+        // The backend expects session_id (UUID from Redis), not Firebase JWT
+        // auth.me() uses httpOnly cookie automatically via credentials: 'include'
 
-      return null
-    }
-  }, [])
+        try {
+          // Call /auth/me - relies on session cookie, NOT Authorization header
+          // auth.me() in auth.ts uses fetchSession() which explicitly doesn't send Bearer token
+          const response = await apiClient.auth.me()
+
+          if (!response || !response.data) {
+            // No user data returned, force sign out (lazy loaded)
+            logger.warn('No user data from /auth/me, signing out')
+            await firebaseAuthLazy.signOut()
+
+            toast({
+              title: 'Sessão expirada',
+              description: 'Sua sessão expirou. Por favor, faça login novamente.',
+              variant: 'destructive',
+            })
+
+            return null
+          }
+
+          return response.data
+        } finally {
+          // CRITICAL FIX: Clear any auth token to prevent Firebase JWT being used
+          // API calls should use session_id (UUID) from login or rely on httpOnly cookie
+          logger.log(
+            'transformFirebaseUser completed - API uses cookie/session_id, not Firebase JWT'
+          )
+        }
+      } catch (error: unknown) {
+        // ANY error from /auth/me = force sign out (lazy loaded)
+        logger.error('/auth/me failed, signing out user', { error })
+
+        // Don't use fallback data - always sign out
+        await firebaseAuthLazy.signOut()
+
+        // Show error to user
+        toast({
+          title: 'Sessão expirada',
+          description: 'Sua sessão expirou. Por favor, faça login novamente.',
+          variant: 'destructive',
+        })
+
+        return null
+      }
+    },
+    []
+  )
 
   // Initialize from session
   useEffect(() => {
@@ -305,7 +320,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             setUser({ ...mockUser, name: mockUser.email })
             setSession({
               access_token: mockSession.access_token,
-              websocketToken: mockSession.access_token
+              websocketToken: mockSession.access_token,
             })
             apiClient.setAuthToken(mockSession.access_token)
           } else {
@@ -370,9 +385,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // OPTIMIZATION: Prefetch dashboard data immediately after session restore
             // This ensures dashboard loads instantly when user navigates to it
             try {
-              apiClient.dashboard.getMain({ time_range: 'week' })
+              apiClient.dashboard
+                .getMain({ time_range: 'week' })
                 .then(() => logger.log('Dashboard data prefetched successfully'))
-                .catch(e => logger.debug('Dashboard prefetch failed (non-critical)', e))
+                .catch((e) => logger.debug('Dashboard prefetch failed (non-critical)', e))
             } catch {
               // Non-blocking prefetch
             }
@@ -390,7 +406,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         unsubscribeAuth = await firebaseAuthLazy.onAuthStateChanged(async (firebaseUser) => {
           const now = Date.now()
           const currentLock = authLockRef.current
-          if (currentLock.locked && (now - currentLock.timestamp) < AUTH_LOCK_TIMEOUT_MS) {
+          if (currentLock.locked && now - currentLock.timestamp < AUTH_LOCK_TIMEOUT_MS) {
             logger.log(
               `Ignoring onAuthStateChanged event due to active auth lock (${currentLock.operation ?? 'unknown'})`
             )
@@ -416,17 +432,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 // session_id (UUID) should be set by login flow or restored from checkAuth()
                 // If we don't have a session_id, keep current session or use empty token
                 // The httpOnly cookie handles actual API authentication
-                setSession(prev => ({
+                setSession((prev) => ({
                   access_token: prev?.access_token ?? '',
                   session_id: prev?.session_id,
-                  websocketToken: firebaseToken
+                  websocketToken: firebaseToken,
                 }))
 
                 // Connect WebSocket with Firebase token (non-blocking)
                 // Note: WebSocket uses Firebase JWT, but API calls use session_id/cookie
                 logger.log('Connecting WebSocket with Firebase token...')
-                wsManager.connect(firebaseToken).catch(error => {
-                  logger.warn('WebSocket connection failed during auth state change, continuing without real-time features:', error)
+                wsManager.connect(firebaseToken).catch((error) => {
+                  logger.warn(
+                    'WebSocket connection failed during auth state change, continuing without real-time features:',
+                    error
+                  )
                   // Don't throw - WebSocket failure shouldn't block authentication
                 })
               } else {
@@ -459,7 +478,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
               logger.log('Disconnecting WebSocket...')
               wsManager.disconnect()
             } else {
-              logger.log('Firebase not ready yet, but session validated from cookie - keeping user logged in')
+              logger.log(
+                'Firebase not ready yet, but session validated from cookie - keeping user logged in'
+              )
               // Reset flag so future "null" events (actual logout) work correctly
               sessionValidatedFromCookie = false
             }
@@ -478,7 +499,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               wsManager.updateToken(newToken)
 
               // SECURITY: keep API client cookie-only; token stored only for WebSocket usage
-              setSession(prev => (prev ? { ...prev, websocketToken: newToken } : prev))
+              setSession((prev) => (prev ? { ...prev, websocketToken: newToken } : prev))
             } catch (error) {
               logger.error('Error refreshing token:', error)
             }
@@ -498,143 +519,153 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [transformFirebaseUser, acquireAuthLock, releaseAuthLock])
 
-  const login = useCallback(async (email: string, password: string, rememberMe: boolean = false) => {
-    if (!acquireAuthLock('login')) {
-      logger.warn('Auth lock already active, rejecting login attempt')
-      throw new Error('Operação de autenticação já em andamento')
-    }
-    setIsAuthenticating(true)
-    isAuthenticatingRef.current = true
-    try {
-      logger.log('Attempting login:', email)
+  const login = useCallback(
+    async (email: string, password: string, rememberMe: boolean = false) => {
+      if (!acquireAuthLock('login')) {
+        logger.warn('Auth lock already active, rejecting login attempt')
+        throw new Error('Operação de autenticação já em andamento')
+      }
+      setIsAuthenticating(true)
+      isAuthenticatingRef.current = true
+      try {
+        logger.log('Attempting login:', email)
 
-      // Clear any previous errors
-      apiClient.clearAuthToken()
+        // Clear any previous errors
+        apiClient.clearAuthToken()
 
-      if (isMockAuthEnabled()) {
-        const result = await mockAuthService.signIn(email, password)
+        if (isMockAuthEnabled()) {
+          const result = await mockAuthService.signIn(email, password)
 
-        if (!result.success || !result.user || !result.session) {
-          throw new Error(result.error || 'Login failed')
-        }
+          if (!result.success || !result.user || !result.session) {
+            throw new Error(result.error || 'Login failed')
+          }
 
-        logger.log('Mock login successful:', result.user.email)
-        setUser({ ...result.user, name: result.user.email })
-        setSession({
-          access_token: result.session.access_token,
-          websocketToken: result.session.access_token
-        })
-        apiClient.setAuthToken(result.session.access_token)
+          logger.log('Mock login successful:', result.user.email)
+          setUser({ ...result.user, name: result.user.email })
+          setSession({
+            access_token: result.session.access_token,
+            websocketToken: result.session.access_token,
+          })
+          apiClient.setAuthToken(result.session.access_token)
 
-        // Connect WebSocket for mock auth (non-blocking)
-        wsManager.connect(result.session.access_token).catch(error => {
-          logger.warn('WebSocket connection failed during mock login, continuing without real-time features:', error)
-          // Don't throw - WebSocket failure shouldn't block login
-        })
-      } else {
-        // Set persistence BEFORE signIn using lazy-loaded Firebase
-        try {
-          await firebaseAuthLazy.setPersistence(rememberMe)
-          logger.log(`Persistence set to ${rememberMe ? 'LOCAL' : 'SESSION'} (lazy loaded)`)
-        } catch (error) {
-          logger.error('Failed to set persistence, continuing with default:', error)
-        }
-
-        // Use new firebase-auth service with session management
-        // Note: CSRF token fetch is handled inside loginUser()
-        const loginResponse = await firebaseAuthService.loginUser(email, password)
-
-        logger.log('Firebase login successful (session in httpOnly cookie)')
-
-        // SECURITY: session_id is now in httpOnly cookie (not exposed to JavaScript)
-        // loginResponse.session_id is just a placeholder ('cookie')
-        // Actual session validation happens server-side via cookie
-
-        // Get Firebase token from lazy-loaded Firebase Auth SDK (in-memory)
-        const currentFirebaseUser = await firebaseAuthLazy.getCurrentUser()
-        const firebaseToken = currentFirebaseUser ? await currentFirebaseUser.getIdToken() : ''
-
-        setUser(loginResponse.user)
-        const sessionId = loginResponse.session_id ?? ''
-        const sessionData: AuthSession = {
-          access_token: sessionId,
-          session_id: loginResponse.session_id,
-          websocketToken: firebaseToken
-        }
-        setSession(sessionData)
-
-        // Connect WebSocket with Firebase token (non-blocking)
-        if (firebaseToken) {
-          wsManager.connect(firebaseToken).catch(error => {
-            logger.warn('WebSocket connection failed during login, continuing without real-time features:', error)
+          // Connect WebSocket for mock auth (non-blocking)
+          wsManager.connect(result.session.access_token).catch((error) => {
+            logger.warn(
+              'WebSocket connection failed during mock login, continuing without real-time features:',
+              error
+            )
             // Don't throw - WebSocket failure shouldn't block login
           })
-        }
+        } else {
+          // Set persistence BEFORE signIn using lazy-loaded Firebase
+          try {
+            await firebaseAuthLazy.setPersistence(rememberMe)
+            logger.log(`Persistence set to ${rememberMe ? 'LOCAL' : 'SESSION'} (lazy loaded)`)
+          } catch (error) {
+            logger.error('Failed to set persistence, continuing with default:', error)
+          }
 
-        // Store session_id for WebSocket authentication (with try-catch)
-        if (sessionId) {
-          const stored = safeLocalStorage.setItem('session_id', sessionId)
-          if (!stored) {
-            logger.warn(
-              'Failed to store session_id in localStorage. ' +
-              'WebSocket notifications may not work in private browsing mode.'
-            )
-            // Don't show toast - this is expected behavior in private mode
-            // WebSocket will gracefully degrade without localStorage
+          // Use new firebase-auth service with session management
+          // Note: CSRF token fetch is handled inside loginUser()
+          const loginResponse = await firebaseAuthService.loginUser(email, password)
+
+          logger.log('Firebase login successful (session in httpOnly cookie)')
+
+          // SECURITY: session_id is now in httpOnly cookie (not exposed to JavaScript)
+          // loginResponse.session_id is just a placeholder ('cookie')
+          // Actual session validation happens server-side via cookie
+
+          // Get Firebase token from lazy-loaded Firebase Auth SDK (in-memory)
+          const currentFirebaseUser = await firebaseAuthLazy.getCurrentUser()
+          const firebaseToken = currentFirebaseUser ? await currentFirebaseUser.getIdToken() : ''
+
+          setUser(loginResponse.user)
+          const sessionId = loginResponse.session_id ?? ''
+          const sessionData: AuthSession = {
+            access_token: sessionId,
+            session_id: loginResponse.session_id,
+            websocketToken: firebaseToken,
+          }
+          setSession(sessionData)
+
+          // Connect WebSocket with Firebase token (non-blocking)
+          if (firebaseToken) {
+            wsManager.connect(firebaseToken).catch((error) => {
+              logger.warn(
+                'WebSocket connection failed during login, continuing without real-time features:',
+                error
+              )
+              // Don't throw - WebSocket failure shouldn't block login
+            })
+          }
+
+          // Store session_id for WebSocket authentication (with try-catch)
+          if (sessionId) {
+            const stored = safeLocalStorage.setItem('session_id', sessionId)
+            if (!stored) {
+              logger.warn(
+                'Failed to store session_id in localStorage. ' +
+                  'WebSocket notifications may not work in private browsing mode.'
+              )
+              // Don't show toast - this is expected behavior in private mode
+              // WebSocket will gracefully degrade without localStorage
+            }
+          }
+
+          // OPTIMIZATION: Prefetch dashboard data immediately after login
+          // This ensures the dashboard loads instantly when user navigates to it
+          try {
+            apiClient.dashboard
+              .getMain({ time_range: 'week' })
+              .then(() => logger.log('Dashboard data prefetched after login'))
+              .catch((e) => logger.debug('Dashboard prefetch failed (non-critical)', e))
+          } catch {
+            // Non-blocking prefetch
           }
         }
+      } catch (error: unknown) {
+        logger.error('Login failed:', error)
 
-        // OPTIMIZATION: Prefetch dashboard data immediately after login
-        // This ensures the dashboard loads instantly when user navigates to it
-        try {
-          apiClient.dashboard.getMain({ time_range: 'week' })
-            .then(() => logger.log('Dashboard data prefetched after login'))
-            .catch(e => logger.debug('Dashboard prefetch failed (non-critical)', e))
-        } catch {
-          // Non-blocking prefetch
+        // Comprehensive cleanup on login failure
+        setUser(null)
+        setSession(null)
+        apiClient.clearAuthToken()
+
+        // Disconnect WebSocket on login failure
+        wsManager.disconnect()
+
+        // Ensure cleanup on error (cookie cleared by backend)
+        // Firebase Auth SDK automatically clears in-memory token
+
+        // Enhanced error handling with user-friendly messages
+        let userMessage = 'Erro ao fazer login. Tente novamente.'
+
+        if (isErrorWithMessage(error) && error.message.includes('auth/user-not-found')) {
+          userMessage = 'Usuário não encontrado. Verifique seu email.'
+        } else if (isErrorWithMessage(error) && error.message.includes('auth/wrong-password')) {
+          userMessage = 'Senha incorreta. Tente novamente.'
+        } else if (isErrorWithMessage(error) && error.message.includes('auth/too-many-requests')) {
+          userMessage = 'Muitas tentativas. Aguarde alguns minutos.'
+        } else if (isErrorWithMessage(error) && error.message.includes('Network')) {
+          userMessage = 'Erro de conexão. Verifique sua internet.'
         }
+
+        // Show user-friendly error
+        toast({
+          title: 'Erro no Login',
+          description: userMessage,
+          variant: 'destructive',
+        })
+
+        throw error
+      } finally {
+        releaseAuthLock()
+        setIsAuthenticating(false)
+        isAuthenticatingRef.current = false
       }
-    } catch (error: unknown) {
-      logger.error('Login failed:', error)
-
-      // Comprehensive cleanup on login failure
-      setUser(null)
-      setSession(null)
-      apiClient.clearAuthToken()
-
-      // Disconnect WebSocket on login failure
-      wsManager.disconnect()
-
-      // Ensure cleanup on error (cookie cleared by backend)
-      // Firebase Auth SDK automatically clears in-memory token
-
-      // Enhanced error handling with user-friendly messages
-      let userMessage = 'Erro ao fazer login. Tente novamente.'
-
-      if (isErrorWithMessage(error) && error.message.includes('auth/user-not-found')) {
-        userMessage = 'Usuário não encontrado. Verifique seu email.'
-      } else if (isErrorWithMessage(error) && error.message.includes('auth/wrong-password')) {
-        userMessage = 'Senha incorreta. Tente novamente.'
-      } else if (isErrorWithMessage(error) && error.message.includes('auth/too-many-requests')) {
-        userMessage = 'Muitas tentativas. Aguarde alguns minutos.'
-      } else if (isErrorWithMessage(error) && error.message.includes('Network')) {
-        userMessage = 'Erro de conexão. Verifique sua internet.'
-      }
-
-      // Show user-friendly error
-      toast({
-        title: 'Erro no Login',
-        description: userMessage,
-        variant: 'destructive'
-      })
-
-      throw error
-    } finally {
-      releaseAuthLock()
-      setIsAuthenticating(false)
-      isAuthenticatingRef.current = false
-    }
-  }, [acquireAuthLock, releaseAuthLock])
+    },
+    [acquireAuthLock, releaseAuthLock]
+  )
 
   const logout = useCallback(async () => {
     try {
@@ -648,7 +679,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       apiClient.clearAuthToken()
-      safeLocalStorage.removeItem('session_id')  // Clear session_id from localStorage
+      safeLocalStorage.removeItem('session_id') // Clear session_id from localStorage
       setUser(null)
       setSession(null)
 
@@ -660,7 +691,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Force cleanup even on error (cookie cleared by backend)
       apiClient.clearAuthToken()
-      safeLocalStorage.removeItem('session_id')  // Clear session_id from localStorage
+      safeLocalStorage.removeItem('session_id') // Clear session_id from localStorage
       setUser(null)
       setSession(null)
 
@@ -692,7 +723,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       toast({
         title: 'Logout realizado',
         description: 'Você foi desconectado de todos os dispositivos.',
-        variant: 'default'
+        variant: 'default',
       })
     } catch (error) {
       logger.error('Logout all error:', error)
@@ -747,37 +778,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [])
 
-  const value: AuthContextType = useMemo(() => ({
-    user,
-    session,
-    isAuthenticated,
-    isInitializing,
-    isAuthenticating,
-    login,
-    logout,
-    logoutAll,
-    hasPermission,
-    hasRole,
-    getFirebaseToken,
-    refreshToken
-  }), [
-    user,
-    session,
-    isAuthenticated,
-    isInitializing,
-    isAuthenticating,
-    login,
-    logout,
-    logoutAll,
-    hasPermission,
-    hasRole,
-    getFirebaseToken,
-    refreshToken
-  ])
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
+  const value: AuthContextType = useMemo(
+    () => ({
+      user,
+      session,
+      isAuthenticated,
+      isInitializing,
+      isAuthenticating,
+      login,
+      logout,
+      logoutAll,
+      hasPermission,
+      hasRole,
+      getFirebaseToken,
+      refreshToken,
+    }),
+    [
+      user,
+      session,
+      isAuthenticated,
+      isInitializing,
+      isAuthenticating,
+      login,
+      logout,
+      logoutAll,
+      hasPermission,
+      hasRole,
+      getFirebaseToken,
+      refreshToken,
+    ]
   )
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

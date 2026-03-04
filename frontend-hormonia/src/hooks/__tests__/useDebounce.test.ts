@@ -9,12 +9,9 @@ describe('useDebounce', () => {
   })
 
   it('should debounce value changes', async () => {
-    const { result, rerender } = renderHook(
-      ({ value, delay }) => useDebounce(value, delay),
-      {
-        initialProps: { value: 'initial', delay: 500 }
-      }
-    )
+    const { result, rerender } = renderHook(({ value, delay }) => useDebounce(value, delay), {
+      initialProps: { value: 'initial', delay: 500 },
+    })
 
     expect(result.current).toBe('initial')
 
@@ -30,12 +27,9 @@ describe('useDebounce', () => {
   })
 
   it('should update immediately when delay is 0', () => {
-    const { result, rerender } = renderHook(
-      ({ value }) => useDebounce(value, 0),
-      {
-        initialProps: { value: 'initial' }
-      }
-    )
+    const { result, rerender } = renderHook(({ value }) => useDebounce(value, 0), {
+      initialProps: { value: 'initial' },
+    })
 
     expect(result.current).toBe('initial')
 
@@ -44,12 +38,9 @@ describe('useDebounce', () => {
   })
 
   it('should handle multiple rapid changes', async () => {
-    const { result, rerender } = renderHook(
-      ({ value }) => useDebounce(value, 300),
-      {
-        initialProps: { value: 'initial' }
-      }
-    )
+    const { result, rerender } = renderHook(({ value }) => useDebounce(value, 300), {
+      initialProps: { value: 'initial' },
+    })
 
     rerender({ value: 'first' })
     rerender({ value: 'second' })

@@ -3,16 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { AlertTriangle, Settings } from 'lucide-react'
-import {
-  FlowDesign,
-  FlowNode,
-  FlowValidationResult,
-  FlowNodeType
-} from '@/types/flow-designer'
+import { FlowDesign, FlowNode, FlowValidationResult, FlowNodeType } from '@/types/flow-designer'
 
 interface PropertyPanelProps {
   design: FlowDesign
@@ -27,19 +28,18 @@ export function PropertyPanel({
   selectedNodes,
   selectedConnections,
   onUpdateNode,
-  validation
+  validation,
 }: PropertyPanelProps) {
-  const selectedNode = selectedNodes.length === 1 
-    ? design.nodes.find(node => node.id === selectedNodes[0])
-    : null
+  const selectedNode =
+    selectedNodes.length === 1 ? design.nodes.find((node) => node.id === selectedNodes[0]) : null
 
-  const selectedConnection = selectedConnections.length === 1
-    ? design.connections.find(conn => conn.id === selectedConnections[0])
-    : null
+  const selectedConnection =
+    selectedConnections.length === 1
+      ? design.connections.find((conn) => conn.id === selectedConnections[0])
+      : null
 
-  const nodeErrors = validation?.errors.filter(error => 
-    selectedNode && error.node_id === selectedNode.id
-  ) || []
+  const nodeErrors =
+    validation?.errors.filter((error) => selectedNode && error.node_id === selectedNode.id) || []
 
   const handleNodeUpdate = (field: string, value: unknown) => {
     if (!selectedNode) return
@@ -49,8 +49,8 @@ export function PropertyPanel({
       onUpdateNode(selectedNode.id, {
         data: {
           ...selectedNode.data,
-          [dataField]: value
-        }
+          [dataField]: value,
+        },
       })
     } else if (field.startsWith('data.config.')) {
       const configField = field.replace('data.config.', '')
@@ -59,9 +59,9 @@ export function PropertyPanel({
           ...selectedNode.data,
           config: {
             ...selectedNode.data.config,
-            [configField]: value
-          }
-        }
+            [configField]: value,
+          },
+        },
       })
     } else {
       onUpdateNode(selectedNode.id, { [field]: value })
@@ -100,7 +100,7 @@ export function PropertyPanel({
           )}
         </CardTitle>
       </CardHeader>
-      
+
       <CardContent className="space-y-4">
         {selectedNode && (
           <>
@@ -112,7 +112,7 @@ export function PropertyPanel({
                   Erros de Validação
                 </div>
                 <div className="space-y-1">
-                  {nodeErrors.map(error => (
+                  {nodeErrors.map((error) => (
                     <div key={error.id} className="text-xs text-red-600">
                       • {error.message}
                     </div>
@@ -124,7 +124,9 @@ export function PropertyPanel({
             {/* Basic Properties */}
             <div className="space-y-3">
               <div>
-                <Label htmlFor="node-label" className="text-xs">Nome do Nó</Label>
+                <Label htmlFor="node-label" className="text-xs">
+                  Nome do Nó
+                </Label>
                 <Input
                   id="node-label"
                   value={selectedNode.data.label}
@@ -134,7 +136,9 @@ export function PropertyPanel({
               </div>
 
               <div>
-                <Label htmlFor="node-description" className="text-xs">Descrição</Label>
+                <Label htmlFor="node-description" className="text-xs">
+                  Descrição
+                </Label>
                 <Textarea
                   id="node-description"
                   value={selectedNode.data.description || ''}
@@ -156,38 +160,23 @@ export function PropertyPanel({
 
             {/* Type-specific Properties */}
             {selectedNode.type === FlowNodeType.MESSAGE && (
-              <MessageNodeProperties 
-                node={selectedNode} 
-                onUpdate={handleNodeUpdate} 
-              />
+              <MessageNodeProperties node={selectedNode} onUpdate={handleNodeUpdate} />
             )}
 
             {selectedNode.type === FlowNodeType.CONDITION && (
-              <ConditionNodeProperties 
-                node={selectedNode} 
-                onUpdate={handleNodeUpdate} 
-              />
+              <ConditionNodeProperties node={selectedNode} onUpdate={handleNodeUpdate} />
             )}
 
             {selectedNode.type === FlowNodeType.DELAY && (
-              <DelayNodeProperties 
-                node={selectedNode} 
-                onUpdate={handleNodeUpdate} 
-              />
+              <DelayNodeProperties node={selectedNode} onUpdate={handleNodeUpdate} />
             )}
 
             {selectedNode.type === FlowNodeType.ACTION && (
-              <ActionNodeProperties 
-                node={selectedNode} 
-                onUpdate={handleNodeUpdate} 
-              />
+              <ActionNodeProperties node={selectedNode} onUpdate={handleNodeUpdate} />
             )}
 
             {selectedNode.type === FlowNodeType.AI_RESPONSE && (
-              <AIResponseNodeProperties 
-                node={selectedNode} 
-                onUpdate={handleNodeUpdate} 
-              />
+              <AIResponseNodeProperties node={selectedNode} onUpdate={handleNodeUpdate} />
             )}
 
             <Separator />
@@ -197,28 +186,36 @@ export function PropertyPanel({
               <Label className="text-xs">Posição</Label>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label htmlFor="node-x" className="text-xs">X</Label>
+                  <Label htmlFor="node-x" className="text-xs">
+                    X
+                  </Label>
                   <Input
                     id="node-x"
                     type="number"
                     value={selectedNode.position.x}
-                    onChange={(e) => handleNodeUpdate('position', {
-                      ...selectedNode.position,
-                      x: parseInt(e.target.value) || 0
-                    })}
+                    onChange={(e) =>
+                      handleNodeUpdate('position', {
+                        ...selectedNode.position,
+                        x: parseInt(e.target.value) || 0,
+                      })
+                    }
                     className="mt-1"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="node-y" className="text-xs">Y</Label>
+                  <Label htmlFor="node-y" className="text-xs">
+                    Y
+                  </Label>
                   <Input
                     id="node-y"
                     type="number"
                     value={selectedNode.position.y}
-                    onChange={(e) => handleNodeUpdate('position', {
-                      ...selectedNode.position,
-                      y: parseInt(e.target.value) || 0
-                    })}
+                    onChange={(e) =>
+                      handleNodeUpdate('position', {
+                        ...selectedNode.position,
+                        y: parseInt(e.target.value) || 0,
+                      })
+                    }
                     className="mt-1"
                   />
                 </div>
@@ -230,7 +227,9 @@ export function PropertyPanel({
         {selectedConnection && (
           <div className="space-y-3">
             <div>
-              <Label htmlFor="conn-label" className="text-xs">Rótulo da Conexão</Label>
+              <Label htmlFor="conn-label" className="text-xs">
+                Rótulo da Conexão
+              </Label>
               <Input
                 id="conn-label"
                 value={selectedConnection.label || ''}
@@ -242,7 +241,9 @@ export function PropertyPanel({
             </div>
 
             <div>
-              <Label htmlFor="conn-condition" className="text-xs">Condição</Label>
+              <Label htmlFor="conn-condition" className="text-xs">
+                Condição
+              </Label>
               <Input
                 id="conn-condition"
                 value={selectedConnection.condition || ''}
@@ -261,11 +262,19 @@ export function PropertyPanel({
 }
 
 // Type-specific property components
-function MessageNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (field: string, value: unknown) => void }) {
+function MessageNodeProperties({
+  node,
+  onUpdate,
+}: {
+  node: FlowNode
+  onUpdate: (field: string, value: unknown) => void
+}) {
   return (
     <div className="space-y-3">
       <div>
-        <Label htmlFor="message-content" className="text-xs">Conteúdo da Mensagem</Label>
+        <Label htmlFor="message-content" className="text-xs">
+          Conteúdo da Mensagem
+        </Label>
         <Textarea
           id="message-content"
           value={String(node.data.config['content'] || '')}
@@ -276,7 +285,9 @@ function MessageNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (
       </div>
 
       <div>
-        <Label htmlFor="message-type" className="text-xs">Tipo de Mensagem</Label>
+        <Label htmlFor="message-type" className="text-xs">
+          Tipo de Mensagem
+        </Label>
         <Select
           value={String(node.data.config['message_type'] || 'text')}
           onValueChange={(value) => onUpdate('data.config.message_type', value)}
@@ -296,11 +307,19 @@ function MessageNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (
   )
 }
 
-function ConditionNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (field: string, value: unknown) => void }) {
+function ConditionNodeProperties({
+  node,
+  onUpdate,
+}: {
+  node: FlowNode
+  onUpdate: (field: string, value: unknown) => void
+}) {
   return (
     <div className="space-y-3">
       <div>
-        <Label htmlFor="condition-operator" className="text-xs">Operador</Label>
+        <Label htmlFor="condition-operator" className="text-xs">
+          Operador
+        </Label>
         <Select
           value={String(node.data.config['operator'] || 'AND')}
           onValueChange={(value) => onUpdate('data.config.operator', value)}
@@ -318,12 +337,20 @@ function ConditionNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate:
   )
 }
 
-function DelayNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (field: string, value: unknown) => void }) {
+function DelayNodeProperties({
+  node,
+  onUpdate,
+}: {
+  node: FlowNode
+  onUpdate: (field: string, value: unknown) => void
+}) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label htmlFor="delay-duration" className="text-xs">Duração</Label>
+          <Label htmlFor="delay-duration" className="text-xs">
+            Duração
+          </Label>
           <Input
             id="delay-duration"
             type="number"
@@ -333,7 +360,9 @@ function DelayNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (fi
           />
         </div>
         <div>
-          <Label htmlFor="delay-unit" className="text-xs">Unidade</Label>
+          <Label htmlFor="delay-unit" className="text-xs">
+            Unidade
+          </Label>
           <Select
             value={String(node.data.config['unit'] || 'minutes')}
             onValueChange={(value) => onUpdate('data.config.unit', value)}
@@ -354,11 +383,19 @@ function DelayNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (fi
   )
 }
 
-function ActionNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (field: string, value: unknown) => void }) {
+function ActionNodeProperties({
+  node,
+  onUpdate,
+}: {
+  node: FlowNode
+  onUpdate: (field: string, value: unknown) => void
+}) {
   return (
     <div className="space-y-3">
       <div>
-        <Label htmlFor="action-type" className="text-xs">Tipo de Ação</Label>
+        <Label htmlFor="action-type" className="text-xs">
+          Tipo de Ação
+        </Label>
         <Select
           value={String(node.data.config['action_type'] || 'set_variable')}
           onValueChange={(value) => onUpdate('data.config.action_type', value)}
@@ -378,11 +415,19 @@ function ActionNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (f
   )
 }
 
-function AIResponseNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate: (field: string, value: unknown) => void }) {
+function AIResponseNodeProperties({
+  node,
+  onUpdate,
+}: {
+  node: FlowNode
+  onUpdate: (field: string, value: unknown) => void
+}) {
   return (
     <div className="space-y-3">
       <div>
-        <Label htmlFor="ai-prompt" className="text-xs">Template do Prompt</Label>
+        <Label htmlFor="ai-prompt" className="text-xs">
+          Template do Prompt
+        </Label>
         <Textarea
           id="ai-prompt"
           value={String(node.data.config['prompt_template'] || '')}
@@ -394,7 +439,9 @@ function AIResponseNodeProperties({ node, onUpdate }: { node: FlowNode; onUpdate
       </div>
 
       <div>
-        <Label htmlFor="ai-fallback" className="text-xs">Mensagem de Fallback</Label>
+        <Label htmlFor="ai-fallback" className="text-xs">
+          Mensagem de Fallback
+        </Label>
         <Input
           id="ai-fallback"
           value={String(node.data.config['fallback_message'] || '')}

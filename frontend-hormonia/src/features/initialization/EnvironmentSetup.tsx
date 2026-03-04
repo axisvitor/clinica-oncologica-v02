@@ -14,7 +14,7 @@ import {
   Shield,
   RefreshCw,
   Eye,
-  EyeOff
+  EyeOff,
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -49,7 +49,7 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       description: 'URL base para comunicação com o backend',
       status: 'pending',
       required: true,
-      category: 'api'
+      category: 'api',
     },
     {
       id: 'ws_url',
@@ -57,7 +57,7 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       description: 'URL para conexões WebSocket em tempo real',
       status: 'pending',
       required: false,
-      category: 'api'
+      category: 'api',
     },
 
     // External Services
@@ -67,7 +67,7 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       description: 'Configuração de autenticação Firebase',
       status: 'pending',
       required: true,
-      category: 'services'
+      category: 'services',
     },
     {
       id: 'whatsapp_instance',
@@ -75,7 +75,7 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       description: 'Instância do WhatsApp Business API',
       status: 'pending',
       required: false,
-      category: 'services'
+      category: 'services',
     },
 
     // Security & Monitoring
@@ -85,7 +85,7 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       description: 'Configuração de monitoramento de erros',
       status: 'pending',
       required: false,
-      category: 'security'
+      category: 'security',
     },
     {
       id: 'session_config',
@@ -93,8 +93,8 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       description: 'Configurações de sessão e segurança',
       status: 'pending',
       required: true,
-      category: 'security'
-    }
+      category: 'security',
+    },
   ])
 
   const [isChecking, setIsChecking] = useState(false)
@@ -105,20 +105,20 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
   const categoryIcons = {
     api: <Cloud className="w-5 h-5" />,
     services: <Settings className="w-5 h-5" />,
-    security: <Shield className="w-5 h-5" />
+    security: <Shield className="w-5 h-5" />,
   }
 
   const categoryNames = {
     api: 'API & Comunicação',
     database: 'Banco de Dados',
     services: 'Serviços Externos',
-    security: 'Segurança & Monitoramento'
+    security: 'Segurança & Monitoramento',
   }
 
   useEffect(() => {
     // Auto-start environment check
     handleCheckEnvironment()
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckEnvironment is intentionally only called on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckEnvironment is intentionally only called on mount
   }, [])
 
   const updateCheckStatus = (
@@ -127,11 +127,9 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
     value?: string,
     error?: string
   ) => {
-    setChecks(prev => prev.map(check =>
-      check.id === id
-        ? { ...check, status, value, error }
-        : check
-    ))
+    setChecks((prev) =>
+      prev.map((check) => (check.id === id ? { ...check, status, value, error } : check))
+    )
   }
 
   const handleCheckEnvironment = async () => {
@@ -149,17 +147,25 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
         try {
           const response = await fetch(`${config.API_BASE_URL}/health`, {
             method: 'GET',
-            signal: AbortSignal.timeout(5000)
+            signal: AbortSignal.timeout(5000),
           })
           if (response.ok) {
             updateCheckStatus('api_base_url', 'success', config.API_BASE_URL)
           } else {
-            updateCheckStatus('api_base_url', 'warning', config.API_BASE_URL,
-              `API retornou status ${response.status}`)
+            updateCheckStatus(
+              'api_base_url',
+              'warning',
+              config.API_BASE_URL,
+              `API retornou status ${response.status}`
+            )
           }
         } catch {
-          updateCheckStatus('api_base_url', 'error', config.API_BASE_URL,
-            'Falha ao conectar com a API')
+          updateCheckStatus(
+            'api_base_url',
+            'error',
+            config.API_BASE_URL,
+            'Falha ao conectar com a API'
+          )
         }
       } else {
         updateCheckStatus('api_base_url', 'error', '', 'URL da API não configurada')
@@ -200,24 +206,22 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       // Check session configuration
       updateCheckStatus('session_config', 'checking')
       if (config.SESSION_TIMEOUT && config.TOKEN_REFRESH_THRESHOLD) {
-        updateCheckStatus('session_config', 'success',
-          `Timeout: ${config.SESSION_TIMEOUT}ms`)
+        updateCheckStatus('session_config', 'success', `Timeout: ${config.SESSION_TIMEOUT}ms`)
       } else {
-        updateCheckStatus('session_config', 'warning', '',
-          'Configurações de sessão usando padrões')
+        updateCheckStatus('session_config', 'warning', '', 'Configurações de sessão usando padrões')
       }
 
       // Wait a moment for visual feedback
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      await new Promise((resolve) => setTimeout(resolve, 1000))
 
       // Check if all required configurations are valid
-      const requiredChecks = checks.filter(check => check.required)
-      const failedRequired = requiredChecks.filter(check =>
-        check.status === 'error'
-      )
+      const requiredChecks = checks.filter((check) => check.required)
+      const failedRequired = requiredChecks.filter((check) => check.status === 'error')
 
       if (failedRequired.length > 0) {
-        onError(`Configurações obrigatórias falharam: ${failedRequired.map(c => c.name).join(', ')}`)
+        onError(
+          `Configurações obrigatórias falharam: ${failedRequired.map((c) => c.name).join(', ')}`
+        )
       } else {
         toast({
           title: 'Ambiente Verificado',
@@ -225,7 +229,6 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
         })
         onComplete()
       }
-
     } catch (error) {
       logger.error('Environment check failed:', error)
       onError('Falha na verificação do ambiente: ' + (error as Error).message)
@@ -252,11 +255,19 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
   const getStatusBadge = (status: EnvironmentCheck['status']) => {
     switch (status) {
       case 'success':
-        return <Badge variant="default" className="bg-green-100 text-green-800">OK</Badge>
+        return (
+          <Badge variant="default" className="bg-green-100 text-green-800">
+            OK
+          </Badge>
+        )
       case 'error':
         return <Badge variant="destructive">Erro</Badge>
       case 'warning':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Aviso</Badge>
+        return (
+          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+            Aviso
+          </Badge>
+        )
       case 'checking':
         return <Badge variant="outline">Verificando...</Badge>
       default:
@@ -265,26 +276,29 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
   }
 
   const toggleSecret = (checkId: string) => {
-    setShowSecrets(prev => ({
+    setShowSecrets((prev) => ({
       ...prev,
-      [checkId]: !prev[checkId]
+      [checkId]: !prev[checkId],
     }))
   }
 
-  const categorizedChecks = checks.reduce((acc, check) => {
-    const category = check.category
-    if (!acc[category]) {
-      acc[category] = []
-    }
-    acc[category]?.push(check)
-    return acc
-  }, {} as Record<string, EnvironmentCheck[]>)
+  const categorizedChecks = checks.reduce(
+    (acc, check) => {
+      const category = check.category
+      if (!acc[category]) {
+        acc[category] = []
+      }
+      acc[category]?.push(check)
+      return acc
+    },
+    {} as Record<string, EnvironmentCheck[]>
+  )
 
   const summaryStats = {
     total: checks.length,
-    success: checks.filter(c => c.status === 'success').length,
-    error: checks.filter(c => c.status === 'error').length,
-    warning: checks.filter(c => c.status === 'warning').length
+    success: checks.filter((c) => c.status === 'success').length,
+    error: checks.filter((c) => c.status === 'error').length,
+    warning: checks.filter((c) => c.status === 'warning').length,
   }
 
   return (
@@ -320,12 +334,8 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       {/* Environment Checks by Category */}
       <Tabs defaultValue="api" className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
-          {Object.keys(categoryNames).map(category => (
-            <TabsTrigger
-              key={category}
-              value={category}
-              className="flex items-center space-x-2"
-            >
+          {Object.keys(categoryNames).map((category) => (
+            <TabsTrigger key={category} value={category} className="flex items-center space-x-2">
               {categoryIcons[category as keyof typeof categoryIcons]}
               <span className="hidden sm:inline">
                 {categoryNames[category as keyof typeof categoryNames]}
@@ -343,11 +353,12 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
                   <span>{categoryNames[category as keyof typeof categoryNames]}</span>
                 </CardTitle>
                 <CardDescription>
-                  Verificação das configurações de {categoryNames[category as keyof typeof categoryNames].toLowerCase()}
+                  Verificação das configurações de{' '}
+                  {categoryNames[category as keyof typeof categoryNames].toLowerCase()}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {categoryChecks.map(check => (
+                {categoryChecks.map((check) => (
                   <div
                     key={check.id}
                     className="flex items-center justify-between p-4 border rounded-lg"
@@ -358,17 +369,20 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
                         <div className="flex items-center space-x-2">
                           <h4 className="font-medium">{check.name}</h4>
                           {check.required && (
-                            <Badge variant="outline" className="text-xs">Obrigatório</Badge>
+                            <Badge variant="outline" className="text-xs">
+                              Obrigatório
+                            </Badge>
                           )}
                         </div>
                         <p className="text-sm text-gray-600 mt-1">{check.description}</p>
                         {check.value && (
                           <div className="flex items-center space-x-2 mt-2">
                             <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                              {check.id.includes('key') || check.id.includes('dsn') ?
-                                (showSecrets[check.id] ? check.value : '****') :
-                                check.value
-                              }
+                              {check.id.includes('key') || check.id.includes('dsn')
+                                ? showSecrets[check.id]
+                                  ? check.value
+                                  : '****'
+                                : check.value}
                             </code>
                             {(check.id.includes('key') || check.id.includes('dsn')) && (
                               <Button
@@ -377,10 +391,11 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
                                 onClick={() => toggleSecret(check.id)}
                                 className="h-6 w-6 p-0"
                               >
-                                {showSecrets[check.id] ?
-                                  <EyeOff className="w-3 h-3" /> :
+                                {showSecrets[check.id] ? (
+                                  <EyeOff className="w-3 h-3" />
+                                ) : (
                                   <Eye className="w-3 h-3" />
-                                }
+                                )}
                               </Button>
                             )}
                           </div>
@@ -392,9 +407,7 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
                         )}
                       </div>
                     </div>
-                    <div className="flex-shrink-0">
-                      {getStatusBadge(check.status)}
-                    </div>
+                    <div className="flex-shrink-0">{getStatusBadge(check.status)}</div>
                   </div>
                 ))}
               </CardContent>
@@ -405,11 +418,7 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
 
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-4 pt-6">
-        <Button
-          onClick={handleCheckEnvironment}
-          disabled={isChecking}
-          className="flex-1"
-        >
+        <Button onClick={handleCheckEnvironment} disabled={isChecking} className="flex-1">
           {isChecking ? (
             <>
               <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -446,26 +455,32 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                As configurações manuais são temporárias e não persistem após o reload.
-                Para configuração permanente, defina as variáveis de ambiente no servidor.
+                As configurações manuais são temporárias e não persistem após o reload. Para
+                configuração permanente, defina as variáveis de ambiente no servidor.
               </AlertDescription>
             </Alert>
 
-            {checks.filter(c => c.status === 'error' || c.status === 'warning').map(check => (
-              <div key={check.id} className="space-y-2">
-                <Label htmlFor={check.id}>{check.name}</Label>
-                <Input
-                  id={check.id}
-                  type={check.id.includes('key') || check.id.includes('dsn') ? 'password' : 'text'}
-                  placeholder={`Digite ${check.name.toLowerCase()}`}
-                  value={manualConfig[check.id] || ''}
-                  onChange={(e) => setManualConfig(prev => ({
-                    ...prev,
-                    [check.id]: e.target.value
-                  }))}
-                />
-              </div>
-            ))}
+            {checks
+              .filter((c) => c.status === 'error' || c.status === 'warning')
+              .map((check) => (
+                <div key={check.id} className="space-y-2">
+                  <Label htmlFor={check.id}>{check.name}</Label>
+                  <Input
+                    id={check.id}
+                    type={
+                      check.id.includes('key') || check.id.includes('dsn') ? 'password' : 'text'
+                    }
+                    placeholder={`Digite ${check.name.toLowerCase()}`}
+                    value={manualConfig[check.id] || ''}
+                    onChange={(e) =>
+                      setManualConfig((prev) => ({
+                        ...prev,
+                        [check.id]: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              ))}
 
             <Button
               onClick={() => {

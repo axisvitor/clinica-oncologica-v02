@@ -32,14 +32,14 @@ export function useMessageGroups(messages: Message[]): ListItem[] {
         currentDate = messageDate
         result.push({
           type: 'date',
-          date: message.created_at
+          date: message.created_at,
         })
       }
 
       // Add message item
       result.push({
         type: 'message',
-        message
+        message,
       })
     })
 

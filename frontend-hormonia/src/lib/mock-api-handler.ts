@@ -15,7 +15,7 @@ import {
   getMockAlerts,
   getMockQuizTemplates,
   getMockQuizSessions,
-  getMockMonthlyQuizStats
+  getMockMonthlyQuizStats,
 } from '../mocks'
 import { createLogger } from './logger'
 
@@ -26,7 +26,7 @@ const logger = createLogger('MockApiHandler')
  */
 async function simulateDelay(min: number = 200, max: number = 600): Promise<void> {
   const delay = Math.floor(Math.random() * (max - min + 1)) + min
-  return new Promise<void>(resolve => setTimeout(resolve, delay))
+  return new Promise<void>((resolve) => setTimeout(resolve, delay))
 }
 
 /**
@@ -100,7 +100,12 @@ export class MockApiHandler {
   /**
    * Handle patients endpoints
    */
-  private handlePatientsEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
+  private handlePatientsEndpoint(
+    pathname: string,
+    params: URLSearchParams,
+    method: string,
+    body?: unknown
+  ): unknown {
     // GET /api/v2/patients - List patients
     if (pathname === '/api/v2/patients' && method === 'GET') {
       const search = params.get('search')
@@ -112,7 +117,7 @@ export class MockApiHandler {
         size: parseInt(params.get('size') || '10'),
         ...(search && { search }),
         ...(status && { status }),
-        ...(treatmentType && { treatment_type: treatmentType })
+        ...(treatmentType && { treatment_type: treatmentType }),
       })
     }
 
@@ -156,7 +161,12 @@ export class MockApiHandler {
   /**
    * Handle messages endpoints
    */
-  private handleMessagesEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
+  private handleMessagesEndpoint(
+    pathname: string,
+    params: URLSearchParams,
+    method: string,
+    body?: unknown
+  ): unknown {
     // GET /api/v2/messages - List messages
     if (pathname === '/api/v2/messages' && method === 'GET') {
       const patientId = params.get('patient_id')
@@ -164,7 +174,7 @@ export class MockApiHandler {
       return getMockMessages({
         ...(patientId && { patient_id: patientId }),
         page: parseInt(params.get('page') || '1'),
-        size: parseInt(params.get('size') || '20')
+        size: parseInt(params.get('size') || '20'),
       })
     }
 
@@ -175,7 +185,7 @@ export class MockApiHandler {
         id: `msg-${Date.now()}`,
         ...bodyData,
         status: 'sent',
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       }
     }
 
@@ -193,18 +203,16 @@ export class MockApiHandler {
 
       return getMockFlows({
         ...(patientId && { patient_id: patientId }),
-        ...(status && { status })
+        ...(status && { status }),
       })
     }
-
-
 
     // POST /api/v2/flows/start - Start flow
     if (pathname === '/api/v2/flows/start' && method === 'POST') {
       return {
         id: `flow-${Date.now()}`,
         status: 'active',
-        started_at: new Date().toISOString()
+        started_at: new Date().toISOString(),
       }
     }
 
@@ -214,7 +222,12 @@ export class MockApiHandler {
   /**
    * Handle flow templates endpoints
    */
-  private handleFlowTemplatesEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
+  private handleFlowTemplatesEndpoint(
+    pathname: string,
+    params: URLSearchParams,
+    method: string,
+    body?: unknown
+  ): unknown {
     // GET /api/v2/templates/flows - List flow templates
     if (pathname === '/api/v2/templates/flows' && method === 'GET') {
       return getMockFlowTemplates()
@@ -226,7 +239,7 @@ export class MockApiHandler {
       return {
         id: `template-${Date.now()}`,
         ...bodyData,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       }
     }
 
@@ -245,7 +258,7 @@ export class MockApiHandler {
       return {
         distribution: { started: 35, completed: 310, cancelled: 18 },
         total: 363,
-        filters: {}
+        filters: {},
       }
     }
 
@@ -254,9 +267,9 @@ export class MockApiHandler {
         trend: [
           { year: 2024, month: 11, total: 60, completed: 52, completion_rate: 86.67 },
           { year: 2024, month: 12, total: 72, completed: 62, completion_rate: 86.11 },
-          { year: 2025, month: 1, total: 80, completed: 70, completion_rate: 87.5 }
+          { year: 2025, month: 1, total: 80, completed: 70, completion_rate: 87.5 },
         ],
-        period: { months: Number(params.get('months') || 6) }
+        period: { months: Number(params.get('months') || 6) },
       }
     }
 
@@ -310,13 +323,14 @@ export class MockApiHandler {
     if (pathname === '/api/v2/alerts' && method === 'GET') {
       const severity = params.get('severity')
       const acknowledgedParam = params.get('acknowledged')
-      const acknowledged = acknowledgedParam === 'true' ? true : acknowledgedParam === 'false' ? false : undefined
+      const acknowledged =
+        acknowledgedParam === 'true' ? true : acknowledgedParam === 'false' ? false : undefined
 
       return getMockAlerts({
         page: parseInt(params.get('page') || '1'),
         size: parseInt(params.get('size') || '10'),
         ...(severity && { severity }),
-        ...(acknowledged !== undefined && { acknowledged })
+        ...(acknowledged !== undefined && { acknowledged }),
       })
     }
 
@@ -338,7 +352,12 @@ export class MockApiHandler {
   /**
    * Handle quiz endpoints
    */
-  private handleQuizEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
+  private handleQuizEndpoint(
+    pathname: string,
+    params: URLSearchParams,
+    method: string,
+    body?: unknown
+  ): unknown {
     // GET /api/v2/quiz/templates - List quiz templates
     if (pathname === '/api/v2/quiz/templates' && method === 'GET') {
       return getMockQuizTemplates()
@@ -351,7 +370,7 @@ export class MockApiHandler {
         id: `template-${Date.now()}`,
         ...bodyData,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       }
     }
 
@@ -367,7 +386,7 @@ export class MockApiHandler {
       return {
         total_responses: Math.floor(Math.random() * 100),
         completion_rate: Math.floor(Math.random() * 100),
-        average_completion_time: Math.floor(Math.random() * 30) + 5
+        average_completion_time: Math.floor(Math.random() * 30) + 5,
       }
     }
 
@@ -378,7 +397,7 @@ export class MockApiHandler {
 
       return getMockQuizSessions({
         ...(patientId && { patient_id: patientId }),
-        ...(status && { status })
+        ...(status && { status }),
       })
     }
 
@@ -391,7 +410,7 @@ export class MockApiHandler {
         status: 'pending',
         link: `https://sistema.com/quiz/session-${Date.now()}`,
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       }
     }
 
@@ -401,7 +420,12 @@ export class MockApiHandler {
   /**
    * Handle monthly quiz endpoints
    */
-  private handleMonthlyQuizEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
+  private handleMonthlyQuizEndpoint(
+    pathname: string,
+    params: URLSearchParams,
+    method: string,
+    body?: unknown
+  ): unknown {
     // GET /api/v2/quiz-extensions/stats/dashboard - Get monthly quiz stats
     if (pathname === '/api/v2/quiz-extensions/stats/dashboard' && method === 'GET') {
       return getMockMonthlyQuizStats()
@@ -412,7 +436,7 @@ export class MockApiHandler {
       return {
         session_id: `session-${Date.now()}`,
         link: `https://sistema.com/quiz/session-${Date.now()}`,
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       }
     }
 
@@ -425,8 +449,8 @@ export class MockApiHandler {
         sessions: patientIds.map((id: string) => ({
           patient_id: id,
           session_id: `session-${Date.now()}-${id}`,
-          link: `https://sistema.com/quiz/session-${Date.now()}-${id}`
-        }))
+          link: `https://sistema.com/quiz/session-${Date.now()}-${id}`,
+        })),
       }
     }
 
@@ -447,7 +471,7 @@ export class MockApiHandler {
       return {
         id: `report-${Date.now()}`,
         status: 'pending',
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       }
     }
 
@@ -457,7 +481,12 @@ export class MockApiHandler {
   /**
    * Handle admin users endpoints
    */
-  private handleAdminUsersEndpoint(pathname: string, params: URLSearchParams, method: string, body?: unknown): unknown {
+  private handleAdminUsersEndpoint(
+    pathname: string,
+    params: URLSearchParams,
+    method: string,
+    body?: unknown
+  ): unknown {
     // GET /api/v2/admin/users - List users
     if (pathname === '/api/v2/admin/users' && method === 'GET') {
       return { items: [], total: 0, page: 1, size: 10, pages: 0 }
@@ -469,7 +498,7 @@ export class MockApiHandler {
       return {
         id: `user-${Date.now()}`,
         ...bodyData,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       }
     }
 
@@ -484,10 +513,11 @@ export class MockApiHandler {
     if (pathname === '/api/v2/ai/humanize' && method === 'POST') {
       return {
         original_message: 'Mensagem original',
-        humanized_message: 'Esta e uma resposta mockada da IA. O sistema real sera integrado posteriormente.',
+        humanized_message:
+          'Esta e uma resposta mockada da IA. O sistema real sera integrado posteriormente.',
         personalization_notes: ['Mock response'],
         readability_score: 82,
-        tone_analysis: { empathy: 0.8, professionalism: 0.9, clarity: 0.85 }
+        tone_analysis: { empathy: 0.8, professionalism: 0.9, clarity: 0.85 },
       }
     }
 
@@ -503,7 +533,7 @@ export class MockApiHandler {
         urgency_indicators: [],
         emotion_scores: { anxiety: 0.1, fatigue: 0.1 },
         recommended_action: 'Continue monitoring',
-        analyzed_at: new Date().toISOString()
+        analyzed_at: new Date().toISOString(),
       }
     }
 
@@ -516,7 +546,7 @@ export class MockApiHandler {
         risk_factors: [],
         recommended_actions: [],
         summary: 'Mock risk analysis',
-        analyzed_at: new Date().toISOString()
+        analyzed_at: new Date().toISOString(),
       }
     }
 
@@ -531,7 +561,7 @@ export class MockApiHandler {
         clarity_score: 0.85,
         suggestions: ['Mock suggestion'],
         strengths: ['Mock strength'],
-        analyzed_at: new Date().toISOString()
+        analyzed_at: new Date().toISOString(),
       }
     }
 
@@ -549,10 +579,10 @@ export class MockApiHandler {
         engagement_metrics: {
           response_rate: 0.92,
           total_messages: 45,
-          avg_response_time_hours: 2.5
+          avg_response_time_hours: 2.5,
         },
         last_contact: new Date().toISOString(),
-        generated_at: new Date().toISOString()
+        generated_at: new Date().toISOString(),
       }
     }
 
@@ -566,10 +596,10 @@ export class MockApiHandler {
             type: 'clinical',
             priority: 'high',
             description: 'Monitorar sintomas de fadiga.',
-            rationale: 'Paciente relatou cansaco recentemente.'
-          }
+            rationale: 'Paciente relatou cansaco recentemente.',
+          },
         ],
-        generated_at: new Date().toISOString()
+        generated_at: new Date().toISOString(),
       }
     }
 

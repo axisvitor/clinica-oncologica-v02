@@ -9,38 +9,32 @@
  * - Detailed error list
  */
 
-import React from 'react';
+import React from 'react'
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Loader2,
-  Download,
-} from 'lucide-react';
-import type { ValidationResult, ImportResult } from '@/types/import';
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { CheckCircle, XCircle, AlertTriangle, Loader2, Download } from 'lucide-react'
+import type { ValidationResult, ImportResult } from '@/types/import'
 
 interface ImportStatusModalProps {
-  open: boolean;
-  onClose: () => void;
-  validating: boolean;
-  importing: boolean;
-  progress: number;
-  validationResult: ValidationResult | null;
-  importResult: ImportResult | null;
-  error: string | null;
-  onProceed?: () => void;
-  onDownloadErrors?: () => void;
+  open: boolean
+  onClose: () => void
+  validating: boolean
+  importing: boolean
+  progress: number
+  validationResult: ValidationResult | null
+  importResult: ImportResult | null
+  error: string | null
+  onProceed?: () => void
+  onDownloadErrors?: () => void
 }
 
 export function ImportStatusModal({
@@ -56,10 +50,10 @@ export function ImportStatusModal({
   onDownloadErrors,
 }: ImportStatusModalProps) {
   // Determine modal state
-  const isProcessing = validating || importing;
-  const _hasValidationErrors = validationResult && !validationResult.valid;
-  const hasImportErrors = importResult && importResult.failed > 0;
-  const isSuccess = importResult && importResult.successful > 0;
+  const isProcessing = validating || importing
+  const _hasValidationErrors = validationResult && !validationResult.valid
+  const hasImportErrors = importResult && importResult.failed > 0
+  const isSuccess = importResult && importResult.successful > 0
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && !isProcessing && onClose()}>
@@ -85,9 +79,7 @@ export function ImportStatusModal({
           {isProcessing && (
             <div className="space-y-2">
               <Progress value={progress} className="w-full" />
-              <p className="text-sm text-muted-foreground text-center">
-                {progress}% concluído
-              </p>
+              <p className="text-sm text-muted-foreground text-center">{progress}% concluído</p>
             </div>
           )}
 
@@ -110,15 +102,11 @@ export function ImportStatusModal({
                 </div>
                 <div className="bg-secondary p-3 rounded-lg">
                   <p className="text-sm font-medium">Linhas válidas</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {validationResult.validRows}
-                  </p>
+                  <p className="text-2xl font-bold text-green-600">{validationResult.validRows}</p>
                 </div>
                 <div className="bg-secondary p-3 rounded-lg">
                   <p className="text-sm font-medium">Erros</p>
-                  <p className="text-2xl font-bold text-red-600">
-                    {validationResult.errorRows}
-                  </p>
+                  <p className="text-2xl font-bold text-red-600">{validationResult.errorRows}</p>
                 </div>
                 <div className="bg-secondary p-3 rounded-lg">
                   <p className="text-sm font-medium">Avisos</p>
@@ -134,7 +122,10 @@ export function ImportStatusModal({
                   <div className="space-y-2">
                     {/* Errors */}
                     {validationResult.errors.map((error, index) => (
-                      <div key={`error-${index}`} className="flex items-start gap-2 p-2 bg-red-50 rounded">
+                      <div
+                        key={`error-${index}`}
+                        className="flex items-start gap-2 p-2 bg-red-50 rounded"
+                      >
                         <XCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-sm font-medium">
@@ -148,7 +139,10 @@ export function ImportStatusModal({
 
                     {/* Warnings */}
                     {validationResult.warnings.map((warning, index) => (
-                      <div key={`warning-${index}`} className="flex items-start gap-2 p-2 bg-yellow-50 rounded">
+                      <div
+                        key={`warning-${index}`}
+                        className="flex items-start gap-2 p-2 bg-yellow-50 rounded"
+                      >
                         <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
                           <p className="text-sm font-medium">
@@ -171,7 +165,9 @@ export function ImportStatusModal({
                     {validationResult.preview.map((patient, index) => (
                       <div key={index} className="text-sm p-2 hover:bg-secondary rounded">
                         <span className="font-medium">{patient.name}</span>
-                        {patient.email && <span className="text-muted-foreground ml-2">({patient.email})</span>}
+                        {patient.email && (
+                          <span className="text-muted-foreground ml-2">({patient.email})</span>
+                        )}
                       </div>
                     ))}
                   </ScrollArea>
@@ -191,21 +187,15 @@ export function ImportStatusModal({
                 </div>
                 <div className="bg-green-50 p-3 rounded-lg">
                   <p className="text-sm font-medium">Importados</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {importResult.successful}
-                  </p>
+                  <p className="text-2xl font-bold text-green-600">{importResult.successful}</p>
                 </div>
                 <div className="bg-red-50 p-3 rounded-lg">
                   <p className="text-sm font-medium">Falhas</p>
-                  <p className="text-2xl font-bold text-red-600">
-                    {importResult.failed}
-                  </p>
+                  <p className="text-2xl font-bold text-red-600">{importResult.failed}</p>
                 </div>
                 <div className="bg-blue-50 p-3 rounded-lg">
                   <p className="text-sm font-medium">Ignorados</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {importResult.skipped}
-                  </p>
+                  <p className="text-2xl font-bold text-blue-600">{importResult.skipped}</p>
                 </div>
               </div>
 
@@ -214,7 +204,8 @@ export function ImportStatusModal({
                 <Alert className="bg-green-50 border-green-200">
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-green-700">
-                    Importação concluída com sucesso! {importResult.successful} paciente(s) importado(s).
+                    Importação concluída com sucesso! {importResult.successful} paciente(s)
+                    importado(s).
                   </AlertDescription>
                 </Alert>
               )}
@@ -224,7 +215,8 @@ export function ImportStatusModal({
                 <Alert className="bg-yellow-50 border-yellow-200">
                   <AlertTriangle className="h-4 w-4 text-yellow-600" />
                   <AlertDescription className="text-yellow-700">
-                    Importação parcial: {importResult.successful} importado(s), {importResult.failed} falharam.
+                    Importação parcial: {importResult.successful} importado(s),{' '}
+                    {importResult.failed} falharam.
                   </AlertDescription>
                 </Alert>
               )}
@@ -256,7 +248,12 @@ export function ImportStatusModal({
         <div className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-0 pt-4 border-t">
           <div>
             {hasImportErrors && onDownloadErrors && (
-              <Button variant="outline" onClick={onDownloadErrors} size="sm" className="w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={onDownloadErrors}
+                size="sm"
+                className="w-full sm:w-auto"
+              >
                 <Download className="h-4 w-4 mr-2" />
                 Baixar erros
               </Button>
@@ -287,5 +284,5 @@ export function ImportStatusModal({
         </div>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

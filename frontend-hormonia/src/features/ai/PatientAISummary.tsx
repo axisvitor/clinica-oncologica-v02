@@ -5,9 +5,9 @@
  * Uses Gemini 2.5 Flash for fast, cost-effective summary generation.
  */
 
-import React, { useState } from 'react';
-import { format, subDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import React, { useState } from 'react'
+import { format, subDays } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import {
   Brain,
   Calendar,
@@ -21,24 +21,24 @@ import {
   ChevronUp,
   FileText,
   Loader2,
-} from 'lucide-react';
-import { createLogger } from '@/utils/logger';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { usePatientSummaryManager } from '@/hooks/usePatientSummary';
-import type { HealthConcern, PatientSummaryResponse, SeverityLevel } from '@/types/api';
+} from 'lucide-react'
+import { createLogger } from '@/utils/logger'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
+import { usePatientSummaryManager } from '@/hooks/usePatientSummary'
+import type { HealthConcern, PatientSummaryResponse, SeverityLevel } from '@/types/api'
 
-const _logger = createLogger('PatientAISummary');
+const _logger = createLogger('PatientAISummary')
 
 interface PatientAISummaryProps {
-  patientId: string;
-  patientName?: string;
+  patientId: string
+  patientName?: string
 }
 
 // Define section keys type
-type SectionKey = 'overview' | 'quiz' | 'concerns' | 'engagement' | 'compliance' | 'recommendations';
+type SectionKey = 'overview' | 'quiz' | 'concerns' | 'engagement' | 'compliance' | 'recommendations'
 
 // Severity badge colors
 const severityColors: Record<SeverityLevel, string> = {
@@ -46,12 +46,12 @@ const severityColors: Record<SeverityLevel, string> = {
   medium: 'bg-yellow-100 text-yellow-800',
   high: 'bg-orange-100 text-orange-800',
   critical: 'bg-red-100 text-red-800',
-};
+}
 
 export function PatientAISummary({ patientId, patientName: _patientName }: PatientAISummaryProps) {
-  const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
-  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [summariesEnabled, setSummariesEnabled] = useState(false);
+  const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'))
+  const [endDate, setEndDate] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [summariesEnabled, setSummariesEnabled] = useState(false)
   const [expandedSections, setExpandedSections] = useState<Record<SectionKey, boolean>>({
     overview: true,
     quiz: false,
@@ -59,8 +59,8 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
     engagement: false,
     compliance: false,
     recommendations: true,
-  });
-  const [currentSummary, setCurrentSummary] = useState<PatientSummaryResponse | null>(null);
+  })
+  const [currentSummary, setCurrentSummary] = useState<PatientSummaryResponse | null>(null)
 
   const {
     summaries,
@@ -71,39 +71,39 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
     exportToPdf,
     isExporting,
     refreshSummaries,
-  } = usePatientSummaryManager(patientId, { enabled: summariesEnabled });
+  } = usePatientSummaryManager(patientId, { enabled: summariesEnabled })
 
   const toggleSection = (section: SectionKey) => {
-    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
+  }
 
   const handleGenerate = async () => {
     try {
       if (!summariesEnabled) {
-        setSummariesEnabled(true);
+        setSummariesEnabled(true)
       }
-      const summary = await generateSummary(startDate, endDate, false);
-      setCurrentSummary(summary);
+      const summary = await generateSummary(startDate, endDate, false)
+      setCurrentSummary(summary)
     } catch (error) {
-      _logger.error('Failed to generate summary', error instanceof Error ? error : undefined);
+      _logger.error('Failed to generate summary', error instanceof Error ? error : undefined)
     }
-  };
+  }
 
   const handleLoadSummaries = () => {
     if (!summariesEnabled) {
-      setSummariesEnabled(true);
-      return;
+      setSummariesEnabled(true)
+      return
     }
-    refreshSummaries();
-  };
+    refreshSummaries()
+  }
 
   const handleExport = async () => {
     if (currentSummary) {
-      await exportToPdf(currentSummary.summary_id);
+      await exportToPdf(currentSummary.summary_id)
     }
-  };
+  }
 
-  const displaySummary = currentSummary || (summaries.length > 0 ? summaries[0] : null);
+  const displaySummary = currentSummary || (summaries.length > 0 ? summaries[0] : null)
 
   return (
     <div className="space-y-6">
@@ -122,9 +122,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
           <div className="flex flex-col sm:flex-row gap-4 items-end">
             <div className="flex-1 grid grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">
-                  Data Inicial
-                </label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Data Inicial</label>
                 <input
                   type="date"
                   value={startDate}
@@ -133,9 +131,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
                 />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">
-                  Data Final
-                </label>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Data Final</label>
                 <input
                   type="date"
                   value={endDate}
@@ -160,7 +156,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
                     <Brain className="mr-2 h-4 w-4" />
                     Gerar Resumo
                   </>
-                  )}
+                )}
               </Button>
               <Button
                 variant="outline"
@@ -170,11 +166,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
                 {summariesEnabled ? 'Atualizar Resumos' : 'Carregar Resumos'}
               </Button>
               {displaySummary && (
-                <Button
-                  variant="outline"
-                  onClick={handleExport}
-                  disabled={isExporting}
-                >
+                <Button variant="outline" onClick={handleExport} disabled={isExporting}>
                   {isExporting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
@@ -191,8 +183,8 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
               variant="ghost"
               size="sm"
               onClick={() => {
-                setStartDate(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
-                setEndDate(format(new Date(), 'yyyy-MM-dd'));
+                setStartDate(format(subDays(new Date(), 7), 'yyyy-MM-dd'))
+                setEndDate(format(new Date(), 'yyyy-MM-dd'))
               }}
             >
               Última Semana
@@ -201,8 +193,8 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
               variant="ghost"
               size="sm"
               onClick={() => {
-                setStartDate(format(subDays(new Date(), 30), 'yyyy-MM-dd'));
-                setEndDate(format(new Date(), 'yyyy-MM-dd'));
+                setStartDate(format(subDays(new Date(), 30), 'yyyy-MM-dd'))
+                setEndDate(format(new Date(), 'yyyy-MM-dd'))
               }}
             >
               Último Mês
@@ -211,8 +203,8 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
               variant="ghost"
               size="sm"
               onClick={() => {
-                setStartDate(format(subDays(new Date(), 90), 'yyyy-MM-dd'));
-                setEndDate(format(new Date(), 'yyyy-MM-dd'));
+                setStartDate(format(subDays(new Date(), 90), 'yyyy-MM-dd'))
+                setEndDate(format(new Date(), 'yyyy-MM-dd'))
               }}
             >
               Últimos 3 Meses
@@ -228,12 +220,16 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
           <div className="flex items-center justify-between text-sm text-gray-500">
             <span className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              Período: {format(new Date(displaySummary.start_date), 'dd/MM/yyyy', { locale: ptBR })} -{' '}
-              {format(new Date(displaySummary.end_date), 'dd/MM/yyyy', { locale: ptBR })}
+              Período:{' '}
+              {format(new Date(displaySummary.start_date), 'dd/MM/yyyy', {
+                locale: ptBR,
+              })}{' '}
+              - {format(new Date(displaySummary.end_date), 'dd/MM/yyyy', { locale: ptBR })}
             </span>
             <span className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Gerado em {format(new Date(displaySummary.generated_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
+              Gerado em{' '}
+              {format(new Date(displaySummary.generated_at), "dd/MM 'às' HH:mm", { locale: ptBR })}
               {displaySummary.from_cache && (
                 <Badge variant="outline" className="ml-2">
                   Cache
@@ -282,9 +278,11 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
                 <div>
                   <h4 className="font-medium mb-2">Principais Achados</h4>
                   <ul className="list-disc list-inside space-y-1 text-gray-700">
-                    {displaySummary.content.quiz_findings.key_findings.map((finding: string, i: number) => (
-                      <li key={i}>{finding}</li>
-                    ))}
+                    {displaySummary.content.quiz_findings.key_findings.map(
+                      (finding: string, i: number) => (
+                        <li key={i}>{finding}</li>
+                      )
+                    )}
                   </ul>
                 </div>
               )}
@@ -296,9 +294,11 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
                     Respostas Preocupantes
                   </h4>
                   <ul className="list-disc list-inside space-y-1 text-yellow-700">
-                    {displaySummary.content.quiz_findings.concerning_responses.map((resp: string, i: number) => (
-                      <li key={i}>{resp}</li>
-                    ))}
+                    {displaySummary.content.quiz_findings.concerning_responses.map(
+                      (resp: string, i: number) => (
+                        <li key={i}>{resp}</li>
+                      )
+                    )}
                   </ul>
                 </div>
               )}
@@ -320,10 +320,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
             {displaySummary.content.health_concerns.length > 0 ? (
               <div className="space-y-3">
                 {displaySummary.content.health_concerns.map((concern: HealthConcern, i: number) => (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg"
-                  >
+                  <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
                     <Badge className={severityColors[concern.severity]}>
                       {concern.severity.toUpperCase()}
                     </Badge>
@@ -362,7 +359,9 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
                 />
                 <MetricCard
                   label="Tempo Médio de Resposta"
-                  value={formatResponseTime(displaySummary.content.engagement_metrics.avg_response_time_minutes)}
+                  value={formatResponseTime(
+                    displaySummary.content.engagement_metrics.avg_response_time_minutes
+                  )}
                 />
                 <MetricCard
                   label="Mensagens Enviadas"
@@ -401,7 +400,10 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
                   <p className="text-sm text-gray-500 mb-1">Score de Adesão</p>
                   <div className="flex items-center gap-2">
                     <span className="text-3xl font-bold text-gray-900">
-                      {Math.round(displaySummary.content.treatment_compliance.adherence_score * 100)}%
+                      {Math.round(
+                        displaySummary.content.treatment_compliance.adherence_score * 100
+                      )}
+                      %
                     </span>
                     <Progress
                       value={displaySummary.content.treatment_compliance.adherence_score * 100}
@@ -417,9 +419,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
                 </div>
               </div>
               {displaySummary.content.treatment_compliance.notes && (
-                <p className="text-gray-700">
-                  {displaySummary.content.treatment_compliance.notes}
-                </p>
+                <p className="text-gray-700">{displaySummary.content.treatment_compliance.notes}</p>
               )}
             </div>
           </CollapsibleSection>
@@ -435,10 +435,7 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
           >
             <ul className="space-y-2">
               {displaySummary.content.recommendations.map((rec: string, i: number) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg"
-                >
+                <li key={i} className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-purple-600 text-white text-sm flex items-center justify-center">
                     {i + 1}
                   </span>
@@ -468,11 +465,10 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
         <Card>
           <CardContent className="py-12 text-center">
             <Brain className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Nenhum resumo disponível
-            </h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum resumo disponível</h3>
             <p className="text-gray-500 mb-4">
-              Selecione um período e clique em "Gerar Resumo" para criar um resumo inteligente do paciente.
+              Selecione um período e clique em "Gerar Resumo" para criar um resumo inteligente do
+              paciente.
             </p>
           </CardContent>
         </Card>
@@ -480,11 +476,10 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
         <Card>
           <CardContent className="py-12 text-center">
             <Brain className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Resumo sob demanda
-            </h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Resumo sob demanda</h3>
             <p className="text-gray-500 mb-4">
-              O resumo de IA so aparece quando voce solicitar. Clique em "Gerar Resumo" ou carregue resumos anteriores.
+              O resumo de IA so aparece quando voce solicitar. Clique em "Gerar Resumo" ou carregue
+              resumos anteriores.
             </p>
             <Button variant="outline" onClick={handleLoadSummaries}>
               Carregar Resumos
@@ -523,18 +518,18 @@ export function PatientAISummary({ patientId, patientName: _patientName }: Patie
         </Card>
       )}
     </div>
-  );
+  )
 }
 
 // Helper Components
 interface CollapsibleSectionProps {
-  title: string;
-  icon: React.ReactNode;
-  badge?: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  highlight?: boolean;
-  children: React.ReactNode;
+  title: string
+  icon: React.ReactNode
+  badge?: string
+  isOpen: boolean
+  onToggle: () => void
+  highlight?: boolean
+  children: React.ReactNode
 }
 
 function CollapsibleSection({
@@ -548,10 +543,7 @@ function CollapsibleSection({
 }: CollapsibleSectionProps) {
   return (
     <Card className={highlight ? 'border-purple-200 bg-purple-50/50' : ''}>
-      <CardHeader
-        className="cursor-pointer hover:bg-gray-50 transition-colors"
-        onClick={onToggle}
-      >
+      <CardHeader className="cursor-pointer hover:bg-gray-50 transition-colors" onClick={onToggle}>
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             {icon}
@@ -569,17 +561,15 @@ function CollapsibleSection({
           )}
         </div>
       </CardHeader>
-      {isOpen && (
-        <CardContent className="pt-0">{children}</CardContent>
-      )}
+      {isOpen && <CardContent className="pt-0">{children}</CardContent>}
     </Card>
-  );
+  )
 }
 
 interface MetricCardProps {
-  label: string;
-  value: string;
-  progress?: number;
+  label: string
+  value: string
+  progress?: number
 }
 
 function MetricCard({ label, value, progress }: MetricCardProps) {
@@ -587,19 +577,17 @@ function MetricCard({ label, value, progress }: MetricCardProps) {
     <div className="bg-gray-50 p-3 rounded-lg">
       <p className="text-xs text-gray-500 mb-1">{label}</p>
       <p className="text-lg font-bold text-gray-900">{value}</p>
-      {progress !== undefined && (
-        <Progress value={progress} className="h-1 mt-2" />
-      )}
+      {progress !== undefined && <Progress value={progress} className="h-1 mt-2" />}
     </div>
-  );
+  )
 }
 
 function formatResponseTime(minutes: number): string {
-  if (minutes === 0) return 'N/A';
-  if (minutes < 60) return `${Math.round(minutes)} min`;
-  const hours = minutes / 60;
-  if (hours < 24) return `${hours.toFixed(1)}h`;
-  return `${Math.round(hours / 24)} dias`;
+  if (minutes === 0) return 'N/A'
+  if (minutes < 60) return `${Math.round(minutes)} min`
+  const hours = minutes / 60
+  if (hours < 24) return `${hours.toFixed(1)}h`
+  return `${Math.round(hours / 24)} dias`
 }
 
-export default PatientAISummary;
+export default PatientAISummary

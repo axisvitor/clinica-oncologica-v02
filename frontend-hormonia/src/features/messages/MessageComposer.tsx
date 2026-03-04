@@ -37,8 +37,12 @@ export function MessageComposer({ patientId, patientName, onMessageSent }: Messa
   const MAX_CHARS = 1000
 
   const sendMessageMutation = useMutation({
-    mutationFn: (data: { patient_id: string; content: string; type?: MessageType; scheduled_for?: string }) =>
-      apiClient.messages.send(data),
+    mutationFn: (data: {
+      patient_id: string
+      content: string
+      type?: MessageType
+      scheduled_for?: string
+    }) => apiClient.messages.send(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages'] })
       toast({
@@ -53,9 +57,9 @@ export function MessageComposer({ patientId, patientName, onMessageSent }: Messa
       toast({
         title: 'Erro ao enviar mensagem',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const handleSend = () => {
@@ -63,7 +67,7 @@ export function MessageComposer({ patientId, patientName, onMessageSent }: Messa
       toast({
         title: 'Mensagem vazia',
         description: 'Digite uma mensagem antes de enviar.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
@@ -73,7 +77,7 @@ export function MessageComposer({ patientId, patientName, onMessageSent }: Messa
       content: message.trim(),
       type: messageType,
       // Default to current time if no schedule is provided (backend requires this field)
-      scheduled_for: scheduledFor && scheduledFor.trim() ? scheduledFor : new Date().toISOString()
+      scheduled_for: scheduledFor && scheduledFor.trim() ? scheduledFor : new Date().toISOString(),
     })
   }
 
@@ -93,20 +97,24 @@ export function MessageComposer({ patientId, patientName, onMessageSent }: Messa
   const messageTemplates = [
     {
       label: 'Lembrete de medicação',
-      content: 'Olá! Este é um lembrete para tomar sua medicação conforme prescrito. Lembre-se de seguir as orientações médicas.'
+      content:
+        'Olá! Este é um lembrete para tomar sua medicação conforme prescrito. Lembre-se de seguir as orientações médicas.',
     },
     {
       label: 'Agendamento de consulta',
-      content: 'Gostaríamos de agendar sua próxima consulta. Por favor, entre em contato para marcarmos um horário conveniente.'
+      content:
+        'Gostaríamos de agendar sua próxima consulta. Por favor, entre em contato para marcarmos um horário conveniente.',
     },
     {
       label: 'Questionário disponível',
-      content: 'Há um novo questionário disponível para você. Por favor, acesse o sistema para respondê-lo.'
+      content:
+        'Há um novo questionário disponível para você. Por favor, acesse o sistema para respondê-lo.',
     },
     {
       label: 'Resultados de exames',
-      content: 'Seus resultados de exames estão prontos. Agende uma consulta para discutirmos os resultados.'
-    }
+      content:
+        'Seus resultados de exames estão prontos. Agende uma consulta para discutirmos os resultados.',
+    },
   ]
 
   return (
@@ -121,7 +129,10 @@ export function MessageComposer({ patientId, patientName, onMessageSent }: Messa
         {/* Message Type */}
         <div className="flex items-center space-x-4">
           <label className="text-sm font-medium">Tipo:</label>
-          <Select value={messageType} onValueChange={(value) => setMessageType(value as MessageType)}>
+          <Select
+            value={messageType}
+            onValueChange={(value) => setMessageType(value as MessageType)}
+          >
             <SelectTrigger className="w-[150px]">
               <SelectValue />
             </SelectTrigger>
@@ -163,9 +174,7 @@ export function MessageComposer({ patientId, patientName, onMessageSent }: Messa
                 >
                   <div className="w-full">
                     <p className="font-medium text-xs text-gray-900 mb-1">{template.label}</p>
-                    <p className="text-xs text-gray-500 line-clamp-2">
-                      {template.content}
-                    </p>
+                    <p className="text-xs text-gray-500 line-clamp-2">{template.content}</p>
                   </div>
                 </Button>
               ))}
@@ -191,13 +200,14 @@ export function MessageComposer({ patientId, patientName, onMessageSent }: Messa
             maxLength={MAX_CHARS}
           />
           <div className="flex items-center justify-between">
-            <span className={`text-xs ${message.length > MAX_CHARS * 0.9 ? 'text-orange-500 font-medium' : 'text-gray-500'
-              }`}>
+            <span
+              className={`text-xs ${
+                message.length > MAX_CHARS * 0.9 ? 'text-orange-500 font-medium' : 'text-gray-500'
+              }`}
+            >
               {message.length}/{MAX_CHARS} caracteres
             </span>
-            <span className="text-xs text-gray-400">
-              Ctrl+Enter para enviar
-            </span>
+            <span className="text-xs text-gray-400">Ctrl+Enter para enviar</span>
           </div>
         </div>
 

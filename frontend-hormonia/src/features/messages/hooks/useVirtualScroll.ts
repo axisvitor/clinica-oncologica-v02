@@ -25,27 +25,30 @@ interface UseVirtualScrollReturn {
  */
 export function useVirtualScroll({
   items,
-  autoScrollToBottom = true
+  autoScrollToBottom = true,
 }: UseVirtualScrollOptions): UseVirtualScrollReturn {
   const listRef = useRef<VariableSizeList>(null)
 
   /**
    * Calculate item height based on type and content
    */
-  const getItemSize = useCallback((index: number): number => {
-    const item = items[index]
-    if (!item) return 50
+  const getItemSize = useCallback(
+    (index: number): number => {
+      const item = items[index]
+      if (!item) return 50
 
-    if (item.type === 'date') {
-      return getDateSeparatorHeight()
-    }
+      if (item.type === 'date') {
+        return getDateSeparatorHeight()
+      }
 
-    if (item.type === 'message' && item.message) {
-      return estimateMessageHeight(item.message.content.length)
-    }
+      if (item.type === 'message' && item.message) {
+        return estimateMessageHeight(item.message.content.length)
+      }
 
-    return 50
-  }, [items])
+      return 50
+    },
+    [items]
+  )
 
   /**
    * Scroll to bottom of list
@@ -68,6 +71,6 @@ export function useVirtualScroll({
   return {
     listRef,
     getItemSize,
-    scrollToBottom
+    scrollToBottom,
   }
 }

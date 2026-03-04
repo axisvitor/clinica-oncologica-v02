@@ -49,10 +49,7 @@ export function isFunction(value: unknown): value is (...args: unknown[]) => unk
 // Property Guards
 // ============================================
 
-export function hasProperty<K extends string>(
-  obj: unknown,
-  key: K
-): obj is Record<K, unknown> {
+export function hasProperty<K extends string>(obj: unknown, key: K): obj is Record<K, unknown> {
   return isObject(obj) && key in obj
 }
 
@@ -89,10 +86,7 @@ export interface ApiError {
 }
 
 export function isApiError(error: unknown): error is ApiError {
-  return (
-    isObject(error) &&
-    hasStringProperty(error, 'message')
-  )
+  return isObject(error) && hasStringProperty(error, 'message')
 }
 
 export function isError(error: unknown): error is Error {
@@ -128,14 +122,8 @@ export function isReactChangeEvent(
   )
 }
 
-export function isReactMouseEvent(
-  event: unknown
-): event is React.MouseEvent {
-  return (
-    isObject(event) &&
-    hasProperty(event, 'clientX') &&
-    hasProperty(event, 'clientY')
-  )
+export function isReactMouseEvent(event: unknown): event is React.MouseEvent {
+  return isObject(event) && hasProperty(event, 'clientX') && hasProperty(event, 'clientY')
 }
 
 // ============================================
@@ -191,9 +179,7 @@ export interface RecordWithId {
 
 export function hasId(value: unknown): value is RecordWithId {
   return (
-    isObject(value) &&
-    hasProperty(value, 'id') &&
-    (isString(value['id']) || isNumber(value['id']))
+    isObject(value) && hasProperty(value, 'id') && (isString(value['id']) || isNumber(value['id']))
   )
 }
 
@@ -234,19 +220,13 @@ export function assertIsDefined<T>(
   }
 }
 
-export function assertIsString(
-  value: unknown,
-  message?: string
-): asserts value is string {
+export function assertIsString(value: unknown, message?: string): asserts value is string {
   if (!isString(value)) {
     throw new TypeError(message || 'Value is not a string')
   }
 }
 
-export function assertIsNumber(
-  value: unknown,
-  message?: string
-): asserts value is number {
+export function assertIsNumber(value: unknown, message?: string): asserts value is number {
   if (!isNumber(value)) {
     throw new TypeError(message || 'Value is not a number')
   }
@@ -268,11 +248,7 @@ export function isValidReactNode(value: unknown): value is React.ReactNode {
   }
 
   // Primitives that React can render
-  if (
-    typeof value === 'string' ||
-    typeof value === 'number' ||
-    typeof value === 'boolean'
-  ) {
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
     return true
   }
 
@@ -296,10 +272,7 @@ export function isValidReactNode(value: unknown): value is React.ReactNode {
  * @param fallback - Fallback value if conversion fails (default: null)
  * @returns A valid ReactNode
  */
-export function toReactNode(
-  value: unknown,
-  fallback: React.ReactNode = null
-): React.ReactNode {
+export function toReactNode(value: unknown, fallback: React.ReactNode = null): React.ReactNode {
   if (isValidReactNode(value)) {
     return value
   }
@@ -318,10 +291,7 @@ export function toReactNode(
  * @param fallback - Fallback string (default: empty string)
  * @returns A string safe for React rendering
  */
-export function toReactString(
-  value: unknown,
-  fallback: string = ''
-): string {
+export function toReactString(value: unknown, fallback: string = ''): string {
   if (value == null) {
     return fallback
   }

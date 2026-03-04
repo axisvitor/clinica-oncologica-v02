@@ -47,11 +47,7 @@ export interface UseUserStatsOptions {
  * ```
  */
 export function useUserStats(options: UseUserStatsOptions = {}) {
-  const {
-    usersData,
-    refetchInterval = false,
-    enabled = true
-  } = options
+  const { usersData, refetchInterval = false, enabled = true } = options
 
   // Derive stats from user list (fallback)
   const derivedStats = useMemo((): AdminDashboardStats | null => {
@@ -64,29 +60,29 @@ export function useUserStats(options: UseUserStatsOptions = {}) {
       users: {
         total: usersData.total || 0,
         active: users.filter((u: AdminUser) => u.is_active).length,
-        locked: users.filter((u: AdminUser) =>
-          u.locked_until && new Date(u.locked_until) > now
-        ).length,
-        new_today: 0 // Would need created_at comparison
+        locked: users.filter((u: AdminUser) => u.locked_until && new Date(u.locked_until) > now)
+          .length,
+        new_today: 0, // Would need created_at comparison
       },
       security: {
-        failed_logins: users.reduce((sum: number, u: AdminUser) =>
-          sum + (u.failed_login_attempts || 0), 0
+        failed_logins: users.reduce(
+          (sum: number, u: AdminUser) => sum + (u.failed_login_attempts || 0),
+          0
         ),
         active_sessions: 0, // Not available from user list
-        blocked_ips: 0 // Not available from user list
+        blocked_ips: 0, // Not available from user list
       },
       system: {
         uptime: 0,
         memory_usage: 0,
         cpu_usage: 0,
-        disk_usage: 0
+        disk_usage: 0,
       },
       audit: {
         total_logs: 0,
         critical_events: 0,
-        warnings: 0
-      }
+        warnings: 0,
+      },
     }
   }, [usersData])
 
@@ -95,7 +91,7 @@ export function useUserStats(options: UseUserStatsOptions = {}) {
     data: stats,
     isLoading,
     error,
-    refetch
+    refetch,
   } = useQuery({
     queryKey: ['admin-stats'],
     queryFn: async () => {
@@ -103,7 +99,7 @@ export function useUserStats(options: UseUserStatsOptions = {}) {
         // Try to get real stats from API
         const [systemStats, systemHealth] = await Promise.all([
           apiClient.admin.system.systemStats().catch(() => null),
-          apiClient.admin.system.getHealth().catch(() => null)
+          apiClient.admin.system.getHealth().catch(() => null),
         ])
 
         // Build comprehensive stats
@@ -112,25 +108,29 @@ export function useUserStats(options: UseUserStatsOptions = {}) {
             total: systemStats?.users?.total ?? usersData?.total ?? 0,
             active: systemStats?.users?.active_now ?? derivedStats?.users.active ?? 0,
             locked: derivedStats?.users.locked ?? 0,
-            new_today: 0
+            new_today: 0,
           },
           security: {
             failed_logins: derivedStats?.security.failed_logins ?? 0,
             active_sessions: 0,
-            blocked_ips: 0
+            blocked_ips: 0,
           },
           system: {
-            uptime: systemHealth?.status === 'healthy' ? 99.9 :
-                    systemHealth?.status === 'degraded' ? 95.0 : 0,
+            uptime:
+              systemHealth?.status === 'healthy'
+                ? 99.9
+                : systemHealth?.status === 'degraded'
+                  ? 95.0
+                  : 0,
             memory_usage: 0,
             cpu_usage: 0,
-            disk_usage: 0
+            disk_usage: 0,
           },
           audit: {
             total_logs: 0,
             critical_events: 0,
-            warnings: 0
-          }
+            warnings: 0,
+          },
         }
 
         return stats
@@ -138,17 +138,19 @@ export function useUserStats(options: UseUserStatsOptions = {}) {
         logger.warn('Failed to fetch system stats from API, using derived data', { error })
 
         // Fallback to derived stats
-        return derivedStats || {
-          users: { total: 0, active: 0, locked: 0, new_today: 0 },
-          security: { failed_logins: 0, active_sessions: 0, blocked_ips: 0 },
-          system: { uptime: 0, memory_usage: 0, cpu_usage: 0, disk_usage: 0 },
-          audit: { total_logs: 0, critical_events: 0, warnings: 0 }
-        }
+        return (
+          derivedStats || {
+            users: { total: 0, active: 0, locked: 0, new_today: 0 },
+            security: { failed_logins: 0, active_sessions: 0, blocked_ips: 0 },
+            system: { uptime: 0, memory_usage: 0, cpu_usage: 0, disk_usage: 0 },
+            audit: { total_logs: 0, critical_events: 0, warnings: 0 },
+          }
+        )
       }
     },
     enabled: enabled && !!usersData,
     refetchInterval,
-    staleTime: 10000 // 10 seconds
+    staleTime: 10000, // 10 seconds
   })
 
   // Calculate additional derived metrics
@@ -157,14 +159,10 @@ export function useUserStats(options: UseUserStatsOptions = {}) {
 
     return {
       /** Percentage of active users */
-      activePercentage: stats.users.total > 0
-        ? (stats.users.active / stats.users.total) * 100
-        : 0,
+      activePercentage: stats.users.total > 0 ? (stats.users.active / stats.users.total) * 100 : 0,
 
       /** Percentage of locked users */
-      lockedPercentage: stats.users.total > 0
-        ? (stats.users.locked / stats.users.total) * 100
-        : 0,
+      lockedPercentage: stats.users.total > 0 ? (stats.users.locked / stats.users.total) * 100 : 0,
 
       /** Average failed login attempts per user */
       avgFailedLogins: usersData?.items.length
@@ -172,8 +170,12 @@ export function useUserStats(options: UseUserStatsOptions = {}) {
         : 0,
 
       /** System health status */
-      systemHealth: stats.system.uptime >= 99 ? 'healthy' :
-                    stats.system.uptime >= 95 ? 'degraded' : 'unhealthy'
+      systemHealth:
+        stats.system.uptime >= 99
+          ? 'healthy'
+          : stats.system.uptime >= 95
+            ? 'degraded'
+            : 'unhealthy',
     }
   }, [stats, usersData])
 
@@ -187,6 +189,6 @@ export function useUserStats(options: UseUserStatsOptions = {}) {
     /** Error state */
     error,
     /** Refetch stats */
-    refetch
+    refetch,
   }
 }

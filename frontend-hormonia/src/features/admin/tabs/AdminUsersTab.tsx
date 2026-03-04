@@ -21,7 +21,7 @@ import { useSystemStats } from '@/hooks/api/useSystemStats'
 export default function AdminUsersTab() {
   const [searchUsers, setSearchUsers] = useState('')
   const { data: stats, isLoading: statsLoading } = useSystemStats({
-    refetchInterval: 30000
+    refetchInterval: 30000,
   })
 
   return (
@@ -78,7 +78,10 @@ export default function AdminUsersTab() {
               </div>
               <div className="divide-y">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="grid grid-cols-5 gap-4 p-4 hover:bg-gray-50 transition-colors">
+                  <div
+                    key={i}
+                    className="grid grid-cols-5 gap-4 p-4 hover:bg-gray-50 transition-colors"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                         <span className="text-sm font-medium text-blue-700">U{i}</span>

@@ -20,7 +20,7 @@ import {
   Search,
   User,
   Menu,
-  X
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -51,7 +51,7 @@ const adminNavItems: AdminNavItem[] = [
     label: 'Dashboard',
     path: '/admin',
     icon: 'LayoutDashboard',
-    requiredPermissions: ['admin.read']
+    requiredPermissions: ['admin.read'],
   },
   {
     id: 'users',
@@ -64,21 +64,21 @@ const adminNavItems: AdminNavItem[] = [
         id: 'users-list',
         label: 'All Users',
         path: '/admin/users',
-        requiredPermissions: ['users.read']
+        requiredPermissions: ['users.read'],
       },
       {
         id: 'users-locked',
         label: 'Locked Accounts',
         path: '/admin/users/locked',
-        requiredPermissions: ['users.read']
+        requiredPermissions: ['users.read'],
       },
       {
         id: 'users-roles',
         label: 'Roles & Permissions',
         path: '/admin/users/roles',
-        requiredPermissions: ['users.roles.read']
-      }
-    ]
+        requiredPermissions: ['users.roles.read'],
+      },
+    ],
   },
   {
     id: 'security',
@@ -91,27 +91,27 @@ const adminNavItems: AdminNavItem[] = [
         id: 'security-audit',
         label: 'Audit Logs',
         path: '/admin/security/audit',
-        requiredPermissions: ['security.audit.read']
+        requiredPermissions: ['security.audit.read'],
       },
       {
         id: 'security-sessions',
         label: 'Active Sessions',
         path: '/admin/security/sessions',
-        requiredPermissions: ['security.sessions.read']
+        requiredPermissions: ['security.sessions.read'],
       },
       {
         id: 'security-blocked',
         label: 'Blocked IPs',
         path: '/admin/security/blocked-ips',
-        requiredPermissions: ['security.blocked.read']
+        requiredPermissions: ['security.blocked.read'],
       },
       {
         id: 'security-settings',
         label: 'Security Settings',
         path: '/admin/security/settings',
-        requiredPermissions: ['security.settings.write']
-      }
-    ]
+        requiredPermissions: ['security.settings.write'],
+      },
+    ],
   },
   {
     id: 'system',
@@ -124,27 +124,27 @@ const adminNavItems: AdminNavItem[] = [
         id: 'system-health',
         label: 'System Health',
         path: '/admin/system/health',
-        requiredPermissions: ['system.health.read']
+        requiredPermissions: ['system.health.read'],
       },
       {
         id: 'system-logs',
         label: 'System Logs',
         path: '/admin/system/logs',
-        requiredPermissions: ['system.logs.read']
+        requiredPermissions: ['system.logs.read'],
       },
       {
         id: 'system-backup',
         label: 'Backup & Recovery',
         path: '/admin/system/backup',
-        requiredPermissions: ['system.backup.read']
+        requiredPermissions: ['system.backup.read'],
       },
       {
         id: 'system-compensation',
         label: 'Compensation Failures',
         path: '/admin/system/compensation',
-        requiredPermissions: ['system.compensation.read']
-      }
-    ]
+        requiredPermissions: ['system.compensation.read'],
+      },
+    ],
   },
   {
     id: 'templates',
@@ -157,15 +157,15 @@ const adminNavItems: AdminNavItem[] = [
         id: 'templates-flows',
         label: 'Flow Builder',
         path: '/admin/templates/flows',
-        requiredPermissions: ['admin.templates.read']
+        requiredPermissions: ['admin.templates.read'],
       },
       {
         id: 'templates-quiz',
         label: 'Quiz Builder',
         path: '/admin/templates/quiz',
-        requiredPermissions: ['admin.templates.read']
-      }
-    ]
+        requiredPermissions: ['admin.templates.read'],
+      },
+    ],
   },
   {
     id: 'reports',
@@ -178,21 +178,21 @@ const adminNavItems: AdminNavItem[] = [
         id: 'reports-security',
         label: 'Security Reports',
         path: '/admin/reports/security',
-        requiredPermissions: ['reports.security.read']
+        requiredPermissions: ['reports.security.read'],
       },
       {
         id: 'reports-users',
         label: 'User Activity Reports',
         path: '/admin/reports/users',
-        requiredPermissions: ['reports.users.read']
+        requiredPermissions: ['reports.users.read'],
       },
       {
         id: 'reports-system',
         label: 'System Reports',
         path: '/admin/reports/system',
-        requiredPermissions: ['reports.system.read']
-      }
-    ]
+        requiredPermissions: ['reports.system.read'],
+      },
+    ],
   },
   {
     id: 'settings',
@@ -205,22 +205,22 @@ const adminNavItems: AdminNavItem[] = [
         id: 'settings-general',
         label: 'General Settings',
         path: '/admin/settings/general',
-        requiredPermissions: ['settings.general.read']
+        requiredPermissions: ['settings.general.read'],
       },
       {
         id: 'settings-notifications',
         label: 'Notifications',
         path: '/admin/settings/notifications',
-        requiredPermissions: ['settings.notifications.read']
+        requiredPermissions: ['settings.notifications.read'],
       },
       {
         id: 'settings-integrations',
         label: 'Integrations',
         path: '/admin/settings/integrations',
-        requiredPermissions: ['settings.integrations.read']
-      }
-    ]
-  }
+        requiredPermissions: ['settings.integrations.read'],
+      },
+    ],
+  },
 ]
 
 const iconMap = {
@@ -234,7 +234,7 @@ const iconMap = {
   Database,
   Lock,
   Folder,
-  FolderOpen
+  FolderOpen,
 }
 
 export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ className }) => {
@@ -252,7 +252,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
     queryKey: ['admin-compensation-failures-count'],
     queryFn: () => apiClient.adminV2.listCompensationFailures(1, 1),
     refetchInterval: 60000,
-    enabled: !!user && canViewCompensation
+    enabled: !!user && canViewCompensation,
   })
 
   const compensationFailureCount = compensationFailures?.total ?? 0
@@ -262,9 +262,9 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
     const currentPath = location.pathname
     const newExpanded = new Set(expandedItems)
 
-    adminNavItems.forEach(item => {
+    adminNavItems.forEach((item) => {
       if (item.children) {
-        const isChildActive = item.children.some(child => currentPath.startsWith(child.path))
+        const isChildActive = item.children.some((child) => currentPath.startsWith(child.path))
         if (isChildActive || currentPath.startsWith(item.path)) {
           newExpanded.add(item['id'])
         }
@@ -272,7 +272,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
     })
 
     setExpandedItems(newExpanded)
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- expandedItems is intentionally excluded to prevent infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- expandedItems is intentionally excluded to prevent infinite loop
   }, [location.pathname])
 
   // Filter navigation items based on search
@@ -283,9 +283,9 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
     }
 
     const query = searchQuery.toLowerCase()
-    const filtered = adminNavItems.filter(item => {
+    const filtered = adminNavItems.filter((item) => {
       const matchesLabel = item.label.toLowerCase().includes(query)
-      const matchesChildren = item.children?.some(child =>
+      const matchesChildren = item.children?.some((child) =>
         child.label.toLowerCase().includes(query)
       )
       return matchesLabel || matchesChildren
@@ -296,9 +296,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
 
   const checkPermissions = (requiredPermissions?: string[]): boolean => {
     if (!requiredPermissions || !user) return true
-    return requiredPermissions.some(permission =>
-      hasPermission(permission)
-    )
+    return requiredPermissions.some((permission) => hasPermission(permission))
   }
 
   const toggleExpanded = (itemId: string) => {
@@ -338,19 +336,23 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
     const IconComponent = item.icon ? iconMap[item.icon as keyof typeof iconMap] : null
     const paddingLeft = depth === 0 ? 'pl-6' : `pl-${6 + depth * 4}`
 
-    const shouldShowCompensationBadge = item.id === 'system-compensation' && compensationFailureCount > 0
+    const shouldShowCompensationBadge =
+      item.id === 'system-compensation' && compensationFailureCount > 0
 
     return (
       <div key={item['id']}>
         {hasChildren ? (
           <button
             onClick={() => toggleExpanded(item['id'])}
-            className={`w-full flex items-center justify-between ${paddingLeft} pr-6 py-3 text-left hover:bg-gray-100 transition-colors ${isActive ? 'bg-blue-50 border-r-2 border-blue-500' : ''
-              }`}
+            className={`w-full flex items-center justify-between ${paddingLeft} pr-6 py-3 text-left hover:bg-gray-100 transition-colors ${
+              isActive ? 'bg-blue-50 border-r-2 border-blue-500' : ''
+            }`}
           >
             <div className="flex items-center space-x-3">
               {IconComponent && (
-                <IconComponent className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
+                <IconComponent
+                  className={`h-5 w-5 ${isActive ? 'text-blue-600' : 'text-gray-500'}`}
+                />
               )}
               <span className={`font-medium ${isActive ? 'text-blue-600' : 'text-gray-700'}`}>
                 {item.label}
@@ -366,12 +368,15 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
           <Link
             to={item.path}
             onClick={() => setIsMobileMenuOpen(false)}
-            className={`flex items-center justify-between ${paddingLeft} pr-6 py-3 hover:bg-gray-100 transition-colors ${isActive ? 'bg-blue-50 border-r-2 border-blue-500' : ''
-              }`}
+            className={`flex items-center justify-between ${paddingLeft} pr-6 py-3 hover:bg-gray-100 transition-colors ${
+              isActive ? 'bg-blue-50 border-r-2 border-blue-500' : ''
+            }`}
           >
             <div className="flex items-center">
               {IconComponent && (
-                <IconComponent className={`h-5 w-5 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-500'}`} />
+                <IconComponent
+                  className={`h-5 w-5 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-500'}`}
+                />
               )}
               <span className={`font-medium ${isActive ? 'text-blue-600' : 'text-gray-700'}`}>
                 {item.label}
@@ -391,7 +396,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
 
         {hasChildren && isExpanded && (
           <div className="bg-gray-50">
-            {item.children?.map(child => renderNavItem(child, depth + 1))}
+            {item.children?.map((child) => renderNavItem(child, depth + 1))}
           </div>
         )}
       </div>
@@ -415,11 +420,13 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
       </Button>
 
       {/* Sidebar */}
-      <aside className={`
+      <aside
+        className={`
         fixed inset-y-0 left-0 z-40 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${className}
-      `}>
+      `}
+      >
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -442,7 +449,9 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
                 type="text"
                 placeholder="Search menu..."
                 value={searchQuery}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setSearchQuery(e.target.value)
+                }
                 className="pl-10"
               />
             </div>
@@ -468,9 +477,7 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
 
           {/* Navigation */}
           <nav className="flex-1 overflow-y-auto">
-            <div className="space-y-1">
-              {filteredNavItems.map(item => renderNavItem(item))}
-            </div>
+            <div className="space-y-1">{filteredNavItems.map((item) => renderNavItem(item))}</div>
           </nav>
 
           {/* User Profile & Settings */}
@@ -482,7 +489,13 @@ export const AdminNavigationMenu: React.FC<AdminNavigationMenuProps> = ({ classN
                     <Avatar className="h-8 w-8">
                       <AvatarImage src="" alt={user['full_name']} />
                       <AvatarFallback>
-                        {typeof user['full_name'] === 'string' ? user['full_name'].split(' ').map((n: string) => n[0]).join('').toUpperCase() : ''}
+                        {typeof user['full_name'] === 'string'
+                          ? user['full_name']
+                              .split(' ')
+                              .map((n: string) => n[0])
+                              .join('')
+                              .toUpperCase()
+                          : ''}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 text-left">

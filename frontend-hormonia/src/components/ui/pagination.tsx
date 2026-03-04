@@ -14,12 +14,7 @@ interface PaginationProps {
   pageSize?: number
 }
 
-export function Pagination({ 
-  currentPage, 
-  totalPages, 
-  onPageChange, 
-  className 
-}: PaginationProps) {
+export function Pagination({ currentPage, totalPages, onPageChange, className }: PaginationProps) {
   const generatePageNumbers = () => {
     const pages: (number | string)[] = []
     const showEllipsis = totalPages > 7
@@ -70,7 +65,10 @@ export function Pagination({
   const pages = generatePageNumbers()
 
   return (
-    <nav aria-label="Paginacao" className={cn('flex items-center justify-center space-x-1', className)}>
+    <nav
+      aria-label="Paginacao"
+      className={cn('flex items-center justify-center space-x-1', className)}
+    >
       <Button
         variant="outline"
         size="sm"

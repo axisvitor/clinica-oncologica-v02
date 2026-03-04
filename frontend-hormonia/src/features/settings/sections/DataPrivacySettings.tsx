@@ -26,10 +26,10 @@ export function DataPrivacySettings() {
       const data = {
         user: user,
         preferences: preferences,
-        exported_at: new Date().toISOString()
+        exported_at: new Date().toISOString(),
       }
       const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: 'application/json'
+        type: 'application/json',
       })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -65,18 +65,12 @@ export function DataPrivacySettings() {
   }
 
   return (
-    <SettingsSection
-      title="Dados & Privacidade"
-      description="Gerenciar seus dados"
-      icon={Database}
-    >
+    <SettingsSection title="Dados & Privacidade" description="Gerenciar seus dados" icon={Database}>
       <div className="space-y-6">
         {/* Data Export */}
         <div>
           <h3 className="text-lg font-medium mb-4">Exportar Dados</h3>
-          <p className="text-gray-600 mb-4">
-            Baixe uma cópia dos seus dados em formato JSON
-          </p>
+          <p className="text-gray-600 mb-4">Baixe uma cópia dos seus dados em formato JSON</p>
           <Button variant="outline" onClick={handleExportData}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Exportar dados
@@ -104,9 +98,7 @@ export function DataPrivacySettings() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium">Dados offline</p>
-                <p className="text-sm text-gray-500">
-                  Permite acesso limitado quando offline
-                </p>
+                <p className="text-sm text-gray-500">Permite acesso limitado quando offline</p>
               </div>
               <Switch
                 checked={localStorage.getItem('offline-enabled') === 'true'}
@@ -135,11 +127,7 @@ export function DataPrivacySettings() {
               <p className="text-sm text-red-600 mb-4">
                 Esta ação é irreversível. Todos os seus dados serão permanentemente removidos.
               </p>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleDeleteAccount}
-              >
+              <Button variant="destructive" size="sm" onClick={handleDeleteAccount}>
                 Excluir conta
               </Button>
             </div>

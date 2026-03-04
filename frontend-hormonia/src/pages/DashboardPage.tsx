@@ -1,5 +1,5 @@
-import React from "react";
-import { useQuery } from "@tanstack/react-query";
+import React from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   Users,
   MessageSquare,
@@ -12,27 +12,27 @@ import {
   Calendar,
   Shield,
   Settings,
-} from "lucide-react";
-import { apiClient } from "../lib/api-client";
-import { useAuth } from "@/app/providers/AuthContext";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DashboardSkeleton } from "@/features/dashboard/DashboardSkeleton";
-import { MetricCard } from "@/features/dashboard/MetricCard";
-import { RecentActivity } from "@/features/dashboard/RecentActivity";
-import { AlertsPanel } from "@/features/dashboard/AlertsPanel";
-import { EngagementChart } from "@/features/dashboard/EngagementChart";
-import QuickStats from "@/features/dashboard/QuickStats";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useRoleGuard, PermissionGate } from "@/features/auth/ProtectedRoute";
-import { getRoleLabel } from "@/types/shared";
-import { Link } from "react-router-dom";
-import type { DashboardMainData } from "@/lib/api-client/dashboard";
+} from 'lucide-react'
+import { apiClient } from '../lib/api-client'
+import { useAuth } from '@/app/providers/AuthContext'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { DashboardSkeleton } from '@/features/dashboard/DashboardSkeleton'
+import { MetricCard } from '@/features/dashboard/MetricCard'
+import { RecentActivity } from '@/features/dashboard/RecentActivity'
+import { AlertsPanel } from '@/features/dashboard/AlertsPanel'
+import { EngagementChart } from '@/features/dashboard/EngagementChart'
+import QuickStats from '@/features/dashboard/QuickStats'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useRoleGuard, PermissionGate } from '@/features/auth/ProtectedRoute'
+import { getRoleLabel } from '@/types/shared'
+import { Link } from 'react-router-dom'
+import type { DashboardMainData } from '@/lib/api-client/dashboard'
 
 export function DashboardPage() {
-  const { user, isInitializing: authLoading } = useAuth();
-  const { userRole, isAdmin, isDoctor } = useRoleGuard();
+  const { user, isInitializing: authLoading } = useAuth()
+  const { userRole, isAdmin, isDoctor } = useRoleGuard()
 
   // Wait for authentication to be ready before making API calls
   const {
@@ -40,16 +40,16 @@ export function DashboardPage() {
     isLoading,
     error,
   } = useQuery<DashboardMainData>({
-    queryKey: ["dashboard-metrics"],
+    queryKey: ['dashboard-metrics'],
     queryFn: () => apiClient.dashboard.getMain({ time_range: 'week' }),
     enabled: !!user && !authLoading, // Only run when authenticated
     refetchInterval: 60000, // Refresh every 60 seconds (optimized from 30s)
     staleTime: 30000, // Consider data fresh for 30 seconds
-  });
+  })
 
   // Show skeleton while loading - UI appears immediately!
   if (isLoading) {
-    return <DashboardSkeleton />;
+    return <DashboardSkeleton />
   }
 
   if (error) {
@@ -68,7 +68,7 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-    );
+    )
   }
 
   return (
@@ -78,12 +78,12 @@ export function DashboardPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl md:text-3xl font-bold font-heading text-gray-900">Dashboard</h1>
-            <Badge variant={isAdmin ? "default" : "secondary"} className="hidden sm:inline-flex">
+            <Badge variant={isAdmin ? 'default' : 'secondary'} className="hidden sm:inline-flex">
               {getRoleLabel(userRole)}
             </Badge>
           </div>
           <p className="text-sm md:text-base text-gray-600 mt-1 font-body">
-            {isAdmin ? "Visão administrativa completa" : "Visão geral do sistema"}
+            {isAdmin ? 'Visão administrativa completa' : 'Visão geral do sistema'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -298,7 +298,10 @@ export function DashboardPage() {
                 </div>
                 <div className="text-center p-4 border rounded-lg">
                   <div className="text-2xl font-bold font-mono tabular-nums text-gray-600">
-                    {(metrics?.total_patients || 0) - (metrics?.flow_breakdown?.active || 0) - (metrics?.flow_breakdown?.paused || 0) - (metrics?.flow_breakdown?.completed || 0)}
+                    {(metrics?.total_patients || 0) -
+                      (metrics?.flow_breakdown?.active || 0) -
+                      (metrics?.flow_breakdown?.paused || 0) -
+                      (metrics?.flow_breakdown?.completed || 0)}
                   </div>
                   <p className="text-sm text-gray-600 font-body">Inativos</p>
                 </div>
@@ -376,15 +379,21 @@ export function DashboardPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Altos</span>
-                  <Badge className="bg-orange-100 text-orange-800">{metrics?.alert_breakdown?.high || 0}</Badge>
+                  <Badge className="bg-orange-100 text-orange-800">
+                    {metrics?.alert_breakdown?.high || 0}
+                  </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Médios</span>
-                  <Badge className="bg-yellow-100 text-yellow-800">{metrics?.alert_breakdown?.medium || 0}</Badge>
+                  <Badge className="bg-yellow-100 text-yellow-800">
+                    {metrics?.alert_breakdown?.medium || 0}
+                  </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Baixos</span>
-                  <Badge className="bg-blue-100 text-blue-800">{metrics?.alert_breakdown?.low || 0}</Badge>
+                  <Badge className="bg-blue-100 text-blue-800">
+                    {metrics?.alert_breakdown?.low || 0}
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
@@ -432,5 +441,5 @@ export function DashboardPage() {
         </TabsContent>
       </Tabs>
     </div>
-  );
+  )
 }

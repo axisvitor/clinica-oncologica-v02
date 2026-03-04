@@ -33,11 +33,7 @@ interface MessagesListProps {
 /**
  * Main component for displaying message history with virtual scrolling
  */
-export function MessagesList({
-  messages,
-  isLoading,
-  patientName
-}: MessagesListProps) {
+export function MessagesList({ messages, isLoading, patientName }: MessagesListProps) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
@@ -55,9 +51,9 @@ export function MessagesList({
       toast({
         title: 'Erro ao reenviar',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   // Group messages by date with separators
@@ -66,23 +62,18 @@ export function MessagesList({
   // Virtual scroll management
   const { listRef, getItemSize } = useVirtualScroll({
     items,
-    autoScrollToBottom: true
+    autoScrollToBottom: true,
   })
 
   // Row data for virtual scrolling
   const itemData: MessageRowData = {
     items,
-    retryMutation
+    retryMutation,
   }
 
   // Wrapper component to adapt react-window's ListChildComponentProps to MessageRow's props
   const Row = ({ index, style, data }: ListChildComponentProps<MessageRowData>) => (
-    <MessageRow
-      index={index}
-      style={style}
-      items={data.items}
-      retryMutation={data.retryMutation}
-    />
+    <MessageRow index={index} style={style} items={data.items} retryMutation={data.retryMutation} />
   )
 
   return (
@@ -92,14 +83,10 @@ export function MessagesList({
           <MessageSquare className="h-5 w-5" />
           <span>Mensagens</span>
           {patientName && (
-            <span className="text-sm font-normal text-gray-500">
-              - {patientName}
-            </span>
+            <span className="text-sm font-normal text-gray-500">- {patientName}</span>
           )}
         </CardTitle>
-        <CardDescription>
-          Histórico de conversas com o paciente
-        </CardDescription>
+        <CardDescription>Histórico de conversas com o paciente</CardDescription>
       </CardHeader>
 
       <CardContent>
@@ -109,9 +96,7 @@ export function MessagesList({
           <div className="text-center py-8">
             <Inbox className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <p className="text-gray-500">Nenhuma mensagem encontrada</p>
-            <p className="text-sm text-gray-400">
-              As mensagens aparecerão aqui quando enviadas
-            </p>
+            <p className="text-sm text-gray-400">As mensagens aparecerão aqui quando enviadas</p>
           </div>
         ) : (
           <div className="h-[350px] md:h-[400px] w-full">

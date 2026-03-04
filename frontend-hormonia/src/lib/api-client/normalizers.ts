@@ -128,7 +128,13 @@ export function denormalizeUser(frontendUser: Partial<FrontendUser>): Partial<Ba
 // PATIENT NORMALIZATION
 // ============================================================================
 
-export type PatientStatus = 'active' | 'inactive' | 'paused' | 'completed' | 'cancelled' | 'archived'
+export type PatientStatus =
+  | 'active'
+  | 'inactive'
+  | 'paused'
+  | 'completed'
+  | 'cancelled'
+  | 'archived'
 export type FlowState = 'onboarding' | 'active' | 'paused' | 'completed' | 'cancelled'
 
 export interface BackendPatient {
@@ -215,7 +221,9 @@ export interface FrontendPatient {
  */
 export function normalizePatient(backendPatient: BackendPatient): FrontendPatient {
   // Priority: flow_state > status > 'active' (default)
-  const statusValue = (backendPatient.flow_state || backendPatient.status || 'active') as PatientStatus
+  const statusValue = (backendPatient.flow_state ||
+    backendPatient.status ||
+    'active') as PatientStatus
   const flowStateValue = backendPatient.flow_state || backendPatient.status || 'active'
 
   return {
@@ -253,7 +261,9 @@ export function normalizePatient(backendPatient: BackendPatient): FrontendPatien
  * @param frontendPatient - Patient data from frontend
  * @returns Backend-compatible patient object
  */
-export function denormalizePatient(frontendPatient: Partial<FrontendPatient>): Partial<BackendPatient> {
+export function denormalizePatient(
+  frontendPatient: Partial<FrontendPatient>
+): Partial<BackendPatient> {
   const { status, ...rest } = frontendPatient
 
   return {
@@ -345,10 +355,7 @@ export function isBackendUser(obj: unknown): obj is BackendUser {
 export function isBackendPatient(obj: unknown): obj is BackendPatient {
   if (!obj || typeof obj !== 'object') return false
   const patient = obj as Record<string, unknown>
-  return (
-    typeof patient['id'] === 'string' &&
-    typeof patient['name'] === 'string'
-  )
+  return typeof patient['id'] === 'string' && typeof patient['name'] === 'string'
 }
 
 // ============================================================================

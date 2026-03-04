@@ -18,33 +18,23 @@ export default function AdminTabNavigation() {
     <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 h-auto p-1 gap-1">
       <TabsTrigger value="monitoring" className="flex flex-col items-center gap-1 py-2 sm:py-3">
         <Activity className="h-4 w-4 sm:h-5 sm:w-5" />
-        <span className="text-[10px] sm:text-xs leading-tight text-center">
-          Monitoramento
-        </span>
+        <span className="text-[10px] sm:text-xs leading-tight text-center">Monitoramento</span>
       </TabsTrigger>
       <TabsTrigger value="settings" className="flex flex-col items-center gap-1 py-2 sm:py-3">
         <Settings className="h-4 w-4 sm:h-5 sm:w-5" />
-        <span className="text-[10px] sm:text-xs leading-tight text-center">
-          Configurações
-        </span>
+        <span className="text-[10px] sm:text-xs leading-tight text-center">Configurações</span>
       </TabsTrigger>
       <TabsTrigger value="users" className="flex flex-col items-center gap-1 py-2 sm:py-3">
         <Users className="h-4 w-4 sm:h-5 sm:w-5" />
-        <span className="text-[10px] sm:text-xs leading-tight text-center">
-          Usuários
-        </span>
+        <span className="text-[10px] sm:text-xs leading-tight text-center">Usuários</span>
       </TabsTrigger>
       <TabsTrigger value="database" className="flex flex-col items-center gap-1 py-2 sm:py-3">
         <Database className="h-4 w-4 sm:h-5 sm:w-5" />
-        <span className="text-[10px] sm:text-xs leading-tight text-center">
-          Dados
-        </span>
+        <span className="text-[10px] sm:text-xs leading-tight text-center">Dados</span>
       </TabsTrigger>
       <TabsTrigger value="security" className="flex flex-col items-center gap-1 py-2 sm:py-3">
         <Shield className="h-4 w-4 sm:h-5 sm:w-5" />
-        <span className="text-[10px] sm:text-xs leading-tight text-center">
-          Segurança
-        </span>
+        <span className="text-[10px] sm:text-xs leading-tight text-center">Segurança</span>
       </TabsTrigger>
     </TabsList>
   )

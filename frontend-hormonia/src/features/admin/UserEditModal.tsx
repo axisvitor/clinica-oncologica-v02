@@ -16,7 +16,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -27,7 +33,7 @@ import {
   validateEmailField,
   validateFullNameField,
   validatePasswordConfirmation,
-  validatePasswordPolicy
+  validatePasswordPolicy,
 } from './utils/userFormValidation'
 
 interface UserEditModalProps {
@@ -59,7 +65,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
     two_factor_enabled: false,
     notes: '',
     new_password: '',
-    confirm_password: ''
+    confirm_password: '',
   })
 
   const [showPassword, setShowPassword] = useState(false)
@@ -78,7 +84,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
         two_factor_enabled: user.two_factor_enabled ?? false,
         notes: '',
         new_password: '',
-        confirm_password: ''
+        confirm_password: '',
       })
       setHasChanges(false)
       setValidationErrors({})
@@ -102,7 +108,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
   }, [form, user])
 
   const updateUserMutation = useMutation({
-    mutationFn: async ({ id, userData }: { id: string, userData: UpdateUserRequest }) => {
+    mutationFn: async ({ id, userData }: { id: string; userData: UpdateUserRequest }) => {
       return apiClient.adminUsers.update(id, userData)
     },
     onSuccess: () => {
@@ -115,13 +121,14 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
       onOpenChange(false)
     },
     onError: (error: unknown) => {
-      const message = (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.';
+      const message =
+        (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.'
       toast({
         title: 'Erro ao atualizar usuário',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const resetPasswordMutation = useMutation({
@@ -132,7 +139,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
       // Send password to backend for user update
       await apiClient.adminUsers.resetPassword(id, {
         new_password: tempPassword,
-        force_change: true
+        force_change: true,
       })
 
       // Return generated password for display
@@ -145,13 +152,14 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
       })
     },
     onError: (error: unknown) => {
-      const message = (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.';
+      const message =
+        (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.'
       toast({
         title: 'Erro ao redefinir senha',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const validateForm = (): boolean => {
@@ -215,7 +223,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
         two_factor_enabled: user.two_factor_enabled ?? false,
         notes: '',
         new_password: '',
-        confirm_password: ''
+        confirm_password: '',
       })
       setValidationErrors({})
     }
@@ -228,9 +236,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
       <DialogContent className="w-[95vw] max-w-[600px] max-h-[90vh] overflow-y-auto px-4 sm:px-6">
         <DialogHeader>
           <DialogTitle>Editar Usuário</DialogTitle>
-          <DialogDescription>
-            Edite as informações do usuário {user['full_name']}
-          </DialogDescription>
+          <DialogDescription>Edite as informações do usuário {user['full_name']}</DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="basic" className="space-y-4">
@@ -249,7 +255,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
                     id="email"
                     type="email"
                     value={form['email']}
-                    onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))}
+                    onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                     className={validationErrors['email'] ? 'border-red-500' : ''}
                   />
                   {validationErrors['email'] && (
@@ -262,7 +268,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
                   <Input
                     id="full_name"
                     value={form['full_name']}
-                    onChange={(e) => setForm(prev => ({ ...prev, full_name: e.target.value }))}
+                    onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))}
                     className={validationErrors['full_name'] ? 'border-red-500' : ''}
                   />
                   {validationErrors['full_name'] && (
@@ -274,7 +280,12 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="role">Função *</Label>
-                  <Select value={form.role} onValueChange={(value: 'doctor' | 'admin') => setForm(prev => ({ ...prev, role: value }))}>
+                  <Select
+                    value={form.role}
+                    onValueChange={(value: 'doctor' | 'admin') =>
+                      setForm((prev) => ({ ...prev, role: value }))
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -291,7 +302,9 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
                     <Switch
                       id="is_active"
                       checked={form.is_active}
-                      onCheckedChange={(checked) => setForm(prev => ({ ...prev, is_active: checked }))}
+                      onCheckedChange={(checked) =>
+                        setForm((prev) => ({ ...prev, is_active: checked }))
+                      }
                     />
                   </div>
 
@@ -300,7 +313,9 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
                     <Switch
                       id="two_factor_enabled"
                       checked={form.two_factor_enabled}
-                      onCheckedChange={(checked) => setForm(prev => ({ ...prev, two_factor_enabled: checked }))}
+                      onCheckedChange={(checked) =>
+                        setForm((prev) => ({ ...prev, two_factor_enabled: checked }))
+                      }
                     />
                   </div>
                 </div>
@@ -311,7 +326,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
                 <Textarea
                   id="notes"
                   value={form.notes}
-                  onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
+                  onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
                   placeholder="Observações sobre o usuário..."
                   rows={3}
                 />
@@ -322,9 +337,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Alterar Senha</CardTitle>
-                  <CardDescription>
-                    Deixe em branco para manter a senha atual
-                  </CardDescription>
+                  <CardDescription>Deixe em branco para manter a senha atual</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -335,7 +348,9 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
                           id="new_password"
                           type={showPassword ? 'text' : 'password'}
                           value={form['new_password']}
-                          onChange={(e) => setForm(prev => ({ ...prev, new_password: e.target.value }))}
+                          onChange={(e) =>
+                            setForm((prev) => ({ ...prev, new_password: e.target.value }))
+                          }
                           className={validationErrors['new_password'] ? 'border-red-500' : ''}
                         />
                         <Button
@@ -364,7 +379,9 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
                           id="confirm_password"
                           type={showConfirmPassword ? 'text' : 'password'}
                           value={form['confirm_password']}
-                          onChange={(e) => setForm(prev => ({ ...prev, confirm_password: e.target.value }))}
+                          onChange={(e) =>
+                            setForm((prev) => ({ ...prev, confirm_password: e.target.value }))
+                          }
                           className={validationErrors['confirm_password'] ? 'border-red-500' : ''}
                         />
                         <Button
@@ -382,7 +399,9 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
                         </Button>
                       </div>
                       {validationErrors['confirm_password'] && (
-                        <p className="text-sm text-red-600">{validationErrors['confirm_password']}</p>
+                        <p className="text-sm text-red-600">
+                          {validationErrors['confirm_password']}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -392,9 +411,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Redefinir Senha</CardTitle>
-                  <CardDescription>
-                    Gera uma nova senha temporária para o usuário
-                  </CardDescription>
+                  <CardDescription>Gera uma nova senha temporária para o usuário</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Button
@@ -439,15 +456,25 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
 
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">Bloqueio:</span>
-                    <Badge variant={user.locked_until && new Date(user.locked_until) > new Date() ? 'destructive' : 'secondary'}>
-                      {user.locked_until && new Date(user.locked_until) > new Date() ? 'Bloqueada' : 'Desbloqueada'}
+                    <Badge
+                      variant={
+                        user.locked_until && new Date(user.locked_until) > new Date()
+                          ? 'destructive'
+                          : 'secondary'
+                      }
+                    >
+                      {user.locked_until && new Date(user.locked_until) > new Date()
+                        ? 'Bloqueada'
+                        : 'Desbloqueada'}
                     </Badge>
                   </div>
 
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">Último Login:</span>
                     <span className="text-sm text-gray-900">
-                      {user.last_login ? new Date(user.last_login).toLocaleString('pt-BR') : 'Nunca'}
+                      {user.last_login
+                        ? new Date(user.last_login).toLocaleString('pt-BR')
+                        : 'Nunca'}
                     </span>
                   </div>
                 </CardContent>
@@ -474,9 +501,7 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
 
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">Permissões:</span>
-                    <Badge variant="secondary">
-                      {user.permissions.length} permissões
-                    </Badge>
+                    <Badge variant="secondary">{user.permissions.length} permissões</Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -497,7 +522,9 @@ export function UserEditModal({ open, onOpenChange, user }: UserEditModalProps) 
                         </Badge>
                       ))
                     ) : (
-                      <p className="text-sm text-gray-500">Nenhuma permissão específica atribuída</p>
+                      <p className="text-sm text-gray-500">
+                        Nenhuma permissão específica atribuída
+                      </p>
                     )}
                   </div>
                 </CardContent>

@@ -27,7 +27,7 @@ export const enhancedToast = {
     return baseToast({
       ...options,
       variant: 'default',
-      duration: options['duration'] || 4000
+      duration: options['duration'] || 4000,
     })
   },
 
@@ -37,7 +37,7 @@ export const enhancedToast = {
     return baseToast({
       ...options,
       variant: 'destructive',
-      duration: options['persistent'] ? 0 : (options['duration'] || 8000)
+      duration: options['persistent'] ? 0 : options['duration'] || 8000,
     })
   },
 
@@ -47,7 +47,7 @@ export const enhancedToast = {
     return baseToast({
       ...options,
       variant: 'default',
-      duration: options['duration'] || 6000
+      duration: options['duration'] || 6000,
     })
   },
 
@@ -57,7 +57,7 @@ export const enhancedToast = {
     return baseToast({
       ...options,
       variant: 'default',
-      duration: options['duration'] || 5000
+      duration: options['duration'] || 5000,
     })
   },
 
@@ -67,7 +67,7 @@ export const enhancedToast = {
     return baseToast({
       ...options,
       variant: 'default',
-      duration: 0 // Don't auto-dismiss loading toasts
+      duration: 0, // Don't auto-dismiss loading toasts
       // className removed due to type incompatibility
     })
   },
@@ -78,12 +78,14 @@ export const enhancedToast = {
       title: 'Erro de Conexão',
       description: 'Não foi possível conectar ao servidor. Verifique sua conexão.',
       persistent: true,
-      ...(retryFn ? {
-        action: {
-          label: 'Tentar Novamente',
-          onClick: retryFn
-        }
-      } : {})
+      ...(retryFn
+        ? {
+            action: {
+              label: 'Tentar Novamente',
+              onClick: retryFn,
+            },
+          }
+        : {}),
     })
   },
 
@@ -92,7 +94,7 @@ export const enhancedToast = {
     return enhancedToast.error({
       title: 'Sessão Expirada',
       description: 'Sua sessão expirou. Você será redirecionado para o login.',
-      persistent: true
+      persistent: true,
     })
   },
 
@@ -101,7 +103,7 @@ export const enhancedToast = {
     return enhancedToast.error({
       title: 'Acesso Negado',
       description: 'Você não tem permissão para realizar esta ação.',
-      duration: 6000
+      duration: 6000,
     })
   },
 
@@ -110,7 +112,7 @@ export const enhancedToast = {
     return enhancedToast.error({
       title: 'Dados Inválidos',
       description: message,
-      duration: 6000
+      duration: 6000,
     })
   },
 
@@ -119,7 +121,7 @@ export const enhancedToast = {
     return enhancedToast.success({
       title: 'Operação Realizada',
       description: `${operation}${entity ? ` ${entity}` : ''} realizada com sucesso.`,
-      duration: 4000
+      duration: 4000,
     })
   },
 
@@ -128,17 +130,17 @@ export const enhancedToast = {
     if (failed === 0) {
       return enhancedToast.success({
         title: 'Operação Concluída',
-        description: `${successful} ${operation}(s) processada(s) com sucesso.`
+        description: `${successful} ${operation}(s) processada(s) com sucesso.`,
       })
     } else if (successful === 0) {
       return enhancedToast.error({
         title: 'Operação Falhada',
-        description: `Todas as ${failed} ${operation}(s) falharam.`
+        description: `Todas as ${failed} ${operation}(s) falharam.`,
       })
     } else {
       return enhancedToast.warning({
         title: 'Operação Parcial',
-        description: `${successful} ${operation}(s) concluída(s), ${failed} falharam.`
+        description: `${successful} ${operation}(s) concluída(s), ${failed} falharam.`,
       })
     }
   },
@@ -148,7 +150,7 @@ export const enhancedToast = {
     return enhancedToast.success({
       title: 'Conexão Restaurada',
       description: 'A conexão com o servidor foi restabelecida.',
-      duration: 3000
+      duration: 3000,
     })
   },
 
@@ -156,7 +158,7 @@ export const enhancedToast = {
     return enhancedToast.warning({
       title: 'Conexão Perdida',
       description: 'Verifique sua conexão com a internet.',
-      persistent: true
+      persistent: true,
     })
   },
 
@@ -165,7 +167,7 @@ export const enhancedToast = {
     return enhancedToast.info({
       title: 'Dados Sincronizados',
       description: 'Seus dados foram atualizados com o servidor.',
-      duration: 3000
+      duration: 3000,
     })
   },
 
@@ -174,9 +176,9 @@ export const enhancedToast = {
     return enhancedToast.info({
       title: 'Salvamento Automático',
       description: 'Suas alterações foram salvas automaticamente.',
-      duration: 2000
+      duration: 2000,
     })
-  }
+  },
 }
 
 // Hook for using enhanced toasts

@@ -36,6 +36,6 @@ export function usePatientTable() {
     handleSendQuiz,
     handleQuizSuccess,
     handleCloseQuizModal,
-    setShowSendQuizModal
+    setShowSendQuizModal,
   }
 }

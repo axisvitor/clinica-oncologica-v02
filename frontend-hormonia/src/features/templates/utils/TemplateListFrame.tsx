@@ -33,7 +33,7 @@ export function TemplateListFrame({
   totalPages,
   onPageChange,
   children,
-  footer
+  footer,
 }: TemplateListFrameProps) {
   if (error) {
     return (

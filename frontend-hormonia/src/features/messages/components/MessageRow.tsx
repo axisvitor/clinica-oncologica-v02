@@ -24,12 +24,7 @@ export interface MessageRowProps extends MessageRowData {
 /**
  * Row component for react-window virtual scrolling
  */
-export const MessageRow = memo<MessageRowProps>(({
-  style,
-  index,
-  items,
-  retryMutation
-}) => {
+export const MessageRow = memo<MessageRowProps>(({ style, index, items, retryMutation }) => {
   const item = items[index]
 
   if (!item) {
@@ -48,14 +43,9 @@ export const MessageRow = memo<MessageRowProps>(({
     return (
       <div
         style={style}
-        className={`flex px-4 py-1 ${
-          isOutbound ? 'justify-end' : 'justify-start'
-        }`}
+        className={`flex px-4 py-1 ${isOutbound ? 'justify-end' : 'justify-start'}`}
       >
-        <MessageBubble
-          message={item.message}
-          retryMutation={retryMutation}
-        />
+        <MessageBubble message={item.message} retryMutation={retryMutation} />
       </div>
     )
   }

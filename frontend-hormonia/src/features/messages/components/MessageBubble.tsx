@@ -37,10 +37,7 @@ const getMessageStatusIcon = (status: string) => {
   }
 }
 
-export const MessageBubble: React.FC<MessageBubbleProps> = ({
-  message,
-  retryMutation
-}) => {
+export const MessageBubble: React.FC<MessageBubbleProps> = ({ message, retryMutation }) => {
   const isOutbound = message.direction === 'outbound'
   const isFailed = message.status === 'failed'
 
@@ -52,14 +49,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
           : 'bg-gray-100 text-gray-900 rounded-bl-sm'
       }`}
     >
-      <p className="text-sm leading-relaxed break-words">
-        {message.content}
-      </p>
+      <p className="text-sm leading-relaxed break-words">{message.content}</p>
 
       <div className="flex items-center justify-end mt-1.5 space-x-1">
-        <span className={`text-xs ${
-          isOutbound ? 'text-white/80' : 'text-gray-500'
-        }`}>
+        <span className={`text-xs ${isOutbound ? 'text-white/80' : 'text-gray-500'}`}>
           {formatTime(message.created_at)}
         </span>
 

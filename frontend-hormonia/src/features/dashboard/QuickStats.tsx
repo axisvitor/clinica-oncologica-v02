@@ -6,7 +6,7 @@ import {
   Users,
   MessageSquare,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
 } from 'lucide-react'
 import type { DashboardMainData } from '@/lib/api-client/dashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -72,25 +72,17 @@ const StatCard = memo<{
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-gray-600">
-          {title}
-        </CardTitle>
+        <CardTitle className="text-sm font-medium text-gray-600">{title}</CardTitle>
         <Icon className="h-4 w-4 text-gray-400" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold text-gray-900 mb-1">
-          {value}
-        </div>
+        <div className="text-2xl font-bold text-gray-900 mb-1">{value}</div>
         <div className="flex items-center justify-between">
-          <p className="text-xs text-gray-500">
-            {description}
-          </p>
+          <p className="text-xs text-gray-500">{description}</p>
           {change !== 0 && (
             <div className={`flex items-center space-x-1 ${trendColor}`}>
               <TrendIcon className="h-3 w-3" />
-              <span className="text-xs font-medium">
-                {formatChange(change)}
-              </span>
+              <span className="text-xs font-medium">{formatChange(change)}</span>
             </div>
           )}
         </div>
@@ -108,29 +100,29 @@ const QuickStats = memo(({ data, isLoading = false, error }: QuickStatsProps) =>
       value: data?.active_patients ?? 0,
       change: data?.patients_change ?? 0,
       icon: Users,
-      description: `${data?.active_patients_percentage ?? 0}% do total`
+      description: `${data?.active_patients_percentage ?? 0}% do total`,
     },
     {
       title: 'Taxa de Resposta',
       value: `${data?.response_rate ?? 0}%`,
       change: data?.response_rate_change ?? 0,
       icon: MessageSquare,
-      description: 'Ultimos 7 dias'
+      description: 'Ultimos 7 dias',
     },
     {
       title: 'Alertas Ativos',
       value: data?.alerts_pending ?? 0,
       change: data?.alerts_change ?? 0,
       icon: AlertTriangle,
-      description: 'Requerem atencao'
+      description: 'Requerem atencao',
     },
     {
       title: 'Questionarios',
       value: data?.completed_quizzes ?? 0,
       change: data?.quizzes_change ?? 0,
       icon: CheckCircle,
-      description: 'Completados esta semana'
-    }
+      description: 'Completados esta semana',
+    },
   ]
 
   // Error state
@@ -170,6 +162,6 @@ const QuickStats = memo(({ data, isLoading = false, error }: QuickStatsProps) =>
   )
 })
 
-QuickStats.displayName = 'QuickStats';
+QuickStats.displayName = 'QuickStats'
 
-export default QuickStats;
+export default QuickStats

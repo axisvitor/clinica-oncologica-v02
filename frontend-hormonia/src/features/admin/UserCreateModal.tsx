@@ -15,7 +15,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
@@ -24,7 +30,7 @@ import {
   validateEmailField,
   validateFullNameField,
   validatePasswordConfirmation,
-  validatePasswordPolicy
+  validatePasswordPolicy,
 } from './utils/userFormValidation'
 
 interface UserCreateModalProps {
@@ -76,7 +82,7 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
     permissions: [],
     is_active: true,
     two_factor_enabled: false,
-    notes: ''
+    notes: '',
   })
 
   const [showPassword, setShowPassword] = useState(false)
@@ -84,7 +90,15 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
 
   const createUserMutation = useMutation({
-    mutationFn: async (userData: { email: string; full_name: string; password: string; role: string; permissions?: string[]; is_active?: boolean; two_factor_enabled?: boolean }) => {
+    mutationFn: async (userData: {
+      email: string
+      full_name: string
+      password: string
+      role: string
+      permissions?: string[]
+      is_active?: boolean
+      two_factor_enabled?: boolean
+    }) => {
       return apiClient.adminUsers.create(userData)
     },
     onSuccess: () => {
@@ -97,13 +111,14 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
       resetForm()
     },
     onError: (error: unknown) => {
-      const message = (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.';
+      const message =
+        (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.'
       toast({
         title: 'Erro ao criar usuário',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const resetForm = () => {
@@ -116,7 +131,7 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
       permissions: [],
       is_active: true,
       two_factor_enabled: false,
-      notes: ''
+      notes: '',
     })
     setValidationErrors({})
   }
@@ -163,18 +178,18 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
       role: role as AdminUser['role'],
       permissions: form.permissions,
       is_active: form.is_active,
-      two_factor_enabled: form.two_factor_enabled
+      two_factor_enabled: form.two_factor_enabled,
     }
 
     createUserMutation.mutate(userData)
   }
 
   const togglePermission = (permissionId: string) => {
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       permissions: prev.permissions.includes(permissionId)
-        ? prev.permissions.filter(p => p !== permissionId)
-        : [...prev.permissions, permissionId]
+        ? prev.permissions.filter((p) => p !== permissionId)
+        : [...prev.permissions, permissionId],
     }))
   }
 
@@ -191,7 +206,7 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
         'admin.flows.read',
         'admin.flows.update',
         'admin.settings.read',
-        'admin.analytics.read'
+        'admin.analytics.read',
       ]
     } else if (role === 'doctor') {
       defaultPermissions = [
@@ -199,14 +214,14 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
         'admin.patients.read',
         'admin.patients.update',
         'admin.flows.read',
-        'admin.analytics.read'
+        'admin.analytics.read',
       ]
     }
 
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       role,
-      permissions: defaultPermissions
+      permissions: defaultPermissions,
     }))
   }
 
@@ -223,14 +238,17 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
 
   const passwordStrength = getPasswordStrength(form['password'])
 
-  const permissionsByCategory = AVAILABLE_PERMISSIONS.reduce((acc, permission) => {
-    if (!acc[permission.category]) {
-      acc[permission.category] = []
-    }
-    // acc[permission.category] is guaranteed to exist now
-    acc[permission.category]!.push(permission)
-    return acc
-  }, {} as Record<string, typeof AVAILABLE_PERMISSIONS>)
+  const permissionsByCategory = AVAILABLE_PERMISSIONS.reduce(
+    (acc, permission) => {
+      if (!acc[permission.category]) {
+        acc[permission.category] = []
+      }
+      // acc[permission.category] is guaranteed to exist now
+      acc[permission.category]!.push(permission)
+      return acc
+    },
+    {} as Record<string, typeof AVAILABLE_PERMISSIONS>
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -254,7 +272,7 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
                   id="email"
                   type="email"
                   value={form['email']}
-                  onChange={(e) => setForm(prev => ({ ...prev, email: e.target.value }))}
+                  onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                   className={validationErrors['email'] ? 'border-red-500' : ''}
                 />
                 {validationErrors['email'] && (
@@ -267,7 +285,7 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
                 <Input
                   id="full_name"
                   value={form['full_name']}
-                  onChange={(e) => setForm(prev => ({ ...prev, full_name: e.target.value }))}
+                  onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))}
                   className={validationErrors['full_name'] ? 'border-red-500' : ''}
                 />
                 {validationErrors['full_name'] && (
@@ -289,7 +307,7 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     value={form['password']}
-                    onChange={(e) => setForm(prev => ({ ...prev, password: e.target.value }))}
+                    onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
                     className={validationErrors['password'] ? 'border-red-500' : ''}
                   />
                   <Button
@@ -299,23 +317,27 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                     onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
                 {form['password'] && (
                   <div className="flex items-center gap-2">
-                    <div className={`h-2 w-full rounded-full ${
-                      passwordStrength.score <= 2 ? 'bg-red-200' :
-                      passwordStrength.score === 3 ? 'bg-yellow-200' : 'bg-green-200'
-                    }`}>
+                    <div
+                      className={`h-2 w-full rounded-full ${
+                        passwordStrength.score <= 2
+                          ? 'bg-red-200'
+                          : passwordStrength.score === 3
+                            ? 'bg-yellow-200'
+                            : 'bg-green-200'
+                      }`}
+                    >
                       <div
                         className={`h-2 rounded-full transition-[width] ${
-                          passwordStrength.score <= 2 ? 'bg-red-500' :
-                          passwordStrength.score === 3 ? 'bg-yellow-500' : 'bg-green-500'
+                          passwordStrength.score <= 2
+                            ? 'bg-red-500'
+                            : passwordStrength.score === 3
+                              ? 'bg-yellow-500'
+                              : 'bg-green-500'
                         }`}
                         style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
                       />
@@ -335,7 +357,9 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
                     id="confirm_password"
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={form['confirm_password']}
-                    onChange={(e) => setForm(prev => ({ ...prev, confirm_password: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((prev) => ({ ...prev, confirm_password: e.target.value }))
+                    }
                     className={validationErrors['confirm_password'] ? 'border-red-500' : ''}
                   />
                   <Button
@@ -366,7 +390,10 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="role">Função *</Label>
-                <Select value={form['role']} onValueChange={(value: 'doctor' | 'admin') => setRolePermissions(value)}>
+                <Select
+                  value={form['role']}
+                  onValueChange={(value: 'doctor' | 'admin') => setRolePermissions(value)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -386,7 +413,9 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
                   <Switch
                     id="is_active"
                     checked={form.is_active}
-                    onCheckedChange={(checked) => setForm(prev => ({ ...prev, is_active: checked }))}
+                    onCheckedChange={(checked) =>
+                      setForm((prev) => ({ ...prev, is_active: checked }))
+                    }
                   />
                 </div>
 
@@ -395,7 +424,9 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
                   <Switch
                     id="two_factor_enabled"
                     checked={form.two_factor_enabled}
-                    onCheckedChange={(checked) => setForm(prev => ({ ...prev, two_factor_enabled: checked }))}
+                    onCheckedChange={(checked) =>
+                      setForm((prev) => ({ ...prev, two_factor_enabled: checked }))
+                    }
                   />
                 </div>
               </div>
@@ -442,7 +473,7 @@ export function UserCreateModal({ open, onOpenChange }: UserCreateModalProps) {
             <Textarea
               id="notes"
               value={form.notes}
-              onChange={(e) => setForm(prev => ({ ...prev, notes: e.target.value }))}
+              onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
               placeholder="Observações adicionais sobre o usuário..."
               rows={3}
             />

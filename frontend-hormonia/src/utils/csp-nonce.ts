@@ -15,11 +15,11 @@
  */
 export function getCSPNonce(): string | null {
   if (typeof document === 'undefined') {
-    return null;
+    return null
   }
 
-  const metaTag = document.querySelector('meta[property="csp-nonce"]');
-  return metaTag?.getAttribute('content') || null;
+  const metaTag = document.querySelector('meta[property="csp-nonce"]')
+  return metaTag?.getAttribute('content') || null
 }
 
 /**
@@ -32,27 +32,27 @@ export function getCSPNonce(): string | null {
  * @returns The number of scripts updated
  */
 export function injectNonceToScripts(): number {
-  const nonce = getCSPNonce();
+  const nonce = getCSPNonce()
 
   if (!nonce || typeof document === 'undefined') {
-    return 0;
+    return 0
   }
 
-  let count = 0;
-  const scripts = document.querySelectorAll('script:not([nonce])');
+  let count = 0
+  const scripts = document.querySelectorAll('script:not([nonce])')
 
-  scripts.forEach(script => {
+  scripts.forEach((script) => {
     // Skip external scripts (they don't need nonces)
     if (script.getAttribute('src')) {
-      return;
+      return
     }
 
     // Add nonce to inline scripts
-    script.setAttribute('nonce', nonce);
-    count++;
-  });
+    script.setAttribute('nonce', nonce)
+    count++
+  })
 
-  return count;
+  return count
 }
 
 /**
@@ -65,45 +65,45 @@ export function injectNonceToScripts(): number {
  * @returns The created script element or null on error
  */
 export function createScriptWithNonce(options: {
-  src?: string;
-  content?: string;
-  async?: boolean;
-  defer?: boolean;
-  type?: string;
+  src?: string
+  content?: string
+  async?: boolean
+  defer?: boolean
+  type?: string
 }): HTMLScriptElement | null {
-  const nonce = getCSPNonce();
+  const nonce = getCSPNonce()
 
   if (!nonce || typeof document === 'undefined') {
-    console.warn('CSP nonce not available, script may be blocked by CSP');
-    return null;
+    console.warn('CSP nonce not available, script may be blocked by CSP')
+    return null
   }
 
-  const script = document.createElement('script');
+  const script = document.createElement('script')
 
   // Set nonce attribute
-  script.setAttribute('nonce', nonce);
+  script.setAttribute('nonce', nonce)
 
   // Set type
   if (options.type) {
-    script.type = options.type;
+    script.type = options.type
   }
 
   // Set src or content
   if (options.src) {
-    script.src = options.src;
+    script.src = options.src
   } else if (options.content) {
-    script.textContent = options.content;
+    script.textContent = options.content
   }
 
   // Set async/defer
   if (options.async) {
-    script.async = true;
+    script.async = true
   }
   if (options.defer) {
-    script.defer = true;
+    script.defer = true
   }
 
-  return script;
+  return script
 }
 
 /**
@@ -116,18 +116,18 @@ export function createScriptWithNonce(options: {
  * @returns The created style element or null on error
  */
 export function createStyleWithNonce(css: string): HTMLStyleElement | null {
-  const nonce = getCSPNonce();
+  const nonce = getCSPNonce()
 
   if (!nonce || typeof document === 'undefined') {
-    console.warn('CSP nonce not available, style may be blocked by CSP');
-    return null;
+    console.warn('CSP nonce not available, style may be blocked by CSP')
+    return null
   }
 
-  const style = document.createElement('style');
-  style.setAttribute('nonce', nonce);
-  style.textContent = css;
+  const style = document.createElement('style')
+  style.setAttribute('nonce', nonce)
+  style.textContent = css
 
-  return style;
+  return style
 }
 
 /**
@@ -136,7 +136,7 @@ export function createStyleWithNonce(css: string): HTMLStyleElement | null {
  * @returns True if CSP nonce is present in the page
  */
 export function hasCSPNonce(): boolean {
-  return getCSPNonce() !== null;
+  return getCSPNonce() !== null
 }
 
 /**
@@ -146,10 +146,10 @@ export function hasCSPNonce(): boolean {
  * to help with debugging CSP issues in development.
  */
 export function logCSPNonceStatus(): void {
-  const nonce = getCSPNonce();
+  const nonce = getCSPNonce()
 
   if (!nonce) {
-    console.warn('[CSP] No nonce found - CSP may not be configured correctly');
+    console.warn('[CSP] No nonce found - CSP may not be configured correctly')
   }
 
   // CSP status logged
@@ -163,42 +163,44 @@ export function logCSPNonceStatus(): void {
  *
  * @param options - Initialization options
  */
-export function initCSPNonce(options: {
-  debug?: boolean;
-  autoInject?: boolean;
-} = {}): void {
-  const { debug = false, autoInject = false } = options;
+export function initCSPNonce(
+  options: {
+    debug?: boolean
+    autoInject?: boolean
+  } = {}
+): void {
+  const { debug = false, autoInject = false } = options
 
   if (debug) {
-    logCSPNonceStatus();
+    logCSPNonceStatus()
   }
 
   if (autoInject) {
     // Auto-inject nonces to existing scripts
-    injectNonceToScripts();
+    injectNonceToScripts()
 
     // Set up mutation observer to inject nonces to dynamically added scripts
     if (typeof MutationObserver !== 'undefined') {
-      const observer = new MutationObserver(mutations => {
-        mutations.forEach(mutation => {
-          mutation.addedNodes.forEach(node => {
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach((node) => {
             if (node.nodeName === 'SCRIPT') {
-              const script = node as HTMLScriptElement;
-              const nonce = getCSPNonce();
+              const script = node as HTMLScriptElement
+              const nonce = getCSPNonce()
 
               if (nonce && !script.getAttribute('nonce') && !script.src) {
-                script.setAttribute('nonce', nonce);
+                script.setAttribute('nonce', nonce)
                 // Nonce injected to dynamically added script
               }
             }
-          });
-        });
-      });
+          })
+        })
+      })
 
       observer.observe(document.documentElement, {
         childList: true,
-        subtree: true
-      });
+        subtree: true,
+      })
     }
   }
 }
@@ -211,5 +213,5 @@ export default {
   createStyleWithNonce,
   hasCSPNonce,
   logCSPNonceStatus,
-  initCSPNonce
-};
+  initCSPNonce,
+}

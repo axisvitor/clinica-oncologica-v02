@@ -11,7 +11,7 @@ export const formatTime = (timestamp: string): string => {
   try {
     return new Date(timestamp).toLocaleTimeString('pt-BR', {
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     })
   } catch {
     return ''
@@ -36,7 +36,7 @@ export const formatDateSeparator = (timestamp: string): string => {
       return date.toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: 'long',
-        year: 'numeric'
+        year: 'numeric',
       })
     }
   } catch {

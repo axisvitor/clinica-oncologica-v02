@@ -7,7 +7,7 @@ import {
   Users,
   Target,
   AlertTriangle,
-  Lightbulb
+  Lightbulb,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -15,7 +15,13 @@ import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { apiClient } from '../../lib/api-client'
-import { AIAnalyticsDashboard as AIAnalyticsData, AIInsight, AIRecommendation, PerformanceTrend, PatientEngagementMetrics } from '@/types/api'
+import {
+  AIAnalyticsDashboard as AIAnalyticsData,
+  AIInsight,
+  AIRecommendation,
+  PerformanceTrend,
+  PatientEngagementMetrics,
+} from '@/types/api'
 import type { AIInsights, AIRecommendations } from '@/lib/api-client/types'
 import { InsightType } from '@/types/api'
 import type { Priority } from '@/types/shared'
@@ -38,7 +44,7 @@ export function AIAnalyticsDashboard({
   timeframe = 'week',
   className,
   insights,
-  recommendations
+  recommendations,
 }: AIAnalyticsDashboardProps) {
   const hasPatient = Boolean(patientId)
   const insightsEnabled = FEATURES.AI_INSIGHTS
@@ -46,7 +52,11 @@ export function AIAnalyticsDashboard({
   const canUsePrefetched = hasPatient && Boolean(insights) && insightsEnabled
   const shouldFetch = hasPatient && analyticsEnabled && insightsEnabled && !canUsePrefetched
 
-  const { data: analyticsData, isLoading, error } = useQuery({
+  const {
+    data: analyticsData,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['ai-analytics', patientId, timeframe],
     queryFn: async () => {
       if (!patientId) {
@@ -59,7 +69,7 @@ export function AIAnalyticsDashboard({
           : Promise.resolve(undefined)
         const [insights, recommendations] = await Promise.all([
           insightsPromise,
-          recommendationsPromise
+          recommendationsPromise,
         ])
         return toAnalyticsDashboard(insights, recommendations)
       } catch (error) {
@@ -71,7 +81,7 @@ export function AIAnalyticsDashboard({
     refetchInterval: 600000, // 10 minutes
     retry: 2,
     retryDelay: 1000,
-    enabled: shouldFetch
+    enabled: shouldFetch,
   })
 
   const resolvedData = useMemo(() => {
@@ -168,9 +178,7 @@ export function AIAnalyticsDashboard({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{data.overview.total_conversations}</div>
-            <p className="text-xs text-muted-foreground">
-              +12% em relação ao período anterior
-            </p>
+            <p className="text-xs text-muted-foreground">+12% em relação ao período anterior</p>
           </CardContent>
         </Card>
 
@@ -234,9 +242,7 @@ export function AIAnalyticsDashboard({
                 <Lightbulb className="h-5 w-5" />
                 Análises automatizadas
               </CardTitle>
-              <CardDescription>
-                Padrões e anomalias detectados automaticamente
-              </CardDescription>
+              <CardDescription>Padrões e anomalias detectados automaticamente</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -255,9 +261,7 @@ export function AIAnalyticsDashboard({
                 <Brain className="h-5 w-5" />
                 Recomendações de IA
               </CardTitle>
-              <CardDescription>
-                Sugestões baseadas em análise de dados
-              </CardDescription>
+              <CardDescription>Sugestões baseadas em análise de dados</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -310,21 +314,31 @@ export function AIAnalyticsDashboard({
 function InsightCard({ insight }: { insight: AIInsight }) {
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'critical': return 'destructive'
-      case 'high': return 'destructive'
-      case 'medium': return 'default'
-      case 'low': return 'secondary'
-      default: return 'secondary'
+      case 'critical':
+        return 'destructive'
+      case 'high':
+        return 'destructive'
+      case 'medium':
+        return 'default'
+      case 'low':
+        return 'secondary'
+      default:
+        return 'secondary'
     }
   }
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'pattern': return <TrendingUp className="h-4 w-4" />
-      case 'anomaly': return <AlertTriangle className="h-4 w-4" />
-      case 'trend': return <TrendingUp className="h-4 w-4" />
-      case 'recommendation': return <Lightbulb className="h-4 w-4" />
-      default: return <Brain className="h-4 w-4" />
+      case 'pattern':
+        return <TrendingUp className="h-4 w-4" />
+      case 'anomaly':
+        return <AlertTriangle className="h-4 w-4" />
+      case 'trend':
+        return <TrendingUp className="h-4 w-4" />
+      case 'recommendation':
+        return <Lightbulb className="h-4 w-4" />
+      default:
+        return <Brain className="h-4 w-4" />
     }
   }
 
@@ -336,12 +350,18 @@ function InsightCard({ insight }: { insight: AIInsight }) {
           <h4 className="font-medium">{insight.title}</h4>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={getPriorityColor(String(insight.priority)) as 'default' | 'secondary' | 'destructive' | 'outline'}>
+          <Badge
+            variant={
+              getPriorityColor(String(insight.priority)) as
+                | 'default'
+                | 'secondary'
+                | 'destructive'
+                | 'outline'
+            }
+          >
             {String(insight.priority)}
           </Badge>
-          <Badge variant="outline">
-            {Math.round(insight.confidence * 100)}%
-          </Badge>
+          <Badge variant="outline">{Math.round(insight.confidence * 100)}%</Badge>
         </div>
       </div>
       <p className="text-sm text-muted-foreground">{insight.description}</p>
@@ -361,9 +381,7 @@ function RecommendationCard({ recommendation }: { recommendation: AIRecommendati
           <Badge variant={recommendation.priority === 'high' ? 'destructive' : 'default'}>
             {recommendation.priority}
           </Badge>
-          <Badge variant="outline">
-            {Math.round(recommendation.confidence * 100)}%
-          </Badge>
+          <Badge variant="outline">{Math.round(recommendation.confidence * 100)}%</Badge>
         </div>
       </div>
       <p className="text-sm text-muted-foreground">{recommendation.description}</p>
@@ -435,7 +453,7 @@ function getMockAnalyticsData(): AIAnalyticsData {
       total_conversations: 1247,
       avg_sentiment: 0.78,
       response_accuracy: 0.92,
-      human_handoff_rate: 0.08
+      human_handoff_rate: 0.08,
     },
     engagement_metrics: [
       {
@@ -445,7 +463,7 @@ function getMockAnalyticsData(): AIAnalyticsData {
         sentiment_trend: [],
         engagement_score: 88,
         last_interaction: '2025-01-20T10:30:00-03:00',
-        total_interactions: 45
+        total_interactions: 45,
       },
       {
         patient_id: 'PAT002',
@@ -454,8 +472,8 @@ function getMockAnalyticsData(): AIAnalyticsData {
         sentiment_trend: [],
         engagement_score: 72,
         last_interaction: '2025-01-20T09:15:00-03:00',
-        total_interactions: 32
-      }
+        total_interactions: 32,
+      },
     ],
     insights: [
       {
@@ -468,7 +486,7 @@ function getMockAnalyticsData(): AIAnalyticsData {
         metadata: {},
         created_at: '2025-01-20T08:00:00-03:00',
 
-        patient_id: 'all'
+        patient_id: 'all',
       },
       {
         id: 'insight-2',
@@ -480,8 +498,8 @@ function getMockAnalyticsData(): AIAnalyticsData {
         metadata: {},
         created_at: '2025-01-19T16:00:00-03:00',
 
-        patient_id: 'all'
-      }
+        patient_id: 'all',
+      },
     ],
     recommendations: [
       {
@@ -498,13 +516,13 @@ function getMockAnalyticsData(): AIAnalyticsData {
             type: 'message',
             title: 'Ajustar agendamento',
             description: 'Configurar envios para horário otimizado',
-            urgency: 'medium'
-          }
+            urgency: 'medium',
+          },
         ],
         created_at: '2025-01-20T08:00:00-03:00',
         updated_at: '2025-01-20T08:00:00-03:00',
-        patient_id: 'all'
-      }
+        patient_id: 'all',
+      },
     ],
     performance_trends: [
       {
@@ -513,7 +531,7 @@ function getMockAnalyticsData(): AIAnalyticsData {
         conversations: 156,
         avg_sentiment: 0.82,
         response_accuracy: 0.94,
-        resolution_rate: 0.87
+        resolution_rate: 0.87,
       },
       {
         patient_id: 'all',
@@ -521,8 +539,8 @@ function getMockAnalyticsData(): AIAnalyticsData {
         conversations: 142,
         avg_sentiment: 0.79,
         response_accuracy: 0.91,
-        resolution_rate: 0.85
-      }
-    ]
+        resolution_rate: 0.85,
+      },
+    ],
   }
 }

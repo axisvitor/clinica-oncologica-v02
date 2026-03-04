@@ -34,7 +34,7 @@ export function SettingsPage() {
   const handleSaveAll = () => {
     toast({
       title: 'Configurações salvas',
-      description: 'Todas as suas preferências foram salvas automaticamente.'
+      description: 'Todas as suas preferências foram salvas automaticamente.',
     })
   }
 

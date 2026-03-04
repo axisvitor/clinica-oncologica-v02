@@ -8,13 +8,15 @@ import { getRoleLabel } from '@/types/shared'
 export function getInitials(name: string): string {
   return name
     .split(' ')
-    .map(n => n[0])
+    .map((n) => n[0])
     .join('')
     .toUpperCase()
     .slice(0, 2)
 }
 
-export function getRoleBadgeVariant(role: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+export function getRoleBadgeVariant(
+  role: string
+): 'default' | 'secondary' | 'destructive' | 'outline' {
   // Map roles to badge variants for UI components that need specific variants
   const roleKey = role.toLowerCase()
   if (roleKey === 'super_admin') return 'default'
@@ -53,25 +55,25 @@ export function isUserLocked(user: AdminUser): boolean {
 
 export function formatUserActivity(action: string): string {
   const activityMap: Record<string, string> = {
-    'login': 'Fez login no sistema',
-    'logout': 'Fez logout do sistema',
-    'failed_login': 'Tentativa de login falhada',
-    'password_change': 'Alterou a senha',
-    'password_reset': 'Redefiniu a senha',
-    'permission_change': 'Permissoes foram alteradas',
-    'role_change': 'Funcao foi alterada',
-    'create_user': 'Criou um novo usuario',
-    'update_user': 'Atualizou informacoes de usuario',
-    'delete_user': 'Excluiu um usuario',
-    'view_patient': 'Acessou dados de paciente',
-    'create_patient': 'Criou um novo paciente',
-    'update_patient': 'Atualizou informacoes de paciente',
-    'delete_patient': 'Excluiu um paciente',
-    'settings_change': 'Modificou configuracoes do sistema',
-    'report_generated': 'Gerou um relatorio',
-    'export_data': 'Exportou dados',
-    'audit_access': 'Acessou logs de auditoria',
-    'security_event': 'Evento de seguranca registrado'
+    login: 'Fez login no sistema',
+    logout: 'Fez logout do sistema',
+    failed_login: 'Tentativa de login falhada',
+    password_change: 'Alterou a senha',
+    password_reset: 'Redefiniu a senha',
+    permission_change: 'Permissoes foram alteradas',
+    role_change: 'Funcao foi alterada',
+    create_user: 'Criou um novo usuario',
+    update_user: 'Atualizou informacoes de usuario',
+    delete_user: 'Excluiu um usuario',
+    view_patient: 'Acessou dados de paciente',
+    create_patient: 'Criou um novo paciente',
+    update_patient: 'Atualizou informacoes de paciente',
+    delete_patient: 'Excluiu um paciente',
+    settings_change: 'Modificou configuracoes do sistema',
+    report_generated: 'Gerou um relatorio',
+    export_data: 'Exportou dados',
+    audit_access: 'Acessou logs de auditoria',
+    security_event: 'Evento de seguranca registrado',
   }
 
   return activityMap[action.toLowerCase()] || action.replace('_', ' ')
@@ -83,7 +85,7 @@ export function getActivitySeverity(action: string): 'low' | 'medium' | 'high' {
     'delete_user',
     'delete_patient',
     'permission_change',
-    'security_event'
+    'security_event',
   ]
 
   const mediumSeverityActions = [
@@ -93,7 +95,7 @@ export function getActivitySeverity(action: string): 'low' | 'medium' | 'high' {
     'update_patient',
     'role_change',
     'password_reset',
-    'settings_change'
+    'settings_change',
   ]
 
   if (highSeverityActions.includes(action.toLowerCase())) {
@@ -152,7 +154,7 @@ export function validatePassword(password: string): {
   return {
     isValid: errors.length === 0,
     errors,
-    strength
+    strength,
   }
 }
 
@@ -174,7 +176,7 @@ export function formatPermissionName(permission: string): string {
       settings: 'Configuracoes',
       analytics: 'Analytics',
       reports: 'Relatorios',
-      audit: 'Auditoria'
+      audit: 'Auditoria',
     }
 
     const actionNames: Record<string, string> = {
@@ -183,7 +185,7 @@ export function formatPermissionName(permission: string): string {
       update: 'Editar',
       delete: 'Excluir',
       export: 'Exportar',
-      access: 'Acessar'
+      access: 'Acessar',
     }
 
     const resourceName = resourceNames[resource as keyof typeof resourceNames] || resource
@@ -195,10 +197,24 @@ export function formatPermissionName(permission: string): string {
   return permission
 }
 
-export function sortUsers(users: AdminUser[], sortBy: string, sortOrder: 'asc' | 'desc'): AdminUser[] {
+export function sortUsers(
+  users: AdminUser[],
+  sortBy: string,
+  sortOrder: 'asc' | 'desc'
+): AdminUser[] {
   return [...users].sort((a, b) => {
-    let aVal: string | number | boolean | null | undefined = a[sortBy as keyof AdminUser] as string | number | boolean | null | undefined
-    let bVal: string | number | boolean | null | undefined = b[sortBy as keyof AdminUser] as string | number | boolean | null | undefined
+    let aVal: string | number | boolean | null | undefined = a[sortBy as keyof AdminUser] as
+      | string
+      | number
+      | boolean
+      | null
+      | undefined
+    let bVal: string | number | boolean | null | undefined = b[sortBy as keyof AdminUser] as
+      | string
+      | number
+      | boolean
+      | null
+      | undefined
 
     // Handle date sorting
     if (sortBy === 'created_at' || sortBy === 'last_login') {
@@ -229,7 +245,7 @@ export function filterUsers(
     twoFactor?: string
   }
 ): AdminUser[] {
-  return users.filter(user => {
+  return users.filter((user) => {
     // Search filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase()
@@ -272,10 +288,10 @@ export function exportUsersToCSV(users: AdminUser[]): string {
     'Tentativas de Login Falhadas',
     'Ultimo Login',
     'Data de Criacao',
-    'Permissoes'
+    'Permissoes',
   ]
 
-  const rows = users.map(user => [
+  const rows = users.map((user) => [
     user['id'],
     user['full_name'],
     user['email'],
@@ -285,12 +301,12 @@ export function exportUsersToCSV(users: AdminUser[]): string {
     user.failed_login_attempts.toString(),
     user.last_login ? new Date(user.last_login).toLocaleString('pt-BR') : 'Nunca',
     new Date(user.created_at).toLocaleString('pt-BR'),
-    user.permissions.join('; ')
+    user.permissions.join('; '),
   ])
 
   const csvContent = [
     headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ...rows.map((row) => row.map((cell) => `"${cell}"`).join(',')),
   ].join('\n')
 
   return csvContent

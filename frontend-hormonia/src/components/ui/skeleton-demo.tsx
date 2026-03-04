@@ -8,7 +8,7 @@ import {
   ListSkeleton,
   TextSkeleton,
   AvatarSkeleton,
-  BadgeSkeleton
+  BadgeSkeleton,
 } from './skeleton'
 
 /**
@@ -31,14 +31,16 @@ export function SkeletonDemo() {
     { key: 'dashboard', label: 'Dashboard' },
     { key: 'patient-list', label: 'Patient List' },
     { key: 'metrics', label: 'Metrics Cards' },
-    { key: 'mixed', label: 'Mixed Components' }
+    { key: 'mixed', label: 'Mixed Components' },
   ]
 
   const renderSkeletonDemo = () => {
     if (!loading) {
       return (
         <div className="text-center py-12">
-          <p className="text-gray-500 mb-4">Click "Start Loading Demo" to see the skeletons in action</p>
+          <p className="text-gray-500 mb-4">
+            Click "Start Loading Demo" to see the skeletons in action
+          </p>
           <Button onClick={simulateLoading}>Start Loading Demo</Button>
         </div>
       )
@@ -155,7 +157,8 @@ export function SkeletonDemo() {
       <div className="space-y-4">
         <h2 className="text-2xl font-bold">Enhanced Skeleton System Demo</h2>
         <p className="text-gray-600">
-          This demo showcases the various skeleton components with different animations and variants.
+          This demo showcases the various skeleton components with different animations and
+          variants.
         </p>
       </div>
 
@@ -179,29 +182,35 @@ export function SkeletonDemo() {
             <div className="w-4 h-4 bg-blue-600 rounded-full animate-pulse" />
             <span className="text-blue-800 font-medium">Loading simulation in progress...</span>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setLoading(false)}
-          >
+          <Button variant="outline" size="sm" onClick={() => setLoading(false)}>
             Stop Demo
           </Button>
         </div>
       )}
 
-      <div className="border rounded-lg p-6 min-h-[400px]">
-        {renderSkeletonDemo()}
-      </div>
+      <div className="border rounded-lg p-6 min-h-[400px]">{renderSkeletonDemo()}</div>
 
       <div className="bg-gray-50 rounded-lg p-4 space-y-2">
         <h4 className="font-semibold">Features Demonstrated:</h4>
         <ul className="text-sm text-gray-600 space-y-1">
-          <li>• <strong>Multiple Animation Types:</strong> Pulse, Wave, and Shimmer animations</li>
-          <li>• <strong>Various Shapes:</strong> Rectangular, Rounded, and Circular skeletons</li>
-          <li>• <strong>Size Variants:</strong> Small, Medium, Large, and Extra Large options</li>
-          <li>• <strong>Specialized Components:</strong> Patient Cards, Tables, Lists, and Metrics</li>
-          <li>• <strong>Responsive Design:</strong> Grid layouts that adapt to screen size</li>
-          <li>• <strong>Design System Integration:</strong> Follows the existing UI component patterns</li>
+          <li>
+            • <strong>Multiple Animation Types:</strong> Pulse, Wave, and Shimmer animations
+          </li>
+          <li>
+            • <strong>Various Shapes:</strong> Rectangular, Rounded, and Circular skeletons
+          </li>
+          <li>
+            • <strong>Size Variants:</strong> Small, Medium, Large, and Extra Large options
+          </li>
+          <li>
+            • <strong>Specialized Components:</strong> Patient Cards, Tables, Lists, and Metrics
+          </li>
+          <li>
+            • <strong>Responsive Design:</strong> Grid layouts that adapt to screen size
+          </li>
+          <li>
+            • <strong>Design System Integration:</strong> Follows the existing UI component patterns
+          </li>
         </ul>
       </div>
     </div>

@@ -17,11 +17,18 @@
  * ```
  */
 
-import * as React from "react"
-import { memo } from "react"
-import { cn } from "@/lib/utils"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import * as React from 'react'
+import { memo } from 'react'
+import { cn } from '@/lib/utils'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 // ============================================================================
 // Base Skeleton Component
@@ -46,36 +53,37 @@ function Skeleton({
   'aria-label': ariaLabel,
   ...props
 }: SkeletonProps) {
-  const baseClasses = "bg-muted"
+  const baseClasses = 'bg-muted'
 
   const sizeClasses = {
-    xs: "h-3",
-    sm: "h-4",
-    md: "h-6",
-    lg: "h-8",
-    xl: "h-12",
-    "2xl": "h-16"
+    xs: 'h-3',
+    sm: 'h-4',
+    md: 'h-6',
+    lg: 'h-8',
+    xl: 'h-12',
+    '2xl': 'h-16',
   }
 
   const shapeClasses = {
-    rectangular: "rounded-none",
-    circular: "rounded-full",
-    rounded: "rounded-md",
-    pill: "rounded-full"
+    rectangular: 'rounded-none',
+    circular: 'rounded-full',
+    rounded: 'rounded-md',
+    pill: 'rounded-full',
   }
 
   const animationClasses = {
-    pulse: "animate-pulse motion-reduce:animate-none",
-    wave: "animate-skeleton-wave motion-reduce:animate-none relative overflow-hidden bg-gradient-to-r from-muted via-muted/50 to-muted bg-[length:200%_100%]",
-    shimmer: "animate-shimmer motion-reduce:animate-none bg-gradient-to-r from-muted via-muted/50 to-muted bg-[length:200%_100%]",
-    breathing: "animate-breathing motion-reduce:animate-none",
-    none: ""
+    pulse: 'animate-pulse motion-reduce:animate-none',
+    wave: 'animate-skeleton-wave motion-reduce:animate-none relative overflow-hidden bg-gradient-to-r from-muted via-muted/50 to-muted bg-[length:200%_100%]',
+    shimmer:
+      'animate-shimmer motion-reduce:animate-none bg-gradient-to-r from-muted via-muted/50 to-muted bg-[length:200%_100%]',
+    breathing: 'animate-breathing motion-reduce:animate-none',
+    none: '',
   }
 
   const intensityClasses = {
-    subtle: "opacity-60",
-    normal: "opacity-80",
-    strong: "opacity-100"
+    subtle: 'opacity-60',
+    normal: 'opacity-80',
+    strong: 'opacity-100',
   }
 
   return (
@@ -110,18 +118,18 @@ function TextSkeleton({
   lines = 1,
   className,
   size = 'md',
-  animation = 'shimmer'
+  animation = 'shimmer',
 }: TextSkeletonProps) {
   const heights = {
     sm: 'h-3',
     md: 'h-4',
-    lg: 'h-5'
+    lg: 'h-5',
   }
 
   const widths = ['w-full', 'w-5/6', 'w-4/5', 'w-3/4', 'w-2/3']
 
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn('space-y-2', className)}>
       {Array.from({ length: lines }).map((_, index) => (
         <Skeleton
           key={index}
@@ -143,7 +151,7 @@ function TextSkeleton({
 
 function AvatarSkeleton({
   size = 'md',
-  className
+  className,
 }: {
   size?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
@@ -152,22 +160,16 @@ function AvatarSkeleton({
     sm: 'h-6 w-6',
     md: 'h-8 w-8',
     lg: 'h-12 w-12',
-    xl: 'h-16 w-16'
+    xl: 'h-16 w-16',
   }
 
-  return (
-    <Skeleton
-      className={cn(sizes[size], className)}
-      shape="circular"
-      animation="shimmer"
-    />
-  )
+  return <Skeleton className={cn(sizes[size], className)} shape="circular" animation="shimmer" />
 }
 
 function ButtonSkeleton({
   size = 'md',
   variant = 'default',
-  className
+  className,
 }: {
   size?: 'sm' | 'md' | 'lg'
   variant?: 'default' | 'outline' | 'ghost'
@@ -176,35 +178,22 @@ function ButtonSkeleton({
   const sizes = {
     sm: 'h-8 w-16',
     md: 'h-10 w-20',
-    lg: 'h-12 w-24'
+    lg: 'h-12 w-24',
   }
 
   const variants = {
     default: 'bg-muted',
     outline: 'bg-muted border border-muted-foreground/20',
-    ghost: 'bg-muted/50'
+    ghost: 'bg-muted/50',
   }
 
   return (
-    <div
-      className={cn(
-        'rounded-md',
-        sizes[size],
-        variants[variant],
-        'animate-pulse',
-        className
-      )}
-    />
+    <div className={cn('rounded-md', sizes[size], variants[variant], 'animate-pulse', className)} />
   )
 }
 
 function BadgeSkeleton({ className }: { className?: string }) {
-  return (
-    <Skeleton
-      className={cn("h-5 w-16 rounded-full", className)}
-      animation="shimmer"
-    />
-  )
+  return <Skeleton className={cn('h-5 w-16 rounded-full', className)} animation="shimmer" />
 }
 
 // ============================================================================
@@ -254,7 +243,7 @@ function MetricCardSkeleton({ className }: { className?: string }) {
 
 function PatientCardSkeleton({ className }: { className?: string }) {
   return (
-    <Card className={cn("hover:shadow-md transition-shadow", className)}>
+    <Card className={cn('hover:shadow-md transition-shadow', className)}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3">
@@ -296,15 +285,9 @@ function PatientCardSkeleton({ className }: { className?: string }) {
   )
 }
 
-function PatientListSkeleton({
-  items = 8,
-  className
-}: {
-  items?: number
-  className?: string
-}) {
+function PatientListSkeleton({ items = 8, className }: { items?: number; className?: string }) {
   return (
-    <div className={cn("grid gap-6 md:grid-cols-2 lg:grid-cols-3", className)}>
+    <div className={cn('grid gap-6 md:grid-cols-2 lg:grid-cols-3', className)}>
       {Array.from({ length: items }).map((_, index) => (
         <PatientCardSkeleton key={index} />
       ))}
@@ -417,23 +400,19 @@ function TableSkeleton({
   rows = 5,
   columns = 6,
   showHeader = true,
-  className
+  className,
 }: TableSkeletonProps) {
   const columnWidths = ['w-48', 'w-32', 'w-24', 'w-20', 'w-28', 'w-16']
 
   return (
-    <div role="status" aria-label="Carregando tabela..." className={cn("space-y-4", className)}>
+    <div role="status" aria-label="Carregando tabela..." className={cn('space-y-4', className)}>
       <Table>
         {showHeader && (
           <TableHeader>
             <TableRow>
               {Array.from({ length: columns }).map((_, index) => (
                 <TableHead key={index}>
-                  <Skeleton
-                    className="h-4 w-20"
-                    shape="rounded"
-                    animation="shimmer"
-                  />
+                  <Skeleton className="h-4 w-20" shape="rounded" animation="shimmer" />
                 </TableHead>
               ))}
             </TableRow>
@@ -458,10 +437,7 @@ function TableSkeleton({
                     <BadgeSkeleton />
                   ) : (
                     <Skeleton
-                      className={cn(
-                        "h-4",
-                        columnWidths[colIndex] || "w-20"
-                      )}
+                      className={cn('h-4', columnWidths[colIndex] || 'w-20')}
                       shape="rounded"
                       animation="shimmer"
                     />
@@ -477,22 +453,24 @@ function TableSkeleton({
 }
 
 // Simple table skeleton (for simpler use cases)
-const SimpleTableSkeleton = memo<{ rows?: number; columns?: number }>(({ rows = 5, columns = 4 }) => (
-  <div role="status" aria-label="Carregando tabela..." className="space-y-3">
-    <div className="flex gap-4 pb-3 border-b">
-      {Array.from({ length: columns }).map((_, i) => (
-        <Skeleton key={`header-${i}`} className="h-4 flex-1" />
-      ))}
-    </div>
-    {Array.from({ length: rows }).map((_, rowIndex) => (
-      <div key={`row-${rowIndex}`} className="flex gap-4 py-2">
-        {Array.from({ length: columns }).map((_, colIndex) => (
-          <Skeleton key={`cell-${rowIndex}-${colIndex}`} className="h-4 flex-1" />
+const SimpleTableSkeleton = memo<{ rows?: number; columns?: number }>(
+  ({ rows = 5, columns = 4 }) => (
+    <div role="status" aria-label="Carregando tabela..." className="space-y-3">
+      <div className="flex gap-4 pb-3 border-b">
+        {Array.from({ length: columns }).map((_, i) => (
+          <Skeleton key={`header-${i}`} className="h-4 flex-1" />
         ))}
       </div>
-    ))}
-  </div>
-))
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <div key={`row-${rowIndex}`} className="flex gap-4 py-2">
+          {Array.from({ length: columns }).map((_, colIndex) => (
+            <Skeleton key={`cell-${rowIndex}-${colIndex}`} className="h-4 flex-1" />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+)
 
 SimpleTableSkeleton.displayName = 'SimpleTableSkeleton'
 
@@ -511,10 +489,10 @@ function ListSkeleton({
   items = 5,
   showAvatar = true,
   showBadge = false,
-  className
+  className,
 }: ListSkeletonProps) {
   return (
-    <div role="status" aria-label="Carregando lista..." className={cn("space-y-4", className)}>
+    <div role="status" aria-label="Carregando lista..." className={cn('space-y-4', className)}>
       {Array.from({ length: items }).map((_, index) => (
         <div key={index} className="flex items-center space-x-4 p-4 rounded-lg border">
           {showAvatar && <AvatarSkeleton size="md" />}
@@ -561,30 +539,31 @@ FormSkeleton.displayName = 'FormSkeleton'
 // Chart Skeletons
 // ============================================================================
 
-const ChartSkeleton = memo<{ className?: string; height?: number | string }>(({ className, height = 300 }) => (
-  <div
-    role="status"
-    aria-label="Carregando grafico..."
-    className={cn('space-y-4', className)}
-  >
-    <Skeleton className="h-6 w-48" />
-    <div className="relative w-full h-64 bg-muted/50 rounded-lg overflow-hidden" style={{ height }}>
-      <div className="absolute bottom-0 left-0 right-0 flex items-end justify-around gap-2 p-4">
-        <Skeleton className="h-32 w-12" />
-        <Skeleton className="h-40 w-12" />
-        <Skeleton className="h-24 w-12" />
-        <Skeleton className="h-48 w-12" />
-        <Skeleton className="h-36 w-12" />
-        <Skeleton className="h-44 w-12" />
+const ChartSkeleton = memo<{ className?: string; height?: number | string }>(
+  ({ className, height = 300 }) => (
+    <div role="status" aria-label="Carregando grafico..." className={cn('space-y-4', className)}>
+      <Skeleton className="h-6 w-48" />
+      <div
+        className="relative w-full h-64 bg-muted/50 rounded-lg overflow-hidden"
+        style={{ height }}
+      >
+        <div className="absolute bottom-0 left-0 right-0 flex items-end justify-around gap-2 p-4">
+          <Skeleton className="h-32 w-12" />
+          <Skeleton className="h-40 w-12" />
+          <Skeleton className="h-24 w-12" />
+          <Skeleton className="h-48 w-12" />
+          <Skeleton className="h-36 w-12" />
+          <Skeleton className="h-44 w-12" />
+        </div>
+      </div>
+      <div className="flex gap-4 justify-center">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-4 w-24" />
       </div>
     </div>
-    <div className="flex gap-4 justify-center">
-      <Skeleton className="h-4 w-24" />
-      <Skeleton className="h-4 w-24" />
-      <Skeleton className="h-4 w-24" />
-    </div>
-  </div>
-))
+  )
+)
 
 ChartSkeleton.displayName = 'ChartSkeleton'
 
@@ -735,10 +714,7 @@ const MessageThreadSkeleton = memo<{ messages?: number }>(({ messages = 5 }) => 
     {Array.from({ length: messages }).map((_, i) => {
       const isRight = i % 2 === 0
       return (
-        <div
-          key={i}
-          className={cn('flex gap-2', isRight ? 'justify-end' : 'justify-start')}
-        >
+        <div key={i} className={cn('flex gap-2', isRight ? 'justify-end' : 'justify-start')}>
           {!isRight && <Skeleton className="h-8 w-8 rounded-full flex-shrink-0" />}
           <div className={cn('space-y-2 max-w-[70%]', isRight && 'items-end')}>
             <Skeleton className="h-4 w-32" />
@@ -840,11 +816,7 @@ export const createSkeleton = (config: {
       {Array.from({ length: config.rows || 3 }, (_, rowIndex) => (
         <div key={rowIndex} className={cn('flex space-x-4', config.spacing)}>
           {Array.from({ length: config.columns || 1 }, (_, colIndex) => (
-            <Skeleton
-              key={colIndex}
-              className="flex-1"
-              style={{ height: config.height }}
-            />
+            <Skeleton key={colIndex} className="flex-1" style={{ height: config.height }} />
           ))}
         </div>
       ))}

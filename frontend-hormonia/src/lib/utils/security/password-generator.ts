@@ -32,7 +32,7 @@ const CHAR_SETS = {
   special: '!@#$%^&*',
   uppercaseAll: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
   lowercaseAll: 'abcdefghijklmnopqrstuvwxyz',
-  numbersAll: '0123456789'
+  numbersAll: '0123456789',
 }
 
 /**
@@ -60,7 +60,7 @@ export function generateSecurePassword(options: PasswordOptions = {}): string {
     includeLowercase = true,
     includeNumbers = true,
     includeSpecial = true,
-    excludeAmbiguous = true
+    excludeAmbiguous = true,
   } = options
 
   // Validation
@@ -148,7 +148,7 @@ export function generateTemporaryPassword(): string {
     includeLowercase: true,
     includeNumbers: true,
     includeSpecial: true,
-    excludeAmbiguous: true
+    excludeAmbiguous: true,
   })
 }
 
@@ -201,6 +201,6 @@ export function validatePasswordStrength(password: string): {
   return {
     score: Math.round(score),
     feedback,
-    isStrong: score >= 3
+    isStrong: score >= 3,
   }
 }

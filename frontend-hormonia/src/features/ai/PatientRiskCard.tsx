@@ -6,7 +6,7 @@ import {
   MessageSquare,
   Calendar,
   Clock,
-  Activity
+  Activity,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'

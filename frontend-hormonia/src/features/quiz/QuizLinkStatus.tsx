@@ -1,11 +1,6 @@
 import React from 'react'
 import { Badge } from '@/components/ui/badge'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { CircleCheck as CheckCircle2, Clock, Circle as XCircle, Send } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -24,7 +19,7 @@ export function QuizLinkStatus({
   lastSent,
   lastResponse,
   linkStatus,
-  expiresAt
+  expiresAt,
 }: QuizLinkStatusProps) {
   // Map backend status to UI status
   const mappedStatus = mapBackendStatus(linkStatus)
@@ -36,35 +31,35 @@ export function QuizLinkStatus({
           icon: Clock,
           label: 'Ativo',
           className: 'bg-blue-100 text-blue-800 border-blue-200',
-          iconClassName: 'text-blue-600'
+          iconClassName: 'text-blue-600',
         }
       case 'expired':
         return {
           icon: XCircle,
           label: 'Expirado',
           className: 'bg-red-100 text-red-800 border-red-200',
-          iconClassName: 'text-red-600'
+          iconClassName: 'text-red-600',
         }
       case 'completed':
         return {
           icon: CheckCircle2,
           label: 'Completado',
           className: 'bg-green-100 text-green-800 border-green-200',
-          iconClassName: 'text-green-600'
+          iconClassName: 'text-green-600',
         }
       case 'pending':
         return {
           icon: Send,
           label: 'Pendente',
           className: 'bg-gray-100 text-gray-800 border-gray-200',
-          iconClassName: 'text-gray-600'
+          iconClassName: 'text-gray-600',
         }
       default:
         return {
           icon: Clock,
           label: getStatusLabel(linkStatus),
           className: 'bg-gray-100 text-gray-800 border-gray-200',
-          iconClassName: 'text-gray-600'
+          iconClassName: 'text-gray-600',
         }
     }
   }
@@ -85,7 +80,7 @@ export function QuizLinkStatus({
 
       return `Expira ${formatDistanceToNow(expires, {
         addSuffix: true,
-        locale: ptBR
+        locale: ptBR,
       })}`
     } catch {
       return 'Data inválida'
@@ -98,7 +93,7 @@ export function QuizLinkStatus({
     try {
       return formatDistanceToNow(new Date(date), {
         addSuffix: true,
-        locale: ptBR
+        locale: ptBR,
       })
     } catch {
       return 'Data inválida'

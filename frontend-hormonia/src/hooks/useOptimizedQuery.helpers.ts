@@ -1,65 +1,65 @@
-import { useQuery, UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createLogger } from '@/lib/logger';
+import { useQuery, UseQueryOptions, UseQueryResult } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@/lib/logger'
 
 export interface QueryPerformanceMetrics {
-  queryKey: string;
-  startTime: number;
-  endTime: number;
-  duration: number;
-  fromCache: boolean;
-  success: boolean;
-  error?: string | undefined;
+  queryKey: string
+  startTime: number
+  endTime: number
+  duration: number
+  fromCache: boolean
+  success: boolean
+  error?: string | undefined
 }
 
 export interface LoadingState {
-  isInitialLoading: boolean;
-  isRefetching: boolean;
-  isFirstFetch: boolean;
-  hasEverSucceeded: boolean;
+  isInitialLoading: boolean
+  isRefetching: boolean
+  isFirstFetch: boolean
+  hasEverSucceeded: boolean
 }
 
 interface DedupeCacheEntry<TData> {
-  timestamp: number;
-  data?: TData;
+  timestamp: number
+  data?: TData
 }
 
-type QueryFunctionType<TData, _TError> = NonNullable<UseQueryOptions<TData, _TError>['queryFn']>;
+type QueryFunctionType<TData, _TError> = NonNullable<UseQueryOptions<TData, _TError>['queryFn']>
 
-type ExecutableQueryFn<TData> = (...args: unknown[]) => Promise<TData> | TData;
+type ExecutableQueryFn<TData> = (...args: unknown[]) => Promise<TData> | TData
 
 function isExecutableQueryFn<TData>(
   fn?: QueryFunctionType<TData, unknown>
 ): fn is ExecutableQueryFn<TData> {
-  return typeof fn === 'function';
+  return typeof fn === 'function'
 }
 
-const metricsStore: QueryPerformanceMetrics[] = [];
-const MAX_METRICS_STORED = 100;
-const logger = createLogger('useOptimizedQuery');
+const metricsStore: QueryPerformanceMetrics[] = []
+const MAX_METRICS_STORED = 100
+const logger = createLogger('useOptimizedQuery')
 
 export function getQueryMetrics(): QueryPerformanceMetrics[] {
-  return [...metricsStore];
+  return [...metricsStore]
 }
 
 export function getAverageQueryDuration(queryKey: string): number {
-  const relevantMetrics = metricsStore.filter(m => m.queryKey === queryKey);
-  if (relevantMetrics.length === 0) return 0;
+  const relevantMetrics = metricsStore.filter((m) => m.queryKey === queryKey)
+  if (relevantMetrics.length === 0) return 0
 
-  const totalDuration = relevantMetrics.reduce((sum, m) => sum + m.duration, 0);
-  return totalDuration / relevantMetrics.length;
+  const totalDuration = relevantMetrics.reduce((sum, m) => sum + m.duration, 0)
+  return totalDuration / relevantMetrics.length
 }
 
 export function getCacheHitRate(queryKey: string): number {
-  const relevantMetrics = metricsStore.filter(m => m.queryKey === queryKey);
-  if (relevantMetrics.length === 0) return 0;
+  const relevantMetrics = metricsStore.filter((m) => m.queryKey === queryKey)
+  if (relevantMetrics.length === 0) return 0
 
-  const cacheHits = relevantMetrics.filter(m => m.fromCache).length;
-  return (cacheHits / relevantMetrics.length) * 100;
+  const cacheHits = relevantMetrics.filter((m) => m.fromCache).length
+  return (cacheHits / relevantMetrics.length) * 100
 }
 
 export function clearQueryMetrics(): void {
-  metricsStore.length = 0;
+  metricsStore.length = 0
 }
 
 export function useConfiguredQuery<TData, TError>(
@@ -75,13 +75,13 @@ export function useConfiguredQuery<TData, TError>(
     refetchOnReconnect: queryOptions.refetchOnReconnect ?? true,
     retry: queryOptions.retry ?? 3,
     retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
-  });
+  })
 }
 
 interface DedupeHookParams<TData> {
-  queryKeyString: string;
-  deduplicationWindow: number;
-  originalQueryFn?: QueryFunctionType<TData, unknown>;
+  queryKeyString: string
+  deduplicationWindow: number
+  originalQueryFn?: QueryFunctionType<TData, unknown>
 }
 
 export function useDedupeAwareQueryFn<TData>({
@@ -89,26 +89,26 @@ export function useDedupeAwareQueryFn<TData>({
   deduplicationWindow,
   originalQueryFn,
 }: DedupeHookParams<TData>) {
-  const dedupeCacheRef = useRef<Record<string, DedupeCacheEntry<TData>>>({});
-  const dedupeWindowMs = Math.max(deduplicationWindow, 0);
+  const dedupeCacheRef = useRef<Record<string, DedupeCacheEntry<TData>>>({})
+  const dedupeWindowMs = Math.max(deduplicationWindow, 0)
 
   useEffect(() => {
-    const cacheReference = dedupeCacheRef.current;
+    const cacheReference = dedupeCacheRef.current
     return () => {
-      delete cacheReference[queryKeyString];
-    };
-  }, [queryKeyString]);
+      delete cacheReference[queryKeyString]
+    }
+  }, [queryKeyString])
 
   return useMemo(() => {
     if (!isExecutableQueryFn(originalQueryFn)) {
-      return originalQueryFn;
+      return originalQueryFn
     }
 
-    const executableFn = originalQueryFn;
+    const executableFn = originalQueryFn
 
     return (async (...args: Parameters<typeof executableFn>) => {
-      const now = Date.now();
-      const cacheEntry = dedupeCacheRef.current[queryKeyString];
+      const now = Date.now()
+      const cacheEntry = dedupeCacheRef.current[queryKeyString]
 
       if (
         dedupeWindowMs > 0 &&
@@ -119,27 +119,27 @@ export function useDedupeAwareQueryFn<TData>({
         logger.debug('[useOptimizedQuery] Deduplicated query execution skipped', {
           queryKey: queryKeyString,
           dedupeWindowMs,
-        });
-        return cacheEntry.data;
+        })
+        return cacheEntry.data
       }
 
-      const result = (await executableFn(...args)) as TData;
+      const result = (await executableFn(...args)) as TData
       dedupeCacheRef.current[queryKeyString] = {
         timestamp: now,
         data: result,
-      };
-      return result;
-    }) as typeof executableFn;
-  }, [originalQueryFn, queryKeyString, dedupeWindowMs]);
+      }
+      return result
+    }) as typeof executableFn
+  }, [originalQueryFn, queryKeyString, dedupeWindowMs])
 }
 
 interface PerformanceTrackingParams<TError> {
-  enableMetrics: boolean;
-  isFetching: boolean;
-  isSuccess: boolean;
-  isError: boolean;
-  error: TError | null;
-  queryKeyString: string;
+  enableMetrics: boolean
+  isFetching: boolean
+  isSuccess: boolean
+  isError: boolean
+  error: TError | null
+  queryKeyString: string
 }
 
 export function usePerformanceMetricsTracking<TError>({
@@ -150,20 +150,20 @@ export function usePerformanceMetricsTracking<TError>({
   error,
   queryKeyString,
 }: PerformanceTrackingParams<TError>) {
-  const startTimeRef = useRef<number>(0);
-  const [metrics, setMetrics] = useState<QueryPerformanceMetrics | undefined>();
+  const startTimeRef = useRef<number>(0)
+  const [metrics, setMetrics] = useState<QueryPerformanceMetrics | undefined>()
 
   useEffect(() => {
-    if (!enableMetrics) return;
+    if (!enableMetrics) return
 
     if (isFetching && startTimeRef.current === 0) {
-      startTimeRef.current = Date.now();
+      startTimeRef.current = Date.now()
     }
 
     if (!isFetching && startTimeRef.current > 0) {
-      const endTime = Date.now();
-      const duration = endTime - startTimeRef.current;
-      const fromCache = duration < 10;
+      const endTime = Date.now()
+      const duration = endTime - startTimeRef.current
+      const fromCache = duration < 10
 
       const performanceMetrics: QueryPerformanceMetrics = {
         queryKey: queryKeyString,
@@ -173,54 +173,58 @@ export function usePerformanceMetricsTracking<TError>({
         fromCache,
         success: isSuccess,
         error: isError ? String(error) : undefined,
-      };
+      }
 
-      setMetrics(performanceMetrics);
-      storeMetrics(performanceMetrics);
-      startTimeRef.current = 0;
+      setMetrics(performanceMetrics)
+      storeMetrics(performanceMetrics)
+      startTimeRef.current = 0
     }
-  }, [enableMetrics, isFetching, isSuccess, isError, error, queryKeyString]);
+  }, [enableMetrics, isFetching, isSuccess, isError, error, queryKeyString])
 
-  return metrics;
+  return metrics
 }
 
 interface SuccessTrackerParams<TData> {
-  isSuccess: boolean;
-  data: TData | undefined;
-  onSuccess?: (data: TData) => void;
+  isSuccess: boolean
+  data: TData | undefined
+  onSuccess?: (data: TData) => void
 }
 
-export function useSuccessTracker<TData>({ isSuccess, data, onSuccess }: SuccessTrackerParams<TData>) {
-  const hasEverSucceededRef = useRef(false);
+export function useSuccessTracker<TData>({
+  isSuccess,
+  data,
+  onSuccess,
+}: SuccessTrackerParams<TData>) {
+  const hasEverSucceededRef = useRef(false)
 
   useEffect(() => {
     if (isSuccess && data !== undefined) {
-      hasEverSucceededRef.current = true;
-      onSuccess?.(data);
+      hasEverSucceededRef.current = true
+      onSuccess?.(data)
     }
-  }, [isSuccess, data, onSuccess]);
+  }, [isSuccess, data, onSuccess])
 
-  return hasEverSucceededRef.current;
+  return hasEverSucceededRef.current
 }
 
 interface ErrorNotifierParams<TError> {
-  isError: boolean;
-  error: TError | null;
-  onError?: (error: TError) => void;
+  isError: boolean
+  error: TError | null
+  onError?: (error: TError) => void
 }
 
 export function useErrorNotifier<TError>({ isError, error, onError }: ErrorNotifierParams<TError>) {
   useEffect(() => {
     if (isError && error) {
-      onError?.(error);
+      onError?.(error)
     }
-  }, [isError, error, onError]);
+  }, [isError, error, onError])
 }
 
 interface LoadingStateParams {
-  isLoading: boolean;
-  isFetching: boolean;
-  hasEverSucceeded: boolean;
+  isLoading: boolean
+  isFetching: boolean
+  hasEverSucceeded: boolean
 }
 
 export function getLoadingState({
@@ -233,7 +237,7 @@ export function getLoadingState({
     isRefetching: isFetching && hasEverSucceeded,
     isFirstFetch: !hasEverSucceeded,
     hasEverSucceeded,
-  };
+  }
 }
 
 export function useSafeRefetch<TData, TError>(
@@ -242,28 +246,28 @@ export function useSafeRefetch<TData, TError>(
 ) {
   return useCallback(async () => {
     try {
-      await refetch();
+      await refetch()
     } catch (err) {
-      logger.error('[useOptimizedQuery] Refetch failed', err);
-      onError?.(err as TError);
+      logger.error('[useOptimizedQuery] Refetch failed', err)
+      onError?.(err as TError)
     }
-  }, [refetch, onError]);
+  }, [refetch, onError])
 }
 
 function storeMetrics(metrics: QueryPerformanceMetrics): void {
-  metricsStore.push(metrics);
+  metricsStore.push(metrics)
 
   if (metricsStore.length > MAX_METRICS_STORED) {
-    metricsStore.shift();
+    metricsStore.shift()
   }
 
   if (import.meta.env.DEV) {
-    const color = metrics.success ? 'green' : 'red';
-    const cacheIndicator = metrics.fromCache ? '💾' : '🌐';
+    const color = metrics.success ? 'green' : 'red'
+    const cacheIndicator = metrics.fromCache ? '💾' : '🌐'
     logger.debug(
       `%c[Query ${cacheIndicator}] ${metrics.queryKey} - ${metrics.duration}ms`,
       `color: ${color}; font-weight: bold`,
       metrics
-    );
+    )
   }
 }

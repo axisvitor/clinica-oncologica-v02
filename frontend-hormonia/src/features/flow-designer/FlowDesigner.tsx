@@ -10,7 +10,7 @@ import {
   MousePointer,
   Link,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
 } from 'lucide-react'
 import { Card, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,7 +23,7 @@ import {
   FlowConnection,
   FlowDesignerState,
   DesignerMode,
-  FlowValidationResult
+  FlowValidationResult,
 } from '@/types/flow-designer'
 import { FlowCanvas } from './FlowCanvas'
 import { NodePalette } from './NodePalette'
@@ -37,12 +37,7 @@ interface FlowDesignerProps {
   className?: string
 }
 
-export function FlowDesigner({ 
-  initialDesign, 
-  onSave, 
-  onTest,
-  className 
-}: FlowDesignerProps) {
+export function FlowDesigner({ initialDesign, onSave, onTest, className }: FlowDesignerProps) {
   const [designerState, setDesignerState] = useState<FlowDesignerState>(() => ({
     design: initialDesign || createEmptyDesign(),
     selectedNodes: [],
@@ -53,7 +48,7 @@ export function FlowDesigner({
     zoom: 1,
     pan: { x: 0, y: 0 },
     mode: DesignerMode.SELECT,
-    isModified: false
+    isModified: false,
   }))
 
   const [validation, setValidation] = useState<FlowValidationResult | null>(null)
@@ -71,23 +66,23 @@ export function FlowDesigner({
 
   // Handle node selection
   const handleNodeSelect = useCallback((nodeId: string, multiSelect = false) => {
-    setDesignerState(prev => ({
+    setDesignerState((prev) => ({
       ...prev,
-      selectedNodes: multiSelect 
+      selectedNodes: multiSelect
         ? prev.selectedNodes.includes(nodeId)
-          ? prev.selectedNodes.filter(id => id !== nodeId)
+          ? prev.selectedNodes.filter((id) => id !== nodeId)
           : [...prev.selectedNodes, nodeId]
         : [nodeId],
-      selectedConnections: []
+      selectedConnections: [],
     }))
   }, [])
 
   // Handle connection selection
   const handleConnectionSelect = useCallback((connectionId: string) => {
-    setDesignerState(prev => ({
+    setDesignerState((prev) => ({
       ...prev,
       selectedConnections: [connectionId],
-      selectedNodes: []
+      selectedNodes: [],
     }))
   }, [])
 
@@ -99,48 +94,47 @@ export function FlowDesigner({
       position,
       data: {
         label: `${nodeType} Node`,
-        config: getDefaultNodeConfig(nodeType)
-      }
+        config: getDefaultNodeConfig(nodeType),
+      },
     }
 
-    setDesignerState(prev => ({
+    setDesignerState((prev) => ({
       ...prev,
       design: {
         ...prev.design,
-        nodes: [...prev.design.nodes, newNode]
+        nodes: [...prev.design.nodes, newNode],
       },
-      isModified: true
+      isModified: true,
     }))
 
     // Add to history
     addToHistory('Add Node', `Added ${nodeType} node`)
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- addToHistory is stable and including it causes infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- addToHistory is stable and including it causes infinite loop
   }, [])
 
   // Update node
   const handleUpdateNode = useCallback((nodeId: string, updates: Partial<FlowNode>) => {
-    setDesignerState(prev => ({
+    setDesignerState((prev) => ({
       ...prev,
       design: {
         ...prev.design,
-        nodes: prev.design.nodes.map(node =>
+        nodes: prev.design.nodes.map((node) =>
           node.id === nodeId ? { ...node, ...updates } : node
-        )
+        ),
       },
-      isModified: true
+      isModified: true,
     }))
   }, [])
 
   // Delete selected items
   const handleDelete = useCallback(() => {
-    setDesignerState(prev => {
-      const newNodes = prev.design.nodes.filter(
-        node => !prev.selectedNodes.includes(node.id)
-      )
+    setDesignerState((prev) => {
+      const newNodes = prev.design.nodes.filter((node) => !prev.selectedNodes.includes(node.id))
       const newConnections = prev.design.connections.filter(
-        conn => !prev.selectedConnections.includes(conn.id) &&
-                !prev.selectedNodes.includes(conn.source) &&
-                !prev.selectedNodes.includes(conn.target)
+        (conn) =>
+          !prev.selectedConnections.includes(conn.id) &&
+          !prev.selectedNodes.includes(conn.source) &&
+          !prev.selectedNodes.includes(conn.target)
       )
 
       return {
@@ -148,16 +142,16 @@ export function FlowDesigner({
         design: {
           ...prev.design,
           nodes: newNodes,
-          connections: newConnections
+          connections: newConnections,
         },
         selectedNodes: [],
         selectedConnections: [],
-        isModified: true
+        isModified: true,
       }
     })
 
     addToHistory('Delete', 'Deleted selected items')
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- addToHistory is stable and including it causes infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- addToHistory is stable and including it causes infinite loop
   }, [])
 
   // Add connection
@@ -165,50 +159,50 @@ export function FlowDesigner({
     const newConnection: FlowConnection = {
       id: `conn-${Date.now()}`,
       source,
-      target
+      target,
     }
 
-    setDesignerState(prev => ({
+    setDesignerState((prev) => ({
       ...prev,
       design: {
         ...prev.design,
-        connections: [...prev.design.connections, newConnection]
+        connections: [...prev.design.connections, newConnection],
       },
-      isModified: true
+      isModified: true,
     }))
 
     addToHistory('Add Connection', `Connected ${source} to ${target}`)
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- addToHistory is stable and including it causes infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- addToHistory is stable and including it causes infinite loop
   }, [])
 
   // Zoom controls
   const handleZoomIn = useCallback(() => {
-    setDesignerState(prev => ({
+    setDesignerState((prev) => ({
       ...prev,
-      zoom: Math.min(prev.zoom * 1.2, 3)
+      zoom: Math.min(prev.zoom * 1.2, 3),
     }))
   }, [])
 
   const handleZoomOut = useCallback(() => {
-    setDesignerState(prev => ({
+    setDesignerState((prev) => ({
       ...prev,
-      zoom: Math.max(prev.zoom / 1.2, 0.1)
+      zoom: Math.max(prev.zoom / 1.2, 0.1),
     }))
   }, [])
 
   const _handleZoomReset = useCallback(() => {
-    setDesignerState(prev => ({
+    setDesignerState((prev) => ({
       ...prev,
       zoom: 1,
-      pan: { x: 0, y: 0 }
+      pan: { x: 0, y: 0 },
     }))
   }, [])
 
   // Mode switching
   const handleModeChange = useCallback((mode: DesignerMode) => {
-    setDesignerState(prev => ({
+    setDesignerState((prev) => ({
       ...prev,
-      mode
+      mode,
     }))
   }, [])
 
@@ -218,17 +212,17 @@ export function FlowDesigner({
       toast({
         title: 'Erro de Validação',
         description: 'Corrija os erros antes de salvar',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
 
     onSave?.(designerState.design)
-    setDesignerState(prev => ({ ...prev, isModified: false }))
-    
+    setDesignerState((prev) => ({ ...prev, isModified: false }))
+
     toast({
       title: 'Salvo',
-      description: 'Flow salvo com sucesso'
+      description: 'Flow salvo com sucesso',
     })
   }, [designerState.design, validation, onSave, toast])
 
@@ -238,7 +232,7 @@ export function FlowDesigner({
       toast({
         title: 'Erro de Validação',
         description: 'Corrija os erros antes de testar',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
@@ -248,7 +242,7 @@ export function FlowDesigner({
 
   // History management
   const addToHistory = useCallback((action: string, description: string) => {
-    setDesignerState(prev => ({
+    setDesignerState((prev) => ({
       ...prev,
       history: [
         ...prev.history.slice(0, prev.historyIndex + 1),
@@ -256,10 +250,10 @@ export function FlowDesigner({
           action,
           timestamp: Date.now(),
           data: prev.design,
-          description
-        }
+          description,
+        },
       ],
-      historyIndex: prev.historyIndex + 1
+      historyIndex: prev.historyIndex + 1,
     }))
   }, [])
 
@@ -267,11 +261,11 @@ export function FlowDesigner({
     if (designerState.historyIndex > 0) {
       const previousState = designerState.history[designerState.historyIndex - 1]
       if (!previousState) return
-      setDesignerState(prev => ({
+      setDesignerState((prev) => ({
         ...prev,
         design: previousState.data as FlowDesign,
         historyIndex: prev.historyIndex - 1,
-        isModified: true
+        isModified: true,
       }))
     }
   }, [designerState.historyIndex, designerState.history])
@@ -280,11 +274,11 @@ export function FlowDesigner({
     if (designerState.historyIndex < designerState.history.length - 1) {
       const nextState = designerState.history[designerState.historyIndex + 1]
       if (!nextState) return
-      setDesignerState(prev => ({
+      setDesignerState((prev) => ({
         ...prev,
         design: nextState.data as FlowDesign,
         historyIndex: prev.historyIndex + 1,
-        isModified: true
+        isModified: true,
       }))
     }
   }, [designerState.historyIndex, designerState.history])
@@ -321,7 +315,7 @@ export function FlowDesigner({
 
   const getValidationStatus = () => {
     if (!validation) return null
-    
+
     if (validation.isValid) {
       return (
         <Badge variant="default" className="bg-green-500">
@@ -347,31 +341,29 @@ export function FlowDesigner({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <CardTitle className="text-lg">Flow Designer</CardTitle>
-              {designerState.isModified && (
-                <Badge variant="outline">Modificado</Badge>
-              )}
+              {designerState.isModified && <Badge variant="outline">Modificado</Badge>}
               {getValidationStatus()}
             </div>
-            
+
             <div className="flex items-center gap-2">
               {/* Mode Controls */}
               <div className="flex items-center gap-1 border rounded-md p-1">
                 <Button
-                  variant={designerState.mode === DesignerMode.SELECT ? "default" : "ghost"}
+                  variant={designerState.mode === DesignerMode.SELECT ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => handleModeChange(DesignerMode.SELECT)}
                 >
                   <MousePointer className="h-4 w-4" />
                 </Button>
                 <Button
-                  variant={designerState.mode === DesignerMode.CONNECT ? "default" : "ghost"}
+                  variant={designerState.mode === DesignerMode.CONNECT ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => handleModeChange(DesignerMode.CONNECT)}
                 >
                   <Link className="h-4 w-4" />
                 </Button>
                 <Button
-                  variant={designerState.mode === DesignerMode.PAN ? "default" : "ghost"}
+                  variant={designerState.mode === DesignerMode.PAN ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => handleModeChange(DesignerMode.PAN)}
                 >
@@ -450,7 +442,7 @@ export function FlowDesigner({
             onConnectionSelect={handleConnectionSelect}
             onNodeUpdate={handleUpdateNode}
             onAddConnection={handleAddConnection}
-            onPanChange={(pan) => setDesignerState(prev => ({ ...prev, pan }))}
+            onPanChange={(pan) => setDesignerState((prev) => ({ ...prev, pan }))}
             validation={validation}
           />
         </div>
@@ -486,10 +478,10 @@ function createEmptyDesign(): FlowDesign {
       author: 'current-user',
       tags: [],
       category: 'general',
-      complexity_level: 'simple'
+      complexity_level: 'simple',
     },
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   }
 }
 
@@ -498,22 +490,22 @@ function getDefaultNodeConfig(nodeType: string): Record<string, unknown> {
     case 'message':
       return {
         content: 'Nova mensagem',
-        message_type: 'text'
+        message_type: 'text',
       }
     case 'condition':
       return {
         conditions: [],
-        operator: 'AND'
+        operator: 'AND',
       }
     case 'delay':
       return {
         duration: 1,
-        unit: 'minutes'
+        unit: 'minutes',
       }
     case 'action':
       return {
         action_type: 'set_variable',
-        parameters: {}
+        parameters: {},
       }
     default:
       return {}

@@ -1,5 +1,10 @@
 import React from 'react'
-import { ComposedChart, BarChart, PieChart, LineChart } from '@/components/ui/charts/LazyRechartsComponents'
+import {
+  ComposedChart,
+  BarChart,
+  PieChart,
+  LineChart,
+} from '@/components/ui/charts/LazyRechartsComponents'
 import {
   Area,
   Bar,
@@ -9,7 +14,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip
+  Tooltip,
 } from '@/components/ui/charts/RechartsPrimitives'
 import { SafeChartContainer } from '@/components/ui/charts/SafeChartContainer'
 import { ChartSkeleton } from '@/components/ui/chart-skeleton'
@@ -28,7 +33,7 @@ const STATUS_LABELS: Record<string, string> = {
   active: 'Ativos',
   paused: 'Pausados',
   completed: 'Concluidos',
-  cancelled: 'Cancelados'
+  cancelled: 'Cancelados',
 }
 
 const formatDate = (value: string) => {
@@ -71,24 +76,24 @@ export function FlowAnalyticsDashboard({ stats, isLoading }: FlowAnalyticsDashbo
   const activeTrendData = (stats.daily_metrics || []).map((metric) => ({
     date: formatDate(metric.date),
     active: metric.active_flows ?? metric.new_enrollments ?? 0,
-    completions: metric.completions ?? 0
+    completions: metric.completions ?? 0,
   }))
 
   const completionRateData = (stats.template_completion_rates || []).map((template) => ({
     name: template.template_name || `${template.kind_key} v${template.version_number}`,
     rate: template.completion_rate * 100,
-    total: template.total
+    total: template.total,
   }))
 
   const durationData = (stats.template_duration_days || []).map((template) => ({
     name: template.template_name || `${template.kind_key} v${template.version_number}`,
-    duration: template.average_duration_days
+    duration: template.average_duration_days,
   }))
 
   const statusDistribution = Object.entries(stats.status_distribution || {}).map(
     ([status, value]) => ({
       name: STATUS_LABELS[status] || status,
-      value
+      value,
     })
   )
 
@@ -107,7 +112,10 @@ export function FlowAnalyticsDashboard({ stats, isLoading }: FlowAnalyticsDashbo
         <CardContent>
           {hasActiveTrend ? (
             <SafeChartContainer height={260}>
-              <ComposedChart data={activeTrendData} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
+              <ComposedChart
+                data={activeTrendData}
+                margin={{ top: 10, right: 24, left: 0, bottom: 0 }}
+              >
                 <defs>
                   <linearGradient id="flowActiveGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#2563eb" stopOpacity={0.35} />
@@ -120,7 +128,7 @@ export function FlowAnalyticsDashboard({ stats, isLoading }: FlowAnalyticsDashbo
                 <Tooltip
                   formatter={(value: number, name: string) => [
                     value,
-                    name === 'active' ? 'Fluxos ativos' : 'Conclusoes'
+                    name === 'active' ? 'Fluxos ativos' : 'Conclusoes',
                   ]}
                 />
                 <Area
@@ -147,15 +155,31 @@ export function FlowAnalyticsDashboard({ stats, isLoading }: FlowAnalyticsDashbo
         <CardContent>
           {hasCompletionRates ? (
             <SafeChartContainer height={260}>
-              <BarChart data={completionRateData} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
+              <BarChart
+                data={completionRateData}
+                margin={{ top: 10, right: 24, left: 0, bottom: 0 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#94a3b8" interval={0} angle={-15} textAnchor="end" height={60} />
-                <YAxis tickFormatter={(value: number) => `${value}%`} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11 }}
+                  stroke="#94a3b8"
+                  interval={0}
+                  angle={-15}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis
+                  tickFormatter={(value: number) => `${value}%`}
+                  tick={{ fontSize: 12 }}
+                  stroke="#94a3b8"
+                />
                 <Tooltip
-                  formatter={(value: number, _name: string, { payload }: { payload?: { total?: number } }) => [
-                    formatPercent(value),
-                    `Conclusao (Total: ${payload?.total ?? 0})`
-                  ]}
+                  formatter={(
+                    value: number,
+                    _name: string,
+                    { payload }: { payload?: { total?: number } }
+                  ) => [formatPercent(value), `Conclusao (Total: ${payload?.total ?? 0})`]}
                 />
                 <Bar dataKey="rate" radius={[6, 6, 0, 0]} fill="#10b981" />
               </BarChart>
@@ -185,7 +209,10 @@ export function FlowAnalyticsDashboard({ stats, isLoading }: FlowAnalyticsDashbo
                   paddingAngle={2}
                 >
                   {statusDistribution.map((entry, index) => (
-                    <Cell key={`status-${entry.name}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    <Cell
+                      key={`status-${entry.name}`}
+                      fill={CHART_COLORS[index % CHART_COLORS.length]}
+                    />
                   ))}
                 </Pie>
               </PieChart>
@@ -206,10 +233,28 @@ export function FlowAnalyticsDashboard({ stats, isLoading }: FlowAnalyticsDashbo
             <SafeChartContainer height={260}>
               <LineChart data={durationData} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="#94a3b8" interval={0} angle={-15} textAnchor="end" height={60} />
-                <YAxis tickFormatter={(value: number) => formatDuration(value)} tick={{ fontSize: 12 }} stroke="#94a3b8" />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11 }}
+                  stroke="#94a3b8"
+                  interval={0}
+                  angle={-15}
+                  textAnchor="end"
+                  height={60}
+                />
+                <YAxis
+                  tickFormatter={(value: number) => formatDuration(value)}
+                  tick={{ fontSize: 12 }}
+                  stroke="#94a3b8"
+                />
                 <Tooltip formatter={(value: number) => [formatDuration(value), 'Duracao media']} />
-                <Line type="monotone" dataKey="duration" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
+                <Line
+                  type="monotone"
+                  dataKey="duration"
+                  stroke="#f59e0b"
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                />
               </LineChart>
             </SafeChartContainer>
           ) : (

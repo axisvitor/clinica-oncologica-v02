@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react'
 import {
   Heart,
@@ -10,7 +9,7 @@ import {
   Zap,
   Star,
   CheckCircle,
-  ArrowRight
+  ArrowRight,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -62,7 +61,7 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
             </div>
           </div>
         </div>
-      )
+      ),
     },
     {
       id: 'features',
@@ -83,9 +82,15 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
                   Cadastro completo, histórico médico, documentos e acompanhamento personalizado.
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  <Badge variant="secondary" className="text-xs">Prontuários Digitais</Badge>
-                  <Badge variant="secondary" className="text-xs">Histórico Médico</Badge>
-                  <Badge variant="secondary" className="text-xs">Documentos</Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    Prontuários Digitais
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    Histórico Médico
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    Documentos
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
@@ -102,9 +107,15 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
                   Sistema avançado de agendamento com lembretes automáticos e otimização de agenda.
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  <Badge variant="secondary" className="text-xs">Lembretes</Badge>
-                  <Badge variant="secondary" className="text-xs">WhatsApp</Badge>
-                  <Badge variant="secondary" className="text-xs">Otimização</Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    Lembretes
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    WhatsApp
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    Otimização
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
@@ -121,9 +132,15 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
                   Acompanhamento contínuo de tratamentos, efeitos colaterais e evolução clínica.
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  <Badge variant="secondary" className="text-xs">Tempo Real</Badge>
-                  <Badge variant="secondary" className="text-xs">Alertas</Badge>
-                  <Badge variant="secondary" className="text-xs">Relatórios</Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    Tempo Real
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    Alertas
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    Relatórios
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
@@ -140,15 +157,21 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
                   Proteção total de dados seguindo LGPD e padrões internacionais de segurança.
                 </p>
                 <div className="flex flex-wrap gap-1">
-                  <Badge variant="secondary" className="text-xs">LGPD</Badge>
-                  <Badge variant="secondary" className="text-xs">Criptografia</Badge>
-                  <Badge variant="secondary" className="text-xs">Auditoria</Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    LGPD
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    Criptografia
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    Auditoria
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
           </div>
         </div>
-      )
+      ),
     },
     {
       id: 'benefits',
@@ -163,7 +186,8 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
               </div>
               <h4 className="font-semibold text-lg mb-2">+70% Eficiência</h4>
               <p className="text-gray-600 text-sm">
-                Automatização de processos administrativos e redução significativa de tempo gasto em tarefas manuais.
+                Automatização de processos administrativos e redução significativa de tempo gasto em
+                tarefas manuais.
               </p>
             </div>
             <div className="text-center">
@@ -172,7 +196,8 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
               </div>
               <h4 className="font-semibold text-lg mb-2">Melhor Cuidado</h4>
               <p className="text-gray-600 text-sm">
-                Acompanhamento mais próximo dos pacientes com alertas inteligentes e protocolos personalizados.
+                Acompanhamento mais próximo dos pacientes com alertas inteligentes e protocolos
+                personalizados.
               </p>
             </div>
             <div className="text-center">
@@ -181,7 +206,8 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
               </div>
               <h4 className="font-semibold text-lg mb-2">Experiência Premium</h4>
               <p className="text-gray-600 text-sm">
-                Interface moderna e intuitiva que facilita o trabalho da equipe médica e administrativa.
+                Interface moderna e intuitiva que facilita o trabalho da equipe médica e
+                administrativa.
               </p>
             </div>
           </div>
@@ -194,7 +220,7 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
             </AlertDescription>
           </Alert>
         </div>
-      )
+      ),
     },
     {
       id: 'ready',
@@ -210,8 +236,8 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
               Tudo Pronto para Configuração!
             </h3>
             <p className="text-gray-600 max-w-2xl mx-auto mb-6">
-              Agora vamos verificar as configurações do sistema, testar as conexões
-              necessárias e criar seu primeiro usuário administrador.
+              Agora vamos verificar as configurações do sistema, testar as conexões necessárias e
+              criar seu primeiro usuário administrador.
             </p>
             <div className="bg-gray-50 rounded-lg p-6 max-w-md mx-auto">
               <h4 className="font-semibold mb-3">Próximos Passos:</h4>
@@ -236,8 +262,8 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
             </div>
           </div>
         </div>
-      )
-    }
+      ),
+    },
   ]
 
   const currentStepData = welcomeSteps[currentStep]
@@ -252,13 +278,13 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
     if (isLastStep) {
       onComplete()
     } else {
-      setCurrentStep(prev => prev + 1)
+      setCurrentStep((prev) => prev + 1)
     }
   }
 
   const handlePrevious = () => {
     if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1)
+      setCurrentStep((prev) => prev - 1)
     }
   }
 
@@ -273,12 +299,13 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
         {welcomeSteps.map((_, index) => (
           <div
             key={index}
-            className={`w-3 h-3 rounded-full transition-colors ${index === currentStep
-              ? 'bg-blue-600'
-              : index < currentStep
-                ? 'bg-green-500'
-                : 'bg-gray-300'
-              }`}
+            className={`w-3 h-3 rounded-full transition-colors ${
+              index === currentStep
+                ? 'bg-blue-600'
+                : index < currentStep
+                  ? 'bg-green-500'
+                  : 'bg-gray-300'
+            }`}
           />
         ))}
       </div>
@@ -293,9 +320,7 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
             {currentStepData.subtitle}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {currentStepData.content}
-        </CardContent>
+        <CardContent>{currentStepData.content}</CardContent>
       </Card>
 
       {/* Navigation */}
@@ -324,11 +349,7 @@ export function WelcomeFlow({ onComplete }: WelcomeFlowProps) {
           <span className="text-sm text-gray-500">
             {currentStep + 1} de {welcomeSteps.length}
           </span>
-          <Button
-            onClick={handleNext}
-            className="px-6"
-            size="default"
-          >
+          <Button onClick={handleNext} className="px-6" size="default">
             {isLastStep ? (
               <>
                 Iniciar Configuração

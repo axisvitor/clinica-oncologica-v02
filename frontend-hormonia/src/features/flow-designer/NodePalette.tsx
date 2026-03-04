@@ -1,14 +1,14 @@
 import React from 'react'
-import { 
-  MessageSquare, 
-  GitBranch, 
-  Clock, 
-  Zap, 
-  Play, 
+import {
+  MessageSquare,
+  GitBranch,
+  Clock,
+  Zap,
+  Play,
   Square,
   Bot,
   HelpCircle,
-  Webhook
+  Webhook,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -32,64 +32,64 @@ const nodeTypes: NodeTypeInfo[] = [
     label: 'Início',
     description: 'Ponto de entrada do fluxo',
     icon: <Play className="h-4 w-4" />,
-    color: 'text-green-600'
+    color: 'text-green-600',
   },
   {
     type: FlowNodeType.MESSAGE,
     label: 'Mensagem',
     description: 'Enviar mensagem para o paciente',
     icon: <MessageSquare className="h-4 w-4" />,
-    color: 'text-blue-600'
+    color: 'text-blue-600',
   },
   {
     type: FlowNodeType.CONDITION,
     label: 'Condição',
     description: 'Decisão baseada em condições',
     icon: <GitBranch className="h-4 w-4" />,
-    color: 'text-yellow-600'
+    color: 'text-yellow-600',
   },
   {
     type: FlowNodeType.DELAY,
     label: 'Atraso',
     description: 'Aguardar por um período',
     icon: <Clock className="h-4 w-4" />,
-    color: 'text-purple-600'
+    color: 'text-purple-600',
   },
   {
     type: FlowNodeType.ACTION,
     label: 'Ação',
     description: 'Executar uma ação específica',
     icon: <Zap className="h-4 w-4" />,
-    color: 'text-orange-600'
+    color: 'text-orange-600',
   },
   {
     type: FlowNodeType.AI_RESPONSE,
     label: 'Resposta IA',
     description: 'Gerar resposta com IA',
     icon: <Bot className="h-4 w-4" />,
-    color: 'text-indigo-600'
+    color: 'text-indigo-600',
   },
   {
     type: FlowNodeType.QUIZ,
     label: 'Quiz',
     description: 'Questionário para o paciente',
     icon: <HelpCircle className="h-4 w-4" />,
-    color: 'text-pink-600'
+    color: 'text-pink-600',
   },
   {
     type: FlowNodeType.WEBHOOK,
     label: 'Webhook',
     description: 'Chamar API externa',
     icon: <Webhook className="h-4 w-4" />,
-    color: 'text-gray-600'
+    color: 'text-gray-600',
   },
   {
     type: FlowNodeType.END,
     label: 'Fim',
     description: 'Finalizar o fluxo',
     icon: <Square className="h-4 w-4" />,
-    color: 'text-red-600'
-  }
+    color: 'text-red-600',
+  },
 ]
 
 export function NodePalette({ onAddNode }: NodePaletteProps) {
@@ -108,14 +108,11 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
       <CardHeader className="pb-3">
         <CardTitle className="text-sm">Componentes</CardTitle>
       </CardHeader>
-      
+
       <CardContent className="p-0">
         <div className="space-y-1">
           {nodeTypes.map((nodeType) => (
-            <div
-              key={nodeType.type}
-              className="group"
-            >
+            <div key={nodeType.type} className="group">
               <Button
                 variant="ghost"
                 className="w-full justify-start h-auto p-3 hover:bg-gray-50"
@@ -124,16 +121,10 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
                 onClick={() => handleAddNodeClick(nodeType.type)}
               >
                 <div className="flex items-start gap-3 w-full">
-                  <div className={`flex-shrink-0 ${nodeType.color}`}>
-                    {nodeType.icon}
-                  </div>
+                  <div className={`flex-shrink-0 ${nodeType.color}`}>{nodeType.icon}</div>
                   <div className="flex-1 text-left">
-                    <div className="font-medium text-sm">
-                      {nodeType.label}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {nodeType.description}
-                    </div>
+                    <div className="font-medium text-sm">{nodeType.label}</div>
+                    <div className="text-xs text-muted-foreground">{nodeType.description}</div>
                   </div>
                 </div>
               </Button>
@@ -153,9 +144,7 @@ export function NodePalette({ onAddNode }: NodePaletteProps) {
 
         {/* Quick Templates */}
         <div className="p-4 border-t">
-          <div className="text-xs font-medium text-muted-foreground mb-2">
-            Templates Rápidos
-          </div>
+          <div className="text-xs font-medium text-muted-foreground mb-2">Templates Rápidos</div>
           <div className="space-y-1">
             <Button
               variant="outline"

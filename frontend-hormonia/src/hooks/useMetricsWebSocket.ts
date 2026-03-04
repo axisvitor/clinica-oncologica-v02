@@ -69,7 +69,7 @@ export function useMetricsWebSocket({
   onDisconnect,
   reconnectInterval = 5000,
   maxReconnectAttempts = 10,
-  heartbeatInterval = 30000 // 30 seconds
+  heartbeatInterval = 30000, // 30 seconds
 }: UseMetricsWebSocketOptions = {}): UseMetricsWebSocketReturn {
   const { user, session, getFirebaseToken } = useAuth()
 
@@ -140,32 +140,38 @@ export function useMetricsWebSocket({
   /**
    * Handle WebSocket message event
    */
-  const handleMessage = useCallback((event: MessageEvent) => {
-    try {
-      const data = JSON.parse(event.data)
+  const handleMessage = useCallback(
+    (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data)
 
-      // Handle pong response from server
-      if (data.type === 'pong') {
-        logger.debug('Heartbeat pong received')
-        return
+        // Handle pong response from server
+        if (data.type === 'pong') {
+          logger.debug('Heartbeat pong received')
+          return
+        }
+
+        setLastMessage(data)
+        onMessage?.(data)
+      } catch (err) {
+        logger.error('Error parsing WebSocket message', { error: err })
+        setError('Erro ao processar dados recebidos')
       }
-
-      setLastMessage(data)
-      onMessage?.(data)
-    } catch (err) {
-      logger.error('Error parsing WebSocket message', { error: err })
-      setError('Erro ao processar dados recebidos')
-    }
-  }, [onMessage])
+    },
+    [onMessage]
+  )
 
   /**
    * Handle WebSocket error event
    */
-  const handleError = useCallback((event: Event) => {
-    logger.error('Metrics WebSocket error', { event })
-    setError('Erro de conexão WebSocket')
-    onError?.(event)
-  }, [onError])
+  const handleError = useCallback(
+    (event: Event) => {
+      logger.error('Metrics WebSocket error', { event })
+      setError('Erro de conexão WebSocket')
+      onError?.(event)
+    },
+    [onError]
+  )
 
   /**
    * Handle WebSocket close event
@@ -173,7 +179,7 @@ export function useMetricsWebSocket({
   const handleClose = useCallback(() => {
     logger.info('Metrics WebSocket disconnected', {
       manual: isManualDisconnect.current,
-      attempts: reconnectAttempts
+      attempts: reconnectAttempts,
     })
 
     setIsConnected(false)
@@ -188,7 +194,7 @@ export function useMetricsWebSocket({
       logger.info('Scheduling reconnection', { delay, attempt: reconnectAttempts + 1 })
 
       reconnectTimer.current = setTimeout(() => {
-        setReconnectAttempts(prev => prev + 1)
+        setReconnectAttempts((prev) => prev + 1)
         // Note: connect() will be called separately, not included in deps to avoid circular dependency
       }, delay)
     } else if (reconnectAttempts >= maxReconnectAttempts) {
@@ -241,7 +247,6 @@ export function useMetricsWebSocket({
       socket.addEventListener('close', handleClose)
 
       ws.current = socket
-
     } catch (err) {
       logger.error('Failed to create WebSocket connection', { error: err })
       setError('Falha ao conectar ao servidor')
@@ -310,7 +315,7 @@ export function useMetricsWebSocket({
     return () => {
       disconnect()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/disconnect are stable via useCallback; including them causes reconnection loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/disconnect are stable via useCallback; including them causes reconnection loops
   }, [user, session])
 
   return {
@@ -321,6 +326,6 @@ export function useMetricsWebSocket({
     reconnectAttempts,
     send,
     connect,
-    disconnect
+    disconnect,
   }
 }

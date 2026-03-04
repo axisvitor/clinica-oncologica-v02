@@ -4,38 +4,38 @@
  * React Query hook for patient summary generation and management.
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { apiClient } from '@/lib/api-client'
 import type {
   PatientSummaryResponse,
   PatientSummaryListResponse,
   GenerateSummaryRequest,
-} from '@/types/api';
+} from '@/types/api'
 
 // Query keys
 export const patientSummaryKeys = {
   all: ['patient-summaries'] as const,
   list: (patientId: string) => [...patientSummaryKeys.all, 'list', patientId] as const,
   detail: (summaryId: string) => [...patientSummaryKeys.all, 'detail', summaryId] as const,
-};
+}
 
 /**
  * Hook for generating patient summaries
  */
 export function useGenerateSummary() {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
   return useMutation<PatientSummaryResponse, Error, GenerateSummaryRequest>({
     mutationFn: async (request: GenerateSummaryRequest) => {
-      return apiClient.ai.generateSummary(request);
+      return apiClient.ai.generateSummary(request)
     },
     onSuccess: (data: PatientSummaryResponse) => {
       // Invalidate list cache for this patient
       queryClient.invalidateQueries({
         queryKey: patientSummaryKeys.list(data.patient_id),
-      });
+      })
     },
-  });
+  })
 }
 
 /**
@@ -45,13 +45,13 @@ export function usePatientSummaries(
   patientId: string,
   options?: { limit?: number; offset?: number; enabled?: boolean }
 ) {
-  const { limit = 10, offset = 0, enabled = true } = options || {};
+  const { limit = 10, offset = 0, enabled = true } = options || {}
 
   return useQuery<PatientSummaryListResponse, Error>({
     queryKey: [...patientSummaryKeys.list(patientId), { limit, offset }],
     queryFn: () => apiClient.ai.getSummaries(patientId, limit, offset),
     enabled: enabled && !!patientId,
-  });
+  })
 }
 
 /**
@@ -62,7 +62,7 @@ export function usePatientSummary(summaryId: string, enabled = true) {
     queryKey: patientSummaryKeys.detail(summaryId),
     queryFn: () => apiClient.ai.getSummary(summaryId),
     enabled: enabled && !!summaryId,
-  });
+  })
 }
 
 /**
@@ -71,24 +71,21 @@ export function usePatientSummary(summaryId: string, enabled = true) {
 export function useExportSummaryPdf() {
   return useMutation<Blob, Error, string>({
     mutationFn: async (summaryId: string) => {
-      return apiClient.ai.exportSummaryPdf(summaryId);
+      return apiClient.ai.exportSummaryPdf(summaryId)
     },
-  });
+  })
 }
 
 /**
  * Combined hook for patient summary management
  */
-export function usePatientSummaryManager(
-  patientId: string,
-  options?: { enabled?: boolean }
-) {
-  const queryClient = useQueryClient();
+export function usePatientSummaryManager(patientId: string, options?: { enabled?: boolean }) {
+  const queryClient = useQueryClient()
   const summariesQuery = usePatientSummaries(patientId, {
     enabled: options?.enabled ?? false,
-  });
-  const generateMutation = useGenerateSummary();
-  const exportMutation = useExportSummaryPdf();
+  })
+  const generateMutation = useGenerateSummary()
+  const exportMutation = useExportSummaryPdf()
 
   const generateSummary = async (startDate: string, endDate: string, forceRefresh = false) => {
     return generateMutation.mutateAsync({
@@ -97,28 +94,28 @@ export function usePatientSummaryManager(
       end_date: endDate,
       force_refresh: forceRefresh,
       save_summary: true,
-    });
-  };
+    })
+  }
 
   const exportToPdf = async (summaryId: string) => {
-    const blob = await exportMutation.mutateAsync(summaryId);
+    const blob = await exportMutation.mutateAsync(summaryId)
 
     // Download the PDF
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `patient_summary_${summaryId}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
-  };
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `patient_summary_${summaryId}.pdf`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  }
 
   const refreshSummaries = () => {
     queryClient.invalidateQueries({
       queryKey: patientSummaryKeys.list(patientId),
-    });
-  };
+    })
+  }
 
   return {
     // Queries
@@ -141,5 +138,5 @@ export function usePatientSummaryManager(
 
     // Actions
     refreshSummaries,
-  };
+  }
 }

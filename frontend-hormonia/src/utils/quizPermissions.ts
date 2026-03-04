@@ -1,10 +1,9 @@
 /**
  * Quiz permissions utility module
- * 
+ *
  * This module provides centralized permission checking for quiz operations
  * to ensure proper access control and security.
  */
-
 
 export interface QuizPermissionsUser {
   id: string
@@ -74,7 +73,7 @@ export function canCancelQuizLink(user: QuizPermissionsUser | null): boolean {
  * Admins can view all data, doctors can view their patients' data
  */
 export function canViewPatientQuizData(
-  user: QuizPermissionsUser | null, 
+  user: QuizPermissionsUser | null,
   patientDoctorId?: string
 ): boolean {
   if (!user || !user.is_active) {
@@ -122,7 +121,9 @@ export function canPerformBulkOperations(user: QuizPermissionsUser | null): bool
  * Get filtered quiz stats based on user permissions
  * Returns data scope based on user role
  */
-export function getQuizStatsScope(user: QuizPermissionsUser | null): 'all' | 'own_patients' | 'none' {
+export function getQuizStatsScope(
+  user: QuizPermissionsUser | null
+): 'all' | 'own_patients' | 'none' {
   if (!user || !user.is_active) {
     return 'none'
   }
@@ -143,7 +144,7 @@ export function getQuizStatsScope(user: QuizPermissionsUser | null): 'all' | 'ow
  */
 export function getPermissionErrorMessage(action: string, userRole?: string): string {
   const roleText = userRole ? ` (Perfil atual: ${userRole})` : ''
-  
+
   switch (action) {
     case 'create_quiz_link':
       return `Apenas administradores e médicos podem criar links de questionário${roleText}`
@@ -174,7 +175,7 @@ export const quizPermissions = {
   canManageQuizTemplates,
   canPerformBulkOperations,
   getQuizStatsScope,
-  getPermissionErrorMessage
+  getPermissionErrorMessage,
 }
 
 export default quizPermissions

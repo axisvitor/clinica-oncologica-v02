@@ -35,23 +35,32 @@ export default function MedicoRoutes() {
       <Route path="/medico/login" element={<MedicoLogin />} />
 
       {/* Protected routes */}
-      <Route path="/medico/dashboard" element={
-        <MedicoProtectedRoute>
-          <MedicoDashboard />
-        </MedicoProtectedRoute>
-      } />
+      <Route
+        path="/medico/dashboard"
+        element={
+          <MedicoProtectedRoute>
+            <MedicoDashboard />
+          </MedicoProtectedRoute>
+        }
+      />
 
-      <Route path="/medico/pacientes" element={
-        <MedicoProtectedRoute>
-          <PacientesList />
-        </MedicoProtectedRoute>
-      } />
+      <Route
+        path="/medico/pacientes"
+        element={
+          <MedicoProtectedRoute>
+            <PacientesList />
+          </MedicoProtectedRoute>
+        }
+      />
 
-      <Route path="/medico/prontuario/:pacienteId" element={
-        <MedicoProtectedRoute>
-          <ProntuarioView />
-        </MedicoProtectedRoute>
-      } />
+      <Route
+        path="/medico/prontuario/:pacienteId"
+        element={
+          <MedicoProtectedRoute>
+            <ProntuarioView />
+          </MedicoProtectedRoute>
+        }
+      />
 
       {/* Default redirect */}
       <Route path="/medico" element={<Navigate to="/medico/dashboard" replace />} />

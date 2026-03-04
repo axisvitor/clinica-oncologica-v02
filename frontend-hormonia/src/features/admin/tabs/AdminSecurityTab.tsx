@@ -23,17 +23,14 @@ export default function AdminSecurityTab() {
       <Card>
         <CardHeader>
           <CardTitle>Segurança</CardTitle>
-          <CardDescription>
-            Configurações de segurança e auditoria
-          </CardDescription>
+          <CardDescription>Configurações de segurança e auditoria</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert>
             <Shield className="h-4 w-4" />
             <AlertTitle>Status de Segurança</AlertTitle>
             <AlertDescription>
-              Todos os sistemas de segurança estão operacionais.
-              Última verificação: há 5 minutos.
+              Todos os sistemas de segurança estão operacionais. Última verificação: há 5 minutos.
             </AlertDescription>
           </Alert>
 

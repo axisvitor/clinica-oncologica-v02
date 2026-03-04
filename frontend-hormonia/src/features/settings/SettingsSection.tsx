@@ -50,9 +50,7 @@ export function SettingsSection({
           )}
           <div>
             <CardTitle className="text-xl">{title}</CardTitle>
-            {description && (
-              <CardDescription className="mt-1">{description}</CardDescription>
-            )}
+            {description && <CardDescription className="mt-1">{description}</CardDescription>}
           </div>
         </div>
       </CardHeader>
@@ -63,11 +61,7 @@ export function SettingsSection({
           <div className="mt-6 pt-6 border-t">
             {footer || (
               <div className="flex justify-end">
-                <Button
-                  type="submit"
-                  disabled={isLoading || !isDirty}
-                  onClick={onSave}
-                >
+                <Button type="submit" disabled={isLoading || !isDirty} onClick={onSave}>
                   {isLoading ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (

@@ -170,7 +170,11 @@ export interface QuizValidationResult {
 }
 
 // Re-export QuizLinkStatus types from centralized location
-export type { QuizLinkStatus, QuizLinkStatusValue, MonthlyQuizStatusData as MonthlyQuizLinkStatus } from './api'
+export type {
+  QuizLinkStatus,
+  QuizLinkStatusValue,
+  MonthlyQuizStatusData as MonthlyQuizLinkStatus,
+} from './api'
 
 export interface MonthlyQuizLink {
   id: string

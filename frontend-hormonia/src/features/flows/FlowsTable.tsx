@@ -55,11 +55,7 @@ export function FlowsTable({ flows, isLoading }: FlowsTableProps) {
           </Badge>
         )
       case 'cancelled':
-        return (
-          <Badge variant="secondary">
-            Cancelado
-          </Badge>
-        )
+        return <Badge variant="secondary">Cancelado</Badge>
       default:
         return <Badge variant="outline">{status}</Badge>
     }
@@ -84,7 +80,7 @@ export function FlowsTable({ flows, isLoading }: FlowsTableProps) {
   const getInitials = (name: string) => {
     return name
       .split(' ')
-      .map(n => n[0])
+      .map((n) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -96,7 +92,7 @@ export function FlowsTable({ flows, isLoading }: FlowsTableProps) {
     try {
       return formatDistanceToNow(new Date(lastMessage), {
         addSuffix: true,
-        locale: ptBR
+        locale: ptBR,
       })
     } catch {
       return 'Data inválida'
@@ -178,9 +174,7 @@ export function FlowsTable({ flows, isLoading }: FlowsTableProps) {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline">
-                    {getFlowTypeName(flow.flow_type)}
-                  </Badge>
+                  <Badge variant="outline">{getFlowTypeName(flow.flow_type)}</Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5">
@@ -188,9 +182,7 @@ export function FlowsTable({ flows, isLoading }: FlowsTableProps) {
                     <span className="font-medium">{flow.current_day}</span>
                   </div>
                 </TableCell>
-                <TableCell>
-                  {getStatusBadge(flow.status)}
-                </TableCell>
+                <TableCell>{getStatusBadge(flow.status)}</TableCell>
                 <TableCell>
                   <span className="text-sm text-muted-foreground">
                     {formatLastMessage(flow.last_message_sent)}
@@ -243,9 +235,7 @@ export function FlowsTable({ flows, isLoading }: FlowsTableProps) {
                   </p>
                 </div>
               </div>
-              <div className="flex-shrink-0">
-                {getStatusBadge(flow.status)}
-              </div>
+              <div className="flex-shrink-0">{getStatusBadge(flow.status)}</div>
             </div>
 
             {/* Flow Details Grid */}
@@ -268,9 +258,7 @@ export function FlowsTable({ flows, isLoading }: FlowsTableProps) {
             {/* Last Message */}
             <div className="mb-3 pb-3 border-b">
               <span className="text-muted-foreground text-xs block mb-1">Última Mensagem:</span>
-              <p className="text-sm">
-                {formatLastMessage(flow.last_message_sent)}
-              </p>
+              <p className="text-sm">{formatLastMessage(flow.last_message_sent)}</p>
             </div>
 
             {/* Action Button */}

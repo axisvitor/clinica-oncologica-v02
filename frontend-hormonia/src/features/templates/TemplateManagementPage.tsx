@@ -5,34 +5,34 @@
  * Orchestrates tabs and delegates to specialized components.
  */
 
-import React, { memo, useState } from 'react';
-import { Plus, FileText, Workflow, Search, Filter } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent } from '@/components/ui/card';
+import React, { memo, useState } from 'react'
+import { Plus, FileText, Workflow, Search, Filter } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { withErrorBoundary } from '@/components/error/ErrorBoundary';
+} from '@/components/ui/select'
+import { withErrorBoundary } from '@/components/error/ErrorBoundary'
 
-import { FlowTemplateList } from './flows/FlowTemplateList';
-import { QuizTemplateList } from './quiz/QuizTemplateList';
-import { FlowDesignerDialog } from './flows/FlowDesignerDialog';
-import { useFlowTemplates } from './flows/hooks/useFlowTemplates';
-import { useQuizTemplates } from './quiz/hooks/useQuizTemplates';
+import { FlowTemplateList } from './flows/FlowTemplateList'
+import { QuizTemplateList } from './quiz/QuizTemplateList'
+import { FlowDesignerDialog } from './flows/FlowDesignerDialog'
+import { useFlowTemplates } from './flows/hooks/useFlowTemplates'
+import { useQuizTemplates } from './quiz/hooks/useQuizTemplates'
 
-export type TemplateFilter = 'all' | 'active' | 'draft';
+export type TemplateFilter = 'all' | 'active' | 'draft'
 
 const TemplateManagementPage = memo(function TemplateManagementPage() {
   // Shared state
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState<TemplateFilter>('all');
-  const [showFlowDesigner, setShowFlowDesigner] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('')
+  const [activeFilter, setActiveFilter] = useState<TemplateFilter>('all')
+  const [showFlowDesigner, setShowFlowDesigner] = useState(false)
 
   // Flow templates
   const {
@@ -43,7 +43,7 @@ const TemplateManagementPage = memo(function TemplateManagementPage() {
     loading: flowLoading,
     error: flowError,
     refetch: refetchFlows,
-  } = useFlowTemplates({ filter: activeFilter });
+  } = useFlowTemplates({ filter: activeFilter })
 
   // Quiz templates
   const {
@@ -54,20 +54,20 @@ const TemplateManagementPage = memo(function TemplateManagementPage() {
     loading: quizLoading,
     error: quizError,
     refetch: refetchQuizzes,
-  } = useQuizTemplates({ filter: activeFilter });
+  } = useQuizTemplates({ filter: activeFilter })
 
   // Filter templates by search
   const filteredFlowTemplates = flowTemplates.filter(
     (t) =>
       t.template_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.kind_key.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  )
 
   const filteredQuizTemplates = quizTemplates.filter(
     (t) =>
       t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  )
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -75,9 +75,7 @@ const TemplateManagementPage = memo(function TemplateManagementPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Gerenciamento de Templates</h1>
-          <p className="text-muted-foreground mt-1">
-            Crie e gerencie templates de flows e quizzes
-          </p>
+          <p className="text-muted-foreground mt-1">Crie e gerencie templates de flows e quizzes</p>
         </div>
         <Button onClick={() => setShowFlowDesigner(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -161,13 +159,13 @@ const TemplateManagementPage = memo(function TemplateManagementPage() {
         onSuccess={refetchFlows}
       />
     </div>
-  );
-});
+  )
+})
 
 // Named export to satisfy react-refresh/only-export-components
 const TemplateManagementPageWithErrorBoundary = withErrorBoundary(TemplateManagementPage, {
   level: 'page',
   enableReporting: true,
-});
+})
 
-export default TemplateManagementPageWithErrorBoundary;
+export default TemplateManagementPageWithErrorBoundary

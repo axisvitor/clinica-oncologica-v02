@@ -28,14 +28,23 @@ export default function PacientesList() {
       const params: { size?: number; search?: string } = { size: 50 }
       if (searchTerm) params.search = searchTerm
       const resp = await apiClient.patients.list(params)
-      const mapped: Paciente[] = (resp.items || []).map((p: { id: string; name?: string; cpf?: string; birth_date?: string; phone?: string; email?: string }) => ({
-        id: p.id,
-        nome: p.name || '',
-        cpf: p.cpf || '',
-        data_nascimento: p.birth_date || '',
-        telefone: p.phone || '',
-        email: p.email || ''
-      }))
+      const mapped: Paciente[] = (resp.items || []).map(
+        (p: {
+          id: string
+          name?: string
+          cpf?: string
+          birth_date?: string
+          phone?: string
+          email?: string
+        }) => ({
+          id: p.id,
+          nome: p.name || '',
+          cpf: p.cpf || '',
+          data_nascimento: p.birth_date || '',
+          telefone: p.phone || '',
+          email: p.email || '',
+        })
+      )
       setPacientes(mapped)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
@@ -48,9 +57,10 @@ export default function PacientesList() {
     fetchPacientes()
   }, [fetchPacientes])
 
-  const filteredPacientes = pacientes.filter(paciente =>
-    paciente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    paciente.cpf.includes(searchTerm)
+  const filteredPacientes = pacientes.filter(
+    (paciente) =>
+      paciente.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      paciente.cpf.includes(searchTerm)
   )
 
   const formatDate = (dateString: string) => {
@@ -69,7 +79,7 @@ export default function PacientesList() {
   }
 
   const getInitials = (name: string) => {
-    const names = name.split(' ').filter(n => n.length > 0)
+    const names = name.split(' ').filter((n) => n.length > 0)
     if (names.length >= 2) {
       const first = names[0]?.[0] || ''
       const last = names[names.length - 1]?.[0] || ''
@@ -87,7 +97,7 @@ export default function PacientesList() {
       'bg-indigo-500',
       'bg-pink-500',
       'bg-teal-500',
-      'bg-orange-500'
+      'bg-orange-500',
     ]
     let sum = 0
     for (let i = 0; i < id.length; i++) sum = (sum + id.charCodeAt(i)) % colors.length
@@ -95,7 +105,7 @@ export default function PacientesList() {
   }
 
   const toggleCard = (id: string) => {
-    setExpandedCards(prev => {
+    setExpandedCards((prev) => {
       const newSet = new Set(prev)
       if (newSet.has(id)) {
         newSet.delete(id)
@@ -195,7 +205,9 @@ export default function PacientesList() {
                     <div className="flex items-start justify-between">
                       <div className="flex items-center space-x-4 flex-1">
                         {/* Avatar */}
-                        <div className={`${getAvatarColor(paciente.id)} w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0`}>
+                        <div
+                          className={`${getAvatarColor(paciente.id)} w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0`}
+                        >
                           {getInitials(paciente.nome)}
                         </div>
 
@@ -213,8 +225,9 @@ export default function PacientesList() {
 
                       {/* Expand/Collapse Icon */}
                       <ChevronDown
-                        className={`w-5 h-5 text-gray-400 transition-transform duration-300 flex-shrink-0 ml-2 ${isExpanded ? 'transform rotate-180' : ''
-                          }`}
+                        className={`w-5 h-5 text-gray-400 transition-transform duration-300 flex-shrink-0 ml-2 ${
+                          isExpanded ? 'transform rotate-180' : ''
+                        }`}
                       />
                     </div>
 
@@ -235,8 +248,9 @@ export default function PacientesList() {
 
                   {/* Expanded Content */}
                   <div
-                    className={`transition-[max-height,opacity] duration-300 ease-in-out ${isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-                      } overflow-hidden`}
+                    className={`transition-[max-height,opacity] duration-300 ease-in-out ${
+                      isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                    } overflow-hidden`}
                     id={detailsId}
                   >
                     <div className="px-6 pb-6 space-y-3 border-t border-gray-100 pt-4">
@@ -271,8 +285,12 @@ export default function PacientesList() {
                       <div className="flex items-start">
                         <Calendar className="w-4 h-4 text-gray-400 mr-3 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
-                          <p className="text-xs text-gray-500 uppercase tracking-wide">Data de Nascimento</p>
-                          <p className="text-sm text-gray-900">{formatDate(paciente.data_nascimento)}</p>
+                          <p className="text-xs text-gray-500 uppercase tracking-wide">
+                            Data de Nascimento
+                          </p>
+                          <p className="text-sm text-gray-900">
+                            {formatDate(paciente.data_nascimento)}
+                          </p>
                         </div>
                       </div>
 

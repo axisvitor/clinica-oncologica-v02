@@ -1,6 +1,12 @@
 import React from 'react'
 import { Brain, MessageSquare } from 'lucide-react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -24,7 +30,7 @@ export function PhysicianChatDialog({
   inputValue,
   onInputChange,
   onSend,
-  isPending
+  isPending,
 }: PhysicianChatDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -34,9 +40,7 @@ export function PhysicianChatDialog({
             <Brain className="h-5 w-5" />
             Chat com IA - Orientação Clínica
           </DialogTitle>
-          <DialogDescription>
-            Obtenha orientações clínicas baseadas em IA
-          </DialogDescription>
+          <DialogDescription>Obtenha orientações clínicas baseadas em IA</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col h-[60vh]">
           {/* Chat Messages */}
@@ -45,7 +49,9 @@ export function PhysicianChatDialog({
               <div className="text-center text-muted-foreground py-8">
                 <MessageSquare className="mx-auto h-8 w-8 mb-2" />
                 <p>Inicie uma conversa com a IA</p>
-                <p className="text-xs mt-1">Faça perguntas sobre pacientes, tratamentos ou análises</p>
+                <p className="text-xs mt-1">
+                  Faça perguntas sobre pacientes, tratamentos ou análises
+                </p>
               </div>
             ) : (
               messages.map((msg) => (
@@ -54,10 +60,9 @@ export function PhysicianChatDialog({
                   className={`flex ${msg.role === ChatRole.USER ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-lg p-3 ${msg.role === ChatRole.USER
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
-                      }`}
+                    className={`max-w-[80%] rounded-lg p-3 ${
+                      msg.role === ChatRole.USER ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                    }`}
                   >
                     <p className="text-sm">{msg.content}</p>
                     <p className="text-xs opacity-70 mt-1">
@@ -85,10 +90,7 @@ export function PhysicianChatDialog({
               onKeyPress={(e) => e.key === 'Enter' && onSend()}
               disabled={isPending}
             />
-            <Button
-              onClick={onSend}
-              disabled={!inputValue.trim() || isPending}
-            >
+            <Button onClick={onSend} disabled={!inputValue.trim() || isPending}>
               <MessageSquare className="h-4 w-4" />
             </Button>
           </div>

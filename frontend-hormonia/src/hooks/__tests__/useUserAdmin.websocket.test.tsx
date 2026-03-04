@@ -37,8 +37,8 @@ describe('useUserAdmin - WebSocket Integration', () => {
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
-        mutations: { retry: false }
-      }
+        mutations: { retry: false },
+      },
     })
   })
 
@@ -52,10 +52,7 @@ describe('useUserAdmin - WebSocket Integration', () => {
   )
 
   it('should establish WebSocket connection when realTimeUpdates is enabled', async () => {
-    const { result } = renderHook(
-      () => useUserAdmin({ realTimeUpdates: true }),
-      { wrapper }
-    )
+    const { result } = renderHook(() => useUserAdmin({ realTimeUpdates: true }), { wrapper })
 
     await waitFor(() => {
       expect(result.current.isRealTimeConnected).toBe(true)
@@ -63,19 +60,13 @@ describe('useUserAdmin - WebSocket Integration', () => {
   })
 
   it('should not establish WebSocket connection when realTimeUpdates is disabled', () => {
-    const { result } = renderHook(
-      () => useUserAdmin({ realTimeUpdates: false }),
-      { wrapper }
-    )
+    const { result } = renderHook(() => useUserAdmin({ realTimeUpdates: false }), { wrapper })
 
     expect(result.current.isRealTimeConnected).toBe(false)
   })
 
   it('should handle user_created WebSocket messages', async () => {
-    const { result } = renderHook(
-      () => useUserAdmin({ realTimeUpdates: true }),
-      { wrapper }
-    )
+    const { result } = renderHook(() => useUserAdmin({ realTimeUpdates: true }), { wrapper })
 
     await waitFor(() => {
       expect(result.current.isRealTimeConnected).toBe(true)
@@ -88,9 +79,9 @@ describe('useUserAdmin - WebSocket Integration', () => {
         user: {
           id: 'new-user-123',
           email: 'newuser@example.com',
-          full_name: 'New User'
-        }
-      }
+          full_name: 'New User',
+        },
+      },
     }
 
     // This would trigger query invalidation
@@ -98,10 +89,7 @@ describe('useUserAdmin - WebSocket Integration', () => {
   })
 
   it('should handle user_updated WebSocket messages', async () => {
-    const { result } = renderHook(
-      () => useUserAdmin({ realTimeUpdates: true }),
-      { wrapper }
-    )
+    const { result } = renderHook(() => useUserAdmin({ realTimeUpdates: true }), { wrapper })
 
     await waitFor(() => {
       expect(result.current.isRealTimeConnected).toBe(true)
@@ -111,10 +99,7 @@ describe('useUserAdmin - WebSocket Integration', () => {
   })
 
   it('should handle user_deleted WebSocket messages', async () => {
-    const { result } = renderHook(
-      () => useUserAdmin({ realTimeUpdates: true }),
-      { wrapper }
-    )
+    const { result } = renderHook(() => useUserAdmin({ realTimeUpdates: true }), { wrapper })
 
     await waitFor(() => {
       expect(result.current.isRealTimeConnected).toBe(true)
@@ -126,10 +111,7 @@ describe('useUserAdmin - WebSocket Integration', () => {
   it('should reconnect after connection loss', async () => {
     vi.useFakeTimers()
 
-    const { result } = renderHook(
-      () => useUserAdmin({ realTimeUpdates: true }),
-      { wrapper }
-    )
+    const { result } = renderHook(() => useUserAdmin({ realTimeUpdates: true }), { wrapper })
 
     await waitFor(() => {
       expect(result.current.isRealTimeConnected).toBe(true)
@@ -148,10 +130,9 @@ describe('useUserAdmin - WebSocket Integration', () => {
   })
 
   it('should cleanup WebSocket connection on unmount', async () => {
-    const { result, unmount } = renderHook(
-      () => useUserAdmin({ realTimeUpdates: true }),
-      { wrapper }
-    )
+    const { result, unmount } = renderHook(() => useUserAdmin({ realTimeUpdates: true }), {
+      wrapper,
+    })
 
     await waitFor(() => {
       expect(result.current.isRealTimeConnected).toBe(true)

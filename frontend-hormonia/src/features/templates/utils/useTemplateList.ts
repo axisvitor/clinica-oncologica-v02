@@ -15,7 +15,9 @@ type TemplateListResponse<T> = {
   pages: number
 }
 
-type ListTemplatesFn<T> = (params: TemplateListParams) => Promise<TemplateListResponse<T> | null | undefined>
+type ListTemplatesFn<T> = (
+  params: TemplateListParams
+) => Promise<TemplateListResponse<T> | null | undefined>
 
 type UseTemplateListOptions<T> = {
   loading: boolean
@@ -69,7 +71,16 @@ export function useTemplateList<T>({
         variant: 'destructive',
       })
     }
-  }, [errorStateMessage, filter, includeDraftFilter, listTemplates, logLabel, page, toast, toastErrorDescription])
+  }, [
+    errorStateMessage,
+    filter,
+    includeDraftFilter,
+    listTemplates,
+    logLabel,
+    page,
+    toast,
+    toastErrorDescription,
+  ])
 
   useEffect(() => {
     loadTemplates()

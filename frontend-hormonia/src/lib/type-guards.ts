@@ -22,15 +22,13 @@
  * }
  * ```
  */
-export function isErrorWithMessage(
-  error: unknown
-): error is { message: string } {
+export function isErrorWithMessage(error: unknown): error is { message: string } {
   return (
     typeof error === 'object' &&
     error !== null &&
     'message' in error &&
     typeof (error as { message: unknown }).message === 'string'
-  );
+  )
 }
 
 /**
@@ -54,18 +52,18 @@ export function isErrorWithMessage(
  */
 export function getErrorMessage(error: unknown): string {
   if (isErrorWithMessage(error)) {
-    return error.message;
+    return error.message
   }
 
   if (typeof error === 'string') {
-    return error;
+    return error
   }
 
   if (error instanceof Error) {
-    return error.message;
+    return error.message
   }
 
-  return 'An unknown error occurred';
+  return 'An unknown error occurred'
 }
 
 /**
@@ -85,14 +83,12 @@ export function getErrorMessage(error: unknown): string {
  * }
  * ```
  */
-export function isApiError(
-  error: unknown
-): error is { message: string; status: number } {
+export function isApiError(error: unknown): error is { message: string; status: number } {
   return (
     isErrorWithMessage(error) &&
     'status' in error &&
     typeof (error as { status: unknown }).status === 'number'
-  );
+  )
 }
 
 /**
@@ -102,7 +98,7 @@ export function isApiError(
  * @returns True if value is a non-null object
  */
 export function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null
 }
 
 /**
@@ -111,12 +107,6 @@ export function isObject(value: unknown): value is Record<string, unknown> {
  * @param error - Unknown error object to check
  * @returns True if error is an object with a string code property
  */
-export function isErrorWithCode(
-  error: unknown
-): error is { code: string; message?: string } {
-  return (
-    isObject(error) &&
-    'code' in error &&
-    typeof (error as { code: unknown }).code === 'string'
-  );
+export function isErrorWithCode(error: unknown): error is { code: string; message?: string } {
+  return isObject(error) && 'code' in error && typeof (error as { code: unknown }).code === 'string'
 }

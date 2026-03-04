@@ -10,7 +10,7 @@ import { FlowNodeType } from '@/types/flow-designer'
 
 describe('NodePalette', () => {
   const defaultProps = {
-    onAddNode: vi.fn()
+    onAddNode: vi.fn(),
   }
 
   beforeEach(() => {
@@ -171,12 +171,15 @@ describe('NodePalette', () => {
 
       const mockDataTransfer = {
         setData: vi.fn(),
-        effectAllowed: ''
+        effectAllowed: '',
       }
 
       fireEvent.dragStart(button, { dataTransfer: mockDataTransfer })
 
-      expect(mockDataTransfer.setData).toHaveBeenCalledWith('application/node-type', FlowNodeType.START)
+      expect(mockDataTransfer.setData).toHaveBeenCalledWith(
+        'application/node-type',
+        FlowNodeType.START
+      )
       expect(mockDataTransfer.effectAllowed).toBe('copy')
     })
 
@@ -184,7 +187,7 @@ describe('NodePalette', () => {
       render(<NodePalette {...defaultProps} />)
 
       const buttons = screen.getAllByRole('button').slice(0, 9) // First 9 are node type buttons
-      buttons.forEach(button => {
+      buttons.forEach((button) => {
         expect(button).toHaveAttribute('draggable', 'true')
       })
     })
@@ -275,7 +278,7 @@ describe('NodePalette', () => {
 
       const buttons = screen.getAllByRole('button')
       // Node type buttons should have ghost styling
-      buttons.slice(0, 9).forEach(button => {
+      buttons.slice(0, 9).forEach((button) => {
         expect(button).toHaveClass('justify-start')
       })
     })
@@ -286,10 +289,10 @@ describe('NodePalette', () => {
       const templateButtons = [
         screen.getByText('Fluxo Simples'),
         screen.getByText('Fluxo Condicional'),
-        screen.getByText('Fluxo com IA')
+        screen.getByText('Fluxo com IA'),
       ]
 
-      templateButtons.forEach(button => {
+      templateButtons.forEach((button) => {
         expect(button).toBeInTheDocument()
       })
     })
@@ -301,7 +304,7 @@ describe('NodePalette', () => {
 
       // Check that SVG icons are present within buttons
       const buttons = screen.getAllByRole('button').slice(0, 9)
-      buttons.forEach(button => {
+      buttons.forEach((button) => {
         const svg = button.querySelector('svg')
         expect(svg).toBeInTheDocument()
       })

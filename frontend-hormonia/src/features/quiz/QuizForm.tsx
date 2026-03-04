@@ -70,37 +70,40 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
       toast({
         title: 'Erro ao enviar questionário',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
-  const handleResponseChange = (questionId: string, value: string | number | boolean | string[]) => {
-    setResponses(prev => ({
+  const handleResponseChange = (
+    questionId: string,
+    value: string | number | boolean | string[]
+  ) => {
+    setResponses((prev) => ({
       ...prev,
-      [questionId]: value
+      [questionId]: value,
     }))
   }
 
   const handleSubmit = () => {
     // Validate required questions
-    const requiredQuestions = session.questions.filter(q => q.required)
-    const missingResponses = requiredQuestions.filter(q =>
-      !responses[q.id] || responses[q.id] === '' || responses[q.id] === null
+    const requiredQuestions = session.questions.filter((q) => q.required)
+    const missingResponses = requiredQuestions.filter(
+      (q) => !responses[q.id] || responses[q.id] === '' || responses[q.id] === null
     )
 
     if (missingResponses.length > 0) {
       toast({
         title: 'Campos obrigatórios',
         description: `Por favor, responda todas as perguntas obrigatórias (${missingResponses.length} restantes).`,
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
 
     submitResponseMutation.mutate({
       session_id: session.id,
-      responses
+      responses,
     })
   }
 
@@ -189,7 +192,10 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
                     if (checked) {
                       handleResponseChange(question.id, [...checkboxValues, option])
                     } else {
-                      handleResponseChange(question.id, checkboxValues.filter((v: string) => v !== option))
+                      handleResponseChange(
+                        question.id,
+                        checkboxValues.filter((v: string) => v !== option)
+                      )
                     }
                   }}
                 />
@@ -205,8 +211,8 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
     }
   }
 
-  const completedQuestions = session.questions.filter(q =>
-    responses[q.id] !== undefined && responses[q.id] !== '' && responses[q.id] !== null
+  const completedQuestions = session.questions.filter(
+    (q) => responses[q.id] !== undefined && responses[q.id] !== '' && responses[q.id] !== null
   ).length
 
   const progressPercentage = (completedQuestions / session.questions.length) * 100
@@ -225,7 +231,9 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span>Progresso</span>
-              <span>{completedQuestions} de {session.questions.length} perguntas</span>
+              <span>
+                {completedQuestions} de {session.questions.length} perguntas
+              </span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
@@ -240,7 +248,8 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
       {/* Questions */}
       <div className="space-y-6">
         {session.questions.map((question, index) => {
-          const isAnswered = responses[question.id] !== undefined &&
+          const isAnswered =
+            responses[question.id] !== undefined &&
             responses[question.id] !== '' &&
             responses[question.id] !== null
 
@@ -258,16 +267,12 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
                   <div className="flex-1">
                     <CardTitle className="text-lg">
                       {question.question}
-                      {question.required && (
-                        <span className="text-red-500 ml-1">*</span>
-                      )}
+                      {question.required && <span className="text-red-500 ml-1">*</span>}
                     </CardTitle>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                {renderQuestion(question)}
-              </CardContent>
+              <CardContent>{renderQuestion(question)}</CardContent>
             </Card>
           )
         })}
@@ -283,17 +288,11 @@ export function QuizForm({ session, onComplete }: QuizFormProps) {
                   ✓ Todas as perguntas foram respondidas
                 </span>
               ) : (
-                <span>
-                  {session.questions.length - completedQuestions} perguntas restantes
-                </span>
+                <span>{session.questions.length - completedQuestions} perguntas restantes</span>
               )}
             </div>
 
-            <Button
-              onClick={handleSubmit}
-              disabled={submitResponseMutation.isPending}
-              size="lg"
-            >
+            <Button onClick={handleSubmit} disabled={submitResponseMutation.isPending} size="lg">
               {submitResponseMutation.isPending ? (
                 <>
                   <LoadingSpinner size="sm" className="mr-2" />

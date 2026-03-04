@@ -3,7 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -16,7 +22,7 @@ import {
   CheckCircle,
   AlertTriangle,
   Eye,
-  EyeOff
+  EyeOff,
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -29,21 +35,23 @@ import { z } from 'zod'
 
 const logger = createLogger('InitialUserSetup')
 
-const userSetupSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
-  email: z.string().email('Email inválido'),
-  phone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos'),
-  crm: z.string().min(4, 'CRM deve ter pelo menos 4 caracteres'),
-  specialization: z.string().min(1, 'Especialização é obrigatória'),
-  password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
-  confirmPassword: z.string(),
-  role: z.enum(['admin', 'doctor']),
-  acceptTerms: z.boolean().refine(val => val === true, 'Você deve aceitar os termos'),
-  enableNotifications: z.boolean().optional()
-}).refine(data => data.password === data.confirmPassword, {
-  message: 'Senhas não coincidem',
-  path: ['confirmPassword']
-})
+const userSetupSchema = z
+  .object({
+    name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
+    email: z.string().email('Email inválido'),
+    phone: z.string().min(10, 'Telefone deve ter pelo menos 10 dígitos'),
+    crm: z.string().min(4, 'CRM deve ter pelo menos 4 caracteres'),
+    specialization: z.string().min(1, 'Especialização é obrigatória'),
+    password: z.string().min(8, 'Senha deve ter pelo menos 8 caracteres'),
+    confirmPassword: z.string(),
+    role: z.enum(['admin', 'doctor']),
+    acceptTerms: z.boolean().refine((val) => val === true, 'Você deve aceitar os termos'),
+    enableNotifications: z.boolean().optional(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Senhas não coincidem',
+    path: ['confirmPassword'],
+  })
 
 type UserSetupForm = z.infer<typeof userSetupSchema>
 
@@ -64,15 +72,15 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
     formState: { errors, isValid },
     watch,
     setValue,
-    trigger
+    trigger,
   } = useForm<UserSetupForm>({
     resolver: zodResolver(userSetupSchema),
     mode: 'onChange',
     defaultValues: {
       role: 'admin',
       acceptTerms: false,
-      enableNotifications: true
-    }
+      enableNotifications: true,
+    },
   })
 
   const watchedValues = watch()
@@ -87,12 +95,12 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
     'Mastologia',
     'Urologia Oncológica',
     'Administração',
-    'Outra'
+    'Outra',
   ]
 
   const roles = [
     { value: 'admin', label: 'Administrador', description: 'Acesso completo ao sistema' },
-    { value: 'doctor', label: 'Médico', description: 'Acesso a pacientes e tratamentos' }
+    { value: 'doctor', label: 'Médico', description: 'Acesso a pacientes e tratamentos' },
   ]
 
   const handleCreateUser = async (data: UserSetupForm) => {
@@ -114,7 +122,6 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
 
       logger.log('Initial admin user created successfully')
       onComplete()
-
     } catch (error) {
       logger.error('Failed to create initial user:', error)
       onError('Falha ao criar usuário inicial: ' + (error as Error).message)
@@ -124,9 +131,8 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
   }
 
   const handleNextStep = async () => {
-    const fieldsToValidate = step === 1
-      ? ['name', 'email', 'phone']
-      : ['crm', 'specialization', 'role']
+    const fieldsToValidate =
+      step === 1 ? ['name', 'email', 'phone'] : ['crm', 'specialization', 'role']
 
     const isStepValid = await trigger(fieldsToValidate as (keyof UserSetupForm)[])
     if (isStepValid) {
@@ -151,7 +157,9 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
     return { level: 'strong', color: 'green', text: 'Forte' }
   }
 
-  const passwordStrength = watchedValues.password ? getPasswordStrength(watchedValues.password) : null
+  const passwordStrength = watchedValues.password
+    ? getPasswordStrength(watchedValues.password)
+    : null
 
   return (
     <div className="space-y-6">
@@ -160,19 +168,19 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
         {[1, 2, 3].map((stepNumber) => (
           <div key={stepNumber} className="flex items-center">
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${stepNumber < step
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                stepNumber < step
                   ? 'bg-green-500 text-white'
                   : stepNumber === step
                     ? 'bg-blue-500 text-white'
                     : 'bg-gray-300 text-gray-600'
-                }`}
+              }`}
             >
               {stepNumber < step ? <CheckCircle className="w-4 h-4" /> : stepNumber}
             </div>
             {stepNumber < 3 && (
               <div
-                className={`w-16 h-1 mx-2 ${stepNumber < step ? 'bg-green-500' : 'bg-gray-300'
-                  }`}
+                className={`w-16 h-1 mx-2 ${stepNumber < step ? 'bg-green-500' : 'bg-gray-300'}`}
               />
             )}
           </div>
@@ -185,9 +193,7 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
             <UserPlus className="w-5 h-5" />
             <span>Criar Usuário Administrador</span>
           </CardTitle>
-          <CardDescription>
-            Configure o primeiro usuário administrador do sistema
-          </CardDescription>
+          <CardDescription>Configure o primeiro usuário administrador do sistema</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(handleCreateUser)} className="space-y-6">
@@ -208,9 +214,7 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                       placeholder="Dr. João Silva"
                       className={errors.name ? 'border-red-500' : ''}
                     />
-                    {errors.name && (
-                      <p className="text-sm text-red-600">{errors.name.message}</p>
-                    )}
+                    {errors.name && <p className="text-sm text-red-600">{errors.name.message}</p>}
                   </div>
 
                   <div className="space-y-2">
@@ -222,9 +226,7 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                       placeholder="joao@clinica.com"
                       className={errors.email ? 'border-red-500' : ''}
                     />
-                    {errors.email && (
-                      <p className="text-sm text-red-600">{errors.email.message}</p>
-                    )}
+                    {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
@@ -235,9 +237,7 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                       placeholder="(11) 99999-9999"
                       className={errors.phone ? 'border-red-500' : ''}
                     />
-                    {errors.phone && (
-                      <p className="text-sm text-red-600">{errors.phone.message}</p>
-                    )}
+                    {errors.phone && <p className="text-sm text-red-600">{errors.phone.message}</p>}
                   </div>
                 </div>
               </div>
@@ -260,9 +260,7 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                       placeholder="CRM/SP 123456"
                       className={errors.crm ? 'border-red-500' : ''}
                     />
-                    {errors.crm && (
-                      <p className="text-sm text-red-600">{errors.crm.message}</p>
-                    )}
+                    {errors.crm && <p className="text-sm text-red-600">{errors.crm.message}</p>}
                   </div>
 
                   <div className="space-y-2">
@@ -293,10 +291,11 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                       {roles.map((role) => (
                         <Card
                           key={role.value}
-                          className={`cursor-pointer transition-colors ${watchedValues.role === role.value
+                          className={`cursor-pointer transition-colors ${
+                            watchedValues.role === role.value
                               ? 'border-blue-500 bg-blue-50'
                               : 'hover:border-gray-400'
-                            }`}
+                          }`}
                           onClick={() => setValue('role', role.value as UserSetupForm['role'])}
                         >
                           <CardContent className="pt-4">
@@ -307,7 +306,9 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                                 value={role.value}
                                 className="sr-only"
                               />
-                              <Badge variant={watchedValues.role === role.value ? 'default' : 'outline'}>
+                              <Badge
+                                variant={watchedValues.role === role.value ? 'default' : 'outline'}
+                              >
                                 {role.label}
                               </Badge>
                             </div>
@@ -316,9 +317,7 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                         </Card>
                       ))}
                     </div>
-                    {errors.role && (
-                      <p className="text-sm text-red-600">{errors.role.message}</p>
-                    )}
+                    {errors.role && <p className="text-sm text-red-600">{errors.role.message}</p>}
                   </div>
                 </div>
               </div>
@@ -350,14 +349,16 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                         className="absolute right-0 top-0 h-full px-3"
                         onClick={() => setShowPassword(!showPassword)}
                       >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
                       </Button>
                     </div>
                     {watchedValues.password && passwordStrength && (
                       <div className="flex items-center space-x-2 text-sm">
-                        <div
-                          className={`w-3 h-3 rounded-full bg-${passwordStrength.color}-500`}
-                        />
+                        <div className={`w-3 h-3 rounded-full bg-${passwordStrength.color}-500`} />
                         <span className={`text-${passwordStrength.color}-600`}>
                           Força da senha: {passwordStrength.text}
                         </span>
@@ -385,7 +386,11 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                         className="absolute right-0 top-0 h-full px-3"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       >
-                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showConfirmPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
                       </Button>
                     </div>
                     {errors.confirmPassword && (
@@ -399,7 +404,9 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                     <Checkbox
                       id="enableNotifications"
                       checked={watchedValues.enableNotifications ?? false}
-                      onCheckedChange={(checked: boolean | 'indeterminate') => setValue('enableNotifications', checked === true)}
+                      onCheckedChange={(checked: boolean | 'indeterminate') =>
+                        setValue('enableNotifications', checked === true)
+                      }
                     />
                     <Label htmlFor="enableNotifications" className="text-sm">
                       Habilitar notificações por email e WhatsApp
@@ -410,12 +417,17 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                     <Checkbox
                       id="acceptTerms"
                       checked={watchedValues.acceptTerms ?? false}
-                      onCheckedChange={(checked: boolean | 'indeterminate') => setValue('acceptTerms', checked === true)}
+                      onCheckedChange={(checked: boolean | 'indeterminate') =>
+                        setValue('acceptTerms', checked === true)
+                      }
                       className={errors.acceptTerms ? 'border-red-500' : ''}
                     />
                     <Label htmlFor="acceptTerms" className="text-sm leading-relaxed">
-                      Aceito os <a href="#" className="text-blue-600 hover:underline">termos de uso</a> e
-                      confirmo que tenho autorização para criar este usuário administrador *
+                      Aceito os{' '}
+                      <a href="#" className="text-blue-600 hover:underline">
+                        termos de uso
+                      </a>{' '}
+                      e confirmo que tenho autorização para criar este usuário administrador *
                     </Label>
                   </div>
                   {errors.acceptTerms && (
@@ -426,9 +438,9 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                 <Alert className="bg-blue-50 border-blue-200">
                   <AlertTriangle className="h-4 w-4 text-blue-600" />
                   <AlertDescription className="text-blue-800">
-                    <strong>Importante:</strong> Este será o primeiro usuário administrador do sistema.
-                    Guarde as credenciais em local seguro e certifique-se de que apenas pessoas
-                    autorizadas tenham acesso.
+                    <strong>Importante:</strong> Este será o primeiro usuário administrador do
+                    sistema. Guarde as credenciais em local seguro e certifique-se de que apenas
+                    pessoas autorizadas tenham acesso.
                   </AlertDescription>
                 </Alert>
               </div>
@@ -445,23 +457,14 @@ export function InitialUserSetup({ onComplete, onError }: InitialUserSetupProps)
                 Anterior
               </Button>
 
-              <span className="text-sm text-gray-500">
-                Etapa {step} de 3
-              </span>
+              <span className="text-sm text-gray-500">Etapa {step} de 3</span>
 
               {step < 3 ? (
-                <Button
-                  type="button"
-                  onClick={handleNextStep}
-                >
+                <Button type="button" onClick={handleNextStep}>
                   Próximo
                 </Button>
               ) : (
-                <Button
-                  type="submit"
-                  disabled={!isValid || isCreating}
-                  className="min-w-[120px]"
-                >
+                <Button type="submit" disabled={!isValid || isCreating} className="min-w-[120px]">
                   {isCreating ? (
                     <LoadingSpinner size="sm" text="Criando..." />
                   ) : (

@@ -21,7 +21,7 @@ describe('FlowCanvas', () => {
     onNodeUpdate: vi.fn(),
     onAddConnection: vi.fn(),
     onPanChange: vi.fn(),
-    validation: null
+    validation: null,
   }
 
   beforeEach(() => {
@@ -112,13 +112,7 @@ describe('FlowCanvas', () => {
 
     it('should update pan on mouse move while dragging', () => {
       const onPanChange = vi.fn()
-      render(
-        <FlowCanvas
-          {...defaultProps}
-          mode={DesignerMode.PAN}
-          onPanChange={onPanChange}
-        />
-      )
+      render(<FlowCanvas {...defaultProps} mode={DesignerMode.PAN} onPanChange={onPanChange} />)
 
       const canvas = document.querySelector('.bg-gray-50')!
       fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100 })
@@ -162,7 +156,7 @@ describe('FlowCanvas', () => {
       const validation: FlowValidationResult = {
         isValid: true,
         errors: [],
-        warnings: []
+        warnings: [],
       }
       render(<FlowCanvas {...defaultProps} validation={validation} />)
 
@@ -173,9 +167,9 @@ describe('FlowCanvas', () => {
       const validation: FlowValidationResult = {
         isValid: false,
         errors: [
-          { id: 'e1', type: 'invalid_config', message: 'Mensagem sem conteúdo', node_id: 'msg-1' }
+          { id: 'e1', type: 'invalid_config', message: 'Mensagem sem conteúdo', node_id: 'msg-1' },
         ],
-        warnings: []
+        warnings: [],
       }
       render(<FlowCanvas {...defaultProps} validation={validation} />)
 
@@ -191,9 +185,9 @@ describe('FlowCanvas', () => {
           { id: 'e2', type: 'invalid_config', message: 'Erro 2' },
           { id: 'e3', type: 'invalid_config', message: 'Erro 3' },
           { id: 'e4', type: 'invalid_config', message: 'Erro 4' },
-          { id: 'e5', type: 'invalid_config', message: 'Erro 5' }
+          { id: 'e5', type: 'invalid_config', message: 'Erro 5' },
         ],
-        warnings: []
+        warnings: [],
       }
       render(<FlowCanvas {...defaultProps} validation={validation} />)
 
@@ -223,7 +217,7 @@ describe('FlowCanvas', () => {
       const emptyDesign = {
         ...createTestDesign(),
         nodes: [],
-        connections: []
+        connections: [],
       }
       render(<FlowCanvas {...defaultProps} design={emptyDesign} />)
 

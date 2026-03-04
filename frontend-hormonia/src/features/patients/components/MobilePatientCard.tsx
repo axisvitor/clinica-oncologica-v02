@@ -21,11 +21,7 @@ interface MobilePatientCardProps {
   data: PatientListItemData
 }
 
-export const MobilePatientCard = memo<MobilePatientCardProps>(({
-  style,
-  index,
-  data
-}) => {
+export const MobilePatientCard = memo<MobilePatientCardProps>(({ style, index, data }) => {
   const item = resolvePatientListItemRenderContext(data, index)
   if (!item) return null
 
@@ -55,20 +51,14 @@ export const MobilePatientCard = memo<MobilePatientCardProps>(({
             <PatientAvatar name={patient.name} size="md" />
             <div className="min-w-0 flex-1">
               <p className="font-medium truncate">{patient.name}</p>
-              <p className="text-sm text-muted-foreground truncate">
-                {patient.phone}
-              </p>
+              <p className="text-sm text-muted-foreground truncate">{patient.phone}</p>
               {patient.email && (
-                <p className="text-xs text-muted-foreground truncate">
-                  {patient.email}
-                </p>
+                <p className="text-xs text-muted-foreground truncate">{patient.email}</p>
               )}
             </div>
           </div>
           <div className="flex-shrink-0">
-            <Badge className={statusConfig.className}>
-              {statusConfig.label}
-            </Badge>
+            <Badge className={statusConfig.className}>{statusConfig.label}</Badge>
           </div>
         </div>
 
@@ -90,9 +80,7 @@ export const MobilePatientCard = memo<MobilePatientCardProps>(({
 
         {/* Quiz Status */}
         <div className="mb-3" onClick={(e) => e.stopPropagation()}>
-          <span className="text-muted-foreground text-xs block mb-1">
-            Quiz Mensal:
-          </span>
+          <span className="text-muted-foreground text-xs block mb-1">Quiz Mensal:</span>
           <QuizStatusBadge
             patientId={patient.id}
             patientName={patient.name}

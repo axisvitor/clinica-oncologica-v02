@@ -5,55 +5,62 @@
  * all metric visualization components and provides a comprehensive view
  * of system health, patient engagement, and AI performance.
  */
-import React, { useEffect, useState } from 'react';
-import { useAuth } from '@/app/providers/AuthContext';
-import { MetricsDashboard } from '@/features/metrics/MetricsDashboard';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
+import React, { useEffect, useState } from 'react'
+import { useAuth } from '@/app/providers/AuthContext'
+import { MetricsDashboard } from '@/features/metrics/MetricsDashboard'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
 import {
-  Activity, BarChart3, TrendingUp, Users, Brain, Target,
-  Settings, Download, AlertTriangle
-} from 'lucide-react';
+  Activity,
+  BarChart3,
+  TrendingUp,
+  Users,
+  Brain,
+  Target,
+  Settings,
+  Download,
+  AlertTriangle,
+} from 'lucide-react'
 import { createLogger } from '@/lib/logger'
 import { apiClient } from '@/lib/api-client'
 
 const logger = createLogger('MetricsDashboardPage')
 
 const MetricsDashboardPage: React.FC = () => {
-  const { user } = useAuth();
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth()
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Check user permissions
   useEffect(() => {
     const checkPermissions = () => {
       if (!user) {
-        setError('Usuário não autenticado');
-        setIsLoading(false);
-        return;
+        setError('Usuário não autenticado')
+        setIsLoading(false)
+        return
       }
 
-      const allowedRoles = ['doctor', 'admin'];
+      const allowedRoles = ['doctor', 'admin']
       if (!allowedRoles.includes(user['role'])) {
-        setError('Acesso negado - Permissões insuficientes para visualizar métricas');
-        setIsLoading(false);
-        return;
+        setError('Acesso negado - Permissões insuficientes para visualizar métricas')
+        setIsLoading(false)
+        return
       }
 
-      setIsLoading(false);
-    };
+      setIsLoading(false)
+    }
 
-    checkPermissions();
-  }, [user]);
+    checkPermissions()
+  }, [user])
 
   const handleExportMetrics = async () => {
     try {
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 30); // Last 30 days
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - 30) // Last 30 days
 
       // Use enhanced-analytics/export endpoint instead of non-existent /metrics/export
       const params = new URLSearchParams()
@@ -63,51 +70,54 @@ const MetricsDashboardPage: React.FC = () => {
       if (endDateStr) params.append('end_date', endDateStr)
       params.append('format', 'json')
 
-      const response = await fetch(`${apiClient.getBaseURL()}/api/v2/enhanced-analytics/export?${params.toString()}`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          ...apiClient.getSessionHeaders(),
+      const response = await fetch(
+        `${apiClient.getBaseURL()}/api/v2/enhanced-analytics/export?${params.toString()}`,
+        {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            ...apiClient.getSessionHeaders(),
+          },
         }
-      });
+      )
 
       if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = `metrics-export-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.style.display = 'none'
+        a.href = url
+        a.download = `metrics-export-${new Date().toISOString().split('T')[0]}.json`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
       } else {
         // Fallback: export from dashboard/main data
         const dashboardResponse = await fetch(`${apiClient.getBaseURL()}/api/v2/dashboard/main`, {
           credentials: 'include',
           headers: {
             ...apiClient.getSessionHeaders(),
-          }
-        });
+          },
+        })
         if (dashboardResponse.ok) {
-          const data = await dashboardResponse.json();
-          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = url;
-          a.download = `dashboard-export-${new Date().toISOString().split('T')[0]}.json`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
+          const data = await dashboardResponse.json()
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+          const url = window.URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.style.display = 'none'
+          a.href = url
+          a.download = `dashboard-export-${new Date().toISOString().split('T')[0]}.json`
+          document.body.appendChild(a)
+          a.click()
+          window.URL.revokeObjectURL(url)
+          document.body.removeChild(a)
         }
       }
     } catch (err) {
-      logger.error('Error exporting metrics', { error: err });
+      logger.error('Error exporting metrics', { error: err })
     }
-  };
+  }
 
   if (isLoading) {
     return (
@@ -117,7 +127,7 @@ const MetricsDashboardPage: React.FC = () => {
           <span className="text-lg">Carregando dashboard...</span>
         </div>
       </div>
-    );
+    )
   }
 
   if (error) {
@@ -135,7 +145,7 @@ const MetricsDashboardPage: React.FC = () => {
           </AlertDescription>
         </Alert>
       </div>
-    );
+    )
   }
 
   return (
@@ -145,9 +155,7 @@ const MetricsDashboardPage: React.FC = () => {
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <BarChart3 className="h-8 w-8 text-blue-600" />
-            <h1 className="text-3xl font-bold tracking-tight">
-              Dashboard de Métricas
-            </h1>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard de Métricas</h1>
           </div>
           <p className="text-muted-foreground">
             Monitoramento em tempo real do sistema Hormonia Healthcare
@@ -182,9 +190,7 @@ const MetricsDashboardPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">Ativo</div>
-            <p className="text-xs text-muted-foreground">
-              Todos os serviços operacionais
-            </p>
+            <p className="text-xs text-muted-foreground">Todos os serviços operacionais</p>
           </CardContent>
         </Card>
 
@@ -195,9 +201,7 @@ const MetricsDashboardPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">Monitorados</div>
-            <p className="text-xs text-muted-foreground">
-              Engajamento em tempo real
-            </p>
+            <p className="text-xs text-muted-foreground">Engajamento em tempo real</p>
           </CardContent>
         </Card>
 
@@ -208,9 +212,7 @@ const MetricsDashboardPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-600">Otimizada</div>
-            <p className="text-xs text-muted-foreground">
-              Personalização ativa
-            </p>
+            <p className="text-xs text-muted-foreground">Personalização ativa</p>
           </CardContent>
         </Card>
 
@@ -221,9 +223,7 @@ const MetricsDashboardPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">Funcionais</div>
-            <p className="text-xs text-muted-foreground">
-              Alto engajamento
-            </p>
+            <p className="text-xs text-muted-foreground">Alto engajamento</p>
           </CardContent>
         </Card>
       </div>
@@ -250,10 +250,7 @@ const MetricsDashboardPage: React.FC = () => {
         </TabsList>
 
         <TabsContent value="dashboard">
-          <MetricsDashboard
-            userRole={user?.role as 'doctor' | 'admin'}
-            refreshInterval={5000}
-          />
+          <MetricsDashboard userRole={user?.role as 'doctor' | 'admin'} refreshInterval={5000} />
         </TabsContent>
 
         <TabsContent value="trends">
@@ -281,9 +278,7 @@ const MetricsDashboardPage: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Análises automatizadas</CardTitle>
-                <CardDescription>
-                  Recomendações automáticas baseadas em dados
-                </CardDescription>
+                <CardDescription>Recomendações automáticas baseadas em dados</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -314,9 +309,7 @@ const MetricsDashboardPage: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Recomendações</CardTitle>
-                <CardDescription>
-                  Ações sugeridas para otimização
-                </CardDescription>
+                <CardDescription>Ações sugeridas para otimização</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -359,9 +352,7 @@ const MetricsDashboardPage: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle>Configurações do Dashboard</CardTitle>
-              <CardDescription>
-                Personalize a exibição e alertas do dashboard
-              </CardDescription>
+              <CardDescription>Personalize a exibição e alertas do dashboard</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
@@ -420,9 +411,7 @@ const MetricsDashboardPage: React.FC = () => {
                 </div>
 
                 <div className="pt-4 border-t">
-                  <Button className="w-full">
-                    Salvar Configurações
-                  </Button>
+                  <Button className="w-full">Salvar Configurações</Button>
                 </div>
               </div>
             </CardContent>
@@ -434,11 +423,13 @@ const MetricsDashboardPage: React.FC = () => {
       <div className="text-center text-sm text-muted-foreground pt-4 border-t">
         <p>
           Dashboard de Métricas Hormonia Healthcare • Dados atualizados em tempo real •{' '}
-          <span className="font-medium">Sistema {user?.role === 'admin' ? 'Administrativo' : 'Médico'}</span>
+          <span className="font-medium">
+            Sistema {user?.role === 'admin' ? 'Administrativo' : 'Médico'}
+          </span>
         </p>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default MetricsDashboardPage;
+export default MetricsDashboardPage

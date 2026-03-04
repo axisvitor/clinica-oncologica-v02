@@ -13,7 +13,7 @@ import {
   Shield,
   Activity,
   Clock,
-  ExternalLink
+  ExternalLink,
 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -67,7 +67,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
       description: 'Serviço de autenticação de usuários',
       category: 'auth',
       status: 'pending',
-      required: true
+      required: true,
     },
     {
       id: 'websocket',
@@ -75,7 +75,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
       description: 'Comunicação em tempo real',
       category: 'websocket',
       status: 'pending',
-      required: false
+      required: false,
     },
     {
       id: 'whatsapp',
@@ -83,7 +83,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
       description: 'Integração com WhatsApp para notificações',
       category: 'messaging',
       status: 'pending',
-      required: false
+      required: false,
     },
     {
       id: 'sentry',
@@ -91,7 +91,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
       description: 'Monitoramento de erros em produção',
       category: 'monitoring',
       status: 'pending',
-      required: false
+      required: false,
     },
     {
       id: 'ai',
@@ -99,8 +99,8 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
       description: 'Recursos de IA disponíveis no backend',
       category: 'ai',
       status: 'pending',
-      required: false
-    }
+      required: false,
+    },
   ])
 
   const [isChecking, setIsChecking] = useState(false)
@@ -112,7 +112,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
     messaging: <MessageSquare className="w-4 h-4" />,
     monitoring: <Activity className="w-4 h-4" />,
     ai: <Wifi className="w-4 h-4" />,
-    websocket: <Wifi className="w-4 h-4" />
+    websocket: <Wifi className="w-4 h-4" />,
   }
 
   const categoryNames = {
@@ -120,13 +120,13 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
     messaging: 'Mensagens',
     monitoring: 'Monitoramento',
     ai: 'Inteligência Artificial',
-    websocket: 'Tempo Real'
+    websocket: 'Tempo Real',
   }
 
   useEffect(() => {
     // Auto-start service checks
     handleCheckServices()
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckServices is intentionally only called on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckServices is intentionally only called on mount
   }, [])
 
   const updateServiceStatus = (
@@ -136,18 +136,20 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
     error?: string,
     details?: Record<string, unknown>
   ) => {
-    setServices(prev => prev.map(service =>
-      service.id === id
-        ? {
-          ...service,
-          status,
-          responseTime,
-          error,
-          details,
-          lastCheck: new Date()
-        }
-        : service
-    ))
+    setServices((prev) =>
+      prev.map((service) =>
+        service.id === id
+          ? {
+              ...service,
+              status,
+              responseTime,
+              error,
+              details,
+              lastCheck: new Date(),
+            }
+          : service
+      )
+    )
   }
 
   const handleCheckServices = async () => {
@@ -161,7 +163,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
       const config = await loadConfig()
 
       // Reset all services to pending
-      setServices(prev => prev.map(service => ({ ...service, status: 'pending' as const })))
+      setServices((prev) => prev.map((service) => ({ ...service, status: 'pending' as const })))
 
       for (let i = 0; i < services.length; i++) {
         const service = services[i]
@@ -182,14 +184,13 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
 
           // Determine status based on error type
           const normalizedError = errorMessage.toLowerCase()
-          const status = (
+          const status =
             normalizedError.includes('degraded') ||
             normalizedError.includes('não configur') ||
             normalizedError.includes('timeout') ||
             normalizedError.includes('network')
-          )
-            ? 'degraded'
-            : 'unhealthy'
+              ? 'degraded'
+              : 'unhealthy'
 
           updateServiceStatus(service.id, status, responseTime, errorMessage)
           logger.error(`Service '${service.id}' check failed:`, error)
@@ -200,19 +201,19 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         setOverallProgress(progress)
 
         // Small delay for visual feedback
-        await new Promise(resolve => setTimeout(resolve, 300))
+        await new Promise((resolve) => setTimeout(resolve, 300))
       }
 
       // Check results - only fail if required services are unhealthy
-      const failedRequiredServices = services.filter(s =>
-        s.required && s.status === 'unhealthy'
-      )
+      const failedRequiredServices = services.filter((s) => s.required && s.status === 'unhealthy')
 
       if (failedRequiredServices.length > 0) {
-        onError(`Serviços críticos falharam: ${failedRequiredServices.map(s => s.name).join(', ')}`)
+        onError(
+          `Serviços críticos falharam: ${failedRequiredServices.map((s) => s.name).join(', ')}`
+        )
       } else {
-        const degradedServices = services.filter(s => s.status === 'degraded').length
-        const unhealthyServices = services.filter(s => s.status === 'unhealthy').length
+        const degradedServices = services.filter((s) => s.status === 'degraded').length
+        const unhealthyServices = services.filter((s) => s.status === 'unhealthy').length
 
         let message = 'Verificação de serviços concluída.'
         if (degradedServices > 0 || unhealthyServices > 0) {
@@ -222,11 +223,10 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         toast({
           title: 'Serviços Verificados',
           description: message,
-          variant: failedRequiredServices.length > 0 ? 'destructive' : 'default'
+          variant: failedRequiredServices.length > 0 ? 'destructive' : 'default',
         })
         onComplete()
       }
-
     } catch (error) {
       logger.error('Service monitoring failed:', error)
       onError('Falha na verificação dos serviços: ' + (error as Error).message)
@@ -270,7 +270,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
       }
       updateServiceStatus('firebase-auth', 'checking', undefined, undefined, {
         configured: true,
-        projectId: (config['FIREBASE_CONFIG'] as { projectId?: string }).projectId || 'N/A'
+        projectId: (config['FIREBASE_CONFIG'] as { projectId?: string }).projectId || 'N/A',
       })
     } catch {
       throw new Error('Falha na validação Firebase')
@@ -297,7 +297,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
           ws.close()
           updateServiceStatus('websocket', 'checking', undefined, undefined, {
             url: wsUrl,
-            protocol: ws.protocol || 'default'
+            protocol: ws.protocol || 'default',
           })
           resolve()
         }
@@ -326,11 +326,11 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
     }
 
     // Mock check - in real implementation, ping WhatsApp API
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
     updateServiceStatus('whatsapp', 'checking', undefined, undefined, {
       instance: config.WHATSAPP_INSTANCE_NAME,
-      status: 'mock_healthy'
+      status: 'mock_healthy',
     })
   }
 
@@ -347,7 +347,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
 
     updateServiceStatus('sentry', 'checking', undefined, undefined, {
       configured: true,
-      environment: config['ENVIRONMENT'] as string || 'development'
+      environment: (config['ENVIRONMENT'] as string) || 'development',
     })
   }
 
@@ -360,17 +360,20 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         method: 'GET',
         credentials: 'include',
         headers: {
-          'Accept': 'application/json',
+          Accept: 'application/json',
           ...apiClient.getSessionHeaders(),
         },
-        signal: controller.signal
+        signal: controller.signal,
       })
 
       if (!response.ok) {
         throw new Error(`Healthcheck IA retornou status ${response.status}`)
       }
 
-      const data = await response.json() as { status?: string; gemini_api?: { status?: string; enabled?: boolean } }
+      const data = (await response.json()) as {
+        status?: string
+        gemini_api?: { status?: string; enabled?: boolean }
+      }
       const backendStatus = (data?.status as string | undefined) || 'unknown'
       const geminiStatus = (data?.gemini_api?.status as string | undefined) || 'unknown'
       const geminiEnabled = data?.gemini_api?.enabled === true
@@ -380,7 +383,9 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
       }
 
       if (backendStatus === 'degraded' || !geminiEnabled) {
-        throw new Error(`degraded: IA ${geminiEnabled ? 'degradada' : 'não configurada'} (${geminiStatus})`)
+        throw new Error(
+          `degraded: IA ${geminiEnabled ? 'degradada' : 'não configurada'} (${geminiStatus})`
+        )
       }
 
       updateServiceStatus('ai', 'checking', undefined, undefined, {
@@ -416,13 +421,25 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
   const getStatusBadge = (status: Service['status']) => {
     switch (status) {
       case 'healthy':
-        return <Badge variant="default" className="bg-green-100 text-green-800">Saudável</Badge>
+        return (
+          <Badge variant="default" className="bg-green-100 text-green-800">
+            Saudável
+          </Badge>
+        )
       case 'degraded':
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Degradado</Badge>
+        return (
+          <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
+            Degradado
+          </Badge>
+        )
       case 'unhealthy':
         return <Badge variant="destructive">Indisponível</Badge>
       case 'checking':
-        return <Badge variant="outline" className="bg-blue-100 text-blue-800">Verificando</Badge>
+        return (
+          <Badge variant="outline" className="bg-blue-100 text-blue-800">
+            Verificando
+          </Badge>
+        )
       default:
         return <Badge variant="outline">Pendente</Badge>
     }
@@ -434,20 +451,23 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
     return `${(ms / 1000).toFixed(1)}s`
   }
 
-  const servicesByCategory = services.reduce((acc, service) => {
-    const category = service.category
-    if (!acc[category]) {
-      acc[category] = []
-    }
-    acc[category]?.push(service)
-    return acc
-  }, {} as Record<string, Service[]>)
+  const servicesByCategory = services.reduce(
+    (acc, service) => {
+      const category = service.category
+      if (!acc[category]) {
+        acc[category] = []
+      }
+      acc[category]?.push(service)
+      return acc
+    },
+    {} as Record<string, Service[]>
+  )
 
   const summaryStats = {
     total: services.length,
-    healthy: services.filter(s => s.status === 'healthy').length,
-    degraded: services.filter(s => s.status === 'degraded').length,
-    unhealthy: services.filter(s => s.status === 'unhealthy').length
+    healthy: services.filter((s) => s.status === 'healthy').length,
+    degraded: services.filter((s) => s.status === 'degraded').length,
+    unhealthy: services.filter((s) => s.status === 'unhealthy').length,
   }
 
   return (
@@ -522,10 +542,9 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
             {categoryServices.map((service, index) => (
               <div
                 key={service.id}
-                className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${index === currentServiceIndex && isChecking
-                    ? 'bg-blue-50 border-blue-200'
-                    : ''
-                  }`}
+                className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${
+                  index === currentServiceIndex && isChecking ? 'bg-blue-50 border-blue-200' : ''
+                }`}
               >
                 <div className="flex items-start space-x-3 flex-1">
                   {getStatusIcon(service.status)}
@@ -533,7 +552,9 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
                     <div className="flex items-center space-x-2">
                       <h4 className="font-medium">{service.name}</h4>
                       {service.required && (
-                        <Badge variant="outline" className="text-xs">Obrigatório</Badge>
+                        <Badge variant="outline" className="text-xs">
+                          Obrigatório
+                        </Badge>
                       )}
                       {service.responseTime && (
                         <span className="text-xs text-gray-500 flex items-center">
@@ -585,11 +606,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
 
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <Button
-          onClick={handleCheckServices}
-          disabled={isChecking}
-          className="flex-1"
-        >
+        <Button onClick={handleCheckServices} disabled={isChecking} className="flex-1">
           {isChecking ? (
             <>
               <RefreshCw className="w-4 h-4 mr-2 animate-spin" />

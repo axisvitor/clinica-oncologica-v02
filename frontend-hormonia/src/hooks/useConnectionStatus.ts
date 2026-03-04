@@ -24,7 +24,7 @@ export function useConnectionStatus() {
     isSlowConnection: false,
     lastOnlineAt: navigator.onLine ? new Date() : null,
     connectionType: 'unknown',
-    estimatedBandwidth: null
+    estimatedBandwidth: null,
   })
 
   const updateConnectionInfo = useCallback(() => {
@@ -32,11 +32,12 @@ export function useConnectionStatus() {
       const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection
 
       if (connection) {
-        setStatus(prev => ({
+        setStatus((prev) => ({
           ...prev,
           connectionType: connection.effectiveType || 'unknown',
           estimatedBandwidth: connection.downlink || null,
-          isSlowConnection: connection.effectiveType === '2g' || connection.effectiveType === 'slow-2g'
+          isSlowConnection:
+            connection.effectiveType === '2g' || connection.effectiveType === 'slow-2g',
         }))
       }
     }
@@ -44,19 +45,19 @@ export function useConnectionStatus() {
 
   const handleOnline = useCallback(() => {
     logger.info('Connection restored')
-    setStatus(prev => ({
+    setStatus((prev) => ({
       ...prev,
       isOnline: true,
-      lastOnlineAt: new Date()
+      lastOnlineAt: new Date(),
     }))
     updateConnectionInfo()
   }, [updateConnectionInfo])
 
   const handleOffline = useCallback(() => {
     logger.warn('Connection lost')
-    setStatus(prev => ({
+    setStatus((prev) => ({
       ...prev,
-      isOnline: false
+      isOnline: false,
     }))
   }, [])
 

@@ -32,7 +32,7 @@ export const MOCK_PATIENTS: MockPatient[] = [
     last_contact: '2024-10-01T14:30:00-03:00',
     flow_status: 'active',
     medico_id: 'medico-001',
-    notes: 'Paciente respondendo bem ao tratamento'
+    notes: 'Paciente respondendo bem ao tratamento',
   },
   {
     id: 'patient-002',
@@ -47,7 +47,7 @@ export const MOCK_PATIENTS: MockPatient[] = [
     last_contact: '2024-09-30T16:00:00-03:00',
     flow_status: 'active',
     medico_id: 'medico-001',
-    notes: 'Acompanhamento semanal necessário'
+    notes: 'Acompanhamento semanal necessário',
   },
   {
     id: 'patient-003',
@@ -62,7 +62,7 @@ export const MOCK_PATIENTS: MockPatient[] = [
     last_contact: '2024-10-02T10:15:00-03:00',
     flow_status: 'paused',
     medico_id: 'medico-001',
-    notes: 'Cirurgia realizada com sucesso, iniciando quimio'
+    notes: 'Cirurgia realizada com sucesso, iniciando quimio',
   },
   {
     id: 'patient-004',
@@ -77,7 +77,7 @@ export const MOCK_PATIENTS: MockPatient[] = [
     last_contact: '2024-09-28T13:45:00-03:00',
     flow_status: 'active',
     medico_id: 'medico-002',
-    notes: 'Tratamento paliativo em andamento'
+    notes: 'Tratamento paliativo em andamento',
   },
   {
     id: 'patient-005',
@@ -92,7 +92,7 @@ export const MOCK_PATIENTS: MockPatient[] = [
     last_contact: '2024-10-01T09:00:00-03:00',
     flow_status: 'active',
     medico_id: 'medico-002',
-    notes: 'Ótima resposta ao tratamento'
+    notes: 'Ótima resposta ao tratamento',
   },
   {
     id: 'patient-006',
@@ -107,7 +107,7 @@ export const MOCK_PATIENTS: MockPatient[] = [
     last_contact: '2024-09-29T15:20:00-03:00',
     flow_status: 'completed',
     medico_id: 'medico-003',
-    notes: 'Pós-operatório sem complicações'
+    notes: 'Pós-operatório sem complicações',
   },
   {
     id: 'patient-007',
@@ -121,7 +121,7 @@ export const MOCK_PATIENTS: MockPatient[] = [
     registration_date: '2023-11-10T09:00:00-03:00',
     last_contact: '2024-09-15T11:00:00-03:00',
     flow_status: 'completed',
-    notes: 'Tratamento concluído com sucesso'
+    notes: 'Tratamento concluído com sucesso',
   },
   {
     id: 'patient-008',
@@ -135,8 +135,8 @@ export const MOCK_PATIENTS: MockPatient[] = [
     registration_date: '2024-03-15T13:00:00-03:00',
     last_contact: '2024-09-27T14:00:00-03:00',
     flow_status: 'active',
-    notes: 'Em acompanhamento regular'
-  }
+    notes: 'Em acompanhamento regular',
+  },
 ]
 
 /**
@@ -156,7 +156,7 @@ export function getMockPatients(params?: {
   if (params?.search) {
     const searchLower = params.search.toLowerCase()
     filtered = filtered.filter(
-      p =>
+      (p) =>
         p.name.toLowerCase().includes(searchLower) ||
         p.email.toLowerCase().includes(searchLower) ||
         p.diagnosis.toLowerCase().includes(searchLower)
@@ -165,17 +165,17 @@ export function getMockPatients(params?: {
 
   // Filter by status
   if (params?.status) {
-    filtered = filtered.filter(p => p.status === params.status)
+    filtered = filtered.filter((p) => p.status === params.status)
   }
 
   // Filter by treatment type
   if (params?.treatment_type) {
-    filtered = filtered.filter(p => p.treatment_type === params.treatment_type)
+    filtered = filtered.filter((p) => p.treatment_type === params.treatment_type)
   }
 
   // Filter by medico
   if (params?.medico_id) {
-    filtered = filtered.filter(p => p.medico_id === params.medico_id)
+    filtered = filtered.filter((p) => p.medico_id === params.medico_id)
   }
 
   const page = params?.page || 1
@@ -190,7 +190,7 @@ export function getMockPatients(params?: {
     total,
     page,
     size,
-    pages
+    pages,
   }
 }
 
@@ -198,12 +198,12 @@ export function getMockPatients(params?: {
  * Get mock patient by ID
  */
 export function getMockPatientById(id: string): MockPatient | null {
-  return MOCK_PATIENTS.find(p => p.id === id) || null
+  return MOCK_PATIENTS.find((p) => p.id === id) || null
 }
 
 /**
  * Get mock patients by medico ID
  */
 export function getMockPatientsByMedico(medicoId: string): MockPatient[] {
-  return MOCK_PATIENTS.filter(p => p.medico_id === medicoId)
+  return MOCK_PATIENTS.filter((p) => p.medico_id === medicoId)
 }

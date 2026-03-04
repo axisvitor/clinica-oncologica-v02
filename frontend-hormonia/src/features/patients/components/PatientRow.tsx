@@ -21,13 +21,9 @@ interface PatientRowProps {
   data: PatientListItemData
 }
 
-const GRID_COLS = "grid-cols-[2.5fr_1.5fr_1fr_1fr_1fr_0.8fr_1.2fr_70px]"
+const GRID_COLS = 'grid-cols-[2.5fr_1.5fr_1fr_1fr_1fr_0.8fr_1.2fr_70px]'
 
-export const PatientRow = memo<PatientRowProps>(({
-  style,
-  index,
-  data
-}) => {
+export const PatientRow = memo<PatientRowProps>(({ style, index, data }) => {
   const item = resolvePatientListItemRenderContext(data, index)
   if (!item) return null
 
@@ -49,7 +45,7 @@ export const PatientRow = memo<PatientRowProps>(({
     <div
       style={style}
       className={cn(
-        "grid items-center gap-4 px-4 py-2 border-b hover:bg-muted/50 transition-colors cursor-pointer",
+        'grid items-center gap-4 px-4 py-2 border-b hover:bg-muted/50 transition-colors cursor-pointer',
         GRID_COLS
       )}
       {...navigateProps}
@@ -59,9 +55,7 @@ export const PatientRow = memo<PatientRowProps>(({
         <PatientAvatar name={patient.name} size="sm" />
         <div className="min-w-0">
           <p className="font-medium text-gray-900 truncate">{patient.name}</p>
-          {patient.email && (
-            <p className="text-sm text-gray-500 truncate">{patient.email}</p>
-          )}
+          {patient.email && <p className="text-sm text-gray-500 truncate">{patient.email}</p>}
         </div>
       </div>
 
@@ -77,9 +71,7 @@ export const PatientRow = memo<PatientRowProps>(({
 
       {/* Status */}
       <div>
-        <Badge className={statusConfig.className}>
-          {statusConfig.label}
-        </Badge>
+        <Badge className={statusConfig.className}>{statusConfig.label}</Badge>
       </div>
 
       {/* Quiz Status */}

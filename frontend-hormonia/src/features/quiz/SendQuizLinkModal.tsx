@@ -39,7 +39,7 @@ export function SendQuizLinkModal({
   onOpenChange,
   patientId,
   patientName,
-  onSuccess
+  onSuccess,
 }: SendQuizLinkModalProps) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -52,7 +52,7 @@ export function SendQuizLinkModal({
   const { data: templatesData, isLoading: isLoadingTemplates } = useQuery<QuizTemplateResponse>({
     queryKey: ['quiz-templates'],
     queryFn: () => apiClient.quiz.templates(),
-    enabled: open
+    enabled: open,
   })
 
   const templates: QuizTemplate[] = templatesData?.items ?? []
@@ -63,7 +63,10 @@ export function SendQuizLinkModal({
       return apiClient.monthlyQuiz.createLink(payload)
     },
     onSuccess: (response: unknown) => {
-      const responseObj = response as { delivery_attempts?: Array<{ status?: string }>; last_delivery_status?: string }
+      const responseObj = response as {
+        delivery_attempts?: Array<{ status?: string }>
+        last_delivery_status?: string
+      }
       const attempts = responseObj?.delivery_attempts
       const lastAttempt = attempts?.[attempts.length - 1]
       const deliveryStatus = lastAttempt?.status || responseObj?.last_delivery_status || 'pending'
@@ -77,7 +80,7 @@ export function SendQuizLinkModal({
         toast({
           title: 'Link gerado, envio pendente',
           description: 'Não foi possível entregar via WhatsApp agora; o sistema tentará novamente.',
-          variant: 'destructive'
+          variant: 'destructive',
         })
       } else {
         toast({
@@ -95,9 +98,9 @@ export function SendQuizLinkModal({
       toast({
         title: 'Erro ao enviar link',
         description: getErrorMessage(error) || 'Ocorreu um erro ao enviar o link do quiz',
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const handleClose = () => {
@@ -115,7 +118,7 @@ export function SendQuizLinkModal({
       toast({
         title: 'Template obrigatório',
         description: 'Por favor, selecione um template de quiz',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
@@ -126,7 +129,7 @@ export function SendQuizLinkModal({
       delivery_method: deliveryMethod,
       expiry_hours: parseInt(validityHours, 10),
       ...(customMessage ? { custom_message: customMessage } : {}),
-      send_immediately: true
+      send_immediately: true,
     })
   }
 
@@ -169,7 +172,10 @@ export function SendQuizLinkModal({
 
           <div className="space-y-2">
             <Label htmlFor="delivery">Método de Entrega *</Label>
-            <Select value={deliveryMethod} onValueChange={(value: 'whatsapp' | 'email' | 'sms') => setDeliveryMethod(value)}>
+            <Select
+              value={deliveryMethod}
+              onValueChange={(value: 'whatsapp' | 'email' | 'sms') => setDeliveryMethod(value)}
+            >
               <SelectTrigger id="delivery">
                 <SelectValue />
               </SelectTrigger>
@@ -182,7 +188,9 @@ export function SendQuizLinkModal({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="validity" className="text-sm">Validade (horas) *</Label>
+            <Label htmlFor="validity" className="text-sm">
+              Validade (horas) *
+            </Label>
             <Input
               id="validity"
               type="number"
@@ -198,7 +206,9 @@ export function SendQuizLinkModal({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="message" className="text-sm">Mensagem Personalizada (opcional)</Label>
+            <Label htmlFor="message" className="text-sm">
+              Mensagem Personalizada (opcional)
+            </Label>
             <Textarea
               id="message"
               value={customMessage}

@@ -12,7 +12,7 @@ import {
   Shield,
   TriangleAlert as AlertTriangle,
   CircleCheck as CheckCircle,
-  Loader2
+  Loader2,
 } from 'lucide-react'
 
 /**
@@ -46,8 +46,12 @@ interface AdminMonitoringTabProps {
  * - System uptime and status
  */
 export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabProps) {
-  const { data: stats, isLoading: statsLoading, error: statsError } = useSystemStats({
-    refetchInterval: 30000 // Refresh every 30s
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    error: statsError,
+  } = useSystemStats({
+    refetchInterval: 30000, // Refresh every 30s
   })
 
   return (
@@ -78,7 +82,9 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   <Skeleton className="h-10 w-20 mt-2" />
                 ) : (
                   <>
-                    <p className={`text-3xl font-bold mt-2 ${stats && stats.system.cpu_percent > 80 ? 'text-red-600' : ''}`}>
+                    <p
+                      className={`text-3xl font-bold mt-2 ${stats && stats.system.cpu_percent > 80 ? 'text-red-600' : ''}`}
+                    >
                       {stats?.system.cpu_percent.toFixed(1)}%
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
@@ -87,10 +93,16 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   </>
                 )}
               </div>
-              <div className={`h-12 w-12 rounded-full flex items-center justify-center ${stats && stats.system.cpu_percent > 80 ? 'bg-red-100' : 'bg-blue-100'
-                }`}>
-                <Activity className={`h-6 w-6 ${stats && stats.system.cpu_percent > 80 ? 'text-red-600' : 'text-blue-600'
-                  }`} />
+              <div
+                className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                  stats && stats.system.cpu_percent > 80 ? 'bg-red-100' : 'bg-blue-100'
+                }`}
+              >
+                <Activity
+                  className={`h-6 w-6 ${
+                    stats && stats.system.cpu_percent > 80 ? 'text-red-600' : 'text-blue-600'
+                  }`}
+                />
               </div>
             </div>
           </CardContent>
@@ -106,7 +118,9 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   <Skeleton className="h-10 w-20 mt-2" />
                 ) : (
                   <>
-                    <p className={`text-3xl font-bold mt-2 ${stats && stats.system.memory_percent > 80 ? 'text-orange-600' : ''}`}>
+                    <p
+                      className={`text-3xl font-bold mt-2 ${stats && stats.system.memory_percent > 80 ? 'text-orange-600' : ''}`}
+                    >
                       {stats?.system.memory_percent.toFixed(1)}%
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
@@ -115,10 +129,16 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   </>
                 )}
               </div>
-              <div className={`h-12 w-12 rounded-full flex items-center justify-center ${stats && stats.system.memory_percent > 80 ? 'bg-orange-100' : 'bg-green-100'
-                }`}>
-                <Activity className={`h-6 w-6 ${stats && stats.system.memory_percent > 80 ? 'text-orange-600' : 'text-green-600'
-                  }`} />
+              <div
+                className={`h-12 w-12 rounded-full flex items-center justify-center ${
+                  stats && stats.system.memory_percent > 80 ? 'bg-orange-100' : 'bg-green-100'
+                }`}
+              >
+                <Activity
+                  className={`h-6 w-6 ${
+                    stats && stats.system.memory_percent > 80 ? 'text-orange-600' : 'text-green-600'
+                  }`}
+                />
               </div>
             </div>
           </CardContent>
@@ -134,7 +154,9 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   <Skeleton className="h-10 w-20 mt-2" />
                 ) : (
                   <>
-                    <p className="text-3xl font-bold mt-2">{stats?.system.disk_percent.toFixed(1)}%</p>
+                    <p className="text-3xl font-bold mt-2">
+                      {stats?.system.disk_percent.toFixed(1)}%
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">Armazenamento</p>
                   </>
                 )}
@@ -156,7 +178,9 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   <Skeleton className="h-10 w-20 mt-2" />
                 ) : (
                   <>
-                    <p className="text-3xl font-bold mt-2">{stats ? formatUptime(stats.system.uptime_seconds) : '0m'}</p>
+                    <p className="text-3xl font-bold mt-2">
+                      {stats ? formatUptime(stats.system.uptime_seconds) : '0m'}
+                    </p>
                     <p className="text-xs text-green-600 mt-1">Online</p>
                   </>
                 )}
@@ -201,7 +225,9 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   <Skeleton className="h-10 w-16 mt-2" />
                 ) : (
                   <>
-                    <p className="text-3xl font-bold mt-2">{stats?.users.active_now.toLocaleString()}</p>
+                    <p className="text-3xl font-bold mt-2">
+                      {stats?.users.active_now.toLocaleString()}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">Últimas 24h</p>
                   </>
                 )}
@@ -222,7 +248,9 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   <Skeleton className="h-10 w-12 mt-2" />
                 ) : (
                   <>
-                    <p className="text-3xl font-bold mt-2">{(stats?.users.by_role.admin ?? 0).toString()}</p>
+                    <p className="text-3xl font-bold mt-2">
+                      {(stats?.users.by_role.admin ?? 0).toString()}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">
                       {(stats?.users.by_role.doctor ?? 0).toString()} médicos
                     </p>
@@ -248,7 +276,9 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   <Skeleton className="h-10 w-16 mt-2" />
                 ) : (
                   <>
-                    <p className="text-3xl font-bold mt-2">{stats?.database.total_records.toLocaleString()}</p>
+                    <p className="text-3xl font-bold mt-2">
+                      {stats?.database.total_records.toLocaleString()}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">Registros</p>
                   </>
                 )}
@@ -269,7 +299,9 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   <Skeleton className="h-10 w-16 mt-2" />
                 ) : (
                   <>
-                    <p className="text-3xl font-bold mt-2">{stats?.database.total_patients.toLocaleString()}</p>
+                    <p className="text-3xl font-bold mt-2">
+                      {stats?.database.total_patients.toLocaleString()}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">Pacientes</p>
                   </>
                 )}
@@ -290,7 +322,9 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   <Skeleton className="h-10 w-16 mt-2" />
                 ) : (
                   <>
-                    <p className="text-3xl font-bold mt-2">{stats?.database.total_users.toLocaleString()}</p>
+                    <p className="text-3xl font-bold mt-2">
+                      {stats?.database.total_users.toLocaleString()}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">Usuários</p>
                   </>
                 )}
@@ -311,7 +345,9 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                   <Skeleton className="h-10 w-12 mt-2" />
                 ) : (
                   <>
-                    <p className="text-3xl font-bold mt-2">{stats?.database.connections.toString()}</p>
+                    <p className="text-3xl font-bold mt-2">
+                      {stats?.database.connections.toString()}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">Ativas</p>
                   </>
                 )}
@@ -352,14 +388,19 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">CPU</span>
-                    <span className="text-sm text-gray-600">{stats.system.cpu_percent.toFixed(1)}%</span>
+                    <span className="text-sm text-gray-600">
+                      {stats.system.cpu_percent.toFixed(1)}%
+                    </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full ${stats.system.cpu_percent > 80 ? 'bg-red-600' :
-                          stats.system.cpu_percent > 60 ? 'bg-orange-600' :
-                            'bg-blue-600'
-                        }`}
+                      className={`h-2 rounded-full ${
+                        stats.system.cpu_percent > 80
+                          ? 'bg-red-600'
+                          : stats.system.cpu_percent > 60
+                            ? 'bg-orange-600'
+                            : 'bg-blue-600'
+                      }`}
                       style={{ width: `${Math.min(stats.system.cpu_percent, 100)}%` }}
                     />
                   </div>
@@ -368,14 +409,19 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Memória</span>
-                    <span className="text-sm text-gray-600">{stats.system.memory_percent.toFixed(1)}%</span>
+                    <span className="text-sm text-gray-600">
+                      {stats.system.memory_percent.toFixed(1)}%
+                    </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full ${stats.system.memory_percent > 80 ? 'bg-red-600' :
-                          stats.system.memory_percent > 60 ? 'bg-orange-600' :
-                            'bg-green-600'
-                        }`}
+                      className={`h-2 rounded-full ${
+                        stats.system.memory_percent > 80
+                          ? 'bg-red-600'
+                          : stats.system.memory_percent > 60
+                            ? 'bg-orange-600'
+                            : 'bg-green-600'
+                      }`}
                       style={{ width: `${Math.min(stats.system.memory_percent, 100)}%` }}
                     />
                   </div>
@@ -384,14 +430,19 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Disco</span>
-                    <span className="text-sm text-gray-600">{stats.system.disk_percent.toFixed(1)}%</span>
+                    <span className="text-sm text-gray-600">
+                      {stats.system.disk_percent.toFixed(1)}%
+                    </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full ${stats.system.disk_percent > 80 ? 'bg-red-600' :
-                          stats.system.disk_percent > 60 ? 'bg-orange-600' :
-                            'bg-purple-600'
-                        }`}
+                      className={`h-2 rounded-full ${
+                        stats.system.disk_percent > 80
+                          ? 'bg-red-600'
+                          : stats.system.disk_percent > 60
+                            ? 'bg-orange-600'
+                            : 'bg-purple-600'
+                      }`}
                       style={{ width: `${Math.min(stats.system.disk_percent, 100)}%` }}
                     />
                   </div>
@@ -400,7 +451,9 @@ export default function AdminMonitoringTab({ refetchStats }: AdminMonitoringTabP
                 <div className="pt-4 border-t">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Última atualização</span>
-                    <span className="font-medium">{new Date(stats.timestamp).toLocaleTimeString('pt-BR')}</span>
+                    <span className="font-medium">
+                      {new Date(stats.timestamp).toLocaleTimeString('pt-BR')}
+                    </span>
                   </div>
                 </div>
               </>

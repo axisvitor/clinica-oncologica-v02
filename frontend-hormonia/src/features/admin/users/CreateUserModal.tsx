@@ -16,7 +16,13 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/use-toast'
 import { UserPermissionsEditor } from './UserPermissionsEditor'
@@ -36,7 +42,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
     formState: { errors },
     setValue,
     watch,
-    reset
+    reset,
   } = useForm<CreateUserFormData>({
     resolver: zodResolver(createUserSchema),
     defaultValues: {
@@ -47,8 +53,8 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
       confirm_password: '',
       permissions: [],
       is_active: true,
-      two_factor_enabled: false
-    }
+      two_factor_enabled: false,
+    },
   })
 
   const createMutation = useMutation({
@@ -60,19 +66,20 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       toast({
         title: 'Usuário criado com sucesso',
-        description: 'O novo usuário foi adicionado ao sistema.'
+        description: 'O novo usuário foi adicionado ao sistema.',
       })
       reset()
       onOpenChange(false)
     },
     onError: (error: unknown) => {
-      const message = (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.';
+      const message =
+        (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.'
       toast({
         title: 'Erro ao criar usuário',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const onSubmit = (data: CreateUserFormData) => {
@@ -228,9 +235,7 @@ export function CreateUserModal({ open, onOpenChange }: CreateUserModalProps) {
               Cancelar
             </Button>
             <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending && (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Criar Usuário
             </Button>
           </DialogFooter>

@@ -39,9 +39,7 @@ export const ConnectionMonitor = memo(() => {
                   {connectionType.toUpperCase()}
                 </Badge>
                 {estimatedBandwidth && (
-                  <span className="text-xs">
-                    {estimatedBandwidth.toFixed(1)} Mbps
-                  </span>
+                  <span className="text-xs">{estimatedBandwidth.toFixed(1)} Mbps</span>
                 )}
               </div>
             </div>

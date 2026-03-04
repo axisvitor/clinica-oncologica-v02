@@ -55,7 +55,7 @@ const sizeClasses: Record<SpinnerSize, string> = {
   sm: 'h-4 w-4',
   md: 'h-6 w-6',
   lg: 'h-8 w-8',
-  xl: 'h-12 w-12'
+  xl: 'h-12 w-12',
 }
 
 // Text size classes matching spinner sizes
@@ -64,7 +64,7 @@ const textSizeClasses: Record<SpinnerSize, string> = {
   sm: 'text-xs',
   md: 'text-sm',
   lg: 'text-base',
-  xl: 'text-lg'
+  xl: 'text-lg',
 }
 
 // Color classes using design tokens (no hardcoded colors)
@@ -73,7 +73,7 @@ const colorClasses: Record<SpinnerColor, string> = {
   secondary: 'text-secondary-foreground',
   muted: 'text-muted-foreground',
   destructive: 'text-destructive',
-  success: 'text-green-600 dark:text-green-500'
+  success: 'text-green-600 dark:text-green-500',
 }
 
 // Bounce dot sizes for bounce variant
@@ -82,7 +82,7 @@ const bounceDotSizes: Record<SpinnerSize, string> = {
   sm: 'w-1.5 h-1.5',
   md: 'w-2 h-2',
   lg: 'w-3 h-3',
-  xl: 'w-4 h-4'
+  xl: 'w-4 h-4',
 }
 
 export function LoadingSpinner({
@@ -95,7 +95,7 @@ export function LoadingSpinner({
   status = 'loading',
   showProgress = false,
   progress = 0,
-  'aria-label': ariaLabel = 'Loading'
+  'aria-label': ariaLabel = 'Loading',
 }: LoadingSpinnerProps) {
   // Handle status icons (success/error) first
   if (status === 'success') {
@@ -142,10 +142,7 @@ export function LoadingSpinner({
             {[...Array(3)].map((_, i) => (
               <div
                 key={i}
-                className={cn(
-                  bounceDotSizes[size],
-                  'bg-primary rounded-full animate-bounce'
-                )}
+                className={cn(bounceDotSizes[size], 'bg-primary rounded-full animate-bounce')}
                 style={{ animationDelay: `${i * 0.1}s` }}
               />
             ))}
@@ -166,12 +163,7 @@ export function LoadingSpinner({
           <svg
             role="status"
             aria-label={ariaLabel}
-            className={cn(
-              'animate-spin',
-              sizeClasses[size],
-              colorClasses[color],
-              className
-            )}
+            className={cn('animate-spin', sizeClasses[size], colorClasses[color], className)}
             viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -264,12 +256,12 @@ export function LoadingOverlay({
   showProgress = false,
   variant = 'circle',
   backdrop = 'blur',
-  size = 'lg'
+  size = 'lg',
 }: LoadingOverlayProps) {
   const backdropClasses = {
     light: 'bg-background/80',
     dark: 'bg-background/90',
-    blur: 'bg-background/60 backdrop-blur-sm'
+    blur: 'bg-background/60 backdrop-blur-sm',
   }
 
   return (
@@ -307,7 +299,7 @@ export function LoadingCard({
   showProgress = false,
   variant = 'circle',
   size = 'md',
-  className
+  className,
 }: LoadingCardProps) {
   return (
     <div className={cn('bg-background rounded-lg border shadow-sm p-6', className)}>
@@ -320,9 +312,7 @@ export function LoadingCard({
         />
         <div>
           <h3 className="text-lg font-medium text-foreground">{title}</h3>
-          {description && (
-            <p className="text-sm text-muted-foreground mt-1">{description}</p>
-          )}
+          {description && <p className="text-sm text-muted-foreground mt-1">{description}</p>}
         </div>
       </div>
     </div>
@@ -333,9 +323,7 @@ export function LoadingCard({
  * LoadingSkeleton - Base skeleton component for loading states
  */
 export function LoadingSkeleton({ className }: { className?: string }) {
-  return (
-    <div className={cn('animate-pulse bg-muted rounded', className)} />
-  )
+  return <div className={cn('animate-pulse bg-muted rounded', className)} />
 }
 
 /**

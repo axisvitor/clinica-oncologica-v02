@@ -1,5 +1,9 @@
 // Import and re-export centralized types
-import type { User as ApiUser, AuthTokens as ApiAuthTokens, LoginResponse as ApiLoginResponse } from '@/types/api'
+import type {
+  User as ApiUser,
+  AuthTokens as ApiAuthTokens,
+  LoginResponse as ApiLoginResponse,
+} from '@/types/api'
 
 export type User = ApiUser
 export type AuthTokens = ApiAuthTokens
@@ -37,7 +41,12 @@ export interface AuthError extends Error {
   retryAfter?: number
 }
 
-export type AuthEventType = 'SIGNED_IN' | 'SIGNED_OUT' | 'TOKEN_REFRESHED' | 'SESSION_EXPIRED' | 'RETRY_FAILED'
+export type AuthEventType =
+  | 'SIGNED_IN'
+  | 'SIGNED_OUT'
+  | 'TOKEN_REFRESHED'
+  | 'SESSION_EXPIRED'
+  | 'RETRY_FAILED'
 
 export interface AuthEvent {
   type: AuthEventType

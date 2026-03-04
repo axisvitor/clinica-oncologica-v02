@@ -4,7 +4,14 @@ import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import type { CompensationFailure } from '@/lib/api-client/admin'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -19,7 +26,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
-  AlertDialogTitle
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 
@@ -62,7 +69,7 @@ function CompensationFailuresContent() {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['compensation-failures', currentPage],
-    queryFn: () => apiClient.adminV2.listCompensationFailures(currentPage, PAGE_SIZE)
+    queryFn: () => apiClient.adminV2.listCompensationFailures(currentPage, PAGE_SIZE),
   })
 
   const failures = useMemo(() => data?.items ?? [], [data])
@@ -79,7 +86,7 @@ function CompensationFailuresContent() {
     onSuccess: (_result: unknown, sagaId: string) => {
       toast({
         title: 'Retry iniciado',
-        description: 'A compensacao foi executada novamente.'
+        description: 'A compensacao foi executada novamente.',
       })
       setActionStatuses((prev) => {
         const next = { ...prev }
@@ -94,14 +101,14 @@ function CompensationFailuresContent() {
       toast({
         title: 'Retry falhou',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
       setActionStatuses((prev) => {
         const next = { ...prev }
         delete next[sagaId]
         return next
       })
-    }
+    },
   })
 
   const cleanupMutation = useMutation({
@@ -109,7 +116,7 @@ function CompensationFailuresContent() {
     onSuccess: (_result: unknown, sagaId: string) => {
       toast({
         title: 'Cleanup concluido',
-        description: 'O paciente foi marcado como removido e a saga foi atualizada.'
+        description: 'O paciente foi marcado como removido e a saga foi atualizada.',
       })
       setActionStatuses((prev) => ({ ...prev, [sagaId]: 'cleaned' }))
       setTimeout(() => {
@@ -127,14 +134,14 @@ function CompensationFailuresContent() {
       toast({
         title: 'Cleanup falhou',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
       setActionStatuses((prev) => {
         const next = { ...prev }
         delete next[sagaId]
         return next
       })
-    }
+    },
   })
 
   return (
@@ -166,9 +173,7 @@ function CompensationFailuresContent() {
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                {error instanceof Error
-                  ? error.message
-                  : 'Erro ao carregar falhas de compensacao.'}
+                {error instanceof Error ? error.message : 'Erro ao carregar falhas de compensacao.'}
               </AlertDescription>
             </Alert>
           ) : failures.length === 0 ? (
@@ -218,11 +223,13 @@ function CompensationFailuresContent() {
                             <p className="text-sm">{failure.error_details}</p>
                             {failure.failed_steps.length > 0 && (
                               <div className="space-y-1 text-xs text-muted-foreground">
-                                {failure.failed_steps.map((step: { step: number; error: string }) => (
-                                  <div key={`${failure.saga_id}-${step.step}`}>
-                                    Step {step.step}: {step.error}
-                                  </div>
-                                ))}
+                                {failure.failed_steps.map(
+                                  (step: { step: number; error: string }) => (
+                                    <div key={`${failure.saga_id}-${step.step}`}>
+                                      Step {step.step}: {step.error}
+                                    </div>
+                                  )
+                                )}
                               </div>
                             )}
                           </div>

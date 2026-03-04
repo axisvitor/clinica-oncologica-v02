@@ -18,7 +18,7 @@ export enum FlowNodeType {
   END = 'end',
   AI_RESPONSE = 'ai_response',
   QUIZ = 'quiz',
-  WEBHOOK = 'webhook'
+  WEBHOOK = 'webhook',
 }
 
 export interface FlowNodeData {
@@ -109,7 +109,12 @@ export interface DelayNodeConfig {
 }
 
 export interface ActionNodeConfig {
-  action_type: 'set_variable' | 'send_notification' | 'create_task' | 'update_patient' | 'trigger_webhook'
+  action_type:
+    | 'set_variable'
+    | 'send_notification'
+    | 'create_task'
+    | 'update_patient'
+    | 'trigger_webhook'
   parameters: Record<string, unknown>
   description?: string
 }
@@ -193,7 +198,7 @@ export interface FlowDesignerState {
 export enum DesignerMode {
   SELECT = 'select',
   CONNECT = 'connect',
-  PAN = 'pan'
+  PAN = 'pan',
 }
 
 export interface ClipboardItem {

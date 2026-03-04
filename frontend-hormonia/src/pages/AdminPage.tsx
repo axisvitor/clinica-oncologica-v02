@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/app/providers/AuthContext'
 import { useSystemStats } from '@/hooks/api/useSystemStats'
-import { RefreshCw, Download, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle } from 'lucide-react'
+import {
+  RefreshCw,
+  Download,
+  TriangleAlert as AlertTriangle,
+  CircleCheck as CheckCircle,
+} from 'lucide-react'
 
 // Lazy-loaded tab components for code splitting
 import {
@@ -14,7 +19,7 @@ import {
   AdminUsersTab,
   AdminDatabaseTab,
   AdminSecurityTab,
-  AdminTabNavigation
+  AdminTabNavigation,
 } from '@/features/admin/tabs'
 
 /**
@@ -56,11 +61,11 @@ function TabSkeleton() {
 export default function AdminPage() {
   const { user } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Fetch system stats with automatic refetching
   const { refetch: refetchStats, isLoading: statsLoading } = useSystemStats({
-    refetchInterval: 30000 // Refresh every 30s
+    refetchInterval: 30000, // Refresh every 30s
   })
 
   // Check admin access - case-insensitive to handle ADMIN, admin, super_admin, etc.
@@ -73,9 +78,7 @@ export default function AdminPage() {
         <Alert className="bg-red-50">
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Acesso Negado</AlertTitle>
-          <AlertDescription>
-            Você não tem permissão para acessar esta página.
-          </AlertDescription>
+          <AlertDescription>Você não tem permissão para acessar esta página.</AlertDescription>
         </Alert>
       </div>
     )
@@ -87,7 +90,9 @@ export default function AdminPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Painel Administrativo</h1>
-            <p className="text-gray-600 mt-1">Controle completo do sistema e monitoramento em tempo real</p>
+            <p className="text-gray-600 mt-1">
+              Controle completo do sistema e monitoramento em tempo real
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <Button

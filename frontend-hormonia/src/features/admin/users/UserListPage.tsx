@@ -4,7 +4,13 @@ import { Plus, Search, Download } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { UsersTable } from './UsersTable'
 import { CreateUserModal } from './CreateUserModal'
@@ -35,7 +41,7 @@ function translateRole(role: string): string {
     admin: 'Administrador',
     doctor: 'Médico',
     nurse: 'Enfermeiro',
-    receptionist: 'Recepcionista'
+    receptionist: 'Recepcionista',
   }
   return roles[role] || role
 }
@@ -55,7 +61,7 @@ export function UserListPage() {
     queryFn: async () => {
       const params: Record<string, string | number | boolean> = {
         page: currentPage,
-        size: pageSize
+        size: pageSize,
       }
 
       if (search) params['search'] = search
@@ -63,7 +69,7 @@ export function UserListPage() {
       if (statusFilter !== 'all') params['is_active'] = statusFilter === 'active'
 
       return apiClient.adminUsers.list(params)
-    }
+    },
   })
 
   const handleSearch = (value: string) => {
@@ -87,7 +93,7 @@ export function UserListPage() {
       toast({
         title: 'Sem dados para exportar',
         description: 'Não há usuários disponíveis para exportação.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
@@ -95,14 +101,14 @@ export function UserListPage() {
     try {
       // Build CSV content
       const headers = ['ID', 'Nome', 'Email', 'Função', 'Status', 'Criado em', 'Último login']
-      const rows = users.map(user => [
+      const rows = users.map((user) => [
         user.id,
         user.full_name || '',
         user.email,
         translateRole(user.role),
         user.is_active ? 'Ativo' : 'Inativo',
         formatDateForExport(user.created_at),
-        formatDateForExport(user.last_login)
+        formatDateForExport(user.last_login),
       ])
 
       // Escape CSV values
@@ -115,7 +121,7 @@ export function UserListPage() {
 
       const csvContent = [
         headers.join(','),
-        ...rows.map(row => row.map(cell => escapeCSV(String(cell))).join(','))
+        ...rows.map((row) => row.map((cell) => escapeCSV(String(cell))).join(',')),
       ].join('\n')
 
       // Create and download file
@@ -133,14 +139,14 @@ export function UserListPage() {
       logger.info(`Exported ${users.length} users to CSV`)
       toast({
         title: 'Exportação concluída',
-        description: `${users.length} usuário(s) exportado(s) com sucesso.`
+        description: `${users.length} usuário(s) exportado(s) com sucesso.`,
       })
     } catch (error) {
       logger.error('Export failed:', error)
       toast({
         title: 'Erro na exportação',
         description: 'Não foi possível exportar os dados. Tente novamente.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
     }
   }
@@ -211,7 +217,9 @@ export function UserListPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {data?.items?.filter((u: AdminUser) => u.locked_until && new Date(u.locked_until) > new Date()).length || 0}
+              {data?.items?.filter(
+                (u: AdminUser) => u.locked_until && new Date(u.locked_until) > new Date()
+              ).length || 0}
             </div>
           </CardContent>
         </Card>
@@ -302,10 +310,7 @@ export function UserListPage() {
       </Card>
 
       {/* Modals */}
-      <CreateUserModal
-        open={createModalOpen}
-        onOpenChange={setCreateModalOpen}
-      />
+      <CreateUserModal open={createModalOpen} onOpenChange={setCreateModalOpen} />
 
       {selectedUser && (
         <UserDetailsModal

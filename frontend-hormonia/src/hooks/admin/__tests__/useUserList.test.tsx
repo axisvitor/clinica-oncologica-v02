@@ -1,10 +1,10 @@
-import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ReactNode } from 'react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useUserList } from '../useUserList';
-import { apiClient } from '@/lib/api-client';
+import { useUserList } from '../useUserList'
+import { apiClient } from '@/lib/api-client'
 
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
@@ -12,7 +12,7 @@ vi.mock('@/lib/api-client', () => ({
       list: vi.fn(),
     },
   },
-}));
+}))
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -21,19 +21,19 @@ function createWrapper() {
         retry: false,
       },
     },
-  });
+  })
 
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+  )
 }
 
 describe('useUserList', () => {
-  const mockList = vi.mocked(apiClient.adminUsers.list);
+  const mockList = vi.mocked(apiClient.adminUsers.list)
 
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
+    vi.clearAllMocks()
+  })
 
   it('fetches users and maps response fields', async () => {
     mockList.mockResolvedValue({
@@ -51,7 +51,7 @@ describe('useUserList', () => {
       size: 10,
       pages: 1,
       has_more: false,
-    } as any);
+    } as any)
 
     const { result } = renderHook(
       () =>
@@ -63,11 +63,11 @@ describe('useUserList', () => {
           },
         }),
       { wrapper: createWrapper() }
-    );
+    )
 
     await waitFor(() => {
-      expect(result.current.users).toHaveLength(1);
-    });
+      expect(result.current.users).toHaveLength(1)
+    })
 
     expect(mockList).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -77,12 +77,12 @@ describe('useUserList', () => {
         is_active: true,
         two_factor_enabled: true,
       })
-    );
+    )
 
-    expect(result.current.total).toBe(1);
-    expect(result.current.currentPage).toBe(1);
-    expect(result.current.pageSize).toBe(10);
-  });
+    expect(result.current.total).toBe(1)
+    expect(result.current.currentPage).toBe(1)
+    expect(result.current.pageSize).toBe(10)
+  })
 
   it('passes pagination and role filters to API', async () => {
     mockList.mockResolvedValue({
@@ -92,7 +92,7 @@ describe('useUserList', () => {
       size: 25,
       pages: 0,
       has_more: false,
-    } as any);
+    } as any)
 
     const { result } = renderHook(
       () =>
@@ -104,11 +104,11 @@ describe('useUserList', () => {
           },
         }),
       { wrapper: createWrapper() }
-    );
+    )
 
     await waitFor(() => {
-      expect(result.current.isLoading).toBe(false);
-    });
+      expect(result.current.isLoading).toBe(false)
+    })
 
     expect(mockList).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -116,28 +116,28 @@ describe('useUserList', () => {
         size: 25,
         role: 'doctor',
       })
-    );
-  });
+    )
+  })
 
   it('surfaces API errors', async () => {
-    mockList.mockRejectedValue(new Error('network error'));
+    mockList.mockRejectedValue(new Error('network error'))
 
     const { result } = renderHook(() => useUserList({ enableRetry: false }), {
       wrapper: createWrapper(),
-    });
+    })
 
     await waitFor(() => {
-      expect(result.current.error).toBeTruthy();
-    });
+      expect(result.current.error).toBeTruthy()
+    })
 
-    expect(result.current.users).toEqual([]);
-  });
+    expect(result.current.users).toEqual([])
+  })
 
   it('does not query when disabled', () => {
     renderHook(() => useUserList({ enabled: false }), {
       wrapper: createWrapper(),
-    });
+    })
 
-    expect(mockList).not.toHaveBeenCalled();
-  });
-});
+    expect(mockList).not.toHaveBeenCalled()
+  })
+})

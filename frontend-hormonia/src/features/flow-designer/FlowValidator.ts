@@ -4,7 +4,7 @@ import {
   FlowValidationResult,
   FlowValidationError,
   FlowValidationWarning,
-  FlowNodeType
+  FlowNodeType,
 } from '@/types/flow-designer'
 
 export class FlowValidator {
@@ -14,56 +14,60 @@ export class FlowValidator {
 
     // Basic structure validation
     this.validateBasicStructure(design, errors)
-    
+
     // Node validation
     this.validateNodes(design, errors, warnings)
-    
+
     // Connection validation
     this.validateConnections(design, errors, warnings)
-    
+
     // Flow logic validation
     this.validateFlowLogic(design, errors, warnings)
 
     return {
       isValid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     }
   }
 
   private validateBasicStructure(design: FlowDesign, errors: FlowValidationError[]) {
     // Check for at least one start node
-    const startNodes = design.nodes.filter(node => node.type === FlowNodeType.START)
+    const startNodes = design.nodes.filter((node) => node.type === FlowNodeType.START)
     if (startNodes.length === 0) {
       errors.push({
         id: 'no-start-node',
         type: 'missing_connection',
         message: 'O fluxo deve ter pelo menos um nó de início',
-        severity: 'error'
+        severity: 'error',
       })
     } else if (startNodes.length > 1) {
       errors.push({
         id: 'multiple-start-nodes',
         type: 'invalid_config',
         message: 'O fluxo deve ter apenas um nó de início',
-        severity: 'error'
+        severity: 'error',
       })
     }
 
     // Check for at least one end node
-    const endNodes = design.nodes.filter(node => node.type === FlowNodeType.END)
+    const endNodes = design.nodes.filter((node) => node.type === FlowNodeType.END)
     if (endNodes.length === 0) {
       errors.push({
         id: 'no-end-node',
         type: 'missing_connection',
         message: 'O fluxo deve ter pelo menos um nó de fim',
-        severity: 'error'
+        severity: 'error',
       })
     }
   }
 
-  private validateNodes(design: FlowDesign, errors: FlowValidationError[], warnings: FlowValidationWarning[]) {
-    design.nodes.forEach(node => {
+  private validateNodes(
+    design: FlowDesign,
+    errors: FlowValidationError[],
+    warnings: FlowValidationWarning[]
+  ) {
+    design.nodes.forEach((node) => {
       // Validate node data
       if (!node.data.label || node.data.label.trim() === '') {
         errors.push({
@@ -71,7 +75,7 @@ export class FlowValidator {
           type: 'invalid_config',
           node_id: node.id,
           message: 'O nó deve ter um rótulo',
-          severity: 'error'
+          severity: 'error',
         })
       }
 
@@ -79,16 +83,16 @@ export class FlowValidator {
       this.validateNodeByType(node, errors, warnings)
 
       // Check for isolated nodes (no connections)
-      const hasIncoming = design.connections.some(conn => conn.target === node.id)
-      const hasOutgoing = design.connections.some(conn => conn.source === node.id)
-      
+      const hasIncoming = design.connections.some((conn) => conn.target === node.id)
+      const hasOutgoing = design.connections.some((conn) => conn.source === node.id)
+
       if (!hasIncoming && node.type !== FlowNodeType.START) {
         warnings.push({
           id: `node-${node.id}-no-incoming`,
           type: 'best_practice',
           node_id: node.id,
           message: 'Nó sem conexões de entrada (exceto nós de início)',
-          suggestion: 'Conecte este nó a um nó anterior'
+          suggestion: 'Conecte este nó a um nó anterior',
         })
       }
 
@@ -98,13 +102,17 @@ export class FlowValidator {
           type: 'best_practice',
           node_id: node.id,
           message: 'Nó sem conexões de saída (exceto nós de fim)',
-          suggestion: 'Conecte este nó a um próximo nó'
+          suggestion: 'Conecte este nó a um próximo nó',
         })
       }
     })
   }
 
-  private validateNodeByType(node: FlowNode, errors: FlowValidationError[], warnings: FlowValidationWarning[]) {
+  private validateNodeByType(
+    node: FlowNode,
+    errors: FlowValidationError[],
+    warnings: FlowValidationWarning[]
+  ) {
     switch (node.type) {
       case FlowNodeType.MESSAGE:
         this.validateMessageNode(node, errors, warnings)
@@ -130,7 +138,11 @@ export class FlowValidator {
     }
   }
 
-  private validateMessageNode(node: FlowNode, errors: FlowValidationError[], warnings: FlowValidationWarning[]) {
+  private validateMessageNode(
+    node: FlowNode,
+    errors: FlowValidationError[],
+    warnings: FlowValidationWarning[]
+  ) {
     const config = node.data.config
     const content = config['content']
 
@@ -140,7 +152,7 @@ export class FlowValidator {
         type: 'invalid_config',
         node_id: node.id,
         message: 'Mensagem deve ter conteúdo',
-        severity: 'error'
+        severity: 'error',
       })
     }
 
@@ -150,12 +162,16 @@ export class FlowValidator {
         type: 'best_practice',
         node_id: node.id,
         message: 'Mensagem muito longa (>1000 caracteres)',
-        suggestion: 'Considere dividir em mensagens menores'
+        suggestion: 'Considere dividir em mensagens menores',
       })
     }
   }
 
-  private validateConditionNode(node: FlowNode, errors: FlowValidationError[], _warnings: FlowValidationWarning[]) {
+  private validateConditionNode(
+    node: FlowNode,
+    errors: FlowValidationError[],
+    _warnings: FlowValidationWarning[]
+  ) {
     const config = node.data.config
     const conditions = config['conditions']
 
@@ -165,12 +181,16 @@ export class FlowValidator {
         type: 'invalid_config',
         node_id: node.id,
         message: 'Nó de condição deve ter pelo menos uma condição',
-        severity: 'error'
+        severity: 'error',
       })
     }
   }
 
-  private validateDelayNode(node: FlowNode, errors: FlowValidationError[], warnings: FlowValidationWarning[]) {
+  private validateDelayNode(
+    node: FlowNode,
+    errors: FlowValidationError[],
+    warnings: FlowValidationWarning[]
+  ) {
     const config = node.data.config
     const duration = config['duration']
     const unit = config['unit']
@@ -181,7 +201,7 @@ export class FlowValidator {
         type: 'invalid_config',
         node_id: node.id,
         message: 'Duração do atraso deve ser maior que zero',
-        severity: 'error'
+        severity: 'error',
       })
     }
 
@@ -191,12 +211,16 @@ export class FlowValidator {
         type: 'performance',
         node_id: node.id,
         message: 'Atraso muito longo (>365 dias)',
-        suggestion: 'Considere usar um atraso menor'
+        suggestion: 'Considere usar um atraso menor',
       })
     }
   }
 
-  private validateActionNode(node: FlowNode, errors: FlowValidationError[], _warnings: FlowValidationWarning[]) {
+  private validateActionNode(
+    node: FlowNode,
+    errors: FlowValidationError[],
+    _warnings: FlowValidationWarning[]
+  ) {
     const config = node.data.config
     const actionType = config['action_type']
 
@@ -206,12 +230,16 @@ export class FlowValidator {
         type: 'invalid_config',
         node_id: node.id,
         message: 'Tipo de ação deve ser especificado',
-        severity: 'error'
+        severity: 'error',
       })
     }
   }
 
-  private validateAIResponseNode(node: FlowNode, errors: FlowValidationError[], warnings: FlowValidationWarning[]) {
+  private validateAIResponseNode(
+    node: FlowNode,
+    errors: FlowValidationError[],
+    warnings: FlowValidationWarning[]
+  ) {
     const config = node.data.config
     const promptTemplate = config['prompt_template']
     const fallbackMessage = config['fallback_message']
@@ -222,7 +250,7 @@ export class FlowValidator {
         type: 'invalid_config',
         node_id: node.id,
         message: 'Template do prompt é obrigatório',
-        severity: 'error'
+        severity: 'error',
       })
     }
 
@@ -232,12 +260,16 @@ export class FlowValidator {
         type: 'best_practice',
         node_id: node.id,
         message: 'Recomendado ter mensagem de fallback',
-        suggestion: 'Adicione uma mensagem caso a IA falhe'
+        suggestion: 'Adicione uma mensagem caso a IA falhe',
       })
     }
   }
 
-  private validateQuizNode(node: FlowNode, errors: FlowValidationError[], _warnings: FlowValidationWarning[]) {
+  private validateQuizNode(
+    node: FlowNode,
+    errors: FlowValidationError[],
+    _warnings: FlowValidationWarning[]
+  ) {
     const config = node.data.config
     const questions = config['questions']
 
@@ -247,12 +279,16 @@ export class FlowValidator {
         type: 'invalid_config',
         node_id: node.id,
         message: 'Quiz deve ter pelo menos uma pergunta',
-        severity: 'error'
+        severity: 'error',
       })
     }
   }
 
-  private validateWebhookNode(node: FlowNode, errors: FlowValidationError[], _warnings: FlowValidationWarning[]) {
+  private validateWebhookNode(
+    node: FlowNode,
+    errors: FlowValidationError[],
+    _warnings: FlowValidationWarning[]
+  ) {
     const config = node.data.config
     const url = config['url']
 
@@ -262,16 +298,20 @@ export class FlowValidator {
         type: 'invalid_config',
         node_id: node.id,
         message: 'URL do webhook deve ser válida',
-        severity: 'error'
+        severity: 'error',
       })
     }
   }
 
-  private validateConnections(design: FlowDesign, errors: FlowValidationError[], _warnings: FlowValidationWarning[]) {
-    design.connections.forEach(connection => {
+  private validateConnections(
+    design: FlowDesign,
+    errors: FlowValidationError[],
+    _warnings: FlowValidationWarning[]
+  ) {
+    design.connections.forEach((connection) => {
       // Check if source and target nodes exist
-      const sourceNode = design.nodes.find(node => node.id === connection.source)
-      const targetNode = design.nodes.find(node => node.id === connection.target)
+      const sourceNode = design.nodes.find((node) => node.id === connection.source)
+      const targetNode = design.nodes.find((node) => node.id === connection.target)
 
       if (!sourceNode) {
         errors.push({
@@ -279,7 +319,7 @@ export class FlowValidator {
           type: 'missing_connection',
           connection_id: connection.id,
           message: 'Nó de origem da conexão não existe',
-          severity: 'error'
+          severity: 'error',
         })
       }
 
@@ -289,7 +329,7 @@ export class FlowValidator {
           type: 'missing_connection',
           connection_id: connection.id,
           message: 'Nó de destino da conexão não existe',
-          severity: 'error'
+          severity: 'error',
         })
       }
 
@@ -300,30 +340,36 @@ export class FlowValidator {
           type: 'invalid_config',
           connection_id: connection.id,
           message: 'Nó não pode se conectar a si mesmo',
-          severity: 'error'
+          severity: 'error',
         })
       }
     })
 
     // Check for duplicate connections
-    const connectionPairs = design.connections.map(conn => `${conn.source}-${conn.target}`)
-    const duplicates = connectionPairs.filter((pair, index) => connectionPairs.indexOf(pair) !== index)
-    
-    duplicates.forEach(duplicate => {
+    const connectionPairs = design.connections.map((conn) => `${conn.source}-${conn.target}`)
+    const duplicates = connectionPairs.filter(
+      (pair, index) => connectionPairs.indexOf(pair) !== index
+    )
+
+    duplicates.forEach((duplicate) => {
       const [source, target] = duplicate.split('-')
       errors.push({
         id: `duplicate-connection-${source}-${target}`,
         type: 'invalid_config',
         message: `Conexão duplicada entre ${source} e ${target}`,
-        severity: 'error'
+        severity: 'error',
       })
     })
   }
 
-  private validateFlowLogic(design: FlowDesign, errors: FlowValidationError[], warnings: FlowValidationWarning[]) {
+  private validateFlowLogic(
+    design: FlowDesign,
+    errors: FlowValidationError[],
+    warnings: FlowValidationWarning[]
+  ) {
     // Check for circular dependencies
     this.detectCircularDependencies(design, errors)
-    
+
     // Check for unreachable nodes
     this.detectUnreachableNodes(design, warnings)
   }
@@ -343,7 +389,7 @@ export class FlowValidator {
       visited.add(nodeId)
       recursionStack.add(nodeId)
 
-      const outgoingConnections = design.connections.filter(conn => conn.source === nodeId)
+      const outgoingConnections = design.connections.filter((conn) => conn.source === nodeId)
       for (const connection of outgoingConnections) {
         if (hasCycle(connection.target)) {
           return true
@@ -354,48 +400,48 @@ export class FlowValidator {
       return false
     }
 
-    design.nodes.forEach(node => {
+    design.nodes.forEach((node) => {
       if (!visited.has(node.id) && hasCycle(node.id)) {
         errors.push({
           id: `circular-dependency-${node.id}`,
           type: 'circular_dependency',
           node_id: node.id,
           message: 'Dependência circular detectada',
-          severity: 'error'
+          severity: 'error',
         })
       }
     })
   }
 
   private detectUnreachableNodes(design: FlowDesign, warnings: FlowValidationWarning[]) {
-    const startNodes = design.nodes.filter(node => node.type === FlowNodeType.START)
+    const startNodes = design.nodes.filter((node) => node.type === FlowNodeType.START)
     if (startNodes.length === 0) return
 
     const reachable = new Set<string>()
-    const queue = [...startNodes.map(node => node.id)]
+    const queue = [...startNodes.map((node) => node.id)]
 
     while (queue.length > 0) {
       const currentId = queue.shift()!
       if (reachable.has(currentId)) continue
 
       reachable.add(currentId)
-      
-      const outgoingConnections = design.connections.filter(conn => conn.source === currentId)
-      outgoingConnections.forEach(conn => {
+
+      const outgoingConnections = design.connections.filter((conn) => conn.source === currentId)
+      outgoingConnections.forEach((conn) => {
         if (!reachable.has(conn.target)) {
           queue.push(conn.target)
         }
       })
     }
 
-    design.nodes.forEach(node => {
+    design.nodes.forEach((node) => {
       if (!reachable.has(node.id) && node.type !== FlowNodeType.START) {
         warnings.push({
           id: `unreachable-node-${node.id}`,
           type: 'best_practice',
           node_id: node.id,
           message: 'Nó não é alcançável a partir do início',
-          suggestion: 'Conecte este nó ao fluxo principal'
+          suggestion: 'Conecte este nó ao fluxo principal',
         })
       }
     })

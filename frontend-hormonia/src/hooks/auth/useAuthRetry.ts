@@ -7,7 +7,7 @@ const logger = createLogger('useAuthRetry')
 const DEFAULT_RETRY_CONFIG: AuthRetryConfig = {
   maxRetries: 3,
   retryDelay: 1000,
-  exponentialBackoff: true
+  exponentialBackoff: true,
 }
 
 interface UseAuthRetryOptions {
@@ -15,10 +15,7 @@ interface UseAuthRetryOptions {
   onRetryFailed?: (error: AuthError, attempts: number) => void
 }
 
-export function useAuthRetry({
-  config = {},
-  onRetryFailed
-}: UseAuthRetryOptions = {}) {
+export function useAuthRetry({ config = {}, onRetryFailed }: UseAuthRetryOptions = {}) {
   const retryConfig = useMemo(() => ({ ...DEFAULT_RETRY_CONFIG, ...config }), [config])
   const [isRetrying, setIsRetrying] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
@@ -32,7 +29,7 @@ export function useAuthRetry({
       'invalid_email',
       'weak_password',
       'email_already_exists',
-      'unauthorized'
+      'unauthorized',
     ]
 
     if (error.code && nonRetryableCodes.includes(error.code)) {
@@ -50,83 +47,93 @@ export function useAuthRetry({
     }
 
     // Server errors (5xx) are retryable
-    if (error.message?.includes('500') || error.message?.includes('502') || error.message?.includes('503')) {
+    if (
+      error.message?.includes('500') ||
+      error.message?.includes('502') ||
+      error.message?.includes('503')
+    ) {
       return true
     }
 
     return false
   }, [])
 
-  const calculateDelay = useCallback((attempt: number): number => {
-    if (!retryConfig.exponentialBackoff) {
-      return retryConfig.retryDelay
-    }
-
-    // Exponential backoff with jitter
-    const exponentialDelay = retryConfig.retryDelay * Math.pow(2, attempt - 1)
-    const jitter = Math.random() * 0.1 * exponentialDelay
-    return Math.min(exponentialDelay + jitter, 30000) // Max 30 seconds
-  }, [retryConfig])
-
-  const executeWithRetry = useCallback(async <T>(
-    operation: () => Promise<T>,
-    operationName: string = 'auth operation'
-  ): Promise<T> => {
-    let lastError: AuthError
-    let attempt = 0
-
-    while (attempt <= retryConfig.maxRetries) {
-      try {
-        if (attempt > 0) {
-          setIsRetrying(true)
-          setRetryCount(attempt)
-        }
-
-        const result = await operation()
-
-        // Success - reset retry state
-        setIsRetrying(false)
-        setRetryCount(0)
-        if (retryTimeoutRef.current) {
-          clearTimeout(retryTimeoutRef.current)
-          retryTimeoutRef.current = null
-        }
-
-        return result
-      } catch (error) {
-        lastError = error as AuthError
-        attempt++
-
-        logger.warn(`${operationName} attempt ${attempt} failed:`, lastError.message)
-
-        // Check if we should retry
-        if (attempt > retryConfig.maxRetries || !isRetryableError(lastError)) {
-          break
-        }
-
-        // Wait before retry
-        const delay = lastError.retryAfter
-          ? Math.max(lastError.retryAfter * 1000, calculateDelay(attempt))
-          : calculateDelay(attempt)
-
-        logger.debug(`Retrying ${operationName} in ${delay}ms...`)
-
-        await new Promise(resolve => {
-          retryTimeoutRef.current = setTimeout(resolve, delay)
-        })
+  const calculateDelay = useCallback(
+    (attempt: number): number => {
+      if (!retryConfig.exponentialBackoff) {
+        return retryConfig.retryDelay
       }
-    }
 
-    // All retries exhausted
-    setIsRetrying(false)
-    setRetryCount(0)
+      // Exponential backoff with jitter
+      const exponentialDelay = retryConfig.retryDelay * Math.pow(2, attempt - 1)
+      const jitter = Math.random() * 0.1 * exponentialDelay
+      return Math.min(exponentialDelay + jitter, 30000) // Max 30 seconds
+    },
+    [retryConfig]
+  )
 
-    if (onRetryFailed) {
-      onRetryFailed(lastError!, attempt)
-    }
+  const executeWithRetry = useCallback(
+    async <T>(
+      operation: () => Promise<T>,
+      operationName: string = 'auth operation'
+    ): Promise<T> => {
+      let lastError: AuthError
+      let attempt = 0
 
-    throw lastError!
-  }, [retryConfig, isRetryableError, calculateDelay, onRetryFailed])
+      while (attempt <= retryConfig.maxRetries) {
+        try {
+          if (attempt > 0) {
+            setIsRetrying(true)
+            setRetryCount(attempt)
+          }
+
+          const result = await operation()
+
+          // Success - reset retry state
+          setIsRetrying(false)
+          setRetryCount(0)
+          if (retryTimeoutRef.current) {
+            clearTimeout(retryTimeoutRef.current)
+            retryTimeoutRef.current = null
+          }
+
+          return result
+        } catch (error) {
+          lastError = error as AuthError
+          attempt++
+
+          logger.warn(`${operationName} attempt ${attempt} failed:`, lastError.message)
+
+          // Check if we should retry
+          if (attempt > retryConfig.maxRetries || !isRetryableError(lastError)) {
+            break
+          }
+
+          // Wait before retry
+          const delay = lastError.retryAfter
+            ? Math.max(lastError.retryAfter * 1000, calculateDelay(attempt))
+            : calculateDelay(attempt)
+
+          logger.debug(`Retrying ${operationName} in ${delay}ms...`)
+
+          await new Promise((resolve) => {
+            retryTimeoutRef.current = setTimeout(resolve, delay)
+          })
+        }
+      }
+
+      // All retries exhausted
+      setIsRetrying(false)
+      setRetryCount(0)
+
+      if (onRetryFailed) {
+        onRetryFailed(lastError!, attempt)
+      }
+
+      throw lastError!
+    },
+    [retryConfig, isRetryableError, calculateDelay, onRetryFailed]
+  )
 
   const resetRetryState = useCallback(() => {
     setIsRetrying(false)
@@ -137,18 +144,16 @@ export function useAuthRetry({
     }
   }, [])
 
-  const createAuthError = useCallback((
-    message: string,
-    code?: string,
-    retryable?: boolean,
-    retryAfter?: number
-  ): AuthError => {
-    const error = new Error(message) as AuthError
-    if (code) error.code = code
-    if (retryable !== undefined) error.retryable = retryable
-    if (retryAfter !== undefined) error.retryAfter = retryAfter
-    return error
-  }, [])
+  const createAuthError = useCallback(
+    (message: string, code?: string, retryable?: boolean, retryAfter?: number): AuthError => {
+      const error = new Error(message) as AuthError
+      if (code) error.code = code
+      if (retryable !== undefined) error.retryable = retryable
+      if (retryAfter !== undefined) error.retryAfter = retryAfter
+      return error
+    },
+    []
+  )
 
   return {
     executeWithRetry,
@@ -157,6 +162,6 @@ export function useAuthRetry({
     resetRetryState,
     createAuthError,
     isRetryableError,
-    config: retryConfig
+    config: retryConfig,
   }
 }

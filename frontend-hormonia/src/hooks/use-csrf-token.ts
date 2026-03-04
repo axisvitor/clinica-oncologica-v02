@@ -77,6 +77,6 @@ export function useCsrfToken() {
     csrfToken,
     isLoading,
     error,
-    refreshToken
+    refreshToken,
   }
 }

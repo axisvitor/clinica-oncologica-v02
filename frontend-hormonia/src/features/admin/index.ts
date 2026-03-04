@@ -16,7 +16,12 @@ export { UserActivityTimeline } from './UserActivityTimeline'
 export { AuditLogViewer } from './AuditLogViewer'
 
 // Permission System
-export { PermissionGuard, withPermissionGuard, usePermissionGuard, PermissionLevel } from './PermissionGuard'
+export {
+  PermissionGuard,
+  withPermissionGuard,
+  usePermissionGuard,
+  PermissionLevel,
+} from './PermissionGuard'
 
 // Existing components
 export { default as AdminDashboard } from './AdminDashboard'

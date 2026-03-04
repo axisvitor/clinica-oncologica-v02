@@ -20,8 +20,8 @@
 
 import * as React from 'react'
 import DOMPurify from 'dompurify'
-import { logger } from '@/lib/logger';
-import type { Config } from 'dompurify';
+import { logger } from '@/lib/logger'
+import type { Config } from 'dompurify'
 
 /**
  * Default DOMPurify configuration
@@ -31,17 +31,35 @@ import type { Config } from 'dompurify';
  */
 const DEFAULT_CONFIG: Config = {
   ALLOWED_TAGS: [
-    'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'del',
-    'ul', 'ol', 'li', 'blockquote', 'code', 'pre',
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    'a', 'span', 'div',
+    'p',
+    'br',
+    'strong',
+    'b',
+    'em',
+    'i',
+    'u',
+    's',
+    'del',
+    'ul',
+    'ol',
+    'li',
+    'blockquote',
+    'code',
+    'pre',
+    'h1',
+    'h2',
+    'h3',
+    'h4',
+    'h5',
+    'h6',
+    'a',
+    'span',
+    'div',
   ],
-  ALLOWED_ATTR: [
-    'href', 'title', 'target', 'rel', 'class',
-  ],
+  ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'class'],
   ALLOW_DATA_ATTR: false,
   ADD_ATTR: ['target', 'rel'],
-};
+}
 
 /**
  * Strict configuration (text-only, no HTML)
@@ -51,7 +69,7 @@ const STRICT_CONFIG: Config = {
   ALLOWED_TAGS: [],
   ALLOWED_ATTR: [],
   KEEP_CONTENT: true,
-};
+}
 
 /**
  * Rich text configuration
@@ -61,14 +79,16 @@ const RICH_TEXT_CONFIG: Config = {
   ...DEFAULT_CONFIG,
   ALLOWED_TAGS: [
     ...DEFAULT_CONFIG.ALLOWED_TAGS!,
-    'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    'table',
+    'thead',
+    'tbody',
+    'tr',
+    'th',
+    'td',
     'img',
   ],
-  ALLOWED_ATTR: [
-    ...DEFAULT_CONFIG.ALLOWED_ATTR!,
-    'src', 'alt', 'width', 'height', 'style',
-  ],
-};
+  ALLOWED_ATTR: [...DEFAULT_CONFIG.ALLOWED_ATTR!, 'src', 'alt', 'width', 'height', 'style'],
+}
 
 /**
  * Sanitize HTML content for safe rendering
@@ -91,20 +111,20 @@ export function sanitizeHtml(
   dirty: string | null | undefined,
   config: Config = DEFAULT_CONFIG
 ): string {
-  if (!dirty) return '';
+  if (!dirty) return ''
 
   try {
-    const clean = DOMPurify.sanitize(dirty, config) as string;
+    const clean = DOMPurify.sanitize(dirty, config) as string
 
     // Add security attributes to links
     if (config !== STRICT_CONFIG) {
-      return addLinkSecurity(clean);
+      return addLinkSecurity(clean)
     }
 
-    return clean;
+    return clean
   } catch (error) {
-    logger.error('Error sanitizing HTML', error);
-    return '';
+    logger.error('Error sanitizing HTML', error)
+    return ''
   }
 }
 
@@ -125,13 +145,13 @@ export function sanitizeHtml(
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function sanitizeText(dirty: string | null | undefined): string {
-  if (!dirty) return '';
+  if (!dirty) return ''
 
   try {
-    return DOMPurify.sanitize(dirty, STRICT_CONFIG) as string;
+    return DOMPurify.sanitize(dirty, STRICT_CONFIG) as string
   } catch (error) {
-    logger.error('Error sanitizing text', error);
-    return '';
+    logger.error('Error sanitizing text', error)
+    return ''
   }
 }
 
@@ -151,7 +171,7 @@ export function sanitizeText(dirty: string | null | undefined): string {
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function sanitizeRichText(dirty: string | null | undefined): string {
-  return sanitizeHtml(dirty, RICH_TEXT_CONFIG);
+  return sanitizeHtml(dirty, RICH_TEXT_CONFIG)
 }
 
 /**
@@ -172,27 +192,27 @@ export function sanitizeRichText(dirty: string | null | undefined): string {
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function sanitizeUrl(url: string | null | undefined): string {
-  if (!url) return '';
+  if (!url) return ''
 
-  const trimmedUrl = url.trim().toLowerCase();
+  const trimmedUrl = url.trim().toLowerCase()
 
   // Block dangerous protocols
-  const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:'];
+  const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:']
   if (dangerousProtocols.some((protocol) => trimmedUrl.startsWith(protocol))) {
-    logger.warn('Blocked dangerous URL protocol', url);
-    return '';
+    logger.warn('Blocked dangerous URL protocol', url)
+    return ''
   }
 
   // Allow relative URLs and safe protocols
-  const safeProtocols = ['http:', 'https:', 'mailto:', 'tel:', '/'];
-  const isSafe = safeProtocols.some((protocol) => trimmedUrl.startsWith(protocol));
+  const safeProtocols = ['http:', 'https:', 'mailto:', 'tel:', '/']
+  const isSafe = safeProtocols.some((protocol) => trimmedUrl.startsWith(protocol))
 
   if (!isSafe) {
-    logger.warn('Blocked unsafe URL', url);
-    return '';
+    logger.warn('Blocked unsafe URL', url)
+    return ''
   }
 
-  return url;
+  return url
 }
 
 /**
@@ -203,30 +223,30 @@ export function sanitizeUrl(url: string | null | undefined): string {
  * @returns HTML string with secure link attributes
  */
 function addLinkSecurity(html: string): string {
-  const div = document.createElement('div');
-  div.innerHTML = html;
+  const div = document.createElement('div')
+  div.innerHTML = html
 
-  const links = div.querySelectorAll('a');
+  const links = div.querySelectorAll('a')
   links.forEach((link) => {
     // Force external links to open in new tab
     if (link.hostname && link.hostname !== window.location.hostname) {
-      link.setAttribute('target', '_blank');
-      link.setAttribute('rel', 'noopener noreferrer');
+      link.setAttribute('target', '_blank')
+      link.setAttribute('rel', 'noopener noreferrer')
     }
 
     // Sanitize href
-    const href = link.getAttribute('href');
+    const href = link.getAttribute('href')
     if (href) {
-      const cleanHref = sanitizeUrl(href);
+      const cleanHref = sanitizeUrl(href)
       if (cleanHref) {
-        link.setAttribute('href', cleanHref);
+        link.setAttribute('href', cleanHref)
       } else {
-        link.removeAttribute('href');
+        link.removeAttribute('href')
       }
     }
-  });
+  })
 
-  return div.innerHTML;
+  return div.innerHTML
 }
 
 /**
@@ -244,13 +264,10 @@ function addLinkSecurity(html: string): string {
  * ```
  */
 // eslint-disable-next-line react-refresh/only-export-components
-export function truncateText(
-  text: string | null | undefined,
-  maxLength: number
-): string {
-  if (!text) return '';
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength - 3) + '...';
+export function truncateText(text: string | null | undefined, maxLength: number): string {
+  if (!text) return ''
+  if (text.length <= maxLength) return text
+  return text.slice(0, maxLength - 3) + '...'
 }
 
 /**
@@ -269,11 +286,11 @@ export function truncateText(
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function escapeHtml(text: string | null | undefined): string {
-  if (!text) return '';
+  if (!text) return ''
 
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  const div = document.createElement('div')
+  div.textContent = text
+  return div.innerHTML
 }
 
 /**
@@ -284,8 +301,8 @@ export function escapeHtml(text: string | null | undefined): string {
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function containsHtml(text: string | null | undefined): boolean {
-  if (!text) return false;
-  return /<\/?[a-z][\s\S]*>/i.test(text);
+  if (!text) return false
+  return /<\/?[a-z][\s\S]*>/i.test(text)
 }
 
 /**
@@ -296,12 +313,12 @@ export function containsHtml(text: string | null | undefined): boolean {
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function sanitizeEmail(email: string | null | undefined): string {
-  if (!email) return '';
+  if (!email) return ''
 
-  const sanitized = sanitizeText(email).trim().toLowerCase();
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const sanitized = sanitizeText(email).trim().toLowerCase()
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-  return emailRegex.test(sanitized) ? sanitized : '';
+  return emailRegex.test(sanitized) ? sanitized : ''
 }
 
 /**
@@ -312,8 +329,8 @@ export function sanitizeEmail(email: string | null | undefined): string {
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function sanitizePhone(phone: string | null | undefined): string {
-  if (!phone) return '';
-  return phone.replace(/[^\d+\-()]/g, '');
+  if (!phone) return ''
+  return phone.replace(/[^\d+\-()]/g, '')
 }
 
 /**
@@ -327,20 +344,15 @@ export function sanitizePhone(phone: string | null | undefined): string {
  * ```
  */
 interface SafeHtmlProps {
-  html: string | null | undefined;
-  className?: string;
-  config?: Config;
+  html: string | null | undefined
+  className?: string
+  config?: Config
 }
 
 export function SafeHtml({ html, className, config }: SafeHtmlProps) {
-  const clean = sanitizeHtml(html, config);
+  const clean = sanitizeHtml(html, config)
 
-  return (
-    <div
-      className={className}
-      dangerouslySetInnerHTML={{ __html: clean }}
-    />
-  );
+  return <div className={className} dangerouslySetInnerHTML={{ __html: clean }} />
 }
 
 /**
@@ -361,17 +373,17 @@ export function useSanitizedInput(
   initialValue: string = '',
   sanitizer: (value: string) => string = sanitizeText
 ): [string, (value: string) => void] {
-  const [value, setValue] = React.useState(initialValue);
+  const [value, setValue] = React.useState(initialValue)
 
   const setSanitizedValue = (newValue: string) => {
-    setValue(sanitizer(newValue));
-  };
+    setValue(sanitizer(newValue))
+  }
 
-  return [value, setSanitizedValue];
+  return [value, setSanitizedValue]
 }
 
 // Re-export DOMPurify for advanced use cases
-export { DOMPurify };
+export { DOMPurify }
 
 /**
  * Sanitization configuration presets
@@ -381,4 +393,4 @@ export const SanitizeConfig = {
   DEFAULT: DEFAULT_CONFIG,
   STRICT: STRICT_CONFIG,
   RICH_TEXT: RICH_TEXT_CONFIG,
-};
+}

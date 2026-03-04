@@ -19,20 +19,20 @@
  * ```
  */
 
-import { ApiClientCore } from "./core";
-import { createAuthApi } from "./auth";
-import { createPatientsApi } from "./patients";
-import { createAppointmentsApi } from "./appointments";
-import { createTreatmentsApi } from "./treatments";
-import { createMedicationsApi } from "./medications";
-import { createMonthlyQuizApi } from "./monthly-quiz";
-import { createAnalyticsApi } from "./analytics";
-import { createAdminApi } from "./admin";
-import { createDashboardApi } from "./dashboard";
-import { createTasksApi, TasksApi } from "./tasks";
-import { createHiveMindApi } from "./hive-mind";
-import { createLogger } from "../logger";
-import { API_BASE_URL } from "../../config";
+import { ApiClientCore } from './core'
+import { createAuthApi } from './auth'
+import { createPatientsApi } from './patients'
+import { createAppointmentsApi } from './appointments'
+import { createTreatmentsApi } from './treatments'
+import { createMedicationsApi } from './medications'
+import { createMonthlyQuizApi } from './monthly-quiz'
+import { createAnalyticsApi } from './analytics'
+import { createAdminApi } from './admin'
+import { createDashboardApi } from './dashboard'
+import { createTasksApi, TasksApi } from './tasks'
+import { createHiveMindApi } from './hive-mind'
+import { createLogger } from '../logger'
+import { API_BASE_URL } from '../../config'
 import type {
   Message,
   MessageListFilters,
@@ -105,19 +105,19 @@ import type {
   PaginatedResponse,
   MessageResponse,
   ResponseResult,
-} from './types';
+} from './types'
 
-const logger = createLogger("ApiClient");
+const logger = createLogger('ApiClient')
 
 // Re-export core types
-export type { ApiResponse, PaginatedResponse, RequestOptions } from "./core";
-export { ApiError } from "./core";
+export type { ApiResponse, PaginatedResponse, RequestOptions } from './core'
+export { ApiError } from './core'
 
 // Re-export domain types
-export type * from "./auth";
-export type * from "./patients";
-export type * from "./appointments";
-export type * from "./treatments";
+export type * from './auth'
+export type * from './patients'
+export type * from './appointments'
+export type * from './treatments'
 export type {
   Medication,
   MedicationCreate,
@@ -126,14 +126,14 @@ export type {
   MedicationStats,
   MedicationRoute,
   MedicationSchedule,
-  MedicationsApi
-} from "./medications";
-export type * from "./monthly-quiz";
-export type * from "./analytics";
-export type * from "./admin";
-export type * from "./dashboard";
-export type * from "./tasks";
-export type * from "./hive-mind";
+  MedicationsApi,
+} from './medications'
+export type * from './monthly-quiz'
+export type * from './analytics'
+export type * from './admin'
+export type * from './dashboard'
+export type * from './tasks'
+export type * from './hive-mind'
 
 /**
  * Main API Client class
@@ -141,61 +141,61 @@ export type * from "./hive-mind";
  */
 export class ApiClient extends ApiClientCore {
   // Domain modules
-  public readonly auth: ReturnType<typeof createAuthApi>;
-  public readonly patients: ReturnType<typeof createPatientsApi>;
-  public readonly appointments: ReturnType<typeof createAppointmentsApi>;
-  public readonly treatments: ReturnType<typeof createTreatmentsApi>;
-  public readonly medications: ReturnType<typeof createMedicationsApi>;
-  public readonly monthlyQuiz: ReturnType<typeof createMonthlyQuizApi>;
-  public readonly analytics: ReturnType<typeof createAnalyticsApi>;
-  public readonly adminV2: ReturnType<typeof createAdminApi>;
-  public readonly dashboard: ReturnType<typeof createDashboardApi>;
-  public readonly tasks: TasksApi;
+  public readonly auth: ReturnType<typeof createAuthApi>
+  public readonly patients: ReturnType<typeof createPatientsApi>
+  public readonly appointments: ReturnType<typeof createAppointmentsApi>
+  public readonly treatments: ReturnType<typeof createTreatmentsApi>
+  public readonly medications: ReturnType<typeof createMedicationsApi>
+  public readonly monthlyQuiz: ReturnType<typeof createMonthlyQuizApi>
+  public readonly analytics: ReturnType<typeof createAnalyticsApi>
+  public readonly adminV2: ReturnType<typeof createAdminApi>
+  public readonly dashboard: ReturnType<typeof createDashboardApi>
+  public readonly tasks: TasksApi
 
   // Additional namespaces (lightweight inline implementations)
-  public readonly messages: MessagesApi;
-  public readonly flows: FlowsApi;
-  public readonly alerts: AlertsApi;
-  public readonly reports: ReportsApi;
-  public readonly admin: AdminApi;
-  public readonly adminUsers: AdminUsersApi;
-  public readonly ai: AiApi;
-  public readonly quiz: QuizApi;
-  public readonly quizzes: QuizTemplatesApi;
-  public readonly notifications: NotificationsApi;
-  public readonly physician: PhysicianApi;
-  public readonly hiveMind: ReturnType<typeof createHiveMindApi>;
+  public readonly messages: MessagesApi
+  public readonly flows: FlowsApi
+  public readonly alerts: AlertsApi
+  public readonly reports: ReportsApi
+  public readonly admin: AdminApi
+  public readonly adminUsers: AdminUsersApi
+  public readonly ai: AiApi
+  public readonly quiz: QuizApi
+  public readonly quizzes: QuizTemplatesApi
+  public readonly notifications: NotificationsApi
+  public readonly physician: PhysicianApi
+  public readonly hiveMind: ReturnType<typeof createHiveMindApi>
 
   constructor(baseURL: string) {
-    super(baseURL);
+    super(baseURL)
 
     // Initialize domain modules
-    this.auth = createAuthApi(this);
-    this.patients = createPatientsApi(this);
-    this.appointments = createAppointmentsApi(this);
-    this.treatments = createTreatmentsApi(this);
-    this.medications = createMedicationsApi(this);
-    this.monthlyQuiz = createMonthlyQuizApi(this);
-    this.analytics = createAnalyticsApi(this);
-    this.adminV2 = createAdminApi(this);
-    this.dashboard = createDashboardApi(this);
-    this.tasks = createTasksApi(this);
+    this.auth = createAuthApi(this)
+    this.patients = createPatientsApi(this)
+    this.appointments = createAppointmentsApi(this)
+    this.treatments = createTreatmentsApi(this)
+    this.medications = createMedicationsApi(this)
+    this.monthlyQuiz = createMonthlyQuizApi(this)
+    this.analytics = createAnalyticsApi(this)
+    this.adminV2 = createAdminApi(this)
+    this.dashboard = createDashboardApi(this)
+    this.tasks = createTasksApi(this)
 
     // Initialize inline modules (simpler domains)
-    this.messages = this.createMessagesApi();
-    this.flows = this.createFlowsApi();
-    this.alerts = this.createAlertsApi();
-    this.reports = this.createReportsApi();
-    this.admin = this.createAdminApi();
-    this.adminUsers = this.createAdminUsersApi();
-    this.ai = this.createAiApi();
-    this.quiz = this.createQuizApi();
-    this.quizzes = this.createQuizTemplatesApi();
-    this.notifications = this.createNotificationsApi();
-    this.physician = this.createPhysicianApi();
-    this.hiveMind = createHiveMindApi(this);
+    this.messages = this.createMessagesApi()
+    this.flows = this.createFlowsApi()
+    this.alerts = this.createAlertsApi()
+    this.reports = this.createReportsApi()
+    this.admin = this.createAdminApi()
+    this.adminUsers = this.createAdminUsersApi()
+    this.ai = this.createAiApi()
+    this.quiz = this.createQuizApi()
+    this.quizzes = this.createQuizTemplatesApi()
+    this.notifications = this.createNotificationsApi()
+    this.physician = this.createPhysicianApi()
+    this.hiveMind = createHiveMindApi(this)
 
-    logger.log("API Client initialized with modular architecture");
+    logger.log('API Client initialized with modular architecture')
   }
 
   /**
@@ -205,17 +205,27 @@ export class ApiClient extends ApiClientCore {
   private createMessagesApi(): MessagesApi {
     return {
       list: async (options: MessagesListOptions = {}) => {
-        const { size, cursor, limit, ...filters } = options;
-        const effLimit = limit ?? size ?? 20;
-        const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
-        const res = await this.get<PaginatedResponse<Message>>("/api/v2/messages", params);
-        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
-        return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
+        const { size, cursor, limit, ...filters } = options
+        const effLimit = limit ?? size ?? 20
+        const params: Record<string, string | number | boolean> = {
+          limit: effLimit,
+          ...(cursor ? { cursor } : {}),
+          ...filters,
+        }
+        const res = await this.get<PaginatedResponse<Message>>('/api/v2/messages', params)
+        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
+        return {
+          data: items,
+          items,
+          total: res?.total ?? 0,
+          has_more: res?.has_more,
+          next_cursor: res?.next_cursor,
+        }
       },
 
       get: (messageId: string) => this.get(`/api/v2/messages/${messageId}`),
 
-      send: (data: SendMessageRequest) => this.post("/api/v2/messages", data),
+      send: (data: SendMessageRequest) => this.post('/api/v2/messages', data),
 
       markAsRead: (messageId: string) => this.patch(`/api/v2/messages/${messageId}/read`),
 
@@ -225,11 +235,11 @@ export class ApiClient extends ApiClientCore {
         this.get(`/api/v2/messages/conversations/${patientId}`),
 
       sendBulk: (data: { patient_ids: string[]; content: string }) =>
-        this.post("/api/v2/messages/bulk", data),
+        this.post('/api/v2/messages/bulk', data),
 
       // retry endpoint is available in V2
       retry: (messageId: string) => this.post(`/api/v2/messages/${messageId}/retry`),
-    };
+    }
   }
 
   /**
@@ -239,13 +249,16 @@ export class ApiClient extends ApiClientCore {
   private createFlowsApi(): FlowsApi {
     return {
       // Flow Instances (V2: /api/v2/flows)
-      list: (options?: FlowListFilters) => this.get("/api/v2/flows", options as Record<string, string | number | boolean>),
+      list: (options?: FlowListFilters) =>
+        this.get('/api/v2/flows', options as Record<string, string | number | boolean>),
 
       get: (flowId: string) => this.get(`/api/v2/templates/flows/${flowId}`),
 
-      create: (data: CreateFlowTemplateRequest) => this.post<FlowTemplate>("/api/v2/templates/flows", data),
+      create: (data: CreateFlowTemplateRequest) =>
+        this.post<FlowTemplate>('/api/v2/templates/flows', data),
 
-      update: (flowId: string, data: UpdateFlowTemplateRequest) => this.put<FlowTemplate>(`/api/v2/templates/flows/${flowId}`, data),
+      update: (flowId: string, data: UpdateFlowTemplateRequest) =>
+        this.put<FlowTemplate>(`/api/v2/templates/flows/${flowId}`, data),
 
       delete: (flowId: string) => this.delete(`/api/v2/templates/flows/${flowId}`),
 
@@ -264,12 +277,15 @@ export class ApiClient extends ApiClientCore {
       // History endpoint replaces executions
       getExecutions: (flowId: string) => this.get(`/api/v2/flows/${flowId}/history`),
 
-      processResponse: (patientId: string, responseText: string, metadata?: Record<string, unknown>) =>
+      processResponse: (
+        patientId: string,
+        responseText: string,
+        metadata?: Record<string, unknown>
+      ) =>
         this.post<ResponseResult>(`/api/v2/flows/${patientId}/response`, {
           response_text: responseText,
-          metadata
+          metadata,
         }),
-
 
       // Flow State Operations (V2: /api/v2/flows/{patient_id}/state)
       getState: (patientId: string) => this.get(`/api/v2/flows/${patientId}/state`),
@@ -277,33 +293,33 @@ export class ApiClient extends ApiClientCore {
       start: (patientId: string, flowType: string) =>
         this.post(`/api/v2/flows/start`, {
           patient_id: patientId,
-          flow_type: flowType
+          flow_type: flowType,
         }),
 
       // Flow state control (V2: enhanced with request bodies)
       advance: (patientId: string, day?: number) =>
         this.post(`/api/v2/flows/${patientId}/advance`, {
           target_day: day,
-          skip_conditions: false
+          skip_conditions: false,
         }),
 
       pause: (patientId: string) =>
         this.post(`/api/v2/flows/${patientId}/pause`, {
-          reason: "Manual pause"
+          reason: 'Manual pause',
         }),
 
-      resume: (patientId: string) =>
-        this.post(`/api/v2/flows/${patientId}/resume`),
+      resume: (patientId: string) => this.post(`/api/v2/flows/${patientId}/resume`),
 
-      getAnalytics: () => this.get("/api/v2/flows/analytics"),
+      getAnalytics: () => this.get('/api/v2/flows/analytics'),
 
       // Templates management
-      getTemplates: () => this.get("/api/v2/templates/flows"),
-      createTemplate: (template: CreateFlowTemplateRequest) => this.post("/api/v2/templates/flows", template),
+      getTemplates: () => this.get('/api/v2/templates/flows'),
+      createTemplate: (template: CreateFlowTemplateRequest) =>
+        this.post('/api/v2/templates/flows', template),
       updateTemplate: (templateId: string, data: UpdateFlowTemplateRequest) =>
         this.put(`/api/v2/templates/flows/${templateId}`, data),
       deleteTemplate: (templateId: string) => this.delete(`/api/v2/templates/flows/${templateId}`),
-    };
+    }
   }
 
   /**
@@ -313,32 +329,44 @@ export class ApiClient extends ApiClientCore {
   private createAlertsApi(): AlertsApi {
     return {
       list: async (options: AlertsListOptions = {}) => {
-        const { size, cursor, limit, ...filters } = options;
-        const effLimit = limit ?? size ?? 20;
-        const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
-        const res = await this.get<PaginatedResponse<Alert>>("/api/v2/alerts", params);
-        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
-        return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
+        const { size, cursor, limit, ...filters } = options
+        const effLimit = limit ?? size ?? 20
+        const params: Record<string, string | number | boolean> = {
+          limit: effLimit,
+          ...(cursor ? { cursor } : {}),
+          ...filters,
+        }
+        const res = await this.get<PaginatedResponse<Alert>>('/api/v2/alerts', params)
+        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
+        return {
+          data: items,
+          items,
+          total: res?.total ?? 0,
+          has_more: res?.has_more,
+          next_cursor: res?.next_cursor,
+        }
       },
 
       get: (alertId: string) => this.get(`/api/v2/alerts/${alertId}`),
 
-      create: (data: CreateAlertRequest) => this.post<Alert>("/api/v2/alerts", data),
+      create: (data: CreateAlertRequest) => this.post<Alert>('/api/v2/alerts', data),
 
-      update: (alertId: string, data: UpdateAlertRequest) => this.patch<Alert>(`/api/v2/alerts/${alertId}`, data),
+      update: (alertId: string, data: UpdateAlertRequest) =>
+        this.patch<Alert>(`/api/v2/alerts/${alertId}`, data),
 
       delete: (alertId: string) => this.delete(`/api/v2/alerts/${alertId}`),
 
       markAsRead: (alertId: string) => this.patch(`/api/v2/alerts/${alertId}/read`, {}),
 
-      markAllAsRead: () => this.post("/api/v2/alerts/read-all"),
+      markAllAsRead: () => this.post('/api/v2/alerts/read-all'),
 
       // Fixed: acknowledge uses the /read endpoint (PATCH)
       // Backend only has 'acknowledged' status, no separate 'resolve'
-      getUnreadCount: () => this.get("/api/v2/alerts/unread-count"),
+      getUnreadCount: () => this.get('/api/v2/alerts/unread-count'),
       acknowledge: (alertId: string) => this.patch(`/api/v2/alerts/${alertId}/read`, {}),
-      resolve: (alertId: string) => this.patch(`/api/v2/alerts/${alertId}/read`, { notes: 'Resolved' }),
-    };
+      resolve: (alertId: string) =>
+        this.patch(`/api/v2/alerts/${alertId}/read`, { notes: 'Resolved' }),
+    }
   }
 
   /**
@@ -348,89 +376,100 @@ export class ApiClient extends ApiClientCore {
   private createReportsApi(): ReportsApi {
     return {
       list: async (options: ReportsListOptions = {}) => {
-        const { size, cursor, limit, ...filters } = options;
-        const effLimit = limit ?? size ?? 20;
-        const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...filters };
-        const res = await this.get<PaginatedResponse<Report>>("/api/v2/reports", params);
-        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
-        return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
+        const { size, cursor, limit, ...filters } = options
+        const effLimit = limit ?? size ?? 20
+        const params: Record<string, string | number | boolean> = {
+          limit: effLimit,
+          ...(cursor ? { cursor } : {}),
+          ...filters,
+        }
+        const res = await this.get<PaginatedResponse<Report>>('/api/v2/reports', params)
+        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
+        return {
+          data: items,
+          items,
+          total: res?.total ?? 0,
+          has_more: res?.has_more,
+          next_cursor: res?.next_cursor,
+        }
       },
 
       generate: (patientId: string, reportType: string, config?: ReportGenerationConfig) => {
-        const rawTitle = typeof config?.title === "string" ? config.title.trim() : "";
+        const rawTitle = typeof config?.title === 'string' ? config.title.trim() : ''
         const params: Record<string, string | number | boolean> = {
           title: rawTitle || `Relatorio ${reportType}`,
           report_type: reportType,
-        };
+        }
 
         if (patientId) {
-          params['patient_ids'] = patientId;
+          params['patient_ids'] = patientId
         }
 
-        if (typeof config?.format === "string" && config.format.trim()) {
-          params['format'] = config.format.trim();
+        if (typeof config?.format === 'string' && config.format.trim()) {
+          params['format'] = config.format.trim()
         }
 
-        if (typeof config?.start_date === "string" && config.start_date) {
-          params['date_from'] = config.start_date;
+        if (typeof config?.start_date === 'string' && config.start_date) {
+          params['date_from'] = config.start_date
         }
 
-        if (typeof config?.end_date === "string" && config.end_date) {
-          params['date_to'] = config.end_date;
+        if (typeof config?.end_date === 'string' && config.end_date) {
+          params['date_to'] = config.end_date
         }
 
-        if (typeof config?.include_messages === "boolean") {
-          params['include_messages'] = config.include_messages;
+        if (typeof config?.include_messages === 'boolean') {
+          params['include_messages'] = config.include_messages
         }
 
-        if (typeof config?.include_quizzes === "boolean") {
-          params['include_quizzes'] = config.include_quizzes;
+        if (typeof config?.include_quizzes === 'boolean') {
+          params['include_quizzes'] = config.include_quizzes
         }
 
-        if (typeof config?.include_alerts === "boolean") {
-          params['include_alerts'] = config.include_alerts;
+        if (typeof config?.include_alerts === 'boolean') {
+          params['include_alerts'] = config.include_alerts
         }
 
-        if (typeof config?.include_timeline === "boolean") {
-          params['include_timeline'] = config.include_timeline;
+        if (typeof config?.include_timeline === 'boolean') {
+          params['include_timeline'] = config.include_timeline
         }
 
-        return this.post("/api/v2/reports/generate", undefined, params);
+        return this.post('/api/v2/reports/generate', undefined, params)
       },
 
-      download: async (reportId: string, format: "pdf" | "excel" | "csv" = "pdf") => {
+      download: async (reportId: string, format: 'pdf' | 'excel' | 'csv' = 'pdf') => {
         const response = await fetch(
           `${this.getBaseURL()}/api/v2/reports/${reportId}/download?format=${format}`,
           {
-            method: "GET",
+            method: 'GET',
             headers: {
               ...this.getSessionHeaders(),
             },
-            credentials: "include",
-          },
-        );
+            credentials: 'include',
+          }
+        )
 
         if (!response.ok) {
-          throw new Error("Failed to download report");
+          throw new Error('Failed to download report')
         }
 
-        return response.blob();
+        return response.blob()
       },
 
       // WARNING: delete endpoint NOT IMPLEMENTED in backend v2
       // Throws error to prevent silent API failure in production
       delete: (_reportId: string) => {
-        throw new Error("Delete report not implemented in backend v2");
+        throw new Error('Delete report not implemented in backend v2')
       },
 
-      schedule: (data: ScheduleReportRequest) => this.post<ScheduledReport>("/api/v2/reports/schedule", data),
+      schedule: (data: ScheduleReportRequest) =>
+        this.post<ScheduledReport>('/api/v2/reports/schedule', data),
 
       // WARNING: getScheduled endpoint NOT IMPLEMENTED in backend v2
       // Throws error to prevent silent API failure in production
       getScheduled: () => {
-        throw new Error("Get scheduled reports not implemented in backend v2");
+        throw new Error('Get scheduled reports not implemented in backend v2')
       },
-    };
+    }
   }
 
   /**
@@ -441,16 +480,17 @@ export class ApiClient extends ApiClientCore {
     return {
       users: {
         list: async (_page = 1, size = 20) => {
-          const params: Record<string, string | number | boolean> = { limit: size };
-          const res = await this.get<PaginatedResponse<AdminUser>>("/api/v2/admin/users", params);
-          return Array.isArray(res?.data) ? res.data : (res?.items ?? []);
+          const params: Record<string, string | number | boolean> = { limit: size }
+          const res = await this.get<PaginatedResponse<AdminUser>>('/api/v2/admin/users', params)
+          return Array.isArray(res?.data) ? res.data : (res?.items ?? [])
         },
 
         get: (userId: string) => this.get<AdminUser>(`/api/v2/admin/users/${userId}`),
 
-        create: (data: CreateAdminUserRequest) => this.post<AdminUser>("/api/v2/admin/users", data),
+        create: (data: CreateAdminUserRequest) => this.post<AdminUser>('/api/v2/admin/users', data),
 
-        update: (userId: string, data: UpdateAdminUserRequest) => this.put<AdminUser>(`/api/v2/admin/users/${userId}`, data),
+        update: (userId: string, data: UpdateAdminUserRequest) =>
+          this.put<AdminUser>(`/api/v2/admin/users/${userId}`, data),
 
         delete: (userId: string) => this.delete(`/api/v2/admin/users/${userId}`),
 
@@ -463,77 +503,88 @@ export class ApiClient extends ApiClientCore {
 
       // roles/audit/settings are served by V2 admin endpoints
       roles: {
-        list: () => this.get<Role[]>("/api/v2/admin/roles"),
+        list: () => this.get<Role[]>('/api/v2/admin/roles'),
 
-        create: (data: CreateRoleRequest) => this.post<Role>("/api/v2/admin/roles", data),
+        create: (data: CreateRoleRequest) => this.post<Role>('/api/v2/admin/roles', data),
 
-        update: (roleId: string, data: Partial<CreateRoleRequest>) => this.put<Role>(`/api/v2/admin/roles/${roleId}`, data),
+        update: (roleId: string, data: Partial<CreateRoleRequest>) =>
+          this.put<Role>(`/api/v2/admin/roles/${roleId}`, data),
 
         delete: (roleId: string) => this.delete(`/api/v2/admin/roles/${roleId}`),
       },
 
       audit: {
         list: (page = 1, size = 20, filters?: AuditLogFilters) =>
-          this.get<PaginatedResponse<AuditLogEntry>>("/api/v2/admin/audit", { page, size, ...filters }),
+          this.get<PaginatedResponse<AuditLogEntry>>('/api/v2/admin/audit', {
+            page,
+            size,
+            ...filters,
+          }),
 
         get: (auditId: string) => this.get<AuditLogEntry>(`/api/v2/admin/audit/${auditId}`),
 
         export: async (filters?: AuditLogFilters) => {
-          const queryParams = new URLSearchParams(filters as Record<string, string>);
+          const queryParams = new URLSearchParams(filters as Record<string, string>)
           const response = await fetch(
             `${this.getBaseURL()}/api/v2/admin/audit/export?${queryParams}`,
             {
-              method: "GET",
+              method: 'GET',
               headers: {
                 ...this.getSessionHeaders(),
               },
-              credentials: "include",
-            },
-          );
+              credentials: 'include',
+            }
+          )
 
           if (!response.ok) {
-            throw new Error("Failed to export audit logs");
+            throw new Error('Failed to export audit logs')
           }
 
-          return response.blob();
+          return response.blob()
         },
       },
 
       settings: {
-        get: () => this.get<SystemSettings>("/api/v2/admin/settings"),
+        get: () => this.get<SystemSettings>('/api/v2/admin/settings'),
 
-        update: (data: Partial<SystemSettings>) => this.put<SystemSettings>("/api/v2/admin/settings", data),
+        update: (data: Partial<SystemSettings>) =>
+          this.put<SystemSettings>('/api/v2/admin/settings', data),
 
-        reset: () => this.post("/api/v2/admin/settings/reset"),
+        reset: () => this.post('/api/v2/admin/settings/reset'),
       },
 
       system: {
-        getHealth: () => this.get<SystemHealth>("/api/v2/admin/system/health"),
+        getHealth: () => this.get<SystemHealth>('/api/v2/admin/system/health'),
 
-        getMetrics: () => this.get<SystemMetrics>("/api/v2/admin/system/metrics"),
+        getMetrics: () => this.get<SystemMetrics>('/api/v2/admin/system/metrics'),
 
         // Use the correct endpoint name from backend
-        systemStats: () => this.get<SystemStats>("/api/v2/admin/system-stats"),
+        systemStats: () => this.get<SystemStats>('/api/v2/admin/system-stats'),
 
-        clearCache: () => this.post<MessageResponse>("/api/v2/admin/system/clear-cache"),
+        clearCache: () => this.post<MessageResponse>('/api/v2/admin/system/clear-cache'),
 
-        runMaintenance: () => this.post<MessageResponse>("/api/v2/admin/system/maintenance"),
+        runMaintenance: () => this.post<MessageResponse>('/api/v2/admin/system/maintenance'),
       },
-    };
+    }
   }
 
   private createAdminUsersApi(): AdminUsersApi {
     return {
       list: (options: AdminUsersListOptions = {}) => {
-        const { page = 1, size = 20, ...filters } = options;
-        return this.get<PaginatedResponse<AdminUser>>("/api/v2/admin/users", { page, size, ...filters });
+        const { page = 1, size = 20, ...filters } = options
+        return this.get<PaginatedResponse<AdminUser>>('/api/v2/admin/users', {
+          page,
+          size,
+          ...filters,
+        })
       },
 
       get: (userId: string) => this.get<AdminUser>(`/api/v2/admin/users/${userId}`),
 
-      create: (data: CreateAdminUserRequest) => this.post<AdminUser>("/api/v2/admin/users", data),
+      create: (data: CreateAdminUserRequest) => this.post<AdminUser>('/api/v2/admin/users', data),
 
-      update: (userId: string, data: UpdateAdminUserRequest) => this.put<AdminUser>(`/api/v2/admin/users/${userId}`, data),
+      update: (userId: string, data: UpdateAdminUserRequest) =>
+        this.put<AdminUser>(`/api/v2/admin/users/${userId}`, data),
 
       delete: (userId: string) => this.delete<MessageResponse>(`/api/v2/admin/users/${userId}`),
 
@@ -548,14 +599,14 @@ export class ApiClient extends ApiClientCore {
         this.put(`/api/v2/admin/users/${userId}/role`, { role }),
 
       getActivity: (userId: string, options: AdminUserActivityOptions = {}) => {
-        const { page = 1, size = 20, ...filters } = options;
-        return this.get(`/api/v2/admin/users/${userId}/activity`, { page, size, ...filters });
+        const { page = 1, size = 20, ...filters } = options
+        return this.get(`/api/v2/admin/users/${userId}/activity`, { page, size, ...filters })
       },
 
       resetPassword: (userId: string, payload: ResetPasswordRequest) =>
         this.post(`/api/v2/admin/users/${userId}/reset-password`, {
           new_password: payload.new_password,
-          force_change: payload.force_change ?? false
+          force_change: payload.force_change ?? false,
         }),
 
       unlock: (userId: string) => this.post(`/api/v2/admin/users/${userId}/unlock`),
@@ -563,84 +614,81 @@ export class ApiClient extends ApiClientCore {
       enable2FA: (userId: string) => this.post(`/api/v2/admin/users/${userId}/2fa/enable`),
 
       disable2FA: (userId: string) => this.post(`/api/v2/admin/users/${userId}/2fa/disable`),
-    };
+    }
   }
 
   private createAiApi(): AiApi {
     const timeframeToDays = (timeframe?: string) => {
       switch (timeframe) {
-        case "day":
-          return 1;
-        case "week":
-          return 7;
-        case "month":
-          return 30;
-        case "quarter":
-          return 90;
+        case 'day':
+          return 1
+        case 'week':
+          return 7
+        case 'month':
+          return 30
+        case 'quarter':
+          return 90
         default:
-          return undefined;
+          return undefined
       }
-    };
+    }
 
     const buildHumanizeRequest = (
       message: string,
       context?: HumanizeContext,
-      overrides?: Partial<HumanizeRequest>,
+      overrides?: Partial<HumanizeRequest>
     ): HumanizeRequest => {
       const patientId =
-        typeof context?.patient_id === "string"
+        typeof context?.patient_id === 'string'
           ? context.patient_id
-          : typeof context?.patientId === "string"
+          : typeof context?.patientId === 'string'
             ? context.patientId
-            : undefined;
+            : undefined
       const messageType =
-        typeof context?.message_type === "string"
+        typeof context?.message_type === 'string'
           ? context.message_type
-          : typeof context?.messageType === "string"
+          : typeof context?.messageType === 'string'
             ? context.messageType
-            : undefined;
+            : undefined
       const tone =
-        typeof context?.tone === "string"
+        typeof context?.tone === 'string'
           ? context.tone
-          : typeof context?.tone_type === "string"
+          : typeof context?.tone_type === 'string'
             ? context.tone_type
-            : undefined;
+            : undefined
       const maxLength =
-        typeof context?.max_length === "number"
+        typeof context?.max_length === 'number'
           ? context.max_length
-          : typeof context?.maxLength === "number"
+          : typeof context?.maxLength === 'number'
             ? context.maxLength
-            : undefined;
+            : undefined
       const useCache =
-        typeof context?.use_cache === "boolean"
+        typeof context?.use_cache === 'boolean'
           ? context.use_cache
-          : typeof context?.useCache === "boolean"
+          : typeof context?.useCache === 'boolean'
             ? context.useCache
-            : undefined;
+            : undefined
 
       return {
         message,
-        ...(patientId && patientId !== "all" ? { patient_id: patientId } : {}),
-        message_type: messageType as HumanizeRequest["message_type"] | undefined,
-        tone: tone as HumanizeRequest["tone"] | undefined,
+        ...(patientId && patientId !== 'all' ? { patient_id: patientId } : {}),
+        message_type: messageType as HumanizeRequest['message_type'] | undefined,
+        tone: tone as HumanizeRequest['tone'] | undefined,
         max_length: maxLength,
         use_cache: useCache ?? true,
         ...overrides,
-      };
-    };
+      }
+    }
 
     return {
-      health: () => this.get<AIHealthResponse>("/api/v2/ai/health"),
+      health: () => this.get<AIHealthResponse>('/api/v2/ai/health'),
 
       chat: async (message: string, context?: HumanizeContext) => {
         const response = await this.post<HumanizeResponse>(
-          "/api/v2/ai/humanize",
-          buildHumanizeRequest(message, context),
-        );
-        const confidence = Math.max(
-          0,
-          Math.min(1, (response.readability_score ?? 0) / 100),
-        );
+          '/api/v2/ai/humanize',
+          buildHumanizeRequest(message, context)
+        )
+        const confidence = Math.max(0, Math.min(1, (response.readability_score ?? 0) / 100))
         return {
           response: response.humanized_message,
           message: response.humanized_message,
@@ -651,99 +699,88 @@ export class ApiClient extends ApiClientCore {
             cache_info: response.cache_info,
             token_usage: response.token_usage,
           },
-        } as AIChatResponse;
+        } as AIChatResponse
       },
 
       analyze: async (data: unknown, analysisType: 'sentiment' | 'risk' | 'response') => {
-        if (analysisType === "sentiment") {
-          const payload = data as SentimentAnalysisPayload;
+        if (analysisType === 'sentiment') {
+          const payload = data as SentimentAnalysisPayload
           const message =
-            (typeof payload?.message === "string" && payload.message) ||
-            (typeof payload?.text === "string" && payload.text) ||
-            "";
+            (typeof payload?.message === 'string' && payload.message) ||
+            (typeof payload?.text === 'string' && payload.text) ||
+            ''
           const response = await this.post<Record<string, unknown>>(
-            "/api/v2/ai/analyze/sentiment",
+            '/api/v2/ai/analyze/sentiment',
             {
               message,
               patient_id: payload?.patient_id,
               include_medical_concerns: payload?.include_medical_concerns ?? true,
               include_urgency: payload?.include_urgency ?? true,
-            },
-          );
-          return { type: "sentiment", result: response } as AIAnalysisResponse;
+            }
+          )
+          return { type: 'sentiment', result: response } as AIAnalysisResponse
         }
-        if (analysisType === "risk") {
+        if (analysisType === 'risk') {
+          const response = await this.post<Record<string, unknown>>('/api/v2/ai/analyze/risk', data)
+          return { type: 'risk', result: response } as AIAnalysisResponse
+        }
+        if (analysisType === 'response') {
           const response = await this.post<Record<string, unknown>>(
-            "/api/v2/ai/analyze/risk",
-            data,
-          );
-          return { type: "risk", result: response } as AIAnalysisResponse;
+            '/api/v2/ai/analyze/response',
+            data
+          )
+          return { type: 'response', result: response } as AIAnalysisResponse
         }
-        if (analysisType === "response") {
-          const response = await this.post<Record<string, unknown>>(
-            "/api/v2/ai/analyze/response",
-            data,
-          );
-          return { type: "response", result: response } as AIAnalysisResponse;
-        }
-        throw new Error(`Unsupported analysis type: ${analysisType}`);
+        throw new Error(`Unsupported analysis type: ${analysisType}`)
       },
 
       generateResponse: async (
         patientId: string,
         messageHistory: Array<{ role: string; content: string }>,
-        intent?: string,
+        intent?: string
       ) => {
         const lastMessage = [...messageHistory]
           .reverse()
-          .find((entry) => entry.content?.trim())?.content;
+          .find((entry) => entry.content?.trim())?.content
         const template =
           lastMessage ||
           (intent
             ? `Gerar uma resposta empatica para o contexto: ${intent}`
-            : "Responder de forma empatica e profissional.");
+            : 'Responder de forma empatica e profissional.')
         const response = await this.post<HumanizeResponse>(
-          "/api/v2/ai/humanize",
-          buildHumanizeRequest(template, { patient_id: patientId }, { use_cache: false }),
-        );
+          '/api/v2/ai/humanize',
+          buildHumanizeRequest(template, { patient_id: patientId }, { use_cache: false })
+        )
         return {
           generated_response: response.humanized_message,
-          confidence: Math.max(
-            0,
-            Math.min(1, (response.readability_score ?? 0) / 100),
-          ),
+          confidence: Math.max(0, Math.min(1, (response.readability_score ?? 0) / 100)),
           alternative_responses: [],
-        } as AIGenerateResponseResponse;
+        } as AIGenerateResponseResponse
       },
 
       sentiment: async (text: string) => {
         const response = await this.post<{
-          sentiment?: string;
-          confidence?: number;
-        }>("/api/v2/ai/analyze/sentiment", { message: text });
-        const sentiment = response.sentiment === "positive" || response.sentiment === "negative"
-          ? response.sentiment
-          : "neutral";
-        const score =
-          sentiment === "positive" ? 0.8 : sentiment === "negative" ? 0.2 : 0.5;
+          sentiment?: string
+          confidence?: number
+        }>('/api/v2/ai/analyze/sentiment', { message: text })
+        const sentiment =
+          response.sentiment === 'positive' || response.sentiment === 'negative'
+            ? response.sentiment
+            : 'neutral'
+        const score = sentiment === 'positive' ? 0.8 : sentiment === 'negative' ? 0.2 : 0.5
         return {
           sentiment,
           score,
           confidence: response.confidence ?? 0,
-        } as SentimentAnalysisResponse;
+        } as SentimentAnalysisResponse
       },
 
       insights: (patientId: string, timeframe?: string) => {
-        if (!patientId || patientId === "all") {
-          return Promise.reject(
-            new Error("patientId is required for AI insights"),
-          );
+        if (!patientId || patientId === 'all') {
+          return Promise.reject(new Error('patientId is required for AI insights'))
         }
-        const days = timeframeToDays(timeframe);
-        return this.get<AIInsights>(
-          `/api/v2/ai/insights/${patientId}`,
-          days ? { days } : undefined,
-        );
+        const days = timeframeToDays(timeframe)
+        return this.get<AIInsights>(`/api/v2/ai/insights/${patientId}`, days ? { days } : undefined)
       },
 
       recommendations: (patientId: string) =>
@@ -765,19 +802,19 @@ export class ApiClient extends ApiClientCore {
       exportSummaryPdf: async (summaryId: string): Promise<Blob> => {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
-        };
-        Object.assign(headers, this.getSessionHeaders());
+        }
+        Object.assign(headers, this.getSessionHeaders())
         const response = await fetch(`${this.getBaseURL()}/api/v2/ai/summary/${summaryId}/pdf`, {
           method: 'GET',
           headers,
           credentials: 'include',
-        });
+        })
         if (!response.ok) {
-          throw new Error(`Failed to export PDF: ${response.statusText}`);
+          throw new Error(`Failed to export PDF: ${response.statusText}`)
         }
-        return response.blob();
+        return response.blob()
       },
-    };
+    }
   }
 
   /**
@@ -787,61 +824,81 @@ export class ApiClient extends ApiClientCore {
   private createQuizApi(): QuizApi {
     return {
       // Templates migrated to V2
-      templates: async (params?: Record<string, string | number | boolean>): Promise<QuizTemplateResponse> => {
-        const res = await this.get<unknown>("/api/v2/templates/quizzes", params)
-        return Array.isArray(res) ? { items: res as QuizTemplate[] } : res as QuizTemplateResponse
+      templates: async (
+        params?: Record<string, string | number | boolean>
+      ): Promise<QuizTemplateResponse> => {
+        const res = await this.get<unknown>('/api/v2/templates/quizzes', params)
+        return Array.isArray(res) ? { items: res as QuizTemplate[] } : (res as QuizTemplateResponse)
       },
 
       // Create a new quiz session (V2)
       start: (patientId: string, quizTemplateId: string) =>
-        this.post("/api/v2/quiz", {
+        this.post('/api/v2/quiz', {
           patient_id: patientId,
           quiz_template_id: quizTemplateId,
         }),
       // List sessions (V2) with cursor pagination; keep backward-compatible shape
       sessions: async (options?: QuizSessionListFilters) => {
-        const { size, limit, cursor, patient_id, ...rest } = options || {};
-        const effLimit = limit ?? size ?? 20;
-        const params: Record<string, string | number | boolean> = { limit: effLimit, ...(cursor ? { cursor } : {}), ...rest };
+        const { size, limit, cursor, patient_id, ...rest } = options || {}
+        const effLimit = limit ?? size ?? 20
+        const params: Record<string, string | number | boolean> = {
+          limit: effLimit,
+          ...(cursor ? { cursor } : {}),
+          ...rest,
+        }
 
         const endpoint = patient_id
           ? `/api/v2/quiz/patients/${patient_id}/quiz-responses`
-          : `/api/v2/quiz/sessions`;
+          : `/api/v2/quiz/sessions`
 
-        const res = await this.get<PaginatedResponse<QuizSession>>(endpoint, params);
-        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
-        return { data: items, items, total: res?.total ?? 0, has_more: res?.has_more, next_cursor: res?.next_cursor };
+        const res = await this.get<PaginatedResponse<QuizSession>>(endpoint, params)
+        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
+        return {
+          data: items,
+          items,
+          total: res?.total ?? 0,
+          has_more: res?.has_more,
+          next_cursor: res?.next_cursor,
+        }
       },
 
       // Session responses - migrated to V2
-      getSessionResponses: (sessionId: string) =>
-        this.get(`/api/v2/quiz/${sessionId}/responses`),
+      getSessionResponses: (sessionId: string) => this.get(`/api/v2/quiz/${sessionId}/responses`),
 
       // Session analysis - migrated to V2
-      getSessionAnalysis: (sessionId: string) =>
-        this.get(`/api/v2/quiz/${sessionId}/analysis`),
+      getSessionAnalysis: (sessionId: string) => this.get(`/api/v2/quiz/${sessionId}/analysis`),
 
       // Missing methods implementation
-      getSession: (sessionId: string) =>
-        this.get(`/api/v2/quiz/sessions/${sessionId}`),
+      getSession: (sessionId: string) => this.get(`/api/v2/quiz/sessions/${sessionId}`),
 
-      submitResponse: (sessionId: string, questionId: string, answer: string | string[], responseMetadata?: Record<string, unknown>) =>
+      submitResponse: (
+        sessionId: string,
+        questionId: string,
+        answer: string | string[],
+        responseMetadata?: Record<string, unknown>
+      ) =>
         this.post(`/api/v2/quiz/sessions/${sessionId}/responses`, {
           question_id: questionId,
           answer,
-          metadata: responseMetadata
+          metadata: responseMetadata,
         }),
 
-      getPatientResponses: async (patientId: string, options?: Record<string, unknown>): Promise<PatientQuizResponses> => {
-        const res = await this.get<PaginatedResponse<QuizSession>>(`/api/v2/quiz-extensions/responses`, { patient_id: patientId, ...options as Record<string, string | number | boolean> });
-        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? []);
+      getPatientResponses: async (
+        patientId: string,
+        options?: Record<string, unknown>
+      ): Promise<PatientQuizResponses> => {
+        const res = await this.get<PaginatedResponse<QuizSession>>(
+          `/api/v2/quiz-extensions/responses`,
+          { patient_id: patientId, ...(options as Record<string, string | number | boolean>) }
+        )
+        const items = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
         return {
           patient_id: patientId,
           sessions: items,
-          total: res?.total ?? 0
-        };
-      }
-    };
+          total: res?.total ?? 0,
+        }
+      },
+    }
   }
 
   /**
@@ -853,8 +910,13 @@ export class ApiClient extends ApiClientCore {
       listTemplates: (options) => this.quiz.templates(options),
 
       // Template CRUD - Fixed: uses /quizzes (plural) to match backend
-      createTemplate: (template: CreateQuizTemplateRequest) => this.post<QuizTemplate>("/api/v2/templates/quizzes", template as unknown as CreateFlowTemplateRequest),
-      create: (template: CreateQuizTemplateRequest) => this.post<QuizTemplate>("/api/v2/templates/quizzes", template),
+      createTemplate: (template: CreateQuizTemplateRequest) =>
+        this.post<QuizTemplate>(
+          '/api/v2/templates/quizzes',
+          template as unknown as CreateFlowTemplateRequest
+        ),
+      create: (template: CreateQuizTemplateRequest) =>
+        this.post<QuizTemplate>('/api/v2/templates/quizzes', template),
 
       updateTemplate: (templateId: string, data: UpdateFlowTemplateRequest) =>
         this.put(`/api/v2/templates/quizzes/${templateId}`, data),
@@ -865,28 +927,31 @@ export class ApiClient extends ApiClientCore {
       // Analytics endpoint
       getTemplateAnalytics: (templateId: string) =>
         this.get(`/api/v2/templates/quizzes/${templateId}/analytics`),
-    };
+    }
   }
 
   private createNotificationsApi(): NotificationsApi {
     return {
-      list: () => this.get("/api/v2/notifications"),
-    };
+      list: () => this.get('/api/v2/notifications'),
+    }
   }
 
   private createPhysicianApi(): PhysicianApi {
     return {
       riskAssessments: (patientId?: string, daysLookback?: number) => {
-        const params: Record<string, string | number> = {};
+        const params: Record<string, string | number> = {}
         if (patientId) {
-          params["patient_id"] = patientId;
+          params['patient_id'] = patientId
         }
         if (daysLookback) {
-          params["days_lookback"] = daysLookback;
+          params['days_lookback'] = daysLookback
         }
-        return this.get<PhysicianRiskAssessmentsResponse>("/api/v2/physician/risk-assessments", params);
+        return this.get<PhysicianRiskAssessmentsResponse>(
+          '/api/v2/physician/risk-assessments',
+          params
+        )
       },
-    };
+    }
   }
 
   /**
@@ -894,254 +959,290 @@ export class ApiClient extends ApiClientCore {
    */
   clearCache(): void {
     // Override if needed in the future for client-side caching
-    logger.log("Cache cleared");
+    logger.log('Cache cleared')
   }
 }
 
 // Type definitions for inline APIs
 interface MessagesListOptions extends MessageListFilters {
-  page?: number;
-  size?: number;
-  cursor?: string;
-  limit?: number;
+  page?: number
+  size?: number
+  cursor?: string
+  limit?: number
 }
 
 interface MessagesApi {
-  list: (options?: MessagesListOptions) => Promise<PaginatedResponse<Message>>;
-  get: (messageId: string) => Promise<Message>;
-  send: (data: SendMessageRequest) => Promise<Message>;
-  markAsRead: (messageId: string) => Promise<MessageResponse>;
-  delete: (messageId: string) => Promise<MessageResponse>;
-  getConversation: (patientId: string) => Promise<ConversationResponse>;
-  sendBulk: (data: BulkMessageRequest) => Promise<BulkMessageResponse>;
-  retry: (messageId: string) => Promise<Message>;
+  list: (options?: MessagesListOptions) => Promise<PaginatedResponse<Message>>
+  get: (messageId: string) => Promise<Message>
+  send: (data: SendMessageRequest) => Promise<Message>
+  markAsRead: (messageId: string) => Promise<MessageResponse>
+  delete: (messageId: string) => Promise<MessageResponse>
+  getConversation: (patientId: string) => Promise<ConversationResponse>
+  sendBulk: (data: BulkMessageRequest) => Promise<BulkMessageResponse>
+  retry: (messageId: string) => Promise<Message>
 }
 
 interface FlowsApi {
-  list: (options?: FlowListFilters) => Promise<PaginatedResponse<FlowState>>;
-  get: (flowId: string) => Promise<FlowTemplate>;
-  create: (data: CreateFlowTemplateRequest) => Promise<FlowTemplate>;
-  update: (flowId: string, data: UpdateFlowTemplateRequest) => Promise<FlowTemplate>;
-  delete: (flowId: string) => Promise<MessageResponse>;
-  activate: (flowId: string) => Promise<FlowTemplate>;
-  deactivate: (flowId: string) => Promise<FlowTemplate>;
-  execute: (flowId: string, data?: FlowAdvanceRequest) => Promise<FlowState>;
-  getExecutions: (flowId: string) => Promise<Array<Record<string, unknown>>>;
-  getState: (patientId: string) => Promise<FlowState>;
-  start: (patientId: string, flowType: string) => Promise<FlowState>;
-  advance: (patientId: string, day?: number) => Promise<FlowState>;
-  pause: (patientId: string) => Promise<FlowState>;
-  resume: (patientId: string) => Promise<FlowState>;
-  processResponse: (patientId: string, responseText: string, metadata?: Record<string, unknown>) => Promise<ResponseResult>;
-  getAnalytics: () => Promise<FlowAnalytics>;
-  getTemplates: () => Promise<FlowTemplate[]>;
-  createTemplate: (template: CreateFlowTemplateRequest) => Promise<FlowTemplate>;
-  updateTemplate: (templateId: string, data: UpdateFlowTemplateRequest) => Promise<FlowTemplate>;
-  deleteTemplate: (templateId: string) => Promise<MessageResponse>;
+  list: (options?: FlowListFilters) => Promise<PaginatedResponse<FlowState>>
+  get: (flowId: string) => Promise<FlowTemplate>
+  create: (data: CreateFlowTemplateRequest) => Promise<FlowTemplate>
+  update: (flowId: string, data: UpdateFlowTemplateRequest) => Promise<FlowTemplate>
+  delete: (flowId: string) => Promise<MessageResponse>
+  activate: (flowId: string) => Promise<FlowTemplate>
+  deactivate: (flowId: string) => Promise<FlowTemplate>
+  execute: (flowId: string, data?: FlowAdvanceRequest) => Promise<FlowState>
+  getExecutions: (flowId: string) => Promise<Array<Record<string, unknown>>>
+  getState: (patientId: string) => Promise<FlowState>
+  start: (patientId: string, flowType: string) => Promise<FlowState>
+  advance: (patientId: string, day?: number) => Promise<FlowState>
+  pause: (patientId: string) => Promise<FlowState>
+  resume: (patientId: string) => Promise<FlowState>
+  processResponse: (
+    patientId: string,
+    responseText: string,
+    metadata?: Record<string, unknown>
+  ) => Promise<ResponseResult>
+  getAnalytics: () => Promise<FlowAnalytics>
+  getTemplates: () => Promise<FlowTemplate[]>
+  createTemplate: (template: CreateFlowTemplateRequest) => Promise<FlowTemplate>
+  updateTemplate: (templateId: string, data: UpdateFlowTemplateRequest) => Promise<FlowTemplate>
+  deleteTemplate: (templateId: string) => Promise<MessageResponse>
 }
 
 interface AlertsListOptions extends AlertListFilters {
-  page?: number;
-  size?: number;
-  cursor?: string;
-  limit?: number;
+  page?: number
+  size?: number
+  cursor?: string
+  limit?: number
 }
 
 interface AlertsApi {
-  list: (options?: AlertsListOptions) => Promise<PaginatedResponse<Alert>>;
-  get: (alertId: string) => Promise<Alert>;
-  create: (data: CreateAlertRequest) => Promise<Alert>;
-  update: (alertId: string, data: UpdateAlertRequest) => Promise<Alert>;
-  delete: (alertId: string) => Promise<MessageResponse>;
-  markAsRead: (alertId: string) => Promise<MessageResponse>;
-  markAllAsRead: () => Promise<MessageResponse>;
-  getUnreadCount: () => Promise<UnreadCountResponse>;
-  acknowledge: (alertId: string) => Promise<MessageResponse>;
-  resolve: (alertId: string) => Promise<MessageResponse>;
+  list: (options?: AlertsListOptions) => Promise<PaginatedResponse<Alert>>
+  get: (alertId: string) => Promise<Alert>
+  create: (data: CreateAlertRequest) => Promise<Alert>
+  update: (alertId: string, data: UpdateAlertRequest) => Promise<Alert>
+  delete: (alertId: string) => Promise<MessageResponse>
+  markAsRead: (alertId: string) => Promise<MessageResponse>
+  markAllAsRead: () => Promise<MessageResponse>
+  getUnreadCount: () => Promise<UnreadCountResponse>
+  acknowledge: (alertId: string) => Promise<MessageResponse>
+  resolve: (alertId: string) => Promise<MessageResponse>
 }
 
 interface ReportsListOptions extends ReportListFilters {
-  page?: number;
-  size?: number;
-  cursor?: string;
-  limit?: number;
+  page?: number
+  size?: number
+  cursor?: string
+  limit?: number
 }
 
 type ReportGenerationConfig = {
-  title?: string;
-  format?: string;
-  start_date?: string;
-  end_date?: string;
-  include_messages?: boolean;
-  include_quizzes?: boolean;
-  include_alerts?: boolean;
-  include_timeline?: boolean;
-};
+  title?: string
+  format?: string
+  start_date?: string
+  end_date?: string
+  include_messages?: boolean
+  include_quizzes?: boolean
+  include_alerts?: boolean
+  include_timeline?: boolean
+}
 
 interface ReportsApi {
-  list: (options?: ReportsListOptions) => Promise<PaginatedResponse<Report>>;
-  generate: (patientId: string, reportType: string, config?: ReportGenerationConfig) => Promise<Report>;
-  download: (reportId: string, format?: "pdf" | "excel" | "csv") => Promise<Blob>;
-  delete: (reportId: string) => Promise<MessageResponse>;
-  schedule: (data: ScheduleReportRequest) => Promise<ScheduledReport>;
-  getScheduled: () => Promise<ScheduledReport[]>;
+  list: (options?: ReportsListOptions) => Promise<PaginatedResponse<Report>>
+  generate: (
+    patientId: string,
+    reportType: string,
+    config?: ReportGenerationConfig
+  ) => Promise<Report>
+  download: (reportId: string, format?: 'pdf' | 'excel' | 'csv') => Promise<Blob>
+  delete: (reportId: string) => Promise<MessageResponse>
+  schedule: (data: ScheduleReportRequest) => Promise<ScheduledReport>
+  getScheduled: () => Promise<ScheduledReport[]>
 }
 
 interface AdminApi {
   users: {
-    list: (page?: number, size?: number) => Promise<AdminUser[]>;
-    get: (userId: string) => Promise<AdminUser>;
-    create: (data: CreateUserRequest) => Promise<AdminUser>;
-    update: (userId: string, data: UpdateUserRequest) => Promise<AdminUser>;
-    delete: (userId: string) => Promise<MessageResponse>;
-    resetPassword: (userId: string, payload?: ResetPasswordRequest) => Promise<MessageResponse>;
-    toggleStatus: (userId: string) => Promise<MessageResponse>;
-  };
+    list: (page?: number, size?: number) => Promise<AdminUser[]>
+    get: (userId: string) => Promise<AdminUser>
+    create: (data: CreateUserRequest) => Promise<AdminUser>
+    update: (userId: string, data: UpdateUserRequest) => Promise<AdminUser>
+    delete: (userId: string) => Promise<MessageResponse>
+    resetPassword: (userId: string, payload?: ResetPasswordRequest) => Promise<MessageResponse>
+    toggleStatus: (userId: string) => Promise<MessageResponse>
+  }
   roles: {
-    list: () => Promise<Role[]>;
-    create: (data: CreateRoleRequest) => Promise<Role>;
-    update: (roleId: string, data: Partial<CreateRoleRequest>) => Promise<Role>;
-    delete: (roleId: string) => Promise<MessageResponse>;
-  };
+    list: () => Promise<Role[]>
+    create: (data: CreateRoleRequest) => Promise<Role>
+    update: (roleId: string, data: Partial<CreateRoleRequest>) => Promise<Role>
+    delete: (roleId: string) => Promise<MessageResponse>
+  }
   audit: {
-    list: (page?: number, size?: number, filters?: AuditLogFilters) => Promise<PaginatedResponse<AuditLogEntry>>;
-    get: (auditId: string) => Promise<AuditLogEntry>;
-    export: (filters?: AuditLogFilters) => Promise<Blob>;
-  };
+    list: (
+      page?: number,
+      size?: number,
+      filters?: AuditLogFilters
+    ) => Promise<PaginatedResponse<AuditLogEntry>>
+    get: (auditId: string) => Promise<AuditLogEntry>
+    export: (filters?: AuditLogFilters) => Promise<Blob>
+  }
   settings: {
-    get: () => Promise<SystemSettings>;
-    update: (data: Partial<SystemSettings>) => Promise<SystemSettings>;
-    reset: () => Promise<MessageResponse>;
-  };
+    get: () => Promise<SystemSettings>
+    update: (data: Partial<SystemSettings>) => Promise<SystemSettings>
+    reset: () => Promise<MessageResponse>
+  }
   system: {
-    getHealth: () => Promise<SystemHealth>;
-    getMetrics: () => Promise<SystemMetrics>;
-    systemStats: () => Promise<SystemStats>;
-    clearCache: () => Promise<MessageResponse>;
-    runMaintenance: () => Promise<MessageResponse>;
-  };
+    getHealth: () => Promise<SystemHealth>
+    getMetrics: () => Promise<SystemMetrics>
+    systemStats: () => Promise<SystemStats>
+    clearCache: () => Promise<MessageResponse>
+    runMaintenance: () => Promise<MessageResponse>
+  }
 }
 
 interface AdminUsersListOptions extends AdminUserListFilters {
-  page?: number;
-  size?: number;
+  page?: number
+  size?: number
 }
 
 interface AdminUserActivityOptions extends UserActivityFilters {
-  page?: number;
-  size?: number;
+  page?: number
+  size?: number
 }
 
 interface AdminUsersApi {
-  list: (options?: AdminUsersListOptions) => Promise<PaginatedResponse<AdminUser>>;
-  get: (userId: string) => Promise<AdminUser>;
-  create: (data: CreateUserRequest) => Promise<AdminUser>;
-  update: (userId: string, data: UpdateUserRequest) => Promise<AdminUser>;
-  delete: (userId: string) => Promise<MessageResponse>;
-  activate: (userId: string) => Promise<MessageResponse>;
-  deactivate: (userId: string) => Promise<MessageResponse>;
-  updatePermissions: (userId: string, permissions: string[]) => Promise<MessageResponse>;
-  updateRole: (userId: string, role: string) => Promise<MessageResponse>;
-  getActivity: (userId: string, options?: AdminUserActivityOptions) => Promise<PaginatedResponse<UserActivityEntry>>;
-  resetPassword: (userId: string, payload: ResetPasswordRequest) => Promise<MessageResponse>;
-  unlock: (userId: string) => Promise<MessageResponse>;
-  enable2FA: (userId: string) => Promise<MessageResponse>;
-  disable2FA: (userId: string) => Promise<MessageResponse>;
+  list: (options?: AdminUsersListOptions) => Promise<PaginatedResponse<AdminUser>>
+  get: (userId: string) => Promise<AdminUser>
+  create: (data: CreateUserRequest) => Promise<AdminUser>
+  update: (userId: string, data: UpdateUserRequest) => Promise<AdminUser>
+  delete: (userId: string) => Promise<MessageResponse>
+  activate: (userId: string) => Promise<MessageResponse>
+  deactivate: (userId: string) => Promise<MessageResponse>
+  updatePermissions: (userId: string, permissions: string[]) => Promise<MessageResponse>
+  updateRole: (userId: string, role: string) => Promise<MessageResponse>
+  getActivity: (
+    userId: string,
+    options?: AdminUserActivityOptions
+  ) => Promise<PaginatedResponse<UserActivityEntry>>
+  resetPassword: (userId: string, payload: ResetPasswordRequest) => Promise<MessageResponse>
+  unlock: (userId: string) => Promise<MessageResponse>
+  enable2FA: (userId: string) => Promise<MessageResponse>
+  disable2FA: (userId: string) => Promise<MessageResponse>
 }
 
 type HumanizeContext = {
-  patient_id?: string;
-  patientId?: string;
-  message_type?: string;
-  messageType?: string;
-  tone?: string;
-  tone_type?: string;
-  max_length?: number;
-  maxLength?: number;
-  use_cache?: boolean;
-  useCache?: boolean;
-};
+  patient_id?: string
+  patientId?: string
+  message_type?: string
+  messageType?: string
+  tone?: string
+  tone_type?: string
+  max_length?: number
+  maxLength?: number
+  use_cache?: boolean
+  useCache?: boolean
+}
 
 type SentimentAnalysisPayload = {
-  message?: string;
-  text?: string;
-  patient_id?: string;
-  include_medical_concerns?: boolean;
-  include_urgency?: boolean;
-};
+  message?: string
+  text?: string
+  patient_id?: string
+  include_medical_concerns?: boolean
+  include_urgency?: boolean
+}
 
 interface AiApi {
-  health: () => Promise<AIHealthResponse>;
-  chat: (message: string, context?: HumanizeContext) => Promise<AIChatResponse>;
-  analyze: (data: unknown, analysisType: 'sentiment' | 'risk' | 'response') => Promise<AIAnalysisResponse>;
-  generateResponse: (patientId: string, messageHistory: Array<{ role: string; content: string }>, intent?: string) => Promise<AIGenerateResponseResponse>;
-  sentiment: (text: string) => Promise<SentimentAnalysisResponse>;
-  insights: (patientId: string, timeframe?: string) => Promise<AIInsights>;
-  recommendations: (patientId: string) => Promise<AIRecommendations>;
+  health: () => Promise<AIHealthResponse>
+  chat: (message: string, context?: HumanizeContext) => Promise<AIChatResponse>
+  analyze: (
+    data: unknown,
+    analysisType: 'sentiment' | 'risk' | 'response'
+  ) => Promise<AIAnalysisResponse>
+  generateResponse: (
+    patientId: string,
+    messageHistory: Array<{ role: string; content: string }>,
+    intent?: string
+  ) => Promise<AIGenerateResponseResponse>
+  sentiment: (text: string) => Promise<SentimentAnalysisResponse>
+  insights: (patientId: string, timeframe?: string) => Promise<AIInsights>
+  recommendations: (patientId: string) => Promise<AIRecommendations>
   // Patient Summary API
-  generateSummary: (request: import('@/types/api').GenerateSummaryRequest) => Promise<import('@/types/api').PatientSummaryResponse>;
-  getSummaries: (patientId: string, limit?: number, offset?: number) => Promise<import('@/types/api').PatientSummaryListResponse>;
-  getSummary: (summaryId: string) => Promise<import('@/types/api').PatientSummaryResponse>;
-  exportSummaryPdf: (summaryId: string) => Promise<Blob>;
+  generateSummary: (
+    request: import('@/types/api').GenerateSummaryRequest
+  ) => Promise<import('@/types/api').PatientSummaryResponse>
+  getSummaries: (
+    patientId: string,
+    limit?: number,
+    offset?: number
+  ) => Promise<import('@/types/api').PatientSummaryListResponse>
+  getSummary: (summaryId: string) => Promise<import('@/types/api').PatientSummaryResponse>
+  exportSummaryPdf: (summaryId: string) => Promise<Blob>
 }
 
 interface QuizApi {
-  templates: (params?: Record<string, string | number | boolean>) => Promise<QuizTemplateResponse>;
-  start: (patientId: string, quizTemplateId: string) => Promise<QuizSession>;
-  getSession: (sessionId: string) => Promise<QuizSession>;
+  templates: (params?: Record<string, string | number | boolean>) => Promise<QuizTemplateResponse>
+  start: (patientId: string, quizTemplateId: string) => Promise<QuizSession>
+  getSession: (sessionId: string) => Promise<QuizSession>
   submitResponse: (
     sessionId: string,
     questionId: string,
     answer: string | string[],
-    responseMetadata?: Record<string, unknown>,
-  ) => Promise<MessageResponse>;
-  sessions: (filters?: QuizSessionListFilters) => Promise<PaginatedResponse<QuizSession>>;
-  getPatientResponses: (patientId: string, options?: Record<string, unknown>) => Promise<PatientQuizResponses>;
-  getSessionResponses: (sessionId: string) => Promise<QuizSessionResponses>;
-  getSessionAnalysis: (sessionId: string) => Promise<QuizSessionAnalysis>;
+    responseMetadata?: Record<string, unknown>
+  ) => Promise<MessageResponse>
+  sessions: (filters?: QuizSessionListFilters) => Promise<PaginatedResponse<QuizSession>>
+  getPatientResponses: (
+    patientId: string,
+    options?: Record<string, unknown>
+  ) => Promise<PatientQuizResponses>
+  getSessionResponses: (sessionId: string) => Promise<QuizSessionResponses>
+  getSessionAnalysis: (sessionId: string) => Promise<QuizSessionAnalysis>
 }
 
 interface QuizTemplatesApi {
-  list: (params?: Record<string, string | number | boolean>) => Promise<QuizTemplateResponse>;
-  listTemplates: (params?: Record<string, string | number | boolean>) => Promise<QuizTemplateResponse>;
-  createTemplate: (template: CreateQuizTemplateRequest) => Promise<QuizTemplate>;
-  create: (template: CreateQuizTemplateRequest) => Promise<QuizTemplate>;
-  updateTemplate: (templateId: string, data: UpdateQuizTemplateRequest) => Promise<QuizTemplate>;
-  deleteTemplate: (templateId: string) => Promise<MessageResponse>;
-  getTemplateAnalytics: (templateId: string) => Promise<QuizTemplateAnalytics>;
+  list: (params?: Record<string, string | number | boolean>) => Promise<QuizTemplateResponse>
+  listTemplates: (
+    params?: Record<string, string | number | boolean>
+  ) => Promise<QuizTemplateResponse>
+  createTemplate: (template: CreateQuizTemplateRequest) => Promise<QuizTemplate>
+  create: (template: CreateQuizTemplateRequest) => Promise<QuizTemplate>
+  updateTemplate: (templateId: string, data: UpdateQuizTemplateRequest) => Promise<QuizTemplate>
+  deleteTemplate: (templateId: string) => Promise<MessageResponse>
+  getTemplateAnalytics: (templateId: string) => Promise<QuizTemplateAnalytics>
 }
 
 interface CreateQuizTemplateRequest {
-  name: string;
-  description?: string;
+  name: string
+  description?: string
   questions: Array<{
-    question_text: string;
-    question_type: string;
-    options?: string[];
-    required?: boolean;
-  }>;
+    question_text: string
+    question_type: string
+    options?: string[]
+    required?: boolean
+  }>
 }
 
 interface UpdateQuizTemplateRequest extends Partial<CreateQuizTemplateRequest> {
-  is_active?: boolean;
+  is_active?: boolean
 }
 
 // QuizTemplate type imported from types.ts
 
 interface QuizTemplateAnalytics {
-  template_id: string;
-  total_sessions: number;
-  completed_sessions: number;
-  completion_rate: number;
-  average_score?: number;
+  template_id: string
+  total_sessions: number
+  completed_sessions: number
+  completion_rate: number
+  average_score?: number
 }
 
 interface NotificationsApi {
-  list: () => Promise<NotificationListResponse>;
+  list: () => Promise<NotificationListResponse>
 }
 
 interface PhysicianApi {
-  riskAssessments: (patientId?: string, daysLookback?: number) => Promise<PhysicianRiskAssessmentsResponse>;
+  riskAssessments: (
+    patientId?: string,
+    daysLookback?: number
+  ) => Promise<PhysicianRiskAssessmentsResponse>
 }
 
 /**
@@ -1157,45 +1258,47 @@ interface PhysicianApi {
 const getApiUrl = (): string => {
   // 1. Check runtime config (may be empty on initial load)
   if (API_BASE_URL && API_BASE_URL.length > 0) {
-    logger.debug('Using API_BASE_URL from runtime config:', API_BASE_URL);
-    return API_BASE_URL;
+    logger.debug('Using API_BASE_URL from runtime config:', API_BASE_URL)
+    return API_BASE_URL
   }
 
   // 2. Check VITE_API_BASE_URL (preferred for base domain)
-  if (import.meta.env["VITE_API_BASE_URL"]) {
-    const baseUrl = import.meta.env["VITE_API_BASE_URL"];
-    logger.debug('Using VITE_API_BASE_URL:', baseUrl);
-    return baseUrl;
+  if (import.meta.env['VITE_API_BASE_URL']) {
+    const baseUrl = import.meta.env['VITE_API_BASE_URL']
+    logger.debug('Using VITE_API_BASE_URL:', baseUrl)
+    return baseUrl
   }
 
   // 3. Check VITE_API_URL (full URL with /api/v2)
-  if (import.meta.env["VITE_API_URL"]) {
-    const apiUrl = import.meta.env["VITE_API_URL"];
+  if (import.meta.env['VITE_API_URL']) {
+    const apiUrl = import.meta.env['VITE_API_URL']
     // Extract base URL by removing /api/v2 suffix
-    const baseUrl = apiUrl.replace(/\/api\/v2$/, '');
-    logger.debug('Using VITE_API_URL (extracted base):', baseUrl);
-    return baseUrl;
+    const baseUrl = apiUrl.replace(/\/api\/v2$/, '')
+    logger.debug('Using VITE_API_URL (extracted base):', baseUrl)
+    return baseUrl
   }
 
   // 4. Auto-detect in production based on window location
   if (typeof window !== 'undefined') {
-    const { protocol, hostname } = window.location;
+    const { protocol, hostname } = window.location
 
     // Production environments (Railway, custom domains)
     if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-      const detectedUrl = `${protocol}//${hostname}`;
-      logger.debug('Auto-detected API URL from window location:', detectedUrl);
-      return detectedUrl;
+      const detectedUrl = `${protocol}//${hostname}`
+      logger.debug('Auto-detected API URL from window location:', detectedUrl)
+      return detectedUrl
     }
   }
 
   // 5. Development fallback
-  logger.debug('Using localhost fallback for development');
-  return import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_URL || "http://localhost:8000");
-};
+  logger.debug('Using localhost fallback for development')
+  return (
+    import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:8000'
+  )
+}
 
 // Create singleton instance
-export const apiClient = new ApiClient(getApiUrl());
+export const apiClient = new ApiClient(getApiUrl())
 
 // Default export
-export default apiClient;
+export default apiClient

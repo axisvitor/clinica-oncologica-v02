@@ -11,11 +11,11 @@ interface QuizResponsePDFExportProps {
   className?: string
 }
 
-export function QuizResponsePDFExport({ 
-  responses, 
-  analysis, 
+export function QuizResponsePDFExport({
+  responses,
+  analysis,
   patientName,
-  className 
+  className,
 }: QuizResponsePDFExportProps) {
   const printRef = useRef<HTMLDivElement>(null)
 
@@ -38,7 +38,7 @@ export function QuizResponsePDFExport({
         month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       })
     }
 
@@ -133,46 +133,70 @@ export function QuizResponsePDFExport({
             </div>
           </div>
 
-          ${analysis ? `
+          ${
+            analysis
+              ? `
             <div class="analysis-section">
               <h2>Análise de IA</h2>
               <div class="info-row">
                 <span><strong>Template:</strong> ${analysis.template_name} (v${analysis.template_version})</span>
-                ${analysis.risk_level ? `
+                ${
+                  analysis.risk_level
+                    ? `
                   <span class="risk-badge risk-${analysis.risk_level}">
                     RISCO: ${analysis.risk_level.toUpperCase()}
                   </span>
-                ` : ''}
+                `
+                    : ''
+                }
               </div>
               
-              ${analysis.risk_score !== undefined && analysis.risk_score !== null ? `
+              ${
+                analysis.risk_score !== undefined && analysis.risk_score !== null
+                  ? `
                 <div class="info-row">
                   <span><strong>Pontuação de Risco:</strong> ${analysis.risk_score.toFixed(1)}/100</span>
-                  ${analysis.sentiment_score !== undefined && analysis.sentiment_score !== null ? `
+                  ${
+                    analysis.sentiment_score !== undefined && analysis.sentiment_score !== null
+                      ? `
                     <span><strong>Sentimento:</strong> ${analysis.sentiment_score.toFixed(2)}</span>
-                  ` : ''}
+                  `
+                      : ''
+                  }
                 </div>
-              ` : ''}
+              `
+                  : ''
+              }
 
-              ${analysis.key_concerns && analysis.key_concerns.length > 0 ? `
+              ${
+                analysis.key_concerns && analysis.key_concerns.length > 0
+                  ? `
                 <div>
                   <h3>Preocupações Identificadas:</h3>
                   <ul class="concern-list">
-                    ${analysis.key_concerns.map(concern => `<li>${concern}</li>`).join('')}
+                    ${analysis.key_concerns.map((concern) => `<li>${concern}</li>`).join('')}
                   </ul>
                 </div>
-              ` : ''}
+              `
+                  : ''
+              }
 
-              ${analysis.recommendations && analysis.recommendations.length > 0 ? `
+              ${
+                analysis.recommendations && analysis.recommendations.length > 0
+                  ? `
                 <div>
                   <h3>Recomendações:</h3>
                   <ul class="recommendation-list">
-                    ${analysis.recommendations.map(rec => `<li>${rec}</li>`).join('')}
+                    ${analysis.recommendations.map((rec) => `<li>${rec}</li>`).join('')}
                   </ul>
                 </div>
-              ` : ''}
+              `
+                  : ''
+              }
             </div>
-          ` : ''}
+          `
+              : ''
+          }
 
           <h2>Respostas Detalhadas</h2>
           <table>
@@ -186,7 +210,9 @@ export function QuizResponsePDFExport({
               </tr>
             </thead>
             <tbody>
-              ${responses.map(response => `
+              ${responses
+                .map(
+                  (response) => `
                 <tr>
                   <td>${response.question_text}</td>
                   <td>
@@ -197,7 +223,9 @@ export function QuizResponsePDFExport({
                   <td>${response.template_name || 'N/A'}</td>
                   <td>${formatDate(response.responded_at)}</td>
                 </tr>
-              `).join('')}
+              `
+                )
+                .join('')}
             </tbody>
           </table>
 
@@ -216,18 +244,13 @@ export function QuizResponsePDFExport({
 
   return (
     <>
-      <Button 
-        onClick={handleExport} 
-        variant="outline"
-        className={className}
-      >
+      <Button onClick={handleExport} variant="outline" className={className}>
         <FileDown className="mr-2 h-4 w-4" />
         Exportar PDF
       </Button>
-      
+
       {/* Hidden div for reference (not used in this implementation) */}
       <div ref={printRef} style={{ display: 'none' }} />
     </>
   )
 }
-

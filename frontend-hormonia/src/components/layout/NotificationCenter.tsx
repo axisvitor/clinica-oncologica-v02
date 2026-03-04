@@ -8,11 +8,7 @@ import { useAuth } from '@/app/providers/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import type { NotificationListResponse, Notification } from '@/types/notification'
@@ -28,7 +24,7 @@ export function NotificationCenter() {
       return result as NotificationListResponse
     },
     enabled: !!user && !authLoading, // Only run when authenticated
-    refetchInterval: 30000 // Refresh every 30 seconds
+    refetchInterval: 30000, // Refresh every 30 seconds
   })
 
   const notifications = notificationsData?.items || []
@@ -104,8 +100,9 @@ export function NotificationCenter() {
                 return (
                   <div
                     key={notification.id}
-                    className={`p-4 hover:bg-gray-50 cursor-pointer ${!notification.is_read ? 'bg-blue-50' : ''
-                      }`}
+                    className={`p-4 hover:bg-gray-50 cursor-pointer ${
+                      !notification.is_read ? 'bg-blue-50' : ''
+                    }`}
                   >
                     <div className="flex items-start space-x-3">
                       <div className={`flex-shrink-0 ${iconColor}`}>
@@ -113,21 +110,22 @@ export function NotificationCenter() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <p className={`text-sm font-medium ${!notification.is_read ? 'text-gray-900' : 'text-gray-700'
-                            }`}>
+                          <p
+                            className={`text-sm font-medium ${
+                              !notification.is_read ? 'text-gray-900' : 'text-gray-700'
+                            }`}
+                          >
                             {notification.title}
                           </p>
                           {!notification.is_read && (
                             <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0" />
                           )}
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {notification.message}
-                        </p>
+                        <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
                         <p className="text-xs text-gray-400 mt-1">
                           {formatDistanceToNow(new Date(notification.created_at), {
                             addSuffix: true,
-                            locale: ptBR
+                            locale: ptBR,
                           })}
                         </p>
                       </div>

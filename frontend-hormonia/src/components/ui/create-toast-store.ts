@@ -34,10 +34,9 @@ type State<TToastProps, TActionElement> = {
   toasts: Array<ToasterToast<TToastProps, TActionElement>>
 }
 
-export function createToastStore<
-  TToastProps extends Record<string, unknown>,
-  TActionElement,
->(config: ToastStoreConfig = {}) {
+export function createToastStore<TToastProps extends Record<string, unknown>, TActionElement>(
+  config: ToastStoreConfig = {}
+) {
   const TOAST_LIMIT = config.limit ?? 1
   const TOAST_REMOVE_DELAY = config.removeDelay ?? 1000000
 
@@ -166,9 +165,7 @@ export function createToastStore<
   }
 
   function useToast() {
-    const [state, setState] = React.useState<State<TToastProps, TActionElement>>(
-      memoryState
-    )
+    const [state, setState] = React.useState<State<TToastProps, TActionElement>>(memoryState)
 
     React.useEffect(() => {
       listeners.push(setState)

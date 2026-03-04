@@ -21,7 +21,7 @@ interface LoadingStateProps {
 
 export const LoadingState: React.FC<LoadingStateProps> = ({
   message = 'Loading\u2026',
-  className = ''
+  className = '',
 }) => (
   <div className={`flex flex-col items-center justify-center p-8 ${className}`}>
     <LoadingSpinner size="lg" className="mb-4" />
@@ -35,11 +35,7 @@ interface ErrorStateProps {
   className?: string
 }
 
-export const ErrorState: React.FC<ErrorStateProps> = ({
-  error,
-  onRetry,
-  className = ''
-}) => {
+export const ErrorState: React.FC<ErrorStateProps> = ({ error, onRetry, className = '' }) => {
   const errorMessage = typeof error === 'string' ? error : error.message
 
   return (
@@ -49,10 +45,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({
       <AlertDescription className="flex flex-col gap-2">
         <span>{errorMessage}</span>
         {onRetry && (
-          <button
-            onClick={onRetry}
-            className="text-sm underline hover:no-underline"
-          >
+          <button onClick={onRetry} className="text-sm underline hover:no-underline">
             Try again
           </button>
         )}
@@ -77,20 +70,15 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   description,
   action,
   icon,
-  className = ''
+  className = '',
 }) => (
   <Card className={className}>
     <CardContent className="flex flex-col items-center justify-center p-8 text-center">
       {icon || <Info className="h-12 w-12 text-muted-foreground mb-4" />}
       <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      {description && (
-        <p className="text-muted-foreground mb-4">{description}</p>
-      )}
+      {description && <p className="text-muted-foreground mb-4">{description}</p>}
       {action && (
-        <button
-          onClick={action.onClick}
-          className="text-primary underline hover:no-underline"
-        >
+        <button onClick={action.onClick} className="text-primary underline hover:no-underline">
           {action.label}
         </button>
       )}
@@ -107,16 +95,12 @@ interface SuccessStateProps {
 export const SuccessState: React.FC<SuccessStateProps> = ({
   title,
   description,
-  className = ''
+  className = '',
 }) => (
   <Alert className={`border-green-200 bg-green-50 ${className}`}>
     <CheckCircle className="h-4 w-4 text-green-600" />
     <AlertTitle className="text-green-900">{title}</AlertTitle>
-    {description && (
-      <AlertDescription className="text-green-800">
-        {description}
-      </AlertDescription>
-    )}
+    {description && <AlertDescription className="text-green-800">{description}</AlertDescription>}
   </Alert>
 )
 
@@ -132,7 +116,7 @@ export const ConnectionStatus: React.FC<{ isConnected: boolean }> = ({ isConnect
 
 export const LoadingButton: React.FC<{ loading: boolean; children: React.ReactNode }> = ({
   loading,
-  children
+  children,
 }) => (
   <button disabled={loading} className="relative">
     {loading && (
@@ -150,5 +134,5 @@ export default {
   EmptyState,
   SuccessState,
   ConnectionStatus,
-  LoadingButton
+  LoadingButton,
 }

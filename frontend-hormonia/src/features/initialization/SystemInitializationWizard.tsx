@@ -35,7 +35,7 @@ interface SystemInitializationWizardProps {
 export function SystemInitializationWizard({
   onComplete,
   autoStart = false,
-  skipWelcome = false
+  skipWelcome = false,
 }: SystemInitializationWizardProps) {
   const { toast } = useToast()
   const [currentStep, setCurrentStep] = useState(0)
@@ -48,7 +48,7 @@ export function SystemInitializationWizard({
       description: 'Configuração inicial do sistema',
       component: WelcomeFlow,
       required: !skipWelcome,
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'environment',
@@ -56,7 +56,7 @@ export function SystemInitializationWizard({
       description: 'Verificação das configurações do ambiente',
       component: EnvironmentSetup,
       required: true,
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'database',
@@ -64,7 +64,7 @@ export function SystemInitializationWizard({
       description: 'Conexão e verificação do banco de dados',
       component: DatabaseChecker,
       required: true,
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'services',
@@ -72,7 +72,7 @@ export function SystemInitializationWizard({
       description: 'Verificação dos serviços externos',
       component: ServiceMonitor,
       required: false,
-      status: 'pending'
+      status: 'pending',
     },
     {
       id: 'user-setup',
@@ -80,19 +80,19 @@ export function SystemInitializationWizard({
       description: 'Configuração do primeiro usuário administrador',
       component: InitialUserSetup,
       required: true,
-      status: 'pending'
-    }
+      status: 'pending',
+    },
   ])
 
-  const totalSteps = initializationSteps.filter(step => step.required || !skipWelcome).length
-  const completedSteps = initializationSteps.filter(step => step.status === 'completed').length
+  const totalSteps = initializationSteps.filter((step) => step.required || !skipWelcome).length
+  const completedSteps = initializationSteps.filter((step) => step.status === 'completed').length
   const progress = Math.round((completedSteps / totalSteps) * 100)
 
   useEffect(() => {
     if (autoStart && !hasStarted) {
       handleStart()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleStart is stable and only called on auto-start condition
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handleStart is stable and only called on auto-start condition
   }, [autoStart, hasStarted])
 
   const handleStart = () => {
@@ -112,13 +112,13 @@ export function SystemInitializationWizard({
     })
   }
 
-  const updateStepStatus = (stepId: string, status: InitializationStep['status'], error?: string) => {
-    setInitializationSteps(prev =>
-      prev.map(step =>
-        step.id === stepId
-          ? { ...step, status, error }
-          : step
-      )
+  const updateStepStatus = (
+    stepId: string,
+    status: InitializationStep['status'],
+    error?: string
+  ) => {
+    setInitializationSteps((prev) =>
+      prev.map((step) => (step.id === stepId ? { ...step, status, error } : step))
     )
   }
 
@@ -155,7 +155,7 @@ export function SystemInitializationWizard({
     toast({
       title: 'Erro na Inicialização',
       description: `Falha na etapa: ${currentStepData.title}`,
-      variant: 'destructive'
+      variant: 'destructive',
     })
   }
 
@@ -184,7 +184,7 @@ export function SystemInitializationWizard({
     toast({
       title: 'Inicialização Concluída',
       description: 'Sistema configurado com sucesso!',
-      variant: 'default'
+      variant: 'default',
     })
 
     onComplete()
@@ -208,11 +208,19 @@ export function SystemInitializationWizard({
   const getStatusBadge = (status: InitializationStep['status']) => {
     switch (status) {
       case 'completed':
-        return <Badge variant="default" className="bg-green-100 text-green-800">Concluído</Badge>
+        return (
+          <Badge variant="default" className="bg-green-100 text-green-800">
+            Concluído
+          </Badge>
+        )
       case 'error':
         return <Badge variant="destructive">Erro</Badge>
       case 'running':
-        return <Badge variant="default" className="bg-blue-100 text-blue-800">Em Execução</Badge>
+        return (
+          <Badge variant="default" className="bg-blue-100 text-blue-800">
+            Em Execução
+          </Badge>
+        )
       case 'skipped':
         return <Badge variant="secondary">Ignorado</Badge>
       default:
@@ -237,14 +245,10 @@ export function SystemInitializationWizard({
               <div className="text-center">
                 <Play className="w-16 h-16 mx-auto text-blue-500 mb-4" />
                 <p className="text-gray-600 mb-6">
-                  O assistente de configuração irá verificar as conexões necessárias
-                  e configurar o sistema automaticamente.
+                  O assistente de configuração irá verificar as conexões necessárias e configurar o
+                  sistema automaticamente.
                 </p>
-                <Button
-                  onClick={handleStart}
-                  size="lg"
-                  className="w-full sm:w-auto px-8"
-                >
+                <Button onClick={handleStart} size="lg" className="w-full sm:w-auto px-8">
                   Iniciar Configuração
                 </Button>
               </div>
@@ -292,14 +296,13 @@ export function SystemInitializationWizard({
                   {initializationSteps.map((step, index) => (
                     <div
                       key={step.id}
-                      className={`flex items-start space-x-3 p-3 rounded-lg transition-colors ${index === currentStep
-                        ? 'bg-blue-50 border border-blue-200'
-                        : 'hover:bg-gray-50'
-                        }`}
+                      className={`flex items-start space-x-3 p-3 rounded-lg transition-colors ${
+                        index === currentStep
+                          ? 'bg-blue-50 border border-blue-200'
+                          : 'hover:bg-gray-50'
+                      }`}
                     >
-                      <div className="flex-shrink-0 mt-0.5">
-                        {getStatusIcon(step.status)}
-                      </div>
+                      <div className="flex-shrink-0 mt-0.5">{getStatusIcon(step.status)}</div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <h4 className="text-sm font-medium text-gray-900 truncate">
@@ -307,14 +310,8 @@ export function SystemInitializationWizard({
                           </h4>
                           {getStatusBadge(step.status)}
                         </div>
-                        <p className="text-xs text-gray-600 mt-1">
-                          {step.description}
-                        </p>
-                        {step.error && (
-                          <p className="text-xs text-red-600 mt-1">
-                            {step.error}
-                          </p>
-                        )}
+                        <p className="text-xs text-gray-600 mt-1">{step.description}</p>
+                        {step.error && <p className="text-xs text-red-600 mt-1">{step.error}</p>}
                       </div>
                     </div>
                   ))}

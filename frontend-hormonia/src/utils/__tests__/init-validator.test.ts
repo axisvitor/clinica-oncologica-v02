@@ -2,215 +2,222 @@
  * Tests for Frontend Initialization Validator
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { FrontendInitValidator, validateFrontendInit } from '../init-validator';
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { FrontendInitValidator, validateFrontendInit } from '../init-validator'
 
 // Mock dependencies
 vi.mock('../../lib/runtime-config', () => ({
-  getRuntimeConfig: vi.fn(() => Promise.resolve({
-    VITE_API_URL: 'http://localhost:8000/api/v2',
-    VITE_API_BASE_URL: 'http://localhost:8000',
-    VITE_ENVIRONMENT: 'test'
-  }))
-}));
+  getRuntimeConfig: vi.fn(() =>
+    Promise.resolve({
+      VITE_API_URL: 'http://localhost:8000/api/v2',
+      VITE_API_BASE_URL: 'http://localhost:8000',
+      VITE_ENVIRONMENT: 'test',
+    })
+  ),
+}))
 
 vi.mock('../../lib/api-client', () => ({
   apiClient: {
-    getBaseURL: () => 'http://localhost:8000'
-  }
-}));
+    getBaseURL: () => 'http://localhost:8000',
+  },
+}))
 
 vi.mock('../../lib/logger', () => ({
   createLogger: () => ({
     info: vi.fn(),
     error: vi.fn(),
     warn: vi.fn(),
-    debug: vi.fn()
-  })
-}));
+    debug: vi.fn(),
+  }),
+}))
 
 describe('FrontendInitValidator', () => {
-  let validator: FrontendInitValidator;
+  let validator: FrontendInitValidator
 
   beforeEach(() => {
-    validator = new FrontendInitValidator();
+    validator = new FrontendInitValidator()
     // Reset fetch mock
-    global.fetch = vi.fn();
-  });
+    global.fetch = vi.fn()
+  })
 
   describe('validateEnvironment', () => {
     it('should pass with all required variables', async () => {
-      await validator['validateEnvironment']();
+      await validator['validateEnvironment']()
 
-      const envResult = validator['results'].find(r => r.component === 'Environment Variables');
-      expect(envResult).toBeDefined();
-      expect(envResult?.valid).toBe(true);
-    });
-  });
+      const envResult = validator['results'].find((r) => r.component === 'Environment Variables')
+      expect(envResult).toBeDefined()
+      expect(envResult?.valid).toBe(true)
+    })
+  })
 
   describe('validateBrowser', () => {
     it('should detect browser features', async () => {
       // Mock browser features
-      Object.defineProperty(window, 'fetch', { value: vi.fn(), writable: true });
+      Object.defineProperty(window, 'fetch', { value: vi.fn(), writable: true })
       Object.defineProperty(window, 'localStorage', {
         value: {
           setItem: vi.fn(),
           getItem: vi.fn(),
-          removeItem: vi.fn()
+          removeItem: vi.fn(),
         },
-        writable: true
-      });
+        writable: true,
+      })
 
-      await validator['validateBrowser']();
+      await validator['validateBrowser']()
 
-      const browserResult = validator['results'].find(r => r.component === 'Browser Compatibility');
-      expect(browserResult).toBeDefined();
-      expect(browserResult?.details?.features).toBeDefined();
-    });
+      const browserResult = validator['results'].find(
+        (r) => r.component === 'Browser Compatibility'
+      )
+      expect(browserResult).toBeDefined()
+      expect(browserResult?.details?.features).toBeDefined()
+    })
 
     it('should detect missing features', async () => {
       // Remove a feature
-      const originalFetch = global.fetch;
+      const originalFetch = global.fetch
       // @ts-ignore
-      delete global.fetch;
+      delete global.fetch
 
-      await validator['validateBrowser']();
+      await validator['validateBrowser']()
 
-      const browserResult = validator['results'].find(r => r.component === 'Browser Compatibility');
-      expect(browserResult).toBeDefined();
+      const browserResult = validator['results'].find(
+        (r) => r.component === 'Browser Compatibility'
+      )
+      expect(browserResult).toBeDefined()
 
       // Restore
-      global.fetch = originalFetch;
-    });
-  });
+      global.fetch = originalFetch
+    })
+  })
 
   describe('validateConfiguration', () => {
     it('should validate API URL format', async () => {
-      await validator['validateConfiguration']();
+      await validator['validateConfiguration']()
 
-      const configResult = validator['results'].find(r => r.component === 'Configuration');
-      expect(configResult).toBeDefined();
-      expect(configResult?.valid).toBe(true);
-    });
-  });
+      const configResult = validator['results'].find((r) => r.component === 'Configuration')
+      expect(configResult).toBeDefined()
+      expect(configResult?.valid).toBe(true)
+    })
+  })
 
   describe('validateAPIConnectivity', () => {
     it('should pass when API is healthy', async () => {
       global.fetch = vi.fn(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({
-            status: 'healthy',
-            version: '2.0.0'
-          })
+          json: () =>
+            Promise.resolve({
+              status: 'healthy',
+              version: '2.0.0',
+            }),
         } as Response)
-      );
+      )
 
-      await validator['validateAPIConnectivity']();
+      await validator['validateAPIConnectivity']()
 
-      const apiResult = validator['results'].find(r => r.component === 'API Connectivity');
-      expect(apiResult).toBeDefined();
-      expect(apiResult?.valid).toBe(true);
-    });
+      const apiResult = validator['results'].find((r) => r.component === 'API Connectivity')
+      expect(apiResult).toBeDefined()
+      expect(apiResult?.valid).toBe(true)
+    })
 
     it('should fail when API is unreachable', async () => {
-      global.fetch = vi.fn(() => Promise.reject(new Error('Network error')));
+      global.fetch = vi.fn(() => Promise.reject(new Error('Network error')))
 
-      await validator['validateAPIConnectivity']();
+      await validator['validateAPIConnectivity']()
 
-      const apiResult = validator['results'].find(r => r.component === 'API Connectivity');
-      expect(apiResult).toBeDefined();
-      expect(apiResult?.valid).toBe(false);
-    });
+      const apiResult = validator['results'].find((r) => r.component === 'API Connectivity')
+      expect(apiResult).toBeDefined()
+      expect(apiResult?.valid).toBe(false)
+    })
 
     it('should fail when API returns error status', async () => {
       global.fetch = vi.fn(() =>
         Promise.resolve({
           ok: false,
           status: 500,
-          statusText: 'Internal Server Error'
+          statusText: 'Internal Server Error',
         } as Response)
-      );
+      )
 
-      await validator['validateAPIConnectivity']();
+      await validator['validateAPIConnectivity']()
 
-      const apiResult = validator['results'].find(r => r.component === 'API Connectivity');
-      expect(apiResult).toBeDefined();
-      expect(apiResult?.valid).toBe(false);
-    });
-  });
+      const apiResult = validator['results'].find((r) => r.component === 'API Connectivity')
+      expect(apiResult).toBeDefined()
+      expect(apiResult?.valid).toBe(false)
+    })
+  })
 
   describe('validateFeatures', () => {
     it('should validate required features', async () => {
-      await validator['validateFeatures']();
+      await validator['validateFeatures']()
 
-      const featuresResult = validator['results'].find(r => r.component === 'Features');
-      expect(featuresResult).toBeDefined();
-      expect(featuresResult?.valid).toBe(true);
-    });
-  });
+      const featuresResult = validator['results'].find((r) => r.component === 'Features')
+      expect(featuresResult).toBeDefined()
+      expect(featuresResult?.valid).toBe(true)
+    })
+  })
 
   describe('validate', () => {
     it('should run all validation checks', async () => {
       global.fetch = vi.fn(() =>
         Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ status: 'healthy', version: '2.0.0' })
+          json: () => Promise.resolve({ status: 'healthy', version: '2.0.0' }),
         } as Response)
-      );
+      )
 
-      const results = await validator.validate();
+      const results = await validator.validate()
 
-      expect(results.overall).toBeDefined();
-      expect(results.results.length).toBeGreaterThan(0);
-      expect(results.timestamp).toBeDefined();
-    });
+      expect(results.overall).toBeDefined()
+      expect(results.results.length).toBeGreaterThan(0)
+      expect(results.timestamp).toBeDefined()
+    })
 
     it('should set overall to false if any check fails', async () => {
       // Make API check fail
-      global.fetch = vi.fn(() => Promise.reject(new Error('Network error')));
+      global.fetch = vi.fn(() => Promise.reject(new Error('Network error')))
 
-      const results = await validator.validate();
+      const results = await validator.validate()
 
-      expect(results.overall).toBe(false);
-    });
-  });
+      expect(results.overall).toBe(false)
+    })
+  })
 
   describe('checkLocalStorage', () => {
     it('should return true when localStorage is available', () => {
-      const result = validator['checkLocalStorage']();
-      expect(result).toBe(true);
-    });
+      const result = validator['checkLocalStorage']()
+      expect(result).toBe(true)
+    })
 
     it('should return false when localStorage throws error', () => {
-      const originalSetItem = Storage.prototype.setItem;
+      const originalSetItem = Storage.prototype.setItem
       Storage.prototype.setItem = () => {
-        throw new Error('QuotaExceeded');
-      };
+        throw new Error('QuotaExceeded')
+      }
 
-      const result = validator['checkLocalStorage']();
-      expect(result).toBe(false);
+      const result = validator['checkLocalStorage']()
+      expect(result).toBe(false)
 
       // Restore
-      Storage.prototype.setItem = originalSetItem;
-    });
-  });
-});
+      Storage.prototype.setItem = originalSetItem
+    })
+  })
+})
 
 describe('validateFrontendInit', () => {
   it('should return validation results', async () => {
     global.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ status: 'healthy', version: '2.0.0' })
+        json: () => Promise.resolve({ status: 'healthy', version: '2.0.0' }),
       } as Response)
-    );
+    )
 
-    const results = await validateFrontendInit();
+    const results = await validateFrontendInit()
 
-    expect(results).toBeDefined();
-    expect(results.overall).toBeDefined();
-    expect(results.results).toBeDefined();
-    expect(Array.isArray(results.results)).toBe(true);
-  });
-});
+    expect(results).toBeDefined()
+    expect(results.overall).toBeDefined()
+    expect(results.results).toBeDefined()
+    expect(Array.isArray(results.results)).toBe(true)
+  })
+})

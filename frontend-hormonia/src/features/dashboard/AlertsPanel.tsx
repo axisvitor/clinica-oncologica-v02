@@ -49,7 +49,10 @@ function normalizeAlert(a: IncomingAlert): UIAlert {
     title: alertRecord['title'] as string,
     message: alertRecord['message'] as string,
     patient_name: alertRecord['patient_name'] as string | undefined,
-    is_acknowledged: (alertRecord['is_acknowledged'] as boolean) ?? (alertRecord['acknowledged'] as boolean) ?? false,
+    is_acknowledged:
+      (alertRecord['is_acknowledged'] as boolean) ??
+      (alertRecord['acknowledged'] as boolean) ??
+      false,
     created_at: alertRecord['created_at'] as string,
   }
 }
@@ -58,7 +61,7 @@ export function AlertsPanel({ alerts: propAlerts }: AlertsPanelProps) {
   const { data: alertsData, isLoading } = useQuery({
     queryKey: ['alerts', { page: 1, size: 5 }],
     queryFn: () => apiClient.alerts.list({ page: 1, size: 5 }),
-    refetchInterval: 30000 // Refresh every 30 seconds
+    refetchInterval: 30000, // Refresh every 30 seconds
   })
 
   const alerts: UIAlert[] = (propAlerts || alertsData?.items || []).map(normalizeAlert)
@@ -113,9 +116,7 @@ export function AlertsPanel({ alerts: propAlerts }: AlertsPanelProps) {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle>Alertas Ativos</CardTitle>
-            <CardDescription>
-              Alertas que requerem atenção
-            </CardDescription>
+            <CardDescription>Alertas que requerem atenção</CardDescription>
           </div>
           <Button variant="outline" size="sm" asChild>
             <Link to="/alerts">
@@ -134,9 +135,7 @@ export function AlertsPanel({ alerts: propAlerts }: AlertsPanelProps) {
           <div className="text-center py-8">
             <CheckCircle className="mx-auto h-12 w-12 text-green-500 mb-4" />
             <p className="text-gray-500">Nenhum alerta ativo</p>
-            <p className="text-sm text-gray-400">
-              Todos os alertas foram resolvidos
-            </p>
+            <p className="text-sm text-gray-400">Todos os alertas foram resolvidos</p>
           </div>
         ) : (
           <ScrollArea className="h-[300px]">
@@ -150,7 +149,9 @@ export function AlertsPanel({ alerts: propAlerts }: AlertsPanelProps) {
                     key={alert.id}
                     className="flex items-start space-x-3 p-3 rounded-lg border bg-white hover:bg-gray-50 transition-colors"
                   >
-                    <div className={`flex items-center justify-center w-8 h-8 rounded-full ${severityColor}`}>
+                    <div
+                      className={`flex items-center justify-center w-8 h-8 rounded-full ${severityColor}`}
+                    >
                       <Icon className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -158,20 +159,13 @@ export function AlertsPanel({ alerts: propAlerts }: AlertsPanelProps) {
                         <h4 className="text-sm font-medium text-gray-900 truncate">
                           {alert.title}
                         </h4>
-                        <Badge
-                          variant="outline"
-                          className={`text-xs ${severityColor}`}
-                        >
+                        <Badge variant="outline" className={`text-xs ${severityColor}`}>
                           {getSeverityLabel(alert.severity)}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-600 mb-1">
-                        {alert.message}
-                      </p>
+                      <p className="text-sm text-gray-600 mb-1">{alert.message}</p>
                       {alert.patient_name && (
-                        <p className="text-xs text-gray-500">
-                          Paciente: {alert.patient_name}
-                        </p>
+                        <p className="text-xs text-gray-500">Paciente: {alert.patient_name}</p>
                       )}
                     </div>
                   </div>

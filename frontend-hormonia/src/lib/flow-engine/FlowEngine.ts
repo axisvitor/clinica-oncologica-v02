@@ -7,13 +7,13 @@ import {
   type InboundMessage,
   type ResponseResult,
   type FlowEvent,
-  type FlowStateMachine
+  type FlowStateMachine,
 } from '@/lib/api-client/types'
 import type {
   FlowExecutionContext,
   FlowExecutionStep,
   FlowExecutionResult,
-  ConditionEvaluationResult
+  ConditionEvaluationResult,
 } from './types'
 import { apiClient } from '../api-client'
 import { createLogger } from '../logger'
@@ -36,7 +36,17 @@ export class FlowEngine extends EventEmitter {
   private initializeStateMachines(): void {
     // Onboarding flow state machine (legacy-compatible)
     const initial15DaysStateMachine: FlowStateMachine = {
-      states: ['enrolled', 'day_1', 'day_2', 'day_3', 'day_7', 'day_10', 'day_15', 'completed', 'paused'],
+      states: [
+        'enrolled',
+        'day_1',
+        'day_2',
+        'day_3',
+        'day_7',
+        'day_10',
+        'day_15',
+        'completed',
+        'paused',
+      ],
       initial_state: 'enrolled',
       transitions: [
         { from_state: 'enrolled', to_state: 'day_1', trigger: 'start_flow' },
@@ -47,9 +57,9 @@ export class FlowEngine extends EventEmitter {
         { from_state: 'day_10', to_state: 'day_15', trigger: 'advance_day' },
         { from_state: 'day_15', to_state: 'completed', trigger: 'complete_flow' },
         { from_state: '*', to_state: 'paused', trigger: 'pause_flow' },
-        { from_state: 'paused', to_state: '*', trigger: 'resume_flow' }
+        { from_state: 'paused', to_state: '*', trigger: 'resume_flow' },
       ],
-      final_states: ['completed']
+      final_states: ['completed'],
     }
 
     const followUpStateMachine: FlowStateMachine = {
@@ -58,9 +68,9 @@ export class FlowEngine extends EventEmitter {
       transitions: [
         { from_state: 'active', to_state: 'completed', trigger: 'complete_flow' },
         { from_state: 'active', to_state: 'paused', trigger: 'pause_flow' },
-        { from_state: 'paused', to_state: 'active', trigger: 'resume_flow' }
+        { from_state: 'paused', to_state: 'active', trigger: 'resume_flow' },
       ],
-      final_states: ['completed']
+      final_states: ['completed'],
     }
 
     this.stateMachines.set(FlowType.ONBOARDING, initial15DaysStateMachine)
@@ -117,7 +127,7 @@ export class FlowEngine extends EventEmitter {
         patient_id: patientId,
         flow_id: flowState.id,
         data: { flow_type: flowType },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       } as FlowEvent)
 
       logger.info('Flow started successfully', { patientId, flowId: flowState.id })
@@ -143,7 +153,7 @@ export class FlowEngine extends EventEmitter {
         patient_id: patientId,
         flow_id: flowState.id,
         data: { current_day: flowState.current_day },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       } as FlowEvent)
 
       logger.info('Flow advanced successfully', { patientId, currentDay: flowState.current_day })
@@ -158,14 +168,14 @@ export class FlowEngine extends EventEmitter {
   async pauseFlow(patientId: string): Promise<FlowState> {
     try {
       logger.info('Pausing flow', { patientId })
-      const flowState = await apiClient.flows.pause(patientId) as unknown as FlowState
+      const flowState = (await apiClient.flows.pause(patientId)) as unknown as FlowState
       this.activeFlows.set(patientId, flowState)
 
       this.emit('flow_paused', {
         type: 'flow_paused',
         patient_id: patientId,
         flow_id: flowState.id,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       } as FlowEvent)
 
       logger.info('Flow paused successfully', { patientId, flowId: flowState.id })
@@ -180,14 +190,14 @@ export class FlowEngine extends EventEmitter {
   async resumeFlow(patientId: string): Promise<FlowState> {
     try {
       logger.info('Resuming flow', { patientId })
-      const flowState = await apiClient.flows.resume(patientId) as unknown as FlowState
+      const flowState = (await apiClient.flows.resume(patientId)) as unknown as FlowState
       this.activeFlows.set(patientId, flowState)
 
       this.emit('flow_resumed', {
         type: 'flow_resumed',
         patient_id: patientId,
         flow_id: flowState.id,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       } as FlowEvent)
 
       logger.info('Flow resumed successfully', { patientId, flowId: flowState.id })
@@ -207,8 +217,8 @@ export class FlowEngine extends EventEmitter {
       // Backend expects response_text as a string, not the full message object
       const result = await apiClient.flows.processResponse(
         patientId,
-        message.content,  // Pass content as string
-        message.metadata  // Pass metadata separately
+        message.content, // Pass content as string
+        message.metadata // Pass metadata separately
       )
 
       this.emit('response_received', {
@@ -218,15 +228,15 @@ export class FlowEngine extends EventEmitter {
         data: {
           content: message.content,
           sentiment: result.sentiment_score,
-          requires_attention: result.requires_attention
+          requires_attention: result.requires_attention,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       } as FlowEvent)
 
       logger.info('Response processed successfully', {
         patientId,
         sentiment: result.sentiment_score,
-        requiresAttention: result.requires_attention
+        requiresAttention: result.requires_attention,
       })
       return result
     } catch (error) {
@@ -236,14 +246,20 @@ export class FlowEngine extends EventEmitter {
   }
 
   // Validate state transition
-  private canTransition(flowType: FlowType, fromState: string, toState: string, trigger: string): boolean {
+  private canTransition(
+    flowType: FlowType,
+    fromState: string,
+    toState: string,
+    trigger: string
+  ): boolean {
     const stateMachine = this.stateMachines.get(flowType)
     if (!stateMachine) return false
 
-    const transition = stateMachine.transitions.find(t =>
-      (t.from_state === fromState || t.from_state === '*') &&
-      t.to_state === toState &&
-      t.trigger === trigger
+    const transition = stateMachine.transitions.find(
+      (t) =>
+        (t.from_state === fromState || t.from_state === '*') &&
+        t.to_state === toState &&
+        t.trigger === trigger
     )
 
     return !!transition
@@ -298,10 +314,7 @@ export class FlowEngine extends EventEmitter {
     return 0
   }
 
-  private evaluateBranch(
-    step: FlowStep,
-    contextData: Record<string, unknown>
-  ): number | null {
+  private evaluateBranch(step: FlowStep, contextData: Record<string, unknown>): number | null {
     const conditions = step.conditions
     if (!conditions) return null
 
@@ -356,7 +369,7 @@ export class FlowEngine extends EventEmitter {
     const step: FlowExecutionStep = {
       node_id: nodeId,
       executed_at: new Date().toISOString(),
-      result: 'success'
+      result: 'success',
     }
 
     try {
@@ -364,7 +377,7 @@ export class FlowEngine extends EventEmitter {
       context.history.push(step)
 
       return {
-        success: true
+        success: true,
       }
     } catch (error) {
       step.result = 'failure'
@@ -373,7 +386,7 @@ export class FlowEngine extends EventEmitter {
 
       return {
         success: false,
-        error: step.error
+        error: step.error,
       }
     }
   }
@@ -410,7 +423,7 @@ export class FlowEngine extends EventEmitter {
 
     return {
       passed,
-      reason: passed ? 'Condition met' : 'Condition not met'
+      reason: passed ? 'Condition met' : 'Condition not met',
     }
   }
 }

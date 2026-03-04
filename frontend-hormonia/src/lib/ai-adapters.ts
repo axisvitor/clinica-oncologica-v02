@@ -1,9 +1,4 @@
-import type {
-  AIInsights,
-  AIRecommendations,
-  AIInsight,
-  TrendData,
-} from '@/lib/api-client/types'
+import type { AIInsights, AIRecommendations, AIInsight, TrendData } from '@/lib/api-client/types'
 import type {
   AIRecommendation,
   AIAnalyticsDashboard,
@@ -65,7 +60,7 @@ export const mapInsightsToCards = (insights: AIInsights): AIInsight[] => {
 }
 
 export const mapRecommendationsToCards = (
-  recommendations: AIRecommendations,
+  recommendations: AIRecommendations
 ): AIRecommendation[] => {
   return (recommendations.recommendations || []).map((rec, index) => {
     const mappedType =
@@ -100,11 +95,12 @@ const mapSentimentTrends = (trends: TrendData[]): SentimentTrend[] => {
   const result: SentimentTrend[] = []
   trends.forEach((trend) => {
     trend.data_points?.forEach((point) => {
-      const date = typeof point['date'] === 'string'
-        ? point['date']
-        : typeof point['timestamp'] === 'string'
-          ? point['timestamp']
-          : undefined
+      const date =
+        typeof point['date'] === 'string'
+          ? point['date']
+          : typeof point['timestamp'] === 'string'
+            ? point['timestamp']
+            : undefined
       if (!date) return
       result.push({
         date,
@@ -153,7 +149,7 @@ const mapPerformanceTrends = (insights: AIInsights): PerformanceTrend[] => {
 
 export const toAnalyticsDashboard = (
   insights: AIInsights,
-  recommendations?: AIRecommendations,
+  recommendations?: AIRecommendations
 ): AIAnalyticsDashboard => {
   const responseRate = clamp01(toNumber(insights.engagement_metrics?.['response_rate'], 0))
   return {
@@ -161,9 +157,7 @@ export const toAnalyticsDashboard = (
       total_conversations: toNumber(insights.engagement_metrics?.['total_messages'], 0),
       avg_sentiment: getAvgSentiment(insights.sentiment_trends || []),
       response_accuracy: responseRate,
-      human_handoff_rate: clamp01(
-        toNumber(insights.engagement_metrics?.['human_handoff_rate'], 0),
-      ),
+      human_handoff_rate: clamp01(toNumber(insights.engagement_metrics?.['human_handoff_rate'], 0)),
     },
     engagement_metrics: mapEngagementMetrics(insights),
     insights: mapInsightsToCards(insights),

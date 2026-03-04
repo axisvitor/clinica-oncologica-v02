@@ -33,7 +33,7 @@ export function usePatientActions() {
     toast({
       title: 'Erro',
       description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-      variant: 'destructive'
+      variant: 'destructive',
     })
   }
 
@@ -51,7 +51,8 @@ export function usePatientActions() {
         const next = current.filter((patient) => patient.id !== patientId)
         if (next.length === current.length) return cache
 
-        const nextTotal = typeof cache.total === 'number' ? Math.max(0, cache.total - 1) : cache.total
+        const nextTotal =
+          typeof cache.total === 'number' ? Math.max(0, cache.total - 1) : cache.total
         return setPatientsInCache(cache, next, nextTotal)
       })
 
@@ -70,7 +71,7 @@ export function usePatientActions() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['patients'] })
-    }
+    },
   })
 
   const activateMutation = useMutation({
@@ -79,7 +80,7 @@ export function usePatientActions() {
       queryClient.invalidateQueries({ queryKey: ['patients'] })
       toast({ title: 'Paciente ativado com sucesso' })
     },
-    onError: handleMutationError
+    onError: handleMutationError,
   })
 
   const deactivateMutation = useMutation({
@@ -88,20 +89,16 @@ export function usePatientActions() {
       queryClient.invalidateQueries({ queryKey: ['patients'] })
       toast({ title: 'Paciente desativado (pausado) com sucesso' })
     },
-    onError: handleMutationError
+    onError: handleMutationError,
   })
 
-  const handleDelete = (
-    e: React.MouseEvent,
-    patientId: string,
-    patientName: string
-  ) => {
+  const handleDelete = (e: React.MouseEvent, patientId: string, patientName: string) => {
     e.stopPropagation()
     if (!canDeletePatient) {
       toast({
         title: 'Permissão insuficiente',
         description: 'Você não tem permissão para excluir pacientes.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
@@ -116,7 +113,7 @@ export function usePatientActions() {
     toast({
       title: 'Confirme a exclusão',
       description: `Clique novamente para excluir ${patientName}.`,
-      variant: 'destructive'
+      variant: 'destructive',
     })
 
     setTimeout(() => {
@@ -140,6 +137,6 @@ export function usePatientActions() {
     isDeleting: deleteMutation.isPending,
     isActivating: activateMutation.isPending,
     isDeactivating: deactivateMutation.isPending,
-    canDelete: canDeletePatient
+    canDelete: canDeletePatient,
   }
 }

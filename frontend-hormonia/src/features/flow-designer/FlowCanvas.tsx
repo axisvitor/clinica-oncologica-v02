@@ -1,10 +1,5 @@
 import React, { useRef, useCallback, useState } from 'react'
-import {
-  FlowDesign,
-  FlowNode,
-  DesignerMode,
-  FlowValidationResult
-} from '@/types/flow-designer'
+import { FlowDesign, FlowNode, DesignerMode, FlowValidationResult } from '@/types/flow-designer'
 import { FlowNodeComponent } from './FlowNodeComponent'
 import { FlowConnectionComponent } from './FlowConnectionComponent'
 
@@ -35,7 +30,7 @@ export function FlowCanvas({
   onNodeUpdate,
   onAddConnection,
   onPanChange,
-  validation
+  validation,
 }: FlowCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -43,63 +38,87 @@ export function FlowCanvas({
   const [connecting, setConnecting] = useState<{ from: string; to?: string } | null>(null)
 
   // Handle canvas mouse events
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (mode === DesignerMode.PAN) {
-      setIsDragging(true)
-      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
-    }
-  }, [mode, pan])
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (mode === DesignerMode.PAN) {
+        setIsDragging(true)
+        setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+      }
+    },
+    [mode, pan]
+  )
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (isDragging && mode === DesignerMode.PAN) {
-      onPanChange({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      })
-    }
-  }, [isDragging, mode, dragStart, onPanChange])
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (isDragging && mode === DesignerMode.PAN) {
+        onPanChange({
+          x: e.clientX - dragStart.x,
+          y: e.clientY - dragStart.y,
+        })
+      }
+    },
+    [isDragging, mode, dragStart, onPanChange]
+  )
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false)
   }, [])
 
   // Handle node drag
-  const handleNodeDrag = useCallback((nodeId: string, position: { x: number; y: number }) => {
-    onNodeUpdate(nodeId, { position })
-  }, [onNodeUpdate])
+  const handleNodeDrag = useCallback(
+    (nodeId: string, position: { x: number; y: number }) => {
+      onNodeUpdate(nodeId, { position })
+    },
+    [onNodeUpdate]
+  )
 
   // Handle connection creation
-  const handleConnectionStart = useCallback((nodeId: string) => {
-    if (mode === DesignerMode.CONNECT) {
-      setConnecting({ from: nodeId })
-    }
-  }, [mode])
+  const handleConnectionStart = useCallback(
+    (nodeId: string) => {
+      if (mode === DesignerMode.CONNECT) {
+        setConnecting({ from: nodeId })
+      }
+    },
+    [mode]
+  )
 
-  const handleConnectionEnd = useCallback((nodeId: string) => {
-    if (connecting && connecting.from !== nodeId) {
-      onAddConnection(connecting.from, nodeId)
-      setConnecting(null)
-    }
-  }, [connecting, onAddConnection])
+  const handleConnectionEnd = useCallback(
+    (nodeId: string) => {
+      if (connecting && connecting.from !== nodeId) {
+        onAddConnection(connecting.from, nodeId)
+        setConnecting(null)
+      }
+    },
+    [connecting, onAddConnection]
+  )
 
   // Handle canvas click (deselect)
-  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onNodeSelect('', false) // Deselect all
-    }
-  }, [onNodeSelect])
+  const handleCanvasClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) {
+        onNodeSelect('', false) // Deselect all
+      }
+    },
+    [onNodeSelect]
+  )
 
   // Get node validation errors
-  const getNodeErrors = useCallback((nodeId: string) => {
-    if (!validation) return []
-    return validation.errors.filter(error => error.node_id === nodeId)
-  }, [validation])
+  const getNodeErrors = useCallback(
+    (nodeId: string) => {
+      if (!validation) return []
+      return validation.errors.filter((error) => error.node_id === nodeId)
+    },
+    [validation]
+  )
 
   // Get connection validation errors
-  const getConnectionErrors = useCallback((connectionId: string) => {
-    if (!validation) return []
-    return validation.errors.filter(error => error.connection_id === connectionId)
-  }, [validation])
+  const getConnectionErrors = useCallback(
+    (connectionId: string) => {
+      if (!validation) return []
+      return validation.errors.filter((error) => error.connection_id === connectionId)
+    },
+    [validation]
+  )
 
   return (
     <div
@@ -114,7 +133,7 @@ export function FlowCanvas({
           radial-gradient(circle, #e5e7eb 1px, transparent 1px)
         `,
         backgroundSize: `${20 * zoom}px ${20 * zoom}px`,
-        backgroundPosition: `${pan.x}px ${pan.y}px`
+        backgroundPosition: `${pan.x}px ${pan.y}px`,
       }}
     >
       {/* Canvas Transform Container */}
@@ -124,7 +143,7 @@ export function FlowCanvas({
           transformOrigin: '0 0',
           width: '100%',
           height: '100%',
-          position: 'relative'
+          position: 'relative',
         }}
       >
         {/* Render Connections */}
@@ -132,7 +151,7 @@ export function FlowCanvas({
           className="absolute inset-0 pointer-events-none"
           style={{ width: '100%', height: '100%', overflow: 'visible' }}
         >
-          {design.connections.map(connection => (
+          {design.connections.map((connection) => (
             <FlowConnectionComponent
               key={connection.id}
               connection={connection}
@@ -142,7 +161,7 @@ export function FlowCanvas({
               onSelect={() => onConnectionSelect(connection.id)}
             />
           ))}
-          
+
           {/* Temporary connection while connecting */}
           {connecting && (
             <line
@@ -159,7 +178,7 @@ export function FlowCanvas({
         </svg>
 
         {/* Render Nodes */}
-        {design.nodes.map(node => (
+        {design.nodes.map((node) => (
           <FlowNodeComponent
             key={node.id}
             node={node}
@@ -194,7 +213,7 @@ export function FlowCanvas({
             Erros de Validação ({validation.errors.length})
           </div>
           <div className="text-xs text-red-600 space-y-1">
-            {validation.errors.slice(0, 3).map(error => (
+            {validation.errors.slice(0, 3).map((error) => (
               <div key={error.id}>{error.message}</div>
             ))}
             {validation.errors.length > 3 && (
@@ -208,7 +227,7 @@ export function FlowCanvas({
 
   // Helper function to get node position
   function getNodePosition(nodeId: string) {
-    const node = design.nodes.find(n => n.id === nodeId)
+    const node = design.nodes.find((n) => n.id === nodeId)
     return node?.position
   }
 }

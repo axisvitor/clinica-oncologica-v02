@@ -32,7 +32,7 @@ const TAB_TO_STATUS: Record<PatientsTab, PatientFilters['status']> = {
   active: 'active',
   paused: 'paused',
   completed: 'completed',
-  inactive: 'inactive'
+  inactive: 'inactive',
 }
 
 const TAB_META: Record<PatientsTab, TabMeta> = {
@@ -41,43 +41,43 @@ const TAB_META: Record<PatientsTab, TabMeta> = {
     title: 'Lista de Pacientes',
     description: 'Visualize e gerencie todos os pacientes cadastrados',
     errorMessage: 'Erro ao carregar pacientes',
-    countLabel: (total) => `(${total} total)`
+    countLabel: (total) => `(${total} total)`,
   },
   active: {
     label: 'Ativos',
     title: 'Pacientes Ativos',
     description: 'Pacientes em tratamento ativo',
     errorMessage: 'Erro ao carregar pacientes ativos',
-    countLabel: (total) => `(${total} pacientes)`
+    countLabel: (total) => `(${total} pacientes)`,
   },
   paused: {
     label: 'Pausados',
     title: 'Pacientes Pausados',
     description: 'Pacientes com tratamento pausado',
     errorMessage: 'Erro ao carregar pacientes pausados',
-    countLabel: (total) => `(${total} pacientes)`
+    countLabel: (total) => `(${total} pacientes)`,
   },
   completed: {
     label: 'Concluídos',
     title: 'Tratamentos Concluídos',
     description: 'Pacientes que concluíram o tratamento',
     errorMessage: 'Erro ao carregar tratamentos concluídos',
-    countLabel: (total) => `(${total} pacientes)`
+    countLabel: (total) => `(${total} pacientes)`,
   },
   inactive: {
     label: 'Inativos',
     title: 'Pacientes Inativos',
     description: 'Pacientes com status inativo',
     errorMessage: 'Erro ao carregar pacientes inativos',
-    countLabel: (total) => `(${total} pacientes)`
-  }
+    countLabel: (total) => `(${total} pacientes)`,
+  },
 }
 
 const STATUS_LABEL: Record<Exclude<PatientsTab, 'all'>, string> = {
   active: 'Ativos',
   paused: 'Pausados',
   completed: 'Concluídos',
-  inactive: 'Inativos'
+  inactive: 'Inativos',
 }
 
 const SKELETON_ROWS = Array.from({ length: 5 }, (_, i) => i)
@@ -110,15 +110,12 @@ export function PatientsPage() {
     activeFilterCount,
     updateFilter,
     updateFilters,
-    refetch
+    refetch,
   } = usePatients({
-    pageSize: 20
+    pageSize: 20,
   })
 
-  const {
-    data: treatmentTypes = [],
-    isLoading: isLoadingTreatmentTypes
-  } = useTreatmentTypes()
+  const { data: treatmentTypes = [], isLoading: isLoadingTreatmentTypes } = useTreatmentTypes()
 
   useEffect(() => {
     const expectedTab = getTabFromStatus(filters.status)
@@ -178,11 +175,7 @@ export function PatientsPage() {
       return (
         <div className="text-center py-8">
           <p className="text-red-600">{errorMessage}</p>
-          <Button
-            variant="outline"
-            onClick={() => refetch()}
-            className="mt-2"
-          >
+          <Button variant="outline" onClick={() => refetch()} className="mt-2">
             Tentar novamente
           </Button>
         </div>
@@ -254,11 +247,7 @@ export function PatientsPage() {
               <Grid className="h-4 w-4" />
             </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowFilters(!showFilters)}
-          >
+          <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
             <Filter className="mr-1 md:mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Filtros</span>
             {activeFilterCount > 0 && (
@@ -300,9 +289,9 @@ export function PatientsPage() {
             <PatientsFilters
               filters={filters}
               onFiltersChange={handleFiltersChange}
-              treatmentTypes={treatmentTypes.map((t: string | { name?: string }) => (
-                typeof t === 'string' ? t : (t?.name || String(t))
-              ))}
+              treatmentTypes={treatmentTypes.map((t: string | { name?: string }) =>
+                typeof t === 'string' ? t : t?.name || String(t)
+              )}
               isLoadingTreatmentTypes={isLoadingTreatmentTypes}
               disabled={isLoading}
             />
@@ -315,7 +304,9 @@ export function PatientsPage() {
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList>
           {TABS.map((tab) => (
-            <TabsTrigger key={tab} value={tab}>{TAB_META[tab].label}</TabsTrigger>
+            <TabsTrigger key={tab} value={tab}>
+              {TAB_META[tab].label}
+            </TabsTrigger>
           ))}
         </TabsList>
 
@@ -331,22 +322,15 @@ export function PatientsPage() {
                     </span>
                   )}
                 </CardTitle>
-                <CardDescription>
-                  {TAB_META[tab].description}
-                </CardDescription>
+                <CardDescription>{TAB_META[tab].description}</CardDescription>
               </CardHeader>
-              <CardContent>
-                {renderContent(TAB_META[tab].errorMessage)}
-              </CardContent>
+              <CardContent>{renderContent(TAB_META[tab].errorMessage)}</CardContent>
             </Card>
           </TabsContent>
         ))}
       </Tabs>
 
-      <CreatePatientDialog
-        open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
-      />
+      <CreatePatientDialog open={showCreateDialog} onOpenChange={setShowCreateDialog} />
 
       <EditPatientDialog
         open={showEditDialog}

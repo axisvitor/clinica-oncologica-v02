@@ -11,8 +11,8 @@
  * RBAC: Admin and Doctor roles only
  */
 
-import React, { useState, useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Upload,
   Download,
@@ -21,25 +21,25 @@ import {
   CheckCircle,
   XCircle,
   FileText,
-} from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { ImportStatusModal } from '@/features/patients/ImportStatusModal';
-import { usePatientImport } from '@/hooks/usePatientImport';
-import { useToast } from '@/components/ui/use-toast';
-import { apiClient } from '@/lib/api-client';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import type { ImportOptions } from '@/types/import';
+} from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { ImportStatusModal } from '@/features/patients/ImportStatusModal'
+import { usePatientImport } from '@/hooks/usePatientImport'
+import { useToast } from '@/components/ui/use-toast'
+import { apiClient } from '@/lib/api-client'
+import { formatDistanceToNow } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import type { ImportOptions } from '@/types/import'
 
 export function PatientImport() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
 
   // Import hook
   const {
@@ -53,71 +53,74 @@ export function PatientImport() {
     importFile,
     downloadTemplate,
     reset,
-  } = usePatientImport();
+  } = usePatientImport()
 
   // Local state
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [showModal, setShowModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [showModal, setShowModal] = useState(false)
   const [importOptions, setImportOptions] = useState<ImportOptions>({
     skipDuplicates: true,
     updateExisting: false,
     validateOnly: false,
-  });
-  const [dragActive, setDragActive] = useState(false);
+  })
+  const [dragActive, setDragActive] = useState(false)
 
   // Import history query
   const { data: historyData, isLoading: historyLoading } = useQuery({
     queryKey: ['patient-import-history'],
     queryFn: () => apiClient.patients.getImportHistory({ page: 1, size: 10 }),
-  });
+  })
 
   /**
    * Handle file selection
    */
-  const handleFileSelect = useCallback((file: File) => {
-    setSelectedFile(file);
-    reset();
-  }, [reset]);
+  const handleFileSelect = useCallback(
+    (file: File) => {
+      setSelectedFile(file)
+      reset()
+    },
+    [reset]
+  )
 
   /**
    * Handle file input change
    */
   const handleFileChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
+      const file = event.target.files?.[0]
       if (file) {
-        handleFileSelect(file);
+        handleFileSelect(file)
       }
     },
     [handleFileSelect]
-  );
+  )
 
   /**
    * Handle drag and drop
    */
   const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault()
+    e.stopPropagation()
     if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
+      setDragActive(true)
     } else if (e.type === 'dragleave') {
-      setDragActive(false);
+      setDragActive(false)
     }
-  }, []);
+  }, [])
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setDragActive(false);
+      e.preventDefault()
+      e.stopPropagation()
+      setDragActive(false)
 
-      const file = e.dataTransfer.files?.[0];
+      const file = e.dataTransfer.files?.[0]
       if (file) {
-        handleFileSelect(file);
+        handleFileSelect(file)
       }
     },
     [handleFileSelect]
-  );
+  )
 
   /**
    * Validate selected file
@@ -128,60 +131,60 @@ export function PatientImport() {
         title: 'Nenhum arquivo selecionado',
         description: 'Por favor, selecione um arquivo CSV ou Excel.',
         variant: 'destructive',
-      });
-      return;
+      })
+      return
     }
 
-    setShowModal(true);
-    const result = await validateFile(selectedFile);
+    setShowModal(true)
+    const result = await validateFile(selectedFile)
 
     if (result && !result.valid) {
       toast({
         title: 'Arquivo com erros',
         description: `Foram encontrados ${result.errorRows} erro(s). Corrija antes de importar.`,
         variant: 'destructive',
-      });
+      })
     } else if (result && result.valid) {
       toast({
         title: 'Validação concluída',
         description: `${result.validRows} paciente(s) pronto(s) para importação.`,
-      });
+      })
     }
-  }, [selectedFile, validateFile, toast]);
+  }, [selectedFile, validateFile, toast])
 
   /**
    * Import patients
    */
   const handleImport = useCallback(async () => {
-    if (!selectedFile) return;
+    if (!selectedFile) return
 
-    const result = await importFile(selectedFile, importOptions);
+    const result = await importFile(selectedFile, importOptions)
 
     if (result) {
       if (result.successful > 0 && result.failed === 0) {
         toast({
           title: 'Importação concluída',
           description: `${result.successful} paciente(s) importado(s) com sucesso!`,
-        });
+        })
         // Refresh patient list
-        queryClient.invalidateQueries({ queryKey: ['patients'] });
-        queryClient.invalidateQueries({ queryKey: ['patient-import-history'] });
+        queryClient.invalidateQueries({ queryKey: ['patients'] })
+        queryClient.invalidateQueries({ queryKey: ['patient-import-history'] })
       } else if (result.successful > 0 && result.failed > 0) {
         toast({
           title: 'Importação parcial',
           description: `${result.successful} importado(s), ${result.failed} falharam.`,
           variant: 'destructive',
-        });
-        queryClient.invalidateQueries({ queryKey: ['patient-import-history'] });
+        })
+        queryClient.invalidateQueries({ queryKey: ['patient-import-history'] })
       } else {
         toast({
           title: 'Falha na importação',
           description: 'Nenhum paciente foi importado. Verifique os erros.',
           variant: 'destructive',
-        });
+        })
       }
     }
-  }, [selectedFile, importFile, importOptions, toast, queryClient]);
+  }, [selectedFile, importFile, importOptions, toast, queryClient])
 
   /**
    * Download template
@@ -189,21 +192,21 @@ export function PatientImport() {
   const handleDownloadTemplate = useCallback(
     async (format: 'csv' | 'xlsx') => {
       try {
-        await downloadTemplate(format);
+        await downloadTemplate(format)
         toast({
           title: 'Modelo baixado',
           description: `Modelo de importação baixado no formato ${format.toUpperCase()}.`,
-        });
+        })
       } catch {
         toast({
           title: 'Erro ao baixar modelo',
           description: 'Não foi possível baixar o modelo. Tente novamente.',
           variant: 'destructive',
-        });
+        })
       }
     },
     [downloadTemplate, toast]
-  );
+  )
 
   /**
    * Get status badge for history entry
@@ -211,15 +214,15 @@ export function PatientImport() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
-        return <Badge className="bg-green-500">Concluído</Badge>;
+        return <Badge className="bg-green-500">Concluído</Badge>
       case 'failed':
-        return <Badge variant="destructive">Falha</Badge>;
+        return <Badge variant="destructive">Falha</Badge>
       case 'processing':
-        return <Badge className="bg-blue-500">Processando</Badge>;
+        return <Badge className="bg-blue-500">Processando</Badge>
       default:
-        return <Badge variant="secondary">Pendente</Badge>;
+        return <Badge variant="secondary">Pendente</Badge>
     }
-  };
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -247,17 +250,16 @@ export function PatientImport() {
         <CardContent className="space-y-4">
           {/* Drag and drop area */}
           <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-              }`}
+            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+              dragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+            }`}
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
           >
             <FileSpreadsheet className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">
-              Arraste e solte seu arquivo aqui
-            </p>
+            <p className="text-lg font-medium mb-2">Arraste e solte seu arquivo aqui</p>
             <p className="text-sm text-muted-foreground mb-4">
               ou clique no botão abaixo para selecionar
             </p>
@@ -288,11 +290,7 @@ export function PatientImport() {
                     {(selectedFile.size / 1024).toFixed(2)} KB
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedFile(null)}
-                >
+                <Button variant="ghost" size="sm" onClick={() => setSelectedFile(null)}>
                   <XCircle className="h-4 w-4" />
                 </Button>
               </AlertDescription>
@@ -407,9 +405,7 @@ export function PatientImport() {
             <History className="h-5 w-5" />
             Histórico de Importações
           </CardTitle>
-          <CardDescription>
-            Últimas 10 importações realizadas
-          </CardDescription>
+          <CardDescription>Últimas 10 importações realizadas</CardDescription>
         </CardHeader>
         <CardContent>
           {historyLoading ? (
@@ -460,10 +456,10 @@ export function PatientImport() {
       <ImportStatusModal
         open={showModal}
         onClose={() => {
-          setShowModal(false);
+          setShowModal(false)
           if (importResult) {
-            setSelectedFile(null);
-            reset();
+            setSelectedFile(null)
+            reset()
           }
         }}
         validating={validating}
@@ -475,5 +471,5 @@ export function PatientImport() {
         onProceed={handleImport}
       />
     </div>
-  );
+  )
 }

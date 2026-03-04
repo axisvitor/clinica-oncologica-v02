@@ -10,14 +10,14 @@ export function useWhatsAppInstances() {
   const { data: instances = [], isLoading } = useQuery<WhatsAppInstance[]>({
     queryKey: ['whatsapp-instances'],
     queryFn: () => apiClient.request('/api/v2/whatsapp/instances'),
-    refetchInterval: 30000 // Refresh every 30 seconds
+    refetchInterval: 30000, // Refresh every 30 seconds
   })
 
   const createInstanceMutation = useMutation({
     mutationFn: (instanceName: string) =>
       apiClient.request('/api/v2/whatsapp/instances', {
         method: 'POST',
-        body: JSON.stringify({ name: instanceName })
+        body: JSON.stringify({ name: instanceName }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] })
@@ -28,15 +28,15 @@ export function useWhatsAppInstances() {
       toast({
         title: 'Failed to create instance',
         description: errorMessage,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const restartInstanceMutation = useMutation({
     mutationFn: (instanceName: string) =>
       apiClient.request(`/api/v2/whatsapp/instances/${instanceName}/restart`, {
-        method: 'POST'
+        method: 'POST',
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] })
@@ -47,15 +47,15 @@ export function useWhatsAppInstances() {
       toast({
         title: 'Failed to restart instance',
         description: errorMessage,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const deleteInstanceMutation = useMutation({
     mutationFn: (instanceName: string) =>
       apiClient.request(`/api/v2/whatsapp/instances/${instanceName}`, {
-        method: 'DELETE'
+        method: 'DELETE',
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-instances'] })
@@ -66,9 +66,9 @@ export function useWhatsAppInstances() {
       toast({
         title: 'Failed to delete instance',
         description: errorMessage,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   return {
@@ -79,6 +79,6 @@ export function useWhatsAppInstances() {
     restartInstance: restartInstanceMutation.mutate,
     isRestarting: restartInstanceMutation.isPending,
     deleteInstance: deleteInstanceMutation.mutate,
-    isDeleting: deleteInstanceMutation.isPending
+    isDeleting: deleteInstanceMutation.isPending,
   }
 }

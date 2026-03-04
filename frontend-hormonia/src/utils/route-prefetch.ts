@@ -25,77 +25,77 @@
  */
 
 // Route import map - maps route paths to their lazy import functions
-import { createLogger } from '@/lib/logger';
+import { createLogger } from '@/lib/logger'
 
 // Network Information API types (not yet standardized)
 interface NetworkInformation {
-  readonly effectiveType?: '2g' | '3g' | '4g' | 'slow-2g';
-  readonly saveData?: boolean;
+  readonly effectiveType?: '2g' | '3g' | '4g' | 'slow-2g'
+  readonly saveData?: boolean
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type RouteImportMap = Record<string, () => Promise<any>>;
+type RouteImportMap = Record<string, () => Promise<any>>
 
-const logger = createLogger('RoutePrefetch');
+const logger = createLogger('RoutePrefetch')
 
 const routeImports: RouteImportMap = {
-  "/dashboard": () => import("@/pages/DashboardPage"),
-  "/patients": () => import("@/pages/PatientsPage"),
-  "/messages": () => import("@/pages/MessagesPage"),
-  "/analytics": () => import("@/pages/AnalyticsPage"),
-  "/reports": () => import("@/pages/ReportsPage"),
-  "/alerts": () => import("@/pages/AlertsPage"),
-  "/flows": () => import("@/pages/FlowsPage"),
-  "/settings": () => import("@/pages/SettingsPage"),
-  "/quiz": () => import("@/pages/QuizPage"),
-  "/monthly-quiz": () => import("@/pages/MonthlyQuizDashboard"),
-  "/questionarios": () => import("@/pages/QuestionariosPage"),
-  "/whatsapp": () => import("@/pages/WhatsAppPage"),
-};
+  '/dashboard': () => import('@/pages/DashboardPage'),
+  '/patients': () => import('@/pages/PatientsPage'),
+  '/messages': () => import('@/pages/MessagesPage'),
+  '/analytics': () => import('@/pages/AnalyticsPage'),
+  '/reports': () => import('@/pages/ReportsPage'),
+  '/alerts': () => import('@/pages/AlertsPage'),
+  '/flows': () => import('@/pages/FlowsPage'),
+  '/settings': () => import('@/pages/SettingsPage'),
+  '/quiz': () => import('@/pages/QuizPage'),
+  '/monthly-quiz': () => import('@/pages/MonthlyQuizDashboard'),
+  '/questionarios': () => import('@/pages/QuestionariosPage'),
+  '/whatsapp': () => import('@/pages/WhatsAppPage'),
+}
 
 // Priority levels for routes
-const HIGH_PRIORITY_ROUTES = ["/dashboard", "/patients"];
+const HIGH_PRIORITY_ROUTES = ['/dashboard', '/patients']
 
-const MEDIUM_PRIORITY_ROUTES = ["/messages", "/analytics", "/alerts"];
+const MEDIUM_PRIORITY_ROUTES = ['/messages', '/analytics', '/alerts']
 
 const LOW_PRIORITY_ROUTES = [
-  "/reports",
-  "/flows",
-  "/settings",
-  "/quiz",
-  "/monthly-quiz",
-  "/questionarios",
-  "/whatsapp",
-];
+  '/reports',
+  '/flows',
+  '/settings',
+  '/quiz',
+  '/monthly-quiz',
+  '/questionarios',
+  '/whatsapp',
+]
 
 // Track prefetched routes to avoid duplication
-const prefetchedRoutes = new Set<string>();
+const prefetchedRoutes = new Set<string>()
 
 // Track in-progress prefetches
-const prefetchingRoutes = new Map<string, Promise<{ default: React.ComponentType }>>();
+const prefetchingRoutes = new Map<string, Promise<{ default: React.ComponentType }>>()
 
 /**
  * Check if prefetching should be performed based on network conditions
  */
 function shouldPrefetch(): boolean {
   // Check if user has save-data preference
-  if ("connection" in navigator) {
-    const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection;
+  if ('connection' in navigator) {
+    const connection = (navigator as Navigator & { connection?: NetworkInformation }).connection
 
     // Respect save-data preference
     if (connection?.saveData) {
-      logger.warn("[Prefetch] Skipping prefetch - save-data enabled");
-      return false;
+      logger.warn('[Prefetch] Skipping prefetch - save-data enabled')
+      return false
     }
 
     // Don't prefetch on slow connections (2G)
-    if (connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g") {
-      logger.warn("[Prefetch] Skipping prefetch - slow connection");
-      return false;
+    if (connection?.effectiveType === 'slow-2g' || connection?.effectiveType === '2g') {
+      logger.warn('[Prefetch] Skipping prefetch - slow connection')
+      return false
     }
   }
 
-  return true;
+  return true
 }
 
 /**
@@ -108,47 +108,47 @@ function shouldPrefetch(): boolean {
 export async function prefetchRoute(route: string, force: boolean = false): Promise<void> {
   // Skip if already prefetched
   if (prefetchedRoutes.has(route) && !force) {
-    logger.info(`[Prefetch] Route ${route} already prefetched`);
-    return;
+    logger.info(`[Prefetch] Route ${route} already prefetched`)
+    return
   }
 
   // Wait for existing prefetch if in progress
   if (prefetchingRoutes.has(route)) {
-    logger.info(`[Prefetch] Route ${route} prefetch in progress`);
-    await prefetchingRoutes.get(route);
-    return;
+    logger.info(`[Prefetch] Route ${route} prefetch in progress`)
+    await prefetchingRoutes.get(route)
+    return
   }
 
   // Check network conditions
   if (!shouldPrefetch()) {
-    return;
+    return
   }
 
-  const importFn = routeImports[route];
+  const importFn = routeImports[route]
 
   if (!importFn) {
-    logger.warn(`[Prefetch] No import function found for route: ${route}`);
-    return;
+    logger.warn(`[Prefetch] No import function found for route: ${route}`)
+    return
   }
 
-  logger.info(`[Prefetch] Starting prefetch for route: ${route}`);
+  logger.info(`[Prefetch] Starting prefetch for route: ${route}`)
 
   const prefetchPromise = importFn()
     .then((module) => {
-      prefetchedRoutes.add(route);
-      prefetchingRoutes.delete(route);
-      logger.info(`[Prefetch] Successfully prefetched route: ${route}`);
-      return module;
+      prefetchedRoutes.add(route)
+      prefetchingRoutes.delete(route)
+      logger.info(`[Prefetch] Successfully prefetched route: ${route}`)
+      return module
     })
     .catch((error) => {
-      prefetchingRoutes.delete(route);
-      logger.error(`[Prefetch] Failed to prefetch route ${route}:`, error);
-      throw error;
-    });
+      prefetchingRoutes.delete(route)
+      logger.error(`[Prefetch] Failed to prefetch route ${route}:`, error)
+      throw error
+    })
 
-  prefetchingRoutes.set(route, prefetchPromise);
+  prefetchingRoutes.set(route, prefetchPromise)
 
-  return prefetchPromise.then(() => {});
+  return prefetchPromise.then(() => {})
 }
 
 /**
@@ -161,11 +161,11 @@ async function prefetchRoutesSequentially(routes: string[], delayMs: number = 50
   for (const route of routes) {
     await prefetchRoute(route).catch(() => {
       // Swallow errors and continue
-    });
+    })
 
     // Delay before next prefetch
     if (delayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
     }
   }
 }
@@ -176,7 +176,7 @@ async function prefetchRoutesSequentially(routes: string[], delayMs: number = 50
  * @param routes - Array of route paths
  */
 async function prefetchRoutesConcurrent(routes: string[]): Promise<void> {
-  await Promise.allSettled(routes.map((route) => prefetchRoute(route)));
+  await Promise.allSettled(routes.map((route) => prefetchRoute(route)))
 }
 
 /**
@@ -186,18 +186,18 @@ async function prefetchRoutesConcurrent(routes: string[]): Promise<void> {
  */
 export function prefetchHighPriorityRoutes(): void {
   if (!shouldPrefetch()) {
-    return;
+    return
   }
 
   const prefetchFn = () => {
-    logger.info("[Prefetch] Starting high priority route prefetch");
-    void prefetchRoutesConcurrent(HIGH_PRIORITY_ROUTES);
-  };
+    logger.info('[Prefetch] Starting high priority route prefetch')
+    void prefetchRoutesConcurrent(HIGH_PRIORITY_ROUTES)
+  }
 
-  if ("requestIdleCallback" in window) {
-    requestIdleCallback(prefetchFn, { timeout: 2000 });
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(prefetchFn, { timeout: 2000 })
   } else {
-    setTimeout(prefetchFn, 1000);
+    setTimeout(prefetchFn, 1000)
   }
 }
 
@@ -206,18 +206,18 @@ export function prefetchHighPriorityRoutes(): void {
  */
 export function prefetchMediumPriorityRoutes(): void {
   if (!shouldPrefetch()) {
-    return;
+    return
   }
 
   const prefetchFn = () => {
-    logger.info("[Prefetch] Starting medium priority route prefetch");
-    void prefetchRoutesConcurrent(MEDIUM_PRIORITY_ROUTES);
-  };
+    logger.info('[Prefetch] Starting medium priority route prefetch')
+    void prefetchRoutesConcurrent(MEDIUM_PRIORITY_ROUTES)
+  }
 
-  if ("requestIdleCallback" in window) {
-    requestIdleCallback(prefetchFn, { timeout: 5000 });
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(prefetchFn, { timeout: 5000 })
   } else {
-    setTimeout(prefetchFn, 3000);
+    setTimeout(prefetchFn, 3000)
   }
 }
 
@@ -226,18 +226,18 @@ export function prefetchMediumPriorityRoutes(): void {
  */
 export function prefetchLowPriorityRoutes(): void {
   if (!shouldPrefetch()) {
-    return;
+    return
   }
 
   const prefetchFn = () => {
-    logger.info("[Prefetch] Starting low priority route prefetch");
-    prefetchRoutesSequentially(LOW_PRIORITY_ROUTES, 1000);
-  };
+    logger.info('[Prefetch] Starting low priority route prefetch')
+    prefetchRoutesSequentially(LOW_PRIORITY_ROUTES, 1000)
+  }
 
-  if ("requestIdleCallback" in window) {
-    requestIdleCallback(prefetchFn, { timeout: 10000 });
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(prefetchFn, { timeout: 10000 })
   } else {
-    setTimeout(prefetchFn, 5000);
+    setTimeout(prefetchFn, 5000)
   }
 }
 
@@ -255,22 +255,22 @@ export function prefetchLowPriorityRoutes(): void {
  * ```
  */
 export function prefetchCriticalRoutes(): void {
-  logger.info("[Prefetch] Initializing critical route prefetch");
+  logger.info('[Prefetch] Initializing critical route prefetch')
 
   // Prefetch high priority immediately (with delay)
   setTimeout(() => {
-    prefetchHighPriorityRoutes();
-  }, 1000);
+    prefetchHighPriorityRoutes()
+  }, 1000)
 
   // Prefetch medium priority after high priority
   setTimeout(() => {
-    prefetchMediumPriorityRoutes();
-  }, 3000);
+    prefetchMediumPriorityRoutes()
+  }, 3000)
 
   // Prefetch low priority when really idle
   setTimeout(() => {
-    prefetchLowPriorityRoutes();
-  }, 8000);
+    prefetchLowPriorityRoutes()
+  }, 8000)
 }
 
 /**
@@ -281,20 +281,20 @@ export function prefetchCriticalRoutes(): void {
  * @returns Cleanup function to cancel prefetch
  */
 export function prefetchOnHover(route: string, delayMs: number = 200): () => void {
-  let timeoutId: NodeJS.Timeout | null = null;
+  let timeoutId: NodeJS.Timeout | null = null
 
   timeoutId = setTimeout(() => {
     prefetchRoute(route).catch(() => {
       // Swallow errors
-    });
-  }, delayMs);
+    })
+  }, delayMs)
 
   // Return cleanup function
   return () => {
     if (timeoutId) {
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId)
     }
-  };
+  }
 }
 
 /**
@@ -302,9 +302,9 @@ export function prefetchOnHover(route: string, delayMs: number = 200): () => voi
  * Useful for testing or when routes change
  */
 export function clearPrefetchCache(): void {
-  prefetchedRoutes.clear();
-  prefetchingRoutes.clear();
-  logger.warn("[Prefetch] Cache cleared");
+  prefetchedRoutes.clear()
+  prefetchingRoutes.clear()
+  logger.warn('[Prefetch] Cache cleared')
 }
 
 /**
@@ -316,7 +316,7 @@ export function getPrefetchStats() {
     inProgressCount: prefetchingRoutes.size,
     prefetchedRoutes: Array.from(prefetchedRoutes),
     inProgressRoutes: Array.from(prefetchingRoutes.keys()),
-  };
+  }
 }
 
 /**
@@ -336,23 +336,23 @@ export function getPrefetchStats() {
  * ```
  */
 export function usePrefetchRoute(route: string, delayMs: number = 200) {
-  let cleanup: (() => void) | null = null;
+  let cleanup: (() => void) | null = null
 
   const onMouseEnter = () => {
-    cleanup = prefetchOnHover(route, delayMs);
-  };
+    cleanup = prefetchOnHover(route, delayMs)
+  }
 
   const onMouseLeave = () => {
     if (cleanup) {
-      cleanup();
-      cleanup = null;
+      cleanup()
+      cleanup = null
     }
-  };
+  }
 
   return {
     onMouseEnter,
     onMouseLeave,
-  };
+  }
 }
 
 /**
@@ -364,12 +364,12 @@ export function preloadVendorChunks(): void {
   const criticalChunks: string[] = [
     // Add paths to critical vendor chunks from build output
     // These will be determined after running 'npm run build'
-  ];
+  ]
 
   criticalChunks.forEach((chunk) => {
-    const link = document.createElement("link");
-    link.rel = "modulepreload";
-    link.href = chunk;
-    document.head.appendChild(link);
-  });
+    const link = document.createElement('link')
+    link.rel = 'modulepreload'
+    link.href = chunk
+    document.head.appendChild(link)
+  })
 }

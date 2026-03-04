@@ -8,5 +8,5 @@ export {
   getStatusBadgeConfig,
   STATUS_BADGE_MAP,
   type PatientStatus,
-  type StatusBadgeConfig
+  type StatusBadgeConfig,
 } from './patientFormatters'

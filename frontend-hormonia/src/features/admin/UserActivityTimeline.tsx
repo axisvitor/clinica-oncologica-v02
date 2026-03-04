@@ -14,7 +14,7 @@ import {
   Trash2,
   LogIn,
   LogOut,
-  Clock
+  Clock,
 } from 'lucide-react'
 import { AdminUserActivity } from '@/types/admin'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -35,11 +35,11 @@ export function UserActivityTimeline({
   activities,
   isLoading = false,
   showUserInfo = false,
-  maxHeight = "400px",
-  compact = false
+  maxHeight = '400px',
+  compact = false,
 }: UserActivityTimelineProps) {
   const getActivityIcon = (action: string) => {
-    const iconProps = { className: "h-4 w-4" }
+    const iconProps = { className: 'h-4 w-4' }
 
     switch (action.toLowerCase()) {
       case 'login':
@@ -204,14 +204,26 @@ export function UserActivityTimeline({
       case 'delete_user':
       case 'delete_patient':
       case 'security_event':
-        return <Badge variant="destructive" className="text-xs">Alto</Badge>
+        return (
+          <Badge variant="destructive" className="text-xs">
+            Alto
+          </Badge>
+        )
       case 'permission_change':
       case 'role_change':
       case 'password_reset':
       case 'audit_access':
-        return <Badge variant="default" className="text-xs">Médio</Badge>
+        return (
+          <Badge variant="default" className="text-xs">
+            Médio
+          </Badge>
+        )
       default:
-        return <Badge variant="secondary" className="text-xs">Baixo</Badge>
+        return (
+          <Badge variant="secondary" className="text-xs">
+            Baixo
+          </Badge>
+        )
     }
   }
 
@@ -219,7 +231,7 @@ export function UserActivityTimeline({
     try {
       return formatDistanceToNow(new Date(timestamp), {
         addSuffix: true,
-        locale: ptBR
+        locale: ptBR,
       })
     } catch {
       return 'Data inválida'
@@ -237,7 +249,7 @@ export function UserActivityTimeline({
   const getInitials = (name: string) => {
     return name
       .split(' ')
-      .map(n => n[0])
+      .map((n) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -246,7 +258,7 @@ export function UserActivityTimeline({
   const groupActivitiesByDate = (activities: AdminUserActivity[]) => {
     const groups: { [key: string]: AdminUserActivity[] } = {}
 
-    activities.forEach(activity => {
+    activities.forEach((activity) => {
       const date = new Date(activity.timestamp).toLocaleDateString('pt-BR')
       if (!groups[date]) {
         groups[date] = []
@@ -288,9 +300,7 @@ export function UserActivityTimeline({
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Timeline de Atividades</CardTitle>
-          <CardDescription>
-            Histórico de ações realizadas pelo usuário
-          </CardDescription>
+          <CardDescription>Histórico de ações realizadas pelo usuário</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
@@ -314,9 +324,7 @@ export function UserActivityTimeline({
           <Activity className="h-5 w-5" />
           Timeline de Atividades
         </CardTitle>
-        <CardDescription>
-          Histórico cronológico das ações realizadas
-        </CardDescription>
+        <CardDescription>Histórico cronológico das ações realizadas</CardDescription>
       </CardHeader>
       <CardContent>
         <ScrollArea style={{ height: maxHeight }}>
@@ -339,12 +347,16 @@ export function UserActivityTimeline({
                   {dateActivities.map((activity, index) => (
                     <div key={activity.id || index} className="relative flex items-start space-x-3">
                       {/* Timeline dot */}
-                      <div className={`relative z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 ${getActivityColor(activity.action)}`}>
+                      <div
+                        className={`relative z-10 flex items-center justify-center w-8 h-8 rounded-full border-2 ${getActivityColor(activity.action)}`}
+                      >
                         {getActivityIcon(activity.action)}
                       </div>
 
                       {/* Activity content */}
-                      <div className={`flex-1 min-w-0 p-3 rounded-lg border ${compact ? 'pb-2' : ''} ${getActivityColor(activity.action)}`}>
+                      <div
+                        className={`flex-1 min-w-0 p-3 rounded-lg border ${compact ? 'pb-2' : ''} ${getActivityColor(activity.action)}`}
+                      >
                         <div className="flex items-start justify-between">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
@@ -361,9 +373,7 @@ export function UserActivityTimeline({
                                     {getInitials(activity.user_email?.split('@')[0] || 'U')}
                                   </AvatarFallback>
                                 </Avatar>
-                                <span className="text-xs text-gray-600">
-                                  {activity.user_email}
-                                </span>
+                                <span className="text-xs text-gray-600">{activity.user_email}</span>
                               </div>
                             )}
 
@@ -376,21 +386,27 @@ export function UserActivityTimeline({
                               )}
                             </div>
 
-                            {!compact && activity.details && Object.keys(activity.details).length > 0 && (
-                              <details className="mt-2">
-                                <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
-                                  Ver detalhes
-                                </summary>
-                                <div className="mt-2 p-2 bg-white bg-opacity-50 rounded text-xs">
-                                  {Object.entries(activity.details).map(([key, value]) => (
-                                    <div key={key} className="flex justify-between">
-                                      <span className="font-medium">{key}:</span>
-                                      <span>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </details>
-                            )}
+                            {!compact &&
+                              activity.details &&
+                              Object.keys(activity.details).length > 0 && (
+                                <details className="mt-2">
+                                  <summary className="text-xs text-blue-600 cursor-pointer hover:text-blue-800">
+                                    Ver detalhes
+                                  </summary>
+                                  <div className="mt-2 p-2 bg-white bg-opacity-50 rounded text-xs">
+                                    {Object.entries(activity.details).map(([key, value]) => (
+                                      <div key={key} className="flex justify-between">
+                                        <span className="font-medium">{key}:</span>
+                                        <span>
+                                          {typeof value === 'object'
+                                            ? JSON.stringify(value)
+                                            : String(value)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </details>
+                              )}
                           </div>
                         </div>
                       </div>

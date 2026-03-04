@@ -107,12 +107,12 @@ export function createAuthApi(client: ApiClientCore) {
     // UPDATED: Include session_id in Authorization header if available
     // while still supporting cookie-based fallback.
     const baseURL = client.getBaseURL()
-    
+
     // Prepare headers
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
-    
+
     // Add auth token if available (session_id)
     const token = client.getAuthToken()
     if (token) {
@@ -145,10 +145,8 @@ export function createAuthApi(client: ApiClientCore) {
   }
 
   return {
-    login: async (_credentials: LoginCredentials): Promise<AuthResponse> =>
-      unsupported('login'),
-    register: async (_data: RegisterData): Promise<AuthResponse> =>
-      unsupported('register'),
+    login: async (_credentials: LoginCredentials): Promise<AuthResponse> => unsupported('login'),
+    register: async (_data: RegisterData): Promise<AuthResponse> => unsupported('register'),
     requestPasswordReset: async (_data: PasswordResetRequest): Promise<{ message: string }> =>
       unsupported('requestPasswordReset'),
     confirmPasswordReset: async (_data: PasswordResetConfirm): Promise<{ message: string }> =>
@@ -157,8 +155,7 @@ export function createAuthApi(client: ApiClientCore) {
       unsupported('changePassword'),
     refreshToken: async (_refreshToken: string): Promise<AuthResponse> =>
       unsupported('refreshToken'),
-    verifyEmail: async (_token: string): Promise<{ message: string }> =>
-      unsupported('verifyEmail'),
+    verifyEmail: async (_token: string): Promise<{ message: string }> => unsupported('verifyEmail'),
     resendVerificationEmail: async (): Promise<{ message: string }> =>
       unsupported('resendVerificationEmail'),
 
@@ -176,18 +173,17 @@ export function createAuthApi(client: ApiClientCore) {
       return mapSessionUser(session.user)
     },
 
-    updateProfile: async (_data: Partial<User>): Promise<User> =>
-      unsupported('updateProfile'),
+    updateProfile: async (_data: Partial<User>): Promise<User> => unsupported('updateProfile'),
 
     checkAuth: async (): Promise<{ authenticated: boolean; user?: User; sessionId?: string }> => {
       const session = await fetchSession()
       if (session.valid && session.user) {
         // Get session_id from root level (where backend returns it)
-        const sessionId = session.session_id;
+        const sessionId = session.session_id
         return {
           authenticated: true,
           user: mapSessionUser(session.user),
-          sessionId
+          sessionId,
         }
       }
       return { authenticated: false }
@@ -218,14 +214,14 @@ export function createAuthApi(client: ApiClientCore) {
         message?: string
         user?: User
       }>('/api/v2/auth/firebase/verify', {
-        id_token: firebaseToken
-      });
+        id_token: firebaseToken,
+      })
 
       if (response.valid && response.session_id) {
-        client.setAuthToken(response.session_id);
+        client.setAuthToken(response.session_id)
       }
 
-      return response;
+      return response
     },
 
     me: async (): Promise<{ data: User | null; session?: Record<string, unknown> | undefined }> => {
@@ -235,7 +231,7 @@ export function createAuthApi(client: ApiClientCore) {
       }
       return {
         data: mapSessionUser(session.user),
-        session: session.session_data
+        session: session.session_data,
       }
     },
   }

@@ -30,8 +30,8 @@ vi.mock('@/lib/api-client', () => ({
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),
-    }
-  }
+    },
+  },
 }))
 
 // Mock child components
@@ -48,19 +48,17 @@ vi.mock('../users/UsersTable', () => ({
         </div>
       ))}
     </div>
-  )
+  ),
 }))
 
 vi.mock('../users/CreateUserModal', () => ({
-  CreateUserModal: ({ open, onOpenChange: _onOpenChange }: any) => (
-    open ? <div data-testid="create-user-modal">Create User Modal</div> : null
-  )
+  CreateUserModal: ({ open, onOpenChange: _onOpenChange }: any) =>
+    open ? <div data-testid="create-user-modal">Create User Modal</div> : null,
 }))
 
 vi.mock('../users/UserDetailsModal', () => ({
-  UserDetailsModal: ({ user, open, onOpenChange: _onOpenChange }: any) => (
-    open ? <div data-testid="user-details-modal">User Details for {user?.full_name}</div> : null
-  )
+  UserDetailsModal: ({ user, open, onOpenChange: _onOpenChange }: any) =>
+    open ? <div data-testid="user-details-modal">User Details for {user?.full_name}</div> : null,
 }))
 
 // Sample test data
@@ -78,7 +76,7 @@ const mockUsers: AdminUser[] = [
     locked_until: null,
     permissions: ['read', 'write'],
     two_factor_enabled: false,
-    failed_login_attempts: 0
+    failed_login_attempts: 0,
   },
   {
     id: '2',
@@ -93,7 +91,7 @@ const mockUsers: AdminUser[] = [
     locked_until: '2024-12-31T23:59:59-03:00',
     permissions: ['read', 'write', 'admin'],
     two_factor_enabled: true,
-    failed_login_attempts: 2
+    failed_login_attempts: 2,
   },
   {
     id: '3',
@@ -108,8 +106,8 @@ const mockUsers: AdminUser[] = [
     locked_until: null,
     permissions: ['read'],
     two_factor_enabled: false,
-    failed_login_attempts: 0
-  }
+    failed_login_attempts: 0,
+  },
 ]
 
 const mockApiResponse = {
@@ -117,7 +115,7 @@ const mockApiResponse = {
   total: mockUsers.length,
   pages: 1,
   current_page: 1,
-  page_size: 10
+  page_size: 10,
 }
 
 // Test wrapper component
@@ -130,11 +128,7 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
     },
   })
 
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  )
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 }
 
 describe('UserListPage', () => {
@@ -159,7 +153,9 @@ describe('UserListPage', () => {
       )
 
       expect(screen.getByText('Gerenciamento de Usuários')).toBeInTheDocument()
-      expect(screen.getByText('Gerencie usuários administrativos, permissões e atividades')).toBeInTheDocument()
+      expect(
+        screen.getByText('Gerencie usuários administrativos, permissões e atividades')
+      ).toBeInTheDocument()
     })
 
     it('renders action buttons in header', async () => {
@@ -223,7 +219,7 @@ describe('UserListPage', () => {
   describe('Data Loading', () => {
     it('shows loading state while fetching data', () => {
       vi.mocked(apiClient.adminUsers.list).mockImplementation(
-        () => new Promise(resolve => setTimeout(resolve, 1000))
+        () => new Promise((resolve) => setTimeout(resolve, 1000))
       )
 
       render(
@@ -261,7 +257,7 @@ describe('UserListPage', () => {
       await waitFor(() => {
         expect(apiClient.adminUsers.list).toHaveBeenCalledWith({
           page: 1,
-          size: 10
+          size: 10,
         })
       })
     })
@@ -297,7 +293,7 @@ describe('UserListPage', () => {
         expect(apiClient.adminUsers.list).toHaveBeenCalledWith({
           page: 1,
           size: 10,
-          search: 'admin1'
+          search: 'admin1',
         })
       })
     })
@@ -334,7 +330,7 @@ describe('UserListPage', () => {
       await waitFor(() => {
         expect(apiClient.adminUsers.list).toHaveBeenLastCalledWith({
           page: 1,
-          size: 10
+          size: 10,
         })
       })
     })
@@ -356,7 +352,7 @@ describe('UserListPage', () => {
         expect(apiClient.adminUsers.list).toHaveBeenCalledWith({
           page: 1,
           size: 10,
-          role: 'admin'
+          role: 'admin',
         })
       })
     })
@@ -376,7 +372,7 @@ describe('UserListPage', () => {
         expect(apiClient.adminUsers.list).toHaveBeenCalledWith({
           page: 1,
           size: 10,
-          is_active: true
+          is_active: true,
         })
       })
     })
@@ -402,7 +398,7 @@ describe('UserListPage', () => {
           page: 1,
           size: 10,
           search: 'admin',
-          role: 'admin'
+          role: 'admin',
         })
       })
     })
@@ -445,7 +441,7 @@ describe('UserListPage', () => {
       await waitFor(() => {
         expect(apiClient.adminUsers.list).toHaveBeenCalledWith({
           page: 1,
-          size: 10
+          size: 10,
         })
       })
     })
@@ -534,7 +530,7 @@ describe('UserListPage', () => {
         total: 10,
         pages: 5,
         current_page: 1,
-        page_size: 2
+        page_size: 2,
       }
 
       vi.mocked(apiClient.adminUsers.list).mockResolvedValue(paginatedResponse)
@@ -548,7 +544,7 @@ describe('UserListPage', () => {
       await waitFor(() => {
         expect(apiClient.adminUsers.list).toHaveBeenCalledWith({
           page: 1,
-          size: 10
+          size: 10,
         })
       })
     })
@@ -556,9 +552,7 @@ describe('UserListPage', () => {
 
   describe('Error Handling', () => {
     it('handles network errors gracefully', async () => {
-      vi.mocked(apiClient.adminUsers.list).mockRejectedValue(
-        new Error('Network error')
-      )
+      vi.mocked(apiClient.adminUsers.list).mockRejectedValue(new Error('Network error'))
 
       render(
         <TestWrapper>
@@ -576,8 +570,8 @@ describe('UserListPage', () => {
       vi.mocked(apiClient.adminUsers.list).mockRejectedValue({
         response: {
           status: 422,
-          data: { detail: 'Invalid parameters' }
-        }
+          data: { detail: 'Invalid parameters' },
+        },
       })
 
       render(
@@ -595,8 +589,8 @@ describe('UserListPage', () => {
       vi.mocked(apiClient.adminUsers.list).mockRejectedValue({
         response: {
           status: 401,
-          data: { detail: 'Unauthorized' }
-        }
+          data: { detail: 'Unauthorized' },
+        },
       })
 
       render(
@@ -625,8 +619,8 @@ describe('UserListPage', () => {
         login_count: i,
         locked_until: null,
         permissions: ['read'],
-    two_factor_enabled: false,
-    failed_login_attempts: 0
+        two_factor_enabled: false,
+        failed_login_attempts: 0,
       }))
 
       const largeResponse = {
@@ -634,7 +628,7 @@ describe('UserListPage', () => {
         total: largeDataset.length,
         pages: 20,
         current_page: 1,
-        page_size: 50
+        page_size: 50,
       }
 
       vi.mocked(apiClient.adminUsers.list).mockResolvedValue(largeResponse)
@@ -727,8 +721,12 @@ describe('UserListPage', () => {
 
       await waitFor(() => {
         // Check for descriptive text
-        expect(screen.getByText('Gerencie usuários administrativos, permissões e atividades')).toBeInTheDocument()
-        expect(screen.getByText('Use os filtros abaixo para encontrar usuários específicos')).toBeInTheDocument()
+        expect(
+          screen.getByText('Gerencie usuários administrativos, permissões e atividades')
+        ).toBeInTheDocument()
+        expect(
+          screen.getByText('Use os filtros abaixo para encontrar usuários específicos')
+        ).toBeInTheDocument()
       })
     })
   })

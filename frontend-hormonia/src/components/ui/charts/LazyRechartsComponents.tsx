@@ -18,7 +18,7 @@
  * - ChartSkeleton provides loading feedback
  */
 
-import React, { lazy, Suspense, ComponentProps } from 'react';
+import React, { lazy, Suspense, ComponentProps } from 'react'
 
 // ============================================================================
 // TYPE DEFINITIONS (Using ComponentProps pattern)
@@ -28,17 +28,17 @@ import React, { lazy, Suspense, ComponentProps } from 'react';
  * Extract component types using ComponentProps instead of direct imports
  * This avoids the "Module has no exported member" TypeScript errors
  */
-type LineChartProps = ComponentProps<typeof import('recharts').LineChart>;
-type AreaChartProps = ComponentProps<typeof import('recharts').AreaChart>;
-type BarChartProps = ComponentProps<typeof import('recharts').BarChart>;
-type PieChartProps = ComponentProps<typeof import('recharts').PieChart>;
-type RadarChartProps = ComponentProps<typeof import('recharts').RadarChart>;
-type RadialBarChartProps = ComponentProps<typeof import('recharts').RadialBarChart>;
-type ScatterChartProps = ComponentProps<typeof import('recharts').ScatterChart>;
-type ComposedChartProps = ComponentProps<typeof import('recharts').ComposedChart>;
-type FunnelChartProps = ComponentProps<typeof import('recharts').FunnelChart>;
-type TreemapProps = ComponentProps<typeof import('recharts').Treemap>;
-type SankeyProps = ComponentProps<typeof import('recharts').Sankey>;
+type LineChartProps = ComponentProps<typeof import('recharts').LineChart>
+type AreaChartProps = ComponentProps<typeof import('recharts').AreaChart>
+type BarChartProps = ComponentProps<typeof import('recharts').BarChart>
+type PieChartProps = ComponentProps<typeof import('recharts').PieChart>
+type RadarChartProps = ComponentProps<typeof import('recharts').RadarChart>
+type RadialBarChartProps = ComponentProps<typeof import('recharts').RadialBarChart>
+type ScatterChartProps = ComponentProps<typeof import('recharts').ScatterChart>
+type ComposedChartProps = ComponentProps<typeof import('recharts').ComposedChart>
+type FunnelChartProps = ComponentProps<typeof import('recharts').FunnelChart>
+type TreemapProps = ComponentProps<typeof import('recharts').Treemap>
+type SankeyProps = ComponentProps<typeof import('recharts').Sankey>
 
 // ============================================================================
 // TYPE-SAFE LAZY WRAPPER
@@ -54,9 +54,11 @@ function createLazyChart<P extends object>(
   return lazy(() =>
     import('recharts').then((module) => ({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      default: (module as unknown as Record<string, React.ComponentType<any>>)[componentName] as React.ComponentType<P>
+      default: (module as unknown as Record<string, React.ComponentType<any>>)[
+        componentName
+      ] as React.ComponentType<P>,
     }))
-  );
+  )
 }
 
 // ============================================================================
@@ -67,67 +69,67 @@ function createLazyChart<P extends object>(
  * Lazy-loaded LineChart component
  * Use with LazyChartWrapper to show loading skeleton
  */
-export const LineChart = createLazyChart<LineChartProps>('LineChart');
+export const LineChart = createLazyChart<LineChartProps>('LineChart')
 
 /**
  * Lazy-loaded AreaChart component
  * Use with LazyChartWrapper to show loading skeleton
  */
-export const AreaChart = createLazyChart<AreaChartProps>('AreaChart');
+export const AreaChart = createLazyChart<AreaChartProps>('AreaChart')
 
 /**
  * Lazy-loaded BarChart component
  * Use with LazyChartWrapper to show loading skeleton
  */
-export const BarChart = createLazyChart<BarChartProps>('BarChart');
+export const BarChart = createLazyChart<BarChartProps>('BarChart')
 
 /**
  * Lazy-loaded PieChart component
  * Use with LazyChartWrapper to show loading skeleton
  */
-export const PieChart = createLazyChart<PieChartProps>('PieChart');
+export const PieChart = createLazyChart<PieChartProps>('PieChart')
 
 /**
  * Lazy-loaded RadarChart component
  * Use with LazyChartWrapper to show loading skeleton
  */
-export const RadarChart = createLazyChart<RadarChartProps>('RadarChart');
+export const RadarChart = createLazyChart<RadarChartProps>('RadarChart')
 
 /**
  * Lazy-loaded RadialBarChart component
  * Use with LazyChartWrapper to show loading skeleton
  */
-export const RadialBarChart = createLazyChart<RadialBarChartProps>('RadialBarChart');
+export const RadialBarChart = createLazyChart<RadialBarChartProps>('RadialBarChart')
 
 /**
  * Lazy-loaded ScatterChart component
  * Use with LazyChartWrapper to show loading skeleton
  */
-export const ScatterChart = createLazyChart<ScatterChartProps>('ScatterChart');
+export const ScatterChart = createLazyChart<ScatterChartProps>('ScatterChart')
 
 /**
  * Lazy-loaded ComposedChart component
  * Use with LazyChartWrapper to show loading skeleton
  */
-export const ComposedChart = createLazyChart<ComposedChartProps>('ComposedChart');
+export const ComposedChart = createLazyChart<ComposedChartProps>('ComposedChart')
 
 /**
  * Lazy-loaded FunnelChart component
  * Use with LazyChartWrapper to show loading skeleton
  */
-export const FunnelChart = createLazyChart<FunnelChartProps>('FunnelChart');
+export const FunnelChart = createLazyChart<FunnelChartProps>('FunnelChart')
 
 /**
  * Lazy-loaded Treemap component
  * Use with LazyChartWrapper to show loading skeleton
  */
-export const Treemap = createLazyChart<TreemapProps>('Treemap');
+export const Treemap = createLazyChart<TreemapProps>('Treemap')
 
 /**
  * Lazy-loaded Sankey component
  * Use with LazyChartWrapper to show loading skeleton
  */
-export const Sankey = createLazyChart<SankeyProps>('Sankey');
+export const Sankey = createLazyChart<SankeyProps>('Sankey')
 
 // ============================================================================
 // LOADING SKELETON AND SUSPENSE WRAPPER
@@ -147,7 +149,7 @@ export const ChartSkeleton: React.FC<{ height?: number }> = ({ height = 300 }) =
   >
     <span className="text-muted-foreground text-sm">Carregando gráfico...</span>
   </div>
-);
+)
 
 /**
  * Suspense wrapper for lazy-loaded chart components
@@ -167,13 +169,11 @@ export const ChartSkeleton: React.FC<{ height?: number }> = ({ height = 300 }) =
  * ```
  */
 export const LazyChartWrapper: React.FC<{
-  children: React.ReactNode;
-  height?: number;
+  children: React.ReactNode
+  height?: number
 }> = ({ children, height }) => (
-  <Suspense fallback={<ChartSkeleton height={height} />}>
-    {children}
-  </Suspense>
-);
+  <Suspense fallback={<ChartSkeleton height={height} />}>{children}</Suspense>
+)
 
 /**
  * ============================================================================

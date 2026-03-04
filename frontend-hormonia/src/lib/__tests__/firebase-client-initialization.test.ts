@@ -17,7 +17,7 @@ vi.mock('firebase/app', () => {
     }),
     getApps: vi.fn(() => apps),
     FirebaseApp: class {},
-    FirebaseOptions: class {}
+    FirebaseOptions: class {},
   }
 })
 
@@ -33,7 +33,7 @@ vi.mock('firebase/auth', () => ({
   sendEmailVerification: vi.fn(),
   setPersistence: vi.fn(),
   browserLocalPersistence: {},
-  browserSessionPersistence: {}
+  browserSessionPersistence: {},
 }))
 
 describe('Firebase Client Initialization', () => {
@@ -75,9 +75,9 @@ describe('Firebase Client Initialization', () => {
       value: {
         VITE_FIREBASE_API_KEY: '',
         VITE_FIREBASE_PROJECT_ID: '',
-        VITE_FIREBASE_AUTH_DOMAIN: ''
+        VITE_FIREBASE_AUTH_DOMAIN: '',
       },
-      configurable: true
+      configurable: true,
     })
 
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -94,7 +94,7 @@ describe('Firebase Client Initialization', () => {
     // Restore original env
     Object.defineProperty(import.meta, 'env', {
       value: originalEnv,
-      configurable: true
+      configurable: true,
     })
   })
 
@@ -132,7 +132,7 @@ describe('Firebase Client Initialization', () => {
     const originalEnv = import.meta.env
     Object.defineProperty(import.meta, 'env', {
       value: { ...originalEnv, DEV: true },
-      configurable: true
+      configurable: true,
     })
 
     await import('../firebase-client')
@@ -148,7 +148,7 @@ describe('Firebase Client Initialization', () => {
     // Restore original env
     Object.defineProperty(import.meta, 'env', {
       value: originalEnv,
-      configurable: true
+      configurable: true,
     })
   })
 
@@ -160,7 +160,7 @@ describe('Firebase Client Initialization', () => {
     const originalEnv = import.meta.env
     Object.defineProperty(import.meta, 'env', {
       value: { ...originalEnv, DEV: true },
-      configurable: true
+      configurable: true,
     })
 
     // Manually create multiple apps to trigger warning
@@ -183,7 +183,7 @@ describe('Firebase Client Initialization', () => {
     // Restore original env
     Object.defineProperty(import.meta, 'env', {
       value: originalEnv,
-      configurable: true
+      configurable: true,
     })
   })
 })
@@ -198,9 +198,9 @@ describe('Firebase Configuration Validation', () => {
         ...originalEnv,
         VITE_FIREBASE_API_KEY: '',
         VITE_FIREBASE_PROJECT_ID: 'test-project',
-        VITE_FIREBASE_AUTH_DOMAIN: 'test.firebaseapp.com'
+        VITE_FIREBASE_AUTH_DOMAIN: 'test.firebaseapp.com',
       },
-      configurable: true
+      configurable: true,
     })
 
     try {
@@ -216,7 +216,7 @@ describe('Firebase Configuration Validation', () => {
     consoleErrorSpy.mockRestore()
     Object.defineProperty(import.meta, 'env', {
       value: originalEnv,
-      configurable: true
+      configurable: true,
     })
   })
 
@@ -229,9 +229,9 @@ describe('Firebase Configuration Validation', () => {
         ...originalEnv,
         VITE_FIREBASE_API_KEY: 'test-key',
         VITE_FIREBASE_PROJECT_ID: '',
-        VITE_FIREBASE_AUTH_DOMAIN: 'test.firebaseapp.com'
+        VITE_FIREBASE_AUTH_DOMAIN: 'test.firebaseapp.com',
       },
-      configurable: true
+      configurable: true,
     })
 
     try {
@@ -247,7 +247,7 @@ describe('Firebase Configuration Validation', () => {
     consoleErrorSpy.mockRestore()
     Object.defineProperty(import.meta, 'env', {
       value: originalEnv,
-      configurable: true
+      configurable: true,
     })
   })
 
@@ -256,9 +256,9 @@ describe('Firebase Configuration Validation', () => {
     Object.defineProperty(import.meta, 'env', {
       value: {
         ...originalEnv,
-        VITE_FIREBASE_MEASUREMENT_ID: 'G-XXXXXXXXXX'
+        VITE_FIREBASE_MEASUREMENT_ID: 'G-XXXXXXXXXX',
       },
-      configurable: true
+      configurable: true,
     })
 
     // Re-import with measurement ID
@@ -269,7 +269,7 @@ describe('Firebase Configuration Validation', () => {
 
     Object.defineProperty(import.meta, 'env', {
       value: originalEnv,
-      configurable: true
+      configurable: true,
     })
   })
 })

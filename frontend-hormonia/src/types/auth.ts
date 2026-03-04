@@ -7,5 +7,5 @@ export type {
   PasswordResetRequest,
   PasswordResetConfirm,
   PasswordChange,
-  SessionValidationResponse
+  SessionValidationResponse,
 } from '../lib/api-client/auth'

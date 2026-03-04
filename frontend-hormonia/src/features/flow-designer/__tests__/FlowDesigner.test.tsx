@@ -12,8 +12,8 @@ import { createTestDesign } from './testDesignFactory'
 // Mock useToast
 vi.mock('@/components/ui/use-toast', () => ({
   useToast: () => ({
-    toast: vi.fn()
-  })
+    toast: vi.fn(),
+  }),
 }))
 
 describe('FlowDesigner', () => {
@@ -79,8 +79,8 @@ describe('FlowDesigner', () => {
             id: 'msg-1',
             type: FlowNodeType.MESSAGE,
             position: { x: 100, y: 100 },
-            data: { label: 'Mensagem', config: { content: 'Test' } }
-          }
+            data: { label: 'Mensagem', config: { content: 'Test' } },
+          },
         ],
         connections: [],
         variables: [],
@@ -88,10 +88,10 @@ describe('FlowDesigner', () => {
           author: 'test',
           tags: [],
           category: 'test',
-          complexity_level: 'simple'
+          complexity_level: 'simple',
         },
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       }
 
       render(<FlowDesigner initialDesign={invalidDesign} />)
@@ -122,10 +122,12 @@ describe('FlowDesigner', () => {
       await userEvent.click(saveButton)
 
       await waitFor(() => {
-        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
-          id: 'test-design',
-          name: 'Test Flow'
-        }))
+        expect(onSave).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: 'test-design',
+            name: 'Test Flow',
+          })
+        )
       })
     })
 
@@ -143,10 +145,10 @@ describe('FlowDesigner', () => {
           author: 'test',
           tags: [],
           category: 'test',
-          complexity_level: 'simple'
+          complexity_level: 'simple',
         },
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
       }
 
       render(<FlowDesigner initialDesign={invalidDesign} onSave={onSave} />)
@@ -169,9 +171,11 @@ describe('FlowDesigner', () => {
       await userEvent.click(testButton)
 
       await waitFor(() => {
-        expect(onTest).toHaveBeenCalledWith(expect.objectContaining({
-          id: 'test-design'
-        }))
+        expect(onTest).toHaveBeenCalledWith(
+          expect.objectContaining({
+            id: 'test-design',
+          })
+        )
       })
     })
   })
@@ -182,7 +186,7 @@ describe('FlowDesigner', () => {
 
       // Find undo button (Undo icon)
       const buttons = screen.getAllByRole('button')
-      const undoButton = buttons.find(btn => btn.querySelector('svg'))
+      const undoButton = buttons.find((btn) => btn.querySelector('svg'))
 
       // Undo should be disabled at start
       expect(undoButton).toBeDefined()

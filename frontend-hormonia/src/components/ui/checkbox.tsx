@@ -9,24 +9,23 @@ const checkboxClassName =
 
 type CheckboxProps = React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
 
-const Checkbox = React.forwardRef<
-  React.ElementRef<typeof CheckboxPrimitive.Root>,
-  CheckboxProps
->(({ className, ...props }, ref) => (
-  <CheckboxPrimitive.Root
-    ref={ref}
-    data-slot="checkbox"
-    className={cn(checkboxClassName, className)}
-    {...props}
-  >
-    <CheckboxPrimitive.Indicator
-      data-slot="checkbox-indicator"
-      className="flex items-center justify-center text-current transition-none"
+const Checkbox = React.forwardRef<React.ElementRef<typeof CheckboxPrimitive.Root>, CheckboxProps>(
+  ({ className, ...props }, ref) => (
+    <CheckboxPrimitive.Root
+      ref={ref}
+      data-slot="checkbox"
+      className={cn(checkboxClassName, className)}
+      {...props}
     >
-      <CheckIcon className="size-3.5" />
-    </CheckboxPrimitive.Indicator>
-  </CheckboxPrimitive.Root>
-))
+      <CheckboxPrimitive.Indicator
+        data-slot="checkbox-indicator"
+        className="flex items-center justify-center text-current transition-none"
+      >
+        <CheckIcon className="size-3.5" />
+      </CheckboxPrimitive.Indicator>
+    </CheckboxPrimitive.Root>
+  )
+)
 Checkbox.displayName = CheckboxPrimitive.Root.displayName
 
 export { Checkbox }

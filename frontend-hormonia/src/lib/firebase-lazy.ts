@@ -55,28 +55,46 @@ async function getFirebaseApp(): Promise<FirebaseApp> {
   // Build config from runtime or env vars
   const runtimeConfig = getRuntimeConfigSync()
   const config: FirebaseOptions = {
-    apiKey: (runtimeConfig?.VITE_FIREBASE_API_KEY || import.meta.env['VITE_FIREBASE_API_KEY'] || ''),
-    authDomain: (runtimeConfig?.VITE_FIREBASE_AUTH_DOMAIN || import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] || ''),
-    projectId: (runtimeConfig?.VITE_FIREBASE_PROJECT_ID || import.meta.env['VITE_FIREBASE_PROJECT_ID'] || ''),
-    storageBucket: (runtimeConfig?.VITE_FIREBASE_STORAGE_BUCKET || import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] || ''),
-    messagingSenderId: (runtimeConfig?.VITE_FIREBASE_MESSAGING_SENDER_ID || import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] || ''),
-    appId: (runtimeConfig?.VITE_FIREBASE_APP_ID || import.meta.env['VITE_FIREBASE_APP_ID'] || ''),
-    measurementId: (runtimeConfig?.VITE_FIREBASE_MEASUREMENT_ID || import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'])
+    apiKey: runtimeConfig?.VITE_FIREBASE_API_KEY || import.meta.env['VITE_FIREBASE_API_KEY'] || '',
+    authDomain:
+      runtimeConfig?.VITE_FIREBASE_AUTH_DOMAIN ||
+      import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] ||
+      '',
+    projectId:
+      runtimeConfig?.VITE_FIREBASE_PROJECT_ID || import.meta.env['VITE_FIREBASE_PROJECT_ID'] || '',
+    storageBucket:
+      runtimeConfig?.VITE_FIREBASE_STORAGE_BUCKET ||
+      import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] ||
+      '',
+    messagingSenderId:
+      runtimeConfig?.VITE_FIREBASE_MESSAGING_SENDER_ID ||
+      import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] ||
+      '',
+    appId: runtimeConfig?.VITE_FIREBASE_APP_ID || import.meta.env['VITE_FIREBASE_APP_ID'] || '',
+    measurementId:
+      runtimeConfig?.VITE_FIREBASE_MEASUREMENT_ID ||
+      import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'],
   }
 
   // Validate required fields
   if (!config.apiKey || !config.authDomain || !config.projectId) {
-    const error = 'Firebase configuration is incomplete. Missing required fields: ' +
+    const error =
+      'Firebase configuration is incomplete. Missing required fields: ' +
       (!config.apiKey ? 'apiKey ' : '') +
       (!config.authDomain ? 'authDomain ' : '') +
       (!config.projectId ? 'projectId ' : '')
     logger.error(error)
-    logger.error('Current config:', { apiKey: !!config.apiKey, authDomain: !!config.authDomain, projectId: !!config.projectId })
-    
+    logger.error('Current config:', {
+      apiKey: !!config.apiKey,
+      authDomain: !!config.authDomain,
+      projectId: !!config.projectId,
+    })
+
     // PRODUCTION SAFETY: Show user-friendly error instead of crashing
     if (typeof window !== 'undefined') {
       const errorDiv = document.createElement('div')
-      errorDiv.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:#fee;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:system-ui;padding:20px;'
+      errorDiv.style.cssText =
+        'position:fixed;top:0;left:0;right:0;bottom:0;background:#fee;display:flex;align-items:center;justify-content:center;z-index:9999;font-family:system-ui;padding:20px;'
       errorDiv.innerHTML = `
         <div style="max-width:500px;background:white;padding:30px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.15);">
           <h2 style="color:#dc2626;margin:0 0 15px;font-size:24px;">⚠️ Erro de Configuração</h2>
@@ -93,7 +111,7 @@ async function getFirebaseApp(): Promise<FirebaseApp> {
       `
       document.body.appendChild(errorDiv)
     }
-    
+
     throw new Error(error)
   }
 
@@ -123,10 +141,7 @@ export const firebaseAuthLazy = {
   /**
    * Sign in with email and password (lazy loaded)
    */
-  async signInWithPassword(credentials: {
-    email: string
-    password: string
-  }): Promise<{
+  async signInWithPassword(credentials: { email: string; password: string }): Promise<{
     user: FirebaseUser | null
     session: { access_token: string } | null
     error: Error | null
@@ -146,13 +161,13 @@ export const firebaseAuthLazy = {
       return {
         user: userCredential.user,
         session: { access_token: token },
-        error: null
+        error: null,
       }
     } catch (error: unknown) {
       return {
         user: null,
         session: null,
-        error: error instanceof Error ? error : new Error('Authentication failed')
+        error: error instanceof Error ? error : new Error('Authentication failed'),
       }
     }
   },
@@ -181,7 +196,7 @@ export const firebaseAuthLazy = {
       return { error: null }
     } catch (error: unknown) {
       return {
-        error: error instanceof Error ? error : new Error('Sign out failed')
+        error: error instanceof Error ? error : new Error('Sign out failed'),
       }
     }
   },
@@ -209,11 +224,8 @@ export const firebaseAuthLazy = {
    * Set authentication persistence (lazy loaded)
    */
   async setPersistence(rememberMe: boolean): Promise<void> {
-    const {
-      setPersistence,
-      browserLocalPersistence,
-      browserSessionPersistence
-    } = await import('firebase/auth')
+    const { setPersistence, browserLocalPersistence, browserSessionPersistence } =
+      await import('firebase/auth')
     const auth = await getFirebaseAuth()
 
     const persistence = rememberMe ? browserLocalPersistence : browserSessionPersistence
@@ -267,7 +279,7 @@ export const firebaseAuthLazy = {
       return { error: null }
     } catch (error: unknown) {
       return {
-        error: error instanceof Error ? error : new Error('Password reset failed')
+        error: error instanceof Error ? error : new Error('Password reset failed'),
       }
     }
   },
@@ -281,5 +293,5 @@ export const firebaseAuthLazy = {
       import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] &&
       import.meta.env['VITE_FIREBASE_PROJECT_ID']
     )
-  }
+  },
 }

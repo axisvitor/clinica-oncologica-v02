@@ -33,7 +33,7 @@ export const MOCK_FLOWS: MockFlow[] = [
     current_day: 15,
     total_days: 90,
     started_at: '2024-09-15T10:00:00-03:00',
-    last_activity: '2024-10-01T14:30:00-03:00'
+    last_activity: '2024-10-01T14:30:00-03:00',
   },
   {
     id: 'flow-002',
@@ -43,7 +43,7 @@ export const MOCK_FLOWS: MockFlow[] = [
     current_day: 20,
     total_days: 60,
     started_at: '2024-09-10T09:00:00-03:00',
-    last_activity: '2024-09-30T16:00:00-03:00'
+    last_activity: '2024-09-30T16:00:00-03:00',
   },
   {
     id: 'flow-003',
@@ -53,7 +53,7 @@ export const MOCK_FLOWS: MockFlow[] = [
     current_day: 10,
     total_days: 45,
     started_at: '2024-09-20T11:00:00-03:00',
-    last_activity: '2024-09-28T10:15:00-03:00'
+    last_activity: '2024-09-28T10:15:00-03:00',
   },
   {
     id: 'flow-004',
@@ -63,7 +63,7 @@ export const MOCK_FLOWS: MockFlow[] = [
     current_day: 30,
     total_days: 120,
     started_at: '2024-08-25T14:00:00-03:00',
-    last_activity: '2024-09-28T13:45:00-03:00'
+    last_activity: '2024-09-28T13:45:00-03:00',
   },
   {
     id: 'flow-005',
@@ -73,7 +73,7 @@ export const MOCK_FLOWS: MockFlow[] = [
     current_day: 25,
     total_days: 90,
     started_at: '2024-09-05T08:30:00-03:00',
-    last_activity: '2024-10-01T09:00:00-03:00'
+    last_activity: '2024-10-01T09:00:00-03:00',
   },
   {
     id: 'flow-006',
@@ -84,8 +84,8 @@ export const MOCK_FLOWS: MockFlow[] = [
     total_days: 60,
     started_at: '2024-07-01T10:00:00-03:00',
     completed_at: '2024-08-30T15:20:00-03:00',
-    last_activity: '2024-08-30T15:20:00-03:00'
-  }
+    last_activity: '2024-08-30T15:20:00-03:00',
+  },
 ]
 
 export const MOCK_FLOW_TEMPLATES: MockFlowTemplate[] = [
@@ -96,7 +96,7 @@ export const MOCK_FLOW_TEMPLATES: MockFlowTemplate[] = [
     type: 'quimioterapia',
     duration_days: 90,
     is_active: true,
-    created_at: '2024-01-01T00:00:00-03:00'
+    created_at: '2024-01-01T00:00:00-03:00',
   },
   {
     id: 'template-002',
@@ -105,7 +105,7 @@ export const MOCK_FLOW_TEMPLATES: MockFlowTemplate[] = [
     type: 'radioterapia',
     duration_days: 60,
     is_active: true,
-    created_at: '2024-01-01T00:00:00-03:00'
+    created_at: '2024-01-01T00:00:00-03:00',
   },
   {
     id: 'template-003',
@@ -114,7 +114,7 @@ export const MOCK_FLOW_TEMPLATES: MockFlowTemplate[] = [
     type: 'pos_cirurgia',
     duration_days: 45,
     is_active: true,
-    created_at: '2024-01-01T00:00:00-03:00'
+    created_at: '2024-01-01T00:00:00-03:00',
   },
   {
     id: 'template-004',
@@ -123,25 +123,22 @@ export const MOCK_FLOW_TEMPLATES: MockFlowTemplate[] = [
     type: 'imunoterapia',
     duration_days: 120,
     is_active: true,
-    created_at: '2024-01-01T00:00:00-03:00'
-  }
+    created_at: '2024-01-01T00:00:00-03:00',
+  },
 ]
 
 /**
  * Get mock flows
  */
-export function getMockFlows(params?: {
-  patient_id?: string
-  status?: string
-}): MockFlow[] {
+export function getMockFlows(params?: { patient_id?: string; status?: string }): MockFlow[] {
   let filtered = [...MOCK_FLOWS]
 
   if (params?.patient_id) {
-    filtered = filtered.filter(f => f.patient_id === params.patient_id)
+    filtered = filtered.filter((f) => f.patient_id === params.patient_id)
   }
 
   if (params?.status) {
-    filtered = filtered.filter(f => f.status === params.status)
+    filtered = filtered.filter((f) => f.status === params.status)
   }
 
   return filtered
@@ -151,12 +148,12 @@ export function getMockFlows(params?: {
  * Get mock flow by ID
  */
 export function getMockFlowById(id: string): MockFlow | null {
-  return MOCK_FLOWS.find(f => f.id === id) || null
+  return MOCK_FLOWS.find((f) => f.id === id) || null
 }
 
 /**
  * Get mock flow templates
  */
 export function getMockFlowTemplates(): MockFlowTemplate[] {
-  return MOCK_FLOW_TEMPLATES.filter(t => t.is_active)
+  return MOCK_FLOW_TEMPLATES.filter((t) => t.is_active)
 }

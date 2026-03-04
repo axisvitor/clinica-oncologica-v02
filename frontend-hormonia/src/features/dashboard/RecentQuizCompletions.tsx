@@ -16,14 +16,18 @@ interface QuizSession extends BaseQuizSession {
 
 export function RecentQuizCompletions() {
   // Fetch recent quiz sessions across all patients
-  const { data: sessionsData, isLoading, error } = useQuery({
+  const {
+    data: sessionsData,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['recent-quiz-sessions'],
     queryFn: async () => {
       // Get all quiz sessions
       const response = await apiClient.quiz.sessions({})
       return response
     },
-    refetchInterval: 60000 // Refresh every minute
+    refetchInterval: 60000, // Refresh every minute
   })
 
   // Format date
@@ -39,10 +43,10 @@ export function RecentQuizCompletions() {
     if (diffMins < 60) return `${diffMins}m atrás`
     if (diffHours < 24) return `${diffHours}h atrás`
     if (diffDays < 7) return `${diffDays}d atrás`
-    
+
     return date.toLocaleDateString('pt-BR', {
       day: '2-digit',
-      month: 'short'
+      month: 'short',
     })
   }
 
@@ -116,9 +120,7 @@ export function RecentQuizCompletions() {
           <FileText className="h-5 w-5" />
           Quiz Recentes
         </CardTitle>
-        <CardDescription>
-          Últimos questionários completados
-        </CardDescription>
+        <CardDescription>Últimos questionários completados</CardDescription>
       </CardHeader>
       <CardContent>
         {recentSessions.length === 0 ? (
@@ -138,24 +140,29 @@ export function RecentQuizCompletions() {
                   <div className="flex-shrink-0 mt-1">
                     <CheckCircle className="h-5 w-5 text-green-600" />
                   </div>
-                  
+
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {session.patient_name || `Paciente ${session.patient_id.slice(0, 8)}`}
                       </p>
-                      <Badge variant={getStatusBadgeVariant(session.status)} className="flex-shrink-0">
+                      <Badge
+                        variant={getStatusBadgeVariant(session.status)}
+                        className="flex-shrink-0"
+                      >
                         {session.status}
                       </Badge>
                     </div>
-                    
+
                     <p className="text-xs text-gray-600 truncate">
                       {session.template_name || 'Quiz'}
                     </p>
-                    
+
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-gray-500">
-                        {formatDate(session.completed_at || session.started_at || new Date().toISOString())}
+                        {formatDate(
+                          session.completed_at || session.started_at || new Date().toISOString()
+                        )}
                       </span>
                       {session.score !== undefined && session.score !== null && (
                         <span className="text-xs font-medium text-blue-600">
@@ -164,7 +171,7 @@ export function RecentQuizCompletions() {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="flex-shrink-0">
                     <ArrowRight className="h-4 w-4 text-gray-400" />
                   </div>
@@ -177,4 +184,3 @@ export function RecentQuizCompletions() {
     </Card>
   )
 }
-

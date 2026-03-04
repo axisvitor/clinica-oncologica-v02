@@ -30,7 +30,7 @@ export const MOCK_QUIZ_TEMPLATES: MockQuizTemplate[] = [
     description: 'Questionário para acompanhamento mensal de sintomas',
     questions: [],
     is_active: true,
-    created_at: '2024-01-01T00:00:00-03:00'
+    created_at: '2024-01-01T00:00:00-03:00',
   },
   {
     id: 'quiz-template-002',
@@ -38,8 +38,8 @@ export const MOCK_QUIZ_TEMPLATES: MockQuizTemplate[] = [
     description: 'Avaliação de qualidade de vida durante tratamento',
     questions: [],
     is_active: true,
-    created_at: '2024-01-01T00:00:00-03:00'
-  }
+    created_at: '2024-01-01T00:00:00-03:00',
+  },
 ]
 
 export const MOCK_QUIZ_SESSIONS: MockQuizSession[] = [
@@ -52,7 +52,7 @@ export const MOCK_QUIZ_SESSIONS: MockQuizSession[] = [
     created_at: '2024-09-01T10:00:00-03:00',
     expires_at: '2024-09-08T10:00:00-03:00',
     completed_at: '2024-09-02T14:30:00-03:00',
-    score: 85
+    score: 85,
   },
   {
     id: 'session-002',
@@ -63,7 +63,7 @@ export const MOCK_QUIZ_SESSIONS: MockQuizSession[] = [
     created_at: '2024-09-01T10:00:00-03:00',
     expires_at: '2024-09-08T10:00:00-03:00',
     completed_at: '2024-09-03T09:15:00-03:00',
-    score: 92
+    score: 92,
   },
   {
     id: 'session-003',
@@ -72,8 +72,8 @@ export const MOCK_QUIZ_SESSIONS: MockQuizSession[] = [
     status: 'pending',
     link: 'https://sistema.com/quiz/session-003',
     created_at: '2024-10-01T10:00:00-03:00',
-    expires_at: '2024-10-08T10:00:00-03:00'
-  }
+    expires_at: '2024-10-08T10:00:00-03:00',
+  },
 ]
 
 /**
@@ -85,37 +85,39 @@ export function getMockQuizTemplates(): {
   page: number
   size: number
 } {
-  const templates = MOCK_QUIZ_TEMPLATES.filter(t => t.is_active)
+  const templates = MOCK_QUIZ_TEMPLATES.filter((t) => t.is_active)
   return {
     items: templates,
     total: templates.length,
     page: 1,
-    size: templates.length
+    size: templates.length,
   }
 }
 
 /**
  * Get mock quiz sessions
  */
-export function getMockQuizSessions(params?: {
-  patient_id?: string
-  status?: string
-}): { items: MockQuizSession[]; total: number; page: number; size: number } {
+export function getMockQuizSessions(params?: { patient_id?: string; status?: string }): {
+  items: MockQuizSession[]
+  total: number
+  page: number
+  size: number
+} {
   let filtered = [...MOCK_QUIZ_SESSIONS]
 
   if (params?.patient_id) {
-    filtered = filtered.filter(s => s.patient_id === params.patient_id)
+    filtered = filtered.filter((s) => s.patient_id === params.patient_id)
   }
 
   if (params?.status) {
-    filtered = filtered.filter(s => s.status === params.status)
+    filtered = filtered.filter((s) => s.status === params.status)
   }
 
   return {
     items: filtered,
     total: filtered.length,
     page: 1,
-    size: filtered.length
+    size: filtered.length,
   }
 }
 
@@ -132,12 +134,15 @@ export function getMockMonthlyQuizStats(): {
   expiration_rate: number
 } {
   const totalSent = MOCK_QUIZ_SESSIONS.length
-  const completed = MOCK_QUIZ_SESSIONS.filter(s => s.status === 'completed').length
-  const expired = MOCK_QUIZ_SESSIONS.filter(s => s.status === 'expired').length
-  const active = MOCK_QUIZ_SESSIONS.filter(s => s.status === 'pending' || s.status === 'in_progress').length
+  const completed = MOCK_QUIZ_SESSIONS.filter((s) => s.status === 'completed').length
+  const expired = MOCK_QUIZ_SESSIONS.filter((s) => s.status === 'expired').length
+  const active = MOCK_QUIZ_SESSIONS.filter(
+    (s) => s.status === 'pending' || s.status === 'in_progress'
+  ).length
 
-  const completedSessions = MOCK_QUIZ_SESSIONS.filter(s => s.score !== undefined)
-  const avgScore = completedSessions.reduce((sum, s) => sum + (s.score || 0), 0) / completedSessions.length || 0
+  const completedSessions = MOCK_QUIZ_SESSIONS.filter((s) => s.score !== undefined)
+  const avgScore =
+    completedSessions.reduce((sum, s) => sum + (s.score || 0), 0) / completedSessions.length || 0
 
   return {
     total_sent: totalSent,
@@ -146,6 +151,6 @@ export function getMockMonthlyQuizStats(): {
     total_active: active,
     average_score: Math.round(avgScore * 10) / 10,
     completion_rate: Math.round((completed / totalSent) * 100 * 10) / 10,
-    expiration_rate: Math.round((expired / totalSent) * 100 * 10) / 10
+    expiration_rate: Math.round((expired / totalSent) * 100 * 10) / 10,
   }
 }

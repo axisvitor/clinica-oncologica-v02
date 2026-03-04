@@ -16,7 +16,7 @@ export function getPatientsFromCache(cache?: PatientListCacheBase): Patient[] {
 export function setPatientsInCache<T extends PatientListCacheBase>(
   cache: T,
   patients: Patient[],
-  total?: number,
+  total?: number
 ): T {
   const nextCache: T = {
     ...cache,

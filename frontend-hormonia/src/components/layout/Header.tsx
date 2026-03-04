@@ -28,7 +28,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const getInitials = (name: string) => {
     return name
       .split(' ')
-      .map(n => n[0])
+      .map((n) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -91,7 +91,11 @@ export function Header({ onMenuClick }: HeaderProps) {
           {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-8 w-8 rounded-full" aria-label="Menu do usuario">
+              <Button
+                variant="ghost"
+                className="relative h-8 w-8 rounded-full"
+                aria-label="Menu do usuario"
+              >
                 <Avatar className="h-8 w-8">
                   <AvatarImage src="" alt={user?.full_name} />
                   <AvatarFallback className="bg-blue-600 text-white">
@@ -103,12 +107,8 @@ export function Header({ onMenuClick }: HeaderProps) {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">
-                    {user?.full_name}
-                  </p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    {user?.email}
-                  </p>
+                  <p className="text-sm font-medium leading-none">{user?.full_name}</p>
+                  <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -132,12 +132,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       {/* Breadcrumb row - hidden on mobile */}
       <div className="hidden md:block px-4 md:px-6 py-2 md:py-3 bg-gray-50/50 border-t border-gray-100">
-        <Breadcrumb
-          className="flex"
-          showIcons={true}
-          showHome={true}
-          maxItems={3}
-        />
+        <Breadcrumb className="flex" showIcons={true} showHome={true} maxItems={3} />
       </div>
 
       {/* Mobile Search Overlay */}
@@ -167,7 +162,9 @@ export function Header({ onMenuClick }: HeaderProps) {
             </Button>
           </div>
           <div className="p-4">
-            <p className="text-sm text-gray-500">Digite para buscar pacientes, mensagens ou relatórios…</p>
+            <p className="text-sm text-gray-500">
+              Digite para buscar pacientes, mensagens ou relatórios…
+            </p>
           </div>
         </div>
       )}

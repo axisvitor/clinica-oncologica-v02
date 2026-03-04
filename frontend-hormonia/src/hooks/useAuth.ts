@@ -30,9 +30,12 @@ export function useAuth(options: UseAuthOptions = {}) {
   }
 
   // Initialize auth retry with config
-  const { executeWithRetry: _executeWithRetry, isRetrying, retryCount, resetRetryState } = useAuthRetry(
-    options.retryConfig ? { config: options.retryConfig } : {}
-  )
+  const {
+    executeWithRetry: _executeWithRetry,
+    isRetrying,
+    retryCount,
+    resetRetryState,
+  } = useAuthRetry(options.retryConfig ? { config: options.retryConfig } : {})
 
   // Initialize permissions based on current user
   const permissions = usePermissions({ user: auth.user })
@@ -94,6 +97,6 @@ export function useAuth(options: UseAuthOptions = {}) {
     // Retry state
     isRetrying,
     retryCount,
-    resetRetryState
+    resetRetryState,
   }
 }

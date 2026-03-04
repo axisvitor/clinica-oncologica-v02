@@ -9,7 +9,7 @@
 export {
   generateSecurePassword,
   generateTemporaryPassword,
-  validatePasswordStrength
+  validatePasswordStrength,
 } from './password-generator'
 
 export type { PasswordOptions } from './password-generator'

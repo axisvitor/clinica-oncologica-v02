@@ -1,11 +1,11 @@
-import React from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { AlertTriangle, Home, ArrowLeft, Shield } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useAuth } from "@/app/providers/AuthContext";
-import { getRoleLabel, getRolePermissions } from "@/types/shared";
+import React from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { AlertTriangle, Home, ArrowLeft, Shield } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { useAuth } from '@/app/providers/AuthContext'
+import { getRoleLabel, getRolePermissions } from '@/types/shared'
 
 /**
  * Unauthorized Page
@@ -13,29 +13,29 @@ import { getRoleLabel, getRolePermissions } from "@/types/shared";
  * Shown when user tries to access a route they don't have permission for
  */
 export default function UnauthorizedPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { user, logout } = useAuth();
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { user, logout } = useAuth()
 
-  const userRole = user?.role || "";
-  const permissions = getRolePermissions(userRole);
-  const roleLabel = getRoleLabel(userRole);
+  const userRole = user?.role || ''
+  const permissions = getRolePermissions(userRole)
+  const roleLabel = getRoleLabel(userRole)
 
   // Get attempted route from state (if available)
-  const attemptedRoute = location.state?.from?.pathname || "página solicitada";
+  const attemptedRoute = location.state?.from?.pathname || 'página solicitada'
 
   const handleGoBack = () => {
-    navigate(-1);
-  };
+    navigate(-1)
+  }
 
   const handleGoHome = () => {
-    navigate("/dashboard");
-  };
+    navigate('/dashboard')
+  }
 
   const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
+    logout()
+    navigate('/login')
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
@@ -75,10 +75,7 @@ export default function UnauthorizedPage() {
               </h3>
 
               <div className="grid grid-cols-1 gap-2 text-sm">
-                <PermissionItem
-                  label="Gerenciar Usuários"
-                  allowed={permissions.canManageUsers}
-                />
+                <PermissionItem label="Gerenciar Usuários" allowed={permissions.canManageUsers} />
                 <PermissionItem
                   label="Gerenciar Pacientes"
                   allowed={permissions.canManagePatients}
@@ -87,10 +84,7 @@ export default function UnauthorizedPage() {
                   label="Visualizar Relatórios"
                   allowed={permissions.canViewReports}
                 />
-                <PermissionItem
-                  label="Configurar Flows"
-                  allowed={permissions.canManageFlows}
-                />
+                <PermissionItem label="Configurar Flows" allowed={permissions.canManageFlows} />
                 <PermissionItem
                   label="Painel Administrativo"
                   allowed={permissions.canAccessAdmin}
@@ -105,20 +99,12 @@ export default function UnauthorizedPage() {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={handleGoBack}
-            >
+            <Button variant="outline" className="flex-1" onClick={handleGoBack}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar
             </Button>
 
-            <Button
-              variant="default"
-              className="flex-1"
-              onClick={handleGoHome}
-            >
+            <Button variant="default" className="flex-1" onClick={handleGoHome}>
               <Home className="w-4 h-4 mr-2" />
               Ir para Dashboard
             </Button>
@@ -141,7 +127,7 @@ export default function UnauthorizedPage() {
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }
 
 /**
@@ -152,13 +138,14 @@ function PermissionItem({ label, allowed }: { label: string; allowed: boolean })
     <div className="flex items-center justify-between py-1 px-2 rounded bg-white dark:bg-gray-700/50">
       <span className="text-gray-700 dark:text-gray-300">{label}</span>
       <span
-        className={`text-xs font-medium px-2 py-1 rounded ${allowed
-            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-          }`}
+        className={`text-xs font-medium px-2 py-1 rounded ${
+          allowed
+            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+            : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+        }`}
       >
-        {allowed ? "✓ Permitido" : "✗ Negado"}
+        {allowed ? '✓ Permitido' : '✗ Negado'}
       </span>
     </div>
-  );
+  )
 }

@@ -69,7 +69,7 @@ const PatientCardComponent = ({ patient, onEdit, onMessage }: PatientCardProps) 
   const getInitials = (name: string) => {
     return name
       .split(' ')
-      .map(n => n[0])
+      .map((n) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -81,7 +81,7 @@ const PatientCardComponent = ({ patient, onEdit, onMessage }: PatientCardProps) 
     try {
       return formatDistanceToNow(new Date(lastContact), {
         addSuffix: true,
-        locale: ptBR
+        locale: ptBR,
       })
     } catch {
       return 'Data inválida'
@@ -157,7 +157,9 @@ const PatientCardComponent = ({ patient, onEdit, onMessage }: PatientCardProps) 
 
         <div className="flex items-center justify-between text-xs md:text-sm">
           <span className="text-gray-600">Último contato:</span>
-          <span className="font-medium truncate ml-2">{formatLastContact(patient.last_contact)}</span>
+          <span className="font-medium truncate ml-2">
+            {formatLastContact(patient.last_contact)}
+          </span>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2 pt-2">
@@ -207,8 +209,7 @@ function arePropsEqual(prevProps: PatientCardProps, nextProps: PatientCardProps)
 
   // Callback comparison (reference equality)
   const callbacksEqual =
-    prevProps.onEdit === nextProps.onEdit &&
-    prevProps.onMessage === nextProps.onMessage
+    prevProps.onEdit === nextProps.onEdit && prevProps.onMessage === nextProps.onMessage
 
   return patientEqual && callbacksEqual
 }

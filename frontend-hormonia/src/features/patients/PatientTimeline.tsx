@@ -1,13 +1,7 @@
 import React from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import {
-  MessageSquare,
-  AlertTriangle,
-  Activity,
-  FileText,
-  Clock
-} from 'lucide-react'
+import { MessageSquare, AlertTriangle, Activity, FileText, Clock } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -25,7 +19,7 @@ const FLOW_STATE_LABELS: Record<string, string> = {
   completed: 'Concluído',
   cancelled: 'Cancelado',
   onboarding: 'Onboarding',
-  inactive: 'Inativo'
+  inactive: 'Inativo',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -34,13 +28,13 @@ const STATUS_LABELS: Record<string, string> = {
   error: 'Falha',
   completed: 'Concluída',
   pending: 'Pendente',
-  running: 'Em andamento'
+  running: 'Em andamento',
 }
 
 const ACTION_LABELS: Record<string, string> = {
   create_patient: 'Cadastro do paciente',
   start_flow: 'Início do fluxo',
-  update_flow: 'Atualização do fluxo'
+  update_flow: 'Atualização do fluxo',
 }
 
 const formatBoolean = (value: boolean) => (value ? 'Sim' : 'Não')
@@ -142,42 +136,42 @@ const formatMetadataEntries = (event: TimelineEvent) => {
       case 'error_type': {
         results.push({
           label: 'Erro',
-          value: formatEnumValue(value)
+          value: formatEnumValue(value),
         })
         break
       }
       case 'error_message': {
         results.push({
           label: 'Mensagem',
-          value: String(value)
+          value: String(value),
         })
         break
       }
       case 'retry_count': {
         results.push({
           label: 'Tentativas',
-          value: String(value)
+          value: String(value),
         })
         break
       }
       case 'flow_state': {
         results.push({
           label: 'Fluxo',
-          value: formatEnumValue(value, FLOW_STATE_LABELS)
+          value: formatEnumValue(value, FLOW_STATE_LABELS),
         })
         break
       }
       case 'status': {
         results.push({
           label: 'Status',
-          value: formatEnumValue(value, STATUS_LABELS)
+          value: formatEnumValue(value, STATUS_LABELS),
         })
         break
       }
       case 'duration_seconds': {
         results.push({
           label: 'Duração',
-          value: formatDurationSeconds(value)
+          value: formatDurationSeconds(value),
         })
         break
       }
@@ -186,42 +180,42 @@ const formatMetadataEntries = (event: TimelineEvent) => {
         results.push({
           label: 'Saga',
           value: formatIdentifier(fullId),
-          title: fullId
+          title: fullId,
         })
         break
       }
       case 'doctor_id': {
         results.push({
           label: 'Médico',
-          value: formatIdentifier(value)
+          value: formatIdentifier(value),
         })
         break
       }
       case 'archived_by': {
         results.push({
           label: 'Arquivado por',
-          value: formatIdentifier(value)
+          value: formatIdentifier(value),
         })
         break
       }
       case 'treatment_type': {
         results.push({
           label: 'Tratamento',
-          value: String(value)
+          value: String(value),
         })
         break
       }
       case 'action': {
         results.push({
           label: 'Ação',
-          value: formatEnumValue(value, ACTION_LABELS)
+          value: formatEnumValue(value, ACTION_LABELS),
         })
         break
       }
       case 'step': {
         results.push({
           label: 'Etapa',
-          value: String(value)
+          value: String(value),
         })
         break
       }
@@ -229,7 +223,7 @@ const formatMetadataEntries = (event: TimelineEvent) => {
         if (typeof value === 'boolean') {
           results.push({
             label: toSentenceCase(normalizeText(key)),
-            value: formatBoolean(value)
+            value: formatBoolean(value),
           })
           break
         }
@@ -237,13 +231,13 @@ const formatMetadataEntries = (event: TimelineEvent) => {
           results.push({
             label: toSentenceCase(normalizeText(key.replace(/_id$/, ''))),
             value: formatIdentifier(value),
-            title: String(value)
+            title: String(value),
           })
           break
         }
         results.push({
           label: toSentenceCase(normalizeText(key)),
-          value: String(value)
+          value: String(value),
         })
         break
       }
@@ -265,7 +259,7 @@ export function PatientTimeline({ timeline, isLoading }: PatientTimelineProps) {
     }
     return formatDistanceToNow(date, {
       addSuffix: true,
-      locale: ptBR
+      locale: ptBR,
     })
   }
 
@@ -324,9 +318,7 @@ export function PatientTimeline({ timeline, isLoading }: PatientTimelineProps) {
     <Card>
       <CardHeader>
         <CardTitle>Linha do Tempo do Paciente</CardTitle>
-        <CardDescription>
-          Registro das principais atividades e eventos
-        </CardDescription>
+        <CardDescription>Registro das principais atividades e eventos</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -354,20 +346,18 @@ export function PatientTimeline({ timeline, isLoading }: PatientTimelineProps) {
                 return (
                   <div key={event.id ?? `timeline-event-${index}`} className="relative">
                     {/* Timeline line */}
-                    {!isLast && (
-                      <div className="absolute left-4 top-8 w-0.5 h-full bg-gray-200" />
-                    )}
+                    {!isLast && <div className="absolute left-4 top-8 w-0.5 h-full bg-gray-200" />}
 
                     <div className="flex items-start space-x-3">
-                      <div className={`flex items-center justify-center w-8 h-8 rounded-full ${colorClass} relative z-10`}>
+                      <div
+                        className={`flex items-center justify-center w-8 h-8 rounded-full ${colorClass} relative z-10`}
+                      >
                         <Icon className="w-4 h-4" aria-hidden="true" />
                       </div>
 
                       <div className="flex-1 min-w-0 pb-4">
                         <div className="flex items-center justify-between mb-1">
-                          <h4 className="text-sm font-medium text-gray-900">
-                            {event.title}
-                          </h4>
+                          <h4 className="text-sm font-medium text-gray-900">{event.title}</h4>
                           <div className="flex items-center space-x-2">
                             <Badge variant="outline" className="text-xs">
                               {getEventLabel(event.event_type)}
@@ -379,9 +369,7 @@ export function PatientTimeline({ timeline, isLoading }: PatientTimelineProps) {
                         </div>
 
                         {description && (
-                          <p className="text-sm text-gray-600 break-words">
-                            {description}
-                          </p>
+                          <p className="text-sm text-gray-600 break-words">{description}</p>
                         )}
 
                         {metadataEntries.length > 0 && (

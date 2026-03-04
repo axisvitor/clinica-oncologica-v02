@@ -66,11 +66,7 @@ export interface BulkOperationResult {
  * ```
  */
 export function useUserMutations(options: UseUserMutationsOptions = {}) {
-  const {
-    realTimeUpdates = false,
-    sendMessage,
-    isConnected = false
-  } = options
+  const { realTimeUpdates = false, sendMessage, isConnected = false } = options
 
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -86,11 +82,14 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
   /**
    * Send WebSocket notification
    */
-  const notifyWebSocket = useCallback((type: WebSocketMessage['type'], data: Record<string, unknown>) => {
-    if (realTimeUpdates && isConnected && sendMessage) {
-      sendMessage({ type, data })
-    }
-  }, [realTimeUpdates, isConnected, sendMessage])
+  const notifyWebSocket = useCallback(
+    (type: WebSocketMessage['type'], data: Record<string, unknown>) => {
+      if (realTimeUpdates && isConnected && sendMessage) {
+        sendMessage({ type, data })
+      }
+    },
+    [realTimeUpdates, isConnected, sendMessage]
+  )
 
   // ============================================================================
   // CREATE USER
@@ -116,11 +115,11 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       toast({
         title: 'Erro ao criar usuário',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
 
       logger.error('Failed to create user:', error)
-    }
+    },
   })
 
   // ============================================================================
@@ -131,7 +130,10 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       logger.debug('Updating user:', id)
       return apiClient.adminUsers.update(id, userData as UpdateUserRequest)
     },
-    onSuccess: (updatedUser: AdminUser, variables: { id: string; userData: Partial<AdminUser> }) => {
+    onSuccess: (
+      updatedUser: AdminUser,
+      variables: { id: string; userData: Partial<AdminUser> }
+    ) => {
       invalidateQueries()
       queryClient.invalidateQueries({ queryKey: ['admin-user', variables.id] })
 
@@ -148,11 +150,11 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       toast({
         title: 'Erro ao atualizar usuário',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
 
       logger.error('Failed to update user:', error)
-    }
+    },
   })
 
   // ============================================================================
@@ -179,11 +181,11 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       toast({
         title: 'Erro ao excluir usuário',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
 
       logger.error('Failed to delete user:', error)
-    }
+    },
   })
 
   // ============================================================================
@@ -194,11 +196,11 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       logger.debug('Bulk activating users:', userIds.length)
 
       const results = await Promise.allSettled(
-        userIds.map(id => apiClient.adminUsers.activate(id))
+        userIds.map((id) => apiClient.adminUsers.activate(id))
       )
 
-      const successes = results.filter(r => r.status === 'fulfilled').length
-      const failures = results.filter(r => r.status === 'rejected').length
+      const successes = results.filter((r) => r.status === 'fulfilled').length
+      const failures = results.filter((r) => r.status === 'rejected').length
 
       return { successes, failures, total: userIds.length }
     },
@@ -209,7 +211,7 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
         toast({
           title: 'Ativação parcialmente concluída',
           description: `${result.successes} usuário(s) ativado(s), ${result.failures} falharam.`,
-          variant: 'destructive'
+          variant: 'destructive',
         })
       } else {
         toast({
@@ -224,11 +226,11 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       toast({
         title: 'Erro na ativação em lote',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
 
       logger.error('Bulk activate failed:', error)
-    }
+    },
   })
 
   // ============================================================================
@@ -239,11 +241,11 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       logger.debug('Bulk deactivating users:', userIds.length)
 
       const results = await Promise.allSettled(
-        userIds.map(id => apiClient.adminUsers.deactivate(id))
+        userIds.map((id) => apiClient.adminUsers.deactivate(id))
       )
 
-      const successes = results.filter(r => r.status === 'fulfilled').length
-      const failures = results.filter(r => r.status === 'rejected').length
+      const successes = results.filter((r) => r.status === 'fulfilled').length
+      const failures = results.filter((r) => r.status === 'rejected').length
 
       return { successes, failures, total: userIds.length }
     },
@@ -254,7 +256,7 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
         toast({
           title: 'Desativação parcialmente concluída',
           description: `${result.successes} usuário(s) desativado(s), ${result.failures} falharam.`,
-          variant: 'destructive'
+          variant: 'destructive',
         })
       } else {
         toast({
@@ -269,11 +271,11 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       toast({
         title: 'Erro na desativação em lote',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
 
       logger.error('Bulk deactivate failed:', error)
-    }
+    },
   })
 
   // ============================================================================
@@ -299,11 +301,11 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       toast({
         title: 'Erro ao atualizar permissões',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
 
       logger.error('Failed to update permissions:', error)
-    }
+    },
   })
 
   // ============================================================================
@@ -319,7 +321,7 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       // Send password to backend for user update
       await apiClient.adminUsers.resetPassword(id, {
         new_password: tempPassword,
-        force_change: true
+        force_change: true,
       })
 
       // Return generated password for display
@@ -337,11 +339,11 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
       toast({
         title: 'Erro ao redefinir senha',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
 
       logger.error('Failed to reset password:', error)
-    }
+    },
   })
 
   return {
@@ -375,6 +377,6 @@ export function useUserMutations(options: UseUserMutationsOptions = {}) {
     // Reset mutation states
     resetCreateUser: createUserMutation.reset,
     resetUpdateUser: updateUserMutation.reset,
-    resetDeleteUser: deleteUserMutation.reset
+    resetDeleteUser: deleteUserMutation.reset,
   }
 }

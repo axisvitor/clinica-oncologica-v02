@@ -66,9 +66,11 @@ function detectEnvironment(): string {
  */
 function detectRailway(): boolean {
   // Railway environment variables
-  if (import.meta.env['VITE_RAILWAY_PROJECT_ID'] ||
-      import.meta.env['VITE_RAILWAY_SERVICE_ID'] ||
-      import.meta.env['RAILWAY_PROJECT_ID']) {
+  if (
+    import.meta.env['VITE_RAILWAY_PROJECT_ID'] ||
+    import.meta.env['VITE_RAILWAY_SERVICE_ID'] ||
+    import.meta.env['RAILWAY_PROJECT_ID']
+  ) {
     return true
   }
 
@@ -107,31 +109,29 @@ function getApiUrl(): string {
 
     // Local development
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return (import.meta.env.VITE_API_URL || "http://localhost:8000")
+      return import.meta.env.VITE_API_URL || 'http://localhost:8000'
     }
   }
 
   // Fallback to localhost for development
   // Production deployments MUST set VITE_API_URL environment variable
-  return (import.meta.env.VITE_API_URL || "http://localhost:8000")
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000'
 }
 
 /**
  * Get app version from package.json or build
  */
 function getAppVersion(): string {
-  return import.meta.env['VITE_APP_VERSION'] ||
-         import.meta.env['PACKAGE_VERSION'] ||
-         '1.0.0'
+  return import.meta.env['VITE_APP_VERSION'] || import.meta.env['PACKAGE_VERSION'] || '1.0.0'
 }
 
 /**
  * Get build timestamp
  */
 function getBuildTime(): string {
-  return import.meta.env['VITE_BUILD_TIME'] ||
-         import.meta.env['BUILD_TIME'] ||
-         new Date().toISOString()
+  return (
+    import.meta.env['VITE_BUILD_TIME'] || import.meta.env['BUILD_TIME'] || new Date().toISOString()
+  )
 }
 
 /**
@@ -156,7 +156,7 @@ function createEnvironmentConfig(): EnvironmentConfig {
     enableDebugLogs: isDevelopment || env === 'staging',
     enableMockApi: isDevelopment && import.meta.env['VITE_ENABLE_MOCK_API'] === 'true',
     enableErrorReporting: isProduction || env === 'staging',
-    enablePerformanceMonitoring: isProduction || env === 'staging'
+    enablePerformanceMonitoring: isProduction || env === 'staging',
   }
 }
 
@@ -170,7 +170,7 @@ export {
   getApiUrl,
   getAppVersion,
   getBuildTime,
-  createEnvironmentConfig
+  createEnvironmentConfig,
 }
 
 export type { EnvironmentConfig }
@@ -182,7 +182,7 @@ if (environment.enableDebugLogs) {
     isRailway: environment.isRailway,
     apiUrl: environment.apiUrl,
     version: environment.appVersion,
-    buildTime: environment.buildTime
+    buildTime: environment.buildTime,
   })
 }
 
@@ -210,7 +210,7 @@ export const PRODUCTION_FLAGS = {
   ENABLE_CODE_SPLITTING: true,
 
   // Enable bundle analysis in staging/production
-  ENABLE_BUNDLE_ANALYSIS: environment.enableDebugLogs
+  ENABLE_BUNDLE_ANALYSIS: environment.enableDebugLogs,
 } as const
 
 // Railway-specific configurations
@@ -226,7 +226,7 @@ export const RAILWAY_CONFIG = {
 
   // Railway environment variables
   PROJECT_ID: import.meta.env['VITE_RAILWAY_PROJECT_ID'] || null,
-  SERVICE_ID: import.meta.env['VITE_RAILWAY_SERVICE_ID'] || null
+  SERVICE_ID: import.meta.env['VITE_RAILWAY_SERVICE_ID'] || null,
 } as const
 
 // Feature flags for React 19 compatibility
@@ -244,6 +244,5 @@ export const REACT_19_FLAGS = {
   ENABLE_NEW_JSX_TRANSFORM: true,
 
   // Enable React 19 strict effects
-  ENABLE_STRICT_EFFECTS: environment.isDevelopment
+  ENABLE_STRICT_EFFECTS: environment.isDevelopment,
 } as const
-

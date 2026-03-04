@@ -47,27 +47,27 @@ export function QuizPage() {
 
   const { data: templatesData, isLoading: templatesLoading } = useQuery({
     queryKey: ['quiz-templates'],
-    queryFn: () => apiClient.quiz.templates()
+    queryFn: () => apiClient.quiz.templates(),
   })
 
   const { data: sessionsData, isLoading: sessionsLoading } = useQuery({
     queryKey: ['quiz-sessions'],
-    queryFn: () => apiClient.quiz.sessions({})
+    queryFn: () => apiClient.quiz.sessions({}),
   })
 
   const { data: patientsData } = useQuery({
     queryKey: ['patients', { size: 100 }],
-    queryFn: () => apiClient.patients.list({ size: 100 })
+    queryFn: () => apiClient.patients.list({ size: 100 }),
   })
 
   const { data: monthlyQuizStats, isLoading: statsLoading } = useQuery({
     queryKey: ['monthly-quiz-stats'],
-    queryFn: () => apiClient.monthlyQuiz.getStats()
+    queryFn: () => apiClient.monthlyQuiz.getStats(),
   })
 
   const { data: activeLinks, isLoading: activeLinksLoading } = useQuery({
     queryKey: ['monthly-quiz-active-links'],
-    queryFn: () => apiClient.monthlyQuiz.getActiveLinks()
+    queryFn: () => apiClient.monthlyQuiz.getActiveLinks(),
   })
 
   const startQuizMutation = useMutation({
@@ -87,9 +87,9 @@ export function QuizPage() {
       toast({
         title: 'Erro ao iniciar questionário',
         description: getErrorMessage(error) || 'Ocorreu um erro inesperado.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const getStatusBadge = (status: string) => {
@@ -112,7 +112,7 @@ export function QuizPage() {
         month: '2-digit',
         year: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
       })
     } catch {
       return 'Data inválida'
@@ -124,14 +124,14 @@ export function QuizPage() {
       toast({
         title: 'Campos obrigatórios',
         description: 'Selecione um paciente e um template.',
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
 
     startQuizMutation.mutate({
       patientId: selectedPatient,
-      quizTemplateId: selectedTemplate
+      quizTemplateId: selectedTemplate,
     })
   }
 
@@ -141,9 +141,7 @@ export function QuizPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Questionários</h1>
-          <p className="text-gray-600">
-            Gerencie questionários e avaliações dos pacientes
-          </p>
+          <p className="text-gray-600">Gerencie questionários e avaliações dos pacientes</p>
         </div>
         <Dialog open={showStartDialog} onOpenChange={setShowStartDialog}>
           <DialogTrigger asChild>
@@ -162,7 +160,11 @@ export function QuizPage() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Paciente</label>
-                <Select name="selectedPatient" value={selectedPatient} onValueChange={setSelectedPatient}>
+                <Select
+                  name="selectedPatient"
+                  value={selectedPatient}
+                  onValueChange={setSelectedPatient}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um paciente" />
                   </SelectTrigger>
@@ -178,7 +180,11 @@ export function QuizPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Template</label>
-                <Select name="selectedTemplate" value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                <Select
+                  name="selectedTemplate"
+                  value={selectedTemplate}
+                  onValueChange={setSelectedTemplate}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um template" />
                   </SelectTrigger>
@@ -193,16 +199,10 @@ export function QuizPage() {
               </div>
 
               <div className="flex justify-end space-x-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowStartDialog(false)}
-                >
+                <Button variant="outline" onClick={() => setShowStartDialog(false)}>
                   Cancelar
                 </Button>
-                <Button
-                  onClick={handleStartQuiz}
-                  disabled={startQuizMutation.isPending}
-                >
+                <Button onClick={handleStartQuiz} disabled={startQuizMutation.isPending}>
                   {startQuizMutation.isPending ? (
                     <>
                       <LoadingSpinner size="sm" className="mr-2" />
@@ -225,60 +225,48 @@ export function QuizPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Templates Disponíveis
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Templates Disponíveis</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {templatesData?.items?.length || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Templates ativos no sistema
-            </p>
+            <div className="text-2xl font-bold">{templatesData?.items?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">Templates ativos no sistema</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Links Enviados
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Links Enviados</CardTitle>
             <Send className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {statsLoading ? '...' : (monthlyQuizStats?.total_sent ?? monthlyQuizStats?.total_links_created ?? 0)}
+              {statsLoading
+                ? '...'
+                : (monthlyQuizStats?.total_sent ?? monthlyQuizStats?.total_links_created ?? 0)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Total de links mensais criados
-            </p>
+            <p className="text-xs text-muted-foreground">Total de links mensais criados</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Links Ativos
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Links Ativos</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {statsLoading ? '...' : (monthlyQuizStats?.total_active ?? monthlyQuizStats?.active_links ?? 0)}
+              {statsLoading
+                ? '...'
+                : (monthlyQuizStats?.total_active ?? monthlyQuizStats?.active_links ?? 0)}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Aguardando resposta
-            </p>
+            <p className="text-xs text-muted-foreground">Aguardando resposta</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Taxa de Conclusão
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Taxa de Conclusão</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -286,7 +274,8 @@ export function QuizPage() {
               {statsLoading ? '...' : `${Math.round(monthlyQuizStats?.completion_rate || 0)}%`}
             </div>
             <p className="text-xs text-muted-foreground">
-              {(monthlyQuizStats?.total_completed ?? monthlyQuizStats?.completed_quizzes ?? 0)} de {(monthlyQuizStats?.total_sent ?? monthlyQuizStats?.total_links_created ?? 0)}
+              {monthlyQuizStats?.total_completed ?? monthlyQuizStats?.completed_quizzes ?? 0} de{' '}
+              {monthlyQuizStats?.total_sent ?? monthlyQuizStats?.total_links_created ?? 0}
             </p>
           </CardContent>
         </Card>
@@ -296,9 +285,7 @@ export function QuizPage() {
       <Card>
         <CardHeader>
           <CardTitle>Templates de Questionários</CardTitle>
-          <CardDescription>
-            Templates disponíveis para aplicação
-          </CardDescription>
+          <CardDescription>Templates disponíveis para aplicação</CardDescription>
         </CardHeader>
         <CardContent>
           {templatesLoading ? (
@@ -448,16 +435,14 @@ export function QuizPage() {
               </span>
             )}
           </CardTitle>
-          <CardDescription>
-            Histórico de questionários aplicados
-          </CardDescription>
+          <CardDescription>Histórico de questionários aplicados</CardDescription>
         </CardHeader>
         <CardContent>
           {sessionsLoading ? (
             <div className="flex items-center justify-center py-8">
               <LoadingSpinner size="lg" />
             </div>
-          ) : (!sessionsData?.items || sessionsData?.items?.length === 0) ? (
+          ) : !sessionsData?.items || sessionsData?.items?.length === 0 ? (
             <div className="text-center py-8">
               <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
               <p className="text-gray-500">Nenhuma sessão encontrada</p>
@@ -486,9 +471,7 @@ export function QuizPage() {
                         <p className="font-medium">
                           {session.patient_name || 'Paciente não encontrado'}
                         </p>
-                        <p className="text-sm text-gray-500">
-                          ID: {session.patient_id}
-                        </p>
+                        <p className="text-sm text-gray-500">ID: {session.patient_id}</p>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -501,9 +484,7 @@ export function QuizPage() {
                     </TableCell>
                     <TableCell>
                       {session.score !== undefined ? (
-                        <span className="font-medium">
-                          {Math.round(session.score)}%
-                        </span>
+                        <span className="font-medium">{Math.round(session.score)}%</span>
                       ) : (
                         '-'
                       )}
@@ -519,11 +500,7 @@ export function QuizPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={!session.is_completed}
-                      >
+                      <Button variant="ghost" size="sm" disabled={!session.is_completed}>
                         <Eye className="h-4 w-4" />
                       </Button>
                     </TableCell>

@@ -1,6 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, Clock, ListFilter as Filter, Search, X, Download, RefreshCw, CheckCheck } from 'lucide-react'
+import {
+  TriangleAlert as AlertTriangle,
+  CircleCheck as CheckCircle,
+  Clock,
+  ListFilter as Filter,
+  Search,
+  X,
+  Download,
+  RefreshCw,
+  CheckCheck,
+} from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import type { Alert, AlertSeverity } from '@/lib/api-client/types'
 import { Button } from '@/components/ui/button'
@@ -50,7 +60,7 @@ export function AlertsPage() {
   const [filters, setFilters] = useState<AlertFilters>({
     severity: 'all',
     acknowledged: 'all',
-    type: 'all'
+    type: 'all',
   })
   const [showFilters, setShowFilters] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -64,13 +74,14 @@ export function AlertsPage() {
 
   const { data: alertsData, isLoading } = useQuery({
     queryKey: ['alerts', currentPage, filters, debouncedSearchQuery],
-    queryFn: () => apiClient.alerts.list({
-      page: currentPage,
-      size: 20,
-      ...(filters.severity !== 'all' && { severity: filters.severity }),
-      ...(filters.acknowledged !== 'all' && { acknowledged: filters.acknowledged === 'true' }),
-      ...(filters.type !== 'all' && { alert_type: filters.type })
-    })
+    queryFn: () =>
+      apiClient.alerts.list({
+        page: currentPage,
+        size: 20,
+        ...(filters.severity !== 'all' && { severity: filters.severity }),
+        ...(filters.acknowledged !== 'all' && { acknowledged: filters.acknowledged === 'true' }),
+        ...(filters.type !== 'all' && { alert_type: filters.type }),
+      }),
   })
 
   const acknowledgeMutation = useMutation({
@@ -84,13 +95,14 @@ export function AlertsPage() {
     },
     onError: (error: unknown) => {
       logger.error('Acknowledge error', { error })
-      const message = (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.';
+      const message =
+        (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.'
       toast({
         title: 'Erro ao reconhecer alerta',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const resolveMutation = useMutation({
@@ -104,18 +116,19 @@ export function AlertsPage() {
     },
     onError: (error: unknown) => {
       logger.error('Resolve error', { error })
-      const message = (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.';
+      const message =
+        (error as { data?: { message?: string } }).data?.message || 'Ocorreu um erro inesperado.'
       toast({
         title: 'Erro ao resolver alerta',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const bulkAcknowledgeMutation = useMutation({
     mutationFn: async (alertIds: string[]) => {
-      await Promise.all(alertIds.map(id => apiClient.alerts.acknowledge(id)))
+      await Promise.all(alertIds.map((id) => apiClient.alerts.acknowledge(id)))
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] })
@@ -126,18 +139,18 @@ export function AlertsPage() {
       })
     },
     onError: (error: unknown) => {
-      const message = (error as { message?: string }).message || 'Ocorreu um erro inesperado.';
+      const message = (error as { message?: string }).message || 'Ocorreu um erro inesperado.'
       toast({
         title: 'Erro ao reconhecer alertas',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const bulkResolveMutation = useMutation({
     mutationFn: async (alertIds: string[]) => {
-      await Promise.all(alertIds.map(id => apiClient.alerts.resolve(id)))
+      await Promise.all(alertIds.map((id) => apiClient.alerts.resolve(id)))
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] })
@@ -148,13 +161,13 @@ export function AlertsPage() {
       })
     },
     onError: (error: unknown) => {
-      const message = (error as { message?: string }).message || 'Ocorreu um erro inesperado.';
+      const message = (error as { message?: string }).message || 'Ocorreu um erro inesperado.'
       toast({
         title: 'Erro ao resolver alertas',
         description: message,
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 
   const filteredAlerts = useMemo<Alert[]>(() => {
@@ -168,10 +181,11 @@ export function AlertsPage() {
     // Apply search filter (client-side)
     if (debouncedSearchQuery) {
       const query = debouncedSearchQuery.toLowerCase()
-      alerts = alerts.filter((alert) =>
-        alert.title?.toLowerCase().includes(query) ||
-        alert.message?.toLowerCase().includes(query) ||
-        alert.patient_name?.toLowerCase().includes(query)
+      alerts = alerts.filter(
+        (alert) =>
+          alert.title?.toLowerCase().includes(query) ||
+          alert.message?.toLowerCase().includes(query) ||
+          alert.patient_name?.toLowerCase().includes(query)
       )
     }
 
@@ -184,15 +198,12 @@ export function AlertsPage() {
       total: alertsData?.total || 0,
       unacknowledged: alerts.filter((a) => !a.is_acknowledged).length,
       critical: alerts.filter((a) => a.severity === 'critical').length,
-      high: alerts.filter((a) => a.severity === 'high').length
+      high: alerts.filter((a) => a.severity === 'high').length,
     }
   }, [alertsData])
 
   const hasActiveFilters = useMemo(
-    () =>
-      (['severity', 'acknowledged', 'type'] as const).some(
-        (key) => filters[key] !== 'all'
-      ),
+    () => (['severity', 'acknowledged', 'type'] as const).some((key) => filters[key] !== 'all'),
     [filters]
   )
 
@@ -224,19 +235,21 @@ export function AlertsPage() {
 
   const handleExportAlerts = () => {
     const csvData = filteredAlerts.map((alert) => ({
-      'ID': alert.id,
-      'Título': alert.title,
-      'Mensagem': alert.message,
-      'Severidade': alert.severity,
-      'Tipo': alert.type,
-      'Paciente': alert.patient_name || 'N/A',
-      'Data': new Date(alert.created_at).toLocaleString('pt-BR')
+      ID: alert.id,
+      Título: alert.title,
+      Mensagem: alert.message,
+      Severidade: alert.severity,
+      Tipo: alert.type,
+      Paciente: alert.patient_name || 'N/A',
+      Data: new Date(alert.created_at).toLocaleString('pt-BR'),
     }))
 
     const headers: string[] = Object.keys(csvData[0] || {})
     const csvLines: string[] = [
       headers.join(','),
-      ...csvData.map((row) => headers.map((h: string) => `"${String(row[h as keyof typeof row] ?? '')}"`).join(','))
+      ...csvData.map((row) =>
+        headers.map((h: string) => `"${String(row[h as keyof typeof row] ?? '')}"`).join(',')
+      ),
     ]
     const csv = csvLines.join('\n')
 
@@ -250,7 +263,7 @@ export function AlertsPage() {
 
     toast({
       title: 'Exportação concluída',
-      description: 'Alertas exportados com sucesso.'
+      description: 'Alertas exportados com sucesso.',
     })
   }
 
@@ -258,7 +271,7 @@ export function AlertsPage() {
     queryClient.invalidateQueries({ queryKey: ['alerts'] })
     toast({
       title: 'Atualizado',
-      description: 'Lista de alertas atualizada.'
+      description: 'Lista de alertas atualizada.',
     })
   }
 
@@ -267,7 +280,7 @@ export function AlertsPage() {
     setSearchQuery('')
     toast({
       title: 'Filtros limpos',
-      description: 'Todos os filtros foram removidos.'
+      description: 'Todos os filtros foram removidos.',
     })
   }
 
@@ -286,7 +299,12 @@ export function AlertsPage() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Atualizar
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExportAlerts} disabled={filteredAlerts.length === 0}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportAlerts}
+            disabled={filteredAlerts.length === 0}
+          >
             <Download className="mr-2 h-4 w-4" />
             Exportar
           </Button>
@@ -300,61 +318,45 @@ export function AlertsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total de Alertas
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Alertas</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">
-              Alertas no sistema
-            </p>
+            <p className="text-xs text-muted-foreground">Alertas no sistema</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Não Reconhecidos
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Não Reconhecidos</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.unacknowledged}</div>
-            <p className="text-xs text-muted-foreground">
-              Requerem atenção
-            </p>
+            <p className="text-xs text-muted-foreground">Requerem atenção</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Críticos
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Críticos</CardTitle>
             <AlertTriangle className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.critical}</div>
-            <p className="text-xs text-muted-foreground">
-              Prioridade máxima
-            </p>
+            <p className="text-xs text-muted-foreground">Prioridade máxima</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Alta Prioridade
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Alta Prioridade</CardTitle>
             <AlertTriangle className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.high}</div>
-            <p className="text-xs text-muted-foreground">
-              Prioridade alta
-            </p>
+            <p className="text-xs text-muted-foreground">Prioridade alta</p>
           </CardContent>
         </Card>
       </div>
@@ -392,7 +394,9 @@ export function AlertsPage() {
                   <Filter className="mr-2 h-4 w-4" />
                   Filtros
                   {hasActiveFilters && (
-                    <Badge className="ml-2" variant="secondary">1</Badge>
+                    <Badge className="ml-2" variant="secondary">
+                      1
+                    </Badge>
                   )}
                 </Button>
                 {(hasActiveFilters || searchQuery) && (
@@ -411,7 +415,9 @@ export function AlertsPage() {
                   <Select
                     name="severityFilter"
                     value={filters.severity}
-                    onValueChange={(value: string) => setFilters({ ...filters, severity: value as AlertFilters['severity'] })}
+                    onValueChange={(value: string) =>
+                      setFilters({ ...filters, severity: value as AlertFilters['severity'] })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todas" />
@@ -431,7 +437,12 @@ export function AlertsPage() {
                   <Select
                     name="acknowledgedFilter"
                     value={filters.acknowledged}
-                    onValueChange={(value: string) => setFilters({ ...filters, acknowledged: value as AlertFilters['acknowledged'] })}
+                    onValueChange={(value: string) =>
+                      setFilters({
+                        ...filters,
+                        acknowledged: value as AlertFilters['acknowledged'],
+                      })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Todos" />
@@ -468,7 +479,8 @@ export function AlertsPage() {
             {selectedAlerts.size > 0 && (
               <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                 <span className="text-sm font-medium text-blue-900">
-                  {selectedAlerts.size} alerta{selectedAlerts.size > 1 ? 's' : ''} selecionado{selectedAlerts.size > 1 ? 's' : ''}
+                  {selectedAlerts.size} alerta{selectedAlerts.size > 1 ? 's' : ''} selecionado
+                  {selectedAlerts.size > 1 ? 's' : ''}
                 </span>
                 <div className="flex gap-2">
                   <Button
@@ -489,11 +501,7 @@ export function AlertsPage() {
                     <CheckCheck className="mr-2 h-4 w-4" />
                     Resolver
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setSelectedAlerts(new Set())}
-                  >
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedAlerts(new Set())}>
                     Cancelar
                   </Button>
                 </div>
@@ -514,7 +522,9 @@ export function AlertsPage() {
                 {searchQuery || hasActiveFilters ? (
                   <>
                     <AlertTriangle className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                    <p className="text-lg font-medium text-gray-900 mb-2">Nenhum alerta encontrado</p>
+                    <p className="text-lg font-medium text-gray-900 mb-2">
+                      Nenhum alerta encontrado
+                    </p>
                     <p className="text-sm text-gray-500 mb-4">
                       Tente ajustar os filtros ou termos de busca
                     </p>
@@ -526,9 +536,7 @@ export function AlertsPage() {
                   <>
                     <CheckCircle className="mx-auto h-12 w-12 text-green-500 mb-4" />
                     <p className="text-lg font-medium text-gray-900 mb-2">Tudo certo!</p>
-                    <p className="text-sm text-gray-500">
-                      Não há alertas pendentes no momento
-                    </p>
+                    <p className="text-sm text-gray-500">Não há alertas pendentes no momento</p>
                   </>
                 )}
               </div>
@@ -539,7 +547,9 @@ export function AlertsPage() {
             {filteredAlerts.length > 0 && (
               <div className="flex items-center gap-3 px-2">
                 <Checkbox
-                  checked={selectedAlerts.size === filteredAlerts.length && filteredAlerts.length > 0}
+                  checked={
+                    selectedAlerts.size === filteredAlerts.length && filteredAlerts.length > 0
+                  }
                   onCheckedChange={handleSelectAll}
                 />
                 <span className="text-sm text-gray-600">

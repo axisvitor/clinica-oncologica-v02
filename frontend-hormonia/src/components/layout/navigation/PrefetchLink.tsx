@@ -32,48 +32,50 @@
  * ```
  */
 
-import { useRef, MouseEvent, TouchEvent } from "react";
-import { Link, LinkProps } from "react-router-dom";
-import { usePrefetchRoute } from "@/utils/route-prefetch";
+import { useRef, MouseEvent, TouchEvent } from 'react'
+import { Link, LinkProps } from 'react-router-dom'
+import { usePrefetchRoute } from '@/utils/route-prefetch'
 
-export interface PrefetchLinkProps
-  extends Omit<LinkProps, "onMouseEnter" | "onMouseLeave" | "onTouchStart"> {
+export interface PrefetchLinkProps extends Omit<
+  LinkProps,
+  'onMouseEnter' | 'onMouseLeave' | 'onTouchStart'
+> {
   /**
    * Delay in milliseconds before starting prefetch on hover
    * @default 200
    */
-  prefetchDelay?: number;
+  prefetchDelay?: number
 
   /**
    * Enable/disable prefetch functionality
    * @default true
    */
-  enablePrefetch?: boolean;
+  enablePrefetch?: boolean
 
   /**
    * Callback fired when prefetch starts
    */
-  onPrefetchStart?: (route: string) => void;
+  onPrefetchStart?: (route: string) => void
 
   /**
    * Callback fired when prefetch is cancelled
    */
-  onPrefetchCancel?: (route: string) => void;
+  onPrefetchCancel?: (route: string) => void
 
   /**
    * Mouse enter event handler
    */
-  onMouseEnter?: (event: MouseEvent<HTMLAnchorElement>) => void;
+  onMouseEnter?: (event: MouseEvent<HTMLAnchorElement>) => void
 
   /**
    * Mouse leave event handler
    */
-  onMouseLeave?: (event: MouseEvent<HTMLAnchorElement>) => void;
+  onMouseLeave?: (event: MouseEvent<HTMLAnchorElement>) => void
 
   /**
    * Touch start event handler
    */
-  onTouchStart?: (event: TouchEvent<HTMLAnchorElement>) => void;
+  onTouchStart?: (event: TouchEvent<HTMLAnchorElement>) => void
 }
 
 export function PrefetchLink({
@@ -88,55 +90,55 @@ export function PrefetchLink({
   onTouchStart: onTouchStartProp,
   ...linkProps
 }: PrefetchLinkProps) {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const hasTriggeredRef = useRef(false);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const hasTriggeredRef = useRef(false)
 
   // Extract route path
-  const route = typeof to === "string" ? to : to.pathname || "";
+  const route = typeof to === 'string' ? to : to.pathname || ''
 
   // Get prefetch handlers from hook
-  const prefetchHandlers = usePrefetchRoute(route, prefetchDelay);
+  const prefetchHandlers = usePrefetchRoute(route, prefetchDelay)
 
   /**
    * Handle mouse enter - start prefetch with delay
    */
   const handleMouseEnter = (event: MouseEvent<HTMLAnchorElement>) => {
     // Call original handler if provided
-    onMouseEnterProp?.(event);
+    onMouseEnterProp?.(event)
 
     // Skip if prefetch disabled or already triggered
     if (!enablePrefetch || hasTriggeredRef.current) {
-      return;
+      return
     }
 
     // Clear any existing timeout
     if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+      clearTimeout(timeoutRef.current)
     }
 
     // Start prefetch with delay
     timeoutRef.current = setTimeout(() => {
-      hasTriggeredRef.current = true;
-      onPrefetchStart?.(route);
-      prefetchHandlers.onMouseEnter();
-    }, prefetchDelay);
-  };
+      hasTriggeredRef.current = true
+      onPrefetchStart?.(route)
+      prefetchHandlers.onMouseEnter()
+    }, prefetchDelay)
+  }
 
   /**
    * Handle mouse leave - cancel pending prefetch
    */
   const handleMouseLeave = (event: MouseEvent<HTMLAnchorElement>) => {
     // Call original handler if provided
-    onMouseLeaveProp?.(event);
+    onMouseLeaveProp?.(event)
 
     // Cancel prefetch if not yet triggered
     if (timeoutRef.current && !hasTriggeredRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-      onPrefetchCancel?.(route);
-      prefetchHandlers.onMouseLeave();
+      clearTimeout(timeoutRef.current)
+      timeoutRef.current = null
+      onPrefetchCancel?.(route)
+      prefetchHandlers.onMouseLeave()
     }
-  };
+  }
 
   /**
    * Handle touch start - trigger immediate prefetch on mobile
@@ -144,19 +146,19 @@ export function PrefetchLink({
   const handleTouchStart = (event: React.TouchEvent<HTMLAnchorElement>) => {
     // Call original handler if provided
     if (onTouchStartProp) {
-      onTouchStartProp(event);
+      onTouchStartProp(event)
     }
 
     // Skip if prefetch disabled or already triggered
     if (!enablePrefetch || hasTriggeredRef.current) {
-      return;
+      return
     }
 
     // Immediate prefetch on touch (no delay)
-    hasTriggeredRef.current = true;
-    onPrefetchStart?.(route);
-    prefetchHandlers.onMouseEnter();
-  };
+    hasTriggeredRef.current = true
+    onPrefetchStart?.(route)
+    prefetchHandlers.onMouseEnter()
+  }
 
   return (
     <Link
@@ -168,7 +170,7 @@ export function PrefetchLink({
     >
       {children}
     </Link>
-  );
+  )
 }
 
 /**
@@ -178,9 +180,9 @@ export function PrefetchLinkWithIndicator({ children, ...props }: PrefetchLinkPr
   return (
     <PrefetchLink
       {...props}
-      className={`${props.className || ""} transition-opacity hover:opacity-80`}
+      className={`${props.className || ''} transition-opacity hover:opacity-80`}
     >
       {children}
     </PrefetchLink>
-  );
+  )
 }

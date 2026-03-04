@@ -23,58 +23,36 @@ export function QuickActions({ patientId }: QuickActionsProps) {
     <Card>
       <CardHeader>
         <CardTitle>Ações Rápidas</CardTitle>
-        <CardDescription>
-          Ações comuns para este paciente
-        </CardDescription>
+        <CardDescription>Ações comuns para este paciente</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <Button 
-          variant="outline" 
-          className="w-full justify-start"
-          asChild
-        >
+        <Button variant="outline" className="w-full justify-start" asChild>
           <Link to={`/messages?patient=${patientId}`}>
             <MessageSquare className="mr-2 h-4 w-4" />
             Enviar Mensagem
           </Link>
         </Button>
 
-        <Button
-          variant="outline"
-          className="w-full justify-start"
-          onClick={handleStartQuiz}
-        >
+        <Button variant="outline" className="w-full justify-start" onClick={handleStartQuiz}>
           <FileText className="mr-2 h-4 w-4" />
           Iniciar Questionário
         </Button>
 
-        <Button 
-          variant="outline" 
-          className="w-full justify-start"
-          asChild
-        >
+        <Button variant="outline" className="w-full justify-start" asChild>
           <Link to={`/reports?patient=${patientId}`}>
             <FileText className="mr-2 h-4 w-4" />
             Gerar Relatório
           </Link>
         </Button>
 
-        <Button 
-          variant="outline" 
-          className="w-full justify-start"
-          asChild
-        >
+        <Button variant="outline" className="w-full justify-start" asChild>
           <Link to={`/alerts?patient=${patientId}`}>
             <AlertTriangle className="mr-2 h-4 w-4" />
             Ver Alertas
           </Link>
         </Button>
 
-        <Button
-          variant="outline"
-          className="w-full justify-start"
-          onClick={handleViewAnalytics}
-        >
+        <Button variant="outline" className="w-full justify-start" onClick={handleViewAnalytics}>
           <Activity className="mr-2 h-4 w-4" />
           Ver Analytics
         </Button>

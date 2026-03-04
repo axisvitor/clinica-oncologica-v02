@@ -1,6 +1,15 @@
 import React, { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { TrendingUp, Users, MessageSquare, Activity, Download, RefreshCw, ChartBar as BarChart3, ArrowUp } from 'lucide-react'
+import {
+  TrendingUp,
+  Users,
+  MessageSquare,
+  Activity,
+  Download,
+  RefreshCw,
+  ChartBar as BarChart3,
+  ArrowUp,
+} from 'lucide-react'
 import { LineChart, AreaChart, PieChart } from '@/components/ui/charts/LazyRechartsComponents'
 import {
   Line,
@@ -11,7 +20,7 @@ import {
   Tooltip,
   Legend,
   Pie,
-  Cell
+  Cell,
 } from '@/components/ui/charts/RechartsPrimitives'
 import type { TooltipProps } from 'recharts'
 import type { NameType, Payload, ValueType } from 'recharts/types/component/DefaultTooltipContent'
@@ -40,51 +49,52 @@ export function AnalyticsPage() {
 
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['analytics-dashboard'],
-    queryFn: () => apiClient.analytics.dashboard()
+    queryFn: () => apiClient.analytics.dashboard(),
   })
 
   const { data: _engagementData } = useQuery({
     queryKey: ['analytics-engagement', dateRange],
-    queryFn: () => apiClient.analytics.engagement()
+    queryFn: () => apiClient.analytics.engagement(),
   })
 
   const { data: _patientsAnalytics } = useQuery({
     queryKey: ['analytics-patients', dateRange],
-    queryFn: () => apiClient.analytics.patients()
+    queryFn: () => apiClient.analytics.patients(),
   })
 
   const {
     data: treatmentDistribution,
     isLoading: treatmentLoading,
-    error: treatmentError
+    error: treatmentError,
   } = useTreatmentDistribution(treatmentPeriod)
 
   // Real API calls for patient status and alerts
   const { data: patientStatusData } = useQuery({
     queryKey: ['analytics-patient-status'],
-    queryFn: () => apiClient.analytics.patientStatus()
+    queryFn: () => apiClient.analytics.patientStatus(),
   })
 
   const { data: alertsSummaryData } = useQuery({
     queryKey: ['analytics-alerts-summary'],
-    queryFn: () => apiClient.analytics.alertsSummary()
+    queryFn: () => apiClient.analytics.alertsSummary(),
   })
 
   // Define the engagement chart item type
   interface EngagementChartItem {
-    date: string;
-    messages_sent: number;
-    responses_received: number;
-    response_rate: number;
+    date: string
+    messages_sent: number
+    responses_received: number
+    response_rate: number
   }
 
-  const engagementTrendData = dashboardData?.engagement_chart?.map((item: EngagementChartItem) => ({
-    ...item,
-    date: new Date(item.date).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit'
-    })
-  })) || []
+  const engagementTrendData =
+    dashboardData?.engagement_chart?.map((item: EngagementChartItem) => ({
+      ...item,
+      date: new Date(item.date).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+      }),
+    })) || []
 
   const previousPeriodData = useMemo(() => {
     if (!compareMode) return null
@@ -92,13 +102,13 @@ export function AnalyticsPage() {
       total_patients: Math.floor((dashboardData?.total_patients || 0) * 0.92),
       response_rate: Math.floor((dashboardData?.response_rate || 0) * 0.88),
       messages_sent: Math.floor((dashboardData?.messages_sent || 0) * 0.85),
-      completed_quizzes: Math.floor((dashboardData?.completed_quizzes || 0) * 0.90)
+      completed_quizzes: Math.floor((dashboardData?.completed_quizzes || 0) * 0.9),
     }
   }, [compareMode, dashboardData])
 
   const calculateChange = (current: number, previous: number) => {
     if (!previous) return 0
-    return ((current - previous) / previous * 100).toFixed(1)
+    return (((current - previous) / previous) * 100).toFixed(1)
   }
 
   const CustomTooltip = ({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
@@ -111,7 +121,10 @@ export function AnalyticsPage() {
             {entries.map((entry, index: number) => (
               <div key={index} className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color || '#94a3b8' }} />
+                  <div
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: entry.color || '#94a3b8' }}
+                  />
                   <span className="text-sm text-gray-600">{entry.name}</span>
                 </div>
                 <span className="font-medium text-sm" style={{ color: entry.color || '#111827' }}>
@@ -129,7 +142,7 @@ export function AnalyticsPage() {
 
   // Show skeleton while loading - UI appears immediately!
   if (isLoading) {
-    return <AnalyticsSkeleton />;
+    return <AnalyticsSkeleton />
   }
 
   return (
@@ -138,9 +151,7 @@ export function AnalyticsPage() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-gray-600">
-            Análise detalhada e insights acionáveis do sistema
-          </p>
+          <p className="text-gray-600">Análise detalhada e insights acionáveis do sistema</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Select name="dateRange" value={dateRange} onValueChange={setDateRange}>
@@ -177,9 +188,7 @@ export function AnalyticsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total de Pacientes
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total de Pacientes</CardTitle>
             <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
               <Users className="h-5 w-5 text-blue-600" />
             </div>
@@ -193,7 +202,11 @@ export function AnalyticsPage() {
               {compareMode && previousPeriodData && (
                 <div className="flex items-center text-xs text-green-600">
                   <ArrowUp className="h-3 w-3" />
-                  {calculateChange(dashboardData?.total_patients || 0, previousPeriodData.total_patients)}%
+                  {calculateChange(
+                    dashboardData?.total_patients || 0,
+                    previousPeriodData.total_patients
+                  )}
+                  %
                 </div>
               )}
             </div>
@@ -202,9 +215,7 @@ export function AnalyticsPage() {
 
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Taxa de Engajamento
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Taxa de Engajamento</CardTitle>
             <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
               <TrendingUp className="h-5 w-5 text-green-600" />
             </div>
@@ -212,13 +223,15 @@ export function AnalyticsPage() {
           <CardContent>
             <div className="text-2xl font-bold">{dashboardData?.response_rate || 0}%</div>
             <div className="flex items-center gap-2 mt-1">
-              <p className="text-xs text-muted-foreground">
-                Taxa de resposta
-              </p>
+              <p className="text-xs text-muted-foreground">Taxa de resposta</p>
               {compareMode && previousPeriodData && (
                 <div className="flex items-center text-xs text-green-600">
                   <ArrowUp className="h-3 w-3" />
-                  {calculateChange(dashboardData?.response_rate || 0, previousPeriodData.response_rate)}%
+                  {calculateChange(
+                    dashboardData?.response_rate || 0,
+                    previousPeriodData.response_rate
+                  )}
+                  %
                 </div>
               )}
             </div>
@@ -227,9 +240,7 @@ export function AnalyticsPage() {
 
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Mensagens Enviadas
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Mensagens Enviadas</CardTitle>
             <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
               <MessageSquare className="h-5 w-5 text-orange-600" />
             </div>
@@ -237,13 +248,15 @@ export function AnalyticsPage() {
           <CardContent>
             <div className="text-2xl font-bold">{dashboardData?.messages_sent || 0}</div>
             <div className="flex items-center gap-2 mt-1">
-              <p className="text-xs text-muted-foreground">
-                No período
-              </p>
+              <p className="text-xs text-muted-foreground">No período</p>
               {compareMode && previousPeriodData && (
                 <div className="flex items-center text-xs text-green-600">
                   <ArrowUp className="h-3 w-3" />
-                  {calculateChange(dashboardData?.messages_sent || 0, previousPeriodData.messages_sent)}%
+                  {calculateChange(
+                    dashboardData?.messages_sent || 0,
+                    previousPeriodData.messages_sent
+                  )}
+                  %
                 </div>
               )}
             </div>
@@ -252,9 +265,7 @@ export function AnalyticsPage() {
 
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Questionários Completados
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Questionários Completados</CardTitle>
             <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
               <Activity className="h-5 w-5 text-purple-600" />
             </div>
@@ -262,13 +273,15 @@ export function AnalyticsPage() {
           <CardContent>
             <div className="text-2xl font-bold">{dashboardData?.completed_quizzes || 0}</div>
             <div className="flex items-center gap-2 mt-1">
-              <p className="text-xs text-muted-foreground">
-                No período
-              </p>
+              <p className="text-xs text-muted-foreground">No período</p>
               {compareMode && previousPeriodData && (
                 <div className="flex items-center text-xs text-green-600">
                   <ArrowUp className="h-3 w-3" />
-                  {calculateChange(dashboardData?.completed_quizzes || 0, previousPeriodData.completed_quizzes)}%
+                  {calculateChange(
+                    dashboardData?.completed_quizzes || 0,
+                    previousPeriodData.completed_quizzes
+                  )}
+                  %
                 </div>
               )}
             </div>
@@ -284,9 +297,7 @@ export function AnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Tendência de Engajamento</CardTitle>
-                <CardDescription>
-                  Evolução das mensagens e respostas
-                </CardDescription>
+                <CardDescription>Evolução das mensagens e respostas</CardDescription>
               </div>
               <Button variant="ghost" size="sm">
                 <Download className="h-4 w-4" />
@@ -338,9 +349,7 @@ export function AnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Distribuição por Tipo de Tratamento</CardTitle>
-                <CardDescription>
-                  Proporção de pacientes por terapia
-                </CardDescription>
+                <CardDescription>Proporção de pacientes por terapia</CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex gap-1">
@@ -389,11 +398,14 @@ export function AnalyticsPage() {
                   {treatmentError instanceof Error ? treatmentError.message : 'Erro desconhecido'}
                 </AlertDescription>
               </Alert>
-            ) : treatmentDistribution && treatmentDistribution.distribution && treatmentDistribution.distribution.length > 0 ? (
+            ) : treatmentDistribution &&
+              treatmentDistribution.distribution &&
+              treatmentDistribution.distribution.length > 0 ? (
               <>
                 <div className="mb-4 flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
-                    {treatmentDistribution.total_patients} pacientes • Período: {treatmentDistribution.period}
+                    {treatmentDistribution.total_patients} pacientes • Período:{' '}
+                    {treatmentDistribution.period}
                   </span>
                 </div>
                 <SafeChartContainer height="300px">
@@ -403,26 +415,37 @@ export function AnalyticsPage() {
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ percentage }: { percentage: number }) => `${percentage.toFixed(1)}%`}
+                      label={({ percentage }: { percentage: number }) =>
+                        `${percentage.toFixed(1)}%`
+                      }
                       outerRadius={90}
                       innerRadius={50}
                       fill="#8884d8"
                       dataKey="count"
                       paddingAngle={2}
                     >
-                      {treatmentDistribution.distribution.map((entry: TreatmentDistributionItem, index: number) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
+                      {treatmentDistribution.distribution.map(
+                        (entry: TreatmentDistributionItem, index: number) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        )
+                      )}
                     </Pie>
                     <Tooltip
                       content={({ active, payload }: TooltipProps<ValueType, NameType>) => {
-                        const payloadEntry = (payload?.[0] as Payload<ValueType, NameType> | undefined)
+                        const payloadEntry = payload?.[0] as
+                          | Payload<ValueType, NameType>
+                          | undefined
                         if (active && payloadEntry?.payload) {
-                          const data = payloadEntry.payload as { treatment_type: string; percentage: number };
+                          const data = payloadEntry.payload as {
+                            treatment_type: string
+                            percentage: number
+                          }
                           return (
                             <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
                               <p className="font-medium text-sm">{data.treatment_type}</p>
-                              <p className="text-sm text-gray-600">{payloadEntry.value} pacientes</p>
+                              <p className="text-sm text-gray-600">
+                                {payloadEntry.value} pacientes
+                              </p>
                               <p className="text-sm text-gray-500">{data.percentage.toFixed(1)}%</p>
                             </div>
                           )
@@ -433,14 +456,16 @@ export function AnalyticsPage() {
                   </PieChart>
                 </SafeChartContainer>
                 <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3">
-                  {treatmentDistribution.distribution.map((item: TreatmentDistributionItem, idx: number) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded" style={{ backgroundColor: item.color }} />
-                      <span className="text-sm">
-                        {item.treatment_type} ({item.percentage.toFixed(1)}%)
-                      </span>
-                    </div>
-                  ))}
+                  {treatmentDistribution.distribution.map(
+                    (item: TreatmentDistributionItem, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded" style={{ backgroundColor: item.color }} />
+                        <span className="text-sm">
+                          {item.treatment_type} ({item.percentage.toFixed(1)}%)
+                        </span>
+                      </div>
+                    )
+                  )}
                 </div>
               </>
             ) : (
@@ -460,9 +485,7 @@ export function AnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Taxa de Resposta Detalhada</CardTitle>
-          <CardDescription>
-            Análise detalhada da taxa de resposta dos pacientes
-          </CardDescription>
+          <CardDescription>Análise detalhada da taxa de resposta dos pacientes</CardDescription>
         </CardHeader>
         <CardContent>
           <SafeChartContainer height="400px">
@@ -498,21 +521,29 @@ export function AnalyticsPage() {
                 <span className="text-sm text-gray-600">Ativos</span>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="font-medium">{patientStatusData?.distribution?.['active'] || dashboardData?.active_patients || 0}</span>
+                  <span className="font-medium">
+                    {patientStatusData?.distribution?.['active'] ||
+                      dashboardData?.active_patients ||
+                      0}
+                  </span>
                 </div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Pausados</span>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                  <span className="font-medium">{patientStatusData?.distribution?.['paused'] || 0}</span>
+                  <span className="font-medium">
+                    {patientStatusData?.distribution?.['paused'] || 0}
+                  </span>
                 </div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Concluídos</span>
                 <div className="flex items-center space-x-2">
                   <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                  <span className="font-medium">{patientStatusData?.distribution?.['completed'] || 0}</span>
+                  <span className="font-medium">
+                    {patientStatusData?.distribution?.['completed'] || 0}
+                  </span>
                 </div>
               </div>
             </div>
@@ -528,19 +559,27 @@ export function AnalyticsPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Críticos</span>
-                <Badge variant="destructive">{alertsSummaryData?.severity_counts?.['critical'] || 0}</Badge>
+                <Badge variant="destructive">
+                  {alertsSummaryData?.severity_counts?.['critical'] || 0}
+                </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Altos</span>
-                <Badge className="bg-orange-100 text-orange-800">{alertsSummaryData?.severity_counts?.['high'] || 0}</Badge>
+                <Badge className="bg-orange-100 text-orange-800">
+                  {alertsSummaryData?.severity_counts?.['high'] || 0}
+                </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Médios</span>
-                <Badge className="bg-yellow-100 text-yellow-800">{alertsSummaryData?.severity_counts?.['medium'] || 0}</Badge>
+                <Badge className="bg-yellow-100 text-yellow-800">
+                  {alertsSummaryData?.severity_counts?.['medium'] || 0}
+                </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Baixos</span>
-                <Badge className="bg-blue-100 text-blue-800">{alertsSummaryData?.severity_counts?.['low'] || 0}</Badge>
+                <Badge className="bg-blue-100 text-blue-800">
+                  {alertsSummaryData?.severity_counts?.['low'] || 0}
+                </Badge>
               </div>
             </div>
           </CardContent>

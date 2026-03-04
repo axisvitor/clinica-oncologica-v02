@@ -8,7 +8,13 @@ import { AdminUserActivity } from '@/types/admin'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -31,7 +37,7 @@ const ACTION_COLORS: Record<string, string> = {
   update: 'bg-yellow-100 text-yellow-800',
   delete: 'bg-red-100 text-red-800',
   view: 'bg-purple-100 text-purple-800',
-  export: 'bg-orange-100 text-orange-800'
+  export: 'bg-orange-100 text-orange-800',
 }
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
@@ -41,7 +47,7 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
   update: <AlertCircle className="h-4 w-4" />,
   delete: <XCircle className="h-4 w-4" />,
   view: <Info className="h-4 w-4" />,
-  export: <Activity className="h-4 w-4" />
+  export: <Activity className="h-4 w-4" />,
 }
 
 export function UserActivityLog({ userId }: UserActivityLogProps) {
@@ -54,7 +60,7 @@ export function UserActivityLog({ userId }: UserActivityLogProps) {
     queryFn: async () => {
       const params: Record<string, string | number> = {
         page: currentPage,
-        size: pageSize
+        size: pageSize,
       }
 
       if (actionFilter !== 'all') {
@@ -62,14 +68,14 @@ export function UserActivityLog({ userId }: UserActivityLogProps) {
       }
 
       return apiClient.adminUsers.getActivity(userId, params)
-    }
+    },
   })
 
   const formatTimestamp = (timestamp: string) => {
     try {
       return formatDistanceToNow(new Date(timestamp), {
         addSuffix: true,
-        locale: ptBR
+        locale: ptBR,
       })
     } catch {
       return 'Data inválida'
@@ -139,11 +145,7 @@ export function UserActivityLog({ userId }: UserActivityLogProps) {
           </SelectContent>
         </Select>
         {actionFilter !== 'all' && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setActionFilter('all')}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setActionFilter('all')}>
             Limpar
           </Button>
         )}
@@ -170,9 +172,7 @@ export function UserActivityLog({ userId }: UserActivityLogProps) {
             <TableBody>
               {activities.map((activity: AdminUserActivity) => (
                 <TableRow key={activity['id']}>
-                  <TableCell>
-                    {getActionBadge(activity.action)}
-                  </TableCell>
+                  <TableCell>{getActionBadge(activity.action)}</TableCell>
                   <TableCell>
                     <div className="space-y-1">
                       <p className="font-medium">{activity.resource}</p>

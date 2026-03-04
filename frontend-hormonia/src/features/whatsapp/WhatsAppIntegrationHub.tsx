@@ -28,11 +28,7 @@ export function WhatsAppIntegrationHub() {
             Manage WhatsApp instances and send messages to patients
           </p>
         </div>
-        <Button
-          onClick={handleRefresh}
-          variant="outline"
-          size="sm"
-        >
+        <Button onClick={handleRefresh} variant="outline" size="sm">
           <RefreshCw className="w-4 h-4 mr-2" />
           Refresh
         </Button>
@@ -57,7 +53,9 @@ export function WhatsAppIntegrationHub() {
                 <div className="text-sm text-muted-foreground">Scheduled</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">{queueStats.retry_scheduled}</div>
+                <div className="text-2xl font-bold text-orange-600">
+                  {queueStats.retry_scheduled}
+                </div>
                 <div className="text-sm text-muted-foreground">Retrying</div>
               </div>
               <div className="text-center">

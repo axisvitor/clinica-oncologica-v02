@@ -3,10 +3,10 @@
  *
  * Component for creating monthly quiz links in the admin interface.
  */
-import React, { useState } from 'react';
-import { useMonthlyQuiz } from '../hooks/useMonthlyQuiz';
-import type { DeliveryMethod } from '../types';
-import type { MonthlyQuizLinkCreate } from '../types';
+import React, { useState } from 'react'
+import { useMonthlyQuiz } from '../hooks/useMonthlyQuiz'
+import type { DeliveryMethod } from '../types'
+import type { MonthlyQuizLinkCreate } from '../types'
 
 // Local type that matches what useMonthlyQuiz returns
 interface QuizLinkResponse {
@@ -19,24 +19,24 @@ interface QuizLinkResponse {
   expires_at: string
   created_at: string
 }
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/components/ui/use-toast'
 
 interface QuizLinkGeneratorProps {
-  patientId: string;
-  quizTemplateId: string;
-  onLinkCreated?: (link: QuizLinkResponse) => void;
+  patientId: string
+  quizTemplateId: string
+  onLinkCreated?: (link: QuizLinkResponse) => void
 }
 
 export const QuizLinkGenerator: React.FC<QuizLinkGeneratorProps> = ({
   patientId,
   quizTemplateId,
-  onLinkCreated
+  onLinkCreated,
 }) => {
-  const { createQuizLink, loading, error } = useMonthlyQuiz();
-  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('whatsapp');
-  const [expiryHours, setExpiryHours] = useState<number>(72);
-  const [customMessage, setCustomMessage] = useState<string>('');
-  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const { createQuizLink, loading, error } = useMonthlyQuiz()
+  const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('whatsapp')
+  const [expiryHours, setExpiryHours] = useState<number>(72)
+  const [customMessage, setCustomMessage] = useState<string>('')
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null)
 
   const handleGenerateLink = async () => {
     const linkData: MonthlyQuizLinkCreate = {
@@ -44,26 +44,26 @@ export const QuizLinkGenerator: React.FC<QuizLinkGeneratorProps> = ({
       quiz_template_id: quizTemplateId,
       delivery_method: deliveryMethod,
       expiry_hours: expiryHours,
-      ...(customMessage && { custom_message: customMessage })
-    };
+      ...(customMessage && { custom_message: customMessage }),
+    }
 
-    const link = await createQuizLink(linkData);
+    const link = await createQuizLink(linkData)
 
     if (link) {
-      setGeneratedLink(link.link_url ?? link.link ?? null);
-      onLinkCreated?.(link);
+      setGeneratedLink(link.link_url ?? link.link ?? null)
+      onLinkCreated?.(link)
     }
-  };
+  }
 
   const copyToClipboard = () => {
     if (generatedLink) {
-      navigator.clipboard.writeText(generatedLink);
+      navigator.clipboard.writeText(generatedLink)
       toast({
         title: 'Link copiado',
         description: 'O link foi copiado para a área de transferência.',
-      });
+      })
     }
-  };
+  }
 
   return (
     <div className="quiz-link-generator p-4 border rounded-lg">
@@ -100,7 +100,9 @@ export const QuizLinkGenerator: React.FC<QuizLinkGeneratorProps> = ({
 
         {/* Custom Message */}
         <div>
-          <label className="block text-sm font-medium mb-2">Mensagem Personalizada (Opcional)</label>
+          <label className="block text-sm font-medium mb-2">
+            Mensagem Personalizada (Opcional)
+          </label>
           <textarea
             value={customMessage}
             onChange={(e) => setCustomMessage(e.target.value)}
@@ -111,11 +113,7 @@ export const QuizLinkGenerator: React.FC<QuizLinkGeneratorProps> = ({
         </div>
 
         {/* Error Display */}
-        {error && (
-          <div className="p-3 bg-red-100 text-red-700 rounded">
-            {error}
-          </div>
-        )}
+        {error && <div className="p-3 bg-red-100 text-red-700 rounded">{error}</div>}
 
         {/* Generated Link Display */}
         {generatedLink && (
@@ -148,5 +146,5 @@ export const QuizLinkGenerator: React.FC<QuizLinkGeneratorProps> = ({
         </button>
       </div>
     </div>
-  );
-};
+  )
+}

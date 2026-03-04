@@ -182,10 +182,15 @@ export function createAdminApi(client: ApiClientCore) {
       const params: Record<string, string | number | boolean> = {
         page,
         limit: size,
-        ...filters
+        ...filters,
       }
 
-      const response = await client.get<{ data?: AdminUser[]; items?: AdminUser[]; total?: number; pages?: number }>('/api/v2/admin/users', params)
+      const response = await client.get<{
+        data?: AdminUser[]
+        items?: AdminUser[]
+        total?: number
+        pages?: number
+      }>('/api/v2/admin/users', params)
 
       // Normalize response to match PaginatedResponse interface
       const items = Array.isArray(response?.data) ? response.data : (response?.items ?? [])
@@ -195,7 +200,7 @@ export function createAdminApi(client: ApiClientCore) {
         total: response?.total ?? items.length,
         page,
         size,
-        pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size)
+        pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size),
       }
     },
 
@@ -248,10 +253,7 @@ export function createAdminApi(client: ApiClientCore) {
       userId: string,
       data: { new_password: string; force_change?: boolean }
     ): Promise<{ message: string }> => {
-      return client.post<{ message: string }>(
-        `/api/v2/admin/users/${userId}/reset-password`,
-        data
-      )
+      return client.post<{ message: string }>(`/api/v2/admin/users/${userId}/reset-password`, data)
     },
 
     /**
@@ -261,10 +263,9 @@ export function createAdminApi(client: ApiClientCore) {
       userId: string,
       permissions: string[]
     ): Promise<{ message: string }> => {
-      return client.put<{ message: string }>(
-        `/api/v2/admin/users/${userId}/permissions`,
-        { permissions }
-      )
+      return client.put<{ message: string }>(`/api/v2/admin/users/${userId}/permissions`, {
+        permissions,
+      })
     },
 
     /**
@@ -276,10 +277,12 @@ export function createAdminApi(client: ApiClientCore) {
       size: number = 20
     ): Promise<PaginatedResponse<UserActivityEntry>> => {
       const params = { page, limit: size }
-      const response = await client.get<{ data?: UserActivityEntry[]; items?: UserActivityEntry[]; total?: number; pages?: number }>(
-        `/api/v2/admin/users/${userId}/activity`,
-        params
-      )
+      const response = await client.get<{
+        data?: UserActivityEntry[]
+        items?: UserActivityEntry[]
+        total?: number
+        pages?: number
+      }>(`/api/v2/admin/users/${userId}/activity`, params)
 
       const items = Array.isArray(response?.data) ? response.data : (response?.items ?? [])
 
@@ -288,7 +291,7 @@ export function createAdminApi(client: ApiClientCore) {
         total: response?.total ?? items.length,
         page,
         size,
-        pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size)
+        pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size),
       }
     },
 
@@ -304,10 +307,12 @@ export function createAdminApi(client: ApiClientCore) {
       size: number = 20
     ): Promise<PaginatedResponse<CompensationFailure>> => {
       const params = { page, limit: size }
-      const response = await client.get<{ data?: CompensationFailure[]; items?: CompensationFailure[]; total?: number; pages?: number }>(
-        '/api/v2/admin/compensation-failures',
-        params
-      )
+      const response = await client.get<{
+        data?: CompensationFailure[]
+        items?: CompensationFailure[]
+        total?: number
+        pages?: number
+      }>('/api/v2/admin/compensation-failures', params)
 
       const items = Array.isArray(response?.data) ? response.data : (response?.items ?? [])
 
@@ -316,16 +321,14 @@ export function createAdminApi(client: ApiClientCore) {
         total: response?.total ?? items.length,
         page,
         size,
-        pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size)
+        pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size),
       }
     },
 
     /**
      * Retry compensation for a failed saga
      */
-    retryCompensation: async (
-      sagaId: string
-    ): Promise<{ message: string; success: boolean }> => {
+    retryCompensation: async (sagaId: string): Promise<{ message: string; success: boolean }> => {
       return client.post<{ message: string; success: boolean }>(
         `/api/v2/admin/compensation-failures/${sagaId}/retry`
       )
@@ -334,9 +337,7 @@ export function createAdminApi(client: ApiClientCore) {
     /**
      * Cleanup compensation failure artifacts
      */
-    cleanupCompensation: async (
-      sagaId: string
-    ): Promise<{ message: string }> => {
+    cleanupCompensation: async (sagaId: string): Promise<{ message: string }> => {
       return client.post<{ message: string }>(
         `/api/v2/admin/compensation-failures/${sagaId}/cleanup`
       )
@@ -388,10 +389,15 @@ export function createAdminApi(client: ApiClientCore) {
       const params: Record<string, string | number | boolean> = {
         page,
         limit: size,
-        ...filters
+        ...filters,
       }
 
-      const response = await client.get<{ data?: AuditLogEntry[]; items?: AuditLogEntry[]; total?: number; pages?: number }>('/api/v2/admin/audit', params)
+      const response = await client.get<{
+        data?: AuditLogEntry[]
+        items?: AuditLogEntry[]
+        total?: number
+        pages?: number
+      }>('/api/v2/admin/audit', params)
       const items = Array.isArray(response?.data) ? response.data : (response?.items ?? [])
 
       return {
@@ -399,7 +405,7 @@ export function createAdminApi(client: ApiClientCore) {
         total: response?.total ?? items.length,
         page,
         size,
-        pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size)
+        pages: response?.pages ?? Math.ceil((response?.total ?? items.length) / size),
       }
     },
 
@@ -420,7 +426,7 @@ export function createAdminApi(client: ApiClientCore) {
           headers: {
             ...client.getSessionHeaders(),
           },
-          credentials: 'include'
+          credentials: 'include',
         }
       )
 
@@ -439,8 +445,14 @@ export function createAdminApi(client: ApiClientCore) {
      * List all roles
      */
     listRoles: async (): Promise<Role[]> => {
-      const response = await client.get<Role[] | { data?: Role[]; items?: Role[] }>('/api/v2/admin/roles')
-      return Array.isArray(response) ? response : ((response as { data?: Role[]; items?: Role[] })?.data ?? (response as { data?: Role[]; items?: Role[] })?.items ?? [])
+      const response = await client.get<Role[] | { data?: Role[]; items?: Role[] }>(
+        '/api/v2/admin/roles'
+      )
+      return Array.isArray(response)
+        ? response
+        : ((response as { data?: Role[]; items?: Role[] })?.data ??
+            (response as { data?: Role[]; items?: Role[] })?.items ??
+            [])
     },
 
     /**
@@ -480,7 +492,7 @@ export function createAdminApi(client: ApiClientCore) {
      */
     runMaintenance: async (): Promise<{ message: string }> => {
       return client.post<{ message: string }>('/api/v2/admin/system/maintenance')
-    }
+    },
   }
 }
 

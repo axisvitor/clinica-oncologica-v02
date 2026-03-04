@@ -32,19 +32,19 @@ export function getMockConfig() {
     auth: {
       enabled: isMockAuthEnabled(),
       showCredentials: isDevMode(),
-      defaultPassword: 'senha123'
+      defaultPassword: 'senha123',
     },
     api: {
       enabled: isMockApiEnabled(),
       minDelay: 200,
       maxDelay: 600,
-      errorRate: 0.05
+      errorRate: 0.05,
     },
     ui: {
       showBanner: isDevMode(),
       bannerText: 'Modo de Desenvolvimento - Dados Mock',
-      bannerColor: 'orange'
-    }
+      bannerColor: 'orange',
+    },
   }
 }
 
@@ -52,5 +52,5 @@ export default {
   isMockAuthEnabled,
   isMockApiEnabled,
   isDevMode,
-  getMockConfig
+  getMockConfig,
 }

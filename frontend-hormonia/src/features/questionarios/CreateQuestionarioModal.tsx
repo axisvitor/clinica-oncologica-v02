@@ -1,6 +1,12 @@
 import React from 'react'
 import { UseFormReturn } from 'react-hook-form'
-import { DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -58,89 +64,88 @@ interface CreateQuestionarioModalProps {
  * />
  * ```
  */
-export const CreateQuestionarioModal = React.memo<CreateQuestionarioModalProps>(({
-  form,
-  onSubmit,
-  onClose,
-  isSubmitting,
-  questions,
-  onAddQuestion,
-  onRemoveQuestion,
-  onUpdateQuestion
-}) => {
-  const { register, handleSubmit, formState: { errors } } = form
+export const CreateQuestionarioModal = React.memo<CreateQuestionarioModalProps>(
+  ({
+    form,
+    onSubmit,
+    onClose,
+    isSubmitting,
+    questions,
+    onAddQuestion,
+    onRemoveQuestion,
+    onUpdateQuestion,
+  }) => {
+    const {
+      register,
+      handleSubmit,
+      formState: { errors },
+    } = form
 
-  return (
-    <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle>Criar Novo Questionário</DialogTitle>
-        <DialogDescription>
-          Crie um questionário personalizado para seus pacientes
-        </DialogDescription>
-      </DialogHeader>
+    return (
+      <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[85vh] sm:max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Criar Novo Questionário</DialogTitle>
+          <DialogDescription>
+            Crie um questionário personalizado para seus pacientes
+          </DialogDescription>
+        </DialogHeader>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
-        {/* Basic Info */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Nome do Questionário</Label>
-            <Input
-              id="name"
-              {...register('name')}
-              placeholder="Ex: Avaliação de Sintomas Pós-Quimio"
-              disabled={isSubmitting}
-            />
-            {errors.name && (
-              <p className="text-sm text-destructive">{errors.name.message}</p>
-            )}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 sm:space-y-6">
+          {/* Basic Info */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome do Questionário</Label>
+              <Input
+                id="name"
+                {...register('name')}
+                placeholder="Ex: Avaliação de Sintomas Pós-Quimio"
+                disabled={isSubmitting}
+              />
+              {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="version">Versão</Label>
+              <Input
+                id="version"
+                {...register('version')}
+                placeholder="1.0"
+                disabled={isSubmitting}
+              />
+              {errors.version && (
+                <p className="text-sm text-destructive">{errors.version.message}</p>
+              )}
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="version">Versão</Label>
-            <Input
-              id="version"
-              {...register('version')}
-              placeholder="1.0"
-              disabled={isSubmitting}
-            />
-            {errors.version && (
-              <p className="text-sm text-destructive">{errors.version.message}</p>
-            )}
-          </div>
-        </div>
+          {/* Questions */}
+          <QuestionForm
+            questions={questions}
+            onUpdateQuestion={onUpdateQuestion}
+            onRemoveQuestion={onRemoveQuestion}
+            onAddQuestion={onAddQuestion}
+            isSubmitting={isSubmitting}
+          />
 
-        {/* Questions */}
-        <QuestionForm
-          questions={questions}
-          onUpdateQuestion={onUpdateQuestion}
-          onRemoveQuestion={onRemoveQuestion}
-          onAddQuestion={onAddQuestion}
-          isSubmitting={isSubmitting}
-        />
-
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <>
-                <LoadingSpinner size="sm" className="mr-2" />
-                Criando...
-              </>
-            ) : (
-              'Criar Questionário'
-            )}
-          </Button>
-        </DialogFooter>
-      </form>
-    </DialogContent>
-  )
-})
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Criando...
+                </>
+              ) : (
+                'Criar Questionário'
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    )
+  }
+)
 
 CreateQuestionarioModal.displayName = 'CreateQuestionarioModal'

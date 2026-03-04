@@ -114,56 +114,170 @@ export function useAuthContext(): AuthContextValue {
 
 // Default role hierarchy
 const ROLE_HIERARCHY: Record<string, number> = {
-  'super_admin': 100,
-  'admin': 80,
-  'manager': 60,
-  'doctor': 50,
-  'nurse': 40,
-  'staff': 30,
-  'reception': 20,
-  'user': 10,
-  'patient': 5
+  super_admin: 100,
+  admin: 80,
+  manager: 60,
+  doctor: 50,
+  nurse: 40,
+  staff: 30,
+  reception: 20,
+  user: 10,
+  patient: 5,
 }
 
 // Default permissions
 const DEFAULT_PERMISSIONS: Record<string, Permission[]> = {
   super_admin: [
-    { id: 'all', name: 'All Permissions', description: 'Full system access', resource: '*', action: '*' }
+    {
+      id: 'all',
+      name: 'All Permissions',
+      description: 'Full system access',
+      resource: '*',
+      action: '*',
+    },
   ],
   admin: [
-    { id: 'users.manage', name: 'Manage Users', description: 'Create, edit, delete users', resource: 'users', action: 'manage' },
-    { id: 'patients.manage', name: 'Manage Patients', description: 'Full patient management', resource: 'patients', action: 'manage' },
-    { id: 'system.configure', name: 'System Configuration', description: 'System settings', resource: 'system', action: 'configure' }
+    {
+      id: 'users.manage',
+      name: 'Manage Users',
+      description: 'Create, edit, delete users',
+      resource: 'users',
+      action: 'manage',
+    },
+    {
+      id: 'patients.manage',
+      name: 'Manage Patients',
+      description: 'Full patient management',
+      resource: 'patients',
+      action: 'manage',
+    },
+    {
+      id: 'system.configure',
+      name: 'System Configuration',
+      description: 'System settings',
+      resource: 'system',
+      action: 'configure',
+    },
   ],
   manager: [
-    { id: 'patients.manage', name: 'Manage Patients', description: 'Full patient management', resource: 'patients', action: 'manage' },
-    { id: 'reports.view', name: 'View Reports', description: 'Access reports', resource: 'reports', action: 'view' }
+    {
+      id: 'patients.manage',
+      name: 'Manage Patients',
+      description: 'Full patient management',
+      resource: 'patients',
+      action: 'manage',
+    },
+    {
+      id: 'reports.view',
+      name: 'View Reports',
+      description: 'Access reports',
+      resource: 'reports',
+      action: 'view',
+    },
   ],
   doctor: [
-    { id: 'patients.read', name: 'View Patients', description: 'View patient information', resource: 'patients', action: 'read' },
-    { id: 'patients.update', name: 'Update Patients', description: 'Update patient information', resource: 'patients', action: 'update' },
-    { id: 'treatments.manage', name: 'Manage Treatments', description: 'Manage patient treatments', resource: 'treatments', action: 'manage' }
+    {
+      id: 'patients.read',
+      name: 'View Patients',
+      description: 'View patient information',
+      resource: 'patients',
+      action: 'read',
+    },
+    {
+      id: 'patients.update',
+      name: 'Update Patients',
+      description: 'Update patient information',
+      resource: 'patients',
+      action: 'update',
+    },
+    {
+      id: 'treatments.manage',
+      name: 'Manage Treatments',
+      description: 'Manage patient treatments',
+      resource: 'treatments',
+      action: 'manage',
+    },
   ],
   nurse: [
-    { id: 'patients.read', name: 'View Patients', description: 'View patient information', resource: 'patients', action: 'read' },
-    { id: 'patients.update', name: 'Update Patients', description: 'Update patient information', resource: 'patients', action: 'update' }
+    {
+      id: 'patients.read',
+      name: 'View Patients',
+      description: 'View patient information',
+      resource: 'patients',
+      action: 'read',
+    },
+    {
+      id: 'patients.update',
+      name: 'Update Patients',
+      description: 'Update patient information',
+      resource: 'patients',
+      action: 'update',
+    },
   ],
   staff: [
-    { id: 'patients.read', name: 'View Patients', description: 'View patient information', resource: 'patients', action: 'read' }
+    {
+      id: 'patients.read',
+      name: 'View Patients',
+      description: 'View patient information',
+      resource: 'patients',
+      action: 'read',
+    },
   ],
   reception: [
-    { id: 'patients.read', name: 'View Patients', description: 'View patient information', resource: 'patients', action: 'read' },
-    { id: 'appointments.manage', name: 'Manage Appointments', description: 'Schedule appointments', resource: 'appointments', action: 'manage' }
+    {
+      id: 'patients.read',
+      name: 'View Patients',
+      description: 'View patient information',
+      resource: 'patients',
+      action: 'read',
+    },
+    {
+      id: 'appointments.manage',
+      name: 'Manage Appointments',
+      description: 'Schedule appointments',
+      resource: 'appointments',
+      action: 'manage',
+    },
   ],
   user: [
-    { id: 'profile.read', name: 'View Profile', description: 'View own profile', resource: 'profile', action: 'read' },
-    { id: 'profile.update', name: 'Update Profile', description: 'Update own profile', resource: 'profile', action: 'update' }
+    {
+      id: 'profile.read',
+      name: 'View Profile',
+      description: 'View own profile',
+      resource: 'profile',
+      action: 'read',
+    },
+    {
+      id: 'profile.update',
+      name: 'Update Profile',
+      description: 'Update own profile',
+      resource: 'profile',
+      action: 'update',
+    },
   ],
   patient: [
-    { id: 'profile.read', name: 'View Profile', description: 'View own profile', resource: 'profile', action: 'read' },
-    { id: 'profile.update', name: 'Update Profile', description: 'Update own profile', resource: 'profile', action: 'update' },
-    { id: 'appointments.view', name: 'View Appointments', description: 'View own appointments', resource: 'appointments', action: 'view' }
-  ]
+    {
+      id: 'profile.read',
+      name: 'View Profile',
+      description: 'View own profile',
+      resource: 'profile',
+      action: 'read',
+    },
+    {
+      id: 'profile.update',
+      name: 'Update Profile',
+      description: 'Update own profile',
+      resource: 'profile',
+      action: 'update',
+    },
+    {
+      id: 'appointments.view',
+      name: 'View Appointments',
+      description: 'View own appointments',
+      resource: 'appointments',
+      action: 'view',
+    },
+  ],
 }
 
 /**
@@ -179,7 +293,7 @@ export function convertSupabaseUser(user: User): AppUser {
     permissions: getUserPermissions(user.user_metadata?.['role'] || 'user'),
     created_at: user.created_at,
     last_sign_in_at: user.last_sign_in_at as string,
-    metadata: user.user_metadata
+    metadata: user.user_metadata,
   }
 }
 
@@ -188,13 +302,17 @@ export function convertSupabaseUser(user: User): AppUser {
  */
 export function getUserPermissions(role: string): string[] {
   const permissions = DEFAULT_PERMISSIONS[role] || DEFAULT_PERMISSIONS['user']
-  return (permissions || []).map(p => p.id)
+  return (permissions || []).map((p) => p.id)
 }
 
 /**
  * Check if user has a specific permission
  */
-export function hasPermission(user: AppUser | null, permission: string, resource?: string): boolean {
+export function hasPermission(
+  user: AppUser | null,
+  permission: string,
+  resource?: string
+): boolean {
   if (!user || !user.is_active) return false
 
   // Super admin has all permissions
@@ -233,7 +351,7 @@ export function hasAnyRole(user: AppUser | null, roles: string[]): boolean {
  */
 export function hasAllPermissions(user: AppUser | null, permissions: string[]): boolean {
   if (!user || !user.is_active) return false
-  return permissions.every(permission => hasPermission(user, permission))
+  return permissions.every((permission) => hasPermission(user, permission))
 }
 
 /**
@@ -241,7 +359,7 @@ export function hasAllPermissions(user: AppUser | null, permissions: string[]): 
  */
 export function hasAnyPermission(user: AppUser | null, permissions: string[]): boolean {
   if (!user || !user.is_active) return false
-  return permissions.some(permission => hasPermission(user, permission))
+  return permissions.some((permission) => hasPermission(user, permission))
 }
 
 /**
@@ -268,7 +386,7 @@ export function getPermissionLevel(user: AppUser | null, resource: string): numb
   const roleLevel = ROLE_HIERARCHY[user.role || 'user'] || 0
 
   // Check if user has specific permissions for this resource
-  const resourcePermissions = user.permissions?.filter(p => p.startsWith(resource)) || []
+  const resourcePermissions = user.permissions?.filter((p) => p.startsWith(resource)) || []
   if (resourcePermissions.length > 0) {
     return roleLevel + 10 // Bonus for having specific permissions
   }
@@ -366,9 +484,7 @@ export function isSessionExpiringSoon(session: Session | null): boolean {
  * Format role name for display
  */
 export function formatRoleName(role: string): string {
-  return role
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, l => l.toUpperCase())
+  return role.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
 }
 
 /**
@@ -384,7 +500,7 @@ export function getRoleDescription(role: string): string {
     staff: 'General staff with limited access',
     reception: 'Reception staff with appointment management',
     user: 'Standard user with basic access',
-    patient: 'Patient with access to own information'
+    patient: 'Patient with access to own information',
   }
 
   return descriptions[role] || 'Standard user access'
@@ -447,17 +563,19 @@ export function parsePermission(permission: string): { resource: string; action:
  */
 export function createUserPermissionHelpers(user: AppUser | null) {
   return {
-    hasPermission: (permission: string, resource?: string) => hasPermission(user, permission, resource),
+    hasPermission: (permission: string, resource?: string) =>
+      hasPermission(user, permission, resource),
     hasRole: (role: string) => hasRole(user, role),
     hasAnyRole: (roles: string[]) => hasAnyRole(user, roles),
     hasAllPermissions: (permissions: string[]) => hasAllPermissions(user, permissions),
     hasAnyPermission: (permissions: string[]) => hasAnyPermission(user, permissions),
-    canAccessResource: (resource: string, action: string) => canAccessResource(user, resource, action),
+    canAccessResource: (resource: string, action: string) =>
+      canAccessResource(user, resource, action),
     getPermissionLevel: (resource: string) => getPermissionLevel(user, resource),
     isAdmin: () => isAdmin(user),
     isSuperAdmin: () => isSuperAdmin(user),
     getDisplayName: () => getDisplayName(user),
     getUserInitials: () => getUserInitials(user),
-    canManageUser: (targetUserRole: string) => canManageUser(user, targetUserRole)
+    canManageUser: (targetUserRole: string) => canManageUser(user, targetUserRole),
   }
 }

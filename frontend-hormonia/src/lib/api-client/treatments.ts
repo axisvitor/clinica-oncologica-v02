@@ -29,7 +29,13 @@ export type TreatmentStatus = 'planned' | 'active' | 'completed' | 'suspended' |
 /**
  * Treatment type enumeration
  */
-export type TreatmentType = 'quimioterapia' | 'radioterapia' | 'hormonioterapia' | 'imunoterapia' | 'cirurgia' | 'outros'
+export type TreatmentType =
+  | 'quimioterapia'
+  | 'radioterapia'
+  | 'hormonioterapia'
+  | 'imunoterapia'
+  | 'cirurgia'
+  | 'outros'
 
 /**
  * Brief patient information for treatment response
@@ -182,7 +188,14 @@ export function createTreatmentsApi(client: ApiClientCore) {
      * ```
      */
     list: async (
-      pageOrOptions: number | (TreatmentFilters & { page?: number; size?: number; cursor?: string; limit?: number }) = 1,
+      pageOrOptions:
+        | number
+        | (TreatmentFilters & {
+            page?: number
+            size?: number
+            cursor?: string
+            limit?: number
+          }) = 1,
       size: number = 20,
       filters?: TreatmentFilters
     ): Promise<PaginatedResponse<Treatment>> => {
@@ -207,7 +220,7 @@ export function createTreatmentsApi(client: ApiClientCore) {
           ...other
         } = pageOrOptions
         page = optPage
-        limit = (optLimit ?? optionSize) ?? 20
+        limit = optLimit ?? optionSize ?? 20
         cursor = optCursor
 
         // Handle field selection and eager loading
@@ -224,10 +237,18 @@ export function createTreatmentsApi(client: ApiClientCore) {
       const query = {
         limit,
         ...(cursor ? { cursor } : {}),
-        ...rest
+        ...rest,
       }
 
-      const res = await client.get<{ data?: Treatment[]; items?: Treatment[]; total?: number; total_count?: number; pages?: number; has_more?: boolean; next_cursor?: string }>('/api/v2/treatments', query)
+      const res = await client.get<{
+        data?: Treatment[]
+        items?: Treatment[]
+        total?: number
+        total_count?: number
+        pages?: number
+        has_more?: boolean
+        next_cursor?: string
+      }>('/api/v2/treatments', query)
 
       // Normalize to keep backward compatibility
       const rawItems = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
@@ -236,7 +257,11 @@ export function createTreatmentsApi(client: ApiClientCore) {
       const has_more = res?.has_more ?? (typeof res?.pages === 'number' && page < res.pages)
       const next_cursor = res?.next_cursor ?? null
 
-      const normalized: PaginatedResponse<Treatment> & { data: Treatment[]; has_more: boolean; next_cursor: string | null } = {
+      const normalized: PaginatedResponse<Treatment> & {
+        data: Treatment[]
+        has_more: boolean
+        next_cursor: string | null
+      } = {
         items,
         total,
         page,
@@ -244,7 +269,7 @@ export function createTreatmentsApi(client: ApiClientCore) {
         pages: total ? Math.ceil(total / Math.max(1, limit)) : (res?.pages ?? undefined),
         has_more,
         next_cursor,
-        data: items
+        data: items,
       }
 
       return normalized as PaginatedResponse<Treatment>
@@ -310,12 +335,9 @@ export function createTreatmentsApi(client: ApiClientCore) {
      * })
      * ```
      */
-    getByPatient: async (
-      patientId: string,
-      options?: TreatmentFilters
-    ): Promise<Treatment[]> => {
+    getByPatient: async (patientId: string, options?: TreatmentFilters): Promise<Treatment[]> => {
       const query: Record<string, string | number | boolean> = {
-        patient_id: patientId
+        patient_id: patientId,
       }
 
       // Add filter options
@@ -336,7 +358,10 @@ export function createTreatmentsApi(client: ApiClientCore) {
         }
       }
 
-      const res = await client.get<{ data?: Treatment[]; items?: Treatment[] }>('/api/v2/treatments', query)
+      const res = await client.get<{ data?: Treatment[]; items?: Treatment[] }>(
+        '/api/v2/treatments',
+        query
+      )
       const items = Array.isArray(res?.data) ? res.data : (res?.items ?? [])
       return items as Treatment[]
     },
@@ -467,7 +492,7 @@ export function createTreatmentsApi(client: ApiClientCore) {
      */
     getStatistics: async (): Promise<TreatmentStats> => {
       return client.get<TreatmentStats>('/api/v2/treatments/statistics')
-    }
+    },
   }
 }
 

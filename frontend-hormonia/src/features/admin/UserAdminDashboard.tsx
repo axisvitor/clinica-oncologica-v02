@@ -7,7 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { UsersTable } from './users/UsersTable'
@@ -48,7 +54,7 @@ export function UserAdminDashboard() {
     role: 'all',
     status: 'all',
     twoFactor: 'all',
-    dateRange: { from: null, to: null }
+    dateRange: { from: null, to: null },
   })
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedUsers, setSelectedUsers] = useState<string[]>([])
@@ -59,57 +65,63 @@ export function UserAdminDashboard() {
   const filteredUsers = useMemo(() => {
     if (!users) return [] as AdminUser[]
 
-    return users.filter((user: AdminUser) => {
-      // Search filter
-      if (filters.search) {
-        const searchLower = filters.search.toLowerCase()
-        const matchesSearch =
-          (user.full_name?.toLowerCase() ?? '').includes(searchLower) ||
-          user.email.toLowerCase().includes(searchLower)
-        if (!matchesSearch) return false
-      }
+    return users
+      .filter((user: AdminUser) => {
+        // Search filter
+        if (filters.search) {
+          const searchLower = filters.search.toLowerCase()
+          const matchesSearch =
+            (user.full_name?.toLowerCase() ?? '').includes(searchLower) ||
+            user.email.toLowerCase().includes(searchLower)
+          if (!matchesSearch) return false
+        }
 
-      // Role filter
-      if (filters.role !== 'all' && user.role !== filters.role) return false
+        // Role filter
+        if (filters.role !== 'all' && user.role !== filters.role) return false
 
-      // Status filter
-      if (filters.status === 'active' && !user.is_active) return false
-      if (filters.status === 'inactive' && user.is_active) return false
-      if (filters.status === 'locked' && (!user.locked_until || new Date(user.locked_until) <= new Date())) return false
+        // Status filter
+        if (filters.status === 'active' && !user.is_active) return false
+        if (filters.status === 'inactive' && user.is_active) return false
+        if (
+          filters.status === 'locked' &&
+          (!user.locked_until || new Date(user.locked_until) <= new Date())
+        )
+          return false
 
-      // Two factor filter
-      if (filters.twoFactor === 'enabled' && !user.two_factor_enabled) return false
-      if (filters.twoFactor === 'disabled' && user.two_factor_enabled) return false
+        // Two factor filter
+        if (filters.twoFactor === 'enabled' && !user.two_factor_enabled) return false
+        if (filters.twoFactor === 'disabled' && user.two_factor_enabled) return false
 
-      return true
-    }).sort((a: AdminUser, b: AdminUser) => {
-      const aRaw = a[sortBy as keyof AdminUser]
-      const bRaw = b[sortBy as keyof AdminUser]
+        return true
+      })
+      .sort((a: AdminUser, b: AdminUser) => {
+        const aRaw = a[sortBy as keyof AdminUser]
+        const bRaw = b[sortBy as keyof AdminUser]
 
-      let aVal: string | number
-      let bVal: string | number
+        let aVal: string | number
+        let bVal: string | number
 
-      // Handle date sorting
-      if (sortBy === 'created_at' || sortBy === 'last_login') {
-        aVal = aRaw ? new Date(String(aRaw)).getTime() : 0
-        bVal = bRaw ? new Date(String(bRaw)).getTime() : 0
-      } else if (typeof aRaw === 'string') {
-        aVal = aRaw.toLowerCase()
-        bVal = typeof bRaw === 'string' ? bRaw.toLowerCase() : ''
-      } else if (typeof aRaw === 'number') {
-        aVal = aRaw
-        bVal = typeof bRaw === 'number' ? bRaw : 0
-      } else {
-        aVal = ''
-        bVal = ''
-      }
+        // Handle date sorting
+        if (sortBy === 'created_at' || sortBy === 'last_login') {
+          aVal = aRaw ? new Date(String(aRaw)).getTime() : 0
+          bVal = bRaw ? new Date(String(bRaw)).getTime() : 0
+        } else if (typeof aRaw === 'string') {
+          aVal = aRaw.toLowerCase()
+          bVal = typeof bRaw === 'string' ? bRaw.toLowerCase() : ''
+        } else if (typeof aRaw === 'number') {
+          aVal = aRaw
+          bVal = typeof bRaw === 'number' ? bRaw : 0
+        } else {
+          aVal = ''
+          bVal = ''
+        }
 
-      if (sortOrder === 'asc') {
-        return aVal > bVal ? 1 : -1
-      } else {
-        return aVal < bVal ? 1 : -1
-      }
-    })
+        if (sortOrder === 'asc') {
+          return aVal > bVal ? 1 : -1
+        } else {
+          return aVal < bVal ? 1 : -1
+        }
+      })
   }, [users, filters, sortBy, sortOrder])
 
   // Pagination
@@ -152,10 +164,8 @@ export function UserAdminDashboard() {
   }
 
   const toggleUserSelection = (userId: string) => {
-    setSelectedUsers(prev =>
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
+    setSelectedUsers((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
     )
   }
 
@@ -202,9 +212,7 @@ export function UserAdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.users.total || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              +{stats?.users.new_today || 0} hoje
-            </p>
+            <p className="text-xs text-muted-foreground">+{stats?.users.new_today || 0} hoje</p>
           </CardContent>
         </Card>
 
@@ -216,7 +224,8 @@ export function UserAdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{stats?.users.active || 0}</div>
             <p className="text-xs text-muted-foreground">
-              {stats?.users.total ? Math.round((stats.users.active / stats.users.total) * 100) : 0}% do total
+              {stats?.users.total ? Math.round((stats.users.active / stats.users.total) * 100) : 0}%
+              do total
             </p>
           </CardContent>
         </Card>
@@ -228,9 +237,7 @@ export function UserAdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.users.locked || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Requer atenção
-            </p>
+            <p className="text-xs text-muted-foreground">Requer atenção</p>
           </CardContent>
         </Card>
 
@@ -241,9 +248,7 @@ export function UserAdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.security.failed_logins || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Últimas 24h
-            </p>
+            <p className="text-xs text-muted-foreground">Últimas 24h</p>
           </CardContent>
         </Card>
       </div>
@@ -259,14 +264,17 @@ export function UserAdminDashboard() {
                 <Input
                   placeholder="Buscar por nome ou email..."
                   value={filters.search}
-                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
                   className="pl-10"
                 />
               </div>
             </div>
 
             {/* Role Filter */}
-            <Select value={filters.role} onValueChange={(value) => setFilters(prev => ({ ...prev, role: value }))}>
+            <Select
+              value={filters.role}
+              onValueChange={(value) => setFilters((prev) => ({ ...prev, role: value }))}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filtrar por função" />
               </SelectTrigger>
@@ -278,7 +286,10 @@ export function UserAdminDashboard() {
             </Select>
 
             {/* Status Filter */}
-            <Select value={filters.status} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}>
+            <Select
+              value={filters.status}
+              onValueChange={(value) => setFilters((prev) => ({ ...prev, status: value }))}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filtrar por status" />
               </SelectTrigger>
@@ -291,7 +302,10 @@ export function UserAdminDashboard() {
             </Select>
 
             {/* 2FA Filter */}
-            <Select value={filters.twoFactor} onValueChange={(value) => setFilters(prev => ({ ...prev, twoFactor: value }))}>
+            <Select
+              value={filters.twoFactor}
+              onValueChange={(value) => setFilters((prev) => ({ ...prev, twoFactor: value }))}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filtrar por 2FA" />
               </SelectTrigger>
@@ -311,17 +325,11 @@ export function UserAdminDashboard() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Badge variant="secondary">
-                  {selectedUsers.length} usuário(s) selecionado(s)
-                </Badge>
+                <Badge variant="secondary">{selectedUsers.length} usuário(s) selecionado(s)</Badge>
               </div>
               <div className="flex gap-2">
                 <PermissionGuard permissions={['admin.users.update']}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleBulkAction('activate')}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => handleBulkAction('activate')}>
                     Ativar Selecionados
                   </Button>
                   <Button
@@ -345,7 +353,9 @@ export function UserAdminDashboard() {
             {/* Table Header with Bulk Select */}
             <div className="flex items-center gap-2">
               <Checkbox
-                checked={selectedUsers.length === paginatedUsers.length && paginatedUsers.length > 0}
+                checked={
+                  selectedUsers.length === paginatedUsers.length && paginatedUsers.length > 0
+                }
                 onCheckedChange={toggleAllUsers}
               />
               <span className="text-sm text-muted-foreground">
@@ -366,7 +376,7 @@ export function UserAdminDashboard() {
               sortOrder={sortOrder}
               onSort={(field) => {
                 if (sortBy === field) {
-                  setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
+                  setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))
                 } else {
                   setSortBy(field)
                   setSortOrder('asc')
@@ -378,16 +388,9 @@ export function UserAdminDashboard() {
       </Card>
 
       {/* Modals */}
-      <UserCreateModal
-        open={showCreateModal}
-        onOpenChange={setShowCreateModal}
-      />
+      <UserCreateModal open={showCreateModal} onOpenChange={setShowCreateModal} />
 
-      <UserEditModal
-        open={showEditModal}
-        onOpenChange={setShowEditModal}
-        user={selectedUser}
-      />
+      <UserEditModal open={showEditModal} onOpenChange={setShowEditModal} user={selectedUser} />
 
       <UserDetailsPanel
         open={showDetailsPanel}

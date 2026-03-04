@@ -8,10 +8,10 @@
  * properly passed to the Vite build process.
  */
 
-import { createLogger } from './lib/logger';
-import { getRuntimeConfig } from './lib/runtime-config';
+import { createLogger } from './lib/logger'
+import { getRuntimeConfig } from './lib/runtime-config'
 
-const logger = createLogger('Config');
+const logger = createLogger('Config')
 
 /**
  * Automatically upgrades WebSocket protocol based on page protocol
@@ -33,7 +33,7 @@ function upgradeWebSocketProtocol(wsUrl: string | undefined): string | undefined
 }
 
 // Re-export runtime config functions for external access
-export { getRuntimeConfig, getRuntimeConfigSync, isProduction } from './lib/runtime-config';
+export { getRuntimeConfig, getRuntimeConfigSync, isProduction } from './lib/runtime-config'
 
 /**
  * Runtime configuration type definition
@@ -59,8 +59,8 @@ interface RuntimeConfigType {
 }
 
 // Configuration state
-let configPromise: Promise<RuntimeConfigType> | null = null;
-let _syncConfig: RuntimeConfigType | null = null;
+let configPromise: Promise<RuntimeConfigType> | null = null
+let _syncConfig: RuntimeConfigType | null = null
 
 /**
  * Use this in React components with useEffect or in async functions
@@ -69,18 +69,21 @@ export async function loadConfig() {
   if (!configPromise) {
     configPromise = (async () => {
       try {
-        const runtimeConfig = await getRuntimeConfig();
+        const runtimeConfig = await getRuntimeConfig()
 
         const config = {
-
           // API Configuration
           // Prefer API base (domain) if provided; otherwise derive from API URL
-          API_BASE_URL: runtimeConfig.VITE_API_BASE_URL || runtimeConfig.VITE_API_URL?.replace(/\/api\/v2$/, ''),
+          API_BASE_URL:
+            runtimeConfig.VITE_API_BASE_URL ||
+            runtimeConfig.VITE_API_URL?.replace(/\/api\/v2$/, ''),
 
           // WebSocket Configuration
           // Prefer WS base if provided; fallback to WS URL
           // Auto-upgrade protocol to wss:// when using HTTPS
-          WS_BASE_URL: upgradeWebSocketProtocol(runtimeConfig.VITE_WS_BASE_URL || runtimeConfig.VITE_WS_URL),
+          WS_BASE_URL: upgradeWebSocketProtocol(
+            runtimeConfig.VITE_WS_BASE_URL || runtimeConfig.VITE_WS_URL
+          ),
 
           // WhatsApp Configuration
           WHATSAPP_INSTANCE_NAME: runtimeConfig.VITE_WHATSAPP_INSTANCE_NAME || 'hormonia-instance',
@@ -102,75 +105,99 @@ export async function loadConfig() {
 
           // Security Settings
           SESSION_TIMEOUT: parseInt(runtimeConfig.VITE_SESSION_TIMEOUT || '28800000', 10),
-          TOKEN_REFRESH_THRESHOLD: parseInt(runtimeConfig.VITE_TOKEN_REFRESH_THRESHOLD || '300000', 10),
+          TOKEN_REFRESH_THRESHOLD: parseInt(
+            runtimeConfig.VITE_TOKEN_REFRESH_THRESHOLD || '300000',
+            10
+          ),
 
           // File upload settings
           maxFileSize: parseInt(runtimeConfig.VITE_MAX_FILE_SIZE || '10485760', 10),
-          allowedFileTypes: runtimeConfig.VITE_SUPPORTED_FILE_TYPES?.split(',') || ['image/jpeg', 'image/png', 'image/gif', 'application/pdf']
-        };
+          allowedFileTypes: runtimeConfig.VITE_SUPPORTED_FILE_TYPES?.split(',') || [
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+            'application/pdf',
+          ],
+        }
 
         // Validate required configuration
         if (!config.API_BASE_URL) {
-          throw new Error('API URL is required. Check your environment configuration.');
+          throw new Error('API URL is required. Check your environment configuration.')
         }
 
         // WebSocket is optional
         if (!config.WS_BASE_URL) {
-          logger.warn('WebSocket URL not configured. Real-time features may be limited.');
+          logger.warn('WebSocket URL not configured. Real-time features may be limited.')
         }
 
-        _syncConfig = config;
-        return config;
+        _syncConfig = config
+        return config
       } catch (error) {
-        logger.error('Failed to load configuration:', error);
-        throw error;
+        logger.error('Failed to load configuration:', error)
+        throw error
       }
-    })();
+    })()
   }
 
-  return configPromise;
+  return configPromise
 }
 
 // Backward compatibility exports - these will work once config is loaded
-export let API_BASE_URL = '';
-export let WS_BASE_URL = '';
-export const WHATSAPP_INSTANCE_NAME = '';
-export const SENTRY_DSN = '';
-export const ANALYTICS_TRACKING_ID = '';
-export const ENVIRONMENT = '';
-export const DEBUG_MODE = false;
-export const SESSION_TIMEOUT = 28800000;
-export const TOKEN_REFRESH_THRESHOLD = 300000;
+export let API_BASE_URL = ''
+export let WS_BASE_URL = ''
+export const WHATSAPP_INSTANCE_NAME = ''
+export const SENTRY_DSN = ''
+export const ANALYTICS_TRACKING_ID = ''
+export const ENVIRONMENT = ''
+export const DEBUG_MODE = false
+export const SESSION_TIMEOUT = 28800000
+export const TOKEN_REFRESH_THRESHOLD = 300000
 
 // Update exports when config is loaded
-loadConfig().then(config => {
-  if (config.API_BASE_URL !== API_BASE_URL) API_BASE_URL = config.API_BASE_URL;
-  if (config.WS_BASE_URL && config.WS_BASE_URL !== WS_BASE_URL) WS_BASE_URL = config.WS_BASE_URL;
-}).catch(error => {
-  logger.error('Failed to initialize configuration:', error);
-});
+loadConfig()
+  .then((config) => {
+    if (config.API_BASE_URL !== API_BASE_URL) API_BASE_URL = config.API_BASE_URL
+    if (config.WS_BASE_URL && config.WS_BASE_URL !== WS_BASE_URL) WS_BASE_URL = config.WS_BASE_URL
+  })
+  .catch((error) => {
+    logger.error('Failed to initialize configuration:', error)
+  })
 
 // Static fallback values from environment - NEW NAMING CONVENTION
-const STATIC_WHATSAPP_INSTANCE_NAME = import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance';
-const STATIC_SENTRY_DSN = import.meta.env['VITE_MONITORING_SENTRY_DSN'];
-const STATIC_ANALYTICS_TRACKING_ID = import.meta.env['VITE_MONITORING_ANALYTICS_ID'];
-const STATIC_ENVIRONMENT = import.meta.env['VITE_APP_ENVIRONMENT'] || 'development';
-const STATIC_DEBUG_MODE = import.meta.env['VITE_APP_ENABLE_DEBUG'] === 'true';
-const _STATIC_SESSION_TIMEOUT = parseInt(import.meta.env['VITE_SESSION_TIMEOUT_MS'] || '28800000', 10);
-const _STATIC_TOKEN_REFRESH_THRESHOLD = parseInt(import.meta.env['VITE_SESSION_TOKEN_REFRESH_THRESHOLD_MS'] || '300000', 10);
+const STATIC_WHATSAPP_INSTANCE_NAME =
+  import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance'
+const STATIC_SENTRY_DSN = import.meta.env['VITE_MONITORING_SENTRY_DSN']
+const STATIC_ANALYTICS_TRACKING_ID = import.meta.env['VITE_MONITORING_ANALYTICS_ID']
+const STATIC_ENVIRONMENT = import.meta.env['VITE_APP_ENVIRONMENT'] || 'development'
+const STATIC_DEBUG_MODE = import.meta.env['VITE_APP_ENABLE_DEBUG'] === 'true'
+const _STATIC_SESSION_TIMEOUT = parseInt(
+  import.meta.env['VITE_SESSION_TIMEOUT_MS'] || '28800000',
+  10
+)
+const _STATIC_TOKEN_REFRESH_THRESHOLD = parseInt(
+  import.meta.env['VITE_SESSION_TOKEN_REFRESH_THRESHOLD_MS'] || '300000',
+  10
+)
 
 // AI Feature Flag Statics - support legacy *_ENABLED and current ENABLE_* names
-const AI_CHAT_ENV = import.meta.env['VITE_AI_ENABLE_CHAT'] ?? import.meta.env['VITE_AI_CHAT_ENABLED'];
-const AI_ANALYTICS_ENV = import.meta.env['VITE_AI_ENABLE_ANALYTICS'] ?? import.meta.env['VITE_AI_ANALYTICS_ENABLED'];
-const AI_SUMMARY_ENV = import.meta.env['VITE_AI_ENABLE_SUMMARY'] ?? import.meta.env['VITE_AI_SUMMARY_ENABLED'];
-const AI_INSIGHTS_ENV = import.meta.env['VITE_AI_ENABLE_INSIGHTS'] ?? import.meta.env['VITE_AI_INSIGHTS_ENABLED'];
-const AI_RECOMMENDATIONS_ENV = import.meta.env['VITE_AI_ENABLE_RECOMMENDATIONS'] ?? import.meta.env['VITE_AI_RECOMMENDATIONS_ENABLED'];
+const AI_CHAT_ENV =
+  import.meta.env['VITE_AI_ENABLE_CHAT'] ?? import.meta.env['VITE_AI_CHAT_ENABLED']
+const AI_ANALYTICS_ENV =
+  import.meta.env['VITE_AI_ENABLE_ANALYTICS'] ?? import.meta.env['VITE_AI_ANALYTICS_ENABLED']
+const AI_SUMMARY_ENV =
+  import.meta.env['VITE_AI_ENABLE_SUMMARY'] ?? import.meta.env['VITE_AI_SUMMARY_ENABLED']
+const AI_INSIGHTS_ENV =
+  import.meta.env['VITE_AI_ENABLE_INSIGHTS'] ?? import.meta.env['VITE_AI_INSIGHTS_ENABLED']
+const AI_RECOMMENDATIONS_ENV =
+  import.meta.env['VITE_AI_ENABLE_RECOMMENDATIONS'] ??
+  import.meta.env['VITE_AI_RECOMMENDATIONS_ENABLED']
 
-const STATIC_AI_CHAT_ENABLED = AI_CHAT_ENV === undefined || AI_CHAT_ENV === 'true';
-const STATIC_AI_ANALYTICS_ENABLED = AI_ANALYTICS_ENV === undefined || AI_ANALYTICS_ENV === 'true';
-const STATIC_AI_SUMMARY_ENABLED = AI_SUMMARY_ENV === undefined || AI_SUMMARY_ENV === 'true';
-const STATIC_AI_INSIGHTS_ENABLED = AI_INSIGHTS_ENV === 'true';
-const STATIC_AI_RECOMMENDATIONS_ENABLED = AI_RECOMMENDATIONS_ENV === undefined || AI_RECOMMENDATIONS_ENV === 'true';
+const STATIC_AI_CHAT_ENABLED = AI_CHAT_ENV === undefined || AI_CHAT_ENV === 'true'
+const STATIC_AI_ANALYTICS_ENABLED = AI_ANALYTICS_ENV === undefined || AI_ANALYTICS_ENV === 'true'
+const STATIC_AI_SUMMARY_ENABLED = AI_SUMMARY_ENV === undefined || AI_SUMMARY_ENV === 'true'
+const STATIC_AI_INSIGHTS_ENABLED = AI_INSIGHTS_ENV === 'true'
+const STATIC_AI_RECOMMENDATIONS_ENABLED =
+  AI_RECOMMENDATIONS_ENV === undefined || AI_RECOMMENDATIONS_ENV === 'true'
 
 // Remove duplicate declarations - these variables are already declared above
 
@@ -190,7 +217,7 @@ export const APP_CONFIG = {
 
   // Cache settings
   cacheTime: 10 * 60 * 1000, // 10 minutes
-  staleTime: 5 * 60 * 1000,  // 5 minutes
+  staleTime: 5 * 60 * 1000, // 5 minutes
 
   // Real-time settings
   reconnectAttempts: 5,
@@ -198,7 +225,12 @@ export const APP_CONFIG = {
 
   // File upload settings (from env vars) - NEW NAMING: VITE_UPLOAD_*
   maxFileSize: parseInt(import.meta.env['VITE_UPLOAD_MAX_SIZE_BYTES'] || '10485760', 10),
-  allowedFileTypes: import.meta.env['VITE_UPLOAD_SUPPORTED_MIMETYPES']?.split(',') || ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'],
+  allowedFileTypes: import.meta.env['VITE_UPLOAD_SUPPORTED_MIMETYPES']?.split(',') || [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'application/pdf',
+  ],
 
   // AI Settings
   ai: {
@@ -206,8 +238,8 @@ export const APP_CONFIG = {
     chatMaxTokens: 2000,
     analyticsRefreshInterval: 5 * 60 * 1000, // 5 minutes
     insightsUpdateInterval: 15 * 60 * 1000, // 15 minutes
-    recommendationsCacheTime: 30 * 60 * 1000 // 30 minutes
-  }
+    recommendationsCacheTime: 30 * 60 * 1000, // 30 minutes
+  },
 }
 
 // Theme configuration
@@ -221,8 +253,8 @@ export const THEME_CONFIG = {
     muted: 'hsl(210 40% 96%)',
     destructive: 'hsl(0 84.2% 60.2%)',
     success: 'hsl(142.1 76.2% 36.3%)',
-    warning: 'hsl(47.9 95.8% 53.1%)'
-  }
+    warning: 'hsl(47.9 95.8% 53.1%)',
+  },
 }
 
 /**
@@ -266,8 +298,8 @@ export const FEATURES = {
   DEBUG: STATIC_DEBUG_MODE && STATIC_ENVIRONMENT === 'development',
 
   // Dashboard Features
-  PHYSICIAN_DASHBOARD: true // Enable physician-specific dashboard
-};
+  PHYSICIAN_DASHBOARD: true, // Enable physician-specific dashboard
+}
 
 /**
  * AI Configuration Helper
@@ -279,5 +311,5 @@ export const getAIConfig = () => ({
   summaryEnabled: FEATURES.AI_SUMMARY,
   insightsEnabled: FEATURES.AI_INSIGHTS,
   recommendationsEnabled: FEATURES.AI_RECOMMENDATIONS,
-  preferredProvider: 'backend'
-});
+  preferredProvider: 'backend',
+})

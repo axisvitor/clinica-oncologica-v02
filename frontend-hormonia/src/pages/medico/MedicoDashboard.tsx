@@ -11,18 +11,22 @@ const logger = createLogger('MedicoDashboard')
 export default function MedicoDashboard() {
   const navigate = useNavigate()
   const { medico, signOut } = useMedicoAuth()
-  const { data: stats, isLoading, error } = useMedicoDashboardStats({
-    refetchInterval: 120000 // 2 minutes
+  const {
+    data: stats,
+    isLoading,
+    error,
+  } = useMedicoDashboardStats({
+    refetchInterval: 120000, // 2 minutes
   })
 
   const handleLogout = async () => {
     try {
-      logger.info('Logging out medico');
+      logger.info('Logging out medico')
       await signOut()
-      logger.info('Medico logged out successfully');
+      logger.info('Medico logged out successfully')
       navigate('/medico/login')
     } catch (error) {
-      logger.error('Logout failed', { error });
+      logger.error('Logout failed', { error })
       // Still navigate to login page even on error
       navigate('/medico/login')
     }
@@ -62,8 +66,18 @@ export default function MedicoDashboard() {
                 <h3 className="text-lg font-semibold text-gray-900">Meus Pacientes</h3>
                 <p className="text-sm text-gray-600 mt-1">Visualizar lista completa</p>
               </div>
-              <svg className="h-12 w-12 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+              <svg
+                className="h-12 w-12 text-blue-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                />
               </svg>
             </div>
           </Link>
@@ -75,8 +89,18 @@ export default function MedicoDashboard() {
                 <h3 className="text-lg font-semibold text-gray-900">Prontuários</h3>
                 <p className="text-sm text-gray-600 mt-1">Acessar prontuários</p>
               </div>
-              <svg className="h-12 w-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <svg
+                className="h-12 w-12 text-green-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
               </svg>
             </div>
           </div>
@@ -88,8 +112,18 @@ export default function MedicoDashboard() {
                 <h3 className="text-lg font-semibold text-gray-900">Agenda</h3>
                 <p className="text-sm text-gray-600 mt-1">Consultas e procedimentos</p>
               </div>
-              <svg className="h-12 w-12 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              <svg
+                className="h-12 w-12 text-purple-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
               </svg>
             </div>
           </div>
@@ -119,19 +153,27 @@ export default function MedicoDashboard() {
             <>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-blue-600">{stats.overview.total_patients}</p>
+                  <p className="text-3xl font-bold text-blue-600">
+                    {stats.overview.total_patients}
+                  </p>
                   <p className="text-sm text-gray-600">Pacientes Ativos</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-green-600">{stats.overview.active_treatments}</p>
+                  <p className="text-3xl font-bold text-green-600">
+                    {stats.overview.active_treatments}
+                  </p>
                   <p className="text-sm text-gray-600">Tratamentos Ativos</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-purple-600">{stats.overview.pending_reviews}</p>
+                  <p className="text-3xl font-bold text-purple-600">
+                    {stats.overview.pending_reviews}
+                  </p>
                   <p className="text-sm text-gray-600">Pendências</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-orange-600">{stats.overview.new_alerts_today}</p>
+                  <p className="text-3xl font-bold text-orange-600">
+                    {stats.overview.new_alerts_today}
+                  </p>
                   <p className="text-sm text-gray-600">Alertas Hoje</p>
                 </div>
               </div>
@@ -142,7 +184,9 @@ export default function MedicoDashboard() {
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Engajamento</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-blue-600">{stats.engagement_metrics.messages_today}</p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {stats.engagement_metrics.messages_today}
+                      </p>
                       <p className="text-sm text-gray-600">Mensagens Hoje</p>
                     </div>
                     <div className="text-center">
@@ -173,23 +217,33 @@ export default function MedicoDashboard() {
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Alertas</h3>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-gray-900">{stats.alerts_summary.unacknowledged}</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {stats.alerts_summary.unacknowledged}
+                      </p>
                       <p className="text-sm text-gray-600">Não Reconhecidos</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-red-600">{stats.alerts_summary.by_severity.critical}</p>
+                      <p className="text-2xl font-bold text-red-600">
+                        {stats.alerts_summary.by_severity.critical}
+                      </p>
                       <p className="text-sm text-gray-600">Críticos</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-orange-600">{stats.alerts_summary.by_severity.high}</p>
+                      <p className="text-2xl font-bold text-orange-600">
+                        {stats.alerts_summary.by_severity.high}
+                      </p>
                       <p className="text-sm text-gray-600">Altos</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-yellow-600">{stats.alerts_summary.by_severity.medium}</p>
+                      <p className="text-2xl font-bold text-yellow-600">
+                        {stats.alerts_summary.by_severity.medium}
+                      </p>
                       <p className="text-sm text-gray-600">Médios</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-2xl font-bold text-green-600">{stats.alerts_summary.by_severity.low}</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {stats.alerts_summary.by_severity.low}
+                      </p>
                       <p className="text-sm text-gray-600">Baixos</p>
                     </div>
                   </div>

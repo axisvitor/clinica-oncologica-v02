@@ -4,4 +4,4 @@
  * Re-exports ChartSkeleton from the consolidated skeleton library.
  */
 
-export { ChartSkeleton } from './skeleton';
+export { ChartSkeleton } from './skeleton'

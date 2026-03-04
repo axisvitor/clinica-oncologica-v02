@@ -34,7 +34,7 @@ export enum AuthErrorType {
   NETWORK_ERROR = 'NETWORK_ERROR',
   RATE_LIMITED = 'RATE_LIMITED',
   SERVER_ERROR = 'SERVER_ERROR',
-  UNKNOWN_ERROR = 'UNKNOWN_ERROR'
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
 }
 
 // User-friendly error messages
@@ -64,7 +64,7 @@ const RLS_ERROR_PATTERNS = [
   /row-level security policy/i,
   /policy.*violation/i,
   /access denied/i,
-  /forbidden/i
+  /forbidden/i,
 ]
 
 // Authentication error patterns
@@ -73,19 +73,10 @@ const AUTH_ERROR_PATTERNS = {
     /invalid login credentials/i,
     /email not confirmed/i,
     /invalid email or password/i,
-    /user not found/i
+    /user not found/i,
   ],
-  SESSION_EXPIRED: [
-    /jwt expired/i,
-    /token.*expired/i,
-    /session.*expired/i,
-    /invalid jwt/i
-  ],
-  RATE_LIMITED: [
-    /too many requests/i,
-    /rate limit/i,
-    /too many attempts/i
-  ]
+  SESSION_EXPIRED: [/jwt expired/i, /token.*expired/i, /session.*expired/i, /invalid jwt/i],
+  RATE_LIMITED: [/too many requests/i, /rate limit/i, /too many attempts/i],
 }
 
 /**
@@ -95,13 +86,21 @@ export function categorizeError(error: unknown): AuthErrorType {
   if (!error) return AuthErrorType.UNKNOWN_ERROR
 
   const errorObj = error as Record<string, unknown> | null | undefined
-  const errorMessage = typeof error === 'string' ? error :
-    (errorObj?.['message'] as string) || (errorObj?.['error_description'] as string) || (errorObj?.['error'] as string) || ''
+  const errorMessage =
+    typeof error === 'string'
+      ? error
+      : (errorObj?.['message'] as string) ||
+        (errorObj?.['error_description'] as string) ||
+        (errorObj?.['error'] as string) ||
+        ''
 
-  const statusCode = (errorObj?.['status'] as number) || (errorObj?.['statusCode'] as number) || (errorObj?.['code'] as number)
+  const statusCode =
+    (errorObj?.['status'] as number) ||
+    (errorObj?.['statusCode'] as number) ||
+    (errorObj?.['code'] as number)
 
   // Check for RLS violations first
-  if (statusCode === 403 || RLS_ERROR_PATTERNS.some(pattern => pattern.test(errorMessage))) {
+  if (statusCode === 403 || RLS_ERROR_PATTERNS.some((pattern) => pattern.test(errorMessage))) {
     return AuthErrorType.RLS_VIOLATION
   }
 
@@ -112,7 +111,7 @@ export function categorizeError(error: unknown): AuthErrorType {
 
   // Check specific authentication patterns
   for (const [type, patterns] of Object.entries(AUTH_ERROR_PATTERNS)) {
-    if (patterns.some(pattern => pattern.test(errorMessage))) {
+    if (patterns.some((pattern) => pattern.test(errorMessage))) {
       return type as AuthErrorType
     }
   }
@@ -148,13 +147,13 @@ export function createUserFriendlyError(error: unknown, context?: string): UserF
         actions: {
           primary: {
             label: 'Contact Support',
-            action: 'contact_support'
+            action: 'contact_support',
           },
           secondary: {
             label: 'Go Back',
-            action: 'go_back'
-          }
-        }
+            action: 'go_back',
+          },
+        },
       }
 
     case AuthErrorType.AUTHENTICATION_REQUIRED:
@@ -167,9 +166,9 @@ export function createUserFriendlyError(error: unknown, context?: string): UserF
         actions: {
           primary: {
             label: 'Sign In',
-            action: 'sign_in'
-          }
-        }
+            action: 'sign_in',
+          },
+        },
       }
 
     case AuthErrorType.INVALID_CREDENTIALS:
@@ -182,13 +181,13 @@ export function createUserFriendlyError(error: unknown, context?: string): UserF
         actions: {
           primary: {
             label: 'Try Again',
-            action: 'retry_login'
+            action: 'retry_login',
           },
           secondary: {
             label: 'Reset Password',
-            action: 'reset_password'
-          }
-        }
+            action: 'reset_password',
+          },
+        },
       }
 
     case AuthErrorType.SESSION_EXPIRED:
@@ -201,9 +200,9 @@ export function createUserFriendlyError(error: unknown, context?: string): UserF
         actions: {
           primary: {
             label: 'Sign In',
-            action: 'sign_in'
-          }
-        }
+            action: 'sign_in',
+          },
+        },
       }
 
     case AuthErrorType.INSUFFICIENT_PERMISSIONS:
@@ -216,81 +215,84 @@ export function createUserFriendlyError(error: unknown, context?: string): UserF
         actions: {
           primary: {
             label: 'Request Access',
-            action: 'request_access'
+            action: 'request_access',
           },
           secondary: {
             label: 'Go Back',
-            action: 'go_back'
-          }
-        }
+            action: 'go_back',
+          },
+        },
       }
 
     case AuthErrorType.NETWORK_ERROR:
       return {
         type: errorType,
         title: 'Connection Error',
-        message: 'Unable to connect to the server. Please check your internet connection and try again.',
+        message:
+          'Unable to connect to the server. Please check your internet connection and try again.',
         actionable: true,
         retryable: true,
         actions: {
           primary: {
             label: 'Retry',
-            action: 'retry'
-          }
-        }
+            action: 'retry',
+          },
+        },
       }
 
     case AuthErrorType.RATE_LIMITED:
       return {
         type: errorType,
         title: 'Too Many Attempts',
-        message: 'You\'ve made too many requests. Please wait a moment before trying again.',
+        message: "You've made too many requests. Please wait a moment before trying again.",
         actionable: true,
         retryable: true,
         actions: {
           primary: {
             label: 'Try Again Later',
-            action: 'retry_later'
-          }
-        }
+            action: 'retry_later',
+          },
+        },
       }
 
     case AuthErrorType.SERVER_ERROR:
       return {
         type: errorType,
         title: 'Server Error',
-        message: 'Something went wrong on our end. Please try again or contact support if the problem persists.',
+        message:
+          'Something went wrong on our end. Please try again or contact support if the problem persists.',
         actionable: true,
         retryable: true,
         actions: {
           primary: {
             label: 'Retry',
-            action: 'retry'
+            action: 'retry',
           },
           secondary: {
             label: 'Contact Support',
-            action: 'contact_support'
-          }
-        }
+            action: 'contact_support',
+          },
+        },
       }
 
     default:
       return {
         type: AuthErrorType.UNKNOWN_ERROR,
         title: 'Unexpected Error',
-        message: 'An unexpected error occurred. Please try again or contact support if the problem persists.',
+        message:
+          'An unexpected error occurred. Please try again or contact support if the problem persists.',
         actionable: true,
         retryable: true,
         actions: {
           primary: {
             label: 'Retry',
-            action: 'retry'
+            action: 'retry',
           },
           secondary: {
             label: 'Contact Support',
-            action: 'contact_support'
-          }
-        }
+            action: 'contact_support',
+          },
+        },
       }
   }
 }
@@ -310,7 +312,7 @@ export function isRetryableError(error: unknown): boolean {
   return [
     AuthErrorType.NETWORK_ERROR,
     AuthErrorType.RATE_LIMITED,
-    AuthErrorType.SERVER_ERROR
+    AuthErrorType.SERVER_ERROR,
   ].includes(errorType)
 }
 
@@ -319,10 +321,7 @@ export function isRetryableError(error: unknown): boolean {
  */
 export function requiresAuthentication(error: unknown): boolean {
   const errorType = categorizeError(error)
-  return [
-    AuthErrorType.AUTHENTICATION_REQUIRED,
-    AuthErrorType.SESSION_EXPIRED
-  ].includes(errorType)
+  return [AuthErrorType.AUTHENTICATION_REQUIRED, AuthErrorType.SESSION_EXPIRED].includes(errorType)
 }
 
 /**
@@ -361,7 +360,7 @@ export class SupabaseErrorHandler {
     const userFriendlyError = createUserFriendlyError(error, context)
 
     // Emit to listeners
-    this.errorListeners.forEach(listener => {
+    this.errorListeners.forEach((listener) => {
       try {
         listener(userFriendlyError)
       } catch (listenerError) {
@@ -420,7 +419,7 @@ export function getPermissionContext(tableName: string, operation: string): stri
     select: 'viewing',
     insert: 'creating',
     update: 'updating',
-    delete: 'deleting'
+    delete: 'deleting',
   }
 
   const action = operations[operation.toLowerCase()] || operation.toLowerCase()
@@ -431,9 +430,7 @@ export function getPermissionContext(tableName: string, operation: string): stri
  * Helper to format table names for user display
  */
 export function formatTableName(tableName: string): string {
-  return tableName
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, l => l.toUpperCase())
+  return tableName.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
 }
 
 // Export singleton instance

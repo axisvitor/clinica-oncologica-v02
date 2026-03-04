@@ -12,7 +12,7 @@ import {
   AlertTriangle,
   CheckCircle,
   XCircle,
-  FileText
+  FileText,
 } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { AdminUser, AdminUserActivity } from '@/types/admin'
@@ -47,14 +47,15 @@ export function UserDetailsPanel({
   onOpenChange,
   user,
   onEdit,
-  onAssignRole
+  onAssignRole,
 }: UserDetailsPanelProps) {
   const [selectedTab, setSelectedTab] = useState('overview')
 
   // Fetch user activity
   const { data: userActivity, isLoading: activityLoading } = useQuery({
     queryKey: ['admin-user-activity', user?.id],
-    queryFn: () => user ? apiClient.adminUsers.getActivity(user['id'], { page: 1, size: 50 }) : null,
+    queryFn: () =>
+      user ? apiClient.adminUsers.getActivity(user['id'], { page: 1, size: 50 }) : null,
     enabled: !!user && open,
   })
 
@@ -63,7 +64,7 @@ export function UserDetailsPanel({
   const getInitials = (name: string) => {
     return name
       .split(' ')
-      .map(n => n[0])
+      .map((n) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -99,7 +100,7 @@ export function UserDetailsPanel({
     try {
       return formatDistanceToNow(new Date(dateString), {
         addSuffix: true,
-        locale: ptBR
+        locale: ptBR,
       })
     } catch {
       return 'Data inválida'
@@ -107,7 +108,7 @@ export function UserDetailsPanel({
   }
 
   const getActivityIcon = (action: string) => {
-    const iconProps = { className: "h-4 w-4" }
+    const iconProps = { className: 'h-4 w-4' }
 
     switch (action.toLowerCase()) {
       case 'login':
@@ -164,9 +165,7 @@ export function UserDetailsPanel({
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <SheetDescription>
-            Informações completas e histórico de atividades
-          </SheetDescription>
+          <SheetDescription>Informações completas e histórico de atividades</SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">
@@ -314,7 +313,7 @@ export function UserDetailsPanel({
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm text-gray-600">2FA</p>
-                          <Badge variant={user.two_factor_enabled ? "default" : "secondary"}>
+                          <Badge variant={user.two_factor_enabled ? 'default' : 'secondary'}>
                             {user.two_factor_enabled ? 'Ativo' : 'Inativo'}
                           </Badge>
                         </div>
@@ -330,9 +329,7 @@ export function UserDetailsPanel({
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-sm text-gray-600">Permissões</p>
-                          <Badge variant="outline">
-                            {user.permissions.length}
-                          </Badge>
+                          <Badge variant="outline">{user.permissions.length}</Badge>
                         </div>
                         <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
                           <FileText className="h-4 w-4 text-green-600" />
@@ -362,7 +359,8 @@ export function UserDetailsPanel({
                       </div>
                     ) : (
                       <p className="text-sm text-gray-500">
-                        Nenhuma permissão específica atribuída. As permissões são herdadas da função do usuário.
+                        Nenhuma permissão específica atribuída. As permissões são herdadas da função
+                        do usuário.
                       </p>
                     )}
                   </CardContent>
@@ -383,8 +381,10 @@ export function UserDetailsPanel({
                     <div className="space-y-2">
                       <p className="text-sm font-medium">Descrição da Função:</p>
                       <p className="text-sm text-gray-600">
-                        {user['role'] === 'admin' && 'Acesso administrativo completo ao sistema, incluindo gerenciamento de usuários e configurações.'}
-                        {user['role'] === 'doctor' && 'Acesso a dados de pacientes, histórico médico e funcionalidades clínicas.'}
+                        {user['role'] === 'admin' &&
+                          'Acesso administrativo completo ao sistema, incluindo gerenciamento de usuários e configurações.'}
+                        {user['role'] === 'doctor' &&
+                          'Acesso a dados de pacientes, histórico médico e funcionalidades clínicas.'}
                       </p>
                     </div>
                   </CardContent>
@@ -395,9 +395,7 @@ export function UserDetailsPanel({
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Histórico de Atividades</CardTitle>
-                    <CardDescription>
-                      Últimas ações realizadas pelo usuário
-                    </CardDescription>
+                    <CardDescription>Últimas ações realizadas pelo usuário</CardDescription>
                   </CardHeader>
                   <CardContent>
                     {activityLoading ? (
@@ -407,10 +405,11 @@ export function UserDetailsPanel({
                     ) : userActivity?.items && userActivity.items.length > 0 ? (
                       <div className="space-y-4">
                         {userActivity.items.map((activity: AdminUserActivity) => (
-                          <div key={activity.id} className="flex items-start space-x-3 p-3 border rounded-lg">
-                            <div className="mt-1">
-                              {getActivityIcon(activity.action)}
-                            </div>
+                          <div
+                            key={activity.id}
+                            className="flex items-start space-x-3 p-3 border rounded-lg"
+                          >
+                            <div className="mt-1">{getActivityIcon(activity.action)}</div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
                                 <p className="text-sm font-medium text-gray-900">
@@ -456,7 +455,7 @@ export function UserDetailsPanel({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Autenticação de Dois Fatores</p>
-                        <Badge variant={user.two_factor_enabled ? "default" : "secondary"}>
+                        <Badge variant={user.two_factor_enabled ? 'default' : 'secondary'}>
                           <Shield className="h-3 w-3 mr-1" />
                           {user.two_factor_enabled ? 'Ativo' : 'Inativo'}
                         </Badge>
@@ -464,7 +463,9 @@ export function UserDetailsPanel({
 
                       <div className="space-y-2">
                         <p className="text-sm font-medium">Tentativas de Login Falhadas</p>
-                        <Badge variant={user.failed_login_attempts > 0 ? "destructive" : "secondary"}>
+                        <Badge
+                          variant={user.failed_login_attempts > 0 ? 'destructive' : 'secondary'}
+                        >
                           {user.failed_login_attempts} tentativa(s)
                         </Badge>
                       </div>
@@ -499,7 +500,8 @@ export function UserDetailsPanel({
                           <span className="font-medium">Conta Bloqueada</span>
                         </div>
                         <p className="text-sm text-red-600">
-                          Esta conta está bloqueada até {formatDate(user.locked_until!)} devido a múltiplas tentativas de login falhadas.
+                          Esta conta está bloqueada até {formatDate(user.locked_until!)} devido a
+                          múltiplas tentativas de login falhadas.
                         </p>
                       </div>
                     )}
@@ -513,14 +515,14 @@ export function UserDetailsPanel({
                   <CardContent className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Conta Ativa</span>
-                      <Badge variant={user.is_active ? "default" : "secondary"}>
+                      <Badge variant={user.is_active ? 'default' : 'secondary'}>
                         {user.is_active ? 'Sim' : 'Não'}
                       </Badge>
                     </div>
 
                     <div className="flex justify-between items-center">
                       <span className="text-sm">2FA Habilitado</span>
-                      <Badge variant={user.two_factor_enabled ? "default" : "secondary"}>
+                      <Badge variant={user.two_factor_enabled ? 'default' : 'secondary'}>
                         {user.two_factor_enabled ? 'Sim' : 'Não'}
                       </Badge>
                     </div>

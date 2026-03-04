@@ -18,5 +18,5 @@ export type {
   AuthError,
   AuthEventType,
   AuthEvent,
-  AuthEventListener
+  AuthEventListener,
 } from './types'

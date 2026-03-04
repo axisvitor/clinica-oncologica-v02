@@ -52,7 +52,7 @@ const MOCK_USERS: MockUser[] = [
     role: 'admin',
     is_active: true,
     permissions: ['*'],
-    created_at: '2024-01-01T00:00:00-03:00'
+    created_at: '2024-01-01T00:00:00-03:00',
   },
   {
     id: 'admin-002',
@@ -61,7 +61,7 @@ const MOCK_USERS: MockUser[] = [
     role: 'admin',
     is_active: true,
     permissions: ['read:*', 'write:*', 'delete:patients', 'manage:users'],
-    created_at: '2024-01-15T00:00:00-03:00'
+    created_at: '2024-01-15T00:00:00-03:00',
   },
 
   // Medico users
@@ -76,7 +76,7 @@ const MOCK_USERS: MockUser[] = [
     crm: '123456',
     especialidade: 'Oncologia',
     conselho_regional: 'CRM-SC',
-    pacientes_atribuidos: ['patient-001', 'patient-002', 'patient-003']
+    pacientes_atribuidos: ['patient-001', 'patient-002', 'patient-003'],
   },
   {
     id: 'medico-002',
@@ -89,7 +89,7 @@ const MOCK_USERS: MockUser[] = [
     crm: '789012',
     especialidade: 'Oncologia Clínica',
     conselho_regional: 'CRM-SC',
-    pacientes_atribuidos: ['patient-004', 'patient-005']
+    pacientes_atribuidos: ['patient-004', 'patient-005'],
   },
   {
     id: 'medico-003',
@@ -102,7 +102,7 @@ const MOCK_USERS: MockUser[] = [
     crm: '345678',
     especialidade: 'Radioterapia',
     conselho_regional: 'CRM-SC',
-    pacientes_atribuidos: ['patient-006']
+    pacientes_atribuidos: ['patient-006'],
   },
 
   // Regular users
@@ -113,8 +113,8 @@ const MOCK_USERS: MockUser[] = [
     role: 'user',
     is_active: true,
     permissions: ['read:pacientes', 'read:mensagens'],
-    created_at: '2024-02-01T00:00:00-03:00'
-  }
+    created_at: '2024-02-01T00:00:00-03:00',
+  },
 ]
 
 // Default password for all mock users
@@ -138,7 +138,7 @@ function generateMockToken(userId: string): string {
  */
 async function simulateDelay(min = 300, max = 800): Promise<void> {
   const delay = Math.floor(Math.random() * (max - min + 1)) + min
-  return new Promise(resolve => setTimeout(resolve, delay))
+  return new Promise((resolve) => setTimeout(resolve, delay))
 }
 
 /**
@@ -186,7 +186,7 @@ function clearMockSession(): void {
  * Find user by email
  */
 function findUserByEmail(email: string): MockUser | null {
-  return MOCK_USERS.find(u => u.email.toLowerCase() === email.toLowerCase()) || null
+  return MOCK_USERS.find((u) => u.email.toLowerCase() === email.toLowerCase()) || null
 }
 
 /**
@@ -204,7 +204,7 @@ export async function mockSignIn(email: string, password: string): Promise<MockA
     logger.error('User not found', { email })
     return {
       success: false,
-      error: 'Usuário não encontrado'
+      error: 'Usuário não encontrado',
     }
   }
 
@@ -213,7 +213,7 @@ export async function mockSignIn(email: string, password: string): Promise<MockA
     logger.error('User is inactive', { email })
     return {
       success: false,
-      error: 'Usuário inativo'
+      error: 'Usuário inativo',
     }
   }
 
@@ -222,7 +222,7 @@ export async function mockSignIn(email: string, password: string): Promise<MockA
     logger.error('Invalid password')
     return {
       success: false,
-      error: 'Senha incorreta'
+      error: 'Senha incorreta',
     }
   }
 
@@ -230,15 +230,15 @@ export async function mockSignIn(email: string, password: string): Promise<MockA
   const updatedUser = {
     ...user,
     last_login: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   }
 
   // Create session
   const session: MockSession = {
     access_token: generateMockToken(user.id),
     refresh_token: generateMockToken(user.id + '_refresh'),
-    expires_at: Date.now() + (60 * 60 * 1000), // 1 hour
-    user: updatedUser
+    expires_at: Date.now() + 60 * 60 * 1000, // 1 hour
+    user: updatedUser,
   }
 
   storeMockSession(session)
@@ -248,7 +248,7 @@ export async function mockSignIn(email: string, password: string): Promise<MockA
   return {
     success: true,
     user: updatedUser,
-    session
+    session,
   }
 }
 
@@ -296,7 +296,7 @@ export async function mockRefreshSession(): Promise<MockAuthResponse> {
     logger.warn('No active session to refresh')
     return {
       success: false,
-      error: 'No active session'
+      error: 'No active session',
     }
   }
 
@@ -305,7 +305,7 @@ export async function mockRefreshSession(): Promise<MockAuthResponse> {
     ...currentSession,
     access_token: generateMockToken(currentSession.user.id),
     refresh_token: generateMockToken(currentSession.user.id + '_refresh'),
-    expires_at: Date.now() + (60 * 60 * 1000) // 1 hour
+    expires_at: Date.now() + 60 * 60 * 1000, // 1 hour
   }
 
   storeMockSession(newSession)
@@ -315,7 +315,7 @@ export async function mockRefreshSession(): Promise<MockAuthResponse> {
   return {
     success: true,
     user: currentSession.user,
-    session: newSession
+    session: newSession,
   }
 }
 
@@ -333,7 +333,7 @@ export function mockHasPermission(permission: string): boolean {
   if (user.permissions.includes(permission)) return true
 
   // Check wildcard permissions (e.g., "read:*" matches "read:pacientes")
-  return user.permissions.some(p => {
+  return user.permissions.some((p) => {
     if (p.endsWith(':*')) {
       const prefix = p.split(':')[0]
       return permission.startsWith(prefix + ':')
@@ -356,10 +356,10 @@ export function mockHasRole(role: string): boolean {
  */
 export function getMockUsersForDev(): Array<{ email: string; role: string; name: string }> {
   if (import.meta.env.DEV) {
-    return MOCK_USERS.map(u => ({
+    return MOCK_USERS.map((u) => ({
       email: u.email,
       role: u.role,
-      name: u.full_name
+      name: u.full_name,
     }))
   }
   return []
@@ -385,5 +385,5 @@ export default {
   hasRole: mockHasRole,
   getSession: getMockSession,
   getMockUsersForDev,
-  getMockPasswordForDev
+  getMockPasswordForDev,
 }

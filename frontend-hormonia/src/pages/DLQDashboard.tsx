@@ -11,9 +11,9 @@
  * - Paginação
  */
 
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -21,16 +21,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+} from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,10 +40,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
+} from '@/components/ui/alert-dialog'
+import { Input } from '@/components/ui/input'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   RefreshCw,
   Trash2,
@@ -54,57 +54,57 @@ import {
   Search,
   TrendingUp,
   TrendingDown,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { apiClient } from "@/lib/api-client";
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import { apiClient } from '@/lib/api-client'
 
 // ============================================================================
 // Types
 // ============================================================================
 
 interface DLQMessage {
-  id: string;
-  message_id: string;
-  patient_id: string;
-  patient_name?: string;
-  error_message: string;
-  error_type: string;
-  failure_reason: "webhook" | "whatsapp" | "flow" | "quiz" | "notification" | "other";
+  id: string
+  message_id: string
+  patient_id: string
+  patient_name?: string
+  error_message: string
+  error_type: string
+  failure_reason: 'webhook' | 'whatsapp' | 'flow' | 'quiz' | 'notification' | 'other'
   status:
-  | "pending"
-  | "retrying"
-  | "retry_scheduled"
-  | "resolved"
-  | "discarded"
-  | "max_retries_exceeded";
-  retry_count: number;
-  created_at: string;
-  last_retry_at?: string;
-  resolved_at?: string;
-  metadata?: Record<string, unknown>;
+    | 'pending'
+    | 'retrying'
+    | 'retry_scheduled'
+    | 'resolved'
+    | 'discarded'
+    | 'max_retries_exceeded'
+  retry_count: number
+  created_at: string
+  last_retry_at?: string
+  resolved_at?: string
+  metadata?: Record<string, unknown>
 }
 
 interface DLQStats {
-  total_messages: number;
-  pending: number;
-  retrying: number;
-  retry_scheduled: number;
-  resolved: number;
-  discarded: number;
-  max_retries_exceeded: number;
-  by_category: Record<string, number>;
-  avg_retry_count: number;
-  oldest_message_age_hours: number;
+  total_messages: number
+  pending: number
+  retrying: number
+  retry_scheduled: number
+  resolved: number
+  discarded: number
+  max_retries_exceeded: number
+  by_category: Record<string, number>
+  avg_retry_count: number
+  oldest_message_age_hours: number
 }
 
 interface DLQListResponse {
-  messages: DLQMessage[];
-  total: number;
-  page: number;
-  size: number;
-  pages: number;
+  messages: DLQMessage[]
+  total: number
+  page: number
+  size: number
+  pages: number
 }
 
 // ============================================================================
@@ -112,37 +112,37 @@ interface DLQListResponse {
 // ============================================================================
 
 const fetchDLQStats = async (): Promise<DLQStats> => {
-  const response = await apiClient.get("/admin/dlq/stats");
-  return response as DLQStats;
-};
+  const response = await apiClient.get('/admin/dlq/stats')
+  return response as DLQStats
+}
 
 const fetchDLQMessages = async (
   page: number,
   size: number,
   status?: string,
   category?: string,
-  search?: string,
+  search?: string
 ): Promise<DLQListResponse> => {
   const params = new URLSearchParams({
     page: page.toString(),
     size: size.toString(),
-  });
+  })
 
-  if (status && status !== "all") params.append("status", status);
-  if (category && category !== "all") params.append("category", category);
-  if (search) params.append("search", search);
+  if (status && status !== 'all') params.append('status', status)
+  if (category && category !== 'all') params.append('category', category)
+  if (search) params.append('search', search)
 
-  const response = await apiClient.get(`/admin/dlq/messages?${params}`);
-  return response as DLQListResponse;
-};
+  const response = await apiClient.get(`/admin/dlq/messages?${params}`)
+  return response as DLQListResponse
+}
 
 const retryDLQMessage = async (messageId: string): Promise<void> => {
-  await apiClient.post(`/admin/dlq/messages/${messageId}/retry`);
-};
+  await apiClient.post(`/admin/dlq/messages/${messageId}/retry`)
+}
 
 const discardDLQMessage = async (messageId: string): Promise<void> => {
-  await apiClient.post(`/admin/dlq/messages/${messageId}/discard`);
-};
+  await apiClient.post(`/admin/dlq/messages/${messageId}/discard`)
+}
 
 // ============================================================================
 // Component
@@ -150,15 +150,15 @@ const discardDLQMessage = async (messageId: string): Promise<void> => {
 
 export function DLQDashboard() {
   // State
-  const [page, setPage] = useState(1);
-  const [size] = useState(20);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [messageToRetry, setMessageToRetry] = useState<string | null>(null);
-  const [messageToDiscard, setMessageToDiscard] = useState<string | null>(null);
+  const [page, setPage] = useState(1)
+  const [size] = useState(20)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [messageToRetry, setMessageToRetry] = useState<string | null>(null)
+  const [messageToDiscard, setMessageToDiscard] = useState<string | null>(null)
 
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient()
 
   // Queries
   const {
@@ -166,103 +166,103 @@ export function DLQDashboard() {
     isLoading: statsLoading,
     error: statsError,
   } = useQuery({
-    queryKey: ["dlq-stats"],
+    queryKey: ['dlq-stats'],
     queryFn: fetchDLQStats,
     refetchInterval: 30000, // Refresh every 30s
-  });
+  })
 
   const {
     data: messagesData,
     isLoading: messagesLoading,
     error: messagesError,
   } = useQuery({
-    queryKey: ["dlq-messages", page, size, statusFilter, categoryFilter, searchTerm],
+    queryKey: ['dlq-messages', page, size, statusFilter, categoryFilter, searchTerm],
     queryFn: () => fetchDLQMessages(page, size, statusFilter, categoryFilter, searchTerm),
     refetchInterval: 30000,
-  });
+  })
 
   // Mutations
   const retryMutation = useMutation({
     mutationFn: retryDLQMessage,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["dlq-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["dlq-messages"] });
-      setMessageToRetry(null);
+      queryClient.invalidateQueries({ queryKey: ['dlq-stats'] })
+      queryClient.invalidateQueries({ queryKey: ['dlq-messages'] })
+      setMessageToRetry(null)
     },
-  });
+  })
 
   const discardMutation = useMutation({
     mutationFn: discardDLQMessage,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["dlq-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["dlq-messages"] });
-      setMessageToDiscard(null);
+      queryClient.invalidateQueries({ queryKey: ['dlq-stats'] })
+      queryClient.invalidateQueries({ queryKey: ['dlq-messages'] })
+      setMessageToDiscard(null)
     },
-  });
+  })
 
   // Handlers
   const handleRetry = (messageId: string) => {
-    setMessageToRetry(messageId);
-  };
+    setMessageToRetry(messageId)
+  }
 
   const handleDiscard = (messageId: string) => {
-    setMessageToDiscard(messageId);
-  };
+    setMessageToDiscard(messageId)
+  }
 
   const confirmRetry = () => {
     if (messageToRetry) {
-      retryMutation.mutate(messageToRetry);
+      retryMutation.mutate(messageToRetry)
     }
-  };
+  }
 
   const confirmDiscard = () => {
     if (messageToDiscard) {
-      discardMutation.mutate(messageToDiscard);
+      discardMutation.mutate(messageToDiscard)
     }
-  };
+  }
 
   const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["dlq-stats"] });
-    queryClient.invalidateQueries({ queryKey: ["dlq-messages"] });
-  };
+    queryClient.invalidateQueries({ queryKey: ['dlq-stats'] })
+    queryClient.invalidateQueries({ queryKey: ['dlq-messages'] })
+  }
 
   // Helpers
   const getStatusBadge = (status: string) => {
     const variants: Record<
       string,
-      { variant: "default" | "secondary" | "destructive" | "outline"; icon: LucideIcon }
+      { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: LucideIcon }
     > = {
-      pending: { variant: "outline", icon: Clock },
-      retrying: { variant: "default", icon: RefreshCw },
-      retry_scheduled: { variant: "secondary", icon: Clock },
-      resolved: { variant: "default", icon: CheckCircle2 },
-      discarded: { variant: "destructive", icon: Trash2 },
-      max_retries_exceeded: { variant: "destructive", icon: XCircle },
-    };
+      pending: { variant: 'outline', icon: Clock },
+      retrying: { variant: 'default', icon: RefreshCw },
+      retry_scheduled: { variant: 'secondary', icon: Clock },
+      resolved: { variant: 'default', icon: CheckCircle2 },
+      discarded: { variant: 'destructive', icon: Trash2 },
+      max_retries_exceeded: { variant: 'destructive', icon: XCircle },
+    }
 
-    const config = variants[status] || { variant: "outline", icon: AlertCircle };
-    const Icon = config.icon;
+    const config = variants[status] || { variant: 'outline', icon: AlertCircle }
+    const Icon = config.icon
 
     return (
       <Badge variant={config.variant} className="flex items-center gap-1">
         <Icon className="h-3 w-3" />
-        {status.replace(/_/g, " ")}
+        {status.replace(/_/g, ' ')}
       </Badge>
-    );
-  };
+    )
+  }
 
   const getCategoryBadge = (category: string) => {
     const colors: Record<string, string> = {
-      webhook: "bg-blue-100 text-blue-800",
-      whatsapp: "bg-green-100 text-green-800",
-      flow: "bg-purple-100 text-purple-800",
-      quiz: "bg-yellow-100 text-yellow-800",
-      notification: "bg-pink-100 text-pink-800",
-      other: "bg-gray-100 text-gray-800",
-    };
+      webhook: 'bg-blue-100 text-blue-800',
+      whatsapp: 'bg-green-100 text-green-800',
+      flow: 'bg-purple-100 text-purple-800',
+      quiz: 'bg-yellow-100 text-yellow-800',
+      notification: 'bg-pink-100 text-pink-800',
+      other: 'bg-gray-100 text-gray-800',
+    }
 
-    return <Badge className={colors[category] || colors["other"]}>{category}</Badge>;
-  };
+    return <Badge className={colors[category] || colors['other']}>{category}</Badge>
+  }
 
   // ============================================================================
   // Render
@@ -276,7 +276,7 @@ export function DLQDashboard() {
           <AlertDescription>Erro ao carregar dados da DLQ. Tente novamente.</AlertDescription>
         </Alert>
       </div>
-    );
+    )
   }
 
   return (
@@ -367,7 +367,7 @@ export function DLQDashboard() {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {stats?.avg_retry_count?.toFixed(1) || "0.0"}
+                  {stats?.avg_retry_count?.toFixed(1) || '0.0'}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Tentativas por mensagem</p>
               </>
@@ -470,7 +470,7 @@ export function DLQDashboard() {
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="font-medium">
-                            {message.patient_name || "Desconhecido"}
+                            {message.patient_name || 'Desconhecido'}
                           </span>
                           <span className="text-xs text-muted-foreground">
                             ID: {message.patient_id.substring(0, 8)}...
@@ -491,12 +491,12 @@ export function DLQDashboard() {
                       <TableCell>
                         <div className="flex flex-col text-sm">
                           <span>
-                            {format(new Date(message.created_at), "dd/MM/yyyy", {
+                            {format(new Date(message.created_at), 'dd/MM/yyyy', {
                               locale: ptBR,
                             })}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            {format(new Date(message.created_at), "HH:mm", {
+                            {format(new Date(message.created_at), 'HH:mm', {
                               locale: ptBR,
                             })}
                           </span>
@@ -504,7 +504,7 @@ export function DLQDashboard() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          {!["resolved", "discarded"].includes(message.status) && (
+                          {!['resolved', 'discarded'].includes(message.status) && (
                             <>
                               <Button
                                 size="sm"
@@ -601,7 +601,7 @@ export function DLQDashboard() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
+  )
 }
 
-export default DLQDashboard;
+export default DLQDashboard

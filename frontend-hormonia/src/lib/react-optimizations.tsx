@@ -67,21 +67,22 @@ export function usePerformanceMonitoring(componentName: string) {
     }
 
     // Return cleanup function even when performance monitoring is disabled
-    return () => { }
+    return () => {}
   })
 
-  const getMetrics = useCallback(() => ({
-    renderCount: renderCount.current,
-    componentName
-  }), [componentName])
+  const getMetrics = useCallback(
+    () => ({
+      renderCount: renderCount.current,
+      componentName,
+    }),
+    [componentName]
+  )
 
   return { getMetrics }
 }
 
 // Optimized state updates for React 19
-export function useOptimizedState<T>(
-  initialValue: T
-): [T, (value: T | ((prev: T) => T)) => void] {
+export function useOptimizedState<T>(initialValue: T): [T, (value: T | ((prev: T) => T)) => void] {
   const [state, setState] = React.useState(initialValue)
 
   const optimizedSetState = useCallback((value: T | ((prev: T) => T)) => {
@@ -90,7 +91,8 @@ export function useOptimizedState<T>(
       setState(value)
     } else {
       // Manual batching for older React versions
-      const batchedUpdates = (React as { unstable_batchedUpdates?: (fn: () => void) => void }).unstable_batchedUpdates
+      const batchedUpdates = (React as { unstable_batchedUpdates?: (fn: () => void) => void })
+        .unstable_batchedUpdates
       if (typeof batchedUpdates === 'function') {
         batchedUpdates(() => {
           setState(value)
@@ -105,9 +107,7 @@ export function useOptimizedState<T>(
 }
 
 // Suspense-compatible data fetching
-export function createSuspenseResource<T>(
-  fetchFn: () => Promise<T>
-): () => T {
+export function createSuspenseResource<T>(fetchFn: () => Promise<T>): () => T {
   let status: 'pending' | 'success' | 'error' = 'pending'
   let result: T | unknown
   let suspender: Promise<T>
@@ -139,9 +139,7 @@ export function createSuspenseResource<T>(
 }
 
 // React 19 concurrent features wrapper
-export function withConcurrentFeatures<P extends object>(
-  Component: React.ComponentType<P>
-) {
+export function withConcurrentFeatures<P extends object>(Component: React.ComponentType<P>) {
   if (!REACT_19_FLAGS.ENABLE_CONCURRENT_FEATURES) {
     return Component
   }
@@ -162,12 +160,9 @@ export const RailwayOptimizations = {
   preloadCriticalResources: () => {
     if (typeof window !== 'undefined') {
       // Preload critical API endpoints
-      const criticalEndpoints = [
-        '/api/v2/auth/me',
-        '/api/v2/analytics/overview'
-      ]
+      const criticalEndpoints = ['/api/v2/auth/me', '/api/v2/analytics/overview']
 
-      criticalEndpoints.forEach(endpoint => {
+      criticalEndpoints.forEach((endpoint) => {
         const link = document.createElement('link')
         link.rel = 'prefetch'
         link.href = `${environment.apiUrl}${endpoint}`
@@ -203,7 +198,7 @@ export const RailwayOptimizations = {
               ttfb: nav.responseStart - nav.requestStart,
               response: nav.responseEnd - nav.responseStart,
               dom: nav.domContentLoadedEventEnd - nav.responseEnd,
-              load: nav.loadEventEnd - nav.loadEventStart
+              load: nav.loadEventEnd - nav.loadEventStart,
             })
           }
         }
@@ -211,7 +206,7 @@ export const RailwayOptimizations = {
 
       observer.observe({ entryTypes: ['navigation', 'resource'] })
     }
-  }
+  },
 }
 
 // Error boundary for React 19
@@ -241,7 +236,7 @@ export function createReact19ErrorBoundary() {
           error,
           errorInfo,
           reactVersion: React.version,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         })
       }
     }
@@ -278,11 +273,11 @@ export const React19Features = {
           useDeferredValue: React19Features.hasUseDeferredValue,
           useId: React19Features.hasUseId,
           concurrentFeatures: React19Features.hasConcurrentFeatures,
-          strictEffects: React19Features.hasStrictEffects
-        }
+          strictEffects: React19Features.hasStrictEffects,
+        },
       })
     }
-  }
+  },
 }
 
 // Initialize React 19 optimizations
@@ -316,19 +311,20 @@ export function createOptimizedQueryClient() {
         staleTime: 5 * 60 * 1000, // 5 minutes
         gcTime: 10 * 60 * 1000, // 10 minutes
         retry: (failureCount: number, error: unknown) => {
-          const status = typeof error === 'object' && error !== null && 'status' in error
-            ? (error as { status?: number }).status
-            : undefined
+          const status =
+            typeof error === 'object' && error !== null && 'status' in error
+              ? (error as { status?: number }).status
+              : undefined
           if (status === 404) return false
           return failureCount < 3
         },
         refetchOnWindowFocus: false,
-        refetchOnReconnect: 'always'
+        refetchOnReconnect: 'always',
       },
       mutations: {
-        retry: 1
-      }
-    }
+        retry: 1,
+      },
+    },
   })
 }
 

@@ -44,7 +44,9 @@ export function useMonthlyQuizStatus(patientId: string) {
     queryFn: async () => {
       try {
         const response = await apiClient.monthlyQuiz.getPatientStatus(patientId)
-        const s: RawQuizStatusResponse | undefined = Array.isArray(response) ? response[0] : response
+        const s: RawQuizStatusResponse | undefined = Array.isArray(response)
+          ? response[0]
+          : response
 
         if (!s) {
           return {
@@ -59,12 +61,16 @@ export function useMonthlyQuizStatus(patientId: string) {
           status: mapBackendStatus(String(s.status ?? 'not_sent')),
           last_sent: s.last_sent ?? s.sent_at,
           access_date: s.last_response ?? s.accessed_at,
-          completion_date: (s.status === 'completed' ? (s.last_response ?? s.completed_at) : undefined),
+          completion_date:
+            s.status === 'completed' ? (s.last_response ?? s.completed_at) : undefined,
           expires_at: s.expires_at,
         }
       } catch (error: unknown) {
         // If patient has no quiz link, return not_sent status
-        const errorStatus = error && typeof error === 'object' && 'status' in error ? (error as { status: number }).status : null;
+        const errorStatus =
+          error && typeof error === 'object' && 'status' in error
+            ? (error as { status: number }).status
+            : null
         if (errorStatus === 404) {
           return {
             patient_id: patientId,
@@ -76,7 +82,7 @@ export function useMonthlyQuizStatus(patientId: string) {
     },
     enabled: !!patientId,
     staleTime: 30000, // 30 seconds
-    retry: 1
+    retry: 1,
   })
 }
 
@@ -91,7 +97,7 @@ export function useBulkMonthlyQuizStatus(patientIds: string[]) {
 
       // Fetch statuses in parallel
       const results = await Promise.allSettled(
-        patientIds.map(id => apiClient.monthlyQuiz.getPatientStatus(id))
+        patientIds.map((id) => apiClient.monthlyQuiz.getPatientStatus(id))
       )
 
       results.forEach((result, index) => {
@@ -106,7 +112,8 @@ export function useBulkMonthlyQuizStatus(patientIds: string[]) {
               status: mapBackendStatus(String(s?.status ?? 'not_sent')),
               last_sent: s?.last_sent ?? s?.sent_at,
               access_date: s?.last_response ?? s?.accessed_at,
-              completion_date: s?.status === 'completed' ? (s?.last_response ?? s?.completed_at) : undefined,
+              completion_date:
+                s?.status === 'completed' ? (s?.last_response ?? s?.completed_at) : undefined,
               expires_at: s?.expires_at,
             }
           }
@@ -116,7 +123,7 @@ export function useBulkMonthlyQuizStatus(patientIds: string[]) {
           if (patientIdSafe) {
             statuses[patientIdSafe] = {
               patient_id: patientIdSafe,
-              status: 'not_sent' as QuizLinkStatusValue
+              status: 'not_sent' as QuizLinkStatusValue,
             }
           }
         }
@@ -139,22 +146,24 @@ export function useMonthlyQuizHistory(patientId: string) {
     queryKey: ['monthly-quiz-history', patientId],
     queryFn: async () => {
       const response = await apiClient.monthlyQuiz.getHistory(patientId)
-      return response.map((item: QuizHistoryEntry): MonthlyQuizHistoryItem => ({
-        id: item.id,
-        patient_id: item.patient_id || patientId,
-        patient_name: item.patient_name || '',
-        template_id: item.quiz_template_id || '',
-        template_name: item.quiz_template_name || 'Questionário Mensal',
-        status: mapBackendStatus(item.status),
-        sent_at: item.sent_at || '',
-        accessed_at: item.accessed_at,
-        completed_at: item.completed_at,
-        expires_at: item.expires_at || '',
-        delivery_method: (item.delivery_method as 'whatsapp' | 'email' | 'sms') || 'whatsapp',
-      }))
+      return response.map(
+        (item: QuizHistoryEntry): MonthlyQuizHistoryItem => ({
+          id: item.id,
+          patient_id: item.patient_id || patientId,
+          patient_name: item.patient_name || '',
+          template_id: item.quiz_template_id || '',
+          template_name: item.quiz_template_name || 'Questionário Mensal',
+          status: mapBackendStatus(item.status),
+          sent_at: item.sent_at || '',
+          accessed_at: item.accessed_at,
+          completed_at: item.completed_at,
+          expires_at: item.expires_at || '',
+          delivery_method: (item.delivery_method as 'whatsapp' | 'email' | 'sms') || 'whatsapp',
+        })
+      )
     },
     enabled: !!patientId,
-    staleTime: 60000 // 1 minute
+    staleTime: 60000, // 1 minute
   })
 }
 
@@ -172,7 +181,7 @@ export function useResendQuizLink() {
     onSuccess: () => {
       toast({
         title: 'Link reenviado',
-        description: 'O link do quiz foi reenviado com sucesso'
+        description: 'O link do quiz foi reenviado com sucesso',
       })
 
       // Invalidate all related queries
@@ -184,9 +193,9 @@ export function useResendQuizLink() {
       toast({
         title: 'Erro ao reenviar link',
         description: getErrorMessage(error) || 'Não foi possível reenviar o link do quiz',
-        variant: 'destructive'
+        variant: 'destructive',
       })
-    }
+    },
   })
 }
 

@@ -1,6 +1,12 @@
 import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Send, TrendingUp, CircleCheck as CheckCircle, Circle as XCircle, Clock } from 'lucide-react'
+import {
+  Send,
+  TrendingUp,
+  CircleCheck as CheckCircle,
+  Circle as XCircle,
+  Clock,
+} from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { MonthlyQuizSkeleton } from '@/features/quiz/MonthlyQuizSkeleton'
@@ -29,12 +35,12 @@ export function MonthlyQuizDashboard() {
 
   const { data: stats, isLoading: isLoadingStats } = useQuery({
     queryKey: ['monthly-quiz-stats'],
-    queryFn: () => apiClient.monthlyQuiz.getStats()
+    queryFn: () => apiClient.monthlyQuiz.getStats(),
   })
 
   const { data: activeLinks, isLoading: isLoadingLinks } = useQuery({
     queryKey: ['monthly-quiz-active-links'],
-    queryFn: () => apiClient.monthlyQuiz.getActiveLinks()
+    queryFn: () => apiClient.monthlyQuiz.getActiveLinks(),
   })
 
   const { resendQuizLink } = useMonthlyQuizAdmin()
@@ -57,10 +63,10 @@ export function MonthlyQuizDashboard() {
   }
 
   // Extract stats with fallbacks for backward compatibility
-  const totalSent = stats?.total_sent ?? stats?.total_links_created ?? 0;
-  const totalCompleted = stats?.total_completed ?? stats?.completed_quizzes ?? 0;
-  const expiredLinks = stats?.total_expired ?? stats?.expired_links ?? 0;
-  const activeLinksCount = stats?.total_active ?? stats?.active_links ?? 0;
+  const totalSent = stats?.total_sent ?? stats?.total_links_created ?? 0
+  const totalCompleted = stats?.total_completed ?? stats?.completed_quizzes ?? 0
+  const expiredLinks = stats?.total_expired ?? stats?.expired_links ?? 0
+  const activeLinksCount = stats?.total_active ?? stats?.active_links ?? 0
 
   const metrics = [
     {
@@ -68,32 +74,33 @@ export function MonthlyQuizDashboard() {
       value: totalSent,
       icon: Send,
       color: 'text-blue-600',
-      bgColor: 'bg-blue-100'
+      bgColor: 'bg-blue-100',
     },
     {
       title: 'Completados',
       value: totalCompleted,
       icon: CheckCircle,
       color: 'text-green-600',
-      bgColor: 'bg-green-100'
+      bgColor: 'bg-green-100',
     },
     {
       title: 'Expirados',
       value: expiredLinks,
       icon: XCircle,
       color: 'text-red-600',
-      bgColor: 'bg-red-100'
+      bgColor: 'bg-red-100',
     },
     {
       title: 'Ativos',
       value: activeLinksCount,
       icon: Clock,
       color: 'text-yellow-600',
-      bgColor: 'bg-yellow-100'
-    }
+      bgColor: 'bg-yellow-100',
+    },
   ]
 
-  const completionRate = stats?.completion_rate ??
+  const completionRate =
+    stats?.completion_rate ??
     (totalSent > 0 ? ((totalCompleted / totalSent) * 100).toFixed(1) : '0')
 
   return (
@@ -102,7 +109,9 @@ export function MonthlyQuizDashboard() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Quiz Mensal</h1>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">Gerencie os questionários mensais dos pacientes</p>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">
+            Gerencie os questionários mensais dos pacientes
+          </p>
         </div>
       </div>
 
@@ -116,7 +125,9 @@ export function MonthlyQuizDashboard() {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-3">
                   <div className="flex-1">
                     <p className="text-xs sm:text-sm font-medium text-gray-600">{metric.title}</p>
-                    <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2">{metric.value}</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2">
+                      {metric.value}
+                    </p>
                   </div>
                   <div className={`p-2 sm:p-3 rounded-lg ${metric.bgColor}`}>
                     <Icon className={`h-5 w-5 sm:h-6 sm:w-6 ${metric.color}`} />
@@ -142,7 +153,7 @@ export function MonthlyQuizDashboard() {
             <div className="flex-1 w-full">
               <div className="h-3 sm:h-4 bg-gray-200 rounded-full overflow-hidden">
                 <div
-                className="h-full bg-blue-600 transition-[width] duration-500"
+                  className="h-full bg-blue-600 transition-[width] duration-500"
                   style={{ width: `${completionRate}%` }}
                 />
               </div>
@@ -195,7 +206,7 @@ export function MonthlyQuizDashboard() {
                 <TableBody>
                   {activeLinks.map((link: QuizLink) => {
                     // Fallback for sent_at field (backward compatibility)
-                    const sentDate = link.sent_at ?? link.created_at;
+                    const sentDate = link.sent_at ?? link.created_at
 
                     return (
                       <TableRow key={link.id}>
@@ -208,13 +219,17 @@ export function MonthlyQuizDashboard() {
                           </div>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
-                          <Badge variant="outline" className="text-xs">{link.template_name}</Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {link.template_name}
+                          </Badge>
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-sm text-gray-600">
                           {sentDate ? new Date(sentDate).toLocaleDateString('pt-BR') : '-'}
                         </TableCell>
                         <TableCell className="hidden lg:table-cell text-sm text-gray-600">
-                          {link.expires_at ? new Date(link.expires_at).toLocaleDateString('pt-BR') : '-'}
+                          {link.expires_at
+                            ? new Date(link.expires_at).toLocaleDateString('pt-BR')
+                            : '-'}
                         </TableCell>
                         <TableCell>
                           <QuizLinkStatus

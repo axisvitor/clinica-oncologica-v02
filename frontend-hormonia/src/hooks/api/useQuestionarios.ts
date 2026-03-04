@@ -19,7 +19,7 @@ type QuestionariosQueryOverrides = Omit<
 const getEmptyAnalytics = (): TemplateAnalytics => ({
   total_responses: 0,
   completion_rate: 0,
-  average_completion_time: undefined
+  average_completion_time: undefined,
 })
 
 interface UseQuestionariosOptions {
@@ -42,7 +42,7 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
     sortOrder = 'desc',
     page = 1,
     size = 12,
-    queryOverrides = {}
+    queryOverrides = {},
   } = options ?? {}
 
   return useQuery<QuestionariosResponse, Error>({
@@ -59,8 +59,8 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
       params.append('size', size.toString())
 
       // Fetch templates
-      const result = await apiClient.quizzes.listTemplates({ limit: 100 }) as TemplatesResponse
-      const resultData = Array.isArray(result) ? result : result.items ?? []
+      const result = (await apiClient.quizzes.listTemplates({ limit: 100 })) as TemplatesResponse
+      const resultData = Array.isArray(result) ? result : (result.items ?? [])
 
       // Filter
       let filtered: QuizTemplate[] = resultData
@@ -73,8 +73,10 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
 
       if (type !== 'all') {
         filtered = filtered.filter((t: QuizTemplate) => {
-          const templateType = t.name.toLowerCase().includes('medical') ||
-            t.name.toLowerCase().includes('oncolog') ? 'medical' : 'wellness'
+          const templateType =
+            t.name.toLowerCase().includes('medical') || t.name.toLowerCase().includes('oncolog')
+              ? 'medical'
+              : 'wellness'
           return templateType === type
         })
       }
@@ -89,19 +91,21 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
       // If sorting by responses, we MUST fetch analytics for all filtered items first
       // since the backend doesn't support server-side sorting for this virtual field yet
       if (sortBy === 'responses') {
-        filtered = (await Promise.all(
+        filtered = await Promise.all(
           filtered.map(async (template: QuizTemplate) => {
             try {
-              const analytics = await apiClient.quizzes.getTemplateAnalytics(template.id) as TemplateAnalytics
+              const analytics = (await apiClient.quizzes.getTemplateAnalytics(
+                template.id
+              )) as TemplateAnalytics
               return { ...template, analytics }
             } catch {
               return {
                 ...template,
-                analytics: getEmptyAnalytics()
+                analytics: getEmptyAnalytics(),
               }
             }
           })
-        ))
+        )
       }
 
       // Sort
@@ -134,12 +138,14 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
         paginatedData.map(async (template: QuizTemplate) => {
           if (template.analytics) return template
           try {
-            const analytics = await apiClient.quizzes.getTemplateAnalytics(template.id) as TemplateAnalytics
+            const analytics = (await apiClient.quizzes.getTemplateAnalytics(
+              template.id
+            )) as TemplateAnalytics
             return { ...template, analytics }
           } catch {
             return {
               ...template,
-              analytics: getEmptyAnalytics()
+              analytics: getEmptyAnalytics(),
             }
           }
         })
@@ -149,12 +155,12 @@ export function useQuestionarios(options?: UseQuestionariosOptions) {
         items: templatesWithAnalytics,
         total,
         page,
-        size
+        size,
       }
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     retry: 3,
-    ...queryOverrides
+    ...queryOverrides,
   })
 }

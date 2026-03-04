@@ -46,7 +46,9 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>(userId)
 
   // Fetch doctor list for admins (filter locally to avoid backend role filter issues)
-  const { data: doctorList = [] as DoctorUser[], isLoading: isLoadingDoctors } = useQuery<DoctorUser[]>({
+  const { data: doctorList = [] as DoctorUser[], isLoading: isLoadingDoctors } = useQuery<
+    DoctorUser[]
+  >({
     queryKey: ['admin-doctors', isAdminUser],
     queryFn: async () => {
       const response = await apiClient.adminUsers.list({ size: 100 })
@@ -59,20 +61,21 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
             ? responseRecord.data
             : []
       // Return all users without role filtering
-      return rawList.filter((user: unknown): user is DoctorUser =>
-        typeof user === 'object' &&
-        user !== null &&
-        'id' in user &&
-        typeof (user as DoctorUser).id === 'string'
+      return rawList.filter(
+        (user: unknown): user is DoctorUser =>
+          typeof user === 'object' &&
+          user !== null &&
+          'id' in user &&
+          typeof (user as DoctorUser).id === 'string'
       )
     },
-    enabled: isAdminUser
+    enabled: isAdminUser,
   })
 
   const doctorOptions = useMemo(() => {
     const options: DoctorOption[] = doctorList.map((doctor: DoctorUser) => ({
       id: doctor.id,
-      label: doctor.full_name || doctor.name || doctor.email || 'Médico'
+      label: doctor.full_name || doctor.name || doctor.email || 'Médico',
     }))
 
     if (isAdminUser && userId) {
@@ -118,7 +121,7 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
       toast({
         title: 'Selecione o médico responsável',
         description,
-        variant: 'destructive'
+        variant: 'destructive',
       })
       return
     }
@@ -132,19 +135,22 @@ export function CreatePatientDialog({ open, onOpenChange }: CreatePatientDialogP
     mode: 'create',
     doctorId: targetDoctorId,
     onSuccess: handleSuccess,
-    onClose: handleClose
+    onClose: handleClose,
   })
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px]" onOpenAutoFocus={(e) => {
-        // Prevent default focus to avoid conflicts with Select trigger and aria-hidden
-        e.preventDefault()
-        // Wait a tick to ensure aria-hidden is cleared by Radix before focusing
-        setTimeout(() => {
-          document.getElementById('name')?.focus()
-        }, 50)
-      }}>
+      <DialogContent
+        className="sm:max-w-[600px]"
+        onOpenAutoFocus={(e) => {
+          // Prevent default focus to avoid conflicts with Select trigger and aria-hidden
+          e.preventDefault()
+          // Wait a tick to ensure aria-hidden is cleared by Radix before focusing
+          setTimeout(() => {
+            document.getElementById('name')?.focus()
+          }, 50)
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Novo Paciente</DialogTitle>
           <DialogDescription>

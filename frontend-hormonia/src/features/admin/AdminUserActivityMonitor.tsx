@@ -9,7 +9,7 @@ import {
   Download,
   Search,
   CheckCircle,
-  XCircle
+  XCircle,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -60,12 +60,12 @@ const mockActivityData: AdminUserActivity[] = [
     details: {
       ip: '192.168.1.100',
       browser: 'Chrome 120.0',
-      location: 'São Paulo, BR'
+      location: 'São Paulo, BR',
     },
     timestamp: '2024-01-15T14:30:00-03:00',
     ip_address: '192.168.1.100',
     user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    session_id: 'sess1'
+    session_id: 'sess1',
   },
   {
     id: '2',
@@ -76,12 +76,12 @@ const mockActivityData: AdminUserActivity[] = [
     details: {
       target_user: 'patient123',
       reason: 'Forgot password',
-      ip: '192.168.1.101'
+      ip: '192.168.1.101',
     },
     timestamp: '2024-01-15T14:25:00-03:00',
     ip_address: '192.168.1.101',
     user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-    session_id: 'sess2'
+    session_id: 'sess2',
   },
   {
     id: '3',
@@ -92,12 +92,12 @@ const mockActivityData: AdminUserActivity[] = [
     details: {
       patient_id: 'pt456',
       view_type: 'medical_history',
-      duration: 120
+      duration: 120,
     },
     timestamp: '2024-01-15T14:20:00-03:00',
     ip_address: '192.168.1.100',
     user_agent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    session_id: 'sess1'
+    session_id: 'sess1',
   },
   {
     id: '4',
@@ -108,12 +108,12 @@ const mockActivityData: AdminUserActivity[] = [
     details: {
       failure_reason: 'Invalid password',
       attempt_number: 3,
-      ip: '203.0.113.45'
+      ip: '203.0.113.45',
     },
     timestamp: '2024-01-15T14:15:00-03:00',
     ip_address: '203.0.113.45',
     user_agent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-    session_id: 'failed_sess'
+    session_id: 'failed_sess',
   },
   {
     id: '5',
@@ -124,13 +124,13 @@ const mockActivityData: AdminUserActivity[] = [
     details: {
       setting: 'session_timeout',
       old_value: '30',
-      new_value: '60'
+      new_value: '60',
     },
     timestamp: '2024-01-15T14:10:00-03:00',
     ip_address: '192.168.1.101',
     user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-    session_id: 'sess2'
-  }
+    session_id: 'sess2',
+  },
 ]
 
 const FALLBACK_ICON = { icon: CheckCircle, color: 'text-gray-600', bgColor: 'bg-gray-100' }
@@ -145,9 +145,12 @@ const actionIcons: Record<string, typeof FALLBACK_ICON> = {
   data_export: { icon: Download, color: 'text-indigo-600', bgColor: 'bg-indigo-100' },
 }
 
-export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> = ({ className }) => {
+export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> = ({
+  className,
+}) => {
   const [activities, setActivities] = useState<AdminUserActivity[]>(mockActivityData)
-  const [filteredActivities, setFilteredActivities] = useState<AdminUserActivity[]>(mockActivityData)
+  const [filteredActivities, setFilteredActivities] =
+    useState<AdminUserActivity[]>(mockActivityData)
   const [filters, setFilters] = useState<AdminActivityFilter>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [_selectedActivity, setSelectedActivity] = useState<AdminUserActivity | null>(null)
@@ -162,14 +165,18 @@ export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> =
     try {
       // Using any cast here because the API response type might not match exactly what we expect yet
       // In a real scenario, we should define a proper response type
-      const response = await apiClient.request<{ items?: AdminUserActivity[]; data?: AdminUserActivity[]; total: number }>('/admin/audit-logs', {
+      const response = await apiClient.request<{
+        items?: AdminUserActivity[]
+        data?: AdminUserActivity[]
+        total: number
+      }>('/admin/audit-logs', {
         method: 'GET',
         params: {
           page: currentPage,
           size: itemsPerPage,
           ...(dateRange.from && { start_date: dateRange.from.toISOString() }),
-          ...(dateRange.to && { end_date: dateRange.to.toISOString() })
-        }
+          ...(dateRange.to && { end_date: dateRange.to.toISOString() }),
+        },
       })
 
       if (response && response.items) {
@@ -197,38 +204,39 @@ export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> =
     // Text search
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
-      filtered = filtered.filter(activity =>
-        activity.action.toLowerCase().includes(query) ||
-        activity.resource.toLowerCase().includes(query) ||
-        activity.ip_address.includes(query) ||
-        activity.user_id.toLowerCase().includes(query) ||
-        JSON.stringify(activity.details).toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (activity) =>
+          activity.action.toLowerCase().includes(query) ||
+          activity.resource.toLowerCase().includes(query) ||
+          activity.ip_address.includes(query) ||
+          activity.user_id.toLowerCase().includes(query) ||
+          JSON.stringify(activity.details).toLowerCase().includes(query)
       )
     }
 
     // Filter by user ID
     if (filters.userId) {
-      filtered = filtered.filter(activity => activity.user_id === filters.userId)
+      filtered = filtered.filter((activity) => activity.user_id === filters.userId)
     }
 
     // Filter by action
     if (filters.action) {
-      filtered = filtered.filter(activity => activity.action === filters.action)
+      filtered = filtered.filter((activity) => activity.action === filters.action)
     }
 
     // Filter by resource
     if (filters.resource) {
-      filtered = filtered.filter(activity => activity.resource === filters.resource)
+      filtered = filtered.filter((activity) => activity.resource === filters.resource)
     }
 
     // Filter by IP address
     if (filters.ipAddress) {
-      filtered = filtered.filter(activity => activity.ip_address.includes(filters.ipAddress!))
+      filtered = filtered.filter((activity) => activity.ip_address.includes(filters.ipAddress!))
     }
 
     // Filter by date range
     if (dateRange.from || dateRange.to) {
-      filtered = filtered.filter(activity => {
+      filtered = filtered.filter((activity) => {
         const activityDate = new Date(activity.timestamp)
         if (dateRange.from && activityDate < dateRange.from) return false
         if (dateRange.to && activityDate > dateRange.to) return false
@@ -250,25 +258,20 @@ export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> =
 
   // Export activities to CSV
   const exportToCSV = () => {
-    const headers = [
-      'Timestamp',
-      'User ID',
-      'Action',
-      'Resource',
-      'IP Address',
-      'Details'
-    ]
+    const headers = ['Timestamp', 'User ID', 'Action', 'Resource', 'IP Address', 'Details']
 
     const csvContent = [
       headers.join(','),
-      ...filteredActivities.map(activity => [
-        activity.timestamp,
-        activity.user_id,
-        activity.action,
-        activity.resource,
-        activity.ip_address,
-        `"${JSON.stringify(activity.details).replace(/"/g, '""')}"`
-      ].join(','))
+      ...filteredActivities.map((activity) =>
+        [
+          activity.timestamp,
+          activity.user_id,
+          activity.action,
+          activity.resource,
+          activity.ip_address,
+          `"${JSON.stringify(activity.details).replace(/"/g, '""')}"`,
+        ].join(',')
+      ),
     ].join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
@@ -347,13 +350,23 @@ export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> =
             <Input
               type="date"
               className="w-[150px]"
-              onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value ? new Date(e.target.value) : undefined }))}
+              onChange={(e) =>
+                setDateRange((prev) => ({
+                  ...prev,
+                  from: e.target.value ? new Date(e.target.value) : undefined,
+                }))
+              }
             />
             <span className="text-muted-foreground">-</span>
             <Input
               type="date"
               className="w-[150px]"
-              onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value ? new Date(e.target.value) : undefined }))}
+              onChange={(e) =>
+                setDateRange((prev) => ({
+                  ...prev,
+                  to: e.target.value ? new Date(e.target.value) : undefined,
+                }))
+              }
             />
           </div>
         </div>
@@ -423,7 +436,11 @@ export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> =
                       <TableCell className="text-right">
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={() => setSelectedActivity(activity)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedActivity(activity)}
+                            >
                               <Eye className="h-4 w-4" />
                             </Button>
                           </DialogTrigger>
@@ -474,13 +491,15 @@ export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> =
         {/* Pagination */}
         <div className="mt-4 flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
-            Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, filteredActivities.length)} de {filteredActivities.length} resultados
+            Mostrando {(currentPage - 1) * itemsPerPage + 1} a{' '}
+            {Math.min(currentPage * itemsPerPage, filteredActivities.length)} de{' '}
+            {filteredActivities.length} resultados
           </div>
           <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
               Anterior
@@ -488,7 +507,7 @@ export const AdminUserActivityMonitor: React.FC<AdminUserActivityMonitorProps> =
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
               Próxima

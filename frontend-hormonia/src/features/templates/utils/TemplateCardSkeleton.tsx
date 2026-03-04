@@ -4,4 +4,4 @@
  * Re-exports TemplateCardSkeleton from the consolidated skeleton library.
  */
 
-export { TemplateCardSkeleton } from '@/components/ui/skeleton';
+export { TemplateCardSkeleton } from '@/components/ui/skeleton'

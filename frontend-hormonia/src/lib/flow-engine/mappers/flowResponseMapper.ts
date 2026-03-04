@@ -21,7 +21,7 @@ export const smartMapFlowResponse = (
 ): FlowState => {
   const raw =
     response && typeof response === 'object' && 'data' in response
-      ? (response as { data?: FlowResponse }).data ?? response
+      ? ((response as { data?: FlowResponse }).data ?? response)
       : response
   const data = (raw ?? {}) as FlowResponse
   const status =
@@ -29,8 +29,8 @@ export const smartMapFlowResponse = (
     (data?.paused_at
       ? FlowStatus.PAUSED
       : data?.completed_at
-      ? FlowStatus.COMPLETED
-      : FlowStatus.ACTIVE)
+        ? FlowStatus.COMPLETED
+        : FlowStatus.ACTIVE)
   const currentDay = data?.current_day ?? data?.current_step ?? 0
   const templateId =
     data?.template_id || data?.template?.id || data?.template_version || 'default-template'
@@ -61,6 +61,6 @@ export const smartMapFlowResponse = (
     completed_at: data?.completed_at,
     metadata,
     patient_name: patientName,
-    monthly_cycle: monthlyCycle
+    monthly_cycle: monthlyCycle,
   }
 }

@@ -74,19 +74,20 @@ export function useClinicalMetrics(
       // Transform to ClinicalMetrics format
       return {
         patientEngagement: response.active_patients_percentage ?? 0,
-        quizCompletion: response.total_quizzes > 0
-          ? (response.completed_quizzes / response.total_quizzes) * 100
-          : 0,
+        quizCompletion:
+          response.total_quizzes > 0
+            ? (response.completed_quizzes / response.total_quizzes) * 100
+            : 0,
         messageResponseRate: response.response_rate ?? 0,
         averageSentiment: response.avg_sentiment ?? 0,
         riskPatients: response.high_risk_patients ?? 0,
         totalPatients: response.total_patients ?? 0,
         activeFlows: response.active_conversations ?? 0,
-        completedFlows: response.completed_quizzes ?? 0
+        completedFlows: response.completed_quizzes ?? 0,
       }
     },
     staleTime: 30000, // 30 seconds - real-time monitoring
     refetchInterval,
-    retry: 2
+    retry: 2,
   })
 }

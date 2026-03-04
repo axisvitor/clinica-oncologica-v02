@@ -20,4 +20,4 @@ declare module 'vitest' {
   }
 }
 
-export { }
+export {}

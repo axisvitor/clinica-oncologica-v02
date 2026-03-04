@@ -1,12 +1,7 @@
 import React from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Send, Clock, Eye, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -31,7 +26,7 @@ export function MonthlyQuizStatus({
   completionDate,
   expiresAt,
   onResend,
-  isResending = false
+  isResending = false,
 }: MonthlyQuizStatusProps) {
   // Map backend status to UI status
   const mappedStatus = mapBackendStatus(status)
@@ -43,42 +38,42 @@ export function MonthlyQuizStatus({
           icon: Send,
           label: 'Não Enviado',
           className: 'bg-gray-100 text-gray-700 border-gray-200',
-          iconClassName: 'text-gray-600'
+          iconClassName: 'text-gray-600',
         }
       case 'sent':
         return {
           icon: Clock,
           label: 'Pendente',
           className: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-          iconClassName: 'text-yellow-600'
+          iconClassName: 'text-yellow-600',
         }
       case 'accessed':
         return {
           icon: Eye,
           label: 'Acessado',
           className: 'bg-blue-100 text-blue-700 border-blue-200',
-          iconClassName: 'text-blue-600'
+          iconClassName: 'text-blue-600',
         }
       case 'completed':
         return {
           icon: CheckCircle,
           label: 'Completado',
           className: 'bg-green-100 text-green-700 border-green-200',
-          iconClassName: 'text-green-600'
+          iconClassName: 'text-green-600',
         }
       case 'expired':
         return {
           icon: XCircle,
           label: 'Expirado',
           className: 'bg-red-100 text-red-700 border-red-200',
-          iconClassName: 'text-red-600'
+          iconClassName: 'text-red-600',
         }
       default:
         return {
           icon: Clock,
           label: getStatusLabel(status),
           className: 'bg-gray-100 text-gray-700 border-gray-200',
-          iconClassName: 'text-gray-600'
+          iconClassName: 'text-gray-600',
         }
     }
   }
@@ -93,7 +88,7 @@ export function MonthlyQuizStatus({
       const dateObj = typeof date === 'string' ? new Date(date) : date
       return formatDistanceToNow(dateObj, {
         addSuffix: true,
-        locale: ptBR
+        locale: ptBR,
       })
     } catch {
       return 'Data inválida'
@@ -113,7 +108,7 @@ export function MonthlyQuizStatus({
 
       return `Expira ${formatDistanceToNow(expires, {
         addSuffix: true,
-        locale: ptBR
+        locale: ptBR,
       })}`
     } catch {
       return 'Data inválida'
@@ -181,9 +176,7 @@ export function MonthlyQuizStatus({
             )}
           </div>
         </TooltipTrigger>
-        <TooltipContent>
-          {tooltipContent}
-        </TooltipContent>
+        <TooltipContent>{tooltipContent}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   )

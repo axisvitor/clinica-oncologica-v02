@@ -4,8 +4,8 @@
  * Modal dialog for editing quiz templates with full question management.
  */
 
-import React, { memo, useState, useEffect } from 'react';
-import { Plus, RefreshCw } from 'lucide-react';
+import React, { memo, useState, useEffect } from 'react'
+import { Plus, RefreshCw } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -13,28 +13,33 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { QuestionEditor } from './QuestionEditor';
-import { Card } from '@/components/ui/card';
-import { useTemplates, type QuizTemplate, type QuizQuestion, type QuizTemplateUpdate } from '@/hooks/useTemplates';
-import { useToast } from '@/components/ui/use-toast';
-import { logger } from '@/lib/logger';
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Switch } from '@/components/ui/switch'
+import { QuestionEditor } from './QuestionEditor'
+import { Card } from '@/components/ui/card'
+import {
+  useTemplates,
+  type QuizTemplate,
+  type QuizQuestion,
+  type QuizTemplateUpdate,
+} from '@/hooks/useTemplates'
+import { useToast } from '@/components/ui/use-toast'
+import { logger } from '@/lib/logger'
 
 interface QuizEditorDialogProps {
-  quiz: QuizTemplate | null;
-  onClose: () => void;
-  onSuccess: () => void;
+  quiz: QuizTemplate | null
+  onClose: () => void
+  onSuccess: () => void
 }
 
 export const QuizEditorDialog = memo<QuizEditorDialogProps>(({ quiz, onClose, onSuccess }) => {
-  const { toast } = useToast();
-  const { updateQuizTemplate } = useTemplates();
-  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast()
+  const { updateQuizTemplate } = useTemplates()
+  const [isSaving, setIsSaving] = useState(false)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -43,7 +48,7 @@ export const QuizEditorDialog = memo<QuizEditorDialogProps>(({ quiz, onClose, on
     category: '',
     is_active: true,
     questions: [] as QuizQuestion[],
-  });
+  })
 
   // Initialize form when quiz changes
   useEffect(() => {
@@ -55,14 +60,14 @@ export const QuizEditorDialog = memo<QuizEditorDialogProps>(({ quiz, onClose, on
         category: quiz.category,
         is_active: quiz.is_active,
         questions: quiz.questions || [],
-      });
+      })
     }
-  }, [quiz]);
+  }, [quiz])
 
   const handleSave = async () => {
-    if (!quiz) return;
+    if (!quiz) return
 
-    setIsSaving(true);
+    setIsSaving(true)
     try {
       const updateData: QuizTemplateUpdate = {
         name: formData.name,
@@ -71,27 +76,27 @@ export const QuizEditorDialog = memo<QuizEditorDialogProps>(({ quiz, onClose, on
         category: formData.category,
         is_active: formData.is_active,
         questions: formData.questions,
-      };
+      }
 
-      const updated = await updateQuizTemplate(quiz.id, updateData);
+      const updated = await updateQuizTemplate(quiz.id, updateData)
       if (updated) {
         toast({
           title: 'Quiz atualizado',
           description: `"${formData.name}" foi atualizado com sucesso.`,
-        });
-        onSuccess();
+        })
+        onSuccess()
       }
     } catch (error) {
-      logger.error('Failed to update quiz', error);
+      logger.error('Failed to update quiz', error)
       toast({
         title: 'Erro ao atualizar',
         description: 'Não foi possível salvar as alterações.',
         variant: 'destructive',
-      });
+      })
     } finally {
-      setIsSaving(false);
+      setIsSaving(false)
     }
-  };
+  }
 
   const handleAddQuestion = () => {
     const newQuestion: QuizQuestion = {
@@ -103,36 +108,34 @@ export const QuizEditorDialog = memo<QuizEditorDialogProps>(({ quiz, onClose, on
         { text: 'Opção 1', value: 'opt1' },
         { text: 'Opção 2', value: 'opt2' },
       ],
-    };
+    }
     setFormData((prev) => ({
       ...prev,
       questions: [...prev.questions, newQuestion],
-    }));
-  };
+    }))
+  }
 
   const handleRemoveQuestion = (index: number) => {
     setFormData((prev) => ({
       ...prev,
       questions: prev.questions.filter((_, i) => i !== index),
-    }));
-  };
+    }))
+  }
 
   const handleUpdateQuestion = (index: number, question: QuizQuestion) => {
     setFormData((prev) => {
-      const updatedQuestions = [...prev.questions];
-      updatedQuestions[index] = question;
-      return { ...prev, questions: updatedQuestions };
-    });
-  };
+      const updatedQuestions = [...prev.questions]
+      updatedQuestions[index] = question
+      return { ...prev, questions: updatedQuestions }
+    })
+  }
 
   return (
     <Dialog open={!!quiz} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Editar Quiz: {quiz?.name}</DialogTitle>
-          <DialogDescription>
-            Modifique as informações e perguntas do quiz
-          </DialogDescription>
+          <DialogDescription>Modifique as informações e perguntas do quiz</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -240,7 +243,7 @@ export const QuizEditorDialog = memo<QuizEditorDialogProps>(({ quiz, onClose, on
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-});
+  )
+})
 
-QuizEditorDialog.displayName = 'QuizEditorDialog';
+QuizEditorDialog.displayName = 'QuizEditorDialog'

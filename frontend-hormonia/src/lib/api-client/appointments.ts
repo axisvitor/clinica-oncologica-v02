@@ -167,9 +167,7 @@ export function createAppointmentsApi(client: ApiClientCore) {
      * })
      * ```
      */
-    list: async (
-      filters?: AppointmentFilters
-    ): Promise<PaginatedResponse<Appointment>> => {
+    list: async (filters?: AppointmentFilters): Promise<PaginatedResponse<Appointment>> => {
       const { cursor, limit = 20, fields, include, ...otherFilters } = filters || {}
 
       const params: Record<string, string | number | boolean> = {
@@ -291,10 +289,7 @@ export function createAppointmentsApi(client: ApiClientCore) {
      * })
      * ```
      */
-    update: async (
-      appointmentId: string,
-      data: AppointmentUpdate
-    ): Promise<Appointment> => {
+    update: async (appointmentId: string, data: AppointmentUpdate): Promise<Appointment> => {
       return client.patch<Appointment>(`/api/v2/appointments/${appointmentId}`, data)
     },
 
@@ -393,14 +388,12 @@ export function createAppointmentsApi(client: ApiClientCore) {
      * })
      * ```
      */
-    checkConflicts: async (
-      request: ConflictCheckRequest
-    ): Promise<ConflictCheckResponse> => {
+    checkConflicts: async (request: ConflictCheckRequest): Promise<ConflictCheckResponse> => {
       const {
         practitioner_id,
         scheduled_at,
         duration_minutes = 30,
-        exclude_appointment_id
+        exclude_appointment_id,
       } = request
 
       const params: Record<string, string | number> = {

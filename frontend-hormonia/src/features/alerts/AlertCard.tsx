@@ -31,7 +31,8 @@ interface AlertCardProps {
 
 const AlertCardComponent = ({ alert, onAcknowledge, onResolve, isLoading }: AlertCardProps) => {
   // Handle both acknowledged boolean (old API) and status field (new API)
-  const isAcknowledged = alert.is_acknowledged ?? (alert.status === 'acknowledged' || alert.status === 'resolved')
+  const isAcknowledged =
+    alert.is_acknowledged ?? (alert.status === 'acknowledged' || alert.status === 'resolved')
 
   const getSeverityIcon = (severity: string) => {
     switch (severity) {
@@ -94,12 +95,16 @@ const AlertCardComponent = ({ alert, onAcknowledge, onResolve, isLoading }: Aler
   const severityColor = getSeverityColor(alert.severity)
 
   return (
-    <Card className={`transition-shadow hover:shadow-md ${
-      !isAcknowledged ? 'border-l-4 border-l-red-500' : ''
-    }`}>
+    <Card
+      className={`transition-shadow hover:shadow-md ${
+        !isAcknowledged ? 'border-l-4 border-l-red-500' : ''
+      }`}
+    >
       <CardHeader>
         <div className="flex items-start space-x-3">
-          <div className={`flex items-center justify-center w-10 h-10 rounded-full ${severityColor}`}>
+          <div
+            className={`flex items-center justify-center w-10 h-10 rounded-full ${severityColor}`}
+          >
             <Icon className="w-5 h-5" />
           </div>
           <div className="flex-1">
@@ -109,9 +114,7 @@ const AlertCardComponent = ({ alert, onAcknowledge, onResolve, isLoading }: Aler
                 <Badge variant="outline" className={severityColor}>
                   {getSeverityLabel(alert.severity)}
                 </Badge>
-                <Badge variant="outline">
-                  {getTypeLabel(alert.type)}
-                </Badge>
+                <Badge variant="outline">{getTypeLabel(alert.type)}</Badge>
               </div>
             </div>
             <CardDescription>{alert.message}</CardDescription>
@@ -126,15 +129,15 @@ const AlertCardComponent = ({ alert, onAcknowledge, onResolve, isLoading }: Aler
               <span>Paciente: {alert.patient_name}</span>
             </div>
           )}
-          
+
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500">
               {formatDistanceToNow(new Date(alert.created_at), {
                 addSuffix: true,
-                locale: ptBR
+                locale: ptBR,
               })}
             </span>
-            
+
             <div className="flex items-center space-x-2">
               {!isAcknowledged && (
                 <Button
@@ -147,7 +150,7 @@ const AlertCardComponent = ({ alert, onAcknowledge, onResolve, isLoading }: Aler
                   Reconhecer
                 </Button>
               )}
-              
+
               <Button
                 variant="outline"
                 size="sm"
@@ -159,12 +162,13 @@ const AlertCardComponent = ({ alert, onAcknowledge, onResolve, isLoading }: Aler
               </Button>
             </div>
           </div>
-          
+
           {isAcknowledged && alert.acknowledged_at && (
             <div className="text-sm text-gray-500 bg-gray-50 p-2 rounded">
-              Reconhecido {formatDistanceToNow(new Date(alert.acknowledged_at), {
+              Reconhecido{' '}
+              {formatDistanceToNow(new Date(alert.acknowledged_at), {
                 addSuffix: true,
-                locale: ptBR
+                locale: ptBR,
               })}
             </div>
           )}

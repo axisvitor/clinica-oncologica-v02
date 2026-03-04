@@ -88,15 +88,15 @@ export function ReportCard({ report, onView, onDownload, downloading = false }: 
               {report.status === 'completed' && report.generated_at
                 ? `Concluído ${formatDistanceToNow(new Date(report.generated_at), {
                     addSuffix: true,
-                    locale: ptBR
+                    locale: ptBR,
                   })}`
                 : `Criado ${formatDistanceToNow(new Date(report.created_at), {
                     addSuffix: true,
-                    locale: ptBR
+                    locale: ptBR,
                   })}`}
             </span>
           </div>
-          
+
           <div className="flex space-x-2">
             <Button
               variant="outline"

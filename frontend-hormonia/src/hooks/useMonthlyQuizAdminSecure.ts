@@ -57,7 +57,7 @@ export function useMonthlyQuizAdminSecure() {
       toast({
         title: 'Acesso negado',
         description: getPermissionErrorMessage('resend_link', user?.role),
-        variant: 'destructive'
+        variant: 'destructive',
       })
       throw new Error(getPermissionErrorMessage('resend_link', user?.role))
     }
@@ -67,7 +67,7 @@ export function useMonthlyQuizAdminSecure() {
 
       toast({
         title: 'Link reenviado',
-        description: 'O link do quiz foi reenviado com sucesso'
+        description: 'O link do quiz foi reenviado com sucesso',
       })
 
       // Invalidate queries to refresh data
@@ -76,11 +76,12 @@ export function useMonthlyQuizAdminSecure() {
 
       return result
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao reenviar o link';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Ocorreu um erro ao reenviar o link'
       toast({
         title: 'Erro ao reenviar link',
         description: errorMessage,
-        variant: 'destructive'
+        variant: 'destructive',
       })
       throw error
     }
@@ -92,7 +93,7 @@ export function useMonthlyQuizAdminSecure() {
       toast({
         title: 'Acesso negado',
         description: getPermissionErrorMessage('cancel_link', user?.role),
-        variant: 'destructive'
+        variant: 'destructive',
       })
       throw new Error(getPermissionErrorMessage('cancel_link', user?.role))
     }
@@ -102,7 +103,7 @@ export function useMonthlyQuizAdminSecure() {
 
       toast({
         title: 'Link cancelado',
-        description: 'O link do quiz foi cancelado com sucesso'
+        description: 'O link do quiz foi cancelado com sucesso',
       })
 
       // Invalidate queries to refresh data
@@ -111,11 +112,12 @@ export function useMonthlyQuizAdminSecure() {
 
       return result
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao cancelar o link';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Ocorreu um erro ao cancelar o link'
       toast({
         title: 'Erro ao cancelar link',
         description: errorMessage,
-        variant: 'destructive'
+        variant: 'destructive',
       })
       throw error
     }
@@ -135,7 +137,7 @@ export function useMonthlyQuizAdminSecure() {
       queryKey: ['monthly-quiz-status', patientId],
       queryFn: () => getQuizLinkStatus(patientId),
       enabled: !!patientId && canViewStats,
-      staleTime: 30000 // 30 seconds
+      staleTime: 30000, // 30 seconds
     })
   }
 
@@ -148,7 +150,7 @@ export function useMonthlyQuizAdminSecure() {
     const scope = quizPermissions.getQuizStatsScope(user)
     const params: DateRangeFilter & { doctor_id?: string } = {
       start_date: dateFrom,
-      end_date: dateTo
+      end_date: dateTo,
     }
 
     // Add scope filtering for doctors
@@ -165,7 +167,7 @@ export function useMonthlyQuizAdminSecure() {
       queryKey: ['monthly-quiz-stats', dateFrom, dateTo, user?.id],
       queryFn: () => getQuizStats(dateFrom, dateTo),
       enabled: canViewStats,
-      staleTime: 60000 // 1 minute
+      staleTime: 60000, // 1 minute
     })
   }
 
@@ -176,19 +178,20 @@ export function useMonthlyQuizAdminSecure() {
       onSuccess: () => {
         toast({
           title: 'Link enviado',
-          description: 'O link do quiz foi enviado com sucesso'
+          description: 'O link do quiz foi enviado com sucesso',
         })
         queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
         queryClient.invalidateQueries({ queryKey: ['patients'] })
       },
       onError: (error: unknown) => {
-        const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao enviar o link';
+        const errorMessage =
+          error instanceof Error ? error.message : 'Ocorreu um erro ao enviar o link'
         toast({
           title: 'Erro ao enviar link',
           description: errorMessage,
-          variant: 'destructive'
+          variant: 'destructive',
         })
-      }
+      },
     })
   }
 
@@ -199,19 +202,20 @@ export function useMonthlyQuizAdminSecure() {
       onSuccess: () => {
         toast({
           title: 'Links enviados',
-          description: 'Os links do quiz foram enviados com sucesso'
+          description: 'Os links do quiz foram enviados com sucesso',
         })
         queryClient.invalidateQueries({ queryKey: ['monthly-quiz-stats'] })
         queryClient.invalidateQueries({ queryKey: ['patients'] })
       },
       onError: (error: unknown) => {
-        const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro ao enviar os links';
+        const errorMessage =
+          error instanceof Error ? error.message : 'Ocorreu um erro ao enviar os links'
         toast({
           title: 'Erro ao enviar links',
           description: errorMessage,
-          variant: 'destructive'
+          variant: 'destructive',
         })
-      }
+      },
     })
   }
 
@@ -237,6 +241,6 @@ export function useMonthlyQuizAdminSecure() {
 
     // User info for permission checks
     user,
-    userScope: quizPermissions.getQuizStatsScope(user)
+    userScope: quizPermissions.getQuizStatsScope(user),
   }
 }

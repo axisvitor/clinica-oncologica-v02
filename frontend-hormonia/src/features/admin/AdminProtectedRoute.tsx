@@ -91,7 +91,7 @@ const InsufficientPermissionsScreen: React.FC<{
           <div>
             <h4 className="text-sm font-medium text-gray-900 mb-2">Required Permissions:</h4>
             <div className="flex flex-wrap gap-2">
-              {requiredPermissions.map(permission => (
+              {requiredPermissions.map((permission) => (
                 <Badge key={permission} variant="destructive">
                   {permission}
                 </Badge>
@@ -103,10 +103,10 @@ const InsufficientPermissionsScreen: React.FC<{
             <h4 className="text-sm font-medium text-gray-900 mb-2">Your Permissions:</h4>
             <div className="flex flex-wrap gap-2">
               {userPermissions.length > 0 ? (
-                userPermissions.map(permission => (
+                userPermissions.map((permission) => (
                   <Badge
                     key={permission}
-                    variant={requiredPermissions.includes(permission) ? "default" : "secondary"}
+                    variant={requiredPermissions.includes(permission) ? 'default' : 'secondary'}
                   >
                     {permission}
                   </Badge>
@@ -142,7 +142,9 @@ const TwoFactorRequiredScreen: React.FC = () => {
           <div className="mx-auto w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
             <Shield className="w-6 h-6 text-blue-600" />
           </div>
-          <CardTitle className="text-xl text-gray-900">Two-Factor Authentication Required</CardTitle>
+          <CardTitle className="text-xl text-gray-900">
+            Two-Factor Authentication Required
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert className="border-blue-200 bg-blue-50">
@@ -153,7 +155,10 @@ const TwoFactorRequiredScreen: React.FC = () => {
           </Alert>
 
           <div className="space-y-2 text-sm text-gray-600">
-            <p>Two-factor authentication adds an extra layer of security to your account by requiring:</p>
+            <p>
+              Two-factor authentication adds an extra layer of security to your account by
+              requiring:
+            </p>
             <ul className="list-disc list-inside space-y-1 ml-4">
               <li>Your password</li>
               <li>A verification code from your mobile device</li>
@@ -178,7 +183,7 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
   children,
   requiredPermissions = [],
   requiresTwoFactor = false,
-  fallbackComponent: FallbackComponent
+  fallbackComponent: FallbackComponent,
 }) => {
   const { user, isInitializing, isAuthenticated, hasPermission } = useAuth()
   const location = useLocation()
@@ -205,10 +210,10 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
 
   // Extended user type for optional admin fields
   interface ExtendedUser {
-    locked_until?: string | null;
-    two_factor_enabled?: boolean;
+    locked_until?: string | null
+    two_factor_enabled?: boolean
   }
-  const extendedUser = user as typeof user & ExtendedUser;
+  const extendedUser = user as typeof user & ExtendedUser
 
   // Check if user account is locked (if this field exists)
   if (extendedUser.locked_until && new Date(extendedUser.locked_until) > new Date()) {
@@ -228,7 +233,7 @@ export const AdminProtectedRoute: React.FC<AdminProtectedRouteProps> = ({
 
   // Check permissions using AuthContext hasPermission
   if (requiredPermissions.length > 0) {
-    const hasRequiredPermissions = requiredPermissions.some(permission =>
+    const hasRequiredPermissions = requiredPermissions.some((permission) =>
       hasPermission(permission)
     )
 

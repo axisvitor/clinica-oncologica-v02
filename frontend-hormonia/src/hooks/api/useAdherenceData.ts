@@ -59,6 +59,6 @@ export function useAdherenceData(
       return response.data
     },
     staleTime: 300000, // 5 minutes
-    retry: 2
+    retry: 2,
   })
 }

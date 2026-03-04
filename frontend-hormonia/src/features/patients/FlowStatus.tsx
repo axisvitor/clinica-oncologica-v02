@@ -3,16 +3,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
-import { 
-  Play, 
-  Pause, 
-  SkipForward, 
-  Clock, 
-  CheckCircle, 
+import {
+  Play,
+  Pause,
+  SkipForward,
+  Clock,
+  CheckCircle,
   AlertCircle,
   Calendar,
   MessageSquare,
-  Loader2
+  Loader2,
 } from 'lucide-react'
 import { useFlowState, useFlowOperations } from '../../hooks/useFlowEngine'
 import { FlowType, FlowStatus as FlowStatusEnum } from '@/types/api'
@@ -59,20 +59,18 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
             <MessageSquare className="mx-auto h-8 w-8 mb-2" />
             <p>Nenhum fluxo ativo</p>
             <div className="mt-4 space-y-2">
-              <Button 
-                className="w-full" 
+              <Button
+                className="w-full"
                 size="sm"
                 onClick={() => operations.start(FlowType.ONBOARDING)}
                 disabled={isOperationLoading}
               >
-                {isOperationLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : null}
+                {isOperationLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Iniciar Fluxo 15 Dias
               </Button>
-              <Button 
-                variant="outline" 
-                className="w-full" 
+              <Button
+                variant="outline"
+                className="w-full"
                 size="sm"
                 onClick={() => operations.start(FlowType.QUIZ_MENSAL)}
                 disabled={isOperationLoading}
@@ -88,21 +86,31 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
 
   const getStatusColor = (status: FlowStatusEnum) => {
     switch (status) {
-      case FlowStatusEnum.ACTIVE: return 'bg-green-500'
-      case FlowStatusEnum.PAUSED: return 'bg-yellow-500'
-      case FlowStatusEnum.COMPLETED: return 'bg-blue-500'
-      case FlowStatusEnum.CANCELLED: return 'bg-red-500'
-      default: return 'bg-gray-500'
+      case FlowStatusEnum.ACTIVE:
+        return 'bg-green-500'
+      case FlowStatusEnum.PAUSED:
+        return 'bg-yellow-500'
+      case FlowStatusEnum.COMPLETED:
+        return 'bg-blue-500'
+      case FlowStatusEnum.CANCELLED:
+        return 'bg-red-500'
+      default:
+        return 'bg-gray-500'
     }
   }
 
   const getStatusIcon = (status: FlowStatusEnum) => {
     switch (status) {
-      case FlowStatusEnum.ACTIVE: return <Play className="h-4 w-4" />
-      case FlowStatusEnum.PAUSED: return <Pause className="h-4 w-4" />
-      case FlowStatusEnum.COMPLETED: return <CheckCircle className="h-4 w-4" />
-      case FlowStatusEnum.CANCELLED: return <AlertCircle className="h-4 w-4" />
-      default: return <Clock className="h-4 w-4" />
+      case FlowStatusEnum.ACTIVE:
+        return <Play className="h-4 w-4" />
+      case FlowStatusEnum.PAUSED:
+        return <Pause className="h-4 w-4" />
+      case FlowStatusEnum.COMPLETED:
+        return <CheckCircle className="h-4 w-4" />
+      case FlowStatusEnum.CANCELLED:
+        return <AlertCircle className="h-4 w-4" />
+      default:
+        return <Clock className="h-4 w-4" />
     }
   }
 
@@ -116,26 +124,40 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
 
   const getFlowTypeLabel = (flowType: FlowType) => {
     switch (flowType) {
-      case FlowType.ONBOARDING: return 'Onboarding'
-      case FlowType.DAILY_FOLLOW_UP: return 'Acompanhamento Diario'
-      case FlowType.QUIZ_MENSAL: return 'Quiz Mensal'
-      case FlowType.INITIAL_15_DAYS: return 'Primeiros 15 Dias'
-      case FlowType.DAYS_16_45: return 'Dias 16-45'
-      case FlowType.MONTHLY_RECURRING: return 'Mensal Recorrente'
-      default: return flowType
+      case FlowType.ONBOARDING:
+        return 'Onboarding'
+      case FlowType.DAILY_FOLLOW_UP:
+        return 'Acompanhamento Diario'
+      case FlowType.QUIZ_MENSAL:
+        return 'Quiz Mensal'
+      case FlowType.INITIAL_15_DAYS:
+        return 'Primeiros 15 Dias'
+      case FlowType.DAYS_16_45:
+        return 'Dias 16-45'
+      case FlowType.MONTHLY_RECURRING:
+        return 'Mensal Recorrente'
+      default:
+        return flowType
     }
   }
 
   // Calculate progress based on flow type
   const getTotalDays = (flowType: FlowType) => {
     switch (flowType) {
-      case FlowType.ONBOARDING: return 15
-      case FlowType.DAILY_FOLLOW_UP: return 30
-      case FlowType.QUIZ_MENSAL: return 30
-      case FlowType.INITIAL_15_DAYS: return 15
-      case FlowType.DAYS_16_45: return 30
-      case FlowType.MONTHLY_RECURRING: return 30
-      default: return 30
+      case FlowType.ONBOARDING:
+        return 15
+      case FlowType.DAILY_FOLLOW_UP:
+        return 30
+      case FlowType.QUIZ_MENSAL:
+        return 30
+      case FlowType.INITIAL_15_DAYS:
+        return 15
+      case FlowType.DAYS_16_45:
+        return 30
+      case FlowType.MONTHLY_RECURRING:
+        return 30
+      default:
+        return 30
     }
   }
 
@@ -148,14 +170,9 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-lg">Status do Fluxo</CardTitle>
-            <CardDescription>
-              {getFlowTypeLabel(flowState.flow_type)}
-            </CardDescription>
+            <CardDescription>{getFlowTypeLabel(flowState.flow_type)}</CardDescription>
           </div>
-          <Badge 
-            variant="secondary" 
-            className={`${getStatusColor(flowState.status)} text-white`}
-          >
+          <Badge variant="secondary" className={`${getStatusColor(flowState.status)} text-white`}>
             <span className="flex items-center gap-1">
               {getStatusIcon(flowState.status)}
               {flowState.status.toUpperCase()}
@@ -163,13 +180,15 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
           </Badge>
         </div>
       </CardHeader>
-      
+
       <CardContent className="space-y-4">
         {/* Progress */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
             <span>Progresso</span>
-            <span>{flowState.current_day}/{totalDays} dias</span>
+            <span>
+              {flowState.current_day}/{totalDays} dias
+            </span>
           </div>
           <Progress value={completionRate} className="h-2" />
         </div>
@@ -183,7 +202,7 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
             </div>
             <p className="font-medium">{formatDate(flowState.enrollment_date)}</p>
           </div>
-          
+
           {flowState.last_message_sent && (
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-muted-foreground">
@@ -214,9 +233,9 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
         <div className="flex gap-2 pt-2">
           {flowState.status === FlowStatusEnum.ACTIVE && (
             <>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={operations.pause}
                 disabled={isOperationLoading}
                 className="flex items-center gap-2"
@@ -228,9 +247,9 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
                 )}
                 Pausar
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => operations.advance()}
                 disabled={isOperationLoading}
                 className="flex items-center gap-2"
@@ -240,11 +259,11 @@ export function FlowStatus({ patientId }: FlowStatusProps) {
               </Button>
             </>
           )}
-          
+
           {flowState.status === FlowStatusEnum.PAUSED && (
-            <Button 
-              variant="default" 
-              size="sm" 
+            <Button
+              variant="default"
+              size="sm"
               onClick={operations.resume}
               disabled={isOperationLoading}
               className="flex items-center gap-2"

@@ -7,7 +7,7 @@ import {
   XCircle,
   RefreshCw,
   Server,
-  Clock
+  Clock,
 } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -36,22 +36,30 @@ interface SystemHealth {
 
 const getStatusIcon = (status: string) => {
   switch (status) {
-    case 'healthy': return CheckCircle2
-    case 'warning': return AlertTriangle
+    case 'healthy':
+      return CheckCircle2
+    case 'warning':
+      return AlertTriangle
     case 'critical':
-    case 'down': return XCircle
-    default: return Activity
+    case 'down':
+      return XCircle
+    default:
+      return Activity
   }
 }
 
 const getStatusColor = (status: string) => {
   switch (status) {
-    case 'healthy': return 'text-green-600 bg-green-50'
+    case 'healthy':
+      return 'text-green-600 bg-green-50'
     case 'warning':
-    case 'degraded': return 'text-yellow-600 bg-yellow-50'
+    case 'degraded':
+      return 'text-yellow-600 bg-yellow-50'
     case 'critical':
-    case 'down': return 'text-red-600 bg-red-50'
-    default: return 'text-gray-600 bg-gray-50'
+    case 'down':
+      return 'text-red-600 bg-red-50'
+    default:
+      return 'text-gray-600 bg-gray-50'
   }
 }
 
@@ -73,7 +81,7 @@ export function HealthStatusMonitor() {
     data: health,
     isLoading,
     error,
-    refetch
+    refetch,
   } = useQuery<SystemHealth>({
     queryKey: ['system-health'],
     queryFn: async () => {
@@ -93,26 +101,26 @@ export function HealthStatusMonitor() {
               status: 'healthy',
               response_time_ms: 50,
               last_check: new Date().toISOString(),
-              message: 'API responding normally'
+              message: 'API responding normally',
             },
             {
               service: 'Database',
               status: stats.users?.total > 0 ? 'healthy' : 'warning',
               response_time_ms: 25,
               last_check: new Date().toISOString(),
-              message: `${stats.users?.total || 0} users in database`
+              message: `${stats.users?.total || 0} users in database`,
             },
             {
               service: 'Authentication',
               status: (stats.security?.active_sessions ?? 0) > 0 ? 'healthy' : 'warning',
               response_time_ms: 15,
               last_check: new Date().toISOString(),
-              message: `${stats.security?.active_sessions || 0} active sessions`
-            }
+              message: `${stats.security?.active_sessions || 0} active sessions`,
+            },
           ],
           uptime_seconds: stats.system?.uptime || 0,
           server_time: new Date().toISOString(),
-          environment: process.env['NODE_ENV'] || 'development'
+          environment: process.env['NODE_ENV'] || 'development',
         } as SystemHealth
       }
     },
@@ -172,18 +180,18 @@ export function HealthStatusMonitor() {
 
   // Type for health data response
   interface ServiceHealth {
-    service: string;
-    status: string;
-    response_time_ms?: number;
-    message?: string;
-    last_check: string;
+    service: string
+    status: string
+    response_time_ms?: number
+    message?: string
+    last_check: string
   }
   interface HealthData {
-    overall_status?: string;
-    uptime_seconds?: number;
-    services?: ServiceHealth[];
-    timestamp?: string;
-    environment?: string;
+    overall_status?: string
+    uptime_seconds?: number
+    services?: ServiceHealth[]
+    timestamp?: string
+    environment?: string
   }
   const healthData = health as HealthData | undefined
   const StatusIcon = getStatusIcon(healthData?.overall_status || 'unknown')
@@ -197,30 +205,23 @@ export function HealthStatusMonitor() {
             <StatusIcon className={`h-5 w-5 ${statusColor}`} />
             Status do Sistema
           </CardTitle>
-          <Button
-            onClick={handleRefresh}
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-          >
+          <Button onClick={handleRefresh} variant="ghost" size="sm" className="h-8 w-8 p-0">
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
-        <CardDescription>
-          Monitoramento em tempo real dos serviços
-        </CardDescription>
+        <CardDescription>Monitoramento em tempo real dos serviços</CardDescription>
       </CardHeader>
       <CardContent>
         {/* Overall Status */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <span className="font-medium">Status Geral</span>
-            <Badge
-              variant="secondary"
-              className={statusColor}
-            >
-              {healthData?.overall_status === 'healthy' ? 'Operacional' :
-                healthData?.overall_status === 'degraded' ? 'Degradado' : 'Indisponível'}
+            <Badge variant="secondary" className={statusColor}>
+              {healthData?.overall_status === 'healthy'
+                ? 'Operacional'
+                : healthData?.overall_status === 'degraded'
+                  ? 'Degradado'
+                  : 'Indisponível'}
             </Badge>
           </div>
 
@@ -271,9 +272,7 @@ export function HealthStatusMonitor() {
               <Server className="h-3 w-3" />
               Ambiente: {healthData?.environment || 'unknown'}
             </div>
-            <div>
-              Última atualização: {lastUpdated.toLocaleTimeString()}
-            </div>
+            <div>Última atualização: {lastUpdated.toLocaleTimeString()}</div>
           </div>
         </div>
       </CardContent>

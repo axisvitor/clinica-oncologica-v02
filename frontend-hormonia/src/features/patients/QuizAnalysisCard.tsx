@@ -88,8 +88,8 @@ export function QuizAnalysisCard({ analysis, className }: QuizAnalysisCardProps)
                     analysis.risk_level === 'critical' || analysis.risk_level === 'high'
                       ? 'bg-red-600'
                       : analysis.risk_level === 'medium'
-                      ? 'bg-yellow-600'
-                      : 'bg-green-600'
+                        ? 'bg-yellow-600'
+                        : 'bg-green-600'
                   }`}
                   style={{ width: `${analysis.risk_score}%` }}
                 />
@@ -103,9 +103,7 @@ export function QuizAnalysisCard({ analysis, className }: QuizAnalysisCardProps)
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Sentimento</span>
-              <span className={`text-sm font-semibold ${sentiment.color}`}>
-                {sentiment.text}
-              </span>
+              <span className={`text-sm font-semibold ${sentiment.color}`}>{sentiment.text}</span>
             </div>
             <div className="text-xs text-muted-foreground">
               Score: {analysis.sentiment_score.toFixed(2)}
@@ -166,4 +164,3 @@ export function QuizAnalysisCard({ analysis, className }: QuizAnalysisCardProps)
     </Card>
   )
 }
-

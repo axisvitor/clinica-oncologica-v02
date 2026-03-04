@@ -4,8 +4,8 @@
  * Barrel export for all route-related utilities
  */
 
-export { ROUTES, buildPatientDetailRoute, buildPhysicianPatientDetailRoute } from './routeConfig';
-export type { RouteKey } from './routeConfig';
+export { ROUTES, buildPatientDetailRoute, buildPhysicianPatientDetailRoute } from './routeConfig'
+export type { RouteKey } from './routeConfig'
 
 export {
   publicRoutes,
@@ -14,4 +14,4 @@ export {
   physicianRoutes,
   allRoutes,
   PageLoader,
-} from './routeDefinitions';
+} from './routeDefinitions'

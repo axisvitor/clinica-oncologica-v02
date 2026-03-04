@@ -47,7 +47,7 @@ export function PatientForm({
   onDoctorChange = () => {},
   isLoadingDoctors = false,
   currentUserName = '',
-  showDoctorError = false
+  showDoctorError = false,
 }: PatientFormProps) {
   const { handleSubmit } = form
 
@@ -74,12 +74,7 @@ export function PatientForm({
 
       {/* Form Actions */}
       <DialogFooter>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isPending}
-        >
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isPending}>
           Cancelar
         </Button>
         <Button type="submit" disabled={isPending}>
@@ -88,8 +83,10 @@ export function PatientForm({
               <LoadingSpinner size="sm" className="mr-2" />
               {mode === 'create' ? 'Criando...' : 'Atualizando...'}
             </>
+          ) : mode === 'create' ? (
+            'Criar Paciente'
           ) : (
-            mode === 'create' ? 'Criar Paciente' : 'Atualizar Paciente'
+            'Atualizar Paciente'
           )}
         </Button>
       </DialogFooter>

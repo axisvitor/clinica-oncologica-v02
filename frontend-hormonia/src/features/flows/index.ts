@@ -1,9 +1,9 @@
 // Barrel exports for flows feature
-export { FlowsFilters } from './FlowsFilters';
-export { FlowsStats } from './FlowsStats';
-export { FlowsTable } from './FlowsTable';
-export { FlowAnalyticsDashboard } from './FlowAnalyticsDashboard';
+export { FlowsFilters } from './FlowsFilters'
+export { FlowsStats } from './FlowsStats'
+export { FlowsTable } from './FlowsTable'
+export { FlowAnalyticsDashboard } from './FlowAnalyticsDashboard'
 
 // Re-export types from hooks if needed
-export type { FlowData } from '@/hooks/useFlows';
-export type { FlowAnalytics } from '@/lib/api-client/types';
+export type { FlowData } from '@/hooks/useFlows'
+export type { FlowAnalytics } from '@/lib/api-client/types'

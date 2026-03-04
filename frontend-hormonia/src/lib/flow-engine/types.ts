@@ -12,10 +12,10 @@ export type { MessageType, Flow }
 
 /**
  * FlowNode - Represents a single node in a flow execution graph
- * 
+ *
  * Uses discriminated union pattern for type safety. Each node type has specific
  * configuration and behavior. Nodes are connected via the `next` property.
- * 
+ *
  * @example
  * ```typescript
  * const messageNode: MessageFlowNode = {
@@ -29,11 +29,7 @@ export type { MessageType, Flow }
  * }
  * ```
  */
-export type FlowNode =
-  | MessageFlowNode
-  | ConditionFlowNode
-  | ActionFlowNode
-  | DelayFlowNode
+export type FlowNode = MessageFlowNode | ConditionFlowNode | ActionFlowNode | DelayFlowNode
 
 /**
  * BaseFlowNode - Common properties for all flow nodes
@@ -47,7 +43,7 @@ export interface BaseFlowNode {
 
 /**
  * MessageFlowNode - Sends a message to the patient
- * 
+ *
  * @example
  * ```typescript
  * const node: MessageFlowNode = {
@@ -71,7 +67,7 @@ export interface MessageFlowNode extends BaseFlowNode {
 
 /**
  * ConditionFlowNode - Evaluates a condition and branches accordingly
- * 
+ *
  * @example
  * ```typescript
  * const node: ConditionFlowNode = {
@@ -98,7 +94,7 @@ export interface ConditionFlowNode extends BaseFlowNode {
 
 /**
  * ActionFlowNode - Performs an action (e.g., update database, call API)
- * 
+ *
  * @example
  * ```typescript
  * const node: ActionFlowNode = {
@@ -123,7 +119,7 @@ export interface ActionFlowNode extends BaseFlowNode {
 
 /**
  * DelayFlowNode - Pauses flow execution for a specified duration
- * 
+ *
  * @example
  * ```typescript
  * const node: DelayFlowNode = {
@@ -183,11 +179,11 @@ export interface FlowNodeConfig {
 
 /**
  * FlowExecutionContext - Maintains state during flow execution
- * 
+ *
  * Tracks the current state of a flow as it executes, including which node
  * is currently being processed, variables collected during execution, and
  * a history of all executed steps.
- * 
+ *
  * @example
  * ```typescript
  * const context: FlowExecutionContext = {
@@ -222,10 +218,10 @@ export interface FlowExecutionContext {
 
 /**
  * FlowExecutionStep - Records a single step in flow execution history
- * 
+ *
  * Each step represents the execution of one node in the flow, including
  * the result, any output produced, and timing information.
- * 
+ *
  * @example
  * ```typescript
  * const step: FlowExecutionStep = {
