@@ -9,6 +9,7 @@ module.exports = [
     ignores: [
       '.next/**',
       '.firebase/**',
+      'next-env.d.ts',
       'out/**',
       'build/**',
       'coverage/**',
