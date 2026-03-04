@@ -177,7 +177,13 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 3. `tsc --noEmit` exits with code 0 in the quiz interface with zero type errors
 4. `eslint .` exits with zero errors in the quiz interface using ESLint 9 flat config
 5. `npm test` passes in the quiz interface — `identity-obj-proxy` and `msw` v2 are present and CSS module tests no longer fail
-   **Plans**: TBD
+   **Plans**: 3 plans
+
+Plans:
+
+- [ ] 43-01-PLAN.md — Establish quiz tooling baseline with Prettier parity, Next.js 15 upgrade, and ESLint 9 flat config
+- [ ] 43-02-PLAN.md — Add missing Jest CSS mapper dependency and migrate test mocks from MSW v1 to v2
+- [ ] 43-03-PLAN.md — Harden core quiz typing/boundary guards and normalize route layout/spacing shell consistency
 
 ## Progress
 
@@ -192,7 +198,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 | 33-39. WuzAPI Migration              | v1.6      | 21/21          | Complete    | 2026-03-03 |
 | 40. OTel Removal & ADK Foundation    | 3/3       | Complete       | 2026-03-03  | -          |
 | 41. ADK Agent Integration            | 4/4       | Complete       | 2026-03-04  | -          |
-| 42. Admin SPA Quality                | 7/7 | Complete    | 2026-03-04 | -          |
+| 42. Admin SPA Quality                | 7/7       | Complete       | 2026-03-04  | -          |
 | 43. Quiz Interface Quality           | v1.7      | 0/TBD          | Not started | -          |
 
 ---
