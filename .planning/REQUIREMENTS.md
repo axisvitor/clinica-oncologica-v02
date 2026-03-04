@@ -18,9 +18,9 @@
 
 ### Admin SPA
 
-- [ ] **ADMIN-01**: Dead code Evolution API removido do frontend (WhatsAppDashboard.tsx, AdminSettingsTab.tsx, env-validator.ts, runtime-config.ts)
-- [ ] **ADMIN-02**: Modulo hive-mind.ts auditado — endpoints inexistentes removidos ou alinhados com backend
-- [ ] **ADMIN-03**: API client consolidado — chamadas duplicadas eliminadas, tipos alinhados com contratos backend v2
+- [x] **ADMIN-01**: Dead code Evolution API removido do frontend (WhatsAppDashboard.tsx, AdminSettingsTab.tsx, env-validator.ts, runtime-config.ts)
+- [x] **ADMIN-02**: Modulo hive-mind.ts auditado — endpoints inexistentes removidos ou alinhados com backend
+- [x] **ADMIN-03**: API client consolidado — chamadas duplicadas eliminadas, tipos alinhados com contratos backend v2
 - [ ] **ADMIN-04**: Componentes de polling (AgentSwarm.tsx, SystemHealth.tsx) migrados para TanStack Query
 - [x] **ADMIN-05**: Prettier configurado e aplicado em todo o admin SPA
 - [x] **ADMIN-06**: Warnings de ESLint zerados no admin SPA
@@ -72,9 +72,9 @@
 | ADK-06 | Phase 41 | Complete |
 | ADK-07 | Phase 41 | Complete |
 | ADK-08 | Phase 41 | Complete |
-| ADMIN-01 | Phase 42 | Pending |
-| ADMIN-02 | Phase 42 | Pending |
-| ADMIN-03 | Phase 42 | Pending |
+| ADMIN-01 | Phase 42 | Complete |
+| ADMIN-02 | Phase 42 | Complete |
+| ADMIN-03 | Phase 42 | Complete |
 | ADMIN-04 | Phase 42 | Pending |
 | ADMIN-05 | Phase 42 | Complete |
 | ADMIN-06 | Phase 42 | Complete |

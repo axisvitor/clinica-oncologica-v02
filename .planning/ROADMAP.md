@@ -178,7 +178,7 @@ Plans:
 | 33-39. WuzAPI Migration | v1.6 | 21/21 | Complete | 2026-03-03 |
 | 40. OTel Removal & ADK Foundation | 3/3 | Complete    | 2026-03-03 | - |
 | 41. ADK Agent Integration | 4/4 | Complete   | 2026-03-04 | - |
-| 42. Admin SPA Quality | 1/4 | In Progress|  | - |
+| 42. Admin SPA Quality | 2/4 | In Progress|  | - |
 | 43. Quiz Interface Quality | v1.7 | 0/TBD | Not started | - |
 
 ---
