@@ -22,8 +22,8 @@
 - [ ] **ADMIN-02**: Modulo hive-mind.ts auditado — endpoints inexistentes removidos ou alinhados com backend
 - [ ] **ADMIN-03**: API client consolidado — chamadas duplicadas eliminadas, tipos alinhados com contratos backend v2
 - [ ] **ADMIN-04**: Componentes de polling (AgentSwarm.tsx, SystemHealth.tsx) migrados para TanStack Query
-- [ ] **ADMIN-05**: Prettier configurado e aplicado em todo o admin SPA
-- [ ] **ADMIN-06**: Warnings de ESLint zerados no admin SPA
+- [x] **ADMIN-05**: Prettier configurado e aplicado em todo o admin SPA
+- [x] **ADMIN-06**: Warnings de ESLint zerados no admin SPA
 - [ ] **ADMIN-07**: Pacotes npm nao utilizados removidos (audit via knip ou similar)
 - [ ] **ADMIN-08**: Layout e espacamento consistentes entre paginas do admin
 
@@ -76,8 +76,8 @@
 | ADMIN-02 | Phase 42 | Pending |
 | ADMIN-03 | Phase 42 | Pending |
 | ADMIN-04 | Phase 42 | Pending |
-| ADMIN-05 | Phase 42 | Pending |
-| ADMIN-06 | Phase 42 | Pending |
+| ADMIN-05 | Phase 42 | Complete |
+| ADMIN-06 | Phase 42 | Complete |
 | ADMIN-07 | Phase 42 | Pending |
 | ADMIN-08 | Phase 42 | Pending |
 | QUIZ-01 | Phase 43 | Pending |
