@@ -21,40 +21,37 @@
  * - Cookies managed by browser (HttpOnly, Secure, SameSite)
  */
 
-import type {
-  QuizSession,
-  QuizSubmitResponse
-} from "@/types/quiz";
+import type { QuizSession, QuizSubmitResponse } from '@/types/quiz'
 
 // Configuration: Environment-driven with fallback
 const API_BASE_URL = (
   process.env.NEXT_PUBLIC_QUIZ_PUBLIC_API_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:8000/api/v2"
-).replace(/\/$/, "");
+  'http://localhost:8000/api/v2'
+).replace(/\/$/, '')
 
 // Timeout configuration
-const DEFAULT_TIMEOUT = 15000; // 15 seconds
-const MAX_RETRIES = 2;
+const DEFAULT_TIMEOUT = 15000 // 15 seconds
+const MAX_RETRIES = 2
 
 /**
  * Custom error class for API operations
  */
 export class ApiError extends Error {
-  status?: number;
-  code?: string;
-  retryable: boolean;
+  status?: number
+  code?: string
+  retryable: boolean
 
   constructor(message: string, status?: number, retryable: boolean = false) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-    this.retryable = retryable;
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.retryable = retryable
   }
 }
 
 interface RequestOptions extends RequestInit {
-  retries?: number;
+  retries?: number
 }
 
 /**
@@ -68,11 +65,11 @@ interface RequestOptions extends RequestInit {
  */
 class QuizApiClient {
   // CSRF token kept in memory only (XSS immune, cleared on tab close)
-  private csrfToken: string | null = null;
+  private csrfToken: string | null = null
 
   // Promise Singleton: Prevents multiple simultaneous CSRF handshakes
   // If 10 requests call ensureCsrfToken at the same time, only ONE network call is made
-  private handshakePromise: Promise<void> | null = null;
+  private handshakePromise: Promise<void> | null = null
 
   /**
    * Ensure CSRF token is available (Promise Singleton pattern)
@@ -84,41 +81,41 @@ class QuizApiClient {
    */
   private async ensureCsrfToken(force = false): Promise<void> {
     // Fast path: Token already exists
-    if (this.csrfToken && !force) return;
+    if (this.csrfToken && !force) return
 
     // Singleton: If handshake is in progress, wait for it
     if (this.handshakePromise && !force) {
-      return this.handshakePromise;
+      return this.handshakePromise
     }
 
     // Start new handshake
     this.handshakePromise = (async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/auth/csrf-token`, {
-          method: "GET",
-          credentials: "include",
-        });
+          method: 'GET',
+          credentials: 'include',
+        })
 
         if (!response.ok) {
-          throw new Error("Falha na conexão segura.");
+          throw new Error('Falha na conexão segura.')
         }
 
-        const data = await response.json();
-        this.csrfToken = data.csrf_token;
+        const data = await response.json()
+        this.csrfToken = data.csrf_token
 
-        if (process.env.NODE_ENV === "development") {
-          console.log("[Security] CSRF handshake completed");
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Security] CSRF handshake completed')
         }
       } catch (e) {
-        console.error("[API] Erro Handshake:", e);
-        this.csrfToken = null;
+        console.error('[API] Erro Handshake:', e)
+        this.csrfToken = null
       } finally {
         // Clear promise after completion (allows future handshakes)
-        this.handshakePromise = null;
+        this.handshakePromise = null
       }
-    })();
+    })()
 
-    return this.handshakePromise;
+    return this.handshakePromise
   }
 
   /**
@@ -130,114 +127,102 @@ class QuizApiClient {
    * - Exponential backoff for server errors (5xx)
    * - Network error retry with increasing delays
    */
-  private async request<T>(
-    endpoint: string,
-    options: RequestOptions = {}
-  ): Promise<T> {
-    const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
-    const { retries = MAX_RETRIES, ...fetchOptions } = options;
-    const method = options.method?.toUpperCase() || "GET";
-    const isWriteMethod = ["POST", "PUT", "DELETE", "PATCH"].includes(method);
+  private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+    const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+    const { retries = MAX_RETRIES, ...fetchOptions } = options
+    const method = options.method?.toUpperCase() || 'GET'
+    const isWriteMethod = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)
 
     // Ensure CSRF token before state-changing requests
     if (isWriteMethod) {
-      await this.ensureCsrfToken();
+      await this.ensureCsrfToken()
     }
 
     // Build headers
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "Accept": "application/json",
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
       ...(options.headers as Record<string, string>),
-    };
+    }
 
     // Inject CSRF token for state-changing methods
     if (this.csrfToken && isWriteMethod) {
-      headers["X-CSRF-Token"] = this.csrfToken;
+      headers['X-CSRF-Token'] = this.csrfToken
     }
 
     // Setup timeout with AbortController
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT)
 
     try {
       const response = await fetch(url, {
         ...fetchOptions,
         headers,
         signal: controller.signal,
-        credentials: "include", // CRITICAL: Enables HttpOnly cookie handling
-      });
+        credentials: 'include', // CRITICAL: Enables HttpOnly cookie handling
+      })
 
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId)
 
       // Capture CSRF token rotation (if backend sends new token in header)
-      const newCsrf = response.headers.get("X-CSRF-Token");
+      const newCsrf = response.headers.get('X-CSRF-Token')
       if (newCsrf) {
-        this.csrfToken = newCsrf;
+        this.csrfToken = newCsrf
       }
 
       // Handle errors
       if (!response.ok) {
         // AUTO-HEALING: If 403 (CSRF expired), refresh token and retry once
         if (response.status === 403 && retries > 0) {
-          console.warn("🔄 Token expirado. Renovando...");
-          this.csrfToken = null; // Clear expired token
-          await this.ensureCsrfToken(true); // Force refresh
-          return this.request<T>(endpoint, { ...options, retries: retries - 1 });
+          console.warn('🔄 Token expirado. Renovando...')
+          this.csrfToken = null // Clear expired token
+          await this.ensureCsrfToken(true) // Force refresh
+          return this.request<T>(endpoint, { ...options, retries: retries - 1 })
         }
 
         // Server errors (5xx): Exponential backoff retry
         if (response.status >= 500 && retries > 0) {
-          const delay = 1000 * (MAX_RETRIES - retries + 1); // 1s, 2s, 3s...
-          await new Promise(r => setTimeout(r, delay));
-          return this.request<T>(endpoint, { ...options, retries: retries - 1 });
+          const delay = 1000 * (MAX_RETRIES - retries + 1) // 1s, 2s, 3s...
+          await new Promise((r) => setTimeout(r, delay))
+          return this.request<T>(endpoint, { ...options, retries: retries - 1 })
         }
 
-        const errorData = await response.json().catch(() => ({}));
-        const retryable = response.status >= 500 || response.status === 408;
+        const errorData = await response.json().catch(() => ({}))
+        const retryable = response.status >= 500 || response.status === 408
 
         throw new ApiError(
           errorData.detail || errorData.message || `HTTP Error ${response.status}`,
           response.status,
-          retryable
-        );
+          retryable,
+        )
       }
 
       // Handle 204 No Content
       if (response.status === 204) {
-        return {} as T;
+        return {} as T
       }
 
-      return await response.json() as T;
-
+      return (await response.json()) as T
     } catch (error: unknown) {
-      clearTimeout(timeoutId);
+      clearTimeout(timeoutId)
 
       if (error instanceof ApiError) {
-        throw error;
+        throw error
       }
 
       // Timeout error
-      if (error instanceof Error && error.name === "AbortError") {
-        throw new ApiError(
-          "Tempo limite excedido. Verifique sua conexão.",
-          408,
-          true
-        );
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new ApiError('Tempo limite excedido. Verifique sua conexão.', 408, true)
       }
 
       // Network errors: Retry with backoff (except timeout)
-      if (retries > 0 && !(error instanceof Error && error.name === "AbortError")) {
-        const delay = 500 * (MAX_RETRIES - retries + 1); // 500ms, 1s, 1.5s...
-        await new Promise(r => setTimeout(r, delay));
-        return this.request<T>(endpoint, { ...options, retries: retries - 1 });
+      if (retries > 0 && !(error instanceof Error && error.name === 'AbortError')) {
+        const delay = 500 * (MAX_RETRIES - retries + 1) // 500ms, 1s, 1.5s...
+        await new Promise((r) => setTimeout(r, delay))
+        return this.request<T>(endpoint, { ...options, retries: retries - 1 })
       }
 
-      throw new ApiError(
-        error instanceof Error ? error.message : "Erro de rede",
-        undefined,
-        true
-      );
+      throw new ApiError(error instanceof Error ? error.message : 'Erro de rede', undefined, true)
     }
   }
 
@@ -245,7 +230,7 @@ class QuizApiClient {
    * Clear security state (logout)
    */
   clearSecurityState(): void {
-    this.csrfToken = null;
+    this.csrfToken = null
   }
 
   // ============================================================
@@ -255,26 +240,26 @@ class QuizApiClient {
   /**
    * Access quiz using URL token
    * Exchanges URL token for secure session (HttpOnly cookie)
-   * 
+   *
    * OPTIMIZATION: Pre-starts CSRF handshake before preparing request body
    * This reduces latency by running CSRF fetch and body prep in parallel.
    */
   async accessQuiz(tokenLink: string): Promise<QuizSession> {
     // Start CSRF handshake early (non-blocking)
     // This runs in parallel while we prepare the request
-    const csrfPromise = this.ensureCsrfToken();
+    const csrfPromise = this.ensureCsrfToken()
 
     // Prepare request body (can happen while CSRF is fetching)
-    const body = JSON.stringify({ token: tokenLink });
+    const body = JSON.stringify({ token: tokenLink })
 
     // Wait for CSRF to complete before making the POST
-    await csrfPromise;
+    await csrfPromise
 
     // Note: API_BASE_URL already includes /quiz-extensions prefix
-    return this.request<QuizSession>("/access", {
-      method: "POST",
+    return this.request<QuizSession>('/access', {
+      method: 'POST',
       body,
-    });
+    })
   }
 
   /**
@@ -284,14 +269,14 @@ class QuizApiClient {
   async recoverSession(): Promise<QuizSession | null> {
     try {
       // Note: API_BASE_URL already includes /quiz-extensions prefix
-      return await this.request<QuizSession>("/session/active", {
-        method: "GET",
-      });
+      return await this.request<QuizSession>('/session/active', {
+        method: 'GET',
+      })
     } catch (error) {
       if (error instanceof ApiError && (error.status === 401 || error.status === 404)) {
-        return null; // No active session
+        return null // No active session
       }
-      throw error;
+      throw error
     }
   }
 
@@ -301,17 +286,17 @@ class QuizApiClient {
   async submitAnswer(
     questionId: string,
     responseValue: string | string[],
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<QuizSubmitResponse> {
     // Note: API_BASE_URL already includes /quiz-extensions prefix
-    return this.request<QuizSubmitResponse>("/submit", {
-      method: "POST",
+    return this.request<QuizSubmitResponse>('/submit', {
+      method: 'POST',
       body: JSON.stringify({
         question_id: questionId,
         response_value: responseValue,
         response_metadata: metadata,
       }),
-    });
+    })
   }
 
   /**
@@ -320,11 +305,11 @@ class QuizApiClient {
   async logout(): Promise<void> {
     try {
       // Note: API_BASE_URL already includes /quiz-extensions prefix
-      await this.request<void>("/logout", {
-        method: "POST",
-      });
+      await this.request<void>('/logout', {
+        method: 'POST',
+      })
     } finally {
-      this.clearSecurityState();
+      this.clearSecurityState()
     }
   }
 
@@ -333,10 +318,10 @@ class QuizApiClient {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      await this.request<{ status: string }>("/health");
-      return true;
+      await this.request<{ status: string }>('/health')
+      return true
     } catch {
-      return false;
+      return false
     }
   }
 
@@ -344,12 +329,12 @@ class QuizApiClient {
    * Get current API base URL (for debugging)
    */
   getBaseURL(): string {
-    return API_BASE_URL;
+    return API_BASE_URL
   }
 }
 
 // Singleton: Single instance for the entire application
-export const api = new QuizApiClient();
+export const api = new QuizApiClient()
 
 // Re-export types for convenience
-export type { QuizSession, QuizSubmitResponse };
+export type { QuizSession, QuizSubmitResponse }

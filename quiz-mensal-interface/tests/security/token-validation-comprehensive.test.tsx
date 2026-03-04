@@ -23,7 +23,8 @@ function isTokenExpired(expiresAt: string): boolean {
 }
 
 // Test data
-const validToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoidGVzdCIsImV4cCI6OTk5OTk5OTk5OX0.test'
+const validToken =
+  'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoidGVzdCIsImV4cCI6OTk5OTk5OTk5OX0.test'
 const malformedToken = 'invalid-token-without-dots'
 
 const mockQuizSession: QuizSession = {
@@ -41,22 +42,22 @@ const mockQuizSession: QuizSession = {
       type: 'scale',
       min_value: 0,
       max_value: 10,
-      required: true
+      required: true,
     },
     {
       id: 'q2',
       text: 'Are you taking medications?',
       type: 'yes_no',
-      required: true
+      required: true,
     },
     {
       id: 'q3',
       text: 'Additional comments',
       type: 'text',
-      required: false
-    }
+      required: false,
+    },
   ],
-  expires_at: new Date(Date.now() + 3600000).toISOString() // 1 hour from now
+  expires_at: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
 }
 
 describe('Token Extraction and Validation', () => {
@@ -130,10 +131,10 @@ describe('Token Extraction and Validation', () => {
         'token/../../../etc/passwd',
         'token?injection=true',
         'token#fragment',
-        'token\x00null'
+        'token\x00null',
       ]
 
-      suspiciousTokens.forEach(token => {
+      suspiciousTokens.forEach((token) => {
         // Contains characters outside safe token range
         expect(token).toMatch(/[^A-Za-z0-9\-_.]/)
       })
@@ -156,7 +157,7 @@ describe('Session Expiration', () => {
   it('should correctly identify expired session', () => {
     const expiredSession = {
       ...mockQuizSession,
-      expires_at: new Date(Date.now() - 3600000).toISOString()
+      expires_at: new Date(Date.now() - 3600000).toISOString(),
     }
 
     expect(isTokenExpired(expiredSession.expires_at)).toBe(true)
@@ -165,7 +166,7 @@ describe('Session Expiration', () => {
   it('should handle session expiring soon', () => {
     const nearExpirationSession = {
       ...mockQuizSession,
-      expires_at: new Date(Date.now() + 60000).toISOString() // 1 minute
+      expires_at: new Date(Date.now() + 60000).toISOString(), // 1 minute
     }
 
     expect(isTokenExpired(nearExpirationSession.expires_at)).toBe(false)
@@ -180,7 +181,7 @@ describe('Cookie Security Validation', () => {
       httpOnly: true,
       secure: true,
       sameSite: 'Strict' as const,
-      path: '/'
+      path: '/',
     }
 
     // Verify security attributes are properly configured
@@ -191,15 +192,10 @@ describe('Cookie Security Validation', () => {
   })
 
   it('should validate cookie attribute requirements', () => {
-    const expectedAttributes = [
-      'HttpOnly',
-      'Secure',
-      'SameSite=Strict',
-      'Path=/',
-    ]
+    const expectedAttributes = ['HttpOnly', 'Secure', 'SameSite=Strict', 'Path=/']
 
     // Verify expected attributes format
-    expectedAttributes.forEach(attr => {
+    expectedAttributes.forEach((attr) => {
       expect(attr).toMatch(/HttpOnly|Secure|SameSite|Path/)
     })
   })
@@ -238,16 +234,18 @@ describe('QuizSession Type Validation', () => {
   })
 
   it('should have valid question structure', () => {
-    mockQuizSession.questions.forEach(question => {
+    mockQuizSession.questions.forEach((question) => {
       expect(question).toHaveProperty('id')
       expect(question).toHaveProperty('text')
       expect(question).toHaveProperty('type')
-      expect(['scale', 'yes_no', 'text', 'single_choice', 'multiple_choice']).toContain(question.type)
+      expect(['scale', 'yes_no', 'text', 'single_choice', 'multiple_choice']).toContain(
+        question.type,
+      )
     })
   })
 
   it('should have valid scale question properties', () => {
-    const scaleQuestion = mockQuizSession.questions.find(q => q.type === 'scale')
+    const scaleQuestion = mockQuizSession.questions.find((q) => q.type === 'scale')
 
     expect(scaleQuestion).toBeDefined()
     expect(scaleQuestion?.min_value).toBeDefined()
@@ -276,7 +274,7 @@ describe('Error Handling', () => {
   it('should not leak sensitive information in error messages', () => {
     const serverError = {
       message: 'Internal server error',
-      debug_info: 'Database connection failed: password123@localhost:5432'
+      debug_info: 'Database connection failed: password123@localhost:5432',
     }
 
     // User-facing error should not contain debug info

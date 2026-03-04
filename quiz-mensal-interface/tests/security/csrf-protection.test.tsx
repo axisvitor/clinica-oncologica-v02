@@ -29,26 +29,39 @@ jest.mock('@/lib/api-client', () => ({
     getBaseURL: () => mockGetBaseURL(),
   },
   ApiError: class ApiError extends Error {
-    status?: number;
-    retryable: boolean;
+    status?: number
+    retryable: boolean
     constructor(message: string, status?: number, retryable: boolean = false) {
-      super(message);
-      this.name = 'ApiError';
-      this.status = status;
-      this.retryable = retryable;
+      super(message)
+      this.name = 'ApiError'
+      this.status = status
+      this.retryable = retryable
     }
-  }
+  },
 }))
 
 // Alias for backwards compatibility in tests
 const QuizAPI = class {
-  async accessQuiz(token: string) { return mockAccessQuiz(token); }
-  async submitAnswer(token: string, questionId: string, value: string | string[], metadata?: Record<string, unknown>) {
-    return mockSubmitAnswer(questionId, value, metadata);
+  async accessQuiz(token: string) {
+    return mockAccessQuiz(token)
   }
-  async completeQuiz(token: string) { return mockLogout(); }
-  async healthCheck() { return mockHealthCheck(); }
-  getBaseURL() { return mockGetBaseURL(); }
+  async submitAnswer(
+    token: string,
+    questionId: string,
+    value: string | string[],
+    metadata?: Record<string, unknown>,
+  ) {
+    return mockSubmitAnswer(questionId, value, metadata)
+  }
+  async completeQuiz(token: string) {
+    return mockLogout()
+  }
+  async healthCheck() {
+    return mockHealthCheck()
+  }
+  getBaseURL() {
+    return mockGetBaseURL()
+  }
 }
 
 // Mock fetch for testing API calls
@@ -63,8 +76,8 @@ jest.mock('next/navigation', () => ({
     back: jest.fn(),
   }),
   useSearchParams: () => ({
-    get: jest.fn((key) => key === 'token' ? 'valid-token-123' : null)
-  })
+    get: jest.fn((key) => (key === 'token' ? 'valid-token-123' : null)),
+  }),
 }))
 
 // Test data
@@ -88,23 +101,23 @@ const mockQuizSession: QuizSession = {
       type: 'scale',
       min_value: 0,
       max_value: 10,
-      required: true
+      required: true,
     },
     {
       id: 'q2',
       text: 'Are you taking medications?',
       type: 'yes_no',
-      required: true
+      required: true,
     },
     {
       id: 'q3',
       text: 'Additional comments',
       type: 'text',
-      required: false
-    }
+      required: false,
+    },
   ],
   created_at: new Date().toISOString(),
-  expires_at: new Date(Date.now() + 3600000).toISOString()
+  expires_at: new Date(Date.now() + 3600000).toISOString(),
 }
 
 describe('CSRF Protection Implementation', () => {
@@ -128,14 +141,14 @@ describe('CSRF Protection Implementation', () => {
         origin: legitimateOrigin,
         href: `${legitimateOrigin}/quiz?token=${validToken}`,
         pathname: '/quiz',
-        search: `?token=${validToken}`
+        search: `?token=${validToken}`,
       },
-      writable: true
+      writable: true,
     })
 
     Object.defineProperty(document, 'referrer', {
       value: legitimateOrigin,
-      writable: true
+      writable: true,
     })
   })
 
@@ -168,8 +181,7 @@ describe('CSRF Protection Implementation', () => {
       const api = new QuizAPI()
 
       // Should fail due to expired CSRF token
-      await expect(api.submitAnswer(validToken, 'q1', '5'))
-        .rejects.toThrow('CSRF token expired')
+      await expect(api.submitAnswer(validToken, 'q1', '5')).rejects.toThrow('CSRF token expired')
     })
 
     it('should reject requests without valid CSRF token', async () => {
@@ -178,30 +190,27 @@ describe('CSRF Protection Implementation', () => {
 
       const api = new QuizAPI()
 
-      await expect(api.submitAnswer(validToken, 'q1', '5'))
-        .rejects.toThrow('CSRF token missing or invalid')
+      await expect(api.submitAnswer(validToken, 'q1', '5')).rejects.toThrow(
+        'CSRF token missing or invalid',
+      )
     })
 
     it('should validate CSRF token format', () => {
-      const validTokenFormats = [
-        'csrf-abc123def456',
-        'csrf_token_with_underscores',
-        'CsRfToKeN123'
-      ]
+      const validTokenFormats = ['csrf-abc123def456', 'csrf_token_with_underscores', 'CsRfToKeN123']
 
       const invalidTokenFormats = [
         '<script>alert("xss")</script>',
         'token with spaces',
         'token\nwith\nnewlines',
         '../../../etc/passwd',
-        ''
+        '',
       ]
 
-      validTokenFormats.forEach(token => {
+      validTokenFormats.forEach((token) => {
         expect(token).toMatch(/^[A-Za-z0-9_-]+$/)
       })
 
-      invalidTokenFormats.forEach(token => {
+      invalidTokenFormats.forEach((token) => {
         expect(token).not.toMatch(/^[A-Za-z0-9_-]+$/)
       })
     })
@@ -212,7 +221,7 @@ describe('CSRF Protection Implementation', () => {
       // Set malicious origin
       Object.defineProperty(window, 'location', {
         value: { ...window.location, origin: maliciousOrigin },
-        writable: true
+        writable: true,
       })
 
       // Configure mock to reject with origin error
@@ -220,15 +229,14 @@ describe('CSRF Protection Implementation', () => {
 
       const api = new QuizAPI()
 
-      await expect(api.submitAnswer(validToken, 'q1', '5'))
-        .rejects.toThrow('Invalid origin')
+      await expect(api.submitAnswer(validToken, 'q1', '5')).rejects.toThrow('Invalid origin')
     })
 
     it('should validate referrer header', async () => {
       // Set malicious referrer
       Object.defineProperty(document, 'referrer', {
         value: maliciousOrigin,
-        writable: true
+        writable: true,
       })
 
       // Configure mock to reject with referrer error
@@ -236,14 +244,13 @@ describe('CSRF Protection Implementation', () => {
 
       const api = new QuizAPI()
 
-      await expect(api.submitAnswer(validToken, 'q1', '5'))
-        .rejects.toThrow('Invalid referrer')
+      await expect(api.submitAnswer(validToken, 'q1', '5')).rejects.toThrow('Invalid referrer')
     })
 
     it('should allow requests from legitimate origins', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ success: true, message: 'Answer submitted' })
+        json: async () => ({ success: true, message: 'Answer submitted' }),
       })
 
       const api = new QuizAPI()
@@ -257,12 +264,12 @@ describe('CSRF Protection Implementation', () => {
       // Some browsers or privacy tools may strip referrer
       Object.defineProperty(document, 'referrer', {
         value: '',
-        writable: true
+        writable: true,
       })
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ success: true, message: 'Answer submitted' })
+        json: async () => ({ success: true, message: 'Answer submitted' }),
       })
 
       const api = new QuizAPI()
@@ -277,7 +284,7 @@ describe('CSRF Protection Implementation', () => {
         'https://evil.legitimate-site.com',
         'https://legitimate-site.com.evil.com',
         'https://xlegitimate-site.com',
-        'https://legitimate-sitex.com'
+        'https://legitimate-sitex.com',
       ]
 
       const api = new QuizAPI()
@@ -285,14 +292,13 @@ describe('CSRF Protection Implementation', () => {
       for (const origin of suspiciousOrigins) {
         Object.defineProperty(window, 'location', {
           value: { ...window.location, origin },
-          writable: true
+          writable: true,
         })
 
         // Configure mock to reject with origin error for each iteration
         mockSubmitAnswer.mockRejectedValueOnce(new Error('Invalid origin'))
 
-        await expect(api.submitAnswer(validToken, 'q1', '5'))
-          .rejects.toThrow('Invalid origin')
+        await expect(api.submitAnswer(validToken, 'q1', '5')).rejects.toThrow('Invalid origin')
       }
     })
   })
@@ -327,7 +333,7 @@ describe('CSRF Protection Implementation', () => {
       const tamperingAttempts = [
         { field: 'token', value: 'tampered-token' },
         { field: 'question_id', value: '../../../admin' },
-        { field: 'response_value', value: '<script>alert("xss")</script>' }
+        { field: 'response_value', value: '<script>alert("xss")</script>' },
       ]
 
       // Configure mock to reject tampering attempts
@@ -336,11 +342,13 @@ describe('CSRF Protection Implementation', () => {
       const api = new QuizAPI()
 
       for (const attempt of tamperingAttempts) {
-        await expect(api.submitAnswer(
-          attempt.field === 'token' ? attempt.value : validToken,
-          attempt.field === 'question_id' ? attempt.value : 'q1',
-          attempt.field === 'response_value' ? attempt.value : '5'
-        )).rejects.toThrow('Invalid request data')
+        await expect(
+          api.submitAnswer(
+            attempt.field === 'token' ? attempt.value : validToken,
+            attempt.field === 'question_id' ? attempt.value : 'q1',
+            attempt.field === 'response_value' ? attempt.value : '5',
+          ),
+        ).rejects.toThrow('Invalid request data')
       }
     })
 
@@ -353,9 +361,13 @@ describe('CSRF Protection Implementation', () => {
       await api.submitAnswer(validToken, 'q1', '5', metadata)
 
       // Verify the API was called with timestamp metadata
-      expect(mockSubmitAnswer).toHaveBeenCalledWith('q1', '5', expect.objectContaining({
-        timestamp: expect.any(Number)
-      }))
+      expect(mockSubmitAnswer).toHaveBeenCalledWith(
+        'q1',
+        '5',
+        expect.objectContaining({
+          timestamp: expect.any(Number),
+        }),
+      )
 
       // Verify timestamp is recent
       const calledMetadata = mockSubmitAnswer.mock.calls[0][2] as { timestamp: number }
@@ -369,12 +381,12 @@ describe('CSRF Protection Implementation', () => {
       // Simulate SameSite=Strict behavior (same-site request)
       Object.defineProperty(document, 'referrer', {
         value: legitimateOrigin + '/login',
-        writable: true
+        writable: true,
       })
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ success: true, message: 'Answer submitted' })
+        json: async () => ({ success: true, message: 'Answer submitted' }),
       })
 
       const api = new QuizAPI()
@@ -387,7 +399,7 @@ describe('CSRF Protection Implementation', () => {
       // Simulate cross-site request
       Object.defineProperty(document, 'referrer', {
         value: maliciousOrigin,
-        writable: true
+        writable: true,
       })
 
       // Configure mock to reject cross-site requests
@@ -395,20 +407,21 @@ describe('CSRF Protection Implementation', () => {
 
       const api = new QuizAPI()
 
-      await expect(api.submitAnswer(validToken, 'q1', '5'))
-        .rejects.toThrow('Cross-site request rejected')
+      await expect(api.submitAnswer(validToken, 'q1', '5')).rejects.toThrow(
+        'Cross-site request rejected',
+      )
     })
 
     it('should handle SameSite=Lax for top-level navigation', async () => {
       // Simulate top-level navigation (should work with SameSite=Lax)
       Object.defineProperty(window, 'opener', {
         value: null,
-        writable: true
+        writable: true,
       })
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ success: true, message: 'Answer submitted' })
+        json: async () => ({ success: true, message: 'Answer submitted' }),
       })
 
       const api = new QuizAPI()
@@ -423,8 +436,8 @@ describe('CSRF Protection Implementation', () => {
       // Simulate attempt to exploit JSON endpoint via form
       // The server should reject requests with wrong content-type
       const maliciousPayload = {
-        contentType: 'multipart/form-data',  // Wrong content type
-        body: '{"token":"' + validToken + '","question_id":"q1","response_value":"hacked"}'
+        contentType: 'multipart/form-data', // Wrong content type
+        body: '{"token":"' + validToken + '","question_id":"q1","response_value":"hacked"}',
       }
 
       // Server rejects form data submissions to JSON endpoints
@@ -432,8 +445,7 @@ describe('CSRF Protection Implementation', () => {
 
       const api = new QuizAPI()
 
-      await expect(api.submitAnswer(validToken, 'q1', '5'))
-        .rejects.toThrow('Invalid content type')
+      await expect(api.submitAnswer(validToken, 'q1', '5')).rejects.toThrow('Invalid content type')
 
       // Verify the attack pattern is invalid
       expect(maliciousPayload.contentType).not.toBe('application/json')
@@ -446,7 +458,9 @@ describe('CSRF Protection Implementation', () => {
       const api = new QuizAPI()
 
       // Simulate request that might come from Flash
-      await expect(api.submitAnswer(validToken, 'q1', '5')).rejects.toThrow('Suspicious request headers')
+      await expect(api.submitAnswer(validToken, 'q1', '5')).rejects.toThrow(
+        'Suspicious request headers',
+      )
     })
 
     it('should prevent timing-based CSRF attacks', async () => {
@@ -479,7 +493,7 @@ describe('CSRF Protection Implementation', () => {
         // File protocol
         { origin: 'file://' },
         // Data URI
-        { origin: 'data:text/html,<html>' }
+        { origin: 'data:text/html,<html>' },
       ]
 
       const api = new QuizAPI()
@@ -487,14 +501,13 @@ describe('CSRF Protection Implementation', () => {
       for (const attempt of bypassAttempts) {
         Object.defineProperty(window, 'location', {
           value: { ...window.location, origin: attempt.origin },
-          writable: true
+          writable: true,
         })
 
         // Configure mock to reject bypass attempts
         mockSubmitAnswer.mockRejectedValueOnce(new Error('Invalid origin'))
 
-        await expect(api.submitAnswer(validToken, 'q1', '5'))
-          .rejects.toThrow('Invalid origin')
+        await expect(api.submitAnswer(validToken, 'q1', '5')).rejects.toThrow('Invalid origin')
       }
     })
 
@@ -503,7 +516,8 @@ describe('CSRF Protection Implementation', () => {
       // Sensitive endpoints should reject GET requests and require POST with CSRF token
       const imgAttempt = {
         method: 'GET',
-        url: '/api/v2/quiz-extensions/submit?token=' + validToken + '&question_id=q1&response_value=5'
+        url:
+          '/api/v2/quiz-extensions/submit?token=' + validToken + '&question_id=q1&response_value=5',
       }
 
       // GET requests to submit endpoint should be rejected by server
@@ -516,7 +530,7 @@ describe('CSRF Protection Implementation', () => {
       // WebSocket connections should have proper origin validation
       const wsAttempt = {
         origin: maliciousOrigin,
-        upgrade: 'websocket'
+        upgrade: 'websocket',
       }
 
       // This would be validated at the WebSocket handshake level
@@ -544,7 +558,7 @@ describe('CSRF Protection Implementation', () => {
       // The client stores the new token when returned in response headers
       const tokenRotation = {
         initialToken: 'initial-csrf-token',
-        newToken: 'new-csrf-token'
+        newToken: 'new-csrf-token',
       }
 
       const api = new QuizAPI()

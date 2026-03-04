@@ -1,11 +1,10 @@
-
 export interface OtherAnswer {
   value: string
   customText: string
 }
 
 export type SingleAnswer = string | OtherAnswer
-export type MultipleAnswer = string[] | { options: string[], otherText?: string }
+export type MultipleAnswer = string[] | { options: string[]; otherText?: string }
 
 export interface QuizUIState {
   isLoading: boolean
@@ -49,7 +48,13 @@ export interface QuizError {
   status?: number
 }
 
-export type QuestionType = 'single_choice' | 'multiple_choice' | 'scale' | 'text' | 'free_text' | 'yes_no'
+export type QuestionType =
+  | 'single_choice'
+  | 'multiple_choice'
+  | 'scale'
+  | 'text'
+  | 'free_text'
+  | 'yes_no'
 
 export interface QuizQuestion {
   id: string

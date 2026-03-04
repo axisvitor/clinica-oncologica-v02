@@ -16,7 +16,7 @@ export class QuizQuestionBuilder {
     text: 'Default Question',
     type: 'text',
     required: true,
-    allow_other: false
+    allow_other: false,
   }
 
   withId(id: string): this {
@@ -75,9 +75,7 @@ export class QuizSessionBuilder {
     status: 'in_progress',
     current_question_index: 0,
     expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    questions: [
-      new QuizQuestionBuilder().withId('q1').withText('Test Question').build()
-    ]
+    questions: [new QuizQuestionBuilder().withId('q1').withText('Test Question').build()],
   }
 
   withId(id: string): this {
@@ -137,71 +135,74 @@ export class QuizSessionBuilder {
  */
 export const fixtures = {
   // Single choice question with "Outra" option
-  singleChoiceWithOther: () => new QuizQuestionBuilder()
-    .withId('q-single-other')
-    .withType('single_choice')
-    .withText('Qual é o principal sintoma?')
-    .withOptions([
-      { id: 'opt1', value: 'headache', text: 'Dor de cabeça' },
-      { id: 'opt2', value: 'nausea', text: 'Náusea' },
-      { id: 'opt3', value: 'fatigue', text: 'Fadiga' }
-    ])
-    .allowOther(true)
-    .build(),
+  singleChoiceWithOther: () =>
+    new QuizQuestionBuilder()
+      .withId('q-single-other')
+      .withType('single_choice')
+      .withText('Qual é o principal sintoma?')
+      .withOptions([
+        { id: 'opt1', value: 'headache', text: 'Dor de cabeça' },
+        { id: 'opt2', value: 'nausea', text: 'Náusea' },
+        { id: 'opt3', value: 'fatigue', text: 'Fadiga' },
+      ])
+      .allowOther(true)
+      .build(),
 
   // Multiple choice question with "Outra" option
-  multipleChoiceWithOther: () => new QuizQuestionBuilder()
-    .withId('q-multiple-other')
-    .withType('multiple_choice')
-    .withText('Quais sintomas você está sentindo?')
-    .withOptions([
-      { id: 'opt4', value: 'pain', text: 'Dor' },
-      { id: 'opt5', value: 'insomnia', text: 'Insônia' },
-      { id: 'opt6', value: 'anxiety', text: 'Ansiedade' }
-    ])
-    .allowOther(true)
-    .build(),
+  multipleChoiceWithOther: () =>
+    new QuizQuestionBuilder()
+      .withId('q-multiple-other')
+      .withType('multiple_choice')
+      .withText('Quais sintomas você está sentindo?')
+      .withOptions([
+        { id: 'opt4', value: 'pain', text: 'Dor' },
+        { id: 'opt5', value: 'insomnia', text: 'Insônia' },
+        { id: 'opt6', value: 'anxiety', text: 'Ansiedade' },
+      ])
+      .allowOther(true)
+      .build(),
 
   // Scale question
-  scaleQuestion: () => new QuizQuestionBuilder()
-    .withId('q-scale')
-    .withType('scale')
-    .withText('Avalie seu bem-estar (0-10)')
-    .withScale(0, 10)
-    .build(),
+  scaleQuestion: () =>
+    new QuizQuestionBuilder()
+      .withId('q-scale')
+      .withType('scale')
+      .withText('Avalie seu bem-estar (0-10)')
+      .withScale(0, 10)
+      .build(),
 
   // Yes/No question
-  yesNoQuestion: () => new QuizQuestionBuilder()
-    .withId('q-yesno')
-    .withType('yes_no')
-    .withText('Você está tomando seus medicamentos?')
-    .build(),
+  yesNoQuestion: () =>
+    new QuizQuestionBuilder()
+      .withId('q-yesno')
+      .withType('yes_no')
+      .withText('Você está tomando seus medicamentos?')
+      .build(),
 
   // Text question
-  textQuestion: () => new QuizQuestionBuilder()
-    .withId('q-text')
-    .withType('text')
-    .withText('Alguma observação adicional?')
-    .required(false)
-    .build(),
+  textQuestion: () =>
+    new QuizQuestionBuilder()
+      .withId('q-text')
+      .withType('text')
+      .withText('Alguma observação adicional?')
+      .required(false)
+      .build(),
 
   // Complete quiz session
-  completeSession: () => new QuizSessionBuilder()
-    .withSessionId('session-complete')
-    .withPatient('patient-123', 'João Silva')
-    .withTemplate('template-123', 'Questionário Mensal')
-    .withQuestions([
-      fixtures.singleChoiceWithOther(),
-      fixtures.yesNoQuestion(),
-      fixtures.multipleChoiceWithOther(),
-      fixtures.scaleQuestion(),
-      fixtures.textQuestion()
-    ])
-    .build(),
+  completeSession: () =>
+    new QuizSessionBuilder()
+      .withSessionId('session-complete')
+      .withPatient('patient-123', 'João Silva')
+      .withTemplate('template-123', 'Questionário Mensal')
+      .withQuestions([
+        fixtures.singleChoiceWithOther(),
+        fixtures.yesNoQuestion(),
+        fixtures.multipleChoiceWithOther(),
+        fixtures.scaleQuestion(),
+        fixtures.textQuestion(),
+      ])
+      .build(),
 
   // Expired session
-  expiredSession: () => new QuizSessionBuilder()
-    .withSessionId('session-expired')
-    .expired()
-    .build()
+  expiredSession: () => new QuizSessionBuilder().withSessionId('session-expired').expired().build(),
 }

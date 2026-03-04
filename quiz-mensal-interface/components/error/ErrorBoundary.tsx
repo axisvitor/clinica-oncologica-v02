@@ -1,18 +1,18 @@
 'use client'
 
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { ErrorFallback } from './ErrorFallback';
+import React, { Component, ErrorInfo, ReactNode } from 'react'
+import { ErrorFallback } from './ErrorFallback'
 
 export interface ErrorBoundaryProps {
-  children: ReactNode;
-  fallback?: ReactNode;
-  onError?: (error: Error, errorInfo: ErrorInfo) => void;
+  children: ReactNode
+  fallback?: ReactNode
+  onError?: (error: Error, errorInfo: ErrorInfo) => void
 }
 
 interface State {
-  hasError: boolean;
-  error: Error | null;
-  errorInfo: ErrorInfo | null;
+  hasError: boolean
+  error: Error | null
+  errorInfo: ErrorInfo | null
 }
 
 /**
@@ -28,17 +28,17 @@ interface State {
  */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
   constructor(props: ErrorBoundaryProps) {
-    super(props);
+    super(props)
     this.state = {
       hasError: false,
       error: null,
       errorInfo: null,
-    };
+    }
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     // Update state so the next render will show the fallback UI
-    return { hasError: true, error };
+    return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
@@ -48,17 +48,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
       errorInfo,
       componentStack: errorInfo.componentStack,
       timestamp: new Date().toISOString(),
-    });
+    })
 
     // Update state with error details
     this.setState({
       error,
       errorInfo,
-    });
+    })
 
     // Call custom error handler if provided
     if (this.props.onError) {
-      this.props.onError(error, errorInfo);
+      this.props.onError(error, errorInfo)
     }
 
     // TODO: Send to error tracking service (Sentry, LogRocket, etc.)
@@ -71,15 +71,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
       hasError: false,
       error: null,
       errorInfo: null,
-    });
+    })
     // Note: If the error persists, it will be caught again and shown
-  };
+  }
 
   render(): ReactNode {
     if (this.state.hasError) {
       // Use custom fallback if provided
       if (this.props.fallback) {
-        return this.props.fallback;
+        return this.props.fallback
       }
 
       // Use default fallback UI
@@ -89,11 +89,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
           errorInfo={this.state.errorInfo}
           onReset={this.handleReset}
         />
-      );
+      )
     }
 
-    return this.props.children;
+    return this.props.children
   }
 }
 
-export default ErrorBoundary;
+export default ErrorBoundary

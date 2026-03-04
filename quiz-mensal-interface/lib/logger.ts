@@ -65,7 +65,7 @@ class Logger {
   child(prefix: string): Logger {
     return new Logger({
       prefix: `${this.prefix}${prefix}`,
-      enabled: this.enabled
+      enabled: this.enabled,
     })
   }
 }

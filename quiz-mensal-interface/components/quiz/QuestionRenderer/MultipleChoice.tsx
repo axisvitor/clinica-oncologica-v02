@@ -1,7 +1,7 @@
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import type { QuizQuestion, SingleAnswer, MultipleAnswer } from "@/types/quiz"
-import { memo } from "react"
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import type { QuizQuestion, SingleAnswer, MultipleAnswer } from '@/types/quiz'
+import { memo } from 'react'
 
 interface MultipleChoiceProps {
   question: QuizQuestion
@@ -36,10 +36,11 @@ export const MultipleChoice = memo(function MultipleChoice({
         return (
           <div
             key={typeof option === 'string' ? index : option.id}
-            className={`flex items-center space-x-3 p-4 rounded-xl border-2 transition-all ${isChecked
-              ? 'border-primary bg-primary/5'
-              : 'border-border hover:border-primary/50 hover:bg-primary/5'
-              }`}
+            className={`flex items-center space-x-3 p-4 rounded-xl border-2 transition-all ${
+              isChecked
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/50 hover:bg-primary/5'
+            }`}
           >
             <Checkbox
               id={optionId}
@@ -49,15 +50,12 @@ export const MultipleChoice = memo(function MultipleChoice({
                 if (checked) {
                   newAnswers = [...multipleAnswers, optionValue]
                 } else {
-                  newAnswers = multipleAnswers.filter(a => a !== optionValue)
+                  newAnswers = multipleAnswers.filter((a) => a !== optionValue)
                 }
                 onAnswerChange(newAnswers.length > 0 ? newAnswers : [])
               }}
             />
-            <Label
-              htmlFor={optionId}
-              className="flex-1 cursor-pointer font-medium"
-            >
+            <Label htmlFor={optionId} className="flex-1 cursor-pointer font-medium">
               {optionText}
             </Label>
           </div>

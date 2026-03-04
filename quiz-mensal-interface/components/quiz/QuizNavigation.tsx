@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button"
-import { ArrowLeft, ArrowRight, Send, Loader2 } from "lucide-react"
-import { memo } from "react"
+import { Button } from '@/components/ui/button'
+import { ArrowLeft, ArrowRight, Send, Loader2 } from 'lucide-react'
+import { memo } from 'react'
 
 interface QuizNavigationProps {
   currentQuestionIndex: number
@@ -22,22 +22,13 @@ export const QuizNavigation = memo(function QuizNavigation({
   return (
     <div className="flex gap-3 pt-4 border-t">
       {currentQuestionIndex > 0 && (
-        <Button
-          onClick={onPrevious}
-          variant="outline"
-          disabled={isSubmitting}
-          className="flex-1"
-        >
+        <Button onClick={onPrevious} variant="outline" disabled={isSubmitting} className="flex-1">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Voltar
         </Button>
       )}
 
-      <Button
-        onClick={onSubmit}
-        disabled={!hasAnswer || isSubmitting}
-        className="flex-1"
-      >
+      <Button onClick={onSubmit} disabled={!hasAnswer || isSubmitting} className="flex-1">
         {isSubmitting ? (
           <>
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />

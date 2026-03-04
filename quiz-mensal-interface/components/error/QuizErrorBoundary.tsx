@@ -5,34 +5,34 @@
  * error tracking and user-friendly fallback UI.
  */
 
-import React, { Component, ReactNode, ErrorInfo } from 'react';
+import React, { Component, ReactNode, ErrorInfo } from 'react'
 
 interface QuizErrorBoundaryState {
-  hasError: boolean;
-  error?: Error;
-  errorInfo?: ErrorInfo;
-  eventId?: string;
+  hasError: boolean
+  error?: Error
+  errorInfo?: ErrorInfo
+  eventId?: string
 }
 
 interface QuizErrorBoundaryProps {
-  children: ReactNode;
-  fallback?: (error: Error, errorInfo: ErrorInfo, eventId?: string) => ReactNode;
-  onError?: (error: Error, errorInfo: ErrorInfo, eventId?: string) => void;
-  quizId?: string;
-  questionNumber?: number;
-  level?: 'quiz' | 'question' | 'component';
-  name?: string;
+  children: ReactNode
+  fallback?: (error: Error, errorInfo: ErrorInfo, eventId?: string) => ReactNode
+  onError?: (error: Error, errorInfo: ErrorInfo, eventId?: string) => void
+  quizId?: string
+  questionNumber?: number
+  level?: 'quiz' | 'question' | 'component'
+  name?: string
 }
 
 interface QuizErrorFallbackProps {
-  error: Error;
-  eventId?: string;
-  level: string;
-  quizId?: string;
-  questionNumber?: number;
-  componentName?: string;
-  onRetry?: () => void;
-  onRestartQuiz?: () => void;
+  error: Error
+  eventId?: string
+  level: string
+  quizId?: string
+  questionNumber?: number
+  componentName?: string
+  onRetry?: () => void
+  onRestartQuiz?: () => void
 }
 
 /**
@@ -48,24 +48,24 @@ const QuizErrorFallback: React.FC<QuizErrorFallbackProps> = ({
   onRetry,
   onRestartQuiz,
 }) => {
-  const isQuizLevel = level === 'quiz';
-  const isQuestionLevel = level === 'question';
+  const isQuizLevel = level === 'quiz'
+  const isQuestionLevel = level === 'question'
 
   const getErrorMessage = () => {
     if (isQuizLevel) {
-      return 'O quiz encontrou um problema e não pode continuar. Você pode tentar reiniciar o quiz.';
+      return 'O quiz encontrou um problema e não pode continuar. Você pode tentar reiniciar o quiz.'
     }
     if (isQuestionLevel) {
-      return `A questão ${questionNumber} encontrou um erro. Você pode tentar novamente ou pular para a próxima questão.`;
+      return `A questão ${questionNumber} encontrou um erro. Você pode tentar novamente ou pular para a próxima questão.`
     }
-    return `O componente ${componentName || 'desconhecido'} encontrou um erro.`;
-  };
+    return `O componente ${componentName || 'desconhecido'} encontrou um erro.`
+  }
 
   const getErrorTitle = () => {
-    if (isQuizLevel) return 'Erro no Quiz';
-    if (isQuestionLevel) return `Erro na Questão ${questionNumber}`;
-    return 'Erro do Sistema';
-  };
+    if (isQuizLevel) return 'Erro no Quiz'
+    if (isQuestionLevel) return `Erro na Questão ${questionNumber}`
+    return 'Erro do Sistema'
+  }
 
   return (
     <div className={`quiz-error-boundary quiz-error-boundary--${level}`}>
@@ -83,10 +83,18 @@ const QuizErrorFallback: React.FC<QuizErrorFallbackProps> = ({
             <details className="quiz-error-boundary__details">
               <summary>Detalhes técnicos (desenvolvimento)</summary>
               <div className="quiz-error-boundary__debug">
-                <p><strong>Quiz ID:</strong> {quizId || 'N/A'}</p>
-                <p><strong>Questão:</strong> {questionNumber || 'N/A'}</p>
-                <p><strong>Componente:</strong> {componentName || 'N/A'}</p>
-                <p><strong>Erro:</strong> {error.message}</p>
+                <p>
+                  <strong>Quiz ID:</strong> {quizId || 'N/A'}
+                </p>
+                <p>
+                  <strong>Questão:</strong> {questionNumber || 'N/A'}
+                </p>
+                <p>
+                  <strong>Componente:</strong> {componentName || 'N/A'}
+                </p>
+                <p>
+                  <strong>Erro:</strong> {error.message}
+                </p>
                 <pre className="quiz-error-boundary__stack">{error.stack}</pre>
               </div>
             </details>
@@ -106,7 +114,7 @@ const QuizErrorFallback: React.FC<QuizErrorFallbackProps> = ({
               <button
                 className="quiz-error-boundary__button quiz-error-boundary__button--secondary"
                 onClick={() => {
-                  console.log('Skipping to next question');
+                  console.log('Skipping to next question')
                 }}
               >
                 Pular Questão
@@ -124,7 +132,7 @@ const QuizErrorFallback: React.FC<QuizErrorFallbackProps> = ({
 
             <button
               className="quiz-error-boundary__button quiz-error-boundary__button--tertiary"
-              onClick={() => window.location.href = '/'}
+              onClick={() => (window.location.href = '/')}
             >
               Voltar ao Início
             </button>
@@ -136,8 +144,7 @@ const QuizErrorFallback: React.FC<QuizErrorFallbackProps> = ({
                 Código do erro: <code>{eventId}</code>
               </p>
               <p className="quiz-error-boundary__help">
-                Se o problema persistir, entre em contato com o suporte
-                informando o código acima.
+                Se o problema persistir, entre em contato com o suporte informando o código acima.
               </p>
             </div>
           )}
@@ -334,25 +341,25 @@ const QuizErrorFallback: React.FC<QuizErrorFallbackProps> = ({
         }
       `}</style>
     </div>
-  );
-};
+  )
+}
 
 /**
  * Quiz Error Boundary component - React standard implementation
  */
 export class QuizErrorBoundary extends Component<QuizErrorBoundaryProps, QuizErrorBoundaryState> {
   constructor(props: QuizErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false };
+    super(props)
+    this.state = { hasError: false }
   }
 
   static getDerivedStateFromError(error: Error): QuizErrorBoundaryState {
-    return { hasError: true, error };
+    return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    const { onError, quizId, questionNumber, level, name } = this.props;
-    const eventId = `quiz-error-${Date.now()}`;
+    const { onError, quizId, questionNumber, level, name } = this.props
+    const eventId = `quiz-error-${Date.now()}`
 
     console.error('QuizErrorBoundary caught error:', {
       error,
@@ -362,26 +369,26 @@ export class QuizErrorBoundary extends Component<QuizErrorBoundaryProps, QuizErr
       level,
       componentName: name,
       eventId,
-    });
+    })
 
     this.setState({
       error,
       errorInfo,
       eventId,
-    });
+    })
 
     if (onError) {
-      onError(error, errorInfo, eventId);
+      onError(error, errorInfo, eventId)
     }
   }
 
   render() {
-    const { hasError, error, errorInfo, eventId } = this.state;
-    const { children, fallback, quizId, questionNumber, level = 'component', name } = this.props;
+    const { hasError, error, errorInfo, eventId } = this.state
+    const { children, fallback, quizId, questionNumber, level = 'component', name } = this.props
 
     if (hasError && error && errorInfo) {
       if (fallback) {
-        return fallback(error, errorInfo, eventId);
+        return fallback(error, errorInfo, eventId)
       }
 
       return (
@@ -393,17 +400,17 @@ export class QuizErrorBoundary extends Component<QuizErrorBoundaryProps, QuizErr
           questionNumber={questionNumber}
           componentName={name}
           onRetry={() => {
-            this.setState({ hasError: false });
-            window.location.reload();
+            this.setState({ hasError: false })
+            window.location.reload()
           }}
           onRestartQuiz={() => {
-            window.location.href = '/quiz';
+            window.location.href = '/quiz'
           }}
         />
-      );
+      )
     }
 
-    return children;
+    return children
   }
 }
 
@@ -412,16 +419,16 @@ export class QuizErrorBoundary extends Component<QuizErrorBoundaryProps, QuizErr
  */
 export function withQuizErrorBoundary<P extends object>(
   Component: React.ComponentType<P>,
-  errorBoundaryProps?: Omit<QuizErrorBoundaryProps, 'children'>
+  errorBoundaryProps?: Omit<QuizErrorBoundaryProps, 'children'>,
 ) {
   const WrappedComponent = (props: P) => (
     <QuizErrorBoundary {...errorBoundaryProps}>
       <Component {...props} />
     </QuizErrorBoundary>
-  );
+  )
 
-  WrappedComponent.displayName = `withQuizErrorBoundary(${Component.displayName || Component.name})`;
-  return WrappedComponent;
+  WrappedComponent.displayName = `withQuizErrorBoundary(${Component.displayName || Component.name})`
+  return WrappedComponent
 }
 
-export default QuizErrorBoundary;
+export default QuizErrorBoundary

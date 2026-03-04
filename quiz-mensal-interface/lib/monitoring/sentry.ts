@@ -7,157 +7,163 @@
 
 // Type definitions for Sentry SDK (optional dependency)
 interface SentrySDK {
-  init: (options: SentryInitOptions) => void;
-  setUser: (user: SentryUser | null) => void;
-  setTag: (key: string, value: string) => void;
-  setContext: (name: string, context: Record<string, unknown> | null) => void;
-  addBreadcrumb: (breadcrumb: SentryBreadcrumb) => void;
-  captureException: (error: Error, options?: SentryCaptureOptions) => string;
-  captureMessage: (message: string, options?: SentryCaptureOptions) => string;
-  startTransaction: (options: SentryTransactionOptions) => SentryTransaction;
-  nextRouterInstrumentation: () => unknown;
-  withSentryConfig: <T>(config: T) => T;
-  SDK_VERSION?: string;
+  init: (options: SentryInitOptions) => void
+  setUser: (user: SentryUser | null) => void
+  setTag: (key: string, value: string) => void
+  setContext: (name: string, context: Record<string, unknown> | null) => void
+  addBreadcrumb: (breadcrumb: SentryBreadcrumb) => void
+  captureException: (error: Error, options?: SentryCaptureOptions) => string
+  captureMessage: (message: string, options?: SentryCaptureOptions) => string
+  startTransaction: (options: SentryTransactionOptions) => SentryTransaction
+  nextRouterInstrumentation: () => unknown
+  withSentryConfig: <T>(config: T) => T
+  SDK_VERSION?: string
 }
 
 interface SentryInitOptions {
-  dsn: string;
-  environment: string;
-  integrations: unknown[];
-  tracesSampleRate: number;
-  beforeSend: (event: SentryEvent, hint: SentryEventHint) => SentryEvent | null;
-  beforeSendTransaction: (event: SentryEvent) => SentryEvent | null;
-  release?: string;
-  maxBreadcrumbs?: number;
-  attachStacktrace?: boolean;
-  autoSessionTracking?: boolean;
-  sendDefaultPii?: boolean;
-  ignoreErrors?: string[];
-  denyUrls?: RegExp[];
+  dsn: string
+  environment: string
+  integrations: unknown[]
+  tracesSampleRate: number
+  beforeSend: (event: SentryEvent, hint: SentryEventHint) => SentryEvent | null
+  beforeSendTransaction: (event: SentryEvent) => SentryEvent | null
+  release?: string
+  maxBreadcrumbs?: number
+  attachStacktrace?: boolean
+  autoSessionTracking?: boolean
+  sendDefaultPii?: boolean
+  ignoreErrors?: string[]
+  denyUrls?: RegExp[]
 }
 
 interface SentryUser {
-  id?: string;
-  email?: string;
-  sessionId?: string;
+  id?: string
+  email?: string
+  sessionId?: string
 }
 
 interface SentryBreadcrumb {
-  message: string;
-  category: string;
-  level: 'info' | 'warning' | 'error';
-  data?: Record<string, unknown>;
+  message: string
+  category: string
+  level: 'info' | 'warning' | 'error'
+  data?: Record<string, unknown>
 }
 
 interface SentryCaptureOptions {
-  level?: 'info' | 'warning' | 'error';
-  tags?: Record<string, string>;
-  extra?: Record<string, unknown>;
+  level?: 'info' | 'warning' | 'error'
+  tags?: Record<string, string>
+  extra?: Record<string, unknown>
 }
 
 interface SentryTransactionOptions {
-  name: string;
-  op: string;
-  tags?: Record<string, string | undefined>;
+  name: string
+  op: string
+  tags?: Record<string, string | undefined>
 }
 
 interface SentryTransaction {
-  finish: () => void;
+  finish: () => void
 }
 
 interface SentryEvent {
-  tags?: Record<string, string>;
-  contexts?: Record<string, unknown>;
-  transaction?: string;
-  timestamp?: number;
-  start_timestamp?: number;
+  tags?: Record<string, string>
+  contexts?: Record<string, unknown>
+  transaction?: string
+  timestamp?: number
+  start_timestamp?: number
 }
 
 interface SentryEventHint {
-  originalException?: Error | unknown;
+  originalException?: Error | unknown
 }
 
 interface BrowserTracingConfig {
   new (options: {
-    routingInstrumentation: unknown;
-    enableWebVitals: boolean;
-    beforeNavigate: (context: NavigationContext) => NavigationContext;
-  }): unknown;
+    routingInstrumentation: unknown
+    enableWebVitals: boolean
+    beforeNavigate: (context: NavigationContext) => NavigationContext
+  }): unknown
 }
 
 interface NavigationContext {
-  location: { pathname: string };
-  name?: string;
-  tags?: Record<string, string>;
+  location: { pathname: string }
+  name?: string
+  tags?: Record<string, string>
 }
 
 interface ReplayConfig {
   new (options: {
-    sessionSampleRate: number;
-    errorSampleRate: number;
-    maskAllText: boolean;
-    maskAllInputs: boolean;
-    blockAllMedia: boolean;
-    mask: string[];
-  }): unknown;
+    sessionSampleRate: number
+    errorSampleRate: number
+    maskAllText: boolean
+    maskAllInputs: boolean
+    blockAllMedia: boolean
+    mask: string[]
+  }): unknown
 }
 
 interface CaptureConsoleConfig {
-  new (options: { levels: string[] }): unknown;
+  new (options: { levels: string[] }): unknown
 }
 
 // Optional Sentry imports - gracefully handle missing dependencies
-let Sentry: SentrySDK | null = null;
-let BrowserTracing: BrowserTracingConfig | null = null;
-let CaptureConsole: CaptureConsoleConfig | null = null;
-let Replay: ReplayConfig | null = null;
+let Sentry: SentrySDK | null = null
+let BrowserTracing: BrowserTracingConfig | null = null
+let CaptureConsole: CaptureConsoleConfig | null = null
+let Replay: ReplayConfig | null = null
 
 try {
-  Sentry = require('@sentry/nextjs');
-  const tracing = require('@sentry/tracing');
-  const integrations = require('@sentry/integrations');
-  const replay = require('@sentry/replay');
-  
-  BrowserTracing = tracing.BrowserTracing;
-  CaptureConsole = integrations.CaptureConsole;
-  Replay = replay.Replay;
+  Sentry = require('@sentry/nextjs')
+  const tracing = require('@sentry/tracing')
+  const integrations = require('@sentry/integrations')
+  const replay = require('@sentry/replay')
+
+  BrowserTracing = tracing.BrowserTracing
+  CaptureConsole = integrations.CaptureConsole
+  Replay = replay.Replay
 } catch (error) {
-  console.warn('Sentry packages not installed. Monitoring will be disabled.');
+  console.warn('Sentry packages not installed. Monitoring will be disabled.')
 }
 
 // Environment configuration
-const ENVIRONMENT = process.env.NODE_ENV || 'development';
-const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN;
-const SENTRY_TRACES_SAMPLE_RATE = parseFloat(process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE || '0.1');
-const SENTRY_REPLAYS_SESSION_SAMPLE_RATE = parseFloat(process.env.NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE || '0.1');
-const SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE = parseFloat(process.env.NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE || '1.0');
+const ENVIRONMENT = process.env.NODE_ENV || 'development'
+const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN
+const SENTRY_TRACES_SAMPLE_RATE = parseFloat(
+  process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE || '0.1',
+)
+const SENTRY_REPLAYS_SESSION_SAMPLE_RATE = parseFloat(
+  process.env.NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE || '0.1',
+)
+const SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE = parseFloat(
+  process.env.NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE || '1.0',
+)
 
 interface QuizContext {
-  quizId: string;
-  sessionId: string;
-  currentQuestion?: number;
-  totalQuestions?: number;
-  startTime: string;
-  userAgent: string;
-  [key: string]: unknown; // Allow additional properties for Record compatibility
+  quizId: string
+  sessionId: string
+  currentQuestion?: number
+  totalQuestions?: number
+  startTime: string
+  userAgent: string
+  [key: string]: unknown // Allow additional properties for Record compatibility
 }
 
 interface UserContext {
-  id?: string;
-  email?: string;
-  role?: string;
-  sessionId: string;
+  id?: string
+  email?: string
+  role?: string
+  sessionId: string
 }
 
 export class QuizSentryMonitoring {
-  private static isInitialized = false;
-  private static currentQuizContext: QuizContext | null = null;
+  private static isInitialized = false
+  private static currentQuizContext: QuizContext | null = null
 
   /**
    * Check if Sentry is available and initialized
    */
   private static isSentryAvailable(): boolean {
-    return !!Sentry && this.isInitialized;
+    return !!Sentry && this.isInitialized
   }
 
   /**
@@ -166,12 +172,12 @@ export class QuizSentryMonitoring {
   static init(): void {
     if (this.isInitialized || !SENTRY_DSN || !Sentry) {
       if (!SENTRY_DSN) {
-        console.warn('Sentry DSN not configured. Quiz monitoring disabled.');
+        console.warn('Sentry DSN not configured. Quiz monitoring disabled.')
       }
       if (!Sentry) {
-        console.warn('Sentry packages not available. Quiz monitoring disabled.');
+        console.warn('Sentry packages not available. Quiz monitoring disabled.')
       }
-      return;
+      return
     }
 
     Sentry!.init({
@@ -252,10 +258,10 @@ export class QuizSentryMonitoring {
         // Development tools
         /webpack-internal:/,
       ],
-    });
+    })
 
-    this.isInitialized = true;
-    console.log(`Quiz Sentry monitoring initialized for environment: ${ENVIRONMENT}`);
+    this.isInitialized = true
+    console.log(`Quiz Sentry monitoring initialized for environment: ${ENVIRONMENT}`)
   }
 
   /**
@@ -272,21 +278,21 @@ export class QuizSentryMonitoring {
       '/api/quiz': 'API Quiz Data',
       '/api/submit': 'API Submit Answer',
       '/api/results': 'API Get Results',
-    };
+    }
 
-    return quizRoutes[pathname] || pathname;
+    return quizRoutes[pathname] || pathname
   }
 
   /**
    * Determine quiz flow stage from pathname
    */
   private static getQuizFlowStage(pathname: string): string {
-    if (pathname.includes('/start')) return 'start';
-    if (pathname.includes('/question')) return 'answering';
-    if (pathname.includes('/results')) return 'results';
-    if (pathname.includes('/summary')) return 'summary';
-    if (pathname.includes('/api/')) return 'api';
-    return 'navigation';
+    if (pathname.includes('/start')) return 'start'
+    if (pathname.includes('/question')) return 'answering'
+    if (pathname.includes('/results')) return 'results'
+    if (pathname.includes('/summary')) return 'summary'
+    if (pathname.includes('/api/')) return 'api'
+    return 'navigation'
   }
 
   /**
@@ -295,12 +301,11 @@ export class QuizSentryMonitoring {
   private static beforeSendFilter(event: SentryEvent, hint: SentryEventHint): SentryEvent | null {
     // Skip development noise
     if (ENVIRONMENT === 'development') {
-      const error = hint.originalException;
+      const error = hint.originalException
       if (error instanceof Error) {
         // Skip Next.js development warnings
-        if (error.message.includes('Warning:') ||
-            error.message.includes('webpack-internal:')) {
-          return null;
+        if (error.message.includes('Warning:') || error.message.includes('webpack-internal:')) {
+          return null
         }
       }
     }
@@ -311,17 +316,17 @@ export class QuizSentryMonitoring {
       component: 'quiz-interface',
       service: 'monthly-quiz',
       platform: typeof window !== 'undefined' ? 'client' : 'server',
-    };
+    }
 
     // Add quiz context if available
     if (this.currentQuizContext) {
       event.contexts = {
         ...event.contexts,
         quiz: this.currentQuizContext,
-      };
+      }
     }
 
-    return event;
+    return event
   }
 
   /**
@@ -330,34 +335,35 @@ export class QuizSentryMonitoring {
   private static beforeSendTransactionFilter(event: SentryEvent): SentryEvent | null {
     // Skip very fast transactions in production
     if (ENVIRONMENT === 'production') {
-      const duration = (event.timestamp || 0) - (event.start_timestamp || 0);
-      if (duration < 0.1) { // Skip transactions under 100ms
-        return null;
+      const duration = (event.timestamp || 0) - (event.start_timestamp || 0)
+      if (duration < 0.1) {
+        // Skip transactions under 100ms
+        return null
       }
     }
 
     // Skip health check transactions
-    const transactionName = event.transaction || '';
+    const transactionName = event.transaction || ''
     if (transactionName.includes('/health') || transactionName.includes('/api/health')) {
-      return null;
+      return null
     }
 
-    return event;
+    return event
   }
 
   /**
    * Set user context for quiz tracking
    */
   static setUserContext(user: UserContext): void {
-    if (!this.isSentryAvailable()) return;
+    if (!this.isSentryAvailable()) return
 
     Sentry!.setUser({
       id: user.id,
       email: user.email,
       sessionId: user.sessionId,
-    });
+    })
 
-    Sentry!.setTag('user_role', user.role || 'quiz_taker');
+    Sentry!.setTag('user_role', user.role || 'quiz_taker')
     Sentry!.addBreadcrumb({
       message: 'User context set for quiz',
       category: 'auth',
@@ -366,7 +372,7 @@ export class QuizSentryMonitoring {
         userId: user.id,
         sessionId: user.sessionId,
       },
-    });
+    })
   }
 
   /**
@@ -376,25 +382,25 @@ export class QuizSentryMonitoring {
     this.currentQuizContext = {
       ...this.currentQuizContext,
       ...context,
-    } as QuizContext;
+    } as QuizContext
 
-    Sentry!.setContext('quiz', this.currentQuizContext);
-    Sentry!.setTag('quiz_id', this.currentQuizContext.quizId);
-    Sentry!.setTag('quiz_session', this.currentQuizContext.sessionId);
+    Sentry!.setContext('quiz', this.currentQuizContext)
+    Sentry!.setTag('quiz_id', this.currentQuizContext.quizId)
+    Sentry!.setTag('quiz_session', this.currentQuizContext.sessionId)
 
     Sentry!.addBreadcrumb({
       message: 'Quiz context updated',
       category: 'quiz',
       level: 'info',
       data: this.currentQuizContext,
-    });
+    })
   }
 
   /**
    * Track quiz start event
    */
   static trackQuizStart(quizId: string, metadata?: Record<string, unknown>): void {
-    const sessionId = crypto.randomUUID();
+    const sessionId = crypto.randomUUID()
 
     this.setQuizContext({
       quizId,
@@ -402,7 +408,7 @@ export class QuizSentryMonitoring {
       startTime: new Date().toISOString(),
       userAgent: typeof window !== 'undefined' ? navigator.userAgent : 'server',
       ...metadata,
-    });
+    })
 
     Sentry!.addBreadcrumb({
       message: `Quiz started: ${quizId}`,
@@ -413,9 +419,9 @@ export class QuizSentryMonitoring {
         sessionId,
         ...metadata,
       },
-    });
+    })
 
-    this.trackEvent('quiz_started', { quizId, sessionId, ...metadata });
+    this.trackEvent('quiz_started', { quizId, sessionId, ...metadata })
   }
 
   /**
@@ -425,12 +431,12 @@ export class QuizSentryMonitoring {
     questionNumber: number,
     totalQuestions: number,
     action: 'viewed' | 'answered' | 'skipped',
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): void {
     this.setQuizContext({
       currentQuestion: questionNumber,
       totalQuestions,
-    });
+    })
 
     Sentry!.addBreadcrumb({
       message: `Question ${action}: ${questionNumber}/${totalQuestions}`,
@@ -443,7 +449,7 @@ export class QuizSentryMonitoring {
         progress: (questionNumber / totalQuestions) * 100,
         ...metadata,
       },
-    });
+    })
 
     this.trackEvent('quiz_question_interaction', {
       question: questionNumber,
@@ -451,7 +457,7 @@ export class QuizSentryMonitoring {
       action,
       progress: (questionNumber / totalQuestions) * 100,
       ...metadata,
-    });
+    })
   }
 
   /**
@@ -461,7 +467,7 @@ export class QuizSentryMonitoring {
     score: number,
     totalQuestions: number,
     completionTime: number,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): void {
     const completionData = {
       score,
@@ -469,16 +475,16 @@ export class QuizSentryMonitoring {
       completionTime,
       percentage: (score / totalQuestions) * 100,
       ...metadata,
-    };
+    }
 
     Sentry!.addBreadcrumb({
       message: `Quiz completed: ${score}/${totalQuestions} (${completionData.percentage}%)`,
       category: 'quiz_completion',
       level: 'info',
       data: completionData,
-    });
+    })
 
-    this.trackEvent('quiz_completed', completionData);
+    this.trackEvent('quiz_completed', completionData)
   }
 
   /**
@@ -487,7 +493,7 @@ export class QuizSentryMonitoring {
   static trackQuizError(
     errorType: 'validation' | 'submission' | 'loading' | 'timeout',
     error: string,
-    context?: Record<string, unknown>
+    context?: Record<string, unknown>,
   ): void {
     Sentry!.captureMessage(`Quiz Error: ${errorType}`, {
       level: 'error',
@@ -500,13 +506,13 @@ export class QuizSentryMonitoring {
         quiz_context: this.currentQuizContext,
         ...context,
       },
-    });
+    })
 
     this.trackEvent('quiz_error', {
       error_type: errorType,
       error,
       ...context,
-    });
+    })
   }
 
   /**
@@ -517,7 +523,7 @@ export class QuizSentryMonitoring {
     method: string,
     status: number,
     duration: number,
-    success: boolean
+    success: boolean,
   ): void {
     Sentry!.addBreadcrumb({
       message: `API ${method} ${endpoint} - ${status}`,
@@ -531,7 +537,7 @@ export class QuizSentryMonitoring {
         success,
         quiz_session: this.currentQuizContext?.sessionId,
       },
-    });
+    })
 
     if (!success) {
       Sentry!.captureMessage(`Quiz API Error: ${method} ${endpoint}`, {
@@ -545,7 +551,7 @@ export class QuizSentryMonitoring {
           duration,
           quiz_context: this.currentQuizContext,
         },
-      });
+      })
     }
   }
 
@@ -563,7 +569,7 @@ export class QuizSentryMonitoring {
         quiz_session: this.currentQuizContext?.sessionId,
         ...data,
       },
-    });
+    })
   }
 
   /**
@@ -581,7 +587,7 @@ export class QuizSentryMonitoring {
         quiz_session: this.currentQuizContext?.sessionId,
         timestamp: new Date().toISOString(),
       },
-    });
+    })
   }
 
   /**
@@ -597,18 +603,18 @@ export class QuizSentryMonitoring {
           session_id: this.currentQuizContext.sessionId,
           duration: Date.now() - new Date(this.currentQuizContext.startTime).getTime(),
         },
-      });
+      })
     }
 
-    this.currentQuizContext = null;
-    Sentry!.setContext('quiz', null);
+    this.currentQuizContext = null
+    Sentry!.setContext('quiz', null)
   }
 
   /**
    * Start a custom transaction for quiz operations
    */
   static startTransaction(name: string, op: string = 'quiz'): SentryTransaction | null {
-    if (!this.isSentryAvailable()) return null;
+    if (!this.isSentryAvailable()) return null
     return Sentry!.startTransaction({
       name,
       op,
@@ -616,7 +622,7 @@ export class QuizSentryMonitoring {
         transaction_source: 'quiz',
         quiz_session: this.currentQuizContext?.sessionId,
       },
-    });
+    })
   }
 
   /**
@@ -624,8 +630,8 @@ export class QuizSentryMonitoring {
    */
   static captureException(error: Error, context?: Record<string, unknown>): string {
     if (!this.isSentryAvailable()) {
-      console.error('Quiz Error:', error, context);
-      return '';
+      console.error('Quiz Error:', error, context)
+      return ''
     }
 
     return Sentry!.captureException(error, {
@@ -638,21 +644,21 @@ export class QuizSentryMonitoring {
         quiz_id: this.currentQuizContext?.quizId ?? 'unknown',
         ...(context?.tags || {}),
       },
-    });
+    })
   }
 
   /**
    * Get current quiz session information
    */
   static getCurrentQuizContext(): QuizContext | null {
-    return this.currentQuizContext;
+    return this.currentQuizContext
   }
 
   /**
    * Check if monitoring is properly configured
    */
   static isConfigured(): boolean {
-    return this.isInitialized && !!SENTRY_DSN;
+    return this.isInitialized && !!SENTRY_DSN
   }
 
   /**
@@ -667,16 +673,26 @@ export class QuizSentryMonitoring {
       replays_error_rate: SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE,
       current_quiz_session: this.currentQuizContext?.sessionId,
       sdk_version: Sentry?.SDK_VERSION,
-    };
+    }
   }
 }
 
 // Export Sentry components for Next.js integration (with fallbacks)
-export const captureException = Sentry?.captureException || ((error: Error) => { console.error(error); return ''; });
-export const captureMessage = Sentry?.captureMessage || ((message: string) => { console.log(message); return ''; });
-export const withSentryConfig = Sentry?.withSentryConfig || (<T>(config: T): T => config);
+export const captureException =
+  Sentry?.captureException ||
+  ((error: Error) => {
+    console.error(error)
+    return ''
+  })
+export const captureMessage =
+  Sentry?.captureMessage ||
+  ((message: string) => {
+    console.log(message)
+    return ''
+  })
+export const withSentryConfig = Sentry?.withSentryConfig || (<T>(config: T): T => config)
 
 // Initialize Sentry when module is imported (client-side only)
 if (typeof window !== 'undefined') {
-  QuizSentryMonitoring.init();
+  QuizSentryMonitoring.init()
 }

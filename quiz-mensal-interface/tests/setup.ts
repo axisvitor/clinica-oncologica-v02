@@ -2,18 +2,18 @@
  * Test setup configuration for Quiz Other Option tests
  */
 
-import '@testing-library/jest-dom';
-import { server } from './mocks/server';
+import '@testing-library/jest-dom'
+import { server } from './mocks/server'
 
 // MSW Server Lifecycle
 // Start MSW server before all tests
-beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }))
 
 // Reset handlers after each test to ensure test isolation
-afterEach(() => server.resetHandlers());
+afterEach(() => server.resetHandlers())
 
 // Clean up after all tests are done
-afterAll(() => server.close());
+afterAll(() => server.close())
 
 // Mock console methods to reduce noise in tests
 global.console = {
@@ -21,7 +21,7 @@ global.console = {
   error: jest.fn(),
   warn: jest.fn(),
   log: jest.fn(),
-};
+}
 
 // Mock IntersectionObserver
 global.IntersectionObserver = class IntersectionObserver {
@@ -29,10 +29,10 @@ global.IntersectionObserver = class IntersectionObserver {
   disconnect() {}
   observe() {}
   takeRecords() {
-    return [];
+    return []
   }
   unobserve() {}
-} as any;
+} as any
 
 // Mock ResizeObserver
 global.ResizeObserver = class ResizeObserver {
@@ -40,7 +40,7 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
   observe() {}
   unobserve() {}
-} as any;
+} as any
 
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
@@ -55,4 +55,4 @@ Object.defineProperty(window, 'matchMedia', {
     removeEventListener: jest.fn(),
     dispatchEvent: jest.fn(),
   })),
-});
+})

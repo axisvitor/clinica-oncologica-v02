@@ -7,8 +7,8 @@ function validateSecurityEnvironment() {
     QUIZ_SESSION_SECRET: {
       required: true,
       minLength: 32,
-      description: 'HMAC secret for quiz session signing'
-    }
+      description: 'HMAC secret for quiz session signing',
+    },
   }
 
   const errors = []
@@ -19,12 +19,12 @@ function validateSecurityEnvironment() {
     if (config.required && !value) {
       errors.push(
         `❌ MISSING: ${varName} (${config.description})\n` +
-        `   Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+          `   Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`,
       )
     } else if (value && config.minLength && value.length < config.minLength) {
       errors.push(
         `❌ TOO SHORT: ${varName} must be at least ${config.minLength} characters\n` +
-        `   Current length: ${value.length}, Required: ${config.minLength}`
+          `   Current length: ${value.length}, Required: ${config.minLength}`,
       )
     }
   }
@@ -33,7 +33,9 @@ function validateSecurityEnvironment() {
     console.error('\n🚨 CRITICAL SECURITY CONFIGURATION ERRORS:\n')
     console.error(errors.join('\n\n'))
     console.error('\n💡 Add missing variables to .env file before building!\n')
-    throw new Error('Build failed: Missing required security environment variables')
+    throw new Error(
+      'Build failed: Missing required security environment variables',
+    )
   }
 
   console.log('✅ Security environment variables validated successfully')
@@ -43,10 +45,16 @@ function validateSecurityEnvironment() {
 // NEXT_PHASE is 'phase-production-build' during `next build`
 const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
 
-if (!isBuildPhase && (process.env.NODE_ENV === 'production' || process.env.VALIDATE_ENV !== 'false')) {
+if (
+  !isBuildPhase &&
+  (process.env.NODE_ENV === 'production' ||
+    process.env.VALIDATE_ENV !== 'false')
+) {
   validateSecurityEnvironment()
 } else if (isBuildPhase) {
-  console.log('⏭️  Skipping security validation during build phase (will validate at runtime)')
+  console.log(
+    '⏭️  Skipping security validation during build phase (will validate at runtime)',
+  )
 }
 
 // Resolve backend URL for CSP from environment variables
@@ -65,11 +73,18 @@ const getBackendUrl = () => {
   }
 
   // Priority 3: Fallback to localhost for development
-  return process.env.NEXT_PUBLIC_API_URL || (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000")
+  return (
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    'http://localhost:8000'
+  )
 }
 
 const backendUrl = getBackendUrl()
-const backendWsUrl = backendUrl.replace(/^https?:\/\//, '').replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
+const backendWsUrl = backendUrl
+  .replace(/^https?:\/\//, '')
+  .replace(/^http:/, 'ws:')
+  .replace(/^https:/, 'wss:')
 
 const nextConfig = {
   // Essential production configuration
@@ -82,7 +97,7 @@ const nextConfig = {
   swcMinify: true,
   experimental: {
     optimizeCss: false,
-    optimizePackageImports: ['@radix-ui/react-icons', 'lucide-react']
+    optimizePackageImports: ['@radix-ui/react-icons', 'lucide-react'],
   },
 
   // Image optimization for Railway deployment
@@ -96,7 +111,7 @@ const nextConfig = {
         protocol: 'http',
         hostname: 'localhost',
         port: '8000',
-      }
+      },
     ],
     formats: ['image/webp', 'image/avif'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
@@ -111,41 +126,44 @@ const nextConfig = {
         headers: [
           {
             key: 'X-Frame-Options',
-            value: 'DENY'
+            value: 'DENY',
           },
           {
             key: 'X-Content-Type-Options',
-            value: 'nosniff'
+            value: 'nosniff',
           },
           {
             key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin'
+            value: 'strict-origin-when-cross-origin',
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()'
+            value: 'camera=(), microphone=(), geolocation=()',
           },
           {
             key: 'Content-Security-Policy',
-            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ${backendUrl} wss://${backendWsUrl}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`
-          }
-        ]
-      }
-    ];
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ${backendUrl} wss://${backendWsUrl}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`,
+          },
+        ],
+      },
+    ]
   },
 
   // Asset optimization
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production' ? {
-      exclude: ['error', 'warn']
-    } : false,
+    removeConsole:
+      process.env.NODE_ENV === 'production'
+        ? {
+            exclude: ['error', 'warn'],
+          }
+        : false,
   },
 
   // Bundle analyzer (only in development)
   ...(process.env.ANALYZE === 'true' && {
     experimental: {
       bundlePagesRouterDependencies: true,
-    }
+    },
   }),
 
   // Environment variables validation
@@ -166,7 +184,7 @@ const nextConfig = {
             name: 'vendor',
             chunks: 'all',
             test: /node_modules/,
-            priority: 20
+            priority: 20,
           },
           common: {
             name: 'common',
@@ -174,10 +192,10 @@ const nextConfig = {
             chunks: 'all',
             priority: 10,
             reuseExistingChunk: true,
-            enforce: true
-          }
-        }
-      };
+            enforce: true,
+          },
+        },
+      }
     }
 
     // Ensure alias '@' resolves to project root for tsconfig paths '@/*'
@@ -187,7 +205,7 @@ const nextConfig = {
       '@': path.resolve(process.cwd()),
     }
 
-    return config;
+    return config
   },
 
   // TypeScript configuration (strict for production)
@@ -201,7 +219,10 @@ const nextConfig = {
   },
 
   // Static file serving optimization
-  assetPrefix: process.env.NODE_ENV === 'production' ? process.env.NEXT_PUBLIC_CDN_URL || '' : '',
+  assetPrefix:
+    process.env.NODE_ENV === 'production'
+      ? process.env.NEXT_PUBLIC_CDN_URL || ''
+      : '',
 
   // Health check route
   async redirects() {
@@ -209,10 +230,10 @@ const nextConfig = {
       {
         source: '/health',
         destination: '/api/health',
-        permanent: true
-      }
-    ];
-  }
-};
+        permanent: true,
+      },
+    ]
+  },
+}
 
-export default nextConfig;
+export default nextConfig

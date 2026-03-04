@@ -19,15 +19,15 @@ if (!IS_BUILD_PHASE) {
   if (!HMAC_SECRET) {
     throw new Error(
       '🚨 CRITICAL SECURITY ERROR: QUIZ_SESSION_SECRET environment variable is not set!\n' +
-      'Generate a secure secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
-      'Then add it to your .env file: QUIZ_SESSION_SECRET=your_generated_secret'
+        "Generate a secure secret with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"\n" +
+        'Then add it to your .env file: QUIZ_SESSION_SECRET=your_generated_secret',
     )
   }
 
   if (HMAC_SECRET.length < 32) {
     throw new Error(
       '🚨 CRITICAL SECURITY ERROR: QUIZ_SESSION_SECRET must be at least 32 characters long!\n' +
-      'Generate a secure secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+        "Generate a secure secret with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     )
   }
 }
@@ -42,9 +42,7 @@ export interface StoredQuizSession {
  * Generate HMAC signature for session data
  */
 function signSession(data: string): string {
-  return createHmac('sha256', HMAC_SECRET!)
-    .update(data)
-    .digest('base64url')
+  return createHmac('sha256', HMAC_SECRET!).update(data).digest('base64url')
 }
 
 /**
@@ -53,10 +51,7 @@ function signSession(data: string): string {
 function verifySignature(data: string, signature: string): boolean {
   const expected = signSession(data)
   try {
-    return timingSafeEqual(
-      Buffer.from(signature, 'base64url'),
-      Buffer.from(expected, 'base64url')
-    )
+    return timingSafeEqual(Buffer.from(signature, 'base64url'), Buffer.from(expected, 'base64url'))
   } catch {
     return false
   }
@@ -92,7 +87,8 @@ function decodeSession(raw: string | undefined): StoredQuizSession | null {
 
     const parsed = JSON.parse(Buffer.from(data, 'base64url').toString('utf8'))
     if (
-      typeof parsed !== 'object' || parsed === null ||
+      typeof parsed !== 'object' ||
+      parsed === null ||
       typeof parsed.token !== 'string' ||
       typeof parsed.expires !== 'number'
     ) {
@@ -109,13 +105,13 @@ export function createSessionCookie(token: string, sessionData: Record<string, u
   const payload: StoredQuizSession = {
     token,
     sessionData,
-    expires: Date.now() + SESSION_EXPIRY
+    expires: Date.now() + SESSION_EXPIRY,
   }
 
   return {
     value: encodeSession(payload),
     maxAge: Math.floor(SESSION_EXPIRY / 1000),
-    payload
+    payload,
   }
 }
 
@@ -138,12 +134,12 @@ export function rotateSessionCookie(payload: StoredQuizSession, newToken: string
   const updated: StoredQuizSession = {
     ...payload,
     token: newToken,
-    expires: Date.now() + SESSION_EXPIRY
+    expires: Date.now() + SESSION_EXPIRY,
   }
 
   return {
     value: encodeSession(updated),
     maxAge: Math.floor(SESSION_EXPIRY / 1000),
-    payload: updated
+    payload: updated,
   }
 }

@@ -1,7 +1,7 @@
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
-import type { QuizQuestion, SingleAnswer, MultipleAnswer } from "@/types/quiz"
-import { memo } from "react"
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Label } from '@/components/ui/label'
+import type { QuizQuestion, SingleAnswer, MultipleAnswer } from '@/types/quiz'
+import { memo } from 'react'
 
 interface YesNoProps {
   question: QuizQuestion
@@ -9,17 +9,13 @@ interface YesNoProps {
   onAnswerChange: (value: SingleAnswer | MultipleAnswer) => void
 }
 
-export const YesNo = memo(function YesNo({
-  question,
-  selectedAnswer,
-  onAnswerChange,
-}: YesNoProps) {
+export const YesNo = memo(function YesNo({ question, selectedAnswer, onAnswerChange }: YesNoProps) {
   const yesId = `question-${question.id}-yes`
   const noId = `question-${question.id}-no`
 
   return (
     <RadioGroup
-      value={selectedAnswer as string || ""}
+      value={(selectedAnswer as string) || ''}
       onValueChange={onAnswerChange}
       className="space-y-3"
     >

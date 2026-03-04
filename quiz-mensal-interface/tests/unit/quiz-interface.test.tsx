@@ -19,14 +19,14 @@ beforeAll(() => server.close())
 const mockFetch = jest.fn()
 const createMockResponse = <T,>(
   data: T,
-  options: { ok?: boolean; status?: number; headers?: Record<string, string> } = {}
+  options: { ok?: boolean; status?: number; headers?: Record<string, string> } = {},
 ) => ({
   ok: options.ok ?? true,
   status: options.status ?? 200,
   json: () => Promise.resolve(data),
   headers: {
-    get: (name: string) => options.headers?.[name] ?? null
-  }
+    get: (name: string) => options.headers?.[name] ?? null,
+  },
 })
 
 // Mock Next.js Image component
@@ -42,8 +42,8 @@ jest.mock('next/image', () => ({
 const mockToast = jest.fn()
 jest.mock('../../hooks/use-toast', () => ({
   useToast: () => ({
-    toast: mockToast
-  })
+    toast: mockToast,
+  }),
 }))
 
 describe('QuizInterface - Comprehensive Tests', () => {
@@ -70,8 +70,8 @@ describe('QuizInterface - Comprehensive Tests', () => {
           { id: 'opt2', value: '2', text: 'Dor leve' },
           { id: 'opt3', value: '3', text: 'Dor moderada' },
           { id: 'opt4', value: '4', text: 'Dor forte' },
-          { id: 'opt5', value: '5', text: 'Dor insuportável' }
-        ]
+          { id: 'opt5', value: '5', text: 'Dor insuportável' },
+        ],
       },
       {
         id: 'q2',
@@ -82,17 +82,17 @@ describe('QuizInterface - Comprehensive Tests', () => {
         options: [
           { id: 'opt6', value: 'nausea', text: 'Náusea' },
           { id: 'opt7', value: 'fatigue', text: 'Fadiga' },
-          { id: 'opt8', value: 'pain', text: 'Dor' }
-        ]
+          { id: 'opt8', value: 'pain', text: 'Dor' },
+        ],
       },
       {
         id: 'q3',
         type: 'text' as const,
         text: 'Descreva quaisquer outros sintomas',
         required: false,
-        allow_other: false
-      }
-    ]
+        allow_other: false,
+      },
+    ],
   }
 
   const mockToken = 'test-token'
@@ -111,11 +111,13 @@ describe('QuizInterface - Comprehensive Tests', () => {
       }
 
       if (url.includes('/submit')) {
-        return Promise.resolve(createMockResponse({
-          success: true,
-          is_last_question: false,
-          next_question_index: 1
-        }))
+        return Promise.resolve(
+          createMockResponse({
+            success: true,
+            is_last_question: false,
+            next_question_index: 1,
+          }),
+        )
       }
 
       return Promise.resolve(createMockResponse({}))
@@ -205,14 +207,17 @@ describe('QuizInterface - Comprehensive Tests', () => {
       const submitButton = screen.getByRole('button', { name: /próxima/i })
       await user.click(submitButton)
 
-      await waitFor(() => {
-        expect(mockToast).toHaveBeenCalledWith(
-          expect.objectContaining({
-            title: expect.stringContaining('obrigatório'),
-            variant: 'destructive'
-          })
-        )
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          expect(mockToast).toHaveBeenCalledWith(
+            expect.objectContaining({
+              title: expect.stringContaining('obrigatório'),
+              variant: 'destructive',
+            }),
+          )
+        },
+        { timeout: 3000 },
+      )
     })
 
     it('should submit "Outra" answer with text', async () => {
@@ -324,9 +329,14 @@ describe('QuizInterface - Comprehensive Tests', () => {
       const nextButton = screen.getByRole('button', { name: /próxima/i })
       await user.click(nextButton)
 
-      await waitFor(() => {
-        expect(screen.getByText('Quais sintomas você experimentou esta semana?')).toBeInTheDocument()
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          expect(
+            screen.getByText('Quais sintomas você experimentou esta semana?'),
+          ).toBeInTheDocument()
+        },
+        { timeout: 3000 },
+      )
     })
 
     it('should allow going back to previous question', async () => {
@@ -357,9 +367,12 @@ describe('QuizInterface - Comprehensive Tests', () => {
       await user.click(screen.getByText('Dor leve'))
       await user.click(screen.getByRole('button', { name: /próxima/i }))
 
-      await waitFor(() => {
-        expect(screen.getByText(/sintomas/i)).toBeInTheDocument()
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          expect(screen.getByText(/sintomas/i)).toBeInTheDocument()
+        },
+        { timeout: 3000 },
+      )
 
       // Go back
       await user.click(screen.getByRole('button', { name: /voltar/i }))
@@ -413,14 +426,17 @@ describe('QuizInterface - Comprehensive Tests', () => {
       const submitButton = screen.getByRole('button', { name: /próxima/i })
       await user.click(submitButton)
 
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith(
-          expect.stringContaining('/submit'),
-          expect.objectContaining({
-            method: 'POST'
-          })
-        )
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          expect(mockFetch).toHaveBeenCalledWith(
+            expect.stringContaining('/submit'),
+            expect.objectContaining({
+              method: 'POST',
+            }),
+          )
+        },
+        { timeout: 3000 },
+      )
     })
 
     it('should show success toast after submission', async () => {
@@ -430,13 +446,16 @@ describe('QuizInterface - Comprehensive Tests', () => {
       await user.click(screen.getByText('Dor leve'))
       await user.click(screen.getByRole('button', { name: /próxima/i }))
 
-      await waitFor(() => {
-        expect(mockToast).toHaveBeenCalledWith(
-          expect.objectContaining({
-            title: expect.stringContaining('enviada')
-          })
-        )
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          expect(mockToast).toHaveBeenCalledWith(
+            expect.objectContaining({
+              title: expect.stringContaining('enviada'),
+            }),
+          )
+        },
+        { timeout: 3000 },
+      )
     })
 
     it('should handle API errors gracefully', async () => {
@@ -448,10 +467,9 @@ describe('QuizInterface - Comprehensive Tests', () => {
           return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
         // All other API calls fail
-        return Promise.resolve(createMockResponse(
-          { detail: 'Network error' },
-          { ok: false, status: 500 }
-        ))
+        return Promise.resolve(
+          createMockResponse({ detail: 'Network error' }, { ok: false, status: 500 }),
+        )
       })
 
       render(<QuizInterface session={mockSession} token={mockToken} />)
@@ -471,10 +489,18 @@ describe('QuizInterface - Comprehensive Tests', () => {
         if (url.includes('/auth/csrf-token')) {
           return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
-        return new Promise(resolve => setTimeout(() => resolve(createMockResponse({
-          success: true,
-          is_last_question: false
-        })), 1000))
+        return new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve(
+                createMockResponse({
+                  success: true,
+                  is_last_question: false,
+                }),
+              ),
+            1000,
+          ),
+        )
       })
 
       render(<QuizInterface session={mockSession} token={mockToken} />)
@@ -485,9 +511,12 @@ describe('QuizInterface - Comprehensive Tests', () => {
       await user.click(submitButton)
 
       // Button should be disabled and show "Enviando..."
-      await waitFor(() => {
-        expect(screen.getByText(/enviando/i)).toBeInTheDocument()
-      }, { timeout: 500 })
+      await waitFor(
+        () => {
+          expect(screen.getByText(/enviando/i)).toBeInTheDocument()
+        },
+        { timeout: 500 },
+      )
     })
   })
 
@@ -500,10 +529,12 @@ describe('QuizInterface - Comprehensive Tests', () => {
         if (url.includes('/auth/csrf-token')) {
           return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
-        return Promise.resolve(createMockResponse({
-          success: true,
-          is_last_question: true
-        }))
+        return Promise.resolve(
+          createMockResponse({
+            success: true,
+            is_last_question: true,
+          }),
+        )
       })
 
       const sessionLast = { ...mockSession, current_question_index: 2 }
@@ -515,13 +546,16 @@ describe('QuizInterface - Comprehensive Tests', () => {
       const submitButton = screen.getByRole('button', { name: /finalizar quiz/i })
       await user.click(submitButton)
 
-      await waitFor(() => {
-        expect(mockToast).toHaveBeenCalledWith(
-          expect.objectContaining({
-            description: expect.stringContaining('concluído')
-          })
-        )
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          expect(mockToast).toHaveBeenCalledWith(
+            expect.objectContaining({
+              description: expect.stringContaining('concluído'),
+            }),
+          )
+        },
+        { timeout: 3000 },
+      )
     })
 
     it('should call onComplete callback', async () => {
@@ -533,10 +567,12 @@ describe('QuizInterface - Comprehensive Tests', () => {
         if (url.includes('/auth/csrf-token')) {
           return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
-        return Promise.resolve(createMockResponse({
-          success: true,
-          is_last_question: true
-        }))
+        return Promise.resolve(
+          createMockResponse({
+            success: true,
+            is_last_question: true,
+          }),
+        )
       })
 
       const sessionLast = { ...mockSession, current_question_index: 2 }
@@ -547,9 +583,12 @@ describe('QuizInterface - Comprehensive Tests', () => {
 
       await user.click(screen.getByRole('button', { name: /finalizar quiz/i }))
 
-      await waitFor(() => {
-        expect(onComplete).toHaveBeenCalled()
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          expect(onComplete).toHaveBeenCalled()
+        },
+        { timeout: 3000 },
+      )
     })
 
     it('should mark quiz as completed', async () => {
@@ -560,10 +599,12 @@ describe('QuizInterface - Comprehensive Tests', () => {
         if (url.includes('/auth/csrf-token')) {
           return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
-        return Promise.resolve(createMockResponse({
-          success: true,
-          is_last_question: true
-        }))
+        return Promise.resolve(
+          createMockResponse({
+            success: true,
+            is_last_question: true,
+          }),
+        )
       })
 
       const sessionLast = { ...mockSession, current_question_index: 2 }
@@ -574,14 +615,17 @@ describe('QuizInterface - Comprehensive Tests', () => {
 
       await user.click(screen.getByRole('button', { name: /finalizar/i }))
 
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith(
-          expect.stringContaining('/submit'),
-          expect.objectContaining({
-            method: 'POST'
-          })
-        )
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          expect(mockFetch).toHaveBeenCalledWith(
+            expect.stringContaining('/submit'),
+            expect.objectContaining({
+              method: 'POST',
+            }),
+          )
+        },
+        { timeout: 3000 },
+      )
     })
   })
 
@@ -594,10 +638,18 @@ describe('QuizInterface - Comprehensive Tests', () => {
         if (url.includes('/auth/csrf-token')) {
           return Promise.resolve(createMockResponse({ csrf_token: 'mock-csrf-token' }))
         }
-        return new Promise(resolve => setTimeout(() => resolve(createMockResponse({
-          success: true,
-          is_last_question: false
-        })), 1000))
+        return new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve(
+                createMockResponse({
+                  success: true,
+                  is_last_question: false,
+                }),
+              ),
+            1000,
+          ),
+        )
       })
 
       render(<QuizInterface session={mockSession} token={mockToken} />)
@@ -606,9 +658,12 @@ describe('QuizInterface - Comprehensive Tests', () => {
       await user.click(screen.getByRole('button', { name: /próxima/i }))
 
       // Should show "Enviando..."
-      await waitFor(() => {
-        expect(screen.getByText(/enviando/i)).toBeInTheDocument()
-      }, { timeout: 500 })
+      await waitFor(
+        () => {
+          expect(screen.getByText(/enviando/i)).toBeInTheDocument()
+        },
+        { timeout: 500 },
+      )
     })
 
     it('should update progress bar as quiz progresses', async () => {
@@ -618,10 +673,13 @@ describe('QuizInterface - Comprehensive Tests', () => {
       await user.click(screen.getByText('Dor leve'))
       await user.click(screen.getByRole('button', { name: /próxima/i }))
 
-      await waitFor(() => {
-        // Progress should now be question 2 of 3
-        expect(screen.getByText(/Pergunta 2 de 3/i)).toBeInTheDocument()
-      }, { timeout: 3000 })
+      await waitFor(
+        () => {
+          // Progress should now be question 2 of 3
+          expect(screen.getByText(/Pergunta 2 de 3/i)).toBeInTheDocument()
+        },
+        { timeout: 3000 },
+      )
     })
   })
 

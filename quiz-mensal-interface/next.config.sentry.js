@@ -4,7 +4,7 @@
  * Configures Sentry webpack plugin for source maps upload and build-time monitoring
  */
 
-const { withSentryConfig } = require('@sentry/nextjs');
+const { withSentryConfig } = require('@sentry/nextjs')
 
 /**
  * Sentry webpack plugin options
@@ -36,9 +36,9 @@ const sentryWebpackPluginOptions = {
 
   // Additional webpack options
   errorHandler: (err) => {
-    console.warn('Sentry webpack plugin error:', err);
+    console.warn('Sentry webpack plugin error:', err)
     // Don't fail the build if source map upload fails
-    return true;
+    return true
   },
 
   // Tunneling configuration for better reliability
@@ -49,7 +49,7 @@ const sentryWebpackPluginOptions = {
   transpileClientSDK: true,
   hideSourceMaps: true,
   disableLogger: process.env.NODE_ENV === 'production',
-};
+}
 
 /**
  * Additional Sentry SDK configuration
@@ -64,22 +64,16 @@ const sentryOptions = {
   // Configure automatic instrumentation
   autoInstrumentServerFunctions: true,
   autoInstrumentMiddleware: true,
-  excludeServerRoutes: [
-    '/health',
-    '/api/health',
-    '/favicon.ico',
-    '/_next/static',
-    '/_next/image',
-  ],
+  excludeServerRoutes: ['/health', '/api/health', '/favicon.ico', '/_next/static', '/_next/image'],
 
   // Bundle analyzer integration
   bundleSizeOptimizations: {
     excludeReplayIframe: true,
     excludeReplayWorker: true,
   },
-};
+}
 
 module.exports = {
   sentryWebpackPluginOptions,
   sentryOptions,
-};
+}

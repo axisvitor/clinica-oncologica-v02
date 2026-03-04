@@ -1,5 +1,5 @@
-import { Circle } from "lucide-react"
-import { memo } from "react"
+import { Circle } from 'lucide-react'
+import { memo } from 'react'
 
 interface QuizHeaderProps {
   patientName: string

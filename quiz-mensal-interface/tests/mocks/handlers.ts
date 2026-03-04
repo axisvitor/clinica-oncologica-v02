@@ -5,8 +5,8 @@
 import { rest } from 'msw'
 import type { QuizSession, QuizSubmitResponse } from '@/types/quiz'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_QUIZ_PUBLIC_API_URL ||
-                     'http://localhost:8000/api/v2/quiz-extensions'
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_QUIZ_PUBLIC_API_URL || 'http://localhost:8000/api/v2/quiz-extensions'
 
 /**
  * Mock Quiz Session Data
@@ -30,7 +30,7 @@ export const mockQuizSession: QuizSession = {
       min_value: 0,
       max_value: 10,
       required: true,
-      allow_other: false
+      allow_other: false,
     },
     {
       id: 'q2',
@@ -38,7 +38,7 @@ export const mockQuizSession: QuizSession = {
       text: 'Você está tomando seus medicamentos conforme prescrito?',
       type: 'yes_no',
       required: true,
-      allow_other: false
+      allow_other: false,
     },
     {
       id: 'q3',
@@ -51,8 +51,8 @@ export const mockQuizSession: QuizSession = {
         { id: 'opt1', value: 'fatigue', text: 'Fadiga' },
         { id: 'opt2', value: 'nausea', text: 'Náusea' },
         { id: 'opt3', value: 'pain', text: 'Dor' },
-        { id: 'opt4', value: 'insomnia', text: 'Insônia' }
-      ]
+        { id: 'opt4', value: 'insomnia', text: 'Insônia' },
+      ],
     },
     {
       id: 'q4',
@@ -64,8 +64,8 @@ export const mockQuizSession: QuizSession = {
       options: [
         { id: 'opt5', value: 'headache', text: 'Dor de cabeça' },
         { id: 'opt6', value: 'nausea', text: 'Náusea' },
-        { id: 'opt7', value: 'fatigue', text: 'Fadiga' }
-      ]
+        { id: 'opt7', value: 'fatigue', text: 'Fadiga' },
+      ],
     },
     {
       id: 'q5',
@@ -73,9 +73,9 @@ export const mockQuizSession: QuizSession = {
       text: 'Há algo mais que você gostaria de compartilhar com sua equipe médica?',
       type: 'text',
       required: false,
-      allow_other: false
-    }
-  ]
+      allow_other: false,
+    },
+  ],
 }
 
 /**
@@ -84,7 +84,7 @@ export const mockQuizSession: QuizSession = {
 export const mockExpiredSession: QuizSession = {
   ...mockQuizSession,
   quiz_session_id: 'session-expired',
-  expires_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString() // 1 day ago
+  expires_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(), // 1 day ago
 }
 
 /**
@@ -104,16 +104,15 @@ export const handlers = [
     }
 
     if (body.token === 'token-with-rotation') {
-      return res(ctx.json({
-        ...mockQuizSession,
-        new_token: 'rotated-token-123'
-      }))
+      return res(
+        ctx.json({
+          ...mockQuizSession,
+          new_token: 'rotated-token-123',
+        }),
+      )
     }
 
-    return res(
-      ctx.status(401),
-      ctx.json({ detail: 'Token inválido ou expirado' })
-    )
+    return res(ctx.status(401), ctx.json({ detail: 'Token inválido ou expirado' }))
   }),
 
   // Submit Answer - Success
@@ -127,17 +126,14 @@ export const handlers = [
 
     // Validate token
     if (!body.token || body.token === 'invalid-token') {
-      return res(
-        ctx.status(401),
-        ctx.json({ detail: 'Token inválido' })
-      )
+      return res(ctx.status(401), ctx.json({ detail: 'Token inválido' }))
     }
 
     // Simulate token rotation on second answer
     const response: QuizSubmitResponse = {
       success: true,
       message: 'Resposta salva com sucesso',
-      next_question_index: 1
+      next_question_index: 1,
     }
 
     if (body.question_id === 'q2') {
@@ -159,15 +155,12 @@ export const handlers = [
 
   // Simulate Timeout
   rest.post(`${API_BASE_URL}/timeout`, async (req, res, ctx) => {
-    await new Promise(resolve => setTimeout(resolve, 35000)) // Longer than default timeout
+    await new Promise((resolve) => setTimeout(resolve, 35000)) // Longer than default timeout
     return res(ctx.json({ success: true }))
   }),
 
   // Server Error
   rest.post(`${API_BASE_URL}/server-error`, (req, res, ctx) => {
-    return res(
-      ctx.status(500),
-      ctx.json({ detail: 'Internal server error' })
-    )
-  })
+    return res(ctx.status(500), ctx.json({ detail: 'Internal server error' }))
+  }),
 ]

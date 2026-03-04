@@ -1,10 +1,12 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0); /* alterando background para branco puro como na logo */
+  --background: oklch(
+    1 0 0
+  ); /* alterando background para branco puro como na logo */
   --foreground: oklch(0.15 0.02 280);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.15 0.02 280);
@@ -145,19 +147,19 @@
 }
 
 /* Range input styling for mobile scale */
-input[type="range"] {
+input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
   background: transparent;
 }
 
-input[type="range"]::-webkit-slider-runnable-track {
+input[type='range']::-webkit-slider-runnable-track {
   height: 0.75rem;
   border-radius: 0.5rem;
   background: var(--muted);
 }
 
-input[type="range"]::-webkit-slider-thumb {
+input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 1.75rem;
@@ -169,13 +171,13 @@ input[type="range"]::-webkit-slider-thumb {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
-input[type="range"]::-moz-range-track {
+input[type='range']::-moz-range-track {
   height: 0.75rem;
   border-radius: 0.5rem;
   background: var(--muted);
 }
 
-input[type="range"]::-moz-range-thumb {
+input[type='range']::-moz-range-thumb {
   width: 1.75rem;
   height: 1.75rem;
   border-radius: 50%;

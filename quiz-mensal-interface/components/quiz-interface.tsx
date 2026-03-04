@@ -1,18 +1,25 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { CheckCircle, Circle, ArrowRight, ArrowLeft, Send, Loader2 } from "lucide-react"
-import Image from "next/image"
-import type { QuizSession, QuestionType, QuizQuestion, SingleAnswer, MultipleAnswer, OtherAnswer } from "@/types/quiz"
-import { useQuizState } from "@/hooks/quiz/useQuizState"
-import { useToast } from "@/hooks/use-toast"
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { CheckCircle, Circle, ArrowRight, ArrowLeft, Send, Loader2 } from 'lucide-react'
+import Image from 'next/image'
+import type {
+  QuizSession,
+  QuestionType,
+  QuizQuestion,
+  SingleAnswer,
+  MultipleAnswer,
+  OtherAnswer,
+} from '@/types/quiz'
+import { useQuizState } from '@/hooks/quiz/useQuizState'
+import { useToast } from '@/hooks/use-toast'
 
 // Option type from QuizQuestion
 type QuizOption = string | { id?: string; value: string; text: string; allow_other?: boolean }
@@ -24,7 +31,12 @@ interface QuizInterfaceProps {
   resumeFromSaved?: boolean
 }
 
-export default function QuizInterface({ session, token, onComplete, resumeFromSaved = false }: QuizInterfaceProps) {
+export default function QuizInterface({
+  session,
+  token,
+  onComplete,
+  resumeFromSaved = false,
+}: QuizInterfaceProps) {
   const { toast } = useToast()
   const {
     currentQuestionIndex,
@@ -42,7 +54,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
     setSelectedAnswer,
     setAnswers,
     setOtherTexts,
-    handleSubmitAnswer
+    handleSubmitAnswer,
   } = useQuizState({ session, initialToken: token, onComplete, resumeFromSaved })
 
   // Reset selected answer when question changes
@@ -51,7 +63,12 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
     setSelectedAnswer(savedAnswer || null)
     // Restore other text if it was saved
     const savedOtherText = otherTexts.get(currentQuestion.id)
-    if (savedOtherText && savedAnswer && typeof savedAnswer === 'object' && 'value' in savedAnswer) {
+    if (
+      savedOtherText &&
+      savedAnswer &&
+      typeof savedAnswer === 'object' &&
+      'value' in savedAnswer
+    ) {
       // Text is already in the OtherAnswer object
     }
   }, [currentQuestionIndex, currentQuestion.id, answers, otherTexts, setSelectedAnswer])
@@ -67,12 +84,14 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
             <div className="space-y-2">
               <h2 className="text-2xl font-bold">Questionário Concluído!</h2>
               <p className="text-muted-foreground" data-testid="quiz-success-message">
-                Obrigado por responder ao questionário mensal. Suas respostas foram registradas com sucesso.
+                Obrigado por responder ao questionário mensal. Suas respostas foram registradas com
+                sucesso.
               </p>
             </div>
             <div className="pt-4 border-t space-y-2">
               <p className="text-sm text-muted-foreground">
-                Suas respostas ajudam nossa equipe a acompanhar seu bem-estar e oferecer o melhor cuidado possível.
+                Suas respostas ajudam nossa equipe a acompanhar seu bem-estar e oferecer o melhor
+                cuidado possível.
               </p>
             </div>
           </Card>
@@ -98,7 +117,8 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
             </div>
             <div className="pt-4 border-t space-y-2">
               <p className="text-sm text-muted-foreground">
-                Por favor, entre em contato com a clínica se você recebeu um link para este questionário.
+                Por favor, entre em contato com a clínica se você recebeu um link para este
+                questionário.
               </p>
             </div>
           </Card>
@@ -122,9 +142,9 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
   const handleAnswerSubmit = async () => {
     if (!selectedAnswer) {
       toast({
-        title: "Resposta obrigatória",
-        description: "Por favor, selecione uma resposta antes de continuar.",
-        variant: "destructive"
+        title: 'Resposta obrigatória',
+        description: 'Por favor, selecione uma resposta antes de continuar.',
+        variant: 'destructive',
       })
       return
     }
@@ -133,9 +153,9 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
     if (typeof selectedAnswer === 'object' && selectedAnswer && 'value' in selectedAnswer) {
       if (!selectedAnswer.customText || selectedAnswer.customText.trim() === '') {
         toast({
-          title: "Texto obrigatório",
-          description: "Por favor, digite sua resposta personalizada.",
-          variant: "destructive"
+          title: 'Texto obrigatório',
+          description: 'Por favor, digite sua resposta personalizada.',
+          variant: 'destructive',
         })
         return
       }
@@ -150,7 +170,11 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
         // Single choice with "Outra" option - use the real option value
         answerValue = selectedAnswer.value
         otherText = selectedAnswer.customText
-      } else if (typeof selectedAnswer === 'object' && selectedAnswer && 'options' in selectedAnswer) {
+      } else if (
+        typeof selectedAnswer === 'object' &&
+        selectedAnswer &&
+        'options' in selectedAnswer
+      ) {
         // Multiple choice (potentially with other text)
         answerValue = selectedAnswer.options
         otherText = selectedAnswer.otherText
@@ -160,28 +184,27 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
       }
 
       // Submit answer using secure authentication
-      await handleSubmitAnswer(
-        currentQuestion.id,
-        answerValue,
-        { question_index: currentQuestionIndex, other_text: otherText }
-      )
+      await handleSubmitAnswer(currentQuestion.id, answerValue, {
+        question_index: currentQuestionIndex,
+        other_text: otherText,
+      })
 
       // Save answer locally
       setAnswers(new Map(answers.set(currentQuestion.id, selectedAnswer)))
 
       toast({
-        title: "Resposta enviada!",
+        title: 'Resposta enviada!',
         description: isLastQuestion
-          ? "Questionário concluído com sucesso!"
-          : "Sua resposta foi registrada.",
+          ? 'Questionário concluído com sucesso!'
+          : 'Sua resposta foi registrada.',
       })
-
     } catch (error) {
-      console.error("Error submitting answer:", error)
+      console.error('Error submitting answer:', error)
       toast({
-        title: "Erro ao enviar resposta",
-        description: error instanceof Error ? error.message : "Tente novamente em alguns instantes.",
-        variant: "destructive"
+        title: 'Erro ao enviar resposta',
+        description:
+          error instanceof Error ? error.message : 'Tente novamente em alguns instantes.',
+        variant: 'destructive',
       })
     }
   }
@@ -194,16 +217,22 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
 
   const renderQuestionInput = () => {
     switch (currentQuestion.type) {
-      case "single_choice":
-        const singleValue = typeof selectedAnswer === 'object' && selectedAnswer && 'value' in selectedAnswer
-          ? selectedAnswer.value
-          : (selectedAnswer as string || "")
-        const otherTextValue = otherTexts.get(currentQuestion.id) || ""
+      case 'single_choice':
+        const singleValue =
+          typeof selectedAnswer === 'object' && selectedAnswer && 'value' in selectedAnswer
+            ? selectedAnswer.value
+            : (selectedAnswer as string) || ''
+        const otherTextValue = otherTexts.get(currentQuestion.id) || ''
 
         // Find the "other" option value dynamically
         const otherOption = currentQuestion.options?.find((opt: QuizOption) => {
           if (typeof opt === 'string') return false
-          return opt.allow_other === true || opt.value.toLowerCase() === 'other' || opt.value.toLowerCase() === 'outro' || opt.value.toLowerCase() === 'outra'
+          return (
+            opt.allow_other === true ||
+            opt.value.toLowerCase() === 'other' ||
+            opt.value.toLowerCase() === 'outro' ||
+            opt.value.toLowerCase() === 'outra'
+          )
         })
         const otherOptionValue = typeof otherOption === 'object' ? otherOption.value : 'other'
 
@@ -213,7 +242,10 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
               value={singleValue}
               onValueChange={(value) => {
                 if (value === otherOptionValue) {
-                  handleAnswerChange({ value: otherOptionValue, customText: otherTextValue } as OtherAnswer)
+                  handleAnswerChange({
+                    value: otherOptionValue,
+                    customText: otherTextValue,
+                  } as OtherAnswer)
                 } else {
                   handleAnswerChange(value)
                 }
@@ -225,7 +257,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
                 const optionText = typeof option === 'string' ? option : option.text
                 return (
                   <div
-                    key={typeof option === 'string' ? index : option.id ?? index}
+                    key={typeof option === 'string' ? index : (option.id ?? index)}
                     className="flex items-center space-x-3 p-4 rounded-xl border-2 border-border hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer"
                   >
                     <RadioGroupItem value={optionValue} id={`option-${index}`} />
@@ -244,10 +276,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
                 <div className="space-y-3">
                   <div className="flex items-center space-x-3 p-4 rounded-xl border-2 border-border hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer">
                     <RadioGroupItem value={otherOptionValue} id="option-other" />
-                    <Label
-                      htmlFor="option-other"
-                      className="flex-1 cursor-pointer font-medium"
-                    >
+                    <Label htmlFor="option-other" className="flex-1 cursor-pointer font-medium">
                       Outra
                     </Label>
                   </div>
@@ -268,16 +297,22 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
           </div>
         )
 
-      case "multiple_choice":
+      case 'multiple_choice':
         let multipleAnswers: string[] = []
         let hasOtherSelected = false
 
         // Find the "other" option value dynamically for multiple choice
         const multiOtherOption = currentQuestion.options?.find((opt: QuizOption) => {
           if (typeof opt === 'string') return false
-          return opt.allow_other === true || opt.value.toLowerCase() === 'other' || opt.value.toLowerCase() === 'outro' || opt.value.toLowerCase() === 'outra'
+          return (
+            opt.allow_other === true ||
+            opt.value.toLowerCase() === 'other' ||
+            opt.value.toLowerCase() === 'outro' ||
+            opt.value.toLowerCase() === 'outra'
+          )
         })
-        const multiOtherOptionValue = typeof multiOtherOption === 'object' ? multiOtherOption.value : 'other'
+        const multiOtherOptionValue =
+          typeof multiOtherOption === 'object' ? multiOtherOption.value : 'other'
 
         if (selectedAnswer) {
           if (Array.isArray(selectedAnswer)) {
@@ -288,7 +323,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
           }
         }
 
-        const multiOtherTextValue = otherTexts.get(currentQuestion.id) || ""
+        const multiOtherTextValue = otherTexts.get(currentQuestion.id) || ''
 
         return (
           <div className="space-y-3">
@@ -297,7 +332,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
               const optionText = typeof option === 'string' ? option : option.text
               return (
                 <div
-                  key={typeof option === 'string' ? index : option.id ?? index}
+                  key={typeof option === 'string' ? index : (option.id ?? index)}
                   className="flex items-center space-x-3 p-4 rounded-xl border-2 border-border hover:border-primary/50 hover:bg-primary/5 transition-all"
                 >
                   <Checkbox
@@ -308,7 +343,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
                       if (checked) {
                         newAnswers = [...multipleAnswers, optionValue]
                       } else {
-                        newAnswers = multipleAnswers.filter(a => a !== optionValue)
+                        newAnswers = multipleAnswers.filter((a) => a !== optionValue)
                       }
 
                       if (newAnswers.includes(multiOtherOptionValue)) {
@@ -318,10 +353,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
                       }
                     }}
                   />
-                  <Label
-                    htmlFor={`option-${index}`}
-                    className="flex-1 cursor-pointer font-medium"
-                  >
+                  <Label htmlFor={`option-${index}`} className="flex-1 cursor-pointer font-medium">
                     {optionText}
                   </Label>
                 </div>
@@ -341,7 +373,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
                         newAnswers = [...multipleAnswers, multiOtherOptionValue]
                         handleAnswerChange({ options: newAnswers, otherText: multiOtherTextValue })
                       } else {
-                        newAnswers = multipleAnswers.filter(a => a !== multiOtherOptionValue)
+                        newAnswers = multipleAnswers.filter((a) => a !== multiOtherOptionValue)
                         if (newAnswers.length > 0) {
                           handleAnswerChange(newAnswers)
                         } else {
@@ -350,10 +382,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
                       }
                     }}
                   />
-                  <Label
-                    htmlFor="option-other"
-                    className="flex-1 cursor-pointer font-medium"
-                  >
+                  <Label htmlFor="option-other" className="flex-1 cursor-pointer font-medium">
                     Outra
                   </Label>
                 </div>
@@ -376,7 +405,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
           </div>
         )
 
-      case "scale":
+      case 'scale':
         const scaleMin = currentQuestion.min_value || 0
         const scaleMax = currentQuestion.max_value || 10
         const scaleValues = Array.from({ length: scaleMax - scaleMin + 1 }, (_, i) => scaleMin + i)
@@ -390,9 +419,10 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
                   onClick={() => handleAnswerChange(value.toString())}
                   className={`
                     flex-1 h-12 rounded-lg border-2 transition-all font-semibold
-                    ${selectedAnswer === value.toString()
-                      ? "border-primary bg-primary text-primary-foreground shadow-lg scale-110"
-                      : "border-border hover:border-primary/50 hover:bg-primary/5"
+                    ${
+                      selectedAnswer === value.toString()
+                        ? 'border-primary bg-primary text-primary-foreground shadow-lg scale-110'
+                        : 'border-border hover:border-primary/50 hover:bg-primary/5'
                     }
                   `}
                 >
@@ -407,20 +437,20 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
           </div>
         )
 
-      case "text":
+      case 'text':
         return (
           <Textarea
-            value={selectedAnswer as string || ""}
+            value={(selectedAnswer as string) || ''}
             onChange={(e) => handleAnswerChange(e.target.value)}
             placeholder="Digite sua resposta aqui..."
             className="min-h-32 resize-none"
           />
         )
 
-      case "yes_no":
+      case 'yes_no':
         return (
           <RadioGroup
-            value={selectedAnswer as string || ""}
+            value={(selectedAnswer as string) || ''}
             onValueChange={handleAnswerChange}
             className="space-y-3"
           >
@@ -450,13 +480,17 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
             <Circle className="w-4 h-4 fill-current" />
             Quiz Mensal - {session.patient_name}
           </div>
-          <h1 className="text-2xl font-bold" data-testid="quiz-title">{session.template_name}</h1>
+          <h1 className="text-2xl font-bold" data-testid="quiz-title">
+            {session.template_name}
+          </h1>
         </div>
 
         {/* Progress */}
         <div className="space-y-2">
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span data-testid="question-number">Pergunta {(currentQuestionIndex || 0) + 1} de {totalQuestions}</span>
+            <span data-testid="question-number">
+              Pergunta {(currentQuestionIndex || 0) + 1} de {totalQuestions}
+            </span>
             <span>{Math.round(progress)}%</span>
           </div>
           <Progress value={progress} className="h-2" />
@@ -475,9 +509,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
             </div>
 
             {/* Question Input */}
-            <div className="pl-11">
-              {renderQuestionInput()}
-            </div>
+            <div className="pl-11">{renderQuestionInput()}</div>
           </div>
 
           {/* Actions */}
@@ -498,7 +530,7 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
               onClick={handleAnswerSubmit}
               disabled={!selectedAnswer || isSubmitting}
               className="flex-1"
-              data-testid={isLastQuestion ? "submit-quiz" : "next-question"}
+              data-testid={isLastQuestion ? 'submit-quiz' : 'next-question'}
             >
               {isSubmitting ? (
                 <>
@@ -523,7 +555,9 @@ export default function QuizInterface({ session, token, onComplete, resumeFromSa
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground space-y-1">
           <p>Suas respostas são confidenciais e seguras</p>
-          <p className="text-xs">Link válido até: {new Date(session.expires_at).toLocaleDateString("pt-BR")}</p>
+          <p className="text-xs">
+            Link válido até: {new Date(session.expires_at).toLocaleDateString('pt-BR')}
+          </p>
         </div>
       </div>
     </div>

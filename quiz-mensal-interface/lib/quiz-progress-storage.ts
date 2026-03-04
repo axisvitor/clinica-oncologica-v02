@@ -3,7 +3,7 @@
  * Manages localStorage persistence for quiz progress recovery
  */
 
-import type { SingleAnswer, MultipleAnswer } from "@/types/quiz"
+import type { SingleAnswer, MultipleAnswer } from '@/types/quiz'
 
 export interface QuizProgress {
   sessionId: string
@@ -16,8 +16,8 @@ export interface QuizProgress {
   totalQuestions: number
 }
 
-const STORAGE_KEY = "quiz-progress"
-const STORAGE_VERSION = "v1"
+const STORAGE_KEY = 'quiz-progress'
+const STORAGE_VERSION = 'v1'
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 /**
@@ -35,12 +35,12 @@ export function saveQuizProgress(progress: QuizProgress): void {
     const key = getStorageKey(progress.sessionId)
     const data = {
       ...progress,
-      lastSaved: Date.now()
+      lastSaved: Date.now(),
     }
     localStorage.setItem(key, JSON.stringify(data))
     console.log(`Quiz progress saved for session ${progress.sessionId}`)
   } catch (error) {
-    console.error("Failed to save quiz progress:", error)
+    console.error('Failed to save quiz progress:', error)
     // Don't throw - localStorage may be full or disabled
   }
 }
@@ -60,8 +60,12 @@ export function loadQuizProgress(sessionId: string): QuizProgress | null {
     const progress = JSON.parse(raw) as QuizProgress
 
     // Validate progress data
-    if (!progress.sessionId || !progress.answers || typeof progress.currentQuestionIndex !== "number") {
-      console.warn("Invalid quiz progress data, ignoring")
+    if (
+      !progress.sessionId ||
+      !progress.answers ||
+      typeof progress.currentQuestionIndex !== 'number'
+    ) {
+      console.warn('Invalid quiz progress data, ignoring')
       clearQuizProgress(sessionId)
       return null
     }
@@ -69,7 +73,7 @@ export function loadQuizProgress(sessionId: string): QuizProgress | null {
     // Check if progress is too old
     const age = Date.now() - progress.lastSaved
     if (age > MAX_AGE_MS) {
-      console.log("Quiz progress expired, clearing")
+      console.log('Quiz progress expired, clearing')
       clearQuizProgress(sessionId)
       return null
     }
@@ -77,7 +81,7 @@ export function loadQuizProgress(sessionId: string): QuizProgress | null {
     console.log(`Quiz progress loaded for session ${sessionId}`)
     return progress
   } catch (error) {
-    console.error("Failed to load quiz progress:", error)
+    console.error('Failed to load quiz progress:', error)
     return null
   }
 }
@@ -91,7 +95,7 @@ export function clearQuizProgress(sessionId: string): void {
     localStorage.removeItem(key)
     console.log(`Quiz progress cleared for session ${sessionId}`)
   } catch (error) {
-    console.error("Failed to clear quiz progress:", error)
+    console.error('Failed to clear quiz progress:', error)
   }
 }
 
@@ -132,7 +136,7 @@ export function getAllSavedSessions(): QuizProgress[] {
 
     return sessions
   } catch (error) {
-    console.error("Failed to get saved sessions:", error)
+    console.error('Failed to get saved sessions:', error)
     return []
   }
 }
@@ -145,13 +149,13 @@ export function cleanupOldProgress(): void {
     const sessions = getAllSavedSessions()
     const now = Date.now()
 
-    sessions.forEach(progress => {
+    sessions.forEach((progress) => {
       const age = now - progress.lastSaved
       if (age > MAX_AGE_MS) {
         clearQuizProgress(progress.sessionId)
       }
     })
   } catch (error) {
-    console.error("Failed to cleanup old progress:", error)
+    console.error('Failed to cleanup old progress:', error)
   }
 }

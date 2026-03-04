@@ -1,9 +1,18 @@
-"use client"
+'use client'
 
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Progress } from "@/components/ui/progress"
-import { PlayCircle, RefreshCcw } from "lucide-react"
-import type { QuizProgress } from "@/lib/quiz-progress-storage"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Progress } from '@/components/ui/progress'
+import { PlayCircle, RefreshCcw } from 'lucide-react'
+import type { QuizProgress } from '@/lib/quiz-progress-storage'
 
 interface ResumeQuizDialogProps {
   open: boolean
@@ -12,7 +21,12 @@ interface ResumeQuizDialogProps {
   onStartFresh: () => void
 }
 
-export function ResumeQuizDialog({ open, progress, onResume, onStartFresh }: ResumeQuizDialogProps) {
+export function ResumeQuizDialog({
+  open,
+  progress,
+  onResume,
+  onStartFresh,
+}: ResumeQuizDialogProps) {
   if (!progress) return null
 
   const progressPercentage = ((progress.currentQuestionIndex + 1) / progress.totalQuestions) * 100
@@ -40,7 +54,8 @@ export function ResumeQuizDialog({ open, progress, onResume, onStartFresh }: Res
                   <div className="space-y-2">
                     <Progress value={progressPercentage} className="h-2" />
                     <p className="text-xs text-muted-foreground">
-                      {answeredQuestions} de {progress.totalQuestions} perguntas respondidas ({Math.round(progressPercentage)}%)
+                      {answeredQuestions} de {progress.totalQuestions} perguntas respondidas (
+                      {Math.round(progressPercentage)}%)
                     </p>
                   </div>
                 </div>
@@ -53,7 +68,7 @@ export function ResumeQuizDialog({ open, progress, onResume, onStartFresh }: Res
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-foreground">Último salvamento</p>
                   <p className="text-sm text-muted-foreground">
-                    {timeAgo} ({lastSavedDate.toLocaleString("pt-BR")})
+                    {timeAgo} ({lastSavedDate.toLocaleString('pt-BR')})
                   </p>
                 </div>
               </div>
@@ -83,7 +98,7 @@ function getTimeAgo(timestamp: number): string {
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)
 
-  if (minutes < 1) return "agora mesmo"
+  if (minutes < 1) return 'agora mesmo'
   if (minutes < 60) return `há ${minutes} minuto${minutes > 1 ? 's' : ''}`
   if (hours < 24) return `há ${hours} hora${hours > 1 ? 's' : ''}`
   return `há ${days} dia${days > 1 ? 's' : ''}`

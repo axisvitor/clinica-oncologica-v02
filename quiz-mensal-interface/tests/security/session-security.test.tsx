@@ -24,8 +24,8 @@ jest.mock('next/navigation', () => ({
     back: jest.fn(),
   }),
   useSearchParams: () => ({
-    get: jest.fn((key) => key === 'token' ? 'valid-token-123' : null)
-  })
+    get: jest.fn((key) => (key === 'token' ? 'valid-token-123' : null)),
+  }),
 }))
 
 // Test data - matches actual QuizSession type
@@ -44,22 +44,22 @@ const mockQuizSession: QuizSession = {
       type: 'scale',
       min_value: 0,
       max_value: 10,
-      required: true
+      required: true,
     },
     {
       id: 'q2',
       text: 'Are you taking medications?',
       type: 'yes_no',
-      required: true
+      required: true,
     },
     {
       id: 'q3',
       text: 'Additional comments',
       type: 'text',
-      required: false
-    }
+      required: false,
+    },
   ],
-  expires_at: new Date(Date.now() + 3600000).toISOString()
+  expires_at: new Date(Date.now() + 3600000).toISOString(),
 }
 
 describe('Session Security Management', () => {
@@ -74,17 +74,18 @@ describe('Session Security Management', () => {
       if (url.includes('csrf-token')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ csrfToken: 'test-csrf-token' })
+          json: () => Promise.resolve({ csrfToken: 'test-csrf-token' }),
         })
       }
       if (url.includes('submit-answer')) {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({
-            success: true,
-            is_last_question: false,
-            session_status: 'in_progress'
-          })
+          json: () =>
+            Promise.resolve({
+              success: true,
+              is_last_question: false,
+              session_status: 'in_progress',
+            }),
         })
       }
       return Promise.reject(new Error('Unknown URL'))
@@ -93,12 +94,7 @@ describe('Session Security Management', () => {
 
   describe('Session Initialization Security', () => {
     it('should render quiz with valid session data', () => {
-      render(
-        <QuizInterface
-          session={mockQuizSession}
-          onComplete={mockOnComplete}
-        />
-      )
+      render(<QuizInterface session={mockQuizSession} onComplete={mockOnComplete} />)
 
       // Patient name is displayed as "Quiz Mensal - {patient_name}"
       expect(screen.getByText(/Test Patient/)).toBeInTheDocument()
@@ -107,15 +103,10 @@ describe('Session Security Management', () => {
     it('should handle expired session gracefully', () => {
       const expiredSession = {
         ...mockQuizSession,
-        expires_at: new Date(Date.now() - 3600000).toISOString()
+        expires_at: new Date(Date.now() - 3600000).toISOString(),
       }
 
-      render(
-        <QuizInterface
-          session={expiredSession}
-          onComplete={mockOnComplete}
-        />
-      )
+      render(<QuizInterface session={expiredSession} onComplete={mockOnComplete} />)
 
       // Component should still render (expiration may show warning)
       expect(screen.getByText(/Test Patient/)).toBeInTheDocument()
@@ -124,33 +115,23 @@ describe('Session Security Management', () => {
 
   describe('Storage Security', () => {
     it('should not store sensitive data in localStorage', () => {
-      render(
-        <QuizInterface
-          session={mockQuizSession}
-          onComplete={mockOnComplete}
-        />
-      )
+      render(<QuizInterface session={mockQuizSession} onComplete={mockOnComplete} />)
 
       const localStorageKeys = Object.keys(localStorage)
       const sensitiveKeys = ['token', 'session_id', 'patient_data']
 
-      sensitiveKeys.forEach(key => {
+      sensitiveKeys.forEach((key) => {
         expect(localStorageKeys).not.toContain(key)
       })
     })
 
     it('should not store sensitive data in sessionStorage', () => {
-      render(
-        <QuizInterface
-          session={mockQuizSession}
-          onComplete={mockOnComplete}
-        />
-      )
+      render(<QuizInterface session={mockQuizSession} onComplete={mockOnComplete} />)
 
       const sessionStorageKeys = Object.keys(sessionStorage)
       const sensitiveKeys = ['token', 'session_id', 'patient_data']
 
-      sensitiveKeys.forEach(key => {
+      sensitiveKeys.forEach((key) => {
         expect(sessionStorageKeys).not.toContain(key)
       })
     })
@@ -159,10 +140,7 @@ describe('Session Security Management', () => {
   describe('DOM Security', () => {
     it('should not expose sensitive data in DOM', () => {
       const { container } = render(
-        <QuizInterface
-          session={mockQuizSession}
-          onComplete={mockOnComplete}
-        />
+        <QuizInterface session={mockQuizSession} onComplete={mockOnComplete} />,
       )
 
       // Session ID should not be visible in rendered HTML
@@ -173,10 +151,7 @@ describe('Session Security Management', () => {
   describe('Session Cleanup', () => {
     it('should unmount cleanly without errors', () => {
       const { unmount } = render(
-        <QuizInterface
-          session={mockQuizSession}
-          onComplete={mockOnComplete}
-        />
+        <QuizInterface session={mockQuizSession} onComplete={mockOnComplete} />,
       )
 
       // Component should unmount without throwing
@@ -188,12 +163,7 @@ describe('Session Security Management', () => {
     it('should allow scale question interaction', async () => {
       const user = userEvent.setup()
 
-      render(
-        <QuizInterface
-          session={mockQuizSession}
-          onComplete={mockOnComplete}
-        />
-      )
+      render(<QuizInterface session={mockQuizSession} onComplete={mockOnComplete} />)
 
       // Scale questions use buttons, not sliders
       const button5 = screen.getByRole('button', { name: '5' })
@@ -208,15 +178,10 @@ describe('Session Security Management', () => {
       // Start at question 2 (yes/no)
       const sessionAtQ2 = {
         ...mockQuizSession,
-        current_question_index: 1
+        current_question_index: 1,
       }
 
-      render(
-        <QuizInterface
-          session={sessionAtQ2}
-          onComplete={mockOnComplete}
-        />
-      )
+      render(<QuizInterface session={sessionAtQ2} onComplete={mockOnComplete} />)
 
       // Find and click yes option
       const yesOption = screen.getByLabelText('Sim')
@@ -231,15 +196,10 @@ describe('Session Security Management', () => {
       // Start at question 3 (text)
       const sessionAtQ3 = {
         ...mockQuizSession,
-        current_question_index: 2
+        current_question_index: 2,
       }
 
-      render(
-        <QuizInterface
-          session={sessionAtQ3}
-          onComplete={mockOnComplete}
-        />
-      )
+      render(<QuizInterface session={sessionAtQ3} onComplete={mockOnComplete} />)
 
       const textarea = screen.getByPlaceholderText(/Digite sua resposta/i)
       await user.type(textarea, 'Test comment')
@@ -256,35 +216,31 @@ describe('Session Security Management', () => {
       const sessionWithTextQuestion = {
         ...mockQuizSession,
         current_question_index: 0,
-        questions: [mockQuizSession.questions[2]] // Only text question (at index 0)
+        questions: [mockQuizSession.questions[2]], // Only text question (at index 0)
       }
 
       mockFetch.mockImplementation((url: string) => {
         if (url.includes('csrf-token')) {
           return Promise.resolve({
             ok: true,
-            json: () => Promise.resolve({ csrfToken: 'test-csrf-token' })
+            json: () => Promise.resolve({ csrfToken: 'test-csrf-token' }),
           })
         }
         if (url.includes('submit-answer')) {
           return Promise.resolve({
             ok: true,
-            json: () => Promise.resolve({
-              success: true,
-              is_last_question: true,
-              session_status: 'completed'
-            })
+            json: () =>
+              Promise.resolve({
+                success: true,
+                is_last_question: true,
+                session_status: 'completed',
+              }),
           })
         }
         return Promise.reject(new Error('Unknown URL'))
       })
 
-      render(
-        <QuizInterface
-          session={sessionWithTextQuestion}
-          onComplete={mockOnComplete}
-        />
-      )
+      render(<QuizInterface session={sessionWithTextQuestion} onComplete={mockOnComplete} />)
 
       const textarea = screen.getByPlaceholderText(/Digite sua resposta/i)
       await user.type(textarea, 'Final answer')

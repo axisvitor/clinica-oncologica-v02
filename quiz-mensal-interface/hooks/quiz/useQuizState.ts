@@ -1,7 +1,12 @@
-import { useState, useEffect, useCallback } from "react"
-import type { QuizSession, SingleAnswer, MultipleAnswer } from "@/types/quiz"
-import { saveQuizProgress, loadQuizProgress, clearQuizProgress, type QuizProgress } from "@/lib/quiz-progress-storage"
-import { api } from "@/lib/api-client"
+import { useState, useEffect, useCallback } from 'react'
+import type { QuizSession, SingleAnswer, MultipleAnswer } from '@/types/quiz'
+import {
+  saveQuizProgress,
+  loadQuizProgress,
+  clearQuizProgress,
+  type QuizProgress,
+} from '@/lib/quiz-progress-storage'
+import { api } from '@/lib/api-client'
 
 interface UseQuizStateProps {
   session: QuizSession
@@ -10,15 +15,22 @@ interface UseQuizStateProps {
   resumeFromSaved?: boolean
 }
 
-export function useQuizState({ session, initialToken, onComplete, resumeFromSaved = false }: UseQuizStateProps) {
+export function useQuizState({
+  session,
+  initialToken,
+  onComplete,
+  resumeFromSaved = false,
+}: UseQuizStateProps) {
   // Initialize with 0 fallback to prevent undefined -> 0 transitions that trigger useEffect
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(session.current_question_index ?? 0)
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(
+    session.current_question_index ?? 0,
+  )
   const [selectedAnswer, setSelectedAnswer] = useState<SingleAnswer | MultipleAnswer | null>(null)
   const [answers, setAnswers] = useState<Map<string, SingleAnswer | MultipleAnswer>>(new Map())
   const [otherTexts, setOtherTexts] = useState<Map<string, string>>(new Map())
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isCompleted, setIsCompleted] = useState(false)
-  const [navigationDirection, setNavigationDirection] = useState<"forward" | "backward">("forward")
+  const [navigationDirection, setNavigationDirection] = useState<'forward' | 'backward'>('forward')
 
   // Guard: Check for empty or invalid questions array
   const hasValidQuestions = Array.isArray(session.questions) && session.questions.length > 0
@@ -65,7 +77,7 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
       lastSaved: Date.now(),
       patientName: session.patient_name,
       templateName: session.template_name,
-      totalQuestions: session.questions.length
+      totalQuestions: session.questions.length,
     }
     saveQuizProgress(progressData)
   }, [session, currentQuestionIndex, answers, otherTexts])
@@ -91,7 +103,7 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
   const handleSubmitAnswer = async (
     questionId: string,
     responseValue: string | string[],
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ) => {
     setIsSubmitting(true)
     try {
@@ -106,7 +118,7 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
         clearQuizProgress(session.quiz_session_id)
         onComplete?.()
       } else {
-        setCurrentQuestionIndex(prev => (prev || 0) + 1)
+        setCurrentQuestionIndex((prev) => (prev || 0) + 1)
         setSelectedAnswer(null)
       }
 
@@ -121,14 +133,14 @@ export function useQuizState({ session, initialToken, onComplete, resumeFromSave
 
   // Navigation helpers with direction tracking
   const goToNextQuestion = useCallback(() => {
-    setNavigationDirection("forward")
-    setCurrentQuestionIndex(prev => Math.min(prev + 1, totalQuestions - 1))
+    setNavigationDirection('forward')
+    setCurrentQuestionIndex((prev) => Math.min(prev + 1, totalQuestions - 1))
     setSelectedAnswer(null)
   }, [totalQuestions])
 
   const goToPreviousQuestion = useCallback(() => {
-    setNavigationDirection("backward")
-    setCurrentQuestionIndex(prev => Math.max(prev - 1, 0))
+    setNavigationDirection('backward')
+    setCurrentQuestionIndex((prev) => Math.max(prev - 1, 0))
   }, [])
 
   return {

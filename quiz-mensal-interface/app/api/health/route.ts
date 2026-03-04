@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
@@ -9,25 +9,25 @@ export async function GET() {
       uptime: process.uptime(),
       environment: process.env.NODE_ENV || 'development',
       version: process.env.APP_VERSION || '1.0.0',
-      service: 'quiz-mensal-interface'
-    };
+      service: 'quiz-mensal-interface',
+    }
 
     // Check API connection if configured
-    let apiStatus = 'not-configured';
+    let apiStatus = 'not-configured'
     if (process.env.NEXT_PUBLIC_API_URL) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 5000)
 
         const apiResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/health/`, {
           method: 'GET',
           signal: controller.signal,
-        });
+        })
 
-        clearTimeout(timeoutId);
-        apiStatus = apiResponse.ok ? 'healthy' : 'unhealthy';
+        clearTimeout(timeoutId)
+        apiStatus = apiResponse.ok ? 'healthy' : 'unhealthy'
       } catch (error) {
-        apiStatus = 'unreachable';
+        apiStatus = 'unreachable'
       }
     }
 
@@ -36,39 +36,38 @@ export async function GET() {
       dependencies: {
         backend_api: {
           status: apiStatus,
-          url: process.env.NEXT_PUBLIC_API_URL || 'not-configured'
-        }
-      }
-    };
+          url: process.env.NEXT_PUBLIC_API_URL || 'not-configured',
+        },
+      },
+    }
 
     return NextResponse.json(response, {
       status: 200,
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
-    });
-
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    })
   } catch (error) {
     const errorResponse = {
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
       error: error instanceof Error ? error.message : 'Unknown error',
-      service: 'quiz-mensal-interface'
-    };
+      service: 'quiz-mensal-interface',
+    }
 
     return NextResponse.json(errorResponse, {
       status: 503,
       headers: {
         'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
-    });
+        Pragma: 'no-cache',
+        Expires: '0',
+      },
+    })
   }
 }
 
 export async function HEAD() {
-  return new Response(null, { status: 200 });
+  return new Response(null, { status: 200 })
 }

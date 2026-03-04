@@ -1,6 +1,6 @@
-import { Card } from "@/components/ui/card"
-import { CheckCircle } from "lucide-react"
-import { memo } from "react"
+import { Card } from '@/components/ui/card'
+import { CheckCircle } from 'lucide-react'
+import { memo } from 'react'
 
 interface QuizCompletionProps {
   expiresAt: string
@@ -17,12 +17,14 @@ export const QuizCompletion = memo(function QuizCompletion({ expiresAt }: QuizCo
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">Questionário Concluído!</h2>
             <p className="text-muted-foreground">
-              Obrigado por responder ao questionário mensal. Suas respostas foram registradas com sucesso.
+              Obrigado por responder ao questionário mensal. Suas respostas foram registradas com
+              sucesso.
             </p>
           </div>
           <div className="pt-4 border-t space-y-2">
             <p className="text-sm text-muted-foreground">
-              Suas respostas ajudam nossa equipe a acompanhar seu bem-estar e oferecer o melhor cuidado possível.
+              Suas respostas ajudam nossa equipe a acompanhar seu bem-estar e oferecer o melhor
+              cuidado possível.
             </p>
           </div>
         </Card>

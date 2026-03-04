@@ -1,4 +1,4 @@
-import type { SingleAnswer, MultipleAnswer, OtherAnswer } from "@/types/quiz"
+import type { SingleAnswer, MultipleAnswer, OtherAnswer } from '@/types/quiz'
 
 export function useQuizAnswer() {
   const handleAnswerChange = (value: SingleAnswer | MultipleAnswer) => {
@@ -8,24 +8,25 @@ export function useQuizAnswer() {
   const handleOtherTextChange = (
     text: string,
     otherOptionValue: string,
-    selectedAnswer: SingleAnswer | MultipleAnswer | null
+    selectedAnswer: SingleAnswer | MultipleAnswer | null,
   ): OtherAnswer => {
     // Always return a valid OtherAnswer object to preserve selection
     // Extract customText from existing answer if it's an OtherAnswer
-    const existingCustomText = typeof selectedAnswer === 'object' && selectedAnswer && 'customText' in selectedAnswer
-      ? selectedAnswer.customText
-      : ''
+    const existingCustomText =
+      typeof selectedAnswer === 'object' && selectedAnswer && 'customText' in selectedAnswer
+        ? selectedAnswer.customText
+        : ''
 
     return { value: otherOptionValue, customText: text || existingCustomText } as OtherAnswer
   }
 
   const validateAnswer = (
-    selectedAnswer: SingleAnswer | MultipleAnswer | null
+    selectedAnswer: SingleAnswer | MultipleAnswer | null,
   ): { isValid: boolean; error?: string } => {
     if (!selectedAnswer) {
       return {
         isValid: false,
-        error: "Por favor, selecione uma resposta antes de continuar."
+        error: 'Por favor, selecione uma resposta antes de continuar.',
       }
     }
 
@@ -34,7 +35,7 @@ export function useQuizAnswer() {
       if (!selectedAnswer.customText || selectedAnswer.customText.trim() === '') {
         return {
           isValid: false,
-          error: "Por favor, digite sua resposta personalizada."
+          error: 'Por favor, digite sua resposta personalizada.',
         }
       }
     }
@@ -50,7 +51,11 @@ export function useQuizAnswer() {
       // Single choice with "Outra" option
       answerValue = selectedAnswer.value
       otherText = selectedAnswer.customText
-    } else if (typeof selectedAnswer === 'object' && selectedAnswer && 'options' in selectedAnswer) {
+    } else if (
+      typeof selectedAnswer === 'object' &&
+      selectedAnswer &&
+      'options' in selectedAnswer
+    ) {
       // Multiple choice
       answerValue = selectedAnswer.options
       otherText = selectedAnswer.otherText

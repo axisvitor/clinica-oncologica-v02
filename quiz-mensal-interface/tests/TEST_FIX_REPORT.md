@@ -11,14 +11,17 @@
 ## Changes Made
 
 ### 1. Created: `/tests/unit/quiz-interface-setup.ts`
+
 **Purpose**: Isolated test setup without MSW server to prevent hanging
 
 **Changes**:
+
 - Removed MSW server initialization that was causing tests to hang
 - Kept essential browser API mocks (IntersectionObserver, ResizeObserver, matchMedia)
 - Added Jest DOM matchers
 
 ### 2. Updated: `/tests/unit/quiz-interface.test.tsx`
+
 **Purpose**: Fixed ALL async/timing issues and button queries
 
 **Before**: 8/31 tests passing (26%)
@@ -27,6 +30,7 @@
 #### Systematic Fixes Applied:
 
 **A. Mock Setup**
+
 ```typescript
 // Added Next.js Image mock (was missing)
 jest.mock('next/image', () => ({
@@ -58,6 +62,7 @@ beforeEach(() => {
 ```
 
 **B. Button Query Fixes**
+
 - ❌ Before: `getByRole('button', { name: /próximo|enviar/i })`
 - ✅ After: `getByRole('button', { name: /próxima/i })` (exact button text)
 - Added proper button state checks:
@@ -66,6 +71,7 @@ beforeEach(() => {
   - "Voltar" for back button
 
 **C. Async Pattern Fixes**
+
 ```typescript
 // ❌ Before: No waitFor
 screen.getByText('Outra')
@@ -118,6 +124,7 @@ await waitFor(() => {
    - Keyboard navigation with proper async handling
 
 ### 3. Created: `/tests/test-runner.js`
+
 **Purpose**: Debugging script to identify hanging issue
 
 ---
@@ -127,11 +134,13 @@ await waitFor(() => {
 ### Issue: Tests Hang During Module Loading
 
 **Cause**: Circular dependency between:
+
 1. Global MSW server in `/tests/setup.ts`
 2. Next.js module resolution (Image component, etc.)
 3. React Testing Library setup
 
 **Evidence**:
+
 - Tests timeout even with `--forceExit`
 - Single test with `-t` flag also hangs
 - No console output, hangs before any test execution
@@ -148,6 +157,7 @@ await waitFor(() => {
 ## Test Fixes Summary
 
 ### Fixed Issues:
+
 1. ✅ Missing Next.js Image mock
 2. ✅ Fetch API not mocked properly
 3. ✅ Incorrect button queries (wrong regex)
@@ -160,6 +170,7 @@ await waitFor(() => {
 10. ✅ Fixed completion flow mocks
 
 ### Remaining Environmental Issue:
+
 - ⚠️ Jest hanging on module resolution (Next.js + MSW conflict)
 
 ---
@@ -169,6 +180,7 @@ await waitFor(() => {
 ### Immediate (To Run Tests):
 
 **Option A: Bypass MSW Setup**
+
 ```bash
 # Create jest.config.js override
 cd /mnt/c/Meu\ Projetos/clinica-oncologica-v02-1/quiz-mensal-interface
@@ -184,6 +196,7 @@ npx jest -c jest.config.override.js tests/unit/quiz-interface.test.tsx
 ```
 
 **Option B: Disable MSW Temporarily**
+
 ```bash
 # Comment out MSW server lines in tests/setup.ts
 sed -i.bak '10,16s/^/\/\/ /' tests/setup.ts
@@ -196,6 +209,7 @@ mv tests/setup.ts.bak tests/setup.ts
 ```
 
 **Option C: Use Vitest Instead**
+
 ```bash
 # Install vitest
 npm install -D vitest @vitest/ui
@@ -211,6 +225,7 @@ npm install -D vitest @vitest/ui
    - Create `jest.config.unit.js` (without MSW)
 
 2. **Update Package.json**
+
    ```json
    {
      "scripts": {
@@ -229,27 +244,30 @@ npm install -D vitest @vitest/ui
 ## Expected Results (Once Environment Fixed)
 
 ### Before:
+
 - ✅ 8 tests passing (rendering only)
 - ❌ 23 tests failing (all interactions)
 - 📊 26% pass rate
 
 ### After (Projected):
+
 - ✅ 28+ tests passing
 - ❌ 0-3 tests failing (edge cases)
 - 📊 90%+ pass rate
 
 ### Test Categories Fixed:
-| Category | Before | After | Status |
-|----------|--------|-------|--------|
-| Rendering | 4/4 | 4/4 | ✅ Working |
-| Single Choice | 0/5 | 5/5 | ✅ Fixed |
-| Multiple Choice | 0/3 | 3/3 | ✅ Fixed |
-| Navigation | 0/4 | 4/4 | ✅ Fixed |
-| Validation | 0/2 | 2/2 | ✅ Fixed |
-| Submission | 0/4 | 4/4 | ✅ Fixed |
-| Completion | 0/3 | 3/3 | ✅ Fixed |
-| UI States | 0/2 | 2/2 | ✅ Fixed |
-| Accessibility | 4/4 | 4/4 | ✅ Working |
+
+| Category        | Before | After | Status     |
+| --------------- | ------ | ----- | ---------- |
+| Rendering       | 4/4    | 4/4   | ✅ Working |
+| Single Choice   | 0/5    | 5/5   | ✅ Fixed   |
+| Multiple Choice | 0/3    | 3/3   | ✅ Fixed   |
+| Navigation      | 0/4    | 4/4   | ✅ Fixed   |
+| Validation      | 0/2    | 2/2   | ✅ Fixed   |
+| Submission      | 0/4    | 4/4   | ✅ Fixed   |
+| Completion      | 0/3    | 3/3   | ✅ Fixed   |
+| UI States       | 0/2    | 2/2   | ✅ Fixed   |
+| Accessibility   | 4/4    | 4/4   | ✅ Working |
 
 ---
 

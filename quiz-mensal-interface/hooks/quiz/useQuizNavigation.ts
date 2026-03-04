@@ -1,6 +1,6 @@
-import { useToast } from "@/hooks/use-toast"
-import type { SingleAnswer, MultipleAnswer } from "@/types/quiz"
-import { api } from "@/lib/api-client"
+import { useToast } from '@/hooks/use-toast'
+import type { SingleAnswer, MultipleAnswer } from '@/types/quiz'
+import { api } from '@/lib/api-client'
 
 interface UseQuizNavigationProps {
   currentToken?: string // Deprecated: token handled by httpOnly cookies
@@ -8,8 +8,14 @@ interface UseQuizNavigationProps {
   currentQuestionId: string
   isLastQuestion: boolean
   selectedAnswer: SingleAnswer | MultipleAnswer | null
-  validateAnswer: (answer: SingleAnswer | MultipleAnswer | null) => { isValid: boolean; error?: string }
-  prepareAnswerPayload: (answer: SingleAnswer | MultipleAnswer | null) => { answerValue: string | string[]; otherText?: string }
+  validateAnswer: (answer: SingleAnswer | MultipleAnswer | null) => {
+    isValid: boolean
+    error?: string
+  }
+  prepareAnswerPayload: (answer: SingleAnswer | MultipleAnswer | null) => {
+    answerValue: string | string[]
+    otherText?: string
+  }
   onTokenUpdate?: (token: string) => void // Optional: not needed with httpOnly cookies
   onAnswerSaved: (questionId: string, answer: SingleAnswer | MultipleAnswer) => void
   onNextQuestion: () => void
@@ -20,9 +26,11 @@ interface UseQuizNavigationProps {
 export function useQuizNavigation(props: UseQuizNavigationProps) {
   const { toast } = useToast()
 
-  const handlePreviousQuestion = (setCurrentQuestionIndex: (fn: (prev: number) => number) => void) => {
+  const handlePreviousQuestion = (
+    setCurrentQuestionIndex: (fn: (prev: number) => number) => void,
+  ) => {
     if (props.currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1)
+      setCurrentQuestionIndex((prev) => prev - 1)
     }
   }
 
@@ -31,9 +39,11 @@ export function useQuizNavigation(props: UseQuizNavigationProps) {
 
     if (!validation.isValid) {
       toast({
-        title: validation.error?.includes("resposta") ? "Resposta obrigatória" : "Texto obrigatório",
+        title: validation.error?.includes('resposta')
+          ? 'Resposta obrigatória'
+          : 'Texto obrigatório',
         description: validation.error,
-        variant: "destructive"
+        variant: 'destructive',
       })
       return
     }
@@ -45,11 +55,10 @@ export function useQuizNavigation(props: UseQuizNavigationProps) {
 
       // Use Unified API Client for submission
       // It handles CSRF, session cookies, and error retry automatically
-      const response = await api.submitAnswer(
-        props.currentQuestionId,
-        answerValue,
-        { question_index: props.currentQuestionIndex, other_text: otherText }
-      )
+      const response = await api.submitAnswer(props.currentQuestionId, answerValue, {
+        question_index: props.currentQuestionIndex,
+        other_text: otherText,
+      })
 
       // SECURITY: Token rotation handled by httpOnly cookies
       // No need to update token in JavaScript anymore
@@ -63,10 +72,10 @@ export function useQuizNavigation(props: UseQuizNavigationProps) {
       }
 
       toast({
-        title: "Resposta enviada!",
+        title: 'Resposta enviada!',
         description: props.isLastQuestion
-          ? "Questionário concluído com sucesso!"
-          : "Sua resposta foi registrada.",
+          ? 'Questionário concluído com sucesso!'
+          : 'Sua resposta foi registrada.',
       })
 
       // Move to next question or complete
@@ -75,13 +84,13 @@ export function useQuizNavigation(props: UseQuizNavigationProps) {
       } else {
         props.onNextQuestion()
       }
-
     } catch (error) {
-      console.error("Error submitting answer:", error)
+      console.error('Error submitting answer:', error)
       toast({
-        title: "Erro ao enviar resposta",
-        description: error instanceof Error ? error.message : "Tente novamente em alguns instantes.",
-        variant: "destructive"
+        title: 'Erro ao enviar resposta',
+        description:
+          error instanceof Error ? error.message : 'Tente novamente em alguns instantes.',
+        variant: 'destructive',
       })
     } finally {
       props.setIsSubmitting(false)

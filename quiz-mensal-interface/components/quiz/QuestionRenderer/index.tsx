@@ -1,9 +1,9 @@
-import type { QuizQuestion, SingleAnswer, MultipleAnswer } from "@/types/quiz"
-import { SingleChoice } from "./SingleChoice"
-import { MultipleChoice } from "./MultipleChoice"
-import { Scale } from "./Scale"
-import { YesNo } from "./YesNo"
-import { TextQuestion } from "./TextQuestion"
+import type { QuizQuestion, SingleAnswer, MultipleAnswer } from '@/types/quiz'
+import { SingleChoice } from './SingleChoice'
+import { MultipleChoice } from './MultipleChoice'
+import { Scale } from './Scale'
+import { YesNo } from './YesNo'
+import { TextQuestion } from './TextQuestion'
 
 interface QuestionRendererProps {
   question: QuizQuestion
@@ -21,7 +21,7 @@ export function QuestionRenderer({
   onOtherTextChange,
 }: QuestionRendererProps) {
   switch (question.type) {
-    case "single_choice":
+    case 'single_choice':
       return (
         <SingleChoice
           question={question}
@@ -32,7 +32,7 @@ export function QuestionRenderer({
         />
       )
 
-    case "multiple_choice":
+    case 'multiple_choice':
       return (
         <MultipleChoice
           question={question}
@@ -43,7 +43,7 @@ export function QuestionRenderer({
         />
       )
 
-    case "scale":
+    case 'scale':
       return (
         <Scale
           question={question}
@@ -52,7 +52,7 @@ export function QuestionRenderer({
         />
       )
 
-    case "yes_no":
+    case 'yes_no':
       return (
         <YesNo
           question={question}
@@ -61,8 +61,8 @@ export function QuestionRenderer({
         />
       )
 
-    case "text":
-    case "free_text":
+    case 'text':
+    case 'free_text':
       return (
         <TextQuestion
           question={question}

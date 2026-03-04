@@ -1,17 +1,22 @@
-"use client"
+'use client'
 
-import { useEffect, useState } from "react"
-import { Suspense } from "react"
-import QuizInterface from "@/components/quiz-interface"
-import { useQuizSession } from "@/hooks/use-quiz-session"
-import type { QuizError } from "@/types/quiz"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { AlertCircle, RefreshCcw } from "lucide-react"
-import { ErrorBoundary } from "@/components/error/ErrorBoundary"
-import { ResumeQuizDialog } from "@/components/quiz/ResumeQuizDialog"
-import { QuizSkeleton } from "@/components/quiz/QuizSkeleton"
-import { loadQuizProgress, clearQuizProgress, cleanupOldProgress, type QuizProgress } from "@/lib/quiz-progress-storage"
+import { useEffect, useState } from 'react'
+import { Suspense } from 'react'
+import QuizInterface from '@/components/quiz-interface'
+import { useQuizSession } from '@/hooks/use-quiz-session'
+import type { QuizError } from '@/types/quiz'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { AlertCircle, RefreshCcw } from 'lucide-react'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
+import { ResumeQuizDialog } from '@/components/quiz/ResumeQuizDialog'
+import { QuizSkeleton } from '@/components/quiz/QuizSkeleton'
+import {
+  loadQuizProgress,
+  clearQuizProgress,
+  cleanupOldProgress,
+  type QuizProgress,
+} from '@/lib/quiz-progress-storage'
 
 /**
  * Quiz Page Component
@@ -56,7 +61,7 @@ function QuizPage() {
   if (error) {
     const quizError: QuizError = {
       detail: error,
-      status: error.includes("expirado") || error.includes("inválido") ? 401 : 500
+      status: error.includes('expirado') || error.includes('inválido') ? 401 : 500,
     }
 
     return (
@@ -69,11 +74,7 @@ function QuizPage() {
           </div>
 
           {quizError.status !== 401 && (
-            <Button
-              onClick={retry}
-              className="w-full"
-              size="lg"
-            >
+            <Button onClick={retry} className="w-full" size="lg">
               <RefreshCcw className="w-5 h-5 mr-2" />
               Tentar Novamente
             </Button>
@@ -116,7 +117,7 @@ function QuizPage() {
             resumeFromSaved={shouldResume}
             onComplete={() => {
               // Quiz completed - could redirect or show completion message
-              console.log("Quiz completed successfully!")
+              console.log('Quiz completed successfully!')
             }}
           />
         </main>
@@ -134,11 +135,13 @@ function QuizPage() {
  */
 export default function Home() {
   return (
-    <Suspense fallback={
-      <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
-        <QuizSkeleton />
-      </main>
-    }>
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+          <QuizSkeleton />
+        </main>
+      }
+    >
       <QuizPage />
     </Suspense>
   )
