@@ -66,6 +66,7 @@ def test_adk_run_calls_wrapper_safe_run_once(
             "tool_name": "sentiment",
             "user_id": "user-321",
             "session_id": "session-321",
+            "context": {"patient_context": {"tumor_type": "mama"}},
         },
     )
 
@@ -76,6 +77,8 @@ def test_adk_run_calls_wrapper_safe_run_once(
         "tool_name": "sentiment",
         "user_id": "user-321",
         "session_id": "session-321",
+        "request_source": "api_v2_adk",
+        "patient_context": {"tumor_type": "mama"},
     }
 
 
