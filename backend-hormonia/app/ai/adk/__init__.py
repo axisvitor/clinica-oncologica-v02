@@ -3,6 +3,7 @@
 from app.ai.adk.runtime import ADKToolRunRequest, InMemorySessionService, run_adk_tool
 from app.ai.adk.tools import (
     empathy_tool,
+    get_adk_function_tools,
     get_tool_registry,
     humanize_tool,
     sentiment_tool,
@@ -15,6 +16,7 @@ __all__ = [
     "InMemorySessionService",
     "PIISafeADKWrapper",
     "empathy_tool",
+    "get_adk_function_tools",
     "get_tool_registry",
     "humanize_tool",
     "run_adk_tool",
