@@ -54,6 +54,7 @@ export const MetricsWebSocket = ({
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null)
   const pollingTimer = useRef<NodeJS.Timeout | null>(null)
   const isManualDisconnect = useRef(false)
+  const connectRef = useRef<() => void>(() => undefined)
 
   const getWebSocketUrl = useCallback(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -172,12 +173,11 @@ export const MetricsWebSocket = ({
 
         reconnectTimer.current = setTimeout(() => {
           setReconnectAttempts((prev) => prev + 1)
-          connect()
+          connectRef.current()
         }, reconnectInterval)
       } else if (reconnectAttempts >= maxReconnectAttempts) {
         setError('Falha na conexão após múltiplas tentativas')
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- connect is intentionally excluded to prevent circular dependency
     },
     [reconnectAttempts, maxReconnectAttempts, reconnectInterval, onDisconnect]
   )
@@ -244,6 +244,10 @@ export const MetricsWebSocket = ({
     handleClose,
     startPolling,
   ])
+
+  useEffect(() => {
+    connectRef.current = connect
+  }, [connect])
 
   const disconnect = useCallback(() => {
     isManualDisconnect.current = true

@@ -63,6 +63,8 @@ const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6']
 
 export const QuizCompletionChart = React.memo<QuizCompletionChartProps>(
   ({ data, detailed = false }) => {
+    const { completed_quizzes, total_quizzes_sent } = data
+
     // ✅ Memoize trend data transformation - only recomputes when completion_trend changes
     const trendData = useMemo(() => {
       return data.completion_trend
@@ -99,15 +101,14 @@ export const QuizCompletionChart = React.memo<QuizCompletionChartProps>(
     // ✅ Memoize completion status data - only recomputes when relevant fields change
     const completionStatusData = useMemo(
       () => [
-        { status: 'Completados', count: data.completed_quizzes, color: '#10B981' },
+        { status: 'Completados', count: completed_quizzes, color: '#10B981' },
         {
           status: 'Pendentes',
-          count: data['total_quizzes_sent'] - data['completed_quizzes'],
+          count: total_quizzes_sent - completed_quizzes,
           color: '#E5E7EB',
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- using only specific fields from data object
       ],
-      [data.completed_quizzes, data.total_quizzes_sent]
+      [completed_quizzes, total_quizzes_sent]
     )
 
     // ✅ Memoize best performing quiz computation - expensive reduce operation

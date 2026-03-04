@@ -5,7 +5,7 @@
  * response times, and overall system health indicators.
  */
 import React, { Suspense } from 'react'
-import { AreaChart, BarChart, RadialBarChart, ComposedChart } from './recharts-shared'
+import { AreaChart, RadialBarChart, ComposedChart } from './recharts-shared'
 import {
   Line,
   XAxis,
