@@ -1,43 +1,31 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { apiClient } from '@/lib/api-client'
-import { createLogger } from '@/utils/logger'
-
-const logger = createLogger('AgentSwarm')
 import { AgentStatus } from '@/lib/api-client/hive-mind'
 import { Bot, CheckCircle, XCircle } from 'lucide-react'
 
 export function AgentSwarm() {
-  const [agents, setAgents] = useState<AgentStatus[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['hive-mind', 'agents'],
+    queryFn: () => apiClient.hiveMind.agents.list(),
+    refetchInterval: 30_000,
+    retry: 2,
+  })
 
-  useEffect(() => {
-    const fetchAgents = async () => {
-      try {
-        const data = await apiClient.hiveMind.agents.list()
-        setAgents(data.agents)
-      } catch (err) {
-        setError('Failed to fetch agents')
-        logger.error('Failed to fetch agents', err instanceof Error ? err : undefined)
-      } finally {
-        setLoading(false)
-      }
-    }
+  const agents: AgentStatus[] = data?.agents ?? []
 
-    fetchAgents()
-    const interval = setInterval(fetchAgents, 30000)
-    return () => clearInterval(interval)
-  }, [])
-
-  if (loading) {
+  if (isLoading) {
     return <AgentSwarmSkeleton />
   }
 
   if (error) {
-    return <div className="text-red-500">{error}</div>
+    return (
+      <div className="text-red-500">
+        {error instanceof Error ? error.message : 'Failed to fetch agents'}
+      </div>
+    )
   }
 
   return (
