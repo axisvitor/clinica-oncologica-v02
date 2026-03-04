@@ -154,7 +154,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 3. `eslint .` exits with zero errors in the admin SPA (warnings acceptable, errors must be zero)
 4. AgentSwarm.tsx and SystemHealth.tsx fetch data via TanStack Query `useQuery` with `refetchInterval` — no raw `useEffect` polling loops remain in those components
 5. `knip` (or equivalent unused-package audit) reports zero unused npm packages in the admin SPA after cleanup
-   **Plans**: 6 plans
+   **Plans**: 7 plans
    Plans:
 
 - [ ] 42-01-PLAN.md — Remove Evolution dead code, replace WhatsApp dashboard with WuzAPI status, trim hive-mind.ts to real endpoints
@@ -163,6 +163,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [ ] 42-04-PLAN.md — Run knip unused-package audit and visual layout verification checkpoint
 - [ ] 42-05-PLAN.md — Gap closure: wire routed WhatsApp page to WuzAPI status UI and eliminate remaining ESLint warnings
 - [ ] 42-06-PLAN.md — Gap closure: finalize knip dependency cleanup and complete final human UX/layout verification gate
+- [ ] 42-07-PLAN.md — Gap closure: resolve remaining knip-unused dependency findings and re-run final dependency hygiene gates
 
 ### Phase 43: Quiz Interface Quality
 
@@ -191,10 +192,10 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 | 33-39. WuzAPI Migration              | v1.6      | 21/21          | Complete    | 2026-03-03 |
 | 40. OTel Removal & ADK Foundation    | 3/3       | Complete       | 2026-03-03  | -          |
 | 41. ADK Agent Integration            | 4/4       | Complete       | 2026-03-04  | -          |
-| 42. Admin SPA Quality                | 6/6 | Complete   | 2026-03-04 | -          |
+| 42. Admin SPA Quality                | 7/7 | Complete   | 2026-03-04 | -          |
 | 43. Quiz Interface Quality           | v1.7      | 0/TBD          | Not started | -          |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-04 — Phase 42 gap-closure plans added (6 plans total)_
+_Last updated: 2026-03-04 — Phase 42 dependency-hygiene gap closure plan added (7 plans total)_
