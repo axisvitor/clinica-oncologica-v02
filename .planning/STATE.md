@@ -4,14 +4,14 @@ milestone: v1.7
 milestone_name: Frontend Quality & ADK Integration
 current_plan: 3
 status: executing
-stopped_at: Completed 42-04-PLAN.md
-last_updated: "2026-03-04T15:54:25.717Z"
+stopped_at: Completed 42-05-PLAN.md
+last_updated: "2026-03-04T17:17:49.513Z"
 last_activity: 2026-03-04
 progress:
   total_phases: 4
-  completed_phases: 3
-  total_plans: 11
-  completed_plans: 11
+  completed_phases: 2
+  total_plans: 13
+  completed_plans: 12
   percent: 97
 ---
 
@@ -58,6 +58,7 @@ Progress: [█████████░] 97%
 | Phase 42 P01 | 22 min | 2 tasks | 4 files |
 | Phase 42 P02 | 9 min | 2 tasks | 2 files |
 | Phase 42-admin-spa-quality P04 | 14m | 2 tasks | 4 files |
+| Phase 42-admin-spa-quality P05 | 7m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,8 @@ Progress: [█████████░] 97%
 - [Phase 42]: Preserved existing loading/error/content UI while replacing manual interval polling with useQuery refetchInterval for both Hive Mind widgets.
 - [Phase 42-admin-spa-quality]: Kept recharts as intentional knip false positive due to dynamic import usage.
 - [Phase 42-admin-spa-quality]: Checkpoint Task 2 was finalized from explicit user approval before docs/state closeout.
+- [Phase 42-admin-spa-quality]: Render WhatsAppDashboard directly in WhatsAppPage so routed users see WuzAPI connection state immediately
+- [Phase 42-admin-spa-quality]: Use connectRef indirection in MetricsWebSocket reconnect callback to satisfy react-hooks dependency rules without lint suppression
 
 ### Pending Todos
 
@@ -105,6 +108,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-04T15:54:25.698Z
-**Stopped At:** Completed 42-04-PLAN.md
+**Last session:** 2026-03-04T17:17:49.490Z
+**Stopped At:** Completed 42-05-PLAN.md
 **Resume File:** None
