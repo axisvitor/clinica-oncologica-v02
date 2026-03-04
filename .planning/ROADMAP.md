@@ -99,7 +99,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 
 - [x] **Phase 40: OTel Removal & ADK Foundation** - Remove OTel instrumentation, install ADK, scaffold PIISafeADKWrapper with CI guard (completed 2026-03-03)
 - [x] **Phase 41: ADK Agent Integration** - Wire Pydantic AI agents as ADK FunctionTools, configure ADK Runner endpoint, remove HiveMind LangGraph dead code (gap closure in progress) (completed 2026-03-04)
-- [ ] **Phase 42: Admin SPA Quality** - Remove Evolution dead code, consolidate API client, migrate polling to TanStack Query, enforce lint/formatting
+- [x] **Phase 42: Admin SPA Quality** - Remove Evolution dead code, consolidate API client, migrate polling to TanStack Query, enforce lint/formatting (completed 2026-03-04)
 - [ ] **Phase 43: Quiz Interface Quality** - Add Prettier, upgrade Next.js 15, align ESLint 9, fix missing deps, improve type coverage
 
 ## Phase Details
@@ -191,7 +191,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 | 33-39. WuzAPI Migration              | v1.6      | 21/21          | Complete    | 2026-03-03 |
 | 40. OTel Removal & ADK Foundation    | 3/3       | Complete       | 2026-03-03  | -          |
 | 41. ADK Agent Integration            | 4/4       | Complete       | 2026-03-04  | -          |
-| 42. Admin SPA Quality                | 5/6 | In Progress|  | -          |
+| 42. Admin SPA Quality                | 6/6 | Complete   | 2026-03-04 | -          |
 | 43. Quiz Interface Quality           | v1.7      | 0/TBD          | Not started | -          |
 
 ---
