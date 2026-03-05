@@ -1,0 +1,1 @@
+- 2026-03-05 - Plan 43-03 verification gate `npx tsc --noEmit` still fails on pre-existing cross-app React type collisions in `components/quiz/ResumeQuizDialog.tsx`, `components/ui/command.tsx`, and `components/ui/toaster.tsx` referencing `frontend-hormonia/node_modules/@types/react`. This is out of scope for 43-03 locked core files and tracked for plan 43-04 decoupling work.
