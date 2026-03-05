@@ -115,7 +115,7 @@ describe('QuizInterface - Comprehensive Tests', () => {
           createMockResponse({
             success: true,
             is_last_question: false,
-            next_question_index: 1,
+            session_status: 'in_progress',
           }),
         )
       }
@@ -496,6 +496,7 @@ describe('QuizInterface - Comprehensive Tests', () => {
                 createMockResponse({
                   success: true,
                   is_last_question: false,
+                  session_status: 'in_progress',
                 }),
               ),
             1000,
@@ -533,6 +534,7 @@ describe('QuizInterface - Comprehensive Tests', () => {
           createMockResponse({
             success: true,
             is_last_question: true,
+            session_status: 'completed',
           }),
         )
       })
@@ -571,6 +573,7 @@ describe('QuizInterface - Comprehensive Tests', () => {
           createMockResponse({
             success: true,
             is_last_question: true,
+            session_status: 'completed',
           }),
         )
       })
@@ -603,6 +606,7 @@ describe('QuizInterface - Comprehensive Tests', () => {
           createMockResponse({
             success: true,
             is_last_question: true,
+            session_status: 'completed',
           }),
         )
       })
@@ -645,6 +649,7 @@ describe('QuizInterface - Comprehensive Tests', () => {
                 createMockResponse({
                   success: true,
                   is_last_question: false,
+                  session_status: 'in_progress',
                 }),
               ),
             1000,
