@@ -1,323 +1,298 @@
 # Pitfalls Research
 
-**Domain:** Brownfield frontend quality overhaul (React 19 + Next.js 14) + Google ADK integration into existing Pydantic AI stack + OTel removal — v1.7 milestone
-**Researched:** 2026-03-03
-**Confidence:** HIGH (verified against codebase, ADK v1.26.0 release notes, and confirmed GitHub issues)
-
----
+**Domain:** Brownfield ADK stability, runtime diagnostics, and observability hardening for a healthcare WhatsApp backend (LGPD-bound)
+**Researched:** 2026-03-05
+**Confidence:** HIGH for platform/runtime pitfalls, MEDIUM for ADK ecosystem volatility
 
 ## Critical Pitfalls
 
-### Pitfall 1: ADK Reintroduces OTel as a Transitive Dependency After "Removal"
+### Pitfall 1: PHI leakage through ADK debug logs and observability payloads
 
 **What goes wrong:**
-The team removes all `opentelemetry-*` packages from `requirements.txt` to unblock ADK integration. ADK is then installed. ADK v1.24.0+ itself declares `opentelemetry-api>=1.36.0` and `opentelemetry-sdk>=1.36.0` as its own direct dependencies (ADK uses OTel for its own built-in tracing). The OTel packages return as transitive dependencies, now at a version range ADK controls — not the project. The instrumentation packages (`opentelemetry-instrumentation-fastapi`, `-sqlalchemy`, `-redis`, `-httpx`) are gone, but the core API/SDK is back. The result is a partial, unconfigured OTel install that no one intentionally set up, where `app/core/tracing.py` still exists with the full `DistributedTracer` class but now acts on ADK-imported OTel rather than nothing. The "relaxed version constraints" note in ADK v1.24.0 release notes ("Update OpenTelemetry dependency versions to relax version constraints for opentelemetry-api and opentelemetry-sdk") confirms OTel was NOT removed from ADK — only version pinning was loosened.
+Teams enable ADK `DEBUG` logging in production during incident response, which can include full LLM prompts, tool args, and conversation context. In healthcare flows, this often contains patient identifiers and clinical details.
 
 **Why it happens:**
-Removing OTel from `requirements.txt` removes it from your explicit requirements but not from the installed environment if a peer package pulls it back. ADK's OTel dependency is not optional — it is used for ADK's own tracing of agent execution. Developers assume that removing explicit pins = removing the library.
+ADK logging docs explicitly position `DEBUG` for troubleshooting and show detailed request dumps; brownfield teams under pressure toggle global log level instead of a scoped diagnostic path.
 
 **How to avoid:**
-1. After installing ADK in isolation: `pip install google-adk && pip show opentelemetry-api opentelemetry-sdk`. If they appear, document that OTel is ADK-managed transitive dep — not your explicit dep.
-2. Change the strategy: do NOT remove OTel core API/SDK. Remove only the *instrumentation packages* (`opentelemetry-instrumentation-fastapi`, `opentelemetry-instrumentation-sqlalchemy`, `opentelemetry-instrumentation-redis`, `opentelemetry-instrumentation-httpx`) and the OTLP exporters. These are the packages that add overhead and conflict — not the core.
-3. Tombstone or convert `app/core/tracing.py` to a no-op shim. The two callers confirmed in the codebase (`message_service.py` L26 and `unified_whatsapp_service.py` L51) only use `get_tracer()` to set `self.tracer` — replacing with `MockTracer()` always requires zero API changes and zero risk.
-4. Remove the `@trace(name="send_message_impl", attributes={"service": "wuzapi"})` decorator from `message_service.py` line 574 — it is the only active `@trace` decorator outside of `tracing.py` itself.
+1. Enforce production log level policy (`INFO`/`WARNING`) at process startup; reject `DEBUG` in production env by guard code.
+2. Add a centralized redaction pipeline for `patient_name`, CPF, phone, diagnosis, free-text symptoms before log sink and before Sentry event submission.
+3. Keep `send_default_pii=False` in Sentry, use `before_send` and `before_send_transaction` scrubbing for spans/breadcrumbs.
+4. Create a short-lived "diagnostic mode" flag scoped by request/session ID, with automatic expiry and explicit approval path.
 
 **Warning signs:**
-- `pip check` shows `opentelemetry-api` conflicts after ADK install
-- `opentelemetry.context ValueError: Token was created in a different Context` appears in Celery logs — documented ADK+ParallelAgent issue (github.com/google/adk-python/issues/860)
-- `TypeError: BaseModel.model_dump() missing 1 required positional argument: 'self'` from ADK + OTel + Pydantic output_schema interaction (github.com/google/adk-python/issues/3884)
+- Sudden jump in log payload size on ADK routes (`/api/v2/adk/run`).
+- Sentry event payloads containing route fragments with identifiers (e.g., raw IDs in transaction names).
+- On-call runbook includes "set log level DEBUG globally" as first troubleshooting step.
 
 **Phase to address:**
-OTel removal phase — MUST audit transitive deps before finalizing removal list. No OTel package should be removed without verifying ADK's requirements.
+Phase 1 - ADK Guardrails & Privacy Contracts (before additional diagnostics are introduced).
 
 ---
 
-### Pitfall 2: PIISafeAgent Bypass When ADK Tools Call Pydantic AI Agents
+### Pitfall 2: Broken correlation across FastAPI -> Celery -> ADK execution chain
 
 **What goes wrong:**
-Google ADK agents use `@tool` decorators and callback hooks to call external code. If a developer wires an ADK tool to invoke one of the four existing Pydantic AI agents (sentiment, humanize, variation, empathy) by passing `agent.run()` directly inside the tool function, the CI guard (`scripts/check_agent_run_calls.py`) may not detect this. The guard does static AST scanning for `.run(` on agent instances — ADK tool invocations that use indirect references, lambdas, or class methods may escape detection. Patient oncology data (CPF, name, diagnosis, treatment) reaches Gemini without PII redaction — a LGPD Art. 46 violation.
+You can see individual failures but cannot reconstruct one patient journey end-to-end. Incidents stay "untriageable" because request IDs, task IDs, and ADK invocation/session IDs are not linked.
 
 **Why it happens:**
-ADK has its own agent execution model. Developers integrating ADK naturally use ADK-idiomatic patterns. The PIISafeAgent constraint is documented in `base.py` and MEMORY.md but is not structurally enforced in ADK-specific wiring code until someone extends the CI guard for ADK call patterns.
+OTel was removed; teams often replace telemetry partially (logs only) without a minimum correlation contract across async boundaries.
 
 **How to avoid:**
-1. Define every ADK tool as a plain async wrapper function that calls `PIISafeAgent._safe_run()` — never pass the Pydantic AI agent object directly to ADK's `FunctionTool` or `AgentTool`.
-2. Extend `scripts/check_agent_run_calls.py` to also scan for `.run(` inside functions decorated with any ADK tool decorator pattern.
-3. Add an integration test: invoke an ADK tool with a synthetic PHI payload (fake CPF, fake name). Assert that the PII redaction log line (`[PIISafeAgent]`) appears in the log output before the Gemini API call.
-4. Use ADK's `before_tool_callback` to add a secondary PII check as defense-in-depth.
-5. Apply PIISafeAgent BEFORE wiring, not as a retrofit — the PIISafeAgent CI guard was added in v1.2 precisely because retrofitting is hard.
+1. Define mandatory correlation keys: `request_id`, `patient_id_hash`, `celery_task_id`, `adk_invocation_id`, `adk_session_id`, `flow_id`.
+2. Propagate these keys explicitly in FastAPI context, Celery task headers/kwargs, and ADK runner invocation metadata.
+3. Fail CI on new ADK endpoints/tasks that do not emit correlation keys in structured logs.
+4. Add one smoke test that triggers webhook -> Celery -> ADK and asserts all IDs appear in joined logs.
 
 **Warning signs:**
-- CI guard passes but production structured logs show Gemini calls without the `[PIISafeAgent]` prefix
-- Patient names or CPF numbers appear raw in Sentry error payload breadcrumbs
-- ADK `tool_response` field in ADK session state contains patient identifiers
+- On-call needs manual timestamp matching to connect API and worker failures.
+- Same user incident appears as 3+ unrelated alerts across systems.
+- Post-incident report uses "likely related" instead of deterministic trace chain.
 
 **Phase to address:**
-ADK integration phase — the CI guard extension must be a prerequisite task, not a follow-up.
+Phase 2 - Observability Replacement Baseline (OBS-01).
 
 ---
 
-### Pitfall 3: Evolution API Dead Code Remains in Production Frontend Build
+### Pitfall 3: Retry semantics cause duplicate patient messages
 
 **What goes wrong:**
-The WhatsApp hard cut to WuzAPI completed in v1.6 on the backend, but the frontend still ships Evolution API dead code. Confirmed in codebase:
-- `WhatsAppDashboard.tsx` lines 62-76: `const [isEvolutionEnabled, setIsEvolutionEnabled] = useState(false)` and `VITE_ENABLE_EVOLUTION` check
-- `WhatsAppDashboard.tsx` lines 183-195: renders "Evolution API disabled" placeholder visible to physicians
-- `env-validator.ts` and `runtime-config.ts`: reference `VITE_ENABLE_EVOLUTION`
-- `types/api-wave2.ts`: auto-generated October 2025, may contain Evolution-specific type shapes
-- `AdminSettingsTab.tsx`: likely contains Evolution API settings fields
-
-These dead branches add bundle weight, confuse future developers about provider state, and show misleading "Evolution API disabled" text to clinic physicians rather than WuzAPI connection status.
+ADK or provider transient failures trigger retries, but outbound WhatsApp send is not idempotent; patients receive duplicated follow-up questions or contradictory instructions.
 
 **Why it happens:**
-Backend migrations are executed without synchronised frontend cleanup. v1.6 WuzAPI migration was documented as backend-only; "frontend foco backend" was an explicit scope constraint.
+Brownfield systems already use Celery retries/circuit breakers; ADK error handling is added on top without harmonizing idempotency keys and acknowledgement policy.
 
 **How to avoid:**
-1. Audit all `VITE_ENABLE_EVOLUTION` references as the first task in the frontend cleanup phase: `grep -r "VITE_ENABLE_EVOLUTION" frontend-hormonia/src/`.
-2. Remove the feature flag and all conditional branches — there is no "disabled Evolution" state in the new system. The correct state is WuzAPI, always connected.
-3. Replace `WhatsAppDashboard.tsx` Evolution placeholder with a WuzAPI-specific QR/status card that calls the WuzAPI instance status endpoint.
-4. Remove Evolution-specific type definitions from `types/api-wave2.ts` — check what is actually consumed by the UI.
-5. Remove Evolution settings fields from `AdminSettingsTab.tsx`.
+1. Enforce idempotency key format `{patient_id}:{flow_step}:{message_type}:{time_bucket}` for outbound sends.
+2. Persist send-attempt ledger before provider call; short-circuit if key already finalized.
+3. Align Celery retry policy with provider SLA (exponential backoff + jitter + max retries + dead-letter path).
+4. Classify errors into retryable vs non-retryable; do not autoretry validation/contract errors.
 
 **Warning signs:**
-- `grep -r "VITE_ENABLE_EVOLUTION"` returns results in `src/` (currently confirmed)
-- WhatsApp page shows "Enable it by setting VITE_ENABLE_EVOLUTION=true" — physicians see this message
-- `WhatsAppService.ts` has methods pointing to `/evolution/` path prefixes
+- Increase in patient complaints of repeated messages.
+- DLQ growth for send tasks with same payload hash.
+- High retry count with similar failure reason and no idempotency suppression metric.
 
 **Phase to address:**
-Frontend dead code removal phase — prioritize WhatsApp feature area first due to physician UX impact.
+Phase 3 - Runtime Error Hardening & Idempotency.
 
 ---
 
-### Pitfall 4: HiveMind Service Calls Tombstoned LangGraph Code
+### Pitfall 4: ADK callback/tool contract drift silently bypasses safety controls
 
 **What goes wrong:**
-`app/services/hive_mind_integration.py` contains `IntegrationMode.LANGGRAPH_ONLY` (line 31) and `_process_with_langgraph()` (line 473). LangGraph was tombstoned in v1.2 — 9 modules in `app/ai/langgraph/` raise `ImportError` on import. If HiveMind service is instantiated and an external caller (the frontend HiveMind page, Celery Beat, or a future ADK orchestrator) triggers `LANGGRAPH_ONLY` mode, it crashes with `ImportError` from the tombstone.
-
-The frontend `HiveMindPage.tsx` is actively routed in `routeDefinitions.tsx`. The `/hive-mind` router is registered in `api/v2/router.py` (confirmed: line 107). The endpoint is accessible in production — this is not dead frontend code guarded by a feature flag.
+After ADK upgrades, callback signatures or tool context contracts change; the safety hook still "runs" but no longer blocks unsafe tool invocations or fails open.
 
 **Why it happens:**
-HiveMind integration was written to bridge the old multi-mode system. The tombstoning of LangGraph removed the implementation but not the dead `IntegrationMode` enum value or the method that references it. The enum value has no callers at present, but it is a maintenance hazard if ADK integration adds a new orchestration path.
+ADK release cadence is fast and includes breaking changes; brownfield teams pin loosely and rely on smoke-only checks rather than policy-behavior tests.
 
 **How to avoid:**
-1. Remove `LANGGRAPH_ONLY` from the `IntegrationMode` enum.
-2. Delete `_process_with_langgraph()` method from `HiveMindIntegrationService`.
-3. Determine the purpose and value of `HiveMindPage.tsx`. If it shows ADK-style multi-agent status, keep it and update to use ADK concepts. If it is purely legacy orchestration UI, remove the route.
-4. Consider this a prerequisite for ADK integration — HiveMind is the natural landing zone for ADK wiring.
+1. Pin ADK to tested minor version; upgrade only through a contract test suite.
+2. Add explicit tests for `before_tool_callback`/`before_agent_callback` behavior (block/allow cases) using synthetic PHI and malicious prompt input.
+3. Maintain a small "compatibility matrix" doc mapping app wrappers to ADK version assumptions.
+4. Add startup assertion that expected callback hooks are registered and invoked at least once in health smoke.
 
 **Warning signs:**
-- `grep -n "LANGGRAPH_ONLY\|_process_with_langgraph" backend-hormonia/app/services/hive_mind_integration.py` returns results (currently confirmed)
-- HiveMind API endpoint returns 500 in production if called with a non-default integration mode
+- Dependency bumps pass unit tests but incident rate rises on tool misuse.
+- Callback logs exist, but blocked-call counters drop to near zero.
+- Security controls only validated manually, not by CI.
 
 **Phase to address:**
-Frontend dead code phase or ADK integration phase — clean up LangGraph references before wiring ADK to HiveMind service.
+Phase 1 - ADK Guardrails & Privacy Contracts.
 
 ---
 
-### Pitfall 5: Sentry Trace Correlation Breaks After OTel Instrumentation Removal
+### Pitfall 5: Session strategy mismatch makes runtime diagnostics unreliable
 
 **What goes wrong:**
-The system has `sentry-sdk[fastapi]>=1.38.0` installed. When OTel instrumentation packages (`opentelemetry-instrumentation-fastapi`, `-sqlalchemy`) are present, Sentry may use OTel context propagation headers (`traceparent`) to correlate FastAPI request traces with Celery task traces. After removing the instrumentation packages, if Sentry's context propagation relied on OTel's `W3CTraceContextPropagator`, request-to-task correlation in Sentry may break — showing separate isolated transactions instead of parent-child spans.
-
-Note: Sentry does NOT require OTel for its own tracing. `sentry-sdk[fastapi]` includes its own FastAPI middleware that injects Sentry transaction IDs. However, if the project team had configured Sentry to read OTel's `traceparent` header instead of Sentry's own `sentry-trace` header, correlation breaks at the boundary.
+Production uses ephemeral/in-memory ADK sessions in multi-instance deployment, so context disappears on restart/scale events and incident replay is impossible.
 
 **Why it happens:**
-OTel and Sentry can interoperate through OpenTelemetry's `sentry-sdk` OTel integration. If this interop was configured, removing OTel instrumentation breaks the bridge. The `monitoring/sentry.ts` in the frontend has `beforeSend` filters — verifying those survive an OTel context change is non-trivial without explicit testing.
+InMemory sessions are easiest to start with and work in local tests; teams defer durable session architecture while adding production features.
 
 **How to avoid:**
-1. Sample one production request BEFORE OTel removal: find a patient flow in Sentry and note the Sentry transaction tree depth (FastAPI root → Celery task → result).
-2. After OTel removal, sample the same flow type and compare the transaction tree. If it is shallower or broken, Sentry was relying on OTel context propagation.
-3. Fix: ensure `sentry-sdk[fastapi]` `FastApiIntegration` and `CeleryIntegration` are explicitly enabled in Sentry config — these provide trace correlation without OTel.
-4. The two files that import from `tracing.py` (`message_service.py`, `unified_whatsapp_service.py`) do not affect Sentry directly — they only affect the `DistributedTracer` mock. Converting them to no-ops has zero Sentry impact.
+1. For production ADK paths, use durable session storage (`DatabaseSessionService` or equivalent controlled store).
+2. Define retention windows by data class (minimal PHI, strict TTL) and deletion workflows aligned to LGPD rights.
+3. Add replay-safe diagnostics endpoint using hashed identifiers only.
+4. Include schema migration checks in deploy pipeline (ADK session schema has changed across releases).
 
 **Warning signs:**
-- Sentry transactions for `/api/v2/*` show as isolated (no Celery child spans) after OTel removal
-- Railway Celery task logs lose `trace_id` field that previously matched FastAPI request trace ID
-- Sentry "Performance" tab shows significantly fewer distributed traces
+- "Works until pod restart" behavior in ADK-driven conversations.
+- Session-not-found spikes after deploys/autoscaling.
+- Postmortems blocked because prior invocation state cannot be recovered.
 
 **Phase to address:**
-OTel removal phase — validate Sentry observability explicitly before removing instrumentation packages, not as a post-hoc assumption.
+Phase 2 - Observability Replacement Baseline (OBS-01), with migration checks before rollout.
 
 ---
 
-### Pitfall 6: React Strict Mode Double-Invocation Breaks Quiz Session Initialization
+### Pitfall 6: Metric cardinality explosion blinds alerts and increases cost
 
 **What goes wrong:**
-The `quiz-mensal-interface` uses Next.js 13+ which enables React Strict Mode by default since v13.5.1. The `useQuizSession` hook already guards against this with a `useRef`-based double-execution guard (documented in the hook's JSDoc: "React Strict Mode protection (prevents double execution)"). If any refactoring during the quality pass removes this guard — perhaps because it looks like unnecessary complexity — the quiz session init fires twice.
-
-The backend session init creates a cryptographic token and sets an HttpOnly cookie. A double-init either: (a) creates two sessions for the same patient, consuming two one-time-use tokens, or (b) the second init attempt fails because the token was consumed, leaving the patient stuck on an error screen. In either case, the patient's oncology follow-up quiz is disrupted.
+Teams add observability quickly and label metrics with patient, phone, message text hash, tool args, or model prompt fragments. Time series blow up; dashboards slow; alerts become noisy or throttled.
 
 **Why it happens:**
-Developers cleaning "complex" hooks often simplify by removing guards they don't understand. The `useRef` guard looks like React antipattern boilerplate until you remove it and see the impact in development mode. Strict Mode is invisible in production (it is a development-only double-render), so removing the guard passes CI but breaks patient-facing behavior in development.
+Brownfield migrations from OTel often overcompensate by adding every "useful" dimension directly as labels.
 
 **How to avoid:**
-1. Before the quality pass, add a block comment above the `useRef` guard in `useQuizSession.ts` explaining its purpose with explicit reference to React Strict Mode double-invoke behavior.
-2. Add a unit test that renders the hook twice in quick succession (simulating Strict Mode) and asserts the API is called exactly once.
-3. Run the quiz app in `next dev` (Strict Mode active) after any hook refactoring and monitor network tab for exactly one `POST /quiz/session` call.
+1. Whitelist low-cardinality labels only (`agent_name`, `tool_name`, `error_type`, `provider`, `status_code_group`).
+2. Keep patient-level context in logs (hashed), not metrics dimensions.
+3. Set SLO-driven metrics first: p50/p95 latency, success rate, retry rate, timeout rate, circuit-open rate.
+4. Add a cardinality budget check in staging before enabling new metrics.
 
 **Warning signs:**
-- Two `POST /quiz/session` API calls appear in browser DevTools network tab on page load in development
-- Patients report "quiz link already used" immediately after clicking their link
-- `useRef` guard removed from `useQuizSession.ts` during cleanup
+- Rapid growth in active series count after deploy.
+- Query latency and dashboard timeouts in monitoring backend.
+- Alert fatigue caused by fragmented, per-label noisy rules.
 
 **Phase to address:**
-Quiz frontend quality phase — add the Strict Mode protection test before touching the hook.
+Phase 2 - Observability Replacement Baseline (OBS-02).
 
 ---
 
-### Pitfall 7: date-fns v3 vs v4 API Divergence Between Frontends
+### Pitfall 7: Error taxonomy collapse (everything becomes HTTP 500)
 
 **What goes wrong:**
-The admin SPA (`frontend-hormonia`) uses `date-fns v3.x` (`"date-fns": "^3.6.0"`). The quiz interface (`quiz-mensal-interface`) uses `date-fns v4.x` (`"date-fns": "4.1.0"`). Between v3 and v4, date-fns introduced breaking API changes — `format` function signatures changed, timezone handling changed, and some utilities were renamed or removed.
-
-During a frontend quality consolidation pass, a developer copies a date formatting utility from the admin SPA (v3 API) to the quiz interface (expecting v4 API), or vice versa. The code compiles without errors (TypeScript types are broadly compatible) but renders dates incorrectly at runtime — showing wrong year, wrong format, or incorrect timezone offset for Brazilian patients (UTC-3 / America/Sao_Paulo).
+ADK, provider, validation, and policy failures are collapsed into generic 500s. Operations cannot triage quickly, and automated mitigation (retry vs stop vs escalate) fails.
 
 **Why it happens:**
-Both frontends use shadcn/ui with Tailwind, both use date-fns — they look like the same stack. The minor version difference is easy to miss in `package.json` comparisons. TypeScript doesn't always catch date-fns API misuse because the types are backward-compatible at the function signature level.
+Wrapper layers are added fast; exception translation is skipped or performed only at endpoint boundary.
 
 **How to avoid:**
-1. In the quality consolidation phase, standardize both frontends on the same date-fns version. Upgrade the admin SPA to v4 (or pin quiz to v3) as a deliberate decision.
-2. Any shared date formatting logic must live in a single package or be written explicitly for each frontend's version.
-3. All date displays referencing patient appointment dates must be tested against `America/Sao_Paulo` timezone, not UTC. Brazilian oncology patient appointments use São Paulo local time.
+1. Define explicit error classes and mapping table: `PolicyBlocked`, `ValidationError`, `ProviderTimeout`, `ProviderQuota`, `ToolExecutionError`, `SessionStateError`.
+2. Map each class to HTTP status, retry policy, alert severity, and runbook action.
+3. Emit structured error fields (`error_code`, `retryable`, `safe_message`, `correlation_keys`).
+4. Add contract tests verifying error mapping for top failure modes.
 
 **Warning signs:**
-- Dates in admin SPA show differently from the same dates in quiz interface for the same patient
-- `format(new Date(), 'dd/MM/yyyy')` returns different results between the two frontends despite same input
-- Any copy-paste of date utilities between the two frontends without version check
+- >70% ADK failures logged as generic internal error.
+- On-call triage starts with "reproduce locally" because logs lack machine-actionable error code.
+- Retry queue receives validation/policy errors that should be non-retryable.
 
 **Phase to address:**
-Frontend quality consolidation phase — standardize date-fns version first before any date utility sharing.
+Phase 3 - Runtime Error Hardening & Contracts.
+
+---
+
+### Pitfall 8: Big-bang rollout of ADK hardening without shadow validation
+
+**What goes wrong:**
+New wrapper/diagnostics/alerting stack is switched on globally. Latency regressions or policy false-positives immediately impact active patient follow-ups.
+
+**Why it happens:**
+Brownfield teams treat stability work as internal-only and skip phased rollout because "no product feature changed".
+
+**How to avoid:**
+1. Run shadow mode: execute ADK path in parallel for sampled traffic without affecting patient-facing output.
+2. Gate progression by explicit thresholds (latency delta, error budget burn, duplicate-message rate, PHI leak count = 0).
+3. Roll out by cohort/clinic and maintain instant rollback switch.
+4. Freeze non-essential infra changes during reliability rollout window.
+
+**Warning signs:**
+- First meaningful load test is production traffic.
+- No pre/post baseline for ADK latency and error rates.
+- Rollback requires code deploy instead of config/feature flag.
+
+**Phase to address:**
+Phase 4 - Controlled Rollout, Alerting, and Runbook Validation.
 
 ---
 
 ## Technical Debt Patterns
 
-Shortcuts that seem reasonable but create long-term problems.
+Shortcuts that feel fast but create reliability/compliance debt.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Keep `app/core/tracing.py` as-is, just remove OTel from requirements.txt | Zero code change | ADK pulls OTel back as transitive dep; tracing.py becomes permanently ambiguous dead code with unclear activation state | Never — convert to no-op shim or tombstone after ADK install verification |
-| Leave `VITE_ENABLE_EVOLUTION` flag "false by default" in frontend config | No frontend changes needed | Engineers expect dual-provider mode to exist; flag pollutes env validator and runtime-config; physicians see "Evolution API disabled" message | Never — hard delete all Evolution references |
-| Running ADK alongside Pydantic AI without extending PIISafeAgent CI guard | Fast integration path | Patient oncology data (CPF, diagnosis, treatment) can reach Gemini API unredacted; LGPD Art. 46 violation | Never for any data from patient records |
-| Skipping TypeScript strict mode in the quality pass | Fewer immediate type errors | Type holes hide API contract mismatches between frontend and backend; unsafe `any` types grow | Only if strict mode was never enabled before — do not introduce a new disable |
-| Using `// @ts-ignore` on type errors from stale `api-wave2.ts` types | Quick compilation fix | API misalignment becomes invisible; stale type definitions cause runtime 404s and silent data loss | Never — fix the type definition to match the actual backend contract |
-| Leaving `IntegrationMode.LANGGRAPH_ONLY` in hive_mind_integration.py | No enum changes | Any caller using that mode gets an ImportError from tombstoned LangGraph; no valid code path exists | Never — remove dead enum values when the implementation is tombstoned |
-| Creating a new ADK `GeminiClient` instance instead of reusing existing `app/ai/client.py` | Simpler ADK setup | Two Gemini SDK instances with independent rate limit state and circuit breakers; rate limit budget split unpredictably | Never — reuse existing `GeminiClient` via shared configuration |
+| Use global `DEBUG` logs during incidents | Fast visibility | PHI exposure risk and noisy logs | Never in production healthcare data paths |
+| Keep ad-hoc correlation IDs per module | Quick local debugging | Impossible end-to-end incident reconstruction | Never |
+| Add retries without idempotency ledger | Fewer transient failures | Duplicate patient messages and trust erosion | Never |
+| Pin ADK loosely (`^1.x`) | Fewer dependency chores | Silent behavior drift on callbacks/tools | Only in non-prod experimentation |
+| Put patient identifiers as metric labels | Fast filtering in dashboards | Cardinality explosion and observability outages | Never |
 
 ## Integration Gotchas
 
-Common mistakes when connecting ADK to the existing Pydantic AI + google-genai stack.
+Common mistakes when integrating ADK into this existing production stack.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| ADK + Pydantic AI agents | Passing Pydantic AI agent object as ADK `AgentTool` or `FunctionTool` directly | Wrap each Pydantic AI agent call in a plain async function decorated as an ADK tool; `PIISafeAgent._safe_run()` lives inside that wrapper |
-| ADK + GeminiClient | Creating a new `google-genai` client instance in ADK agent configuration | Reuse the `GeminiClient` from `app/ai/client.py` via shared API key and model name — two client instances split the rate limit budget and each has its own circuit breaker |
-| ADK + AsyncSession | ADK framework callbacks may be called synchronously | Use `async_to_sync()` (established codebase pattern from Celery tasks) if ADK requires sync callbacks that need DB access; never pass `AsyncSession` to a sync callback |
-| ADK + Circuit Breaker | Not wrapping ADK `runner.run_async()` in the existing circuit breaker | Import `aiobreaker` circuit breaker from `app/resilience/circuit_breaker/` and wrap the ADK runner call — ADK can fail with network errors, Gemini errors, or quota errors |
-| ADK + OTel re-import | Removing all OTel from requirements.txt and assuming ADK works without it | Pin ADK version in requirements.txt, run `pip install google-adk && pip freeze` to confirm actual transitive dep tree before finalizing removal list |
-| Frontend + WuzAPI endpoints | Calling backend endpoints that matched Evolution API paths (e.g., `/evolution/`) | Compare `frontend-hormonia/src/services/whatsapp/WhatsAppService.ts` endpoint paths against active routes in `api/v2/router.py`; update mismatched paths |
-| Frontend types + backend contract | Using `types/api-wave2.ts` (auto-generated Oct 2025) without verifying current backend Pydantic models | Re-generate or manually audit `api-wave2.ts` types against current v2 OpenAPI output (`/api/v2/openapi.json`) before cleanup |
+| FastAPI -> ADK Runner | Calling ADK without propagating request context | Pass correlation metadata (request/flow/invocation IDs) into every run |
+| Celery -> ADK | Retrying tool/model failures blindly | Retry only retryable classes with backoff+jitter and idempotency key |
+| ADK callbacks + PIISafe wrapper | Assuming wrapper is enough without callback tests | Enforce callback behavior tests for block/allow and PHI redaction paths |
+| Sentry + structured logs | Relying on default scrubbing only | Keep `send_default_pii=False`, custom scrubber, `before_send` hooks |
+| ADK session service + multi-instance deploy | Using in-memory sessions in production | Use durable session service and verify migration compatibility |
 
 ## Performance Traps
 
-Patterns that work at small scale but fail as usage grows.
+Patterns that pass staging but fail under production load.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| ADK agent sessions not explicitly closed | Memory growth in long-running FastAPI process; ADK session context accumulates state | Use `async with` context manager or explicit `session.close()` in a `finally` block around ADK runner calls | At >100 concurrent patients in active follow-up flows |
-| React Query cache not invalidated on admin focus | Physician sees stale patient data from another session's cache in multi-tab usage | Add `refetchOnWindowFocus: true` for patient-facing queries; use per-session query keys for sensitive data | Immediately visible when physician uses multiple browser tabs |
-| Virtualisation components on pages with <50 items | `react-window` and `react-virtualized-auto-sizer` in quiz history or alerts (likely <20 items) add complexity with no performance benefit | Remove virtualisation from low-item pages; keep only for patient list (100+ records) | Never breaks performance, but adds unnecessary complexity that makes quality cleanup harder |
-| Stale mocks in `frontend-hormonia/src/mocks/` silencing real API contract errors | Tests pass against mocked responses while production calls different endpoints or gets different shapes | Audit mock files against actual backend responses using the test `normalizers.ts` patterns; confirm mock shapes match live API | Immediately at any backend endpoint change that mocks don't reflect |
+| Full payload logging for every ADK call | CPU/log I/O spikes, slower response times | Sample debug logs by correlation ID only | Often at first traffic spike (>100 concurrent flows) |
+| Single worker pool for long and short tasks | Queue latency oscillation | Route long-running diagnostics separately | At moderate sustained load (10-15 min queue growth) |
+| Missing timeout budgets between layers | Requests pile up, cascading failures | Set per-hop timeouts and end-to-end budget | During provider slowdowns/outages |
+| No metric cardinality budget | Monitoring backend degradation | Enforce low-cardinality label policy | Immediately after rich labels rollout |
 
 ## Security Mistakes
 
-Domain-specific security issues for oncology patient data.
+Domain-specific risks beyond generic web security.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Logging patient name or CPF in browser console during API debugging | LGPD violation; console accessible to browser extensions and XSS | Use `createLogger` from `lib/logger.ts` (already sanitizes PII); never call `console.log(patient)` or `console.log(response.data)` with raw patient objects |
-| ADK tool output containing patient clinical data persisted in ADK session state | ADK session state may be written to disk, memory dumps, or ADK's built-in storage service in ways the team doesn't control | Apply PII redaction via `PIISafeAgent` BEFORE any data enters ADK tool results; use `before_tool_callback` as secondary filter |
-| Removing Sentry's `beforeSend` filter during the monitoring cleanup pass | Patient names appearing in Sentry breadcrumbs, error payloads, and session replay | The `SentryMonitoring` class in `monitoring/sentry.ts` already has `beforeSend` filters — verify they survive any Sentry configuration refactor; never remove them |
-| Switching quiz session state storage from HttpOnly cookies to `localStorage` | XSS can steal session token; quiz sessions represent patient oncology health interactions | Quiz already uses HttpOnly cookies correctly per `use-quiz-session.ts` — do not change this during the quality pass; it is the secure architecture |
-| New ADK API endpoint missing audit log | LGPD Art. 37 requires processing activity records for health data | Every new API route that invokes ADK agents must call the existing `AuditService` — add this at route handler level, not as an afterthought in a follow-up story |
-| ADK agent output rendered to admin UI without output escaping | ADK processes patient messages, which may contain injection strings | Escape all ADK agent output before rendering to any HTML context; `DOMPurify` is already installed in the admin SPA (`"dompurify": "^3.3.0"`) |
-
-## UX Pitfalls
-
-Frontend-specific UX mistakes for the oncology admin context.
-
-| Pitfall | User Impact | Better Approach |
-|---------|-------------|-----------------|
-| Removing the Evolution "disabled" banner without replacing with WuzAPI status | Physicians have zero visibility into WhatsApp system health; the most critical infrastructure for patient follow-up has no status indicator | Replace Evolution placeholder in `WhatsAppDashboard.tsx` with a WuzAPI connection status card showing: instance status, last-seen timestamp, QR code state if disconnected |
-| Dead Evolution settings fields in AdminSettingsTab | Physician or admin tries to toggle "Evolution API" settings and gets no response; confusing UI state | Remove all Evolution-related settings fields from `AdminSettingsTab.tsx` |
-| 501 responses showing as infinite loading state | When backend returns 501 (unsupported feature, e.g., WuzAPI contact sync), frontend spinner runs forever | Map HTTP 501 to explicit "Feature not available" UI state — the `FeatureNotAvailableError` pattern is established in the backend; align the frontend |
-| Inconsistent Sao Paulo timezone display between admin SPA and quiz interface | Same appointment time shows differently in both UIs for the same patient | Standardize timezone handling in both frontends: `America/Sao_Paulo` UTC-3; verify `date-fns` timezone functions use the correct locale and zone after v3→v4 alignment |
+| Logging raw prompt/tool payloads with health data | LGPD non-compliance and breach risk | Redact-before-log, default INFO, scoped diagnostics only |
+| Persisting session state with unnecessary PHI | Enlarged blast radius in incidents | Data minimization + TTL + hashed identifiers |
+| Missing tool-level authorization guardrails | Unauthorized record access/exfiltration | In-tool policy checks + callback enforcement |
+| Unescaped model output in downstream UIs | Prompt-injection-to-XSS path | Escape/sanitize model output before rendering |
 
 ## "Looks Done But Isn't" Checklist
 
-Things that appear complete but are missing critical pieces.
-
-- [ ] **OTel removal:** Confirm whether `pip show opentelemetry-api` returns "not found" OR document that ADK re-imported it and clarify that instrumentation packages are the real removal target — never leave the OTel state ambiguous.
-- [ ] **ADK integration:** Verify `scripts/check_agent_run_calls.py` detects direct `.run()` calls inside ADK `@tool`-decorated functions — test with a synthetic file.
-- [ ] **PIISafeAgent in ADK path:** Integration test with synthetic PHI input asserts the PII redaction log line appears before Gemini API call in every ADK-invoked agent path.
-- [ ] **Evolution dead code removed:** `grep -r "VITE_ENABLE_EVOLUTION\|Evolution API\|EvolutionAPI" frontend-hormonia/src/` returns zero results.
-- [ ] **HiveMind LangGraph cleaned:** `grep -n "LANGGRAPH_ONLY\|_process_with_langgraph" backend-hormonia/app/services/hive_mind_integration.py` returns zero results.
-- [ ] **Quiz Strict Mode guard preserved:** `useQuizSession.ts` unit test passes simulating double-invocation; API called exactly once.
-- [ ] **Sentry correlation intact post-OTel-removal:** Sentry transaction tree for one sampled patient flow request shows same parent-child span depth before and after OTel instrumentation package removal.
-- [ ] **TypeScript clean in both frontends:** `tsc --noEmit` exits 0 in both `frontend-hormonia/` and `quiz-mensal-interface/` with strict mode enabled.
-- [ ] **date-fns version aligned:** Both frontends declare the same major version of date-fns; no copy-paste of date utilities across frontends without version verification.
-- [ ] **ADK session lifecycle:** ADK runner sessions are explicitly closed in all code paths including exception paths; no session accumulation under load.
+- [ ] **Correlation:** One incident can be traced API -> Celery -> ADK with deterministic IDs.
+- [ ] **Privacy:** `DEBUG` disabled in production and redaction tests cover logs + Sentry.
+- [ ] **Retries:** Duplicate-send prevention metric exists and is green under retry test.
+- [ ] **Errors:** Top ADK failure modes map to explicit error codes and runbook actions.
+- [ ] **Sessions:** Production uses durable session backend; restart does not lose active context.
+- [ ] **Metrics:** Cardinality budget check passes before enabling new dimensions.
+- [ ] **Rollout:** Shadow-mode baseline and rollback switch validated before full enablement.
 
 ## Recovery Strategies
 
-When pitfalls occur despite prevention, how to recover.
+When pitfalls happen despite prevention.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| ADK re-pulls OTel at conflicting version | MEDIUM | Pin ADK to exact tested version; document OTel as ADK-managed transitive dep; remove your own OTel pins from requirements.txt and let ADK's declared range govern |
-| PIISafeAgent bypassed in production ADK call | HIGH | Immediately deploy hotfix wrapping the ADK tool in `PIISafeAgent._safe_run()`; notify DPO per LGPD Art. 48 if patient PHI reached Gemini unredacted; audit Gemini API request logs for the exposure window |
-| Quiz double-session from Strict Mode guard removal | LOW | Rollback the hook change that removed the `useRef` guard; add the missing test; redeploy |
-| Evolution dead code causes physician confusion | LOW | Remove `VITE_ENABLE_EVOLUTION` flag; remove Evolution UI sections; rebuild and deploy frontend; no backend changes needed |
-| Sentry loses correlation after OTel removal | MEDIUM | Ensure `sentry-sdk[fastapi]` `FastApiIntegration` and `CeleryIntegration` are explicitly registered in Sentry init; verify `traces_sample_rate > 0`; Sentry does not require OTel for its own tracing |
-| HiveMind endpoint crashes on LANGGRAPH_ONLY mode | LOW | Remove dead enum value; redeploy backend; no data loss since the mode was unreachable safely |
-| date-fns API mismatch causes incorrect dates in UI | LOW | Identify the cross-version copy-paste; standardize on one version; test with São Paulo timezone edge case (DST boundary) |
+| PHI in logs/Sentry | HIGH | Rotate access, scrub/erase retained events where possible, notify DPO/incident process, patch redaction and logging level guards |
+| Broken API->Celery->ADK correlation | MEDIUM | Hotfix correlation propagation headers/fields, replay one failed scenario, update dashboard joins |
+| Duplicate patient sends from retries | HIGH | Stop outbound queue, dedupe pending tasks by idempotency key, send corrective communication workflow |
+| Callback contract drift after ADK upgrade | MEDIUM | Roll back ADK version, re-run contract suite, release behind feature flag |
+| Monitoring collapse from high cardinality | MEDIUM | Drop high-cardinality labels, purge/disable offending series, restore SLO-only dashboard set |
 
 ## Pitfall-to-Phase Mapping
 
-How roadmap phases should address these pitfalls.
-
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| ADK reintroduces OTel as transitive dep | OTel removal phase — audit transitive deps first | `pip show opentelemetry-api` state is known and documented before any requirements.txt changes |
-| PIISafeAgent bypass via ADK tools | ADK integration phase — extend CI guard before any agent wiring | CI fails on a test file with direct `agent.run()` inside an ADK `@tool` function |
-| ADK tool output leaks PHI to session state | ADK integration phase | Integration test with synthetic PHI in tool input asserts redaction in ADK session output |
-| Evolution API dead code in frontend | Frontend dead code removal phase — WhatsApp area first | `grep -r "VITE_ENABLE_EVOLUTION"` returns zero results in `frontend-hormonia/src/` |
-| HiveMind references tombstoned LangGraph | Frontend dead code or ADK integration phase | `grep -n "LANGGRAPH_ONLY"` returns zero results in `hive_mind_integration.py` |
-| Sentry trace correlation breaks post-OTel removal | OTel removal phase — validate Sentry before and after | Sentry transaction tree for one sampled flow intact after instrumentation package removal |
-| React Strict Mode double-init in quiz | Quiz quality phase | `useQuizSession` unit test with double-invocation simulation; API called exactly once |
-| date-fns version divergence between frontends | Frontend quality consolidation phase | Both frontends declare same date-fns major version; `tsc --noEmit` clean |
-| 501 responses showing as infinite loading | Frontend quality phase | HTTP 501 response renders "Feature not available" state, not spinner |
-| ADK session not closed causing memory growth | ADK integration phase | ADK runner usage wrapped in `async with` or `finally` block; load test shows stable memory |
+| PHI leakage via debug telemetry | Phase 1 - Guardrails & Privacy Contracts | Redaction tests green; production log policy rejects DEBUG |
+| Callback/tool contract drift | Phase 1 - Guardrails & Privacy Contracts | Contract tests pass against pinned ADK version |
+| Correlation gaps across runtime boundaries | Phase 2 - Observability Baseline (OBS-01) | Single flow trace includes all required IDs |
+| Session durability/diagnostic blind spots | Phase 2 - Observability Baseline (OBS-01) | Session survives restart and replay diagnostics work |
+| Metric cardinality explosion | Phase 2 - Observability Baseline (OBS-02) | Cardinality budget and dashboard latency within target |
+| Duplicate sends from retries | Phase 3 - Runtime Hardening | Retry tests show zero duplicate outbound sends |
+| Error taxonomy collapse | Phase 3 - Runtime Hardening | Error mapping contract tests for major failure classes |
+| Big-bang rollout regressions | Phase 4 - Controlled Rollout & Runbook | Shadow KPIs pass and rollback switch tested |
 
 ## Sources
 
-- Google ADK v1.26.0 CHANGELOG: "Update OpenTelemetry dependency versions to relax version constraints" — confirms OTel is NOT removed, only pinning widened — [https://github.com/google/adk-python/blob/main/CHANGELOG.md](https://github.com/google/adk-python/blob/main/CHANGELOG.md)
-- Google ADK v1.26.0 releases page — [https://github.com/google/adk-python/releases](https://github.com/google/adk-python/releases)
-- GitHub Issue: `TypeError: BaseModel.model_dump()` with ADK + OTel + Pydantic output_schema — [https://github.com/google/adk-python/issues/3884](https://github.com/google/adk-python/issues/3884)
-- GitHub Issue: OTel context ValueError with ADK ParallelAgent (google/adk-python #860) — [https://github.com/google/adk-python/issues/860](https://github.com/google/adk-python/issues/860)
-- GitHub Issue: OTel context detach errors in ADK (google/adk-python #1670) — [https://github.com/google/adk-python/issues/1670](https://github.com/google/adk-python/issues/1670)
-- GitHub Issue: Pydantic AI + OTel import crash on Lambda (pydantic/pydantic-ai #2985) — [https://github.com/pydantic/pydantic-ai/issues/2985](https://github.com/pydantic/pydantic-ai/issues/2985)
-- OTel + Protobuf version conflict documentation — [https://github.com/open-telemetry/opentelemetry-python/issues/4563](https://github.com/open-telemetry/opentelemetry-python/issues/4563)
-- Google ADK Safety documentation (PII and callbacks) — [https://google.github.io/adk-docs/safety/](https://google.github.io/adk-docs/safety/)
-- React 19 release notes and Strict Mode behavior — [https://react.dev/blog/2024/12/05/react-19](https://react.dev/blog/2024/12/05/react-19)
-- LGPD compliance checklist — [https://captaincompliance.com/education/lgpd-compliance-checklist/](https://captaincompliance.com/education/lgpd-compliance-checklist/)
-- Codebase: `backend-hormonia/app/core/tracing.py` — OPENTELEMETRY_AVAILABLE guard and MockTracer fallback (HIGH confidence — direct file read)
-- Codebase: `frontend-hormonia/src/features/whatsapp/WhatsAppDashboard.tsx` lines 62-76, 183-195 — Evolution API dead code confirmed (HIGH confidence — direct file read)
-- Codebase: `backend-hormonia/app/services/hive_mind_integration.py` lines 31, 217-218 — LangGraph dead code in active service confirmed (HIGH confidence — direct file read)
-- Codebase: `quiz-mensal-interface/hooks/use-quiz-session.ts` — Strict Mode protection guard confirmed present (HIGH confidence — direct file read)
-- Codebase: `backend-hormonia/requirements.txt` lines 116-134 — 9 explicit OTel package declarations confirmed (HIGH confidence — direct file read)
-- Codebase: confirmed OTel callers: only `app/integrations/whatsapp/services/message_service.py` (line 26, 314, 574) and `app/services/unified_whatsapp_service.py` (line 51, 142) (HIGH confidence — grep confirmed)
+- ADK Observability Logging (DEBUG includes full prompts; production guidance): https://google.github.io/adk-docs/observability/logging/ (HIGH)
+- ADK Safety/Security (guardrails, callback-based validation, tool controls): https://google.github.io/adk-docs/safety/ (HIGH)
+- ADK Callback types and lifecycle hooks: https://google.github.io/adk-docs/callbacks/types-of-callbacks/ (HIGH)
+- ADK Sessions and persistence options (InMemory/Database/Vertex): https://google.github.io/adk-docs/sessions/session/ (HIGH)
+- ADK release notes pointer + fast release cadence: https://google.github.io/adk-docs/release-notes/ (HIGH)
+- ADK Python releases (breaking changes, bug-fix churn, session/observability changes): https://github.com/google/adk-python/releases (MEDIUM-HIGH)
+- OpenTelemetry guidance on handling sensitive data: https://opentelemetry.io/docs/security/handling-sensitive-data/ (MEDIUM)
+- Sentry Python sensitive-data scrubbing and `send_default_pii`: https://docs.sentry.io/platforms/python/data-management/sensitive-data/ (HIGH)
+- Celery task idempotency/retry semantics and late-ack caveats: https://docs.celeryq.dev/en/stable/userguide/tasks.html (HIGH)
+- Celery optimization and prefetch/reliability tradeoffs: https://docs.celeryq.dev/en/stable/userguide/optimizing.html (HIGH)
+- LGPD legal basis/principles for sensitive health data (Lei 13.709/2018): https://planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm (HIGH)
 
 ---
-*Pitfalls research for: Clinica Oncologica v02 — v1.7 Frontend Quality & ADK Integration milestone*
-*Researched: 2026-03-03*
+*Pitfalls research for: Clinica Oncologica - v1.8 ADK Stability & Error Hardening milestone*
+*Researched: 2026-03-05*

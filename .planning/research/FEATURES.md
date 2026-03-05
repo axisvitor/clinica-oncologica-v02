@@ -1,255 +1,139 @@
 # Feature Research
 
-**Domain:** Frontend Quality Overhaul + Google ADK Integration (v1.7)
-**Researched:** 2026-03-03
-**Confidence:** HIGH for frontend patterns (established ecosystem); MEDIUM for ADK integration specifics (ADK v1.26.0 + dependency constraints verified but OTel removal scope inferred from codebase inspection)
-
----
-
-## Context
-
-This research maps the feature landscape for v1.7, which targets two independent workstreams:
-
-1. **Frontend Quality** — Review and fix both frontends (admin SPA: React 19 + Vite + shadcn/ui; quiz interface: Next.js 14 + React 18 + shadcn/ui) for dead code, API alignment, layout consistency, and code quality (lint/types).
-2. **Google ADK Integration** — Remove OpenTelemetry (unblocking dependency conflict) and integrate Google ADK on top of the existing Pydantic AI agent stack.
-
-These workstreams are nearly independent. Frontend quality has no dependency on ADK. ADK integration is purely backend.
-
-**Existing stack relevant to this milestone:**
-- Admin SPA: React 19, Vite 6, Tailwind v4, shadcn/ui (full Radix primitive set), TanStack Query v5, react-router-dom v6, Sentry, Firebase Auth, axios, vitest, Playwright
-- Quiz interface: Next.js 14, React 18, Tailwind v4, shadcn/ui (pinned Radix versions), jest, msw
-- Backend AI: 4 Pydantic AI agents (pydantic-ai-slim[google]), google-genai SDK, GeminiClient with circuit breaker + rate limiter + cache, PIISafeAgent mandatory wrapper
-- OTel: opentelemetry-api/sdk + 4 instrumentation packages + 2 exporters — optional wrapper in `app/core/tracing.py` (already guarded by `try/except ImportError`)
-
----
+**Domain:** ADK stabilization + runtime hardening for production oncology AI backend
+**Researched:** 2026-03-05
+**Confidence:** HIGH for ADK runtime/session/guardrail features (official ADK docs); MEDIUM for cross-vendor "production table stakes" patterns (official OpenAI production guidance + ADK guidance)
 
 ## Feature Landscape
 
-### Table Stakes — Frontend Quality (Users / Developers Expect These)
+### Table Stakes (Users Expect These)
 
-Features a well-maintained React/Next.js codebase must have. Missing = technical debt that blocks future development.
-
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Zero unused npm dependencies | Package bloat slows install/build; security surface | LOW | Both frontends have full shadcn/ui Radix primitive set installed; many primitives may be unused. Use `knip` for project-wide detection; shadcn/ui docs explicitly say to remove unused `@radix-ui/react-*` packages. |
-| Zero unused files and exports | Dead components add confusion, inflate bundle | MEDIUM | Admin SPA has pages like `HiveMindPage`, `EnhancedAnalyticsDashboard`, `PhysicianDashboard` — their backend endpoints need verification. `knip` traces from entry points; anything unreachable is flagged. |
-| ESLint passing with zero errors | Prevents bad code reaching CI | LOW | Admin SPA: `eslint . --ext ts,tsx` (eslint v9 + typescript-eslint v8). Quiz: `next lint` (eslint v8 + eslint-config-next). Both configured. Run state unknown — may have suppressed errors. |
-| TypeScript strict with zero `any` warnings | Type safety catches API contract mismatches at compile time | MEDIUM | Admin SPA: `tsc --noEmit`. Quiz: typescript v5.9. Both have tsconfig. Degree of `any` usage, `@ts-ignore`, and `as unknown as X` patterns unknown without audit. |
-| API calls matching backend contracts | Frontend silently breaks when endpoint paths/payloads drift | MEDIUM | Admin SPA `lib/api-client/` has 10+ domain modules (auth, patients, analytics, admin, dashboard, tasks, hive-mind, etc.). `hive-mind.ts` calls `/api/v2/hive-mind/agents` — backend "hive mind" concept may not exist as a real API resource post-v1.2 AI rationalization. `ai-adapters.ts` maps AI insight types — must align with Pydantic AI agent output schemas. |
-| Consistent error states and loading skeletons | Users expect graceful failure and loading UX | MEDIUM | Admin SPA has `LoadingStates.tsx`, `ErrorBoundary.tsx`, `ErrorFallback.tsx`, skeleton components — but consistency across pages is unverified. `AgentSwarm` component uses raw `useEffect` + `setInterval` instead of TanStack Query — inconsistent pattern. |
-| No duplicate API client implementations | Multiple clients for same domain = divergent behavior | LOW | Admin SPA has `lib/api.ts`, `lib/api-client.ts`, `lib/client.ts`, AND `lib/api-client/` directory — potential duplication. `src/client.ts` at top level appears to be a stub. Needs consolidation audit. |
-
-### Table Stakes — ADK Integration (Backend)
-
-What must be true for ADK to be usable in this project.
+Features production teams expect for stable ADK-backed agent execution. Missing these means recurring incidents.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| OTel packages removed from requirements.txt | ADK pulls its own OTel; running two OTel stacks causes `ValueError: Token was created in a different Context` errors in async code | MEDIUM | Current: 7 OTel packages in requirements.txt. `app/core/tracing.py` already has `try/except ImportError` mock fallback — designed for optional OTel. Removal primarily means: (1) remove from requirements.txt, (2) verify no `from opentelemetry import X` calls survive outside the guarded module, (3) update middleware_setup.py if any OTel middleware was registered. |
-| google-adk installable alongside pydantic-ai-slim | pip can resolve both without conflict | MEDIUM | ADK v1.26.0 current (verified). ADK depends on google-genai (same as pydantic-ai-slim[google]). Version pinning between ADK and pydantic-ai-slim on google-genai may require careful version coordination. LOW confidence on exact version constraints without running pip resolve. |
-| ADK Runner wired to at least one existing agent | Proof of integration; validates agent wrapping pattern | MEDIUM | ADK uses `Runner` + `InMemorySessionService` for stateless operation; or `DatabaseSessionService` for persistence. Existing Pydantic AI agents are callable functions — they need to be wrapped as ADK `FunctionTool` or `LlmAgent`. |
-| PIISafeAgent contract preserved | LGPD Art. 46 — PII redaction must remain mandatory | LOW | ADK agent wrapping must invoke PIISafeAgent, not bypass it. CI guard `scripts/check_agent_run_calls.py` must still block direct `.run()` calls. ADK's `FunctionTool` wrapping a PIISafeAgent-guarded function naturally satisfies this. |
+| Deterministic ADK runtime budgets (`RunConfig.max_llm_calls`, run timeouts) | Prevents runaway loops, quota burn, and hung requests | MEDIUM | New requirement on top of existing ADK route foundation. Use strict per-endpoint defaults and fail-fast error mapping. Depends on existing Gemini rate limiter/circuit breaker to avoid cascading failures. |
+| Standardized ADK error taxonomy + HTTP mapping | Ops and callers need predictable failure classes (timeout, policy_block, tool_error, upstream_error) | MEDIUM | New contract layer in wrapper/runtime/endpoint path. Depends on existing FastAPI exception handling, structured logging, and Sentry integration. |
+| Tool-call guardrails before execution (`before_tool_callback`) | Production agents must validate tool args and auth context before side effects | MEDIUM | ADK callback pattern is explicit for policy enforcement. Reuse existing PIISafe wrappers and LGPD rules as deterministic preconditions. |
+| Session lifecycle correctness (create/resume/delete, bounded state growth) | Multi-turn stability requires clean session management and predictable memory behavior | MEDIUM | ADK SessionService is a core runtime primitive; production needs explicit retention/cleanup policy. Depends on existing patient flow IDs and current backend identity model. |
+| ADK observability baseline (invocation IDs, latency/error/throughput metrics, structured logs) | Incident response needs traceability per invocation and per tool call | MEDIUM | ADK relies on developer-configured logging; add explicit metric emission at wrapper + endpoint boundaries. Depends on existing logging/Sentry/monitoring endpoints. |
+| ADK smoke/eval regression gate in CI | Agent regressions are non-deterministic without scenario-based tests and trajectory checks | MEDIUM | ADK eval supports trajectory and response criteria; wire minimal critical-path fixtures into direct-run CI guard flow. Depends on existing CI guardrails and typed agent outputs. |
 
-### Differentiators — Frontend Quality
+### Differentiators (Competitive Advantage)
 
-Features that improve maintainability beyond the minimum viable cleanup.
-
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| TanStack Query used consistently for all async data | Eliminates raw `useEffect` + `useState` polling; adds caching, deduplication, background refresh, optimistic updates | MEDIUM | `AgentSwarm.tsx` uses `setInterval` polling pattern (anti-pattern). `SystemHealth.tsx` likely same. Converting to `useQuery` with `refetchInterval` is the correct pattern. Admin SPA already has TanStack Query v5 + `OptimizedQueryProvider` — just apply it consistently. |
-| Centralized query key factory (`queryKeys.ts`) | Prevents cache invalidation bugs from mismatched keys | LOW | Admin SPA already has `lib/query-keys.ts`. Verify all hooks use it rather than inline string keys. |
-| Shared `apiClient` instance used everywhere | One auth token, one base URL, one interceptor chain | LOW | Admin SPA has `lib/api-client/` as the canonical client. Verify pages and hooks do not call `axios` directly or use `lib/api.ts` as a parallel client. |
-| Layout consistency: page header / breadcrumb / card padding | Cross-page visual coherence reduces cognitive load for clinic staff | MEDIUM | Admin SPA has 20+ pages — visual consistency between `DashboardPage`, `PatientsPage`, `PhysicianDashboard`, `EnhancedAnalyticsDashboard`, etc. needs audit. `Breadcrumb.tsx` and `Header.tsx` exist but page-level patterns may diverge. |
-| Zod validation schemas colocated with forms | Eliminates runtime field name mismatches between form and API payload | LOW | Admin SPA has `lib/validations/admin-schemas.ts`, `lib/validations/user-schemas.ts`. Patient form (`PatientForm.tsx`) uses `react-hook-form` + `@hookform/resolvers/zod` — check all forms follow this pattern. |
-| React 19 ref-as-prop migration on shadcn components | React 19 deprecates `forwardRef`; shadcn/ui v1.x already removed it | LOW | Admin SPA on React 19 — if using shadcn/ui components installed before Feb 2025 update, they may still use `forwardRef`. Check `components.json` shadcn version and run `shadcn add` updates for stale primitives. Quiz interface on React 18 — no change needed. |
-
-### Differentiators — ADK Integration
-
-What ADK adds beyond the current Pydantic AI setup.
+Features that move beyond minimum stability and materially improve safety/operations.
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| ADK Session + Memory Service | Agents can carry conversational state across tool calls without explicit state threading in caller code | HIGH | Current Pydantic AI agents are stateless per-call. ADK `InMemorySessionService` adds within-session state; `DatabaseSessionService` could persist across sessions. Useful for multi-turn patient assessment flows. High complexity: requires ADK Runner integration into async FastAPI handlers. |
-| ADK Sequential/Parallel/Loop workflow agents | Declarative multi-step agent pipelines without custom orchestration code | HIGH | Current flow orchestration uses direct async Python functions (~10-15 lines each). ADK workflow agents provide the same semantics with more overhead but better observability. Medium value for this codebase since direct functions already work well. |
-| ADK Built-in Evaluation framework | Run automated test cases against agents with prompt/response fixture pairs | MEDIUM | Current: no agent evaluation pipeline. ADK's `adk eval` CLI runs scenarios and scores responses. Valuable for validating sentiment/empathy agent quality changes. |
-| ADK Agent Registry + Skills API | Discover and compose agents dynamically; `load_skill_from_dir()` | HIGH | Overkill for 4 fixed-purpose agents. Future value if agent count grows. |
-| ADK BigQuery Analytics plugin | Track agent usage, latency, error rates in BigQuery | HIGH | Project uses Railway + AWS RDS — no BigQuery. Not applicable. |
+| Policy-as-code guardrail library for tools | Reusable safety rules across all ADK tools (PII, role, allowed actions) with low drift | HIGH | Implement as shared callbacks/plugins rather than per-tool ad hoc checks. Builds on existing PIISafeAgent/PIISafeADKWrapper contracts. |
+| Progressive rollout controls for ADK path (shadow/canary/rollback flag) | Reduces blast radius for runtime changes and model/tool upgrades | HIGH | Keep existing production path as fallback while ADK hardening matures. Depends on current feature-flag and deployment workflow discipline. |
+| Persistent session backend with migration discipline (`DatabaseSessionService`) | Survives restarts and enables resilient multi-turn care journeys | HIGH | ADK supports DB-backed sessions; requires schema migration governance and retention policy. Depends on existing PostgreSQL ops and async DB expertise. |
+| Safety+quality evaluation pack (hallucination/safety/tool-use rubrics) tied to release criteria | Converts subjective "agent quality" into objective go/no-go gates | HIGH | Extend basic CI smoke into graded eval profiles for oncology workflows and escalation prompts. Depends on existing test infrastructure and domain fixtures. |
+| Operator runbook automation (auto-classify incidents, suggested remediation by error class) | Faster MTTR and fewer repeated on-call decisions | MEDIUM | Attach runbook links/actions to standardized error codes and alert payloads. Depends on new error taxonomy and existing alerting endpoints. |
 
-### Anti-Features — Frontend Quality
+### Anti-Features (Commonly Requested, Often Problematic)
 
-| Anti-Feature | Why Requested | Why Problematic | Alternative |
-|--------------|---------------|-----------------|-------------|
-| Full UI redesign of admin SPA | "While we're in the code, improve the UX" | Out-of-scope per PROJECT.md: "Redesign de UI do frontend admin ou quiz interface — foco backend." Scope creep that blocks v1.7 delivery. | Stick to layout consistency (padding, spacing, card structure) without visual redesign. |
-| Migrating quiz interface from Next.js 14 → 15 | Next.js 15 is available | Next.js 15 changes App Router behavior, Server Actions API, and React 19 opt-in mechanics. Migration is a separate workstream, not a quality fix. | Stay on Next.js 14. Fix quality within current version. |
-| Adding Storybook for component catalog | Seems like a good practice | Adds significant tooling overhead and maintenance burden for a small team. Admin SPA has vitest + Playwright — component testing is covered. | Document component patterns in CLAUDE.md or a lightweight spec if needed. |
-| Code splitting / bundle optimization | "Performance improvements" | Performance has not been identified as a user complaint. Premature optimization. Vite already does code splitting by default. | Let Vite handle it. Focus on correctness and dead code removal. |
-| Replacing axios with native `fetch` | React 19 promotes `use(fetch(...))` | `TanStack Query + axios` is the established pattern already wired up. Switching HTTP clients is pure churn with zero functional benefit. | Keep axios. |
-| Type-safe API generation from OpenAPI spec | "Eliminate manual type maintenance" | FastAPI does expose an OpenAPI schema, but wiring openapi-typescript code-gen into both frontends' CI is significant tooling work. Over-engineered for this team size and codebase maturity. | Hand-maintain types in `lib/api-client/types.ts`. Use `tsc --noEmit` as the quality gate. |
-
-### Anti-Features — ADK Integration
-
-| Anti-Feature | Why Requested | Why Problematic | Alternative |
-|--------------|---------------|-----------------|-------------|
-| Replacing Pydantic AI agents entirely with ADK LlmAgent | "Consolidate on one framework" | Pydantic AI agents provide typed structured output — critical for PIISafeAgent LGPD compliance. ADK's output schema is less strict. Replacement would destabilize 4 tested agents and weaken type safety. | Wrap existing Pydantic AI agents as ADK FunctionTools. ADK orchestrates; Pydantic AI executes typed calls. |
-| Using ADK for flow orchestration (replacing direct async Python) | "Better observability" | Direct async Python flow functions (10-15 lines each) already replaced LangGraph successfully in v1.2. Introducing ADK workflow agents adds framework overhead for no functional gain. The decision log explicitly notes "Direct async Python over ADK for flow orchestration — zero new dependencies." | Keep direct async Python flow functions. Use ADK only for agent-level coordination if needed. |
-| Keeping OpenTelemetry alongside ADK | "Don't lose tracing" | ADK v1.26.0 manages its own OTel tracer. Two OTel SDK initializations in the same process cause `ValueError: Token was created in a different Context` on async context propagation — a known ADK/Langfuse conflict documented in multiple open issues. | Remove OTel; use Sentry (already installed) for error tracking. ADK's built-in tracing covers AI agent spans. |
-| ADK Web UI / CLI deployment | "Use ADK's built-in server" | Project deploys on Railway/Cloud Run with FastAPI. ADK's web interface is a development tool, not a production runtime. | Use ADK as a Python library inside existing FastAPI handlers. |
-| ADK RabbitMQ / BigQuery integrations | "Enterprise features" | Project has no RabbitMQ or BigQuery infrastructure. Adding dependencies for unused features. | Skip these ADK optional plugins. |
-
----
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Replacing typed Pydantic agents with raw ADK LlmAgent everywhere | "Single framework" simplification | Loses proven typed-output safety contracts already used in production and increases regression risk in clinical messaging | Keep typed Pydantic AI agents as execution core; use ADK for runtime orchestration, sessions, callbacks, and evals |
+| Launching ADK web/API server as parallel production surface | "Fastest path to ADK endpoints" | Duplicates existing FastAPI contract, auth, and observability paths; introduces split operational model | Embed ADK Runner inside existing FastAPI `/api/v2/adk/run` and keep one production API surface |
+| Unlimited session retention and full transcript persistence by default | "Better debugging/history" | High LGPD/privacy and storage risk; worsens incident blast radius | Enforce retention windows, redaction-at-ingest, and scoped artifact storage |
+| Enabling experimental runtime features (for example CFC) in critical care path early | "More capability quickly" | Experimental runtime behavior raises stability risk during hardening phase | Keep to stable ADK runtime settings first; isolate experiments behind non-critical flags |
+| Big-bang ADK migration of all flows/tools in one milestone | "Finish migration once" | High failure domain; difficult root-cause isolation during incidents | Incremental rollout: harden one critical path, then expand by tool/agent cohort |
 
 ## Feature Dependencies
 
-```
-FRONTEND WORKSTREAM
--------------------
+```text
+Existing PIISafeAgent/PIISafeADKWrapper
+    └──required for──> Tool-call guardrails (before_tool_callback)
+                            └──required for──> Standardized error taxonomy (policy_block vs runtime_error)
 
-Dead Code Audit (knip)
-    └──informs──> Unused npm package removal
-    └──informs──> Unused file/component removal
-    └──prerequisite for──> Layout consistency (know what pages exist and are reachable)
+Existing ADK route foundation (/api/v2/adk/run)
+    └──required for──> Runtime budgets + timeout controls
+                            └──required for──> Observability baseline (latency/error/throughput)
+                                                    └──required for──> Alerting + runbook automation
 
-ESLint audit
-    └──prerequisite for──> TypeScript strict audit (fix lint first, then type errors)
+Existing structured logging + Sentry
+    └──required for──> Error taxonomy adoption
+                            └──required for──> Incident classification and MTTR tracking
 
-TypeScript strict audit
-    └──prerequisite for──> API alignment audit (tsc catches contract mismatches)
+Existing CI direct-run guards + typed agent tests
+    └──required for──> ADK smoke/eval regression gate
+                            └──enables──> Progressive rollout (canary/shadow with confidence)
 
-API alignment audit
-    └──depends on──> Dead code audit (don't align API calls for dead pages)
-    └──may trigger──> Backend endpoint verification (does /api/v2/hive-mind exist?)
-
-Layout consistency review
-    └──depends on──> Dead code audit (only fix pages that are reachable)
-    └──independent of──> API alignment (visual only)
-
-BACKEND ADK WORKSTREAM
-----------------------
-
-OTel removal from requirements.txt
-    └──prerequisite for──> google-adk installation (eliminates context conflict)
-    └──verify──> app/core/tracing.py mock fallback still works
-    └──verify──> no surviving bare `from opentelemetry import X` outside guarded module
-
-google-adk installation
-    └──depends on──> OTel removal
-    └──may conflict with──> pydantic-ai-slim[google] on google-genai version (verify pip resolve)
-
-ADK Runner wiring
-    └──depends on──> google-adk installation
-    └──wraps──> existing PIISafeAgent calls as FunctionTool
-    └──must preserve──> PIISafeAgent LGPD wrapper (not bypass)
-
-CROSS-WORKSTREAM
-----------------
-
-Frontend AI display (ai-adapters.ts, AIPredictionsPanel)
-    └──depends on──> ADK agent output schema remaining compatible
-    └──note──> If ADK changes response format vs current Pydantic AI, frontend type sync needed
+Session lifecycle correctness
+    └──prerequisite for──> Persistent session backend adoption
 ```
 
 ### Dependency Notes
 
-- **Dead code audit before layout work:** Running `knip` first prevents spending time fixing layout on unreachable pages. The admin SPA has `HiveMindPage`, `EnhancedAnalyticsDashboard`, `PhysicianDashboard`, `DLQDashboard` — reachability from routes must be confirmed before cleanup.
-- **OTel removal before ADK install:** Installing google-adk while OTel SDK is active triggers async context errors in production. This is the blocker the PROJECT.md notes explicitly ("OTel removed to unblock ADK").
-- **PIISafeAgent must survive ADK wrapping:** ADK's `FunctionTool` wraps a Python callable. The callable must be the PIISafeAgent-gated function, not the raw agent `.run()`. CI guard (`scripts/check_agent_run_calls.py`) must not need modification.
-- **`hive-mind` API client module:** `lib/api-client/hive-mind.ts` calls `/api/v2/hive-mind/*` endpoints. Post v1.2 AI rationalization (LangGraph removed), whether these backend routes still exist is unknown. If they are tombstoned or never existed as a REST API, this is a dead API client module and should be removed.
+- **Runtime budgets require existing resilience controls:** `max_llm_calls` bounds ADK loops, but production stability still depends on the current Gemini circuit breaker/rate limiter for upstream fault containment.
+- **Error taxonomy depends on shared logging context:** without existing structured logs + Sentry tags, error classes are not actionable for operators.
+- **Guardrails should extend, not replace, PIISafe wrappers:** ADK callbacks enforce runtime policy checks; PIISafe remains mandatory for LGPD-sensitive content handling.
+- **Persistent sessions should come after lifecycle hygiene:** adopt DB-backed session persistence only after create/resume/delete semantics and retention limits are proven.
 
----
+## MVP Definition
 
-## MVP Definition (v1.7 Scope)
+### Launch With (v1)
 
-### Launch With (v1.7 — both workstreams)
-
-**Frontend Quality:**
-- [ ] `knip` audit run on both frontends — unused files, exports, packages identified and removed
-- [ ] ESLint errors: zero in admin SPA (`eslint . --ext ts,tsx`) and quiz (`next lint`)
-- [ ] TypeScript: `tsc --noEmit` passing with zero errors in both frontends
-- [ ] API client consolidation in admin SPA: single `lib/api-client/` as canonical; `lib/api.ts` and `lib/api-client.ts` at root removed or verified as shims
-- [ ] `hive-mind.ts` API module: verified against actual backend routes or removed if endpoints do not exist
-- [ ] TanStack Query used for data fetching in `AgentSwarm.tsx` and `SystemHealth.tsx` (replace raw `useEffect` + `setInterval`)
-- [ ] Layout consistency: page-level padding, card structure, and breadcrumb usage verified consistent across all reachable admin pages
-
-**ADK Integration:**
-- [ ] OTel packages removed from `requirements.txt` (7 packages: api, sdk, 4 instrumentations, 2 exporters)
-- [ ] `app/core/tracing.py` verified working with mock fallback (no live OTel)
-- [ ] `google-adk` installed and pip resolve clean alongside `pydantic-ai-slim[google]`
-- [ ] At least one existing Pydantic AI agent (e.g., sentiment agent) wrapped as ADK `FunctionTool` as proof-of-concept
-- [ ] ADK Runner integration in a FastAPI handler (can be a new diagnostic endpoint, not in critical path)
-- [ ] PIISafeAgent CI guard remains in place; ADK wrapping does not bypass it
+- [ ] Runtime hard limits enabled for every ADK invocation path (`max_llm_calls`, timeout, cancellation behavior) — prevents runaway execution
+- [ ] Stable ADK error contract and HTTP/status mapping implemented — enables reliable caller behavior and incident triage
+- [ ] `before_tool_callback` validation for high-risk tools (PII-bearing and side-effecting operations) — prevents unsafe tool invocation
+- [ ] ADK observability baseline live (latency p95, throughput, error rate, invocation/tool correlation IDs) — supports on-call diagnosis
+- [ ] CI ADK smoke/eval suite for critical oncology prompts and tool trajectories — blocks known regressions before deploy
 
 ### Add After Validation (v1.x)
 
-- [ ] ADK `InMemorySessionService` for multi-turn patient assessment context (only if a use case emerges)
-- [ ] ADK evaluation harness for agent quality regression testing
-- [ ] Remaining Pydantic AI agents (humanize, variation, empathy) wrapped as ADK FunctionTools
+- [ ] Rollout controls (shadow/canary + automatic rollback triggers) — add when baseline error budget is measurable
+- [ ] Expanded rubric-based evaluation (hallucination/safety/tool-use quality) — add after initial deterministic checks stabilize
+- [ ] Operator runbook automation tied to error taxonomy — add once alert quality is consistent
 
 ### Future Consideration (v2+)
 
-- [ ] ADK `DatabaseSessionService` backed by PostgreSQL for persistent agent memory
-- [ ] ADK Agent Registry for dynamic agent discovery if agent count grows beyond 4
-- [ ] Next.js upgrade (quiz interface) from 14 → 15 as a separate milestone
-
----
+- [ ] Database-backed persistent ADK sessions for longitudinal interactions — defer until retention/governance policy is fully approved
+- [ ] Reusable cross-agent security plugin stack (judge/model-armor style controls) — defer until current callback guardrails are mature
 
 ## Feature Prioritization Matrix
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| ESLint zero errors | MEDIUM (dev quality) | LOW | P1 |
-| TypeScript zero errors | HIGH (prevents runtime bugs) | MEDIUM | P1 |
-| Dead code removal (knip) | MEDIUM (bundle size, clarity) | LOW | P1 |
-| API client consolidation | HIGH (prevents silent failures) | MEDIUM | P1 |
-| hive-mind module verification/removal | HIGH (live API calls to possibly non-existent endpoints) | LOW | P1 |
-| TanStack Query for all data fetching | MEDIUM (DX consistency) | LOW | P1 |
-| Layout consistency | LOW (visual only) | MEDIUM | P2 |
-| OTel removal | HIGH (ADK prerequisite) | MEDIUM | P1 |
-| google-adk installation + pip resolve | HIGH (ADK prerequisite) | MEDIUM | P1 |
-| One agent wrapped as ADK FunctionTool | MEDIUM (proof of concept) | MEDIUM | P1 |
-| ADK evaluation harness | MEDIUM (quality gate) | HIGH | P2 |
-| All 4 agents wrapped in ADK | LOW (incremental) | LOW | P2 |
+| Runtime budgets and cancellation semantics | HIGH | MEDIUM | P1 |
+| Error taxonomy + API contract mapping | HIGH | MEDIUM | P1 |
+| Tool-call guardrails (before callbacks) | HIGH | MEDIUM | P1 |
+| ADK observability baseline | HIGH | MEDIUM | P1 |
+| CI smoke/eval regression gate | HIGH | MEDIUM | P1 |
+| Progressive rollout controls | HIGH | HIGH | P2 |
+| Runbook automation | MEDIUM | MEDIUM | P2 |
+| Persistent DB session backend | MEDIUM | HIGH | P3 |
 
 **Priority key:**
-- P1: Must have for v1.7 milestone close
-- P2: Should have, add when possible within v1.7
-- P3: Nice to have, future milestone
+- P1: Must-have for ADK stabilization milestone
+- P2: Should-have after baseline stability is proven
+- P3: Defer until operational maturity and governance readiness
 
----
+## Competitor / Ecosystem Feature Analysis
 
-## Competitor / Ecosystem Analysis
-
-Not applicable in traditional competitive sense. This is internal quality work. Ecosystem patterns that inform decisions:
-
-| Pattern | Ecosystem Standard | This Project | Gap |
-|---------|-------------------|--------------|-----|
-| Dead code detection | `knip` (industry standard 2024-2026, recommended over ts-prune) | Not yet in CI | Add `npx knip` to both frontends |
-| ESLint v9 flat config | Admin SPA already uses eslint v9 + typescript-eslint v8 | In place | Verify config is strict enough |
-| TanStack Query v5 for async state | Standard for React data fetching; replaces SWR, Redux Toolkit Query for most use cases | Installed, partially used | Apply consistently to all data-fetching components |
-| ADK v1.26.0 | Current production release (Feb 26, 2026); supports `InMemorySessionService`, `FunctionTool`, `LlmAgent`, workflow agents | Not yet installed | Install after OTel removal |
-| Pydantic AI + ADK coexistence | ADK wraps Pydantic AI agents as FunctionTools — documented pattern; ADK uses Pydantic for its own output schemas | Planned | Implement wrapping; do not replace |
-| shadcn/ui + Tailwind v4 | React 19 removes forwardRef; shadcn/ui updated Feb 2025; Tailwind v4 now stable | Admin SPA: Tailwind v4 + React 19 (up to date). Quiz: Tailwind v4 + React 18 | Admin SPA may have pre-update shadcn components |
-
----
+| Feature Pattern | ADK Guidance | Broader Production Guidance | Recommended Approach Here |
+|-----------------|-------------|-----------------------------|---------------------------|
+| Runtime bounds | `RunConfig.max_llm_calls` and validated runtime config | Production guidance emphasizes cost/latency/rate-limit control | Enforce hard per-route budgets with fail-fast defaults |
+| Guardrails | Callbacks/plugins for policy enforcement and tool validation | Safety best practices emphasize proactive misuse prevention | Implement callback-based policy-as-code on top of PIISafe wrappers |
+| Observability | ADK logging is developer-configured; callbacks integrate tracing tools | Production guidance emphasizes monitoring and incident diagnosis | Keep FastAPI-native telemetry as source of truth; enrich with ADK invocation metadata |
+| Evaluation | ADK eval supports trajectory + response + safety criteria | Production guidance recommends formal eval loops pre-release | Start with deterministic smoke + trajectory checks, then add rubric/safety criteria |
+| Session persistence | In-memory for dev; DB/managed services for production continuity | Production systems require resilience across restarts | Start with lifecycle correctness, then adopt DB session backend incrementally |
 
 ## Sources
 
-- [google/adk-python GitHub Releases](https://github.com/google/adk-python/releases) — v1.26.0 current (Feb 26, 2026); feature list HIGH confidence
-- [Google ADK Documentation](https://google.github.io/adk-docs/) — LLM agents, sessions, memory, artifacts — HIGH confidence
-- [Google ADK Issue #1670: OTel context error](https://github.com/google/adk-python/issues/1670) — async context conflict confirmed — HIGH confidence
-- [Langfuse Issue #8316: ADK + OTel conflict](https://github.com/langfuse/langfuse/issues/8316) — context token created/detached in different context — HIGH confidence
-- [Google ADK Issue #2792: OTel disable/extend support](https://github.com/google/adk-python/issues/2792) — no public API to disable ADK internal OTel — MEDIUM confidence
-- [Knip official docs](https://knip.dev/) — dead code detection; Vite + Next.js plugins — HIGH confidence
-- [Knip: dead code vs ts-prune](https://levelup.gitconnected.com/dead-code-detection-in-typescript-projects-why-we-chose-knip-over-ts-prune-8feea827da35) — why knip is the current standard — MEDIUM confidence
-- [shadcn/ui React 19 docs](https://ui.shadcn.com/docs/react-19) — forwardRef removal, Tailwind v4 support — HIGH confidence
-- [TanStack Query v5 TypeScript guide](https://tanstack.com/query/v5/docs/framework/react/typescript) — typed queries, AxiosError handling — HIGH confidence
-- Codebase inspection: `frontend-hormonia/package.json` — React 19, Vite 6, TanStack v5, shadcn full Radix set
-- Codebase inspection: `quiz-mensal-interface/package.json` — Next.js 14, React 18, Radix pinned versions
-- Codebase inspection: `frontend-hormonia/src/lib/api-client/` — 10+ domain modules, hive-mind.ts
-- Codebase inspection: `frontend-hormonia/src/components/hive-mind/AgentSwarm.tsx` — raw useEffect polling
-- Codebase inspection: `backend-hormonia/requirements.txt` — 7 OTel packages, pydantic-ai-slim[google]
-- Codebase inspection: `backend-hormonia/app/core/tracing.py` — optional OTel with mock fallback pattern
+- Google ADK docs (home): https://google.github.io/adk-docs/ (HIGH)
+- ADK Runtime Config (`max_llm_calls`, streaming, validation): https://google.github.io/adk-docs/runtime/runconfig/ (HIGH)
+- ADK Callback patterns and reliability guidance: https://google.github.io/adk-docs/callbacks/design-patterns-and-best-practices/ (HIGH)
+- ADK Sessions and SessionService backends: https://google.github.io/adk-docs/sessions/session/ (HIGH)
+- ADK Observability logging model: https://google.github.io/adk-docs/observability/logging/ (HIGH)
+- ADK Evaluation framework and criteria: https://google.github.io/adk-docs/evaluate/ (HIGH)
+- ADK Safety and Security best practices: https://google.github.io/adk-docs/safety/ (HIGH)
+- ADK API Server usage/reference: https://google.github.io/adk-docs/runtime/api-server/ (HIGH)
+- OpenAI Production best practices (cross-vendor production patterns): https://platform.openai.com/docs/guides/production-best-practices (MEDIUM)
+- Project context: `.planning/PROJECT.md` (HIGH)
 
 ---
-
-*Feature research for: Frontend Quality Overhaul + Google ADK Integration (oncology clinic v1.7)*
-*Researched: 2026-03-03*
+*Feature research for: ADK stability + runtime hardening (v1.8 oncology backend milestone)*
+*Researched: 2026-03-05*
