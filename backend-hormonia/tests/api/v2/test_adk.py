@@ -144,6 +144,51 @@ def test_adk_run_preserves_canonical_policy_block_response_envelope(
     }
 
 
+@pytest.mark.parametrize("runtime_status", ["tool_error", "upstream_error"])
+def test_adk_run_preserves_deterministic_error_response_envelope(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_status: str,
+) -> None:
+    async def fake_safe_run(self, prompt, deps, *, operation, context=None):
+        return {
+            "status": runtime_status,
+            "session_id": "session-error",
+            "result": {
+                "type": runtime_status,
+                "message": f"{runtime_status} happened",
+                "tool_name": "sentiment",
+            },
+        }
+
+    monkeypatch.setattr(
+        "app.api.v2.routers.adk.PIISafeADKWrapper.safe_run",
+        fake_safe_run,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/v2/adk/run",
+        json={
+            "prompt": "trigger deterministic error",
+            "tool_name": "sentiment",
+            "session": {"action": "resume", "session_id": "session-error"},
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {
+        "status": runtime_status,
+        "tool_name": "sentiment",
+        "session_id": "session-error",
+        "output": {
+            "type": runtime_status,
+            "message": f"{runtime_status} happened",
+            "tool_name": "sentiment",
+        },
+    }
+
+
 def test_adk_run_rejects_missing_prompt_for_run_actions(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

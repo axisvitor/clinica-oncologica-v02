@@ -53,3 +53,65 @@ async def test_run_adk_tool_exercises_runner_path_with_domain_client(monkeypatch
     assert result["status"] == "success"
     assert "result" in result
     assert calls, "Domain client was not called through ADK runtime path"
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not HAS_ADK, reason="google-adk not installed")
+async def test_run_adk_tool_runner_path_classifies_tool_failures_as_tool_error(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, dict]] = []
+
+    class FakeClient:
+        async def analyze_response_sentiment(self, *, response: str, patient_context: dict):
+            calls.append((response, patient_context))
+            raise RuntimeError("integration tool failure")
+
+    monkeypatch.setattr("app.ai.adk.tools.GeminiDomainClient", FakeClient, raising=False)
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="paciente relata piora",
+            tool_name="sentiment",
+            deps=AIDeps(gemini_api_key="fake-key", model_name="gemini-2.0-flash"),
+            user_id="integration-user",
+            session_id="integration-session",
+            session=ADKSessionControls(action="create", session_id="integration-session"),
+            context={"patient_context": {"cycle": "Q2"}},
+        )
+    )
+
+    assert result["status"] == "tool_error"
+    assert result["result"]["type"] == "tool_error"
+    assert calls, "Domain client was not called before tool_error classification"
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not HAS_ADK, reason="google-adk not installed")
+async def test_run_adk_tool_runner_path_classifies_runner_failures_as_upstream_error(
+    monkeypatch,
+) -> None:
+    class ExplodingRunner:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        async def run_async(self, **kwargs):
+            raise RuntimeError("integration runner failure")
+            yield {"result": "unreachable"}
+
+    monkeypatch.setattr("app.ai.adk.runtime.Runner", ExplodingRunner, raising=False)
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="paciente relata piora",
+            tool_name="sentiment",
+            deps=AIDeps(gemini_api_key="fake-key", model_name="gemini-2.0-flash"),
+            user_id="integration-user",
+            session_id="integration-session",
+            session=ADKSessionControls(action="create", session_id="integration-session"),
+            context={"patient_context": {"cycle": "Q2"}},
+        )
+    )
+
+    assert result["status"] == "upstream_error"
+    assert result["result"]["type"] == "upstream_error"

@@ -34,6 +34,22 @@ def adk_runtime_store(monkeypatch: pytest.MonkeyPatch) -> ADKSessionStore:
     session_store_module._MEMORY_INVOCATIONS.clear()
 
 
+def _runner_prompt_from_message(message: object) -> str:
+    if isinstance(message, dict):
+        return str(message["prompt"])
+
+    parts = getattr(message, "parts", None)
+    if isinstance(parts, list):
+        for part in parts:
+            text = getattr(part, "text", None)
+            if text is None and isinstance(part, dict):
+                text = part.get("text")
+            if isinstance(text, str):
+                return text
+
+    raise AssertionError("Unable to extract prompt from runner message")
+
+
 @pytest.mark.asyncio
 async def test_sentiment_tool_delegates_to_domain_client(monkeypatch):
     calls: list[tuple[str, dict]] = []
@@ -630,7 +646,7 @@ async def test_run_adk_tool_runner_policy_block_prevents_domain_client_execution
             callback_result = await callback(
                 SimpleNamespace(name="sentiment"),
                 {
-                    "prompt": kwargs["new_message"]["prompt"],
+                    "prompt": _runner_prompt_from_message(kwargs["new_message"]),
                     "context_json": json.dumps(
                         {
                             "tool_policy": {
@@ -694,3 +710,204 @@ async def test_run_adk_tool_runner_policy_block_prevents_domain_client_execution
     invocation = await adk_runtime_store.get_invocation("inv-policy-runner")
     assert invocation is not None
     assert invocation["status"] == "policy_block"
+
+
+@pytest.mark.asyncio
+async def test_run_adk_tool_direct_handler_failures_classify_as_tool_error(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    from app.ai.adk import runtime
+
+    calls = {"domain": 0}
+
+    class FakeClient:
+        async def analyze_response_sentiment(self, *, response: str, patient_context: dict):
+            calls["domain"] += 1
+            raise RuntimeError("domain sentiment failure")
+
+    monkeypatch.setattr("app.ai.adk.tools.GeminiDomainClient", FakeClient, raising=False)
+    monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", False, raising=False)
+    monkeypatch.setattr(runtime, "get_tool_registry", lambda: {"sentiment": tools.sentiment_tool})
+
+    results = []
+    for invocation_id in ("inv-tool-direct-1", "inv-tool-direct-2"):
+        result = await run_adk_tool(
+            ADKToolRunRequest(
+                prompt="avaliar resposta",
+                tool_name="sentiment",
+                deps=AIDeps(gemini_api_key="k"),
+                user_id="user-1",
+                invocation=ADKInvocationControls(
+                    action="run",
+                    invocation_id=invocation_id,
+                ),
+            )
+        )
+        results.append((invocation_id, result))
+
+    assert calls["domain"] == 2
+    assert [result["status"] for _, result in results] == ["tool_error", "tool_error"]
+    for invocation_id, result in results:
+        assert result["result"]["type"] == "tool_error"
+        assert result["result"]["tool_name"] == "sentiment"
+        invocation = await adk_runtime_store.get_invocation(invocation_id)
+        assert invocation is not None
+        assert invocation["status"] == "tool_error"
+
+
+@pytest.mark.asyncio
+async def test_run_adk_tool_runner_tool_failures_classify_as_tool_error_without_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    from app.ai.adk import runtime
+
+    calls = {"runner": 0, "domain": 0}
+
+    class FakeClient:
+        async def analyze_response_sentiment(self, *, response: str, patient_context: dict):
+            calls["domain"] += 1
+            raise RuntimeError("runner tool failure")
+
+    class FakeFunctionTool:
+        def __init__(self, func):
+            self.func = func
+            self.name = "sentiment"
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeRunner:
+        def __init__(self, **kwargs):
+            self.agent = kwargs["agent"]
+
+        async def run_async(self, **kwargs):
+            calls["runner"] += 1
+            prompt = _runner_prompt_from_message(kwargs["new_message"])
+            callback = self.agent.kwargs["before_tool_callback"]
+            callback_result = await callback(
+                SimpleNamespace(name="sentiment"),
+                {
+                    "prompt": prompt,
+                    "context_json": json.dumps({"patient_context": {"cycle": "Q1"}}),
+                },
+                None,
+            )
+            assert callback_result is None
+            tool = self.agent.kwargs["tools"][0]
+            await tool.func(
+                prompt=prompt,
+                context_json=json.dumps({"patient_context": {"cycle": "Q1"}}),
+            )
+            yield {"content": {"parts": [{"text": "should-not-reach"}]}}
+
+    monkeypatch.setattr("app.ai.adk.tools.GeminiDomainClient", FakeClient, raising=False)
+    monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", True, raising=False)
+    monkeypatch.setattr(runtime, "Agent", FakeAgent, raising=False)
+    monkeypatch.setattr(runtime, "Runner", FakeRunner, raising=False)
+    monkeypatch.setattr(runtime, "InMemorySessionService", lambda: object(), raising=False)
+    monkeypatch.setattr(runtime, "get_tool_registry", lambda: {"sentiment": tools.sentiment_tool})
+    monkeypatch.setattr(
+        runtime,
+        "get_adk_function_tools",
+        lambda: {"sentiment": FakeFunctionTool(tools.sentiment_tool_adk_compat)},
+        raising=False,
+    )
+
+    results = []
+    for invocation_id in ("inv-tool-runner-1", "inv-tool-runner-2"):
+        result = await run_adk_tool(
+            ADKToolRunRequest(
+                prompt="avaliar resposta",
+                tool_name="sentiment",
+                deps=AIDeps(gemini_api_key="k"),
+                user_id="user-1",
+                invocation=ADKInvocationControls(
+                    action="run",
+                    invocation_id=invocation_id,
+                ),
+            )
+        )
+        results.append((invocation_id, result))
+
+    assert calls["runner"] == 2
+    assert calls["domain"] == 2
+    assert [result["status"] for _, result in results] == ["tool_error", "tool_error"]
+    for invocation_id, result in results:
+        assert result["result"]["type"] == "tool_error"
+        assert result["result"]["tool_name"] == "sentiment"
+        invocation = await adk_runtime_store.get_invocation(invocation_id)
+        assert invocation is not None
+        assert invocation["status"] == "tool_error"
+
+
+@pytest.mark.asyncio
+async def test_run_adk_tool_runner_failures_classify_as_upstream_error_without_direct_dispatch(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    from app.ai.adk import runtime
+
+    calls = {"runner": 0, "direct_dispatch": 0}
+
+    async def direct_handler(*, prompt, deps, context=None):
+        calls["direct_dispatch"] += 1
+        return {"status": "success", "result": f"direct:{prompt}"}
+
+    class FakeFunctionTool:
+        def __init__(self, func):
+            self.func = func
+            self.name = "sentiment"
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeRunner:
+        def __init__(self, **kwargs):
+            self.agent = kwargs["agent"]
+
+        async def run_async(self, **kwargs):
+            calls["runner"] += 1
+            raise RuntimeError("runner bootstrap failure")
+            yield {"content": {"parts": [{"text": "unreachable"}]}}
+
+    monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", True, raising=False)
+    monkeypatch.setattr(runtime, "Agent", FakeAgent, raising=False)
+    monkeypatch.setattr(runtime, "Runner", FakeRunner, raising=False)
+    monkeypatch.setattr(runtime, "InMemorySessionService", lambda: object(), raising=False)
+    monkeypatch.setattr(runtime, "get_tool_registry", lambda: {"sentiment": direct_handler})
+    monkeypatch.setattr(
+        runtime,
+        "get_adk_function_tools",
+        lambda: {"sentiment": FakeFunctionTool(tools.sentiment_tool_adk_compat)},
+        raising=False,
+    )
+
+    results = []
+    for invocation_id in ("inv-upstream-1", "inv-upstream-2"):
+        result = await run_adk_tool(
+            ADKToolRunRequest(
+                prompt="avaliar resposta",
+                tool_name="sentiment",
+                deps=AIDeps(gemini_api_key="k"),
+                user_id="user-1",
+                invocation=ADKInvocationControls(
+                    action="run",
+                    invocation_id=invocation_id,
+                ),
+            )
+        )
+        results.append((invocation_id, result))
+
+    assert calls["runner"] == 2
+    assert calls["direct_dispatch"] == 0
+    assert [result["status"] for _, result in results] == ["upstream_error", "upstream_error"]
+    for invocation_id, result in results:
+        assert result["result"]["type"] == "upstream_error"
+        assert result["result"]["tool_name"] == "sentiment"
+        invocation = await adk_runtime_store.get_invocation(invocation_id)
+        assert invocation is not None
+        assert invocation["status"] == "upstream_error"
