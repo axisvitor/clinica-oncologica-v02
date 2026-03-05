@@ -127,11 +127,22 @@ export const handlers = [
       return HttpResponse.json({ detail: 'Token inválido' }, { status: 401 })
     }
 
-    // Simulate token rotation on second answer
+    const questionIndex = mockQuizSession.questions.findIndex(
+      (question) => question.id === body.question_id,
+    )
+    const hasKnownQuestion = questionIndex >= 0
+    const isLastQuestion =
+      hasKnownQuestion && questionIndex === mockQuizSession.questions.length - 1
+
     const response: QuizSubmitResponse = {
       success: true,
-      message: 'Resposta salva com sucesso',
-      next_question_index: 1,
+      is_last_question: isLastQuestion,
+      session_status: isLastQuestion ? 'completed' : 'in_progress',
+      message: isLastQuestion ? 'Questionário concluído com sucesso' : 'Resposta salva com sucesso',
+      next_question:
+        !isLastQuestion && hasKnownQuestion
+          ? mockQuizSession.questions[questionIndex + 1]
+          : undefined,
     }
 
     if (body.question_id === 'q2') {
