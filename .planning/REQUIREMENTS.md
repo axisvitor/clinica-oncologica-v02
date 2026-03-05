@@ -34,7 +34,7 @@
 - [x] **QUIZ-03**: ESLint migrado para flat config (ESLint 9), alinhado com admin SPA
 - [x] **QUIZ-04**: Dependencia `identity-obj-proxy` adicionada ao devDependencies
 - [x] **QUIZ-05**: `msw` atualizado de v1.x (end-of-life) para v2.x
-- [ ] **QUIZ-06**: Type coverage melhorada — tipos explicitados em hooks e API calls
+- [x] **QUIZ-06**: Type coverage melhorada — tipos explicitados em hooks e API calls
 - [ ] **QUIZ-07**: Layout e espacamento consistentes entre paginas do quiz
 
 ## v2 Requirements
@@ -85,7 +85,7 @@
 | QUIZ-03 | Phase 43 | Complete |
 | QUIZ-04 | Phase 43 | Complete |
 | QUIZ-05 | Phase 43 | Complete |
-| QUIZ-06 | Phase 43 | Pending |
+| QUIZ-06 | Phase 43 | Complete |
 | QUIZ-07 | Phase 43 | Pending |
 
 **Coverage:**
