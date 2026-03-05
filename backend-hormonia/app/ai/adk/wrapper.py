@@ -31,6 +31,15 @@ def _clean_optional_text(value: Any) -> str | None:
     return None
 
 
+def _normalize_tool_policy(payload: dict[str, Any]) -> dict[str, Any] | None:
+    raw_policy = payload.get("tool_policy")
+    if not isinstance(raw_policy, dict):
+        raw_policy = payload.get("policy")
+    if not isinstance(raw_policy, dict):
+        return None
+    return dict(raw_policy)
+
+
 class PIISafeADKWrapper:
     """LGPD-safe call-site wrapper for ADK Gemini executions.
 
@@ -75,9 +84,11 @@ class PIISafeADKWrapper:
     ) -> Any:
         """Invoke ADK with already-sanitized inputs."""
         payload = context or {}
+        request_context = dict(payload)
         runtime_payload = payload.get("runtime")
         session_payload = payload.get("session")
         invocation_payload = payload.get("invocation")
+        tool_policy = _normalize_tool_policy(payload)
 
         runtime = ADKRuntimeControls(
             max_llm_calls=(
@@ -125,6 +136,9 @@ class PIISafeADKWrapper:
             if legacy_invocation_id is not None:
                 invocation = replace(invocation, invocation_id=legacy_invocation_id)
 
+        if tool_policy is not None:
+            request_context["tool_policy"] = tool_policy
+
         request = ADKToolRunRequest(
             prompt=safe_prompt,
             tool_name=str(payload.get("tool_name") or operation),
@@ -132,7 +146,7 @@ class PIISafeADKWrapper:
             user_id=str(payload.get("user_id") or "pii-safe-adk"),
             session_id=session.session_id,
             invocation_id=invocation.invocation_id,
-            context=payload,
+            context=request_context,
             runtime=runtime,
             session=session,
             invocation=invocation,

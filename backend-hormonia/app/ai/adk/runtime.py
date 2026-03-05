@@ -49,6 +49,7 @@ _TERMINAL_INVOCATION_STATUSES = {
     "completed",
     "error",
     "limit_exceeded",
+    "policy_block",
     "timeout",
 }
 _IN_FLIGHT_INVOCATIONS: dict[str, asyncio.Task[Any]] = {}
@@ -86,6 +87,13 @@ class ADKToolRunRequest:
     runtime: ADKRuntimeControls = field(default_factory=ADKRuntimeControls)
     session: ADKSessionControls = field(default_factory=ADKSessionControls)
     invocation: ADKInvocationControls = field(default_factory=ADKInvocationControls)
+
+
+@dataclass(frozen=True)
+class ADKToolPolicyBlock:
+    reason: str
+    message: str = "Tool call blocked by policy"
+    missing_context_keys: tuple[str, ...] = ()
 
 
 class ADKLimitExceededError(RuntimeError):
@@ -531,6 +539,7 @@ async def _execute_request(
                     model=request.deps.model_name or "gemini-2.0-flash",
                     tools=[function_tool],
                     instruction="Use the available tool to process the prompt and return the result.",
+                    before_tool_callback=_build_before_tool_callback(request),
                 )
                 executor = Runner(
                     app_name="hormonia-adk",
@@ -555,13 +564,19 @@ async def _execute_request(
                 if runner_output is not None:
                     return _normalize_result(runner_output)
 
+                policy_block = _policy_block_for_request(request)
+                if policy_block is not None:
+                    return policy_block
+
                 wrapped_result = await _invoke_function_tool(function_tool, request)
                 if wrapped_result is not None:
                     return _normalize_result(wrapped_result)
-            except Exception:  # noqa: BLE001
-                pass
             finally:
                 reset_adk_tool_context(context_token)
+
+    policy_block = _policy_block_for_request(request)
+    if policy_block is not None:
+        return policy_block
 
     result = await handler(
         prompt=request.prompt,
@@ -618,6 +633,343 @@ def _normalize_result(result: Any) -> dict[str, Any]:
     if isinstance(result, dict) and "status" in result and "result" in result:
         return result
     return {"status": "success", "result": result}
+
+
+def _policy_block_for_request(request: ADKToolRunRequest) -> dict[str, Any] | None:
+    return _evaluate_tool_policy(
+        tool_name=request.tool_name,
+        prompt=request.prompt,
+        context=request.context,
+        invocation_id=request.invocation.invocation_id or request.invocation_id,
+    )
+
+
+def _evaluate_tool_policy(
+    *,
+    tool_name: str,
+    prompt: str,
+    context: dict[str, Any] | None,
+    invocation_id: str | None,
+) -> dict[str, Any] | None:
+    policy = _extract_tool_policy(context)
+    if not policy:
+        return None
+
+    global_block = _resolve_global_policy_block(policy, tool_name=tool_name)
+    if global_block is not None:
+        return _build_policy_block_result(
+            tool_name=tool_name,
+            invocation_id=invocation_id,
+            block=global_block,
+        )
+
+    tool_block = _resolve_blocked_tool(policy, tool_name=tool_name)
+    if tool_block is not None:
+        return _build_policy_block_result(
+            tool_name=tool_name,
+            invocation_id=invocation_id,
+            block=tool_block,
+        )
+
+    prompt_block = _resolve_blocked_prompt(policy, prompt=prompt)
+    if prompt_block is not None:
+        return _build_policy_block_result(
+            tool_name=tool_name,
+            invocation_id=invocation_id,
+            block=prompt_block,
+        )
+
+    required_context_block = _resolve_required_context_block(
+        policy,
+        tool_name=tool_name,
+        context=context,
+    )
+    if required_context_block is not None:
+        return _build_policy_block_result(
+            tool_name=tool_name,
+            invocation_id=invocation_id,
+            block=required_context_block,
+        )
+
+    return None
+
+
+def _build_policy_block_result(
+    *,
+    tool_name: str,
+    invocation_id: str | None,
+    block: ADKToolPolicyBlock,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "type": "policy_block",
+        "message": block.message,
+        "tool_name": tool_name,
+        "reason": block.reason,
+    }
+    if invocation_id is not None:
+        payload["invocation_id"] = invocation_id
+    if block.missing_context_keys:
+        payload["missing_context_keys"] = list(block.missing_context_keys)
+    return _build_result(
+        status="policy_block",
+        result=payload,
+        invocation_id=invocation_id,
+    )
+
+
+def _extract_tool_policy(context: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(context, dict):
+        return {}
+    for key in ("tool_policy", "policy"):
+        candidate = context.get(key)
+        if isinstance(candidate, dict):
+            return candidate
+    return {}
+
+
+def _resolve_global_policy_block(
+    policy: dict[str, Any],
+    *,
+    tool_name: str,
+) -> ADKToolPolicyBlock | None:
+    if not bool(policy.get("block") or policy.get("blocked")):
+        return None
+    if not _policy_targets_tool(policy.get("tools"), tool_name=tool_name):
+        return None
+    return _policy_block_from_value(
+        policy,
+        default_reason="policy_blocked",
+    )
+
+
+def _resolve_blocked_tool(
+    policy: dict[str, Any],
+    *,
+    tool_name: str,
+) -> ADKToolPolicyBlock | None:
+    blocked_tools = policy.get("blocked_tools")
+    if isinstance(blocked_tools, dict):
+        entry = blocked_tools.get(tool_name)
+        if entry is None:
+            entry = blocked_tools.get("*")
+        if entry is None:
+            return None
+        return _policy_block_from_value(
+            entry,
+            default_reason="tool_not_allowed",
+        )
+
+    if _string_list_contains(blocked_tools, tool_name):
+        return _policy_block_from_value(
+            True,
+            default_reason="tool_not_allowed",
+        )
+
+    return None
+
+
+def _resolve_blocked_prompt(
+    policy: dict[str, Any],
+    *,
+    prompt: str,
+) -> ADKToolPolicyBlock | None:
+    blocked_prompts = policy.get("blocked_prompts")
+    if isinstance(blocked_prompts, dict):
+        entry = blocked_prompts.get(prompt)
+        if entry is None:
+            entry = blocked_prompts.get("*")
+        if entry is None:
+            return None
+        return _policy_block_from_value(
+            entry,
+            default_reason="blocked_prompt",
+        )
+
+    if _string_list_contains(blocked_prompts, prompt):
+        return _policy_block_from_value(
+            True,
+            default_reason="blocked_prompt",
+        )
+
+    return None
+
+
+def _resolve_required_context_block(
+    policy: dict[str, Any],
+    *,
+    tool_name: str,
+    context: dict[str, Any] | None,
+) -> ADKToolPolicyBlock | None:
+    raw_required = policy.get("required_context_keys")
+    entry: Any = raw_required
+    if isinstance(raw_required, dict):
+        entry = raw_required.get(tool_name)
+        if entry is None:
+            entry = raw_required.get("*")
+
+    missing_keys: list[str]
+    if isinstance(entry, dict):
+        missing_keys = [
+            key for key in _normalize_string_list(entry.get("keys"))
+            if not _context_has_path(context, key)
+        ]
+        if not missing_keys:
+            return None
+        return _policy_block_from_value(
+            {
+                "reason": entry.get("reason") or "missing_required_context",
+                "message": entry.get("message") or "Tool call blocked by policy",
+                "missing_context_keys": missing_keys,
+            },
+            default_reason="missing_required_context",
+        )
+
+    missing_keys = [
+        key for key in _normalize_string_list(entry)
+        if not _context_has_path(context, key)
+    ]
+    if not missing_keys:
+        return None
+    return _policy_block_from_value(
+        {
+            "reason": "missing_required_context",
+            "missing_context_keys": missing_keys,
+        },
+        default_reason="missing_required_context",
+    )
+
+
+def _policy_block_from_value(
+    value: Any,
+    *,
+    default_reason: str,
+) -> ADKToolPolicyBlock:
+    if isinstance(value, str):
+        return ADKToolPolicyBlock(reason=value or default_reason)
+    if isinstance(value, dict):
+        return ADKToolPolicyBlock(
+            reason=str(value.get("reason") or default_reason),
+            message=str(value.get("message") or "Tool call blocked by policy"),
+            missing_context_keys=tuple(_normalize_string_list(value.get("missing_context_keys"))),
+        )
+    return ADKToolPolicyBlock(reason=default_reason)
+
+
+def _policy_targets_tool(raw_tools: Any, *, tool_name: str) -> bool:
+    if raw_tools is None:
+        return True
+    if isinstance(raw_tools, str):
+        return raw_tools in {"*", tool_name}
+    if isinstance(raw_tools, (list, tuple, set)):
+        return any(str(item) in {"*", tool_name} for item in raw_tools)
+    return True
+
+
+def _string_list_contains(raw_value: Any, expected: str) -> bool:
+    if isinstance(raw_value, str):
+        return raw_value == expected
+    if isinstance(raw_value, (list, tuple, set)):
+        return any(str(item) == expected for item in raw_value)
+    return False
+
+
+def _normalize_string_list(raw_value: Any) -> list[str]:
+    if raw_value is None:
+        return []
+    if isinstance(raw_value, str):
+        cleaned = raw_value.strip()
+        return [cleaned] if cleaned else []
+    if isinstance(raw_value, (list, tuple, set)):
+        values: list[str] = []
+        for item in raw_value:
+            cleaned = str(item).strip()
+            if cleaned:
+                values.append(cleaned)
+        return values
+    return []
+
+
+def _context_has_path(context: dict[str, Any] | None, path: str) -> bool:
+    if not isinstance(context, dict):
+        return False
+    current: Any = context
+    for segment in path.split("."):
+        if not isinstance(current, dict) or segment not in current:
+            return False
+        current = current[segment]
+    return True
+
+
+def _build_before_tool_callback(request: ADKToolRunRequest) -> Any:
+    async def _before_tool_callback(*args: Any, **kwargs: Any) -> Any:
+        tool = kwargs.get("tool")
+        if tool is None and args:
+            tool = args[0]
+
+        raw_tool_args = kwargs.get("args")
+        if raw_tool_args is None and len(args) > 1:
+            raw_tool_args = args[1]
+        tool_args = raw_tool_args if isinstance(raw_tool_args, dict) else {}
+
+        tool_name = _resolve_callback_tool_name(tool, fallback=request.tool_name)
+        prompt = _resolve_callback_prompt(tool_args, fallback=request.prompt)
+        context = _resolve_callback_context(
+            request_context=request.context,
+            tool_args=tool_args,
+        )
+        return _evaluate_tool_policy(
+            tool_name=tool_name,
+            prompt=prompt,
+            context=context,
+            invocation_id=request.invocation.invocation_id or request.invocation_id,
+        )
+
+    return _before_tool_callback
+
+
+def _resolve_callback_tool_name(tool: Any, *, fallback: str) -> str:
+    if isinstance(tool, dict):
+        raw_name = tool.get("name") or tool.get("tool_name")
+    else:
+        raw_name = getattr(tool, "name", None)
+    if isinstance(raw_name, str) and raw_name.strip():
+        return raw_name.strip().lower()
+    return fallback
+
+
+def _resolve_callback_prompt(tool_args: dict[str, Any], *, fallback: str) -> str:
+    prompt = tool_args.get("prompt")
+    if isinstance(prompt, str):
+        return prompt
+    user_input = tool_args.get("input")
+    if isinstance(user_input, str):
+        return user_input
+    return fallback
+
+
+def _resolve_callback_context(
+    *,
+    request_context: dict[str, Any] | None,
+    tool_args: dict[str, Any],
+) -> dict[str, Any] | None:
+    merged_context = dict(request_context or {})
+    context_json = tool_args.get("context_json")
+    if isinstance(context_json, str):
+        merged_context.update(_parse_callback_context_json(context_json))
+
+    raw_context = tool_args.get("context")
+    if isinstance(raw_context, dict):
+        merged_context.update(raw_context)
+
+    return merged_context
+
+
+def _parse_callback_context_json(raw_value: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(raw_value)
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
 
 
 def _build_runner_message(
