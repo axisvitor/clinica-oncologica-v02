@@ -64,7 +64,7 @@ Plans:
 
 Plans:
 
-- [ ] 45-01: Add the pre-tool safety guardrail and lock `policy_block` route/runtime regressions
+- [x] 45-01: Add the pre-tool safety guardrail and lock `policy_block` route/runtime regressions
 - [ ] 45-02: Replace ambiguous runtime fallback with deterministic `tool_error` / `upstream_error` classification
 - [ ] 45-03: Finalize repeated-scenario regressions and sync the Phase 45 validation map
 
@@ -93,11 +93,11 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 44. ADK Runtime Controls | 3/3 | Complete    | 2026-03-05 |
-| 45. ADK Tool Safety and Deterministic Errors | 0/3 | Planned | - |
+| 45. ADK Tool Safety and Deterministic Errors | 1/3 | In Progress | - |
 | 46. ADK Observability Baseline | 0/TBD | Not started | - |
 | 47. ADK CI Smoke Gate | 0/TBD | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-05 — Phase 45 planned with 3 execution plans_
+_Last updated: 2026-03-05 — Phase 45 execution started (45-01 complete, 1/3 plans)_

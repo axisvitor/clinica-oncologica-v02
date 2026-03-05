@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: ADK Stability & Error Hardening
-status: planning
-stopped_at: Phase 45 planned
-last_updated: "2026-03-05T19:17:53-03:00"
-last_activity: 2026-03-05 - Phase 45 planejada com 3 planos e estrategia Nyquist
+status: executing
+stopped_at: Completed 45-01-SUMMARY.md
+last_updated: "2026-03-05T23:03:30.031Z"
+last_activity: 2026-03-05 - 45-01 concluido; 45-02 pronto para execucao
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 4
   percent: 25
 ---
 
@@ -27,9 +27,9 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 Milestone: v1.8 ADK Stability & Error Hardening
 Phase: 45 of 47 (ADK Tool Safety and Deterministic Errors)
-Plan: 45-01, 45-02, 45-03
-Status: Planned
-Last Activity: 2026-03-05 - Phase 45 planejada com 3 planos e estrategia Nyquist
+Plan: 45-02 next (45-01 complete)
+Status: In Progress
+Last Activity: 2026-03-05 - 45-01 concluido; 45-02 pronto para execucao
 
 Progress: [███░░░░░░░] 25%
 
@@ -39,6 +39,7 @@ Progress: [███░░░░░░░] 25%
 |-----------|--------|-------|----------|
 | v1.0-v1.7 (shipped) | 43 | 179 | 2026-02-22 -> 2026-03-05 |
 | v1.8 (in progress) | 4 | 6 | 2026-03-05 -> present |
+| Phase 45 P01 | 41min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,10 @@ Progress: [███░░░░░░░] 25%
 - [Phase 43]: Preserved destructive toast assertions only in explicit error paths while restoring success/completion flow assertions.
 - [Phase 43]: Use quiz-local copies of shadcn/radix UI primitives instead of source-level cross-app bridges to keep a single React type universe.
 - [Phase 43]: Add ownership tests that assert local import boundaries so bridge regressions fail fast in CI.
+- [Phase 45]: Policy decisions are driven by explicit tool_policy metadata at the runtime boundary instead of tool-local validation or model-text parsing.
+- [Phase 45]: Once the ADK runner path starts, failures no longer silently fall through to direct handler execution.
+- [Phase 45]: Keep tool safety decisions at the runtime boundary — ADK runner execution and direct-handler fallback now share the same deterministic policy verdict.
+- [Phase 45]: Forward normalized tool_policy metadata from PIISafeADKWrapper — Safety stays explicit in request context instead of being inferred inside tool handlers.
 
 ### Pending Todos
 
@@ -111,6 +116,6 @@ Progress: [███░░░░░░░] 25%
 
 ## Session Continuity
 
-**Last session:** 2026-03-05T19:06:04.968Z
-**Stopped At:** Phase 45 planned
-**Resume File:** .planning/ROADMAP.md
+**Last session:** 2026-03-05T23:03:22.191Z
+**Stopped At:** Completed 45-01-SUMMARY.md
+**Resume File:** .planning/phases/45-adk-tool-safety-and-deterministic-errors/45-02-PLAN.md
