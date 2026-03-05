@@ -1,18 +1,18 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: Frontend Quality & ADK Integration
-current_plan: 3
-status: milestone_complete
-stopped_at: Milestone v1.7 archived and closed
-last_updated: "2026-03-05T14:38:23Z"
+milestone: v1.8
+milestone_name: ADK Stability & Error Hardening
+current_plan: null
+status: defining_requirements
+stopped_at: Defining requirements for milestone v1.8
+last_updated: "2026-03-05T18:10:00Z"
 last_activity: 2026-03-05
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 20
-  completed_plans: 20
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -22,17 +22,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Milestone v1.7 archived; preparing next milestone definition (`/gsd-new-milestone`)
+**Current focus:** Milestone v1.8 initialization in progress (`/gsd-new-milestone`)
 
 ## Current Position
 
-Milestone: v1.7 Frontend Quality & ADK Integration
-Phases: 40-43 complete
-Plans: 20/20 complete
-Status: Milestone complete and archived
-Last Activity: 2026-03-05
+Milestone: v1.8 ADK Stability & Error Hardening
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last Activity: 2026-03-05 — Milestone v1.8 started
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -132,6 +132,6 @@ None.
 
 ## Session Continuity
 
-**Last session:** 2026-03-05T14:38:23Z
-**Stopped At:** Milestone v1.7 archived and tagged
-**Resume File:** Run `/gsd-new-milestone`
+**Last session:** 2026-03-05T18:10:00Z
+**Stopped At:** Defining requirements for Milestone v1.8
+**Resume File:** Continue `/gsd-new-milestone`

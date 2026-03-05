@@ -53,11 +53,11 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 
 ### Active
 
-- [ ] Executar verificacao operacional em ambiente real WuzAPI (send/media, webhook HMAC real, QR pairing, LID DLQ observability)
-- [ ] Modelar disponibilidade medica por medico (substituir baseline hardcoded Mon-Fri 08:00-17:00)
-- [ ] Continuar reducao de arquivos >500 linhas em modulos criticos
-- [ ] Definir replacement de observabilidade pos-OTel (OBS-01)
-- [ ] Instrumentar metricas de latencia e throughput dos agentes ADK em producao (OBS-02)
+- [ ] Alinhar execucao ADK ponta a ponta no backend (wrapper, runtime, endpoint e tools)
+- [ ] Diagnosticar e corrigir erros ADK prioritarios (runtime, integracao e contratos)
+- [ ] Definir replacement de observabilidade pos-OTel para fluxos ADK (OBS-01)
+- [ ] Instrumentar metricas de latencia, throughput e erro dos agentes ADK em producao (OBS-02)
+- [ ] Fechar criterios de estabilidade operacional ADK com runbook e alertas minimos
 
 ### Out of Scope
 
@@ -71,6 +71,7 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - ORM query rewrite to raw SQL — keep SQLAlchemy ORM; just switch Session type
 - Saga event-sourcing rewrite — existing saga pattern functional, audit confirmed
 - Dual-provider mode (Evolution + WuzAPI) — intentionally rejected after hard cut
+- Verificacao operacional WuzAPI em ambiente real — adiada para milestone posterior apos estabilizacao ADK
 
 ## Current State
 
@@ -79,12 +80,15 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - **Frontend posture:** Admin SPA e quiz alinhados em baseline de qualidade (Prettier, ESLint 9, type gates e testes unitarios verdes)
 - **Codebase snapshot:** ~433k LOC Python + ~163k LOC TypeScript/TSX em arquitetura brownfield madura (DDD + Saga + circuit breaker)
 
-## Next Milestone Goals
+## Current Milestone: v1.8 ADK Stability & Error Hardening
 
-- Executar verificacao operacional em ambiente real WuzAPI (send/media real, webhook HMAC real, QR pairing e observabilidade LID DLQ)
-- Modelar disponibilidade medica por medico (substituir baseline hardcoded Mon-Fri 08:00-17:00)
-- Definir replacement de observabilidade pos-OTel e medir latencia/throughput ADK em producao (OBS-01, OBS-02)
-- Continuar reducao de arquivos >500 linhas em modulos criticos
+**Goal:** Consolidar o ADK como caminho operacional estavel no sistema, eliminando erros criticos e fechando lacunas de observabilidade.
+
+**Target features:**
+- Alinhamento completo ADK no backend (wrapper -> runtime -> endpoint -> tool dispatch)
+- Correcao de erros ADK priorizados com validacao por testes e smoke checks
+- Observabilidade ADK pos-OTel com metricas de latencia/throughput/erro
+- Runbook operacional e alertas minimos para incidentes ADK
 
 <details>
 <summary>Archived Milestone Brief: v1.7 Frontend Quality & ADK Integration</summary>
@@ -154,4 +158,4 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 
 ---
 
-_Last updated: 2026-03-05 after v1.7 milestone completion_
+_Last updated: 2026-03-05 after v1.8 milestone initialization_
