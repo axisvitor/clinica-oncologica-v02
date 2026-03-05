@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: ADK Stability & Error Hardening
 current_plan: 3
-status: executing
-stopped_at: Completed 45-02-SUMMARY.md
-last_updated: "2026-03-05T23:17:54.151Z"
-last_activity: 2026-03-05 - 45-02 concluido; 45-03 pronto para execucao
+status: ready_for_planning
+stopped_at: Completed 45-03-PLAN.md
+last_updated: "2026-03-05T23:30:00.556Z"
+last_activity: 2026-03-05 - 45-03 concluido; Phase 45 encerrada
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 5
-  percent: 25
+  completed_plans: 6
+  percent: 50
 ---
 
 # Project State
@@ -22,19 +22,19 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Executar a Phase 45; depois planejar/executar as fases 46-47 do milestone v1.8
+**Current focus:** Phase 45 concluida; proximo passo e planejar/executar as fases 46-47 do milestone v1.8
 
 ## Current Position
 
 Milestone: v1.8 ADK Stability & Error Hardening
-Phase: 45 of 47 (ADK Tool Safety and Deterministic Errors)
-Plan: 45-03 next (45-01, 45-02 complete)
-Current Plan: 3
+Phase: 45 of 47 (ADK Tool Safety and Deterministic Errors) - Complete on 2026-03-05
+Plan: Phase 45 complete; Phase 46 planning next
+Current Plan: 3/3 complete
 Total Plans in Phase: 3
-Status: Ready to execute
-Last Activity: 2026-03-05 - 45-02 concluido; 45-03 pronto para execucao
+Status: Ready to plan Phase 46
+Last Activity: 2026-03-05 - 45-03 concluido; Phase 45 encerrada
 
-Progress: [███░░░░░░░] 25%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -44,6 +44,7 @@ Progress: [███░░░░░░░] 25%
 | v1.8 (in progress) | 4 | 6 | 2026-03-05 -> present |
 | Phase 45 P01 | 41min | 2 tasks | 5 files |
 | Phase 45 P02 | 7min | 2 tasks | 5 files |
+| Phase 45 P03 | 10min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -108,20 +109,22 @@ Progress: [███░░░░░░░] 25%
 - [Phase 45]: Forward normalized tool_policy metadata from PIISafeADKWrapper — Safety stays explicit in request context instead of being inferred inside tool handlers.
 - [Phase 45]: Wrap tool-dispatch exceptions with explicit ADKToolExecutionError metadata so runtime classification never parses raw exception strings.
 - [Phase 45]: Treat any failure after the ADK runner path starts as deterministic classification instead of falling through to direct-handler execution.
+- [Phase 45]: Phase 45-03 locked final deterministic regressions through test-only coverage because the existing runtime already passed the expanded repeated-scenario suite.
+- [Phase 45]: Phase 45-03 keeps real google-adk regression coverage conditional in validation and defers CI smoke gating to Phase 47.
 
 ### Pending Todos
 
-- Executar a Phase 45 com `/gsd-execute-phase 45`.
+- Planejar a Phase 46 com `/gsd-plan-phase 46`.
 
 ### Blockers/Concerns
 
-- Nenhum bloqueador para iniciar a Phase 45.
+- Nenhum bloqueador para iniciar a Phase 46.
 - Phase 40: ADK pip resolution with pydantic-ai-slim[google] in Python 3.13 is MEDIUM confidence — first task of Phase 40 must run dry-run install and document resolved versions before touching requirements.txt
 - Phase 40: PIISafeADKWrapper hook point (ADK before_model_callback vs call-site) needs spike in ADK v1.26.0 source before implementation
 - Phase 42: hive-mind.ts frontend module disposition (keep vs remove) depends on whether /api/v2/hive-mind/* routes exist in current backend router — verify in Phase 42 plan
 
 ## Session Continuity
 
-**Last session:** 2026-03-05T23:17:54.135Z
-**Stopped At:** Completed 45-02-SUMMARY.md
-**Resume File:** .planning/phases/45-adk-tool-safety-and-deterministic-errors/45-03-PLAN.md
+**Last session:** 2026-03-05T23:30:00.541Z
+**Stopped At:** Completed 45-03-PLAN.md
+**Resume File:** None

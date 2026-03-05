@@ -29,7 +29,7 @@
 </details>
 
 - [x] **Phase 44: ADK Runtime Controls** - Limites por invocacao e ciclo de vida de sessao ADK no endpoint canonico. (completed 2026-03-05)
-- [ ] **Phase 45: ADK Tool Safety and Deterministic Errors** - Guardrails de tool e classificacao deterministica de falhas ADK.
+- [x] **Phase 45: ADK Tool Safety and Deterministic Errors** - Guardrails de tool e classificacao deterministica de falhas ADK. (completed 2026-03-05)
 - [ ] **Phase 46: ADK Observability Baseline** - Metricas operacionais de latencia, throughput e erro por invocacao/agente.
 - [ ] **Phase 47: ADK CI Smoke Gate** - Gate de CI que bloqueia deploy com regressao em trajetorias oncologicas criticas.
 
@@ -66,7 +66,7 @@ Plans:
 
 - [x] 45-01: Add the pre-tool safety guardrail and lock `policy_block` route/runtime regressions
 - [x] 45-02: Replace ambiguous runtime fallback with deterministic `tool_error` / `upstream_error` classification
-- [ ] 45-03: Finalize repeated-scenario regressions and sync the Phase 45 validation map
+- [x] 45-03: Finalize repeated-scenario regressions and sync the Phase 45 validation map
 
 ### Phase 46: ADK Observability Baseline
 **Goal**: Operacao consegue monitorar saude ADK em producao por invocacao e por agente sem depender de debug manual.
@@ -93,11 +93,11 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 44. ADK Runtime Controls | 3/3 | Complete    | 2026-03-05 |
-| 45. ADK Tool Safety and Deterministic Errors | 2/3 | In Progress | - |
+| 45. ADK Tool Safety and Deterministic Errors | 3/3 | Complete   | 2026-03-05 |
 | 46. ADK Observability Baseline | 0/TBD | Not started | - |
 | 47. ADK CI Smoke Gate | 0/TBD | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-05 — Phase 45 execution advanced (45-01 and 45-02 complete, 2/3 plans)_
+_Last updated: 2026-03-05 — Phase 45 complete (3/3 plans); Phase 46 next_
