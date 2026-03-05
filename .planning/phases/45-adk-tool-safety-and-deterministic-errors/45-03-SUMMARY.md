@@ -2,21 +2,20 @@
 phase: 45-adk-tool-safety-and-deterministic-errors
 plan: 03
 subsystem: testing
-tags: [adk, deterministic-errors, regression, validation]
+tags: [adk, regression, nyquist, validation]
 requires:
   - phase: 45-adk-tool-safety-and-deterministic-errors
-    provides: pre-tool safety guardrail and deterministic `tool_error` / `upstream_error` taxonomy from plans 45-01 and 45-02
+    provides: deterministic `policy_block`, `tool_error`, and `upstream_error` runtime behavior from plans 45-01 and 45-02
 provides:
-  - Repeated route/runtime/wrapper regressions for `policy_block`, `tool_error`, and `upstream_error`
-  - Final Phase 45 validation contract synchronized to the delivered automated and manual coverage
-  - End-of-phase audit coverage preserving Phase 44 lifecycle and session statuses alongside the new taxonomy
-affects: [phase-45, adk-testing, validation-contract]
+  - Repeated-scenario regression coverage across API, runtime, wrapper, and conditional runner paths
+  - Validation contract synchronized to the delivered Phase 45 regression surface
+  - Explicit no-regression checks for Phase 44 lifecycle/session statuses while deterministic classes are active
+affects: [phase-46, adk-runtime, verification]
 tech-stack:
   added: []
-  patterns: [repeated-scenario regression locking, validation contract synchronization]
+  patterns: [deterministic regression matrix, validation-map synchronization]
 key-files:
-  created:
-    - .planning/phases/45-adk-tool-safety-and-deterministic-errors/45-03-SUMMARY.md
+  created: []
   modified:
     - backend-hormonia/tests/api/v2/test_adk.py
     - backend-hormonia/tests/unit/test_adk_tools_runtime.py
@@ -24,32 +23,32 @@ key-files:
     - backend-hormonia/tests/unit/test_adk_runner_integration.py
     - .planning/phases/45-adk-tool-safety-and-deterministic-errors/45-VALIDATION.md
 key-decisions:
-  - "Keep Task 1 test-only because the expanded regression suite passed on the first run, proving the current runtime already satisfied the final deterministic behavior."
-  - "Keep real `google-adk` runner coverage conditional in the validation map and document staging-only checks instead of widening Phase 45 into CI smoke gating reserved for Phase 47."
+  - "Keep repeated real-ADK runner regressions conditional on `google-adk` availability while making the API/unit regression suite mandatory in local verification."
+  - "Sync `45-VALIDATION.md` to the exact targeted pytest selectors and manual staging checks the phase now depends on."
 patterns-established:
-  - "Repeated blocked payloads stay `policy_block` without tool execution in both direct-path and runner-path regression coverage."
-  - "Route, wrapper, and runtime regressions preserve shipped Phase 44 lifecycle/session statuses while the deterministic error taxonomy remains active."
+  - "Repeated identical scenarios must return the same deterministic ADK class every time."
+  - "Validation docs are treated as executable phase artifacts and updated with the real automated/manual coverage surface."
 requirements-completed: [ADK-11, ADK-12]
-duration: 10min
+duration: 8m
 completed: 2026-03-05
 ---
 
-# Phase 45 Plan 03: Final Deterministic Regression Audit Summary
+# Phase 45 Plan 03: ADK Tool Safety and Deterministic Errors Summary
 
-**Repeated ADK safety and failure scenarios now stay deterministic across the route, wrapper, runtime, and validation surfaces with the phase contract fully synchronized**
+**Final deterministic ADK regression coverage now locks repeated outcomes and a synced Nyquist validation contract for Phase 45**
 
 ## Performance
 
-- **Duration:** 10min
-- **Started:** 2026-03-05T23:18:00Z
-- **Completed:** 2026-03-05T23:28:03Z
+- **Duration:** 8m
+- **Started:** 2026-03-05T20:20:00-03:00
+- **Completed:** 2026-03-05T20:27:42-03:00
 - **Tasks:** 2
 - **Files modified:** 5
 
 ## Accomplishments
-- Expanded the final regression suite so repeated `policy_block`, `tool_error`, and `upstream_error` scenarios stay locked across API, unit, wrapper, and conditional runner coverage.
-- Extended the route-level audit to keep Phase 44 lifecycle and session error envelopes stable while the deterministic taxonomy remains active.
-- Synchronized `45-VALIDATION.md` to the actual automated surface, conditional `google-adk` behavior, and remaining staging-only manual checks.
+- Expanded the regression suite so repeated `policy_block`, `tool_error`, and `upstream_error` scenarios stay deterministic across API, runtime, wrapper, and conditional runner coverage.
+- Added explicit no-regression checks for shipped Phase 44 lifecycle/session outcomes while the new deterministic taxonomy is active.
+- Synchronized `45-VALIDATION.md` to the delivered selectors, green statuses, and manual staging checks required to verify the real ADK deployment path.
 
 ## Task Commits
 
@@ -61,33 +60,34 @@ Each task was committed atomically:
 **Plan metadata:** to be committed separately in this run
 
 ## Files Created/Modified
-- `backend-hormonia/tests/api/v2/test_adk.py` - Repeats deterministic route envelopes and extends lifecycle/session envelope coverage.
-- `backend-hormonia/tests/unit/test_adk_tools_runtime.py` - Repeats `policy_block` direct and runner-path regressions without tool execution.
-- `backend-hormonia/tests/unit/test_pii_safe_adk_wrapper.py` - Locks repeated sanitized policy-context forwarding through the wrapper boundary.
-- `backend-hormonia/tests/unit/test_adk_runner_integration.py` - Repeats conditional real-ADK `tool_error` / `upstream_error` classifications when `google-adk` is available.
-- `.planning/phases/45-adk-tool-safety-and-deterministic-errors/45-VALIDATION.md` - Marks the phase validation contract complete and aligned to the delivered regression surface.
+- `backend-hormonia/tests/api/v2/test_adk.py` - Repeats deterministic API envelopes and preserves lifecycle/session normalization coverage
+- `backend-hormonia/tests/unit/test_adk_tools_runtime.py` - Verifies repeated `policy_block` outcomes and no-regression runtime behavior
+- `backend-hormonia/tests/unit/test_pii_safe_adk_wrapper.py` - Proves repeated sanitized wrapper calls preserve policy context without mutation or duplicate side effects
+- `backend-hormonia/tests/unit/test_adk_runner_integration.py` - Adds conditional repeated runner-path regressions for `tool_error` and `upstream_error`
+- `.planning/phases/45-adk-tool-safety-and-deterministic-errors/45-VALIDATION.md` - Marks all task checks green and records the final automated/manual validation contract
 
 ## Decisions Made
-- Kept the runtime code unchanged because the new repeated-scenario suite passed immediately, making this plan a regression-locking closeout instead of another implementation phase.
-- Marked the validation contract complete with conditional runner coverage explicitly documented rather than promoting it to a mandatory CI smoke gate before Phase 47.
+- Kept the real-ADK repeated-runner assertions behind existing `google-adk` skip logic so Phase 45 stays locally verifiable without inventing a CI smoke gate early.
+- Treated repeated deterministic-class assertions as first-class regressions at every layer instead of assuming the plan-01/plan-02 branch tests were sufficient.
+- Updated the validation file to match the concrete selectors and staging-only gaps rather than leaving generic phase-level commands in place.
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+The `gsd-executor` subagent stalled before writing the summary and final planning metadata. The committed regression and validation work was verified locally and then closed out manually.
 
 ## Issues Encountered
-- Local verification environment does not have `google-adk` installed, so the conditional integration tests remained skipped by design while the API, wrapper, runtime, and validation checks ran fully.
+
+- Local verification still skips the real `google-adk` runner integration tests when the package is unavailable; the validation map now records those checks as conditional and documents the staging follow-up explicitly.
 
 ## User Setup Required
 
 None - no external service configuration required.
 
 ## Next Phase Readiness
-- Phase 45 is fully closed with deterministic repeated-scenario coverage and a synchronized validation contract.
-- Phase 46 can build observability on top of a locked failure taxonomy without reopening tool-safety or validation-scope questions.
 
-## Self-Check: PASSED
+- Phase 45 has full plan coverage, green local regression evidence, and a synchronized validation contract.
+- The phase is ready for goal verification and, if passed, transition to Phase 46.
 
-- Found `.planning/phases/45-adk-tool-safety-and-deterministic-errors/45-03-SUMMARY.md`
-- Found commit `13c25d39`
-- Found commit `d736b96f`
+---
+*Phase: 45-adk-tool-safety-and-deterministic-errors*
+*Completed: 2026-03-05*
