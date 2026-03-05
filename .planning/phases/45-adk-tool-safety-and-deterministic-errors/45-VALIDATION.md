@@ -38,10 +38,12 @@ created: 2026-03-05
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 45-01-01 | 01 | 1 | ADK-11 | API + unit | `cd backend-hormonia && pytest tests/api/v2/test_adk.py tests/unit/test_adk_tools_runtime.py -q` | ✅ | ⬜ pending |
-| 45-01-02 | 01 | 1 | ADK-11, ADK-12 | unit | `cd backend-hormonia && pytest tests/unit/test_pii_safe_adk_wrapper.py tests/unit/test_adk_tools_runtime.py -q` | ✅ | ⬜ pending |
-| 45-02-01 | 02 | 2 | ADK-12 | unit | `cd backend-hormonia && pytest tests/unit/test_adk_tools_runtime.py tests/unit/test_adk_runner_integration.py -q` | ✅ | ⬜ pending |
-| 45-02-02 | 02 | 2 | ADK-11, ADK-12 | regression | `cd backend-hormonia && pytest tests/api/v2/test_adk.py tests/unit/test_adk_tools_runtime.py tests/unit/test_pii_safe_adk_wrapper.py tests/unit/test_adk_runner_integration.py -q` | ✅ | ⬜ pending |
+| 45-01-01 | 01 | 1 | ADK-11 | unit | `cd backend-hormonia && pytest tests/unit/test_pii_safe_adk_wrapper.py tests/unit/test_adk_tools_runtime.py -q` | ✅ | ⬜ pending |
+| 45-01-02 | 01 | 1 | ADK-11, ADK-12 | API + unit | `cd backend-hormonia && pytest tests/api/v2/test_adk.py tests/unit/test_adk_tools_runtime.py tests/unit/test_pii_safe_adk_wrapper.py -q` | ✅ | ⬜ pending |
+| 45-02-01 | 02 | 2 | ADK-12 | unit | `cd backend-hormonia && pytest tests/unit/test_adk_tools_runtime.py -q` | ✅ | ⬜ pending |
+| 45-02-02 | 02 | 2 | ADK-12 | API + unit | `cd backend-hormonia && pytest tests/api/v2/test_adk.py tests/unit/test_adk_tools_runtime.py tests/unit/test_adk_runner_integration.py -q` | ✅ | ⬜ pending |
+| 45-03-01 | 03 | 3 | ADK-11, ADK-12 | regression | `cd backend-hormonia && pytest tests/api/v2/test_adk.py tests/unit/test_adk_tools_runtime.py tests/unit/test_pii_safe_adk_wrapper.py tests/unit/test_adk_runner_integration.py -q` | ✅ | ⬜ pending |
+| 45-03-02 | 03 | 3 | ADK-11, ADK-12 | docs + audit | `rg -n "45-01-01|45-02-01|45-03-01|policy_block|tool_error|upstream_error" .planning/phases/45-adk-tool-safety-and-deterministic-errors/45-VALIDATION.md` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

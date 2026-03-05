@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: ADK Stability & Error Hardening
 status: planning
-stopped_at: Phase 45 ready to plan
-last_updated: "2026-03-05T18:34:12-03:00"
-last_activity: 2026-03-05 - Phase 44 concluida; Phase 45 pronta para planejamento
+stopped_at: Phase 45 planned
+last_updated: "2026-03-05T19:17:53-03:00"
+last_activity: 2026-03-05 - Phase 45 planejada com 3 planos e estrategia Nyquist
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
+  total_plans: 6
   completed_plans: 3
   percent: 25
 ---
@@ -21,15 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Planejar e executar fases 45-47 do milestone v1.8
+**Current focus:** Executar a Phase 45; depois planejar/executar as fases 46-47 do milestone v1.8
 
 ## Current Position
 
 Milestone: v1.8 ADK Stability & Error Hardening
 Phase: 45 of 47 (ADK Tool Safety and Deterministic Errors)
-Plan: -
-Status: Ready to plan
-Last Activity: 2026-03-05 - Phase 44 concluida; Phase 45 pronta para planejamento
+Plan: 45-01, 45-02, 45-03
+Status: Planned
+Last Activity: 2026-03-05 - Phase 45 planejada com 3 planos e estrategia Nyquist
 
 Progress: [███░░░░░░░] 25%
 
@@ -38,7 +38,7 @@ Progress: [███░░░░░░░] 25%
 | Milestone | Phases | Plans | Timeline |
 |-----------|--------|-------|----------|
 | v1.0-v1.7 (shipped) | 43 | 179 | 2026-02-22 -> 2026-03-05 |
-| v1.8 (in progress) | 4 | 3 | 2026-03-05 -> present |
+| v1.8 (in progress) | 4 | 6 | 2026-03-05 -> present |
 
 ## Accumulated Context
 
@@ -100,7 +100,7 @@ Progress: [███░░░░░░░] 25%
 
 ### Pending Todos
 
-- Planejar a Phase 45 com `/gsd-plan-phase 45`.
+- Executar a Phase 45 com `/gsd-execute-phase 45`.
 
 ### Blockers/Concerns
 
@@ -112,5 +112,5 @@ Progress: [███░░░░░░░] 25%
 ## Session Continuity
 
 **Last session:** 2026-03-05T19:06:04.968Z
-**Stopped At:** Phase 45 ready to plan
+**Stopped At:** Phase 45 planned
 **Resume File:** .planning/ROADMAP.md

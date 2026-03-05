@@ -60,7 +60,13 @@ Plans:
   1. Chamada de tool insegura e bloqueada por `before_tool_callback` antes da execucao da tool.
   2. Falhas ADK retornam exatamente uma classe deterministica entre `timeout`, `policy_block`, `tool_error` e `upstream_error`.
   3. O mesmo tipo de falha gera a mesma classe em repeticoes do mesmo cenario, sem cair em erro generico ambiguo.
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+
+- [ ] 45-01: Add the pre-tool safety guardrail and lock `policy_block` route/runtime regressions
+- [ ] 45-02: Replace ambiguous runtime fallback with deterministic `tool_error` / `upstream_error` classification
+- [ ] 45-03: Finalize repeated-scenario regressions and sync the Phase 45 validation map
 
 ### Phase 46: ADK Observability Baseline
 **Goal**: Operacao consegue monitorar saude ADK em producao por invocacao e por agente sem depender de debug manual.
@@ -87,11 +93,11 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 44. ADK Runtime Controls | 3/3 | Complete    | 2026-03-05 |
-| 45. ADK Tool Safety and Deterministic Errors | 0/TBD | Not started | - |
+| 45. ADK Tool Safety and Deterministic Errors | 0/3 | Planned | - |
 | 46. ADK Observability Baseline | 0/TBD | Not started | - |
 | 47. ADK CI Smoke Gate | 0/TBD | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-05 — Phase 44 completed; Phase 45 is next_
+_Last updated: 2026-03-05 — Phase 45 planned with 3 execution plans_
