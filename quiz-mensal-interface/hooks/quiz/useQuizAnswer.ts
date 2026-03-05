@@ -1,6 +1,16 @@
 import type { SingleAnswer, MultipleAnswer, OtherAnswer } from '@/types/quiz'
 
 export function useQuizAnswer() {
+  const isOtherAnswer = (value: SingleAnswer | MultipleAnswer | null): value is OtherAnswer => {
+    return Boolean(value && typeof value === 'object' && 'value' in value && 'customText' in value)
+  }
+
+  const isMultipleSelection = (
+    value: SingleAnswer | MultipleAnswer | null,
+  ): value is { options: string[]; otherText?: string } => {
+    return Boolean(value && typeof value === 'object' && 'options' in value)
+  }
+
   const handleAnswerChange = (value: SingleAnswer | MultipleAnswer) => {
     return value
   }
@@ -12,12 +22,9 @@ export function useQuizAnswer() {
   ): OtherAnswer => {
     // Always return a valid OtherAnswer object to preserve selection
     // Extract customText from existing answer if it's an OtherAnswer
-    const existingCustomText =
-      typeof selectedAnswer === 'object' && selectedAnswer && 'customText' in selectedAnswer
-        ? selectedAnswer.customText
-        : ''
+    const existingCustomText = isOtherAnswer(selectedAnswer) ? selectedAnswer.customText : ''
 
-    return { value: otherOptionValue, customText: text || existingCustomText } as OtherAnswer
+    return { value: otherOptionValue, customText: text || existingCustomText }
   }
 
   const validateAnswer = (
@@ -44,24 +51,24 @@ export function useQuizAnswer() {
   }
 
   const prepareAnswerPayload = (selectedAnswer: SingleAnswer | MultipleAnswer | null) => {
+    if (selectedAnswer === null) {
+      return { answerValue: '' }
+    }
+
     let answerValue: string | string[]
     let otherText: string | undefined
 
-    if (typeof selectedAnswer === 'object' && selectedAnswer && 'value' in selectedAnswer) {
+    if (isOtherAnswer(selectedAnswer)) {
       // Single choice with "Outra" option
       answerValue = selectedAnswer.value
       otherText = selectedAnswer.customText
-    } else if (
-      typeof selectedAnswer === 'object' &&
-      selectedAnswer &&
-      'options' in selectedAnswer
-    ) {
+    } else if (isMultipleSelection(selectedAnswer)) {
       // Multiple choice
       answerValue = selectedAnswer.options
       otherText = selectedAnswer.otherText
     } else {
       // Regular answer
-      answerValue = selectedAnswer as string | string[]
+      answerValue = selectedAnswer
     }
 
     return { answerValue, otherText }

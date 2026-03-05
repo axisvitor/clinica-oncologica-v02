@@ -68,10 +68,10 @@ export interface QuizQuestion {
 }
 
 export interface QuizSession {
-  id: string
+  id?: string
   quiz_session_id: string
-  patient_id: string
-  template_id: string
+  patient_id?: string
+  template_id?: string
   patient_name: string
   template_name: string
   expires_at: string

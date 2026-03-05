@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { QuizSession, SingleAnswer, MultipleAnswer } from '@/types/quiz'
+import type { QuizSession, SingleAnswer, MultipleAnswer, QuizQuestion } from '@/types/quiz'
 import {
   saveQuizProgress,
   loadQuizProgress,
@@ -39,9 +39,14 @@ export function useQuizState({
     : 0
 
   // Use safe access with fallback
-  const currentQuestion = hasValidQuestions
-    ? session.questions[safeIndex]
-    : { id: '', text: 'Quiz não disponível', type: 'text' as const, options: [] }
+  const fallbackQuestion: QuizQuestion = {
+    id: '',
+    text: 'Quiz não disponível',
+    type: 'text',
+    options: [],
+  }
+
+  const currentQuestion = hasValidQuestions ? session.questions[safeIndex] : fallbackQuestion
   const totalQuestions = hasValidQuestions ? session.questions.length : 0
   const progress = totalQuestions > 0 ? ((safeIndex + 1) / totalQuestions) * 100 : 0
   const isLastQuestion = hasValidQuestions && safeIndex === totalQuestions - 1

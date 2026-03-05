@@ -179,7 +179,6 @@ export function useQuizSession(): UseQuizSessionResult {
             prev
               ? {
                   ...prev,
-                  current_question: response.next_question,
                   current_question_index: (prev.current_question_index || 0) + 1,
                 }
               : null,

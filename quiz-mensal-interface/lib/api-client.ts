@@ -22,6 +22,7 @@
  */
 
 import type { QuizSession, QuizSubmitResponse } from '@/types/quiz'
+import { z } from 'zod'
 
 // Configuration: Environment-driven with fallback
 const API_BASE_URL = (
@@ -54,6 +55,53 @@ interface RequestOptions extends RequestInit {
   retries?: number
 }
 
+const questionOptionSchema = z.union([
+  z.string(),
+  z.object({
+    id: z.string().optional(),
+    value: z.string(),
+    text: z.string(),
+    allow_other: z.boolean().optional(),
+  }),
+])
+
+const quizQuestionSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  type: z.enum(['single_choice', 'multiple_choice', 'scale', 'text', 'free_text', 'yes_no']),
+  options: z.array(questionOptionSchema).optional(),
+  min_value: z.number().optional(),
+  max_value: z.number().optional(),
+  allow_other: z.boolean().optional(),
+  required: z.boolean().optional(),
+})
+
+const quizSessionSchema = z.object({
+  id: z.string().optional(),
+  quiz_session_id: z.string(),
+  patient_id: z.string().optional(),
+  template_id: z.string().optional(),
+  patient_name: z.string(),
+  template_name: z.string(),
+  expires_at: z.string(),
+  questions: z.array(quizQuestionSchema),
+  created_at: z.string().optional(),
+  completed_at: z.string().optional(),
+  status: z.string().optional(),
+  new_token: z.string().optional(),
+  current_question_index: z.number().optional(),
+})
+
+const quizSubmitResponseSchema = z.object({
+  success: z.boolean(),
+  is_last_question: z.boolean(),
+  next_question: quizQuestionSchema.optional(),
+  session_status: z.string(),
+  message: z.string().optional(),
+  response_id: z.string().optional(),
+  new_token: z.string().optional(),
+})
+
 /**
  * Unified Quiz API Client
  *
@@ -70,6 +118,31 @@ class QuizApiClient {
   // Promise Singleton: Prevents multiple simultaneous CSRF handshakes
   // If 10 requests call ensureCsrfToken at the same time, only ONE network call is made
   private handshakePromise: Promise<void> | null = null
+
+  private parseSessionPayload(payload: unknown, context: 'access' | 'recover'): QuizSession {
+    const parsed = quizSessionSchema.safeParse(payload)
+
+    if (parsed.success) {
+      return parsed.data
+    }
+
+    const message =
+      context === 'access'
+        ? 'Nao foi possivel carregar o questionario. Tente novamente.'
+        : 'Nao foi possivel recuperar sua sessao. Abra o link novamente.'
+
+    throw new ApiError(message, 422, false)
+  }
+
+  private parseSubmitPayload(payload: unknown): QuizSubmitResponse {
+    const parsed = quizSubmitResponseSchema.safeParse(payload)
+
+    if (parsed.success) {
+      return parsed.data
+    }
+
+    throw new ApiError('Nao foi possivel processar sua resposta. Tente novamente.', 422, false)
+  }
 
   /**
    * Ensure CSRF token is available (Promise Singleton pattern)
@@ -127,7 +200,7 @@ class QuizApiClient {
    * - Exponential backoff for server errors (5xx)
    * - Network error retry with increasing delays
    */
-  private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
+  private async request(endpoint: string, options: RequestOptions = {}): Promise<unknown> {
     const url = `${API_BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
     const { retries = MAX_RETRIES, ...fetchOptions } = options
     const method = options.method?.toUpperCase() || 'GET'
@@ -139,11 +212,15 @@ class QuizApiClient {
     }
 
     // Build headers
+    const incomingHeaders = new Headers(options.headers)
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      ...(options.headers as Record<string, string>),
     }
+
+    incomingHeaders.forEach((value, key) => {
+      headers[key] = value
+    })
 
     // Inject CSRF token for state-changing methods
     if (this.csrfToken && isWriteMethod) {
@@ -177,14 +254,14 @@ class QuizApiClient {
           console.warn('🔄 Token expirado. Renovando...')
           this.csrfToken = null // Clear expired token
           await this.ensureCsrfToken(true) // Force refresh
-          return this.request<T>(endpoint, { ...options, retries: retries - 1 })
+          return this.request(endpoint, { ...options, retries: retries - 1 })
         }
 
         // Server errors (5xx): Exponential backoff retry
         if (response.status >= 500 && retries > 0) {
           const delay = 1000 * (MAX_RETRIES - retries + 1) // 1s, 2s, 3s...
           await new Promise((r) => setTimeout(r, delay))
-          return this.request<T>(endpoint, { ...options, retries: retries - 1 })
+          return this.request(endpoint, { ...options, retries: retries - 1 })
         }
 
         const errorData = await response.json().catch(() => ({}))
@@ -199,10 +276,10 @@ class QuizApiClient {
 
       // Handle 204 No Content
       if (response.status === 204) {
-        return {} as T
+        return null
       }
 
-      return (await response.json()) as T
+      return await response.json()
     } catch (error: unknown) {
       clearTimeout(timeoutId)
 
@@ -219,7 +296,7 @@ class QuizApiClient {
       if (retries > 0 && !(error instanceof Error && error.name === 'AbortError')) {
         const delay = 500 * (MAX_RETRIES - retries + 1) // 500ms, 1s, 1.5s...
         await new Promise((r) => setTimeout(r, delay))
-        return this.request<T>(endpoint, { ...options, retries: retries - 1 })
+        return this.request(endpoint, { ...options, retries: retries - 1 })
       }
 
       throw new ApiError(error instanceof Error ? error.message : 'Erro de rede', undefined, true)
@@ -256,10 +333,12 @@ class QuizApiClient {
     await csrfPromise
 
     // Note: API_BASE_URL already includes /quiz-extensions prefix
-    return this.request<QuizSession>('/access', {
+    const payload = await this.request('/access', {
       method: 'POST',
       body,
     })
+
+    return this.parseSessionPayload(payload, 'access')
   }
 
   /**
@@ -269,9 +348,11 @@ class QuizApiClient {
   async recoverSession(): Promise<QuizSession | null> {
     try {
       // Note: API_BASE_URL already includes /quiz-extensions prefix
-      return await this.request<QuizSession>('/session/active', {
+      const payload = await this.request('/session/active', {
         method: 'GET',
       })
+
+      return this.parseSessionPayload(payload, 'recover')
     } catch (error) {
       if (error instanceof ApiError && (error.status === 401 || error.status === 404)) {
         return null // No active session
@@ -289,7 +370,7 @@ class QuizApiClient {
     metadata?: Record<string, unknown>,
   ): Promise<QuizSubmitResponse> {
     // Note: API_BASE_URL already includes /quiz-extensions prefix
-    return this.request<QuizSubmitResponse>('/submit', {
+    const payload = await this.request('/submit', {
       method: 'POST',
       body: JSON.stringify({
         question_id: questionId,
@@ -297,6 +378,8 @@ class QuizApiClient {
         response_metadata: metadata,
       }),
     })
+
+    return this.parseSubmitPayload(payload)
   }
 
   /**
@@ -305,7 +388,7 @@ class QuizApiClient {
   async logout(): Promise<void> {
     try {
       // Note: API_BASE_URL already includes /quiz-extensions prefix
-      await this.request<void>('/logout', {
+      await this.request('/logout', {
         method: 'POST',
       })
     } finally {
@@ -318,7 +401,7 @@ class QuizApiClient {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      await this.request<{ status: string }>('/health')
+      await this.request('/health')
       return true
     } catch {
       return false

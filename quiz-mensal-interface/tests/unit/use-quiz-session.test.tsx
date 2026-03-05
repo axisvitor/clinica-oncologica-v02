@@ -1,5 +1,6 @@
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { useQuizSession } from '@/hooks/use-quiz-session'
+import { api } from '@/lib/api-client'
 
 const mockGet = jest.fn()
 
@@ -23,6 +24,7 @@ const createResponse = (payload: JsonValue, status = 200) => ({
 describe('useQuizSession boundary-safe behavior', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    api.clearSecurityState()
   })
 
   it('shows friendly error and keeps session null on malformed access payload', async () => {
