@@ -134,7 +134,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 2. The ADK Runner processes a request end-to-end: receives input, calls PIISafeADKWrapper, returns output — verifiable via integration test with synthetic data
 3. `grep -n "LANGGRAPH_ONLY\|_process_with_langgraph" backend-hormonia/app/services/hive_mind_integration.py` returns zero results
 4. The HiveMind service no longer crashes at import time — running `python -c "from app.services.hive_mind_integration import HiveMindService"` succeeds without ImportError
-   **Plans**: 4 plans
+   **Plans**: 6 plans
    Plans:
 
 - [x] 41-01-PLAN.md — Wrap sentiment/humanize/variation/empathy as ADK tools and implement wrapper runtime invocation
@@ -177,7 +177,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 3. `tsc --noEmit` exits with code 0 in the quiz interface with zero type errors
 4. `eslint .` exits with zero errors in the quiz interface using ESLint 9 flat config
 5. `npm test` passes in the quiz interface — `identity-obj-proxy` and `msw` v2 are present and CSS module tests no longer fail
-   **Plans**: 4 plans
+   **Plans**: 6 plans
 
 Plans:
 
@@ -185,22 +185,24 @@ Plans:
 - [ ] 43-02-PLAN.md — Add missing Jest CSS mapper dependency and migrate quiz mocks to MSW v2 API contracts
 - [ ] 43-03-PLAN.md — Harden locked core typing and API boundary guards in the quiz core scope
 - [ ] 43-04-PLAN.md — Decouple toast store from cross-app imports and normalize quiz route/layout shell consistency
+- [ ] 43-05-PLAN.md — Gap closure: remove remaining cross-app UI bridge imports blocking quiz `tsc --noEmit`
+- [ ] 43-06-PLAN.md — Gap closure: align MSW submit mocks and quiz flow assertions so full `npm test` passes
 
 ## Progress
 
-| Phase                                | Milestone | Plans Complete | Status      | Completed  |
-| ------------------------------------ | --------- | -------------- | ----------- | ---------- |
-| 1-5. Foundations                     | v1.0      | 13/13          | Complete    | 2026-02-22 |
-| 6-9. Architecture & Observability    | v1.1      | 10/10          | Complete    | 2026-02-23 |
-| 10-13. AI Framework Migration        | v1.2      | 16/16          | Complete    | 2026-02-24 |
-| 14-19. Flow Health & Cleanup         | v1.3      | 31/31          | Complete    | 2026-02-26 |
-| 20-28. AsyncSession & Test Stability | v1.4      | 54/54          | Complete    | 2026-02-28 |
-| 29-32. Saga Orchestrator Deep Dive   | v1.5      | 14/14          | Complete    | 2026-03-01 |
-| 33-39. WuzAPI Migration              | v1.6      | 21/21          | Complete    | 2026-03-03 |
-| 40. OTel Removal & ADK Foundation    | 3/3       | Complete       | 2026-03-03  | -          |
-| 41. ADK Agent Integration            | 4/4       | Complete       | 2026-03-04  | -          |
-| 42. Admin SPA Quality                | 7/7       | Complete       | 2026-03-04  | -          |
-| 43. Quiz Interface Quality           | 4/4 | Complete   | 2026-03-05 | -          |
+| Phase                                | Milestone | Plans Complete | Status     | Completed  |
+| ------------------------------------ | --------- | -------------- | ---------- | ---------- |
+| 1-5. Foundations                     | v1.0      | 13/13          | Complete   | 2026-02-22 |
+| 6-9. Architecture & Observability    | v1.1      | 10/10          | Complete   | 2026-02-23 |
+| 10-13. AI Framework Migration        | v1.2      | 16/16          | Complete   | 2026-02-24 |
+| 14-19. Flow Health & Cleanup         | v1.3      | 31/31          | Complete   | 2026-02-26 |
+| 20-28. AsyncSession & Test Stability | v1.4      | 54/54          | Complete   | 2026-02-28 |
+| 29-32. Saga Orchestrator Deep Dive   | v1.5      | 14/14          | Complete   | 2026-03-01 |
+| 33-39. WuzAPI Migration              | v1.6      | 21/21          | Complete   | 2026-03-03 |
+| 40. OTel Removal & ADK Foundation    | 3/3       | Complete       | 2026-03-03 | -          |
+| 41. ADK Agent Integration            | 4/4       | Complete       | 2026-03-04 | -          |
+| 42. Admin SPA Quality                | 7/7       | Complete       | 2026-03-04 | -          |
+| 43. Quiz Interface Quality           | 5/6 | In Progress|  | -          |
 
 ---
 
