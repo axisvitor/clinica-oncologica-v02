@@ -10,7 +10,7 @@ import {
   createToastClose,
   createToastDescription,
   createToastTitle,
-} from '../../../frontend-hormonia/src/components/ui/toast-shared-primitives'
+} from './toast-shared-primitives'
 
 const ToastProvider = ToastPrimitives.Provider
 
