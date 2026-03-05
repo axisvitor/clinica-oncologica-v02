@@ -11,6 +11,7 @@ import { AlertCircle, RefreshCcw } from 'lucide-react'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { ResumeQuizDialog } from '@/components/quiz/ResumeQuizDialog'
 import { QuizSkeleton } from '@/components/quiz/QuizSkeleton'
+import { QUIZ_CENTERED_SHELL_CLASS, QUIZ_SHELL_CLASS } from '@/lib/quiz-shell'
 import {
   loadQuizProgress,
   clearQuizProgress,
@@ -51,7 +52,7 @@ function QuizPage() {
   // Loading state - show skeleton for better perceived performance
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+      <main className={QUIZ_SHELL_CLASS}>
         <QuizSkeleton />
       </main>
     )
@@ -65,7 +66,7 @@ function QuizPage() {
     }
 
     return (
-      <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20 flex items-center justify-center p-4">
+      <main className={`${QUIZ_CENTERED_SHELL_CLASS} p-4`}>
         <Card className="p-8 max-w-md w-full space-y-6">
           <div className="text-center space-y-4">
             <AlertCircle className="w-16 h-16 text-destructive mx-auto" />
@@ -105,7 +106,7 @@ function QuizPage() {
   if (session) {
     return (
       <ErrorBoundary>
-        <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+        <main className={QUIZ_SHELL_CLASS}>
           <ResumeQuizDialog
             open={showResumeDialog}
             progress={savedProgress}
@@ -137,7 +138,7 @@ export default function Home() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-accent/20">
+        <main className={QUIZ_SHELL_CLASS}>
           <QuizSkeleton />
         </main>
       }

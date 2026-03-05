@@ -20,6 +20,7 @@ import type {
 } from '@/types/quiz'
 import { useQuizState } from '@/hooks/quiz/useQuizState'
 import { useToast } from '@/hooks/use-toast'
+import { QUIZ_CENTERED_SHELL_CLASS, QUIZ_CONTENT_CLASS } from '@/lib/quiz-shell'
 
 // Option type from QuizQuestion
 type QuizOption = string | { id?: string; value: string; text: string; allow_other?: boolean }
@@ -75,8 +76,8 @@ export default function QuizInterface({
 
   if (isCompleted) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4" data-testid="quiz-success">
-        <div className="w-full max-w-md mx-auto space-y-6">
+      <div className={`${QUIZ_CENTERED_SHELL_CLASS} p-4`} data-testid="quiz-success">
+        <div className={QUIZ_CONTENT_CLASS}>
           <Card className="p-8 text-center space-y-6">
             <div className="w-20 h-20 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto">
               <CheckCircle className="w-12 h-12 text-green-600 dark:text-green-400" />
@@ -103,8 +104,8 @@ export default function QuizInterface({
   // Error state: Quiz has no valid questions
   if (!hasValidQuestions) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4" data-testid="quiz-error">
-        <div className="w-full max-w-md mx-auto space-y-6">
+      <div className={`${QUIZ_CENTERED_SHELL_CLASS} p-4`} data-testid="quiz-error">
+        <div className={QUIZ_CONTENT_CLASS}>
           <Card className="p-8 text-center space-y-6">
             <div className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto">
               <Circle className="w-12 h-12 text-red-600 dark:text-red-400" />
@@ -472,8 +473,8 @@ export default function QuizInterface({
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" data-testid="quiz-container">
-      <div className="w-full max-w-2xl mx-auto space-y-6">
+    <div className={`${QUIZ_CENTERED_SHELL_CLASS} p-4`} data-testid="quiz-container">
+      <div className={QUIZ_CONTENT_CLASS}>
         {/* Header */}
         <div className="text-center space-y-4">
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm font-medium">

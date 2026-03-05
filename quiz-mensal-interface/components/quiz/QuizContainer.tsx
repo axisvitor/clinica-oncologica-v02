@@ -11,6 +11,7 @@ import { QuestionTransition } from './QuestionTransition'
 import { useQuizState } from '@/hooks/quiz/useQuizState'
 import { useQuizAnswer } from '@/hooks/quiz/useQuizAnswer'
 import { useQuizNavigation } from '@/hooks/quiz/useQuizNavigation'
+import { QUIZ_CENTERED_SHELL_CLASS, QUIZ_CONTENT_CLASS } from '@/lib/quiz-shell'
 
 interface QuizContainerProps {
   session: QuizSession
@@ -75,8 +76,8 @@ export default function QuizContainer({
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl mx-auto space-y-6">
+    <div className={`${QUIZ_CENTERED_SHELL_CLASS} p-4`}>
+      <div className={QUIZ_CONTENT_CLASS}>
         <QuizHeader patientName={session.patient_name} templateName={session.template_name} />
 
         <QuizProgress
