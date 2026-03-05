@@ -12,8 +12,8 @@
 
 ### ADK Safety & Errors
 
-- [ ] **ADK-11**: Operador pode bloquear chamadas de tool inseguras via validacao `before_tool_callback` antes de efeitos colaterais.
-- [ ] **ADK-12**: Operador pode classificar falhas ADK em classes deterministicas (`timeout`, `policy_block`, `tool_error`, `upstream_error`).
+- [x] **ADK-11**: Operador pode bloquear chamadas de tool inseguras via validacao `before_tool_callback` antes de efeitos colaterais.
+- [x] **ADK-12**: Operador pode classificar falhas ADK em classes deterministicas (`timeout`, `policy_block`, `tool_error`, `upstream_error`).
 
 ### Observability
 
@@ -51,18 +51,18 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ADK-09 | TBD | Pending |
-| ADK-10 | TBD | Pending |
-| ADK-11 | TBD | Pending |
-| ADK-12 | TBD | Pending |
-| OBS-02 | TBD | Pending |
-| ADK-13 | TBD | Pending |
+| ADK-09 | Phase 44 | Pending |
+| ADK-10 | Phase 44 | Pending |
+| ADK-11 | Phase 45 | Complete |
+| ADK-12 | Phase 45 | Complete |
+| OBS-02 | Phase 46 | Pending |
+| ADK-13 | Phase 47 | Pending |
 
 **Coverage:**
 - v1 requirements: 6 total
-- Mapped to phases: 0
-- Unmapped: 6 ⚠️
+- Mapped to phases: 6
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-05 after milestone v1.8 scoping*
+*Last updated: 2026-03-05 after roadmap mapping (phases 44-47)*
