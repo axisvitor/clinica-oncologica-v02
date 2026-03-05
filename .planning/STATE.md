@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: ADK Stability & Error Hardening
 status: planning
-stopped_at: Phase 44 context gathered
-last_updated: "2026-03-05T19:06:05.024Z"
-last_activity: 2026-03-05 - ROADMAP.md criado para v1.8
+stopped_at: Phase 45 ready to plan
+last_updated: "2026-03-05T18:34:12-03:00"
+last_activity: 2026-03-05 - Phase 44 concluida; Phase 45 pronta para planejamento
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 3
+  percent: 25
 ---
 
 # Project State
@@ -21,29 +21,32 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Planejar e executar fases 44-47 do milestone v1.8
+**Current focus:** Planejar e executar fases 45-47 do milestone v1.8
 
 ## Current Position
 
 Milestone: v1.8 ADK Stability & Error Hardening
-Phase: 44 of 47 (ADK Runtime Controls)
+Phase: 45 of 47 (ADK Tool Safety and Deterministic Errors)
 Plan: -
 Status: Ready to plan
-Last Activity: 2026-03-05 - ROADMAP.md criado para v1.8
+Last Activity: 2026-03-05 - Phase 44 concluida; Phase 45 pronta para planejamento
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
 | Milestone | Phases | Plans | Timeline |
 |-----------|--------|-------|----------|
 | v1.0-v1.7 (shipped) | 43 | 179 | 2026-02-22 -> 2026-03-05 |
-| v1.8 (planned) | 4 | 0 | Not started |
+| v1.8 (in progress) | 4 | 3 | 2026-03-05 -> present |
 
 ## Accumulated Context
 
 ### Decisions
 
+- [Phase 44]: Persist ADK session and invocation metadata in an application-owned Redis-first store with process-local fallback for host compatibility.
+- [Phase 44]: Normalize runtime terminal outcomes to explicit operator-facing statuses (`success`, `closed`, `cancelled`, `timeout`, `limit_exceeded`).
+- [Phase 44]: Prune low-priority session state before rejecting oversized resumes so high-value clinical context survives bounded-state enforcement.
 - [v1.8 roadmap]: Fases derivadas apenas dos requisitos v1.8 (ADK-09..13, OBS-02).
 - [v1.8 roadmap]: Ordem por dependencia de capacidade: runtime -> safety/errors -> observability -> CI gate.
 - [v1.8 roadmap]: Cobertura 100% validada com mapeamento 1:1 de requisito para fase.
@@ -97,11 +100,11 @@ Progress: [░░░░░░░░░░] 0%
 
 ### Pending Todos
 
-- Planejar a Phase 44 com `/gsd-plan-phase 44`.
+- Planejar a Phase 45 com `/gsd-plan-phase 45`.
 
 ### Blockers/Concerns
 
-- Nenhum bloqueador para iniciar a Phase 44.
+- Nenhum bloqueador para iniciar a Phase 45.
 - Phase 40: ADK pip resolution with pydantic-ai-slim[google] in Python 3.13 is MEDIUM confidence — first task of Phase 40 must run dry-run install and document resolved versions before touching requirements.txt
 - Phase 40: PIISafeADKWrapper hook point (ADK before_model_callback vs call-site) needs spike in ADK v1.26.0 source before implementation
 - Phase 42: hive-mind.ts frontend module disposition (keep vs remove) depends on whether /api/v2/hive-mind/* routes exist in current backend router — verify in Phase 42 plan
@@ -109,5 +112,5 @@ Progress: [░░░░░░░░░░] 0%
 ## Session Continuity
 
 **Last session:** 2026-03-05T19:06:04.968Z
-**Stopped At:** Phase 44 context gathered
-**Resume File:** .planning/phases/44-adk-runtime-controls/44-CONTEXT.md
+**Stopped At:** Phase 45 ready to plan
+**Resume File:** .planning/ROADMAP.md

@@ -10,110 +10,88 @@
 - ✅ **v1.5 Saga Orchestrator Deep Dive** — Phases 29-32 (shipped 2026-03-01)
 - ✅ **v1.6 WuzAPI Migration** — Phases 33-39 (shipped 2026-03-03)
 - ✅ **v1.7 Frontend Quality & ADK Integration** — Phases 40-43 (shipped 2026-03-05)
+- 🚧 **v1.8 ADK Stability & Error Hardening** — Phases 44-47 (in progress)
 
 ## Phases
 
 <details>
-<summary>✅ v1.0 Foundations (Phases 1-5) — SHIPPED 2026-02-22</summary>
+<summary>✅ v1.0-v1.7 (Phases 1-43) — SHIPPED</summary>
 
-- [x] Phase 1: Security Hardening (3/3 plans) — completed 2026-02-22
-- [x] Phase 2: LGPD Compliance (3/3 plans) — completed 2026-02-22
-- [x] Phase 3: Operational Stability (3/3 plans) — completed 2026-02-22
-- [x] Phase 4: AI Reliability (2/2 plans) — completed 2026-02-22
-- [x] Phase 5: Flow Consolidation (2/2 plans) — completed 2026-02-22
-
-Full details: `.planning/milestones/v1.0-ROADMAP.md`
-
-</details>
-
-<details>
-<summary>✅ v1.1 Architecture & Observability (Phases 6-9) — SHIPPED 2026-02-23</summary>
-
-- [x] Phase 6: Async Hot Path Migration (4/4 plans) — completed 2026-02-23
-- [x] Phase 7: LGPD Key Rotation (1/1 plan) — completed 2026-02-23
-- [x] Phase 8: AI Rationalization (2/2 plans) — completed 2026-02-23
-- [x] Phase 9: Observability (3/3 plans) — completed 2026-02-23
-
-Full details: `.planning/milestones/v1.1-ROADMAP.md`
+- [x] Phases 1-5 archived — `.planning/milestones/v1.0-ROADMAP.md`
+- [x] Phases 6-9 archived — `.planning/milestones/v1.1-ROADMAP.md`
+- [x] Phases 10-13 archived — `.planning/milestones/v1.2-ROADMAP.md`
+- [x] Phases 14-19 archived — `.planning/milestones/v1.3-ROADMAP.md`
+- [x] Phases 20-28 archived — `.planning/milestones/v1.4-ROADMAP.md`
+- [x] Phases 29-32 archived — `.planning/milestones/v1.5-ROADMAP.md`
+- [x] Phases 33-39 archived — `.planning/milestones/v1.6-ROADMAP.md`
+- [x] Phases 40-43 archived — `.planning/milestones/v1.7-ROADMAP.md`
 
 </details>
 
-<details>
-<summary>✅ v1.2 AI Framework Migration (Phases 10-13) — SHIPPED 2026-02-24</summary>
+- [x] **Phase 44: ADK Runtime Controls** - Limites por invocacao e ciclo de vida de sessao ADK no endpoint canonico. (completed 2026-03-05)
+- [ ] **Phase 45: ADK Tool Safety and Deterministic Errors** - Guardrails de tool e classificacao deterministica de falhas ADK.
+- [ ] **Phase 46: ADK Observability Baseline** - Metricas operacionais de latencia, throughput e erro por invocacao/agente.
+- [ ] **Phase 47: ADK CI Smoke Gate** - Gate de CI que bloqueia deploy com regressao em trajetorias oncologicas criticas.
 
-- [x] Phase 10: Preparation & Scope (4/4 plans) — completed 2026-02-24
-- [x] Phase 11: Agent Implementation (4/4 plans) — completed 2026-02-24
-- [x] Phase 12: Flow Orchestration Replacement (3/3 plans) — completed 2026-02-24
-- [x] Phase 13: SDK Migration & Cleanup (5/5 plans) — completed 2026-02-24
+## Phase Details
 
-Full details: `.planning/milestones/v1.2-ROADMAP.md`
+### Phase 44: ADK Runtime Controls
+**Goal**: Operadores conseguem controlar a execucao ADK por invocacao com limites previsiveis e sessao sob controle.
+**Depends on**: Phase 43
+**Requirements**: ADK-09, ADK-10
+**Success Criteria** (what must be TRUE):
+  1. Operador define `max_llm_calls` no `/api/v2/adk/run` e a invocacao encerra ao atingir o limite sem travar a API.
+  2. Operador define timeout por invocacao e recebe falha classificada de timeout quando o limite e excedido.
+  3. Operador cancela uma invocacao em andamento e confirma que o fluxo ADK para sem continuar processamento.
+  4. Operador executa create/resume/close de sessao ADK e observa crescimento de estado dentro do limite configurado.
+**Plans**: 3 plans
 
-</details>
+Plans:
 
-<details>
-<summary>✅ v1.3 Flow Health & Cleanup (Phases 14-19) — SHIPPED 2026-02-26</summary>
+- [x] 44-01: Extend the canonical ADK route contract and add application-owned session/invocation metadata storage
+- [x] 44-02: Enforce timeout, LLM budget, and explicit cancellation at the runtime boundary
+- [x] 44-03: Finalize bounded session-state behavior and lock regression coverage
 
-- [x] Phases 14-19 archived — full details: `.planning/milestones/v1.3-ROADMAP.md`
+### Phase 45: ADK Tool Safety and Deterministic Errors
+**Goal**: Falhas e bloqueios ADK tornam-se seguros e deterministicos antes de qualquer efeito colateral de tool.
+**Depends on**: Phase 44
+**Requirements**: ADK-11, ADK-12
+**Success Criteria** (what must be TRUE):
+  1. Chamada de tool insegura e bloqueada por `before_tool_callback` antes da execucao da tool.
+  2. Falhas ADK retornam exatamente uma classe deterministica entre `timeout`, `policy_block`, `tool_error` e `upstream_error`.
+  3. O mesmo tipo de falha gera a mesma classe em repeticoes do mesmo cenario, sem cair em erro generico ambiguo.
+**Plans**: TBD
 
-</details>
+### Phase 46: ADK Observability Baseline
+**Goal**: Operacao consegue monitorar saude ADK em producao por invocacao e por agente sem depender de debug manual.
+**Depends on**: Phase 45
+**Requirements**: OBS-02
+**Success Criteria** (what must be TRUE):
+  1. Operador visualiza latencia de invocacao ADK para o endpoint `/api/v2/adk/run`.
+  2. Operador visualiza throughput e taxa de erro ADK por agente em producao.
+  3. Operador identifica aumento de falhas ADK via metricas sem precisar inspecionar logs brutos request a request.
+**Plans**: TBD
 
-<details>
-<summary>✅ v1.4 AsyncSession & Test Stability (Phases 20-28) — SHIPPED 2026-02-28</summary>
-
-- [x] Phase 20: Schema Fix (1/1 plan) — completed 2026-02-26
-- [x] Phase 21: Async Foundation (5/5 plans) — completed 2026-02-26
-- [x] Phase 22: Critical Async Fixes (3/3 plans) — completed 2026-02-27
-- [x] Phase 23: Service Migration (9/9 plans) — completed 2026-02-27
-- [x] Phase 24: API Routers — Auth / Patients / Flow (7/7 plans) — completed 2026-02-27
-- [x] Phase 25: API Routers — Messages / Quiz (5/5 plans) — completed 2026-02-27
-- [x] Phase 26: API Routers — Analytics / Admin / System / Remaining (16/16 plans) — completed 2026-02-27
-- [x] Phase 27: Test Stability (6/6 plans) — completed 2026-02-28
-- [x] Phase 28: Async Session Gap Closure (2/2 plans) — completed 2026-02-28
-
-Full details: `.planning/milestones/v1.4-ROADMAP.md`
-
-</details>
-
-<details>
-<summary>✅ v1.5 Saga Orchestrator Deep Dive (Phases 29-32) — SHIPPED 2026-03-01</summary>
-
-- [x] Phase 29: Saga Module Audit (3/3 plans) — completed 2026-02-28
-- [x] Phase 30: Flow Integration Trace (4/4 plans) — completed 2026-03-01
-- [x] Phase 31: Compensation Integrity (2/2 plans) — completed 2026-03-01
-- [x] Phase 32: Test Coverage (5/5 plans) — completed 2026-03-01
-
-Full details: `.planning/milestones/v1.5-ROADMAP.md`
-
-</details>
-
-<details>
-<summary>✅ v1.6 WuzAPI Migration (Phases 33-39) — SHIPPED 2026-03-03</summary>
-
-- [x] Phases 33-39 archived — full details: `.planning/milestones/v1.6-ROADMAP.md`
-
-</details>
-
-<details>
-<summary>✅ v1.7 Frontend Quality & ADK Integration (Phases 40-43) — SHIPPED 2026-03-05</summary>
-
-- [x] Phases 40-43 archived — full details: `.planning/milestones/v1.7-ROADMAP.md`
-
-</details>
+### Phase 47: ADK CI Smoke Gate
+**Goal**: Release so avanca quando trajetorias ADK criticas do dominio oncologico continuam estaveis no CI.
+**Depends on**: Phase 46
+**Requirements**: ADK-13
+**Success Criteria** (what must be TRUE):
+  1. Time executa smoke ADK de trajetorias oncologicas criticas no CI e recebe resultado pass/fail por cenario.
+  2. Pipeline bloqueia deploy automaticamente quando qualquer cenario critico de smoke regressa.
+  3. Pipeline segue para deploy quando todos os cenarios criticos passam sem necessidade de bypass manual.
+**Plans**: TBD
 
 ## Progress
 
-| Phase                                     | Milestone | Plans Complete | Status   | Completed  |
-| ----------------------------------------- | --------- | -------------- | -------- | ---------- |
-| 1-5. Foundations                          | v1.0      | 13/13          | Complete | 2026-02-22 |
-| 6-9. Architecture & Observability         | v1.1      | 10/10          | Complete | 2026-02-23 |
-| 10-13. AI Framework Migration             | v1.2      | 16/16          | Complete | 2026-02-24 |
-| 14-19. Flow Health & Cleanup              | v1.3      | 31/31          | Complete | 2026-02-26 |
-| 20-28. AsyncSession & Test Stability      | v1.4      | 54/54          | Complete | 2026-02-28 |
-| 29-32. Saga Orchestrator Deep Dive        | v1.5      | 14/14          | Complete | 2026-03-01 |
-| 33-39. WuzAPI Migration                   | v1.6      | 21/21          | Complete | 2026-03-03 |
-| 40-43. Frontend Quality & ADK Integration | v1.7      | 20/20          | Complete | 2026-03-05 |
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 44. ADK Runtime Controls | 3/3 | Complete    | 2026-03-05 |
+| 45. ADK Tool Safety and Deterministic Errors | 0/TBD | Not started | - |
+| 46. ADK Observability Baseline | 0/TBD | Not started | - |
+| 47. ADK CI Smoke Gate | 0/TBD | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-05 — v1.7 milestone archived (Phases 40-43)_
+_Last updated: 2026-03-05 — Phase 44 completed; Phase 45 is next_

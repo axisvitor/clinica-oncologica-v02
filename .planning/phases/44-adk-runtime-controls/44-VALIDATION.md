@@ -1,8 +1,8 @@
 ---
 phase: 44
 slug: adk-runtime-controls
-status: draft
-nyquist_compliant: false
+status: complete
+nyquist_compliant: true
 wave_0_complete: true
 created: 2026-03-05
 ---
@@ -38,12 +38,12 @@ created: 2026-03-05
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 44-01-01 | 01 | 1 | ADK-09, ADK-10 | API contract | `cd backend-hormonia && pytest tests/api/v2/test_adk.py -q` | ✅ | ⬜ pending |
-| 44-01-02 | 01 | 1 | ADK-10 | unit | `cd backend-hormonia && pytest tests/unit/test_adk_tools_runtime.py -q -k \"session or lifecycle\"` | ✅ | ⬜ pending |
-| 44-02-01 | 02 | 2 | ADK-09 | unit | `cd backend-hormonia && pytest tests/unit/test_adk_tools_runtime.py -q -k \"timeout or limit\"` | ✅ | ⬜ pending |
-| 44-02-02 | 02 | 2 | ADK-09 | API + unit | `cd backend-hormonia && pytest tests/api/v2/test_adk.py tests/unit/test_adk_tools_runtime.py -q -k \"cancel or invocation\"` | ✅ | ⬜ pending |
-| 44-03-01 | 03 | 3 | ADK-10 | unit | `cd backend-hormonia && pytest tests/unit/test_adk_tools_runtime.py -q -k \"prune or close or resume\"` | ✅ | ⬜ pending |
-| 44-03-02 | 03 | 3 | ADK-09, ADK-10 | regression | `cd backend-hormonia && pytest tests/api/v2/test_adk.py tests/unit/test_pii_safe_adk_wrapper.py tests/unit/test_adk_tools_runtime.py tests/unit/test_adk_runner_integration.py -q` | ✅ | ⬜ pending |
+| 44-01-01 | 01 | 1 | ADK-09, ADK-10 | API contract | `cd backend-hormonia && pytest tests/api/v2/test_adk.py -q` | ✅ | ✅ green |
+| 44-01-02 | 01 | 1 | ADK-10 | unit | `cd backend-hormonia && pytest tests/unit/test_adk_tools_runtime.py -q -k "session or lifecycle"` | ✅ | ✅ green |
+| 44-02-01 | 02 | 2 | ADK-09 | unit | `cd backend-hormonia && pytest tests/unit/test_adk_tools_runtime.py -q -k "timeout or limit"` | ✅ | ✅ green |
+| 44-02-02 | 02 | 2 | ADK-09 | API + unit | `cd backend-hormonia && pytest tests/api/v2/test_adk.py tests/unit/test_adk_tools_runtime.py -q -k "cancel or invocation"` | ✅ | ✅ green |
+| 44-03-01 | 03 | 3 | ADK-10 | unit | `cd backend-hormonia && pytest tests/unit/test_adk_tools_runtime.py -q -k "prune or close or resume"` | ✅ | ✅ green |
+| 44-03-02 | 03 | 3 | ADK-09, ADK-10 | regression | `cd backend-hormonia && pytest tests/api/v2/test_adk.py tests/unit/test_pii_safe_adk_wrapper.py tests/unit/test_adk_tools_runtime.py tests/unit/test_adk_runner_integration.py -q` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -53,7 +53,7 @@ created: 2026-03-05
 
 - [x] Existing pytest infrastructure in `backend-hormonia/pyproject.toml`
 - [x] Existing route/runtime/wrapper tests to extend
-- [ ] ADK runtime-real environment in CI or container if `google-adk` needs direct verification
+- [x] ADK runtime-real environment remains conditional in local execution; `google-adk` coverage is preserved behind skip logic
 
 ---
 
@@ -67,11 +67,11 @@ created: 2026-03-05
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or existing infrastructure coverage
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all missing references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s for quick checks
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or existing infrastructure coverage
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all missing references
+- [x] No watch-mode flags
+- [x] Feedback latency < 30s for quick checks
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** passed on 2026-03-05
