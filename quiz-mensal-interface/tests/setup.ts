@@ -3,6 +3,7 @@
  */
 
 import '@testing-library/jest-dom'
+import './polyfills'
 import { server } from './mocks/server'
 
 // MSW Server Lifecycle

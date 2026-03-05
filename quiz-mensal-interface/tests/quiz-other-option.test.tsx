@@ -10,6 +10,13 @@ import '@testing-library/jest-dom'
 import QuizInterface from '@/components/quiz-interface'
 import { QuizSessionBuilder, QuizQuestionBuilder } from './fixtures/quiz-fixtures'
 
+const mockToast = jest.fn()
+jest.mock('@/hooks/use-toast', () => ({
+  useToast: () => ({
+    toast: mockToast,
+  }),
+}))
+
 // Mock fetch for API calls
 const mockFetch = jest.fn()
 global.fetch = mockFetch

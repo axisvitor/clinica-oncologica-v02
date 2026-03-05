@@ -2,7 +2,7 @@
  * MSW Request Handlers
  * Mock API endpoints for testing
  */
-import { rest } from 'msw'
+import { http, HttpResponse } from 'msw'
 import type { QuizSession, QuizSubmitResponse } from '@/types/quiz'
 
 const API_BASE_URL =
@@ -92,32 +92,30 @@ export const mockExpiredSession: QuizSession = {
  */
 export const handlers = [
   // Access Quiz - Success
-  rest.post(`${API_BASE_URL}/access`, (req, res, ctx) => {
-    const body = req.body as { token: string }
+  http.post(`${API_BASE_URL}/access`, async ({ request }) => {
+    const body = (await request.json()) as { token: string }
 
     if (body.token === 'valid-token') {
-      return res(ctx.json(mockQuizSession))
+      return HttpResponse.json(mockQuizSession)
     }
 
     if (body.token === 'expired-token') {
-      return res(ctx.json(mockExpiredSession))
+      return HttpResponse.json(mockExpiredSession)
     }
 
     if (body.token === 'token-with-rotation') {
-      return res(
-        ctx.json({
-          ...mockQuizSession,
-          new_token: 'rotated-token-123',
-        }),
-      )
+      return HttpResponse.json({
+        ...mockQuizSession,
+        new_token: 'rotated-token-123',
+      })
     }
 
-    return res(ctx.status(401), ctx.json({ detail: 'Token inválido ou expirado' }))
+    return HttpResponse.json({ detail: 'Token inválido ou expirado' }, { status: 401 })
   }),
 
   // Submit Answer - Success
-  rest.post(`${API_BASE_URL}/submit`, (req, res, ctx) => {
-    const body = req.body as {
+  http.post(`${API_BASE_URL}/submit`, async ({ request }) => {
+    const body = (await request.json()) as {
       token: string
       question_id: string
       response_value: string | string[]
@@ -126,7 +124,7 @@ export const handlers = [
 
     // Validate token
     if (!body.token || body.token === 'invalid-token') {
-      return res(ctx.status(401), ctx.json({ detail: 'Token inválido' }))
+      return HttpResponse.json({ detail: 'Token inválido' }, { status: 401 })
     }
 
     // Simulate token rotation on second answer
@@ -140,27 +138,27 @@ export const handlers = [
       response.new_token = 'rotated-token-456'
     }
 
-    return res(ctx.json(response))
+    return HttpResponse.json(response)
   }),
 
   // Health Check
-  rest.get(`${API_BASE_URL}/health`, (req, res, ctx) => {
-    return res(ctx.json({ status: 'healthy' }))
+  http.get(`${API_BASE_URL}/health`, () => {
+    return HttpResponse.json({ status: 'healthy' })
   }),
 
   // Simulate Network Error
-  rest.post(`${API_BASE_URL}/network-error`, (req, res, ctx) => {
-    return res.networkError('Failed to connect')
+  http.post(`${API_BASE_URL}/network-error`, () => {
+    return HttpResponse.error()
   }),
 
   // Simulate Timeout
-  rest.post(`${API_BASE_URL}/timeout`, async (req, res, ctx) => {
+  http.post(`${API_BASE_URL}/timeout`, async () => {
     await new Promise((resolve) => setTimeout(resolve, 35000)) // Longer than default timeout
-    return res(ctx.json({ success: true }))
+    return HttpResponse.json({ success: true })
   }),
 
   // Server Error
-  rest.post(`${API_BASE_URL}/server-error`, (req, res, ctx) => {
-    return res(ctx.status(500), ctx.json({ detail: 'Internal server error' }))
+  http.post(`${API_BASE_URL}/server-error`, () => {
+    return HttpResponse.json({ detail: 'Internal server error' }, { status: 500 })
   }),
 ]
