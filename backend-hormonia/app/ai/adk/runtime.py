@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 try:
@@ -32,13 +32,36 @@ from app.ai.adk.tools import (
 
 
 @dataclass(frozen=True)
+class ADKRuntimeControls:
+    max_llm_calls: int | None = None
+    timeout_seconds: float | None = None
+
+
+@dataclass(frozen=True)
+class ADKSessionControls:
+    action: str = "auto"
+    session_id: str | None = None
+    state_size_limit_bytes: int | None = None
+
+
+@dataclass(frozen=True)
+class ADKInvocationControls:
+    action: str = "run"
+    invocation_id: str | None = None
+
+
+@dataclass(frozen=True)
 class ADKToolRunRequest:
     prompt: str
     tool_name: str
     deps: AIDeps
     user_id: str
-    session_id: str
+    session_id: str | None = None
+    invocation_id: str | None = None
     context: dict[str, Any] | None = None
+    runtime: ADKRuntimeControls = field(default_factory=ADKRuntimeControls)
+    session: ADKSessionControls = field(default_factory=ADKSessionControls)
+    invocation: ADKInvocationControls = field(default_factory=ADKInvocationControls)
 
 
 async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
@@ -80,7 +103,7 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
                 )
                 events = executor.run_async(
                     user_id=request.user_id,
-                    session_id=request.session_id,
+                    session_id=request.session_id or "default-session",
                     new_message=message,
                 )
                 runner_output = await _extract_runner_output(events)
