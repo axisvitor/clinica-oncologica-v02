@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.ai.adk.runtime import ADKToolRunRequest, run_adk_tool
+from app.ai.adk.runtime import ADKSessionControls, ADKToolRunRequest, run_adk_tool
 from app.ai.adk.tools import get_adk_function_tools
 from app.ai.agents.deps import AIDeps
 
@@ -45,6 +45,7 @@ async def test_run_adk_tool_exercises_runner_path_with_domain_client(monkeypatch
             deps=AIDeps(gemini_api_key="fake-key", model_name="gemini-2.0-flash"),
             user_id="integration-user",
             session_id="integration-session",
+            session=ADKSessionControls(action="create", session_id="integration-session"),
             context={"patient_context": {"cycle": "Q1"}},
         )
     )

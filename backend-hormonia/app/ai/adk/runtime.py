@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass, field
+from threading import Lock
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 try:
     from google.adk.agents import Agent
     from google.adk.runners import Runner
+    try:
+        from google.adk.runners import RunConfig
+    except ImportError:
+        RunConfig = None
     from google.adk.sessions import InMemorySessionService
     from google.genai import types as genai_types
 
@@ -14,6 +21,7 @@ try:
 except ModuleNotFoundError:
     Agent = None
     Runner = None
+    RunConfig = None
     genai_types = None
     HAS_ADK_RUNTIME = False
 
@@ -23,12 +31,28 @@ except ModuleNotFoundError:
 if TYPE_CHECKING:
     from app.ai.agents.deps import AIDeps
 
+from app.ai.adk.session_store import ADKSessionStore, DEFAULT_STATE_SIZE_LIMIT_BYTES
 from app.ai.adk.tools import (
     get_adk_function_tools,
     get_tool_registry,
     reset_adk_tool_context,
     set_adk_tool_context,
 )
+from app.config import settings
+
+DEFAULT_MAX_LLM_CALLS = 4
+DEFAULT_TIMEOUT_SECONDS = float(
+    getattr(settings, "AI_GEMINI_TIMEOUT_SECONDS", 30) or 30
+)
+_TERMINAL_INVOCATION_STATUSES = {
+    "cancelled",
+    "completed",
+    "error",
+    "limit_exceeded",
+    "timeout",
+}
+_IN_FLIGHT_INVOCATIONS: dict[str, asyncio.Task[Any]] = {}
+_IN_FLIGHT_LOCK = Lock()
 
 
 @dataclass(frozen=True)
@@ -64,29 +88,446 @@ class ADKToolRunRequest:
     invocation: ADKInvocationControls = field(default_factory=ADKInvocationControls)
 
 
+class ADKLimitExceededError(RuntimeError):
+    pass
+
+
+class ADKLLMBudget:
+    def __init__(self, max_calls: int) -> None:
+        self.max_calls = max_calls
+        self.used_calls = 0
+
+    def consume(self, stage: str) -> None:
+        self.used_calls += 1
+        if self.used_calls > self.max_calls:
+            raise ADKLimitExceededError(stage)
+
+
 async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
-    """Execute a single ADK tool invocation and return normalized payload."""
+    """Execute a single ADK tool invocation with lifecycle-aware controls."""
     registry = get_tool_registry()
     tool_name = request.tool_name.strip().lower()
     handler = registry.get(tool_name)
     if handler is None:
-        return {
-            "status": "error",
-            "result": {
+        return _build_result(
+            status="error",
+            result={
                 "message": f"Unsupported ADK tool: {request.tool_name}",
                 "tool": request.tool_name,
+                "type": "unsupported_tool",
             },
+        )
+
+    store = ADKSessionStore()
+    if request.invocation.action == "cancel":
+        return await _cancel_invocation(store=store, request=request, tool_name=tool_name)
+
+    session_resolution = await _resolve_session(store=store, request=request, tool_name=tool_name)
+    if "status" in session_resolution:
+        return session_resolution
+
+    session_id = str(session_resolution["session_id"])
+    merged_context = dict(session_resolution["context"])
+    invocation_id = request.invocation.invocation_id or f"adk-invocation-{uuid4().hex}"
+    merged_context["session_id"] = session_id
+    merged_context["invocation_id"] = invocation_id
+
+    runtime_payload = {
+        "max_llm_calls": _resolve_max_llm_calls(request.runtime),
+        "timeout_seconds": _resolve_timeout_seconds(request.runtime),
+    }
+
+    enriched_request = ADKToolRunRequest(
+        prompt=request.prompt,
+        tool_name=tool_name,
+        deps=request.deps,
+        user_id=request.user_id,
+        session_id=session_id,
+        invocation_id=invocation_id,
+        context=merged_context,
+        runtime=ADKRuntimeControls(**runtime_payload),
+        session=ADKSessionControls(
+            action=request.session.action,
+            session_id=session_id,
+            state_size_limit_bytes=(
+                request.session.state_size_limit_bytes
+                or DEFAULT_STATE_SIZE_LIMIT_BYTES
+            ),
+        ),
+        invocation=ADKInvocationControls(
+            action="run",
+            invocation_id=invocation_id,
+        ),
+    )
+
+    await store.register_invocation(
+        invocation_id=invocation_id,
+        session_id=session_id,
+        tool_name=tool_name,
+        user_id=request.user_id,
+        runtime=runtime_payload,
+    )
+    await store.mark_invocation_running(invocation_id)
+    _register_in_flight(invocation_id, asyncio.current_task())
+
+    try:
+        raw_result = await asyncio.wait_for(
+            _execute_request(enriched_request, handler=handler),
+            timeout=runtime_payload["timeout_seconds"],
+        )
+        normalized = _normalize_result(raw_result)
+        final_invocation = await store.finish_invocation(
+            invocation_id,
+            status=_invocation_status_for(normalized["status"]),
+            result=normalized.get("result"),
+        )
+        if final_invocation and final_invocation.get("status") == "cancelled":
+            return _build_result(
+                status="cancelled",
+                result=final_invocation.get("result")
+                or {
+                    "message": "Invocation cancelled by operator",
+                    "invocation_id": invocation_id,
+                },
+                session_id=session_id,
+            )
+
+        if normalized["status"] == "success":
+            await store.update_session_state(
+                session_id,
+                tool_name=tool_name,
+                prompt=request.prompt,
+                context=merged_context,
+                result=normalized.get("result"),
+                state_size_limit_bytes=request.session.state_size_limit_bytes,
+                invocation_id=invocation_id,
+            )
+
+        return _build_result(
+            status=normalized["status"],
+            result=normalized.get("result"),
+            session_id=session_id,
+            invocation_id=invocation_id,
+        )
+    except asyncio.TimeoutError:
+        timeout_result = {
+            "message": (
+                f"ADK execution timed out after {runtime_payload['timeout_seconds']} seconds"
+            ),
+            "invocation_id": invocation_id,
+            "type": "timeout",
         }
+        await store.finish_invocation(
+            invocation_id,
+            status="timeout",
+            result=timeout_result,
+        )
+        return _build_result(
+            status="timeout",
+            result=timeout_result,
+            session_id=session_id,
+            invocation_id=invocation_id,
+        )
+    except asyncio.CancelledError:
+        cancel_result = {
+            "message": "Invocation cancelled by operator",
+            "invocation_id": invocation_id,
+            "type": "cancelled",
+        }
+        await store.finish_invocation(
+            invocation_id,
+            status="cancelled",
+            result=cancel_result,
+        )
+        return _build_result(
+            status="cancelled",
+            result=cancel_result,
+            session_id=session_id,
+            invocation_id=invocation_id,
+        )
+    except ADKLimitExceededError:
+        limit_result = {
+            "message": "LLM call budget exhausted before execution completed",
+            "invocation_id": invocation_id,
+            "max_llm_calls": runtime_payload["max_llm_calls"],
+            "type": "limit_exceeded",
+        }
+        await store.finish_invocation(
+            invocation_id,
+            status="limit_exceeded",
+            result=limit_result,
+        )
+        return _build_result(
+            status="limit_exceeded",
+            result=limit_result,
+            session_id=session_id,
+            invocation_id=invocation_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        error_result = {
+            "message": str(exc) or "ADK execution failed",
+            "invocation_id": invocation_id,
+            "type": "runtime_error",
+        }
+        await store.finish_invocation(
+            invocation_id,
+            status="error",
+            result=error_result,
+        )
+        return _build_result(
+            status="error",
+            result=error_result,
+            session_id=session_id,
+            invocation_id=invocation_id,
+        )
+    finally:
+        _unregister_in_flight(invocation_id)
+
+
+def _register_in_flight(invocation_id: str, task: asyncio.Task[Any] | None) -> None:
+    if task is None:
+        return
+    with _IN_FLIGHT_LOCK:
+        _IN_FLIGHT_INVOCATIONS[invocation_id] = task
+
+
+def _unregister_in_flight(invocation_id: str) -> None:
+    with _IN_FLIGHT_LOCK:
+        _IN_FLIGHT_INVOCATIONS.pop(invocation_id, None)
+
+
+def _cancel_in_flight_task(invocation_id: str) -> None:
+    with _IN_FLIGHT_LOCK:
+        task = _IN_FLIGHT_INVOCATIONS.get(invocation_id)
+    if task is not None and not task.done():
+        task.cancel()
+
+
+async def _cancel_invocation(
+    *,
+    store: ADKSessionStore,
+    request: ADKToolRunRequest,
+    tool_name: str,
+) -> dict[str, Any]:
+    invocation_id = request.invocation.invocation_id or request.invocation_id
+    if invocation_id is None:
+        return _build_result(
+            status="error",
+            result={
+                "message": "Invocation id is required to cancel a running invocation",
+                "type": "invocation_id_required",
+            },
+        )
+
+    payload = await store.cancel_invocation(invocation_id)
+    if payload is None:
+        return _build_result(
+            status="error",
+            result={
+                "message": f"Invocation '{invocation_id}' was not found",
+                "invocation_id": invocation_id,
+                "type": "invocation_not_found",
+            },
+            session_id=request.session.session_id or request.session_id,
+        )
+
+    if payload.get("tool_name") != tool_name:
+        return _build_result(
+            status="error",
+            result={
+                "message": "Invocation belongs to a different ADK tool",
+                "invocation_id": invocation_id,
+                "requested_tool": tool_name,
+                "stored_tool": payload.get("tool_name"),
+                "type": "invocation_tool_mismatch",
+            },
+            session_id=payload.get("session_id"),
+        )
+
+    _cancel_in_flight_task(invocation_id)
+    return _build_result(
+        status="cancelled",
+        result=payload.get("result")
+        or {
+            "message": "Invocation cancelled by operator",
+            "invocation_id": invocation_id,
+            "type": "cancelled",
+        },
+        session_id=payload.get("session_id"),
+        invocation_id=invocation_id,
+    )
+
+
+async def _resolve_session(
+    *,
+    store: ADKSessionStore,
+    request: ADKToolRunRequest,
+    tool_name: str,
+) -> dict[str, Any]:
+    request_context = dict(request.context or {})
+    session_controls = request.session
+    session_id = session_controls.session_id or request.session_id
+
+    if session_controls.action == "close":
+        if session_id is None:
+            return _build_result(
+                status="error",
+                result={
+                    "message": "Session id is required to close a session",
+                    "type": "session_id_required",
+                },
+            )
+        payload = await store.get_session(session_id)
+        if payload is None:
+            return _build_result(
+                status="error",
+                result={
+                    "message": f"Session '{session_id}' was not found",
+                    "session_id": session_id,
+                    "type": "session_not_found",
+                },
+                session_id=session_id,
+            )
+        if payload.get("tool_name") != tool_name:
+            return _build_result(
+                status="error",
+                result={
+                    "message": "Session belongs to a different ADK tool",
+                    "session_id": session_id,
+                    "requested_tool": tool_name,
+                    "stored_tool": payload.get("tool_name"),
+                    "type": "session_tool_mismatch",
+                },
+                session_id=session_id,
+            )
+        payload = await store.close_session(session_id)
+        return _build_result(
+            status="closed",
+            result={
+                "message": "Session closed",
+                "session_id": session_id,
+                "type": "session_closed",
+            },
+            session_id=session_id,
+        )
+
+    if session_controls.action == "resume" or (
+        session_controls.action == "auto" and session_id is not None
+    ):
+        if session_id is None:
+            return _build_result(
+                status="error",
+                result={
+                    "message": "Session id is required to resume a session",
+                    "type": "session_id_required",
+                },
+            )
+        payload, session_context, error = await store.prepare_resume(
+            session_id,
+            tool_name=tool_name,
+            state_size_limit_bytes=session_controls.state_size_limit_bytes,
+        )
+        if error is not None:
+            return _session_error(
+                error,
+                session_id=session_id,
+                requested_tool=tool_name,
+                stored_tool=payload.get("tool_name") if payload else None,
+            )
+        context = store.build_run_context(
+            request_context=request_context,
+            session_context=session_context,
+        )
+        return {"context": context, "session_id": session_id}
+
+    if session_controls.action == "create" and session_id is not None:
+        existing = await store.get_session(session_id)
+        if existing is not None and existing.get("status") != "expired":
+            return _build_result(
+                status="error",
+                result={
+                    "message": f"Session '{session_id}' already exists",
+                    "session_id": session_id,
+                    "type": "session_exists",
+                },
+                session_id=session_id,
+            )
+
+    created_session = await store.create_session(
+        tool_name=tool_name,
+        user_id=request.user_id,
+        session_id=session_id if session_controls.action == "create" else None,
+        state_size_limit_bytes=session_controls.state_size_limit_bytes,
+    )
+    context = store.build_run_context(
+        request_context=request_context,
+        session_context=created_session.get("state"),
+    )
+    return {"context": context, "session_id": created_session["session_id"]}
+
+
+def _session_error(
+    reason: str,
+    *,
+    session_id: str,
+    requested_tool: str,
+    stored_tool: str | None,
+) -> dict[str, Any]:
+    if reason == "closed":
+        message = f"Session '{session_id}' is closed and cannot be reused"
+        error_type = "session_closed"
+    elif reason == "expired":
+        message = f"Session '{session_id}' expired due to inactivity"
+        error_type = "session_expired"
+    elif reason == "tool_mismatch":
+        message = "Session belongs to a different ADK tool"
+        error_type = "session_tool_mismatch"
+    elif reason == "oversized":
+        message = (
+            f"Session '{session_id}' exceeds the configured state budget and must be restarted"
+        )
+        error_type = "session_state_limit_exceeded"
+    else:
+        message = f"Session '{session_id}' was not found"
+        error_type = "session_not_found"
+
+    payload: dict[str, Any] = {
+        "message": message,
+        "session_id": session_id,
+        "type": error_type,
+    }
+    if stored_tool is not None and stored_tool != requested_tool:
+        payload["requested_tool"] = requested_tool
+        payload["stored_tool"] = stored_tool
+
+    return _build_result(
+        status="error",
+        result=payload,
+        session_id=session_id,
+    )
+
+
+async def _execute_request(
+    request: ADKToolRunRequest,
+    *,
+    handler: Any,
+) -> dict[str, Any]:
+    budget = ADKLLMBudget(_resolve_max_llm_calls(request.runtime))
+    budget.consume("orchestration")
+    budget.consume("tool_execution")
 
     if HAS_ADK_RUNTIME and Agent is not None and Runner is not None:
         adk_tools = get_adk_function_tools()
-        function_tool = adk_tools.get(tool_name)
+        function_tool = adk_tools.get(request.tool_name)
 
         if function_tool is not None:
-            context_token = set_adk_tool_context(deps=request.deps, context=request.context)
+            context_token = set_adk_tool_context(
+                deps=request.deps,
+                context=request.context,
+            )
             try:
                 agent = Agent(
-                    name=f"hormonia-adk-{tool_name}",
+                    name=f"hormonia-adk-{request.tool_name}",
                     model=request.deps.model_name or "gemini-2.0-flash",
                     tools=[function_tool],
                     instruction="Use the available tool to process the prompt and return the result.",
@@ -98,14 +539,18 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
                 )
                 message = _build_runner_message(
                     prompt=request.prompt,
-                    tool_name=tool_name,
+                    tool_name=request.tool_name,
                     context=request.context,
                 )
-                events = executor.run_async(
-                    user_id=request.user_id,
-                    session_id=request.session_id or "default-session",
-                    new_message=message,
-                )
+                run_kwargs: dict[str, Any] = {
+                    "user_id": request.user_id,
+                    "session_id": request.session_id or "default-session",
+                    "new_message": message,
+                }
+                run_config = _build_run_config(request.runtime)
+                if run_config is not None:
+                    run_kwargs["run_config"] = run_config
+                events = executor.run_async(**run_kwargs)
                 runner_output = await _extract_runner_output(events)
                 if runner_output is not None:
                     return _normalize_result(runner_output)
@@ -118,8 +563,55 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
             finally:
                 reset_adk_tool_context(context_token)
 
-    result = await handler(prompt=request.prompt, deps=request.deps, context=request.context)
+    result = await handler(
+        prompt=request.prompt,
+        deps=request.deps,
+        context=request.context,
+    )
     return _normalize_result(result)
+
+
+def _build_run_config(runtime: ADKRuntimeControls) -> Any:
+    if RunConfig is None:
+        return None
+    try:
+        return RunConfig(max_llm_calls=_resolve_max_llm_calls(runtime))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _build_result(
+    *,
+    status: str,
+    result: Any,
+    session_id: str | None = None,
+    invocation_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "status": status,
+        "result": result,
+    }
+    if session_id is not None:
+        payload["session_id"] = session_id
+    if invocation_id is not None:
+        payload["invocation_id"] = invocation_id
+    return payload
+
+
+def _resolve_timeout_seconds(runtime: ADKRuntimeControls) -> float:
+    return float(runtime.timeout_seconds or DEFAULT_TIMEOUT_SECONDS)
+
+
+def _resolve_max_llm_calls(runtime: ADKRuntimeControls) -> int:
+    return int(runtime.max_llm_calls or DEFAULT_MAX_LLM_CALLS)
+
+
+def _invocation_status_for(status: str) -> str:
+    if status == "success":
+        return "completed"
+    if status in _TERMINAL_INVOCATION_STATUSES:
+        return status
+    return "error"
 
 
 def _normalize_result(result: Any) -> dict[str, Any]:

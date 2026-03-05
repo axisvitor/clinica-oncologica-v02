@@ -147,3 +147,185 @@ def test_adk_run_rejects_close_without_session_id(
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
     assert calls == []
+
+
+def test_adk_run_rejects_cancel_without_invocation_id(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    async def fake_safe_run(self, prompt, deps, *, operation, context=None):
+        calls.append("called")
+        return {"status": "success", "result": "should-not-run"}
+
+    monkeypatch.setattr(
+        "app.api.v2.routers.adk.PIISafeADKWrapper.safe_run",
+        fake_safe_run,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/v2/adk/run",
+        json={
+            "tool_name": "sentiment",
+            "invocation": {"action": "cancel"},
+        },
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert calls == []
+
+
+def test_adk_run_rejects_cancel_and_create_combination(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    async def fake_safe_run(self, prompt, deps, *, operation, context=None):
+        calls.append("called")
+        return {"status": "success", "result": "should-not-run"}
+
+    monkeypatch.setattr(
+        "app.api.v2.routers.adk.PIISafeADKWrapper.safe_run",
+        fake_safe_run,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/v2/adk/run",
+        json={
+            "tool_name": "sentiment",
+            "session": {"action": "create"},
+            "invocation": {"action": "cancel", "invocation_id": "inv-1"},
+        },
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert calls == []
+
+
+def test_adk_run_rejects_mismatched_session_ids(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    async def fake_safe_run(self, prompt, deps, *, operation, context=None):
+        calls.append("called")
+        return {"status": "success", "result": "should-not-run"}
+
+    monkeypatch.setattr(
+        "app.api.v2.routers.adk.PIISafeADKWrapper.safe_run",
+        fake_safe_run,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/v2/adk/run",
+        json={
+            "prompt": "teste",
+            "tool_name": "sentiment",
+            "session_id": "legacy-session",
+            "session": {"action": "resume", "session_id": "new-session"},
+        },
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    ("safe_result", "expected_status", "expected_session_id", "expected_type"),
+    [
+        (
+            {
+                "status": "success",
+                "session_id": "session-auto",
+                "result": {"text": "processed:novo"},
+            },
+            "success",
+            "session-auto",
+            None,
+        ),
+        (
+            {
+                "status": "closed",
+                "session_id": "session-close",
+                "result": {"message": "Session closed", "type": "session_closed"},
+            },
+            "closed",
+            "session-close",
+            "session_closed",
+        ),
+        (
+            {
+                "status": "cancelled",
+                "session_id": "session-cancel",
+                "result": {"message": "Invocation cancelled", "type": "cancelled"},
+            },
+            "cancelled",
+            "session-cancel",
+            "cancelled",
+        ),
+        (
+            {
+                "status": "timeout",
+                "session_id": "session-timeout",
+                "result": {"message": "ADK execution timed out", "type": "timeout"},
+            },
+            "timeout",
+            "session-timeout",
+            "timeout",
+        ),
+        (
+            {
+                "status": "limit_exceeded",
+                "session_id": "session-limit",
+                "result": {
+                    "message": "LLM call budget exhausted",
+                    "type": "limit_exceeded",
+                },
+            },
+            "limit_exceeded",
+            "session-limit",
+            "limit_exceeded",
+        ),
+    ],
+)
+def test_adk_run_normalizes_runtime_lifecycle_statuses(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    safe_result: dict[str, object],
+    expected_status: str,
+    expected_session_id: str,
+    expected_type: str | None,
+) -> None:
+    async def fake_safe_run(self, prompt, deps, *, operation, context=None):
+        return safe_result
+
+    monkeypatch.setattr(
+        "app.api.v2.routers.adk.PIISafeADKWrapper.safe_run",
+        fake_safe_run,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/v2/adk/run",
+        json={
+            "prompt": "novo",
+            "tool_name": "sentiment",
+            "invocation": {"action": "run", "invocation_id": "inv-1"},
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.json()
+    assert payload["status"] == expected_status
+    assert payload["tool_name"] == "sentiment"
+    assert payload["session_id"] == expected_session_id
+    if expected_type is None:
+        assert payload["output"] == {"text": "processed:novo"}
+    else:
+        assert payload["output"]["type"] == expected_type
