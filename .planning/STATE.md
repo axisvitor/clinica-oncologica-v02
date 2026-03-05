@@ -3,70 +3,70 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Frontend Quality & ADK Integration
 current_plan: 3
-status: executing
-stopped_at: Completed 43-05-PLAN.md
-last_updated: "2026-03-05T13:27:11.196Z"
+status: milestone_complete
+stopped_at: Milestone v1.7 archived and closed
+last_updated: "2026-03-05T14:38:23Z"
 last_activity: 2026-03-05
 progress:
   total_phases: 4
   completed_phases: 4
   total_plans: 20
   completed_plans: 20
-  percent: 97
+  percent: 100
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-03)
+See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Phase 41 — ADK Agent Integration (Phase 40 complete)
+**Current focus:** Milestone v1.7 archived; preparing next milestone definition (`/gsd-new-milestone`)
 
 ## Current Position
 
-Phase: 41 of 43 (ADK Agent Integration)
-Plan: 02 of 03
-Current Plan: 3
-Total Plans in Phase: 3
-Status: Ready to execute
+Milestone: v1.7 Frontend Quality & ADK Integration
+Phases: 40-43 complete
+Plans: 20/20 complete
+Status: Milestone complete and archived
 Last Activity: 2026-03-05
 
-Progress: [█████████░] 97%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
-| Milestone | Phases | Plans | Timeline |
-|-----------|--------|-------|----------|
-| v1.0 Foundations | 5 | 13 | 1 day (2026-02-22) |
-| v1.1 Architecture & Observability | 4 | 10 | 1 day (2026-02-23) |
-| v1.2 AI Framework Migration | 4 | 16 | 1 day (2026-02-24) |
-| v1.3 Flow Health & Cleanup | 6 | 31 | 2 days (2026-02-24 → 2026-02-26) |
-| v1.4 AsyncSession & Test Stability | 9 | 54 | 3 days (2026-02-26 → 2026-02-28) |
-| v1.5 Saga Orchestrator Deep Dive | 4 | 14 | 2 days (2026-02-28 → 2026-03-01) |
-| v1.6 WuzAPI Migration | 7 | 21 | 3 days (2026-03-01 → 2026-03-03) |
-| **Cumulative (shipped)** | **39 phases** | **159 plans** | **11 days** |
-| Phase 40 P01 | 12 min | 2 tasks | 10 files |
-| Phase 40 P02 | 9 min | 2 tasks | 3 files |
-| Phase 40 P03 | 5 min | 2 tasks | 2 files |
-| Phase 41 P01 | 9 min | 2 tasks | 5 files |
-| Phase 41 P03 | 8 | 2 tasks | 2 files |
-| Phase 41 P02 | 9 min | 2 tasks | 4 files |
-| Phase 41 P04 | 19 min | 1 tasks | 5 files |
-| Phase 42 P03 | 8m | 1 tasks | 489 files |
-| Phase 42 P01 | 22 min | 2 tasks | 4 files |
-| Phase 42 P02 | 9 min | 2 tasks | 2 files |
-| Phase 42-admin-spa-quality P04 | 14m | 2 tasks | 4 files |
-| Phase 42-admin-spa-quality P05 | 7m | 2 tasks | 4 files |
-| Phase 42-admin-spa-quality P06 | 35 min | 2 tasks | 3 files |
-| Phase 42-admin-spa-quality P07 | 25 min | 2 tasks | 7 files |
-| Phase 43-quiz-interface-quality P01 | 54 min | 2 tasks | 118 files |
-| Phase 43-quiz-interface-quality P02 | 71 min | 2 tasks | 6 files |
-| Phase 43-quiz-interface-quality P03 | 25 min | 1 tasks | 8 files |
-| Phase 43 P04 | 21 min | 2 tasks | 7 files |
-| Phase 43-quiz-interface-quality P06 | 36 min | 2 tasks | 2 files |
-| Phase 43 P05 | 30 min | 2 tasks | 6 files |
+| Milestone                               | Phases        | Plans         | Timeline                         |
+| --------------------------------------- | ------------- | ------------- | -------------------------------- |
+| v1.0 Foundations                        | 5             | 13            | 1 day (2026-02-22)               |
+| v1.1 Architecture & Observability       | 4             | 10            | 1 day (2026-02-23)               |
+| v1.2 AI Framework Migration             | 4             | 16            | 1 day (2026-02-24)               |
+| v1.3 Flow Health & Cleanup              | 6             | 31            | 2 days (2026-02-24 → 2026-02-26) |
+| v1.4 AsyncSession & Test Stability      | 9             | 54            | 3 days (2026-02-26 → 2026-02-28) |
+| v1.5 Saga Orchestrator Deep Dive        | 4             | 14            | 2 days (2026-02-28 → 2026-03-01) |
+| v1.6 WuzAPI Migration                   | 7             | 21            | 3 days (2026-03-01 → 2026-03-03) |
+| v1.7 Frontend Quality & ADK Integration | 4             | 20            | 3 days (2026-03-03 → 2026-03-05) |
+| **Cumulative (shipped)**                | **43 phases** | **179 plans** | **14 days**                      |
+| Phase 40 P01                            | 12 min        | 2 tasks       | 10 files                         |
+| Phase 40 P02                            | 9 min         | 2 tasks       | 3 files                          |
+| Phase 40 P03                            | 5 min         | 2 tasks       | 2 files                          |
+| Phase 41 P01                            | 9 min         | 2 tasks       | 5 files                          |
+| Phase 41 P03                            | 8             | 2 tasks       | 2 files                          |
+| Phase 41 P02                            | 9 min         | 2 tasks       | 4 files                          |
+| Phase 41 P04                            | 19 min        | 1 tasks       | 5 files                          |
+| Phase 42 P03                            | 8m            | 1 tasks       | 489 files                        |
+| Phase 42 P01                            | 22 min        | 2 tasks       | 4 files                          |
+| Phase 42 P02                            | 9 min         | 2 tasks       | 2 files                          |
+| Phase 42-admin-spa-quality P04          | 14m           | 2 tasks       | 4 files                          |
+| Phase 42-admin-spa-quality P05          | 7m            | 2 tasks       | 4 files                          |
+| Phase 42-admin-spa-quality P06          | 35 min        | 2 tasks       | 3 files                          |
+| Phase 42-admin-spa-quality P07          | 25 min        | 2 tasks       | 7 files                          |
+| Phase 43-quiz-interface-quality P01     | 54 min        | 2 tasks       | 118 files                        |
+| Phase 43-quiz-interface-quality P02     | 71 min        | 2 tasks       | 6 files                          |
+| Phase 43-quiz-interface-quality P03     | 25 min        | 1 tasks       | 8 files                          |
+| Phase 43 P04                            | 21 min        | 2 tasks       | 7 files                          |
+| Phase 43-quiz-interface-quality P06     | 36 min        | 2 tasks       | 2 files                          |
+| Phase 43 P05                            | 30 min        | 2 tasks       | 6 files                          |
 
 ## Accumulated Context
 
@@ -76,7 +76,7 @@ Progress: [█████████░] 97%
 - [v1.7 roadmap]: ADK split into two phases (40: foundation/safety, 41: wiring) to enforce PIISafeADKWrapper + CI guard gate before any patient data reaches ADK
 - [v1.7 roadmap]: Phase 43 depends on Phase 42 (tooling decisions — ESLint major, Prettier config pattern — made once in admin SPA then mirrored to quiz)
 - [v1.7 research]: OTel removal target is instrumentation packages only (not opentelemetry-api/sdk core); ADK re-introduces OTel core as transitive dep at its own version range
-- [v1.7 research]: HiveMind LangGraph dead code (LANGGRAPH_ONLY enum value + _process_with_langgraph method) is a live production crash risk — must be removed in Phase 41
+- [v1.7 research]: HiveMind LangGraph dead code (LANGGRAPH_ONLY enum value + \_process_with_langgraph method) is a live production crash risk — must be removed in Phase 41
 - [v1.6]: WuzAPIClient uses aiohttp; hard cut with no dual-provider mode; Evolution tombstoned after Phase 36
 - [Phase 40]: Used python:3.13-slim container for ADK compatibility gate because host python3.13 was unavailable.
 - [Phase 40]: Kept protobuf pin and updated rationale for retained Google/ADK dependency compatibility.
@@ -85,9 +85,9 @@ Progress: [█████████░] 97%
 - [Phase 40]: Keep AIDeps typing via TYPE_CHECKING to avoid runtime import side effects during package import
 - [Phase 40]: Keep one CI guard script for pydantic-ai and ADK direct-run policy
 - [Phase 40]: Add optional scan-root argument so guard regression tests can target tmp fixtures
-- [Phase 41]: Keep ADK execution behind PIISafeADKWrapper by delegating wrapper _invoke_adk to runtime helper.
+- [Phase 41]: Keep ADK execution behind PIISafeADKWrapper by delegating wrapper \_invoke_adk to runtime helper.
 - [Phase 41]: Normalize all tool and runtime responses to stable {status, result} payloads for downstream endpoint wiring.
-- [Phase 41]: Removed LANGGRAPH_ONLY mode and _process_with_langgraph path entirely to eliminate unsupported crash-prone execution.
+- [Phase 41]: Removed LANGGRAPH_ONLY mode and \_process_with_langgraph path entirely to eliminate unsupported crash-prone execution.
 - [Phase 41]: Added source-level and import-level regression tests to permanently guard against LangGraph tombstone symbol reintroduction.
 - [Phase 41]: Kept /api/v2/adk/run as a thin router that always delegates execution through PIISafeADKWrapper.safe_run.
 - [Phase 41]: Standardized ADK endpoint response as {status, tool_name, session_id, output} with request_source metadata in wrapper context.
@@ -96,7 +96,7 @@ Progress: [█████████░] 97%
 - [Phase 42]: Use semi:false and singleQuote:true as the admin SPA formatting baseline with Prettier
 - [Phase 42]: Keep eslint-config-prettier as the final tseslint.config entry to disable formatting conflicts
 - [Phase 42]: Kept Hive Mind frontend client surface limited to /health and /agents to match live backend endpoints and avoid guaranteed 404 routes.
-- [Phase 42]: Confirmed ADMIN-03 duplicate-call audit: WhatsAppService uses /api/v2/whatsapp/* while apiClient modules do not call WhatsApp endpoints, so no endpoint deduplication was required.
+- [Phase 42]: Confirmed ADMIN-03 duplicate-call audit: WhatsAppService uses /api/v2/whatsapp/\* while apiClient modules do not call WhatsApp endpoints, so no endpoint deduplication was required.
 - [Phase 42]: Kept Hive Mind query keys scoped to ['hive-mind','agents'] and ['hive-mind','health'] to keep TanStack Query cache segments explicit and stable.
 - [Phase 42]: Preserved existing loading/error/content UI while replacing manual interval polling with useQuery refetchInterval for both Hive Mind widgets.
 - [Phase 42-admin-spa-quality]: Kept recharts as intentional knip false positive due to dynamic import usage.
@@ -128,10 +128,10 @@ None.
 
 - Phase 40: ADK pip resolution with pydantic-ai-slim[google] in Python 3.13 is MEDIUM confidence — first task of Phase 40 must run dry-run install and document resolved versions before touching requirements.txt
 - Phase 40: PIISafeADKWrapper hook point (ADK before_model_callback vs call-site) needs spike in ADK v1.26.0 source before implementation
-- Phase 42: hive-mind.ts frontend module disposition (keep vs remove) depends on whether /api/v2/hive-mind/* routes exist in current backend router — verify in Phase 42 plan
+- Phase 42: hive-mind.ts frontend module disposition (keep vs remove) depends on whether /api/v2/hive-mind/\* routes exist in current backend router — verify in Phase 42 plan
 
 ## Session Continuity
 
-**Last session:** 2026-03-05T12:56:11.262Z
-**Stopped At:** Completed 43-05-PLAN.md
-**Resume File:** None
+**Last session:** 2026-03-05T14:38:23Z
+**Stopped At:** Milestone v1.7 archived and tagged
+**Resume File:** Run `/gsd-new-milestone`

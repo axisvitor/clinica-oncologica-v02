@@ -48,14 +48,16 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - ✓ WuzAPI provider migration complete (client, webhook, outbound, cleanup, CI guards) — v1.6
 - ✓ Evolution API runtime removed and tombstoned across Stack A/Stack B — v1.6
 - ✓ WuzAPI integration polish from audit findings (settings secret consistency + contacts sync 501) — v1.6
+- ✓ OpenTelemetry instrumentation removido e Google ADK integrado com PIISafeADKWrapper + FunctionTool/Runner path — v1.7
+- ✓ Frontend quality hardening concluida em admin SPA e quiz interface (format/lint/type/test gates) — v1.7
 
 ### Active
 
-- [ ] Revisar e corrigir ambos frontends (admin SPA + quiz mensal): dead code, API alignment, layout, qualidade
-- [ ] Remover OpenTelemetry e integrar Google ADK no sistema
 - [ ] Executar verificacao operacional em ambiente real WuzAPI (send/media, webhook HMAC real, QR pairing, LID DLQ observability)
 - [ ] Modelar disponibilidade medica por medico (substituir baseline hardcoded Mon-Fri 08:00-17:00)
 - [ ] Continuar reducao de arquivos >500 linhas em modulos criticos
+- [ ] Definir replacement de observabilidade pos-OTel (OBS-01)
+- [ ] Instrumentar metricas de latencia e throughput dos agentes ADK em producao (OBS-02)
 
 ### Out of Scope
 
@@ -70,17 +72,35 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - Saga event-sourcing rewrite — existing saga pattern functional, audit confirmed
 - Dual-provider mode (Evolution + WuzAPI) — intentionally rejected after hard cut
 
-## Current Milestone: v1.7 Frontend Quality & ADK Integration
+## Current State
+
+- **Latest shipped milestone:** v1.7 Frontend Quality & ADK Integration (2026-03-05)
+- **Production posture:** ADK path ativo com PIISafeADKWrapper, endpoint `/api/v2/adk/run`, FunctionTool + Runner e guardrails CI para chamadas `.run()`
+- **Frontend posture:** Admin SPA e quiz alinhados em baseline de qualidade (Prettier, ESLint 9, type gates e testes unitarios verdes)
+- **Codebase snapshot:** ~433k LOC Python + ~163k LOC TypeScript/TSX em arquitetura brownfield madura (DDD + Saga + circuit breaker)
+
+## Next Milestone Goals
+
+- Executar verificacao operacional em ambiente real WuzAPI (send/media real, webhook HMAC real, QR pairing e observabilidade LID DLQ)
+- Modelar disponibilidade medica por medico (substituir baseline hardcoded Mon-Fri 08:00-17:00)
+- Definir replacement de observabilidade pos-OTel e medir latencia/throughput ADK em producao (OBS-01, OBS-02)
+- Continuar reducao de arquivos >500 linhas em modulos criticos
+
+<details>
+<summary>Archived Milestone Brief: v1.7 Frontend Quality & ADK Integration</summary>
 
 **Goal:** Revisar e corrigir ambos os frontends (admin SPA + quiz mensal) em qualidade geral, e desbloquear/integrar Google ADK removendo OTel.
 
 **Target features:**
+
 - Dead code removal nos dois frontends
 - Organizacao e alinhamento das chamadas de API com o backend
 - Consistencia visual e de layout entre paginas
 - Qualidade de codigo: lint, tipos, padroes
 - Remocao do OpenTelemetry (desbloqueio de dependencias)
 - Integracao do Google ADK no sistema
+
+</details>
 
 ## Context
 
@@ -91,6 +111,7 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - v1.4 shipped: full AsyncSession migration — all API routers async, dual-mode services, test stability (net +20,503 LOC)
 - v1.5 shipped: saga orchestrator deep dive — audit, flow trace, compensation integrity, 40+ tests (net +7,166 LOC)
 - v1.6 shipped: WuzAPI migration complete with Evolution tombstone and integration polish (net +9,340 LOC)
+- v1.7 shipped: frontend quality hardening + ADK integration unlocked post-OTel removal (net +4,873 LOC)
 - Codebase: ~434k LOC Python (brownfield, mature patterns: DDD, Saga, Circuit Breaker)
 - Python 3.13 + FastAPI + SQLAlchemy (AsyncSession on all API paths, sync on Celery workers)
 - AI stack: Pydantic AI agents + google-genai SDK + GeminiClient (cache, rate limit, circuit breaker, PII redaction)
@@ -109,27 +130,28 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 
 ## Key Decisions
 
-| Decision | Rationale | Outcome |
-|----------|-----------|---------|
-| Consolidar dual flow em production system | QW-021 tinha 7 callers vs 59 do production; low production use | ✓ Good (v1.0) |
-| FlowDispatcher como facade permanente | Stable import target for enrollment routing | ✓ Good (v1.0) |
-| Hot-path-first async migration | Full migration is too large; hot paths cover ~80% throughput | ✓ Good (v1.1) |
-| Pydantic AI over LangGraph for agents | Type safety, structured output, zero graph overhead for 4 AI operations | ✓ Good (v1.2) |
-| PIISafeAgent as mandatory wrapper | LGPD Art. 46 compliance; CI lint blocks direct .run() calls | ✓ Good (v1.2) |
-| Direct async Python over ADK for flow orchestration | 10-15 lines each, identical semantics, zero new dependencies | ✓ Good (v1.2) |
-| Hard-cut GeminiClient to google-genai SDK | Clean migration without feature toggle; preserves all resilience patterns | ✓ Good (v1.2) |
-| Celery tasks remain on sync Session | Workers run in separate processes; sync is correct, avoids complexity | ✓ Good (v1.4) |
-| Dual-mode DI pattern for shared services | Session\|AsyncSession via constructor, no branching in business code | ✓ Good (v1.4) |
-| Source-level regression tests over live-DB tests | Module inspection avoids DB fixture coupling; catches import-level regressions | ✓ Good (v1.4) |
-| Inline async SQL in routers (not pass AsyncSession to sync repos) | Prevents MissingGreenlet; repos stay sync for Celery compatibility | ✓ Good (v1.4) |
-| begin_nested() direct impl on test adapters | __getattr__ passthrough returns non-awaitable; explicit wrappers safer | ✓ Good (v1.4) |
-| Keep dual-session constructor contract (db: Any) | Fix runtime via adaptive helpers, not signature changes | ✓ Good (v1.5) |
-| Cancel and saga compensation as independent lifecycles | Cancel = flow cleanup; compensation = saga failure; no coupling | ✓ Good (v1.5) |
-| Compensation ownership on SagaCompensator | Orchestrator delegates; tests validate compensator API | ✓ Good (v1.5) |
-| compensate_patient uses hard-delete (db.delete) | Matches production handler behavior; documented as contract | ✓ Good (v1.5) |
-| OTel removed to unblock ADK | OTel instrumentation conflicts with ADK deps; user chose to remove OTel | — Pending |
-| Hardcoded physician hours (Mon-Fri 08-17) | No preferences model exists yet; functional baseline | ⚠ Revisit |
-| WuzAPI over Evolution API | Evolution API instability and maintenance debt made hard-cut migration lower risk | ✓ Good (v1.6) |
+| Decision                                                          | Rationale                                                                         | Outcome       |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------- |
+| Consolidar dual flow em production system                         | QW-021 tinha 7 callers vs 59 do production; low production use                    | ✓ Good (v1.0) |
+| FlowDispatcher como facade permanente                             | Stable import target for enrollment routing                                       | ✓ Good (v1.0) |
+| Hot-path-first async migration                                    | Full migration is too large; hot paths cover ~80% throughput                      | ✓ Good (v1.1) |
+| Pydantic AI over LangGraph for agents                             | Type safety, structured output, zero graph overhead for 4 AI operations           | ✓ Good (v1.2) |
+| PIISafeAgent as mandatory wrapper                                 | LGPD Art. 46 compliance; CI lint blocks direct .run() calls                       | ✓ Good (v1.2) |
+| Direct async Python over ADK for flow orchestration               | 10-15 lines each, identical semantics, zero new dependencies                      | ✓ Good (v1.2) |
+| Hard-cut GeminiClient to google-genai SDK                         | Clean migration without feature toggle; preserves all resilience patterns         | ✓ Good (v1.2) |
+| Celery tasks remain on sync Session                               | Workers run in separate processes; sync is correct, avoids complexity             | ✓ Good (v1.4) |
+| Dual-mode DI pattern for shared services                          | Session\|AsyncSession via constructor, no branching in business code              | ✓ Good (v1.4) |
+| Source-level regression tests over live-DB tests                  | Module inspection avoids DB fixture coupling; catches import-level regressions    | ✓ Good (v1.4) |
+| Inline async SQL in routers (not pass AsyncSession to sync repos) | Prevents MissingGreenlet; repos stay sync for Celery compatibility                | ✓ Good (v1.4) |
+| begin_nested() direct impl on test adapters                       | **getattr** passthrough returns non-awaitable; explicit wrappers safer            | ✓ Good (v1.4) |
+| Keep dual-session constructor contract (db: Any)                  | Fix runtime via adaptive helpers, not signature changes                           | ✓ Good (v1.5) |
+| Cancel and saga compensation as independent lifecycles            | Cancel = flow cleanup; compensation = saga failure; no coupling                   | ✓ Good (v1.5) |
+| Compensation ownership on SagaCompensator                         | Orchestrator delegates; tests validate compensator API                            | ✓ Good (v1.5) |
+| compensate_patient uses hard-delete (db.delete)                   | Matches production handler behavior; documented as contract                       | ✓ Good (v1.5) |
+| OTel removed to unblock ADK                                       | OTel instrumentation conflicts with ADK deps; user chose to remove OTel           | — Pending     |
+| Hardcoded physician hours (Mon-Fri 08-17)                         | No preferences model exists yet; functional baseline                              | ⚠ Revisit     |
+| WuzAPI over Evolution API                                         | Evolution API instability and maintenance debt made hard-cut migration lower risk | ✓ Good (v1.6) |
 
 ---
-*Last updated: 2026-03-03 after v1.7 milestone start*
+
+_Last updated: 2026-03-05 after v1.7 milestone completion_
