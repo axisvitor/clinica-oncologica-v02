@@ -33,6 +33,8 @@ if TYPE_CHECKING:
 
 from app.ai.adk.session_store import ADKSessionStore, DEFAULT_STATE_SIZE_LIMIT_BYTES
 from app.ai.adk.tools import (
+    ADKToolExecutionError,
+    execute_tool_handler,
     get_adk_function_tools,
     get_tool_registry,
     reset_adk_tool_context,
@@ -51,6 +53,8 @@ _TERMINAL_INVOCATION_STATUSES = {
     "limit_exceeded",
     "policy_block",
     "timeout",
+    "tool_error",
+    "upstream_error",
 }
 _IN_FLIGHT_INVOCATIONS: dict[str, asyncio.Task[Any]] = {}
 _IN_FLIGHT_LOCK = Lock()
@@ -97,6 +101,10 @@ class ADKToolPolicyBlock:
 
 
 class ADKLimitExceededError(RuntimeError):
+    pass
+
+
+class ADKUpstreamExecutionError(RuntimeError):
     pass
 
 
@@ -272,19 +280,19 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
             invocation_id=invocation_id,
         )
     except Exception as exc:  # noqa: BLE001
-        error_result = {
-            "message": str(exc) or "ADK execution failed",
-            "invocation_id": invocation_id,
-            "type": "runtime_error",
-        }
+        error_payload = _classify_execution_failure(
+            exc,
+            tool_name=tool_name,
+            invocation_id=invocation_id,
+        )
         await store.finish_invocation(
             invocation_id,
-            status="error",
-            result=error_result,
+            status=error_payload["status"],
+            result=error_payload["result"],
         )
         return _build_result(
-            status="error",
-            result=error_result,
+            status=error_payload["status"],
+            result=error_payload["result"],
             session_id=session_id,
             invocation_id=invocation_id,
         )
@@ -529,56 +537,18 @@ async def _execute_request(
         function_tool = adk_tools.get(request.tool_name)
 
         if function_tool is not None:
-            context_token = set_adk_tool_context(
-                deps=request.deps,
-                context=request.context,
+            return await _execute_with_adk_runner(
+                request=request,
+                function_tool=function_tool,
             )
-            try:
-                agent = Agent(
-                    name=f"hormonia-adk-{request.tool_name}",
-                    model=request.deps.model_name or "gemini-2.0-flash",
-                    tools=[function_tool],
-                    instruction="Use the available tool to process the prompt and return the result.",
-                    before_tool_callback=_build_before_tool_callback(request),
-                )
-                executor = Runner(
-                    app_name="hormonia-adk",
-                    agent=agent,
-                    session_service=InMemorySessionService(),
-                )
-                message = _build_runner_message(
-                    prompt=request.prompt,
-                    tool_name=request.tool_name,
-                    context=request.context,
-                )
-                run_kwargs: dict[str, Any] = {
-                    "user_id": request.user_id,
-                    "session_id": request.session_id or "default-session",
-                    "new_message": message,
-                }
-                run_config = _build_run_config(request.runtime)
-                if run_config is not None:
-                    run_kwargs["run_config"] = run_config
-                events = executor.run_async(**run_kwargs)
-                runner_output = await _extract_runner_output(events)
-                if runner_output is not None:
-                    return _normalize_result(runner_output)
-
-                policy_block = _policy_block_for_request(request)
-                if policy_block is not None:
-                    return policy_block
-
-                wrapped_result = await _invoke_function_tool(function_tool, request)
-                if wrapped_result is not None:
-                    return _normalize_result(wrapped_result)
-            finally:
-                reset_adk_tool_context(context_token)
 
     policy_block = _policy_block_for_request(request)
     if policy_block is not None:
         return policy_block
 
-    result = await handler(
+    result = await execute_tool_handler(
+        tool_name=request.tool_name,
+        handler=handler,
         prompt=request.prompt,
         deps=request.deps,
         context=request.context,
@@ -589,10 +559,7 @@ async def _execute_request(
 def _build_run_config(runtime: ADKRuntimeControls) -> Any:
     if RunConfig is None:
         return None
-    try:
-        return RunConfig(max_llm_calls=_resolve_max_llm_calls(runtime))
-    except Exception:  # noqa: BLE001
-        return None
+    return RunConfig(max_llm_calls=_resolve_max_llm_calls(runtime))
 
 
 def _build_result(
@@ -633,6 +600,34 @@ def _normalize_result(result: Any) -> dict[str, Any]:
     if isinstance(result, dict) and "status" in result and "result" in result:
         return result
     return {"status": "success", "result": result}
+
+
+def _classify_execution_failure(
+    exc: Exception,
+    *,
+    tool_name: str,
+    invocation_id: str | None,
+) -> dict[str, Any]:
+    if isinstance(exc, ADKToolExecutionError):
+        status = "tool_error"
+        message = str(exc) or f"{tool_name} tool execution failed"
+    else:
+        status = "upstream_error"
+        message = str(exc) or "ADK upstream execution failed"
+
+    payload: dict[str, Any] = {
+        "message": message,
+        "tool_name": tool_name,
+        "type": status,
+    }
+    if invocation_id is not None:
+        payload["invocation_id"] = invocation_id
+
+    return _build_result(
+        status=status,
+        result=payload,
+        invocation_id=invocation_id,
+    )
 
 
 def _policy_block_for_request(request: ADKToolRunRequest) -> dict[str, Any] | None:
@@ -1051,22 +1046,55 @@ async def _extract_runner_output(events: Any) -> Any:
     return latest_output
 
 
-async def _invoke_function_tool(function_tool: Any, request: ADKToolRunRequest) -> Any:
-    func = getattr(function_tool, "func", None)
-    if func is None:
-        func = getattr(function_tool, "callable", None)
-    if not callable(func):
-        return None
-
-    call_kwargs = {
-        "prompt": request.prompt,
-        "context_json": json.dumps(request.context or {}, ensure_ascii=False),
-    }
+async def _execute_with_adk_runner(
+    *,
+    request: ADKToolRunRequest,
+    function_tool: Any,
+) -> dict[str, Any]:
+    context_token = set_adk_tool_context(
+        deps=request.deps,
+        context=request.context,
+    )
     try:
-        result = func(**call_kwargs)
-    except TypeError:
-        result = func(request.prompt)
+        agent = Agent(
+            name=f"hormonia-adk-{request.tool_name}",
+            model=request.deps.model_name or "gemini-2.0-flash",
+            tools=[function_tool],
+            instruction="Use the available tool to process the prompt and return the result.",
+            before_tool_callback=_build_before_tool_callback(request),
+        )
+        executor = Runner(
+            app_name="hormonia-adk",
+            agent=agent,
+            session_service=InMemorySessionService(),
+        )
+        message = _build_runner_message(
+            prompt=request.prompt,
+            tool_name=request.tool_name,
+            context=request.context,
+        )
+        run_kwargs: dict[str, Any] = {
+            "user_id": request.user_id,
+            "session_id": request.session_id or "default-session",
+            "new_message": message,
+        }
+        run_config = _build_run_config(request.runtime)
+        if run_config is not None:
+            run_kwargs["run_config"] = run_config
+        events = executor.run_async(**run_kwargs)
+        runner_output = await _extract_runner_output(events)
+    except ADKToolExecutionError:
+        raise
+    except Exception as exc:
+        raise ADKUpstreamExecutionError(
+            str(exc) or "ADK runner execution failed"
+        ) from exc
+    finally:
+        reset_adk_tool_context(context_token)
 
-    if hasattr(result, "__await__"):
-        return await result
-    return result
+    if runner_output is None:
+        raise ADKUpstreamExecutionError(
+            "ADK runner completed without returning a result"
+        )
+
+    return _normalize_result(runner_output)

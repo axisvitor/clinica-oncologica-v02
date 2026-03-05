@@ -26,6 +26,19 @@ _ADK_TOOL_CONTEXT: ContextVar[dict[str, Any] | None] = ContextVar(
 )
 
 
+class ADKToolExecutionError(RuntimeError):
+    def __init__(
+        self,
+        *,
+        tool_name: str,
+        message: str,
+        cause: Exception | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.tool_name = tool_name
+        self.cause = cause
+
+
 @dataclass(frozen=True)
 class FallbackFunctionTool:
     func: Callable[..., Awaitable[ToolResult]]
@@ -112,6 +125,26 @@ async def empathy_tool(
     return {"status": "success", "result": result}
 
 
+async def execute_tool_handler(
+    *,
+    tool_name: str,
+    handler: ToolHandler,
+    prompt: str,
+    deps: AIDeps,
+    context: dict[str, Any] | None = None,
+) -> ToolResult:
+    try:
+        return await handler(prompt=prompt, deps=deps, context=context)
+    except ADKToolExecutionError:
+        raise
+    except Exception as exc:
+        raise ADKToolExecutionError(
+            tool_name=tool_name,
+            message=str(exc) or f"{tool_name} tool execution failed",
+            cause=exc,
+        ) from exc
+
+
 def set_adk_tool_context(
     *,
     deps: AIDeps,
@@ -160,7 +193,13 @@ async def _dispatch_tool_from_adk(
 
     handler = get_tool_registry()[tool_name]
     merged_context = _merge_context(runtime_context, context_json)
-    return await handler(prompt=prompt, deps=deps, context=merged_context)
+    return await execute_tool_handler(
+        tool_name=tool_name,
+        handler=handler,
+        prompt=prompt,
+        deps=deps,
+        context=merged_context,
+    )
 
 
 async def sentiment_tool_adk_compat(prompt: str, context_json: str = "{}") -> ToolResult:
