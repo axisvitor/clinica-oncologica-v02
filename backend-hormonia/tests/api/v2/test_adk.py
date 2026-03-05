@@ -99,6 +99,51 @@ def test_adk_run_calls_wrapper_safe_run_once(
     }
 
 
+def test_adk_run_preserves_canonical_policy_block_response_envelope(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_safe_run(self, prompt, deps, *, operation, context=None):
+        return {
+            "status": "policy_block",
+            "session_id": "session-policy",
+            "result": {
+                "type": "policy_block",
+                "message": "Tool call blocked by policy",
+                "reason": "manual_review_required",
+                "tool_name": "sentiment",
+            },
+        }
+
+    monkeypatch.setattr(
+        "app.api.v2.routers.adk.PIISafeADKWrapper.safe_run",
+        fake_safe_run,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/v2/adk/run",
+        json={
+            "prompt": "trigger review",
+            "tool_name": "sentiment",
+            "session": {"action": "resume", "session_id": "session-policy"},
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {
+        "status": "policy_block",
+        "tool_name": "sentiment",
+        "session_id": "session-policy",
+        "output": {
+            "type": "policy_block",
+            "message": "Tool call blocked by policy",
+            "reason": "manual_review_required",
+            "tool_name": "sentiment",
+        },
+    }
+
+
 def test_adk_run_rejects_missing_prompt_for_run_actions(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

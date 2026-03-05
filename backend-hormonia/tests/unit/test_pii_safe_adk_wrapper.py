@@ -12,6 +12,8 @@ class _ProbeWrapper(PIISafeADKWrapper):
     def __init__(self) -> None:
         self.invoked_prompt: str | None = None
         self.invoked_operation: str | None = None
+        self.invoked_context: dict | None = None
+        self.invoke_count = 0
         self.warned_output: str | None = None
 
     async def _invoke_adk(
@@ -22,8 +24,10 @@ class _ProbeWrapper(PIISafeADKWrapper):
         operation: str,
         context: dict | None = None,
     ) -> object:
+        self.invoke_count += 1
         self.invoked_prompt = safe_prompt
         self.invoked_operation = operation
+        self.invoked_context = context
         return SimpleNamespace(output="Contato: +55 11 98888-7777")
 
     def _warn_on_output_pii(self, output_text: str, *, operation: str) -> None:
@@ -94,3 +98,37 @@ async def test_safe_run_scans_output_for_synthetic_phi_warning_path(monkeypatch)
 
     assert wrapper.warned_output == "Contato: +55 11 98888-7777"
     assert wrapper.invoked_operation == "adk-output-scan"
+
+
+@pytest.mark.asyncio
+async def test_safe_run_forwards_policy_context_after_sanitization_once(monkeypatch):
+    wrapper = _ProbeWrapper()
+    deps = AIDeps(gemini_api_key="test-key", model_name="gemini-2.0-flash")
+
+    monkeypatch.setattr(
+        "app.ai.adk.wrapper.sanitize_prompt_text_for_external_ai",
+        lambda _prompt: "Paciente [REDACTED]",
+        raising=False,
+    )
+
+    context = {
+        "tool_name": "sentiment",
+        "tool_policy": {
+            "blocked_tools": {
+                "sentiment": {
+                    "reason": "manual_review_required",
+                }
+            }
+        },
+    }
+
+    await wrapper.safe_run(
+        "cpf: 123.456.789-09",
+        deps,
+        operation="adk-policy-forward",
+        context=context,
+    )
+
+    assert wrapper.invoke_count == 1
+    assert wrapper.invoked_prompt == "Paciente [REDACTED]"
+    assert wrapper.invoked_context == context

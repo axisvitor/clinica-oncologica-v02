@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -130,6 +132,44 @@ async def test_wrapper_invoke_adk_delegates_to_runtime(monkeypatch):
     req = captured["request"]
     assert getattr(req, "tool_name") == "sentiment"
     assert getattr(req, "prompt") == "safe prompt"
+
+
+@pytest.mark.asyncio
+async def test_wrapper_invoke_adk_normalizes_tool_policy_context(monkeypatch):
+    captured: dict[str, object] = {}
+
+    async def fake_run(request):
+        captured["request"] = request
+        return {"status": "success", "result": "ok"}
+
+    monkeypatch.setattr("app.ai.adk.wrapper.run_adk_tool", fake_run, raising=False)
+
+    wrapper = PIISafeADKWrapper()
+    result = await wrapper._invoke_adk(
+        "safe prompt",
+        AIDeps(gemini_api_key="k", model_name="gemini-test"),
+        operation="adk-test",
+        context={
+            "tool_name": "sentiment",
+            "policy": {
+                "blocked_tools": {
+                    "sentiment": {
+                        "reason": "manual_review_required",
+                    }
+                }
+            },
+        },
+    )
+
+    assert result == {"status": "success", "result": "ok"}
+    req = captured["request"]
+    assert getattr(req, "context")["tool_policy"] == {
+        "blocked_tools": {
+            "sentiment": {
+                "reason": "manual_review_required",
+            }
+        }
+    }
 
 
 def test_adk_run_guard_script_accepts_runtime_path():
@@ -505,3 +545,152 @@ async def test_run_adk_tool_resume_prunes_recent_turns_before_execution(
     assert updated["state_size_bytes"] <= 256
     assert updated["state"]["patient_context"] == {"tumor_type": "mama"}
     assert len(updated["state"].get("recent_turns", [])) < 5
+
+
+@pytest.mark.asyncio
+async def test_run_adk_tool_blocks_policy_before_direct_handler_executes(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    from app.ai.adk import runtime
+
+    calls = {"domain": 0}
+
+    class FakeClient:
+        async def analyze_response_sentiment(self, *, response: str, patient_context: dict):
+            calls["domain"] += 1
+            return {"sentiment": "negative"}
+
+    monkeypatch.setattr("app.ai.adk.tools.GeminiDomainClient", FakeClient, raising=False)
+    monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", False, raising=False)
+    monkeypatch.setattr(runtime, "get_tool_registry", lambda: {"sentiment": tools.sentiment_tool})
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="avaliar resposta",
+            tool_name="sentiment",
+            deps=AIDeps(gemini_api_key="k"),
+            user_id="user-1",
+            invocation=ADKInvocationControls(
+                action="run",
+                invocation_id="inv-policy-direct",
+            ),
+            context={
+                "tool_policy": {
+                    "required_context_keys": {
+                        "sentiment": ["patient_context.clinical_summary"],
+                    }
+                },
+                "patient_context": {},
+            },
+        )
+    )
+
+    assert result["status"] == "policy_block"
+    assert result["result"]["type"] == "policy_block"
+    assert result["result"]["reason"] == "missing_required_context"
+    assert result["result"]["missing_context_keys"] == ["patient_context.clinical_summary"]
+    assert calls["domain"] == 0
+
+    invocation = await adk_runtime_store.get_invocation("inv-policy-direct")
+    assert invocation is not None
+    assert invocation["status"] == "policy_block"
+
+
+@pytest.mark.asyncio
+async def test_run_adk_tool_runner_policy_block_prevents_domain_client_execution(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    from app.ai.adk import runtime
+
+    calls = {"domain": 0, "runner": 0}
+
+    class FakeClient:
+        async def analyze_response_sentiment(self, *, response: str, patient_context: dict):
+            calls["domain"] += 1
+            return {"sentiment": "negative"}
+
+    class FakeFunctionTool:
+        def __init__(self, func):
+            self.func = func
+            self.name = "sentiment"
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeRunner:
+        def __init__(self, **kwargs):
+            self.agent = kwargs["agent"]
+
+        async def run_async(self, **kwargs):
+            calls["runner"] += 1
+            callback = self.agent.kwargs["before_tool_callback"]
+            callback_result = await callback(
+                SimpleNamespace(name="sentiment"),
+                {
+                    "prompt": kwargs["new_message"]["prompt"],
+                    "context_json": json.dumps(
+                        {
+                            "tool_policy": {
+                                "blocked_prompts": {
+                                    "trigger review": {
+                                        "reason": "manual_review_required",
+                                    }
+                                }
+                            }
+                        }
+                    ),
+                },
+                None,
+            )
+            if callback_result is not None:
+                yield {"result": callback_result}
+                return
+            yield {"content": {"parts": [{"text": "runner-output"}]}}
+
+    monkeypatch.setattr("app.ai.adk.tools.GeminiDomainClient", FakeClient, raising=False)
+    monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", True, raising=False)
+    monkeypatch.setattr(runtime, "Agent", FakeAgent, raising=False)
+    monkeypatch.setattr(runtime, "Runner", FakeRunner, raising=False)
+    monkeypatch.setattr(runtime, "InMemorySessionService", lambda: object(), raising=False)
+    monkeypatch.setattr(runtime, "get_tool_registry", lambda: {"sentiment": tools.sentiment_tool})
+    monkeypatch.setattr(
+        runtime,
+        "get_adk_function_tools",
+        lambda: {"sentiment": FakeFunctionTool(tools.sentiment_tool)},
+        raising=False,
+    )
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="trigger review",
+            tool_name="sentiment",
+            deps=AIDeps(gemini_api_key="k"),
+            user_id="user-1",
+            invocation=ADKInvocationControls(
+                action="run",
+                invocation_id="inv-policy-runner",
+            ),
+            context={
+                "tool_policy": {
+                    "blocked_prompts": {
+                        "trigger review": {
+                            "reason": "manual_review_required",
+                        }
+                    }
+                }
+            },
+        )
+    )
+
+    assert result["status"] == "policy_block"
+    assert result["result"]["type"] == "policy_block"
+    assert result["result"]["reason"] == "manual_review_required"
+    assert calls["runner"] == 1
+    assert calls["domain"] == 0
+
+    invocation = await adk_runtime_store.get_invocation("inv-policy-runner")
+    assert invocation is not None
+    assert invocation["status"] == "policy_block"
