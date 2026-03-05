@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: ADK Stability & Error Hardening
+current_plan: 3
 status: executing
-stopped_at: Completed 45-01-SUMMARY.md
-last_updated: "2026-03-05T23:03:30.031Z"
-last_activity: 2026-03-05 - 45-01 concluido; 45-02 pronto para execucao
+stopped_at: Completed 45-02-SUMMARY.md
+last_updated: "2026-03-05T23:17:54.151Z"
+last_activity: 2026-03-05 - 45-02 concluido; 45-03 pronto para execucao
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 25
 ---
 
@@ -27,9 +28,11 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 Milestone: v1.8 ADK Stability & Error Hardening
 Phase: 45 of 47 (ADK Tool Safety and Deterministic Errors)
-Plan: 45-02 next (45-01 complete)
-Status: In Progress
-Last Activity: 2026-03-05 - 45-01 concluido; 45-02 pronto para execucao
+Plan: 45-03 next (45-01, 45-02 complete)
+Current Plan: 3
+Total Plans in Phase: 3
+Status: Ready to execute
+Last Activity: 2026-03-05 - 45-02 concluido; 45-03 pronto para execucao
 
 Progress: [███░░░░░░░] 25%
 
@@ -40,6 +43,7 @@ Progress: [███░░░░░░░] 25%
 | v1.0-v1.7 (shipped) | 43 | 179 | 2026-02-22 -> 2026-03-05 |
 | v1.8 (in progress) | 4 | 6 | 2026-03-05 -> present |
 | Phase 45 P01 | 41min | 2 tasks | 5 files |
+| Phase 45 P02 | 7min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -102,6 +106,8 @@ Progress: [███░░░░░░░] 25%
 - [Phase 45]: Once the ADK runner path starts, failures no longer silently fall through to direct handler execution.
 - [Phase 45]: Keep tool safety decisions at the runtime boundary — ADK runner execution and direct-handler fallback now share the same deterministic policy verdict.
 - [Phase 45]: Forward normalized tool_policy metadata from PIISafeADKWrapper — Safety stays explicit in request context instead of being inferred inside tool handlers.
+- [Phase 45]: Wrap tool-dispatch exceptions with explicit ADKToolExecutionError metadata so runtime classification never parses raw exception strings.
+- [Phase 45]: Treat any failure after the ADK runner path starts as deterministic classification instead of falling through to direct-handler execution.
 
 ### Pending Todos
 
@@ -116,6 +122,6 @@ Progress: [███░░░░░░░] 25%
 
 ## Session Continuity
 
-**Last session:** 2026-03-05T23:03:22.191Z
-**Stopped At:** Completed 45-01-SUMMARY.md
-**Resume File:** .planning/phases/45-adk-tool-safety-and-deterministic-errors/45-02-PLAN.md
+**Last session:** 2026-03-05T23:17:54.135Z
+**Stopped At:** Completed 45-02-SUMMARY.md
+**Resume File:** .planning/phases/45-adk-tool-safety-and-deterministic-errors/45-03-PLAN.md
