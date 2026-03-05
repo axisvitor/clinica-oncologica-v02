@@ -581,36 +581,42 @@ async def test_run_adk_tool_blocks_policy_before_direct_handler_executes(
     monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", False, raising=False)
     monkeypatch.setattr(runtime, "get_tool_registry", lambda: {"sentiment": tools.sentiment_tool})
 
-    result = await run_adk_tool(
-        ADKToolRunRequest(
-            prompt="avaliar resposta",
-            tool_name="sentiment",
-            deps=AIDeps(gemini_api_key="k"),
-            user_id="user-1",
-            invocation=ADKInvocationControls(
-                action="run",
-                invocation_id="inv-policy-direct",
-            ),
-            context={
-                "tool_policy": {
-                    "required_context_keys": {
-                        "sentiment": ["patient_context.clinical_summary"],
-                    }
+    results = []
+    for invocation_id in ("inv-policy-direct-1", "inv-policy-direct-2"):
+        result = await run_adk_tool(
+            ADKToolRunRequest(
+                prompt="avaliar resposta",
+                tool_name="sentiment",
+                deps=AIDeps(gemini_api_key="k"),
+                user_id="user-1",
+                invocation=ADKInvocationControls(
+                    action="run",
+                    invocation_id=invocation_id,
+                ),
+                context={
+                    "tool_policy": {
+                        "required_context_keys": {
+                            "sentiment": ["patient_context.clinical_summary"],
+                        }
+                    },
+                    "patient_context": {},
                 },
-                "patient_context": {},
-            },
+            )
         )
-    )
+        results.append((invocation_id, result))
 
-    assert result["status"] == "policy_block"
-    assert result["result"]["type"] == "policy_block"
-    assert result["result"]["reason"] == "missing_required_context"
-    assert result["result"]["missing_context_keys"] == ["patient_context.clinical_summary"]
     assert calls["domain"] == 0
+    assert [result["status"] for _, result in results] == ["policy_block", "policy_block"]
+    for invocation_id, result in results:
+        assert result["result"]["type"] == "policy_block"
+        assert result["result"]["reason"] == "missing_required_context"
+        assert result["result"]["missing_context_keys"] == [
+            "patient_context.clinical_summary"
+        ]
 
-    invocation = await adk_runtime_store.get_invocation("inv-policy-direct")
-    assert invocation is not None
-    assert invocation["status"] == "policy_block"
+        invocation = await adk_runtime_store.get_invocation(invocation_id)
+        assert invocation is not None
+        assert invocation["status"] == "policy_block"
 
 
 @pytest.mark.asyncio
@@ -679,37 +685,40 @@ async def test_run_adk_tool_runner_policy_block_prevents_domain_client_execution
         raising=False,
     )
 
-    result = await run_adk_tool(
-        ADKToolRunRequest(
-            prompt="trigger review",
-            tool_name="sentiment",
-            deps=AIDeps(gemini_api_key="k"),
-            user_id="user-1",
-            invocation=ADKInvocationControls(
-                action="run",
-                invocation_id="inv-policy-runner",
-            ),
-            context={
-                "tool_policy": {
-                    "blocked_prompts": {
-                        "trigger review": {
-                            "reason": "manual_review_required",
+    results = []
+    for invocation_id in ("inv-policy-runner-1", "inv-policy-runner-2"):
+        result = await run_adk_tool(
+            ADKToolRunRequest(
+                prompt="trigger review",
+                tool_name="sentiment",
+                deps=AIDeps(gemini_api_key="k"),
+                user_id="user-1",
+                invocation=ADKInvocationControls(
+                    action="run",
+                    invocation_id=invocation_id,
+                ),
+                context={
+                    "tool_policy": {
+                        "blocked_prompts": {
+                            "trigger review": {
+                                "reason": "manual_review_required",
+                            }
                         }
                     }
-                }
-            },
+                },
+            )
         )
-    )
+        results.append((invocation_id, result))
 
-    assert result["status"] == "policy_block"
-    assert result["result"]["type"] == "policy_block"
-    assert result["result"]["reason"] == "manual_review_required"
-    assert calls["runner"] == 1
+    assert calls["runner"] == 2
     assert calls["domain"] == 0
-
-    invocation = await adk_runtime_store.get_invocation("inv-policy-runner")
-    assert invocation is not None
-    assert invocation["status"] == "policy_block"
+    assert [result["status"] for _, result in results] == ["policy_block", "policy_block"]
+    for invocation_id, result in results:
+        assert result["result"]["type"] == "policy_block"
+        assert result["result"]["reason"] == "manual_review_required"
+        invocation = await adk_runtime_store.get_invocation(invocation_id)
+        assert invocation is not None
+        assert invocation["status"] == "policy_block"
 
 
 @pytest.mark.asyncio

@@ -57,7 +57,7 @@ async def test_run_adk_tool_exercises_runner_path_with_domain_client(monkeypatch
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not HAS_ADK, reason="google-adk not installed")
-async def test_run_adk_tool_runner_path_classifies_tool_failures_as_tool_error(
+async def test_run_adk_tool_runner_path_repeats_tool_failures_as_tool_error(
     monkeypatch,
 ) -> None:
     calls: list[tuple[str, dict]] = []
@@ -69,26 +69,33 @@ async def test_run_adk_tool_runner_path_classifies_tool_failures_as_tool_error(
 
     monkeypatch.setattr("app.ai.adk.tools.GeminiDomainClient", FakeClient, raising=False)
 
-    result = await run_adk_tool(
-        ADKToolRunRequest(
-            prompt="paciente relata piora",
-            tool_name="sentiment",
-            deps=AIDeps(gemini_api_key="fake-key", model_name="gemini-2.0-flash"),
-            user_id="integration-user",
-            session_id="integration-session",
-            session=ADKSessionControls(action="create", session_id="integration-session"),
-            context={"patient_context": {"cycle": "Q2"}},
+    results = []
+    for suffix in ("1", "2"):
+        result = await run_adk_tool(
+            ADKToolRunRequest(
+                prompt="paciente relata piora",
+                tool_name="sentiment",
+                deps=AIDeps(gemini_api_key="fake-key", model_name="gemini-2.0-flash"),
+                user_id="integration-user",
+                session_id=f"integration-session-tool-{suffix}",
+                session=ADKSessionControls(
+                    action="create",
+                    session_id=f"integration-session-tool-{suffix}",
+                ),
+                context={"patient_context": {"cycle": "Q2"}},
+            )
         )
-    )
+        results.append(result)
 
-    assert result["status"] == "tool_error"
-    assert result["result"]["type"] == "tool_error"
-    assert calls, "Domain client was not called before tool_error classification"
+    assert [result["status"] for result in results] == ["tool_error", "tool_error"]
+    for result in results:
+        assert result["result"]["type"] == "tool_error"
+    assert len(calls) == 2, "Domain client was not called before tool_error classification"
 
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not HAS_ADK, reason="google-adk not installed")
-async def test_run_adk_tool_runner_path_classifies_runner_failures_as_upstream_error(
+async def test_run_adk_tool_runner_path_repeats_runner_failures_as_upstream_error(
     monkeypatch,
 ) -> None:
     class ExplodingRunner:
@@ -101,17 +108,27 @@ async def test_run_adk_tool_runner_path_classifies_runner_failures_as_upstream_e
 
     monkeypatch.setattr("app.ai.adk.runtime.Runner", ExplodingRunner, raising=False)
 
-    result = await run_adk_tool(
-        ADKToolRunRequest(
-            prompt="paciente relata piora",
-            tool_name="sentiment",
-            deps=AIDeps(gemini_api_key="fake-key", model_name="gemini-2.0-flash"),
-            user_id="integration-user",
-            session_id="integration-session",
-            session=ADKSessionControls(action="create", session_id="integration-session"),
-            context={"patient_context": {"cycle": "Q2"}},
+    results = []
+    for suffix in ("1", "2"):
+        result = await run_adk_tool(
+            ADKToolRunRequest(
+                prompt="paciente relata piora",
+                tool_name="sentiment",
+                deps=AIDeps(gemini_api_key="fake-key", model_name="gemini-2.0-flash"),
+                user_id="integration-user",
+                session_id=f"integration-session-upstream-{suffix}",
+                session=ADKSessionControls(
+                    action="create",
+                    session_id=f"integration-session-upstream-{suffix}",
+                ),
+                context={"patient_context": {"cycle": "Q2"}},
+            )
         )
-    )
+        results.append(result)
 
-    assert result["status"] == "upstream_error"
-    assert result["result"]["type"] == "upstream_error"
+    assert [result["status"] for result in results] == [
+        "upstream_error",
+        "upstream_error",
+    ]
+    for result in results:
+        assert result["result"]["type"] == "upstream_error"

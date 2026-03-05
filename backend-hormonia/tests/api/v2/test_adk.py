@@ -5,6 +5,22 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 
+def _deterministic_runtime_result(runtime_status: str) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "type": runtime_status,
+        "message": f"{runtime_status} happened",
+        "tool_name": "sentiment",
+    }
+    if runtime_status == "policy_block":
+        payload["reason"] = "manual_review_required"
+
+    return {
+        "status": runtime_status,
+        "session_id": f"session-{runtime_status}",
+        "result": payload,
+    }
+
+
 def test_adk_run_accepts_payload_and_returns_normalized_response(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -144,22 +160,20 @@ def test_adk_run_preserves_canonical_policy_block_response_envelope(
     }
 
 
-@pytest.mark.parametrize("runtime_status", ["tool_error", "upstream_error"])
-def test_adk_run_preserves_deterministic_error_response_envelope(
+@pytest.mark.parametrize(
+    "runtime_status",
+    ["policy_block", "tool_error", "upstream_error"],
+)
+def test_adk_run_preserves_repeated_deterministic_response_envelopes(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
     runtime_status: str,
 ) -> None:
+    calls: list[str] = []
+
     async def fake_safe_run(self, prompt, deps, *, operation, context=None):
-        return {
-            "status": runtime_status,
-            "session_id": "session-error",
-            "result": {
-                "type": runtime_status,
-                "message": f"{runtime_status} happened",
-                "tool_name": "sentiment",
-            },
-        }
+        calls.append(prompt)
+        return _deterministic_runtime_result(runtime_status)
 
     monkeypatch.setattr(
         "app.api.v2.routers.adk.PIISafeADKWrapper.safe_run",
@@ -167,26 +181,45 @@ def test_adk_run_preserves_deterministic_error_response_envelope(
         raising=False,
     )
 
-    response = client.post(
-        "/api/v2/adk/run",
-        json={
-            "prompt": "trigger deterministic error",
-            "tool_name": "sentiment",
-            "session": {"action": "resume", "session_id": "session-error"},
-        },
-    )
+    responses = []
+    for _ in range(2):
+        response = client.post(
+            "/api/v2/adk/run",
+            json={
+                "prompt": "trigger deterministic error",
+                "tool_name": "sentiment",
+                "session": {
+                    "action": "resume",
+                    "session_id": f"session-{runtime_status}",
+                },
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK
+        responses.append(response.json())
 
-    assert response.status_code == status.HTTP_200_OK
-    assert response.json() == {
-        "status": runtime_status,
+    expected_output = {
+        "type": runtime_status,
+        "message": f"{runtime_status} happened",
         "tool_name": "sentiment",
-        "session_id": "session-error",
-        "output": {
-            "type": runtime_status,
-            "message": f"{runtime_status} happened",
-            "tool_name": "sentiment",
-        },
     }
+    if runtime_status == "policy_block":
+        expected_output["reason"] = "manual_review_required"
+
+    assert calls == ["trigger deterministic error", "trigger deterministic error"]
+    assert responses == [
+        {
+            "status": runtime_status,
+            "tool_name": "sentiment",
+            "session_id": f"session-{runtime_status}",
+            "output": expected_output,
+        },
+        {
+            "status": runtime_status,
+            "tool_name": "sentiment",
+            "session_id": f"session-{runtime_status}",
+            "output": expected_output,
+        },
+    ]
 
 
 def test_adk_run_rejects_missing_prompt_for_run_actions(
@@ -381,6 +414,32 @@ def test_adk_run_rejects_mismatched_session_ids(
             "limit_exceeded",
             "session-limit",
             "limit_exceeded",
+        ),
+        (
+            {
+                "status": "error",
+                "session_id": "session-closed",
+                "result": {
+                    "message": "Session closed",
+                    "type": "session_closed",
+                },
+            },
+            "error",
+            "session-closed",
+            "session_closed",
+        ),
+        (
+            {
+                "status": "error",
+                "session_id": "session-budget",
+                "result": {
+                    "message": "Session exceeds configured state budget",
+                    "type": "session_state_limit_exceeded",
+                },
+            },
+            "error",
+            "session-budget",
+            "session_state_limit_exceeded",
         ),
     ],
 )
