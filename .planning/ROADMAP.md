@@ -100,7 +100,7 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 - [x] **Phase 40: OTel Removal & ADK Foundation** - Remove OTel instrumentation, install ADK, scaffold PIISafeADKWrapper with CI guard (completed 2026-03-03)
 - [x] **Phase 41: ADK Agent Integration** - Wire Pydantic AI agents as ADK FunctionTools, configure ADK Runner endpoint, remove HiveMind LangGraph dead code (gap closure in progress) (completed 2026-03-04)
 - [x] **Phase 42: Admin SPA Quality** - Remove Evolution dead code, consolidate API client, migrate polling to TanStack Query, enforce lint/formatting (completed 2026-03-04)
-- [ ] **Phase 43: Quiz Interface Quality** - Add Prettier, upgrade Next.js 15, align ESLint 9, fix missing deps, improve type coverage
+- [x] **Phase 43: Quiz Interface Quality** - Add Prettier, upgrade Next.js 15, align ESLint 9, fix missing deps, improve type coverage (completed 2026-03-05)
 
 ## Phase Details
 
@@ -200,7 +200,7 @@ Plans:
 | 40. OTel Removal & ADK Foundation    | 3/3       | Complete       | 2026-03-03  | -          |
 | 41. ADK Agent Integration            | 4/4       | Complete       | 2026-03-04  | -          |
 | 42. Admin SPA Quality                | 7/7       | Complete       | 2026-03-04  | -          |
-| 43. Quiz Interface Quality           | 3/4 | In Progress|  | -          |
+| 43. Quiz Interface Quality           | 4/4 | Complete   | 2026-03-05 | -          |
 
 ---
 

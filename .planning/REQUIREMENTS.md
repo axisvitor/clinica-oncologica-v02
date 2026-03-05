@@ -35,7 +35,7 @@
 - [x] **QUIZ-04**: Dependencia `identity-obj-proxy` adicionada ao devDependencies
 - [x] **QUIZ-05**: `msw` atualizado de v1.x (end-of-life) para v2.x
 - [x] **QUIZ-06**: Type coverage melhorada — tipos explicitados em hooks e API calls
-- [ ] **QUIZ-07**: Layout e espacamento consistentes entre paginas do quiz
+- [x] **QUIZ-07**: Layout e espacamento consistentes entre paginas do quiz
 
 ## v2 Requirements
 
@@ -86,7 +86,7 @@
 | QUIZ-04 | Phase 43 | Complete |
 | QUIZ-05 | Phase 43 | Complete |
 | QUIZ-06 | Phase 43 | Complete |
-| QUIZ-07 | Phase 43 | Pending |
+| QUIZ-07 | Phase 43 | Complete |
 
 **Coverage:**
 - v1.7 requirements: 23 total
