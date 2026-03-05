@@ -29,9 +29,9 @@
 
 ### Quiz Interface
 
-- [ ] **QUIZ-01**: Prettier configurado e aplicado na quiz interface
-- [ ] **QUIZ-02**: Next.js atualizado para v15 (desbloqueia ESLint 9 nativo)
-- [ ] **QUIZ-03**: ESLint migrado para flat config (ESLint 9), alinhado com admin SPA
+- [x] **QUIZ-01**: Prettier configurado e aplicado na quiz interface
+- [x] **QUIZ-02**: Next.js atualizado para v15 (desbloqueia ESLint 9 nativo)
+- [x] **QUIZ-03**: ESLint migrado para flat config (ESLint 9), alinhado com admin SPA
 - [ ] **QUIZ-04**: Dependencia `identity-obj-proxy` adicionada ao devDependencies
 - [ ] **QUIZ-05**: `msw` atualizado de v1.x (end-of-life) para v2.x
 - [ ] **QUIZ-06**: Type coverage melhorada — tipos explicitados em hooks e API calls
@@ -80,9 +80,9 @@
 | ADMIN-06 | Phase 42 | Complete |
 | ADMIN-07 | Phase 42 | Complete |
 | ADMIN-08 | Phase 42 | Complete |
-| QUIZ-01 | Phase 43 | Pending |
-| QUIZ-02 | Phase 43 | Pending |
-| QUIZ-03 | Phase 43 | Pending |
+| QUIZ-01 | Phase 43 | Complete |
+| QUIZ-02 | Phase 43 | Complete |
+| QUIZ-03 | Phase 43 | Complete |
 | QUIZ-04 | Phase 43 | Pending |
 | QUIZ-05 | Phase 43 | Pending |
 | QUIZ-06 | Phase 43 | Pending |

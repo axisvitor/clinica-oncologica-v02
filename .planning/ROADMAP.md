@@ -177,13 +177,14 @@ Full details: `.planning/milestones/v1.5-ROADMAP.md`
 3. `tsc --noEmit` exits with code 0 in the quiz interface with zero type errors
 4. `eslint .` exits with zero errors in the quiz interface using ESLint 9 flat config
 5. `npm test` passes in the quiz interface — `identity-obj-proxy` and `msw` v2 are present and CSS module tests no longer fail
-   **Plans**: 3 plans
+   **Plans**: 4 plans
 
 Plans:
 
 - [ ] 43-01-PLAN.md — Stabilize quiz formatter/lint/build baseline (Prettier parity + Next 15 + ESLint 9 flat config runtime fixes)
 - [ ] 43-02-PLAN.md — Add missing Jest CSS mapper dependency and migrate quiz mocks to MSW v2 API contracts
-- [ ] 43-03-PLAN.md — Harden locked core typing/boundary guards, remove cross-app toast import drift, and normalize quiz shell consistency
+- [ ] 43-03-PLAN.md — Harden locked core typing and API boundary guards in the quiz core scope
+- [ ] 43-04-PLAN.md — Decouple toast store from cross-app imports and normalize quiz route/layout shell consistency
 
 ## Progress
 
@@ -199,7 +200,7 @@ Plans:
 | 40. OTel Removal & ADK Foundation    | 3/3       | Complete       | 2026-03-03  | -          |
 | 41. ADK Agent Integration            | 4/4       | Complete       | 2026-03-04  | -          |
 | 42. Admin SPA Quality                | 7/7       | Complete       | 2026-03-04  | -          |
-| 43. Quiz Interface Quality           | v1.7      | 0/TBD          | Not started | -          |
+| 43. Quiz Interface Quality           | 1/4 | In Progress|  | -          |
 
 ---
 
