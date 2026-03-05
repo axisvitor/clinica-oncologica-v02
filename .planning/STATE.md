@@ -3,16 +3,16 @@ gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: ADK Stability & Error Hardening
 current_plan: 3
-status: ready_for_planning
-stopped_at: Completed 45-03-PLAN.md
-last_updated: "2026-03-05T23:30:00.556Z"
-last_activity: 2026-03-05 - 45-03 concluido; Phase 45 encerrada
+status: verifying
+stopped_at: Phase 45 verification found gaps
+last_updated: "2026-03-05T20:44:47-03:00"
+last_activity: 2026-03-05 - Phase 45 verification found runner-path policy bypass gap
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 1
   total_plans: 6
   completed_plans: 6
-  percent: 50
+  percent: 25
 ---
 
 # Project State
@@ -22,19 +22,19 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Phase 45 concluida; proximo passo e planejar/executar as fases 46-47 do milestone v1.8
+**Current focus:** Corrigir o gap de verificacao da Phase 45 antes de avancar para a Phase 46.
 
 ## Current Position
 
 Milestone: v1.8 ADK Stability & Error Hardening
-Phase: 45 of 47 (ADK Tool Safety and Deterministic Errors) - Complete on 2026-03-05
-Plan: Phase 45 complete; Phase 46 planning next
-Current Plan: 3/3 complete
+Phase: 45 of 47 (ADK Tool Safety and Deterministic Errors) - verification gap found on 2026-03-05
+Plan: Gap closure planning next (`/gsd-plan-phase 45 --gaps`)
+Current Plan: 3/3 executed
 Total Plans in Phase: 3
-Status: Ready to plan Phase 46
-Last Activity: 2026-03-05 - 45-03 concluido; Phase 45 encerrada
+Status: Verification gaps found
+Last Activity: 2026-03-05 - Phase 45 verification found runner-path policy bypass gap
 
-Progress: [█████░░░░░] 50%
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
@@ -114,17 +114,17 @@ Progress: [█████░░░░░] 50%
 
 ### Pending Todos
 
-- Planejar a Phase 46 com `/gsd-plan-phase 46`.
+- Planejar gap closure da Phase 45 com `/gsd-plan-phase 45 --gaps`.
 
 ### Blockers/Concerns
 
-- Nenhum bloqueador para iniciar a Phase 46.
+- Phase 45 verification found a runner-path policy bypass: tool-call `context_json` can overwrite request-level `tool_policy` before `before_tool_callback` evaluates the request.
 - Phase 40: ADK pip resolution with pydantic-ai-slim[google] in Python 3.13 is MEDIUM confidence — first task of Phase 40 must run dry-run install and document resolved versions before touching requirements.txt
 - Phase 40: PIISafeADKWrapper hook point (ADK before_model_callback vs call-site) needs spike in ADK v1.26.0 source before implementation
 - Phase 42: hive-mind.ts frontend module disposition (keep vs remove) depends on whether /api/v2/hive-mind/* routes exist in current backend router — verify in Phase 42 plan
 
 ## Session Continuity
 
-**Last session:** 2026-03-05T23:30:00.541Z
-**Stopped At:** Completed 45-03-PLAN.md
-**Resume File:** None
+**Last session:** 2026-03-05T20:44:47-03:00
+**Stopped At:** Phase 45 verification found gaps
+**Resume File:** .planning/phases/45-adk-tool-safety-and-deterministic-errors/45-VERIFICATION.md

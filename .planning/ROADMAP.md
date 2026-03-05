@@ -29,7 +29,7 @@
 </details>
 
 - [x] **Phase 44: ADK Runtime Controls** - Limites por invocacao e ciclo de vida de sessao ADK no endpoint canonico. (completed 2026-03-05)
-- [x] **Phase 45: ADK Tool Safety and Deterministic Errors** - Guardrails de tool e classificacao deterministica de falhas ADK. (completed 2026-03-05)
+- [ ] **Phase 45: ADK Tool Safety and Deterministic Errors** - Guardrails de tool e classificacao deterministica de falhas ADK. (verification gaps found 2026-03-05)
 - [ ] **Phase 46: ADK Observability Baseline** - Metricas operacionais de latencia, throughput e erro por invocacao/agente.
 - [ ] **Phase 47: ADK CI Smoke Gate** - Gate de CI que bloqueia deploy com regressao em trajetorias oncologicas criticas.
 
@@ -93,11 +93,11 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 44. ADK Runtime Controls | 3/3 | Complete    | 2026-03-05 |
-| 45. ADK Tool Safety and Deterministic Errors | 3/3 | Complete   | 2026-03-05 |
+| 45. ADK Tool Safety and Deterministic Errors | 3/3 | Gaps Found | - |
 | 46. ADK Observability Baseline | 0/TBD | Not started | - |
 | 47. ADK CI Smoke Gate | 0/TBD | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-05 — Phase 45 complete (3/3 plans); Phase 46 next_
+_Last updated: 2026-03-05 — Phase 45 execution complete but verification found a runner-path policy gap; gap closure planning required_
