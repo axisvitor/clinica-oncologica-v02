@@ -1,5 +1,28 @@
 # Milestones
 
+## v1.8 ADK Stability & Error Hardening (Shipped: 2026-03-06)
+
+**Delivered:** ADK runtime controls, tool safety guardrails, deterministic error classification, observability baseline, and CI smoke gate were shipped with full requirement verification chain closure.
+
+**Phases completed:** 6 phases, 11 plans, 22 tasks
+
+**Git range:** `aa16ae88..8dea7741` (12 commits)
+**Files changed:** 50 files, +8,169 / -141 lines (net +8,028 LOC)
+**Timeline:** 2026-03-05 -> 2026-03-06
+
+**Key accomplishments:**
+
+- ADK runtime controls shipped: per-invocation timeout, LLM budget, explicit cancellation, and bounded session state with Redis-first metadata store (ADK-09, ADK-10).
+- Pre-tool safety guardrails block unsafe calls via `before_tool_callback` before any side effect; operator policy metadata is immutable during tool dispatch (ADK-11).
+- Deterministic ADK error classification: every failure maps to exactly one of `timeout`, `policy_block`, `tool_error`, `upstream_error` with no ambiguous fallback (ADK-12).
+- ADK observability baseline: Prometheus latency/throughput/in-flight metrics on default registry plus structured invocation logs for every terminal path (OBS-02).
+- ADK CI smoke gate: oncology tool trajectory coverage blocks deploy when critical smoke scenarios regress (ADK-13).
+- Full verification chain closure: ADK-09 through ADK-12 validated with cross-referenced pytest evidence and real `google-adk` runner conditional smoke tests (Phases 48-49).
+
+**Archive:** `.planning/milestones/v1.8-ROADMAP.md`, `.planning/milestones/v1.8-REQUIREMENTS.md`, `.planning/milestones/v1.8-MILESTONE-AUDIT.md`
+
+---
+
 ## v1.7 Frontend Quality & ADK Integration (Shipped: 2026-03-05)
 
 **Delivered:** OpenTelemetry manual instrumentation was removed, Google ADK was integrated behind PIISafe boundaries, and both frontends reached clean quality gates (format/lint/types/tests).

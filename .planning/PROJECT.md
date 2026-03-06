@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Sistema de acompanhamento oncologico via WhatsApp que envia questionarios humanizados aos pacientes entre consultas, permitindo que medicos acompanhem seus pacientes de forma continua. O sistema roda com 4 agentes Pydantic AI tipados (sentiment, humanize, variation, empathy), PII redaction obrigatoria, orquestracao de fluxo em funcoes async Python diretas e GeminiClient baseado em `google-genai` com circuit breaker, rate limiter e cache. Toda a camada API opera sobre AsyncSession (SQLAlchemy), enquanto Celery workers mantem sync Session por design. A integracao WhatsApp agora opera em hard cut com WuzAPI (whatsmeow), com Evolution API tombstonada.
+Sistema de acompanhamento oncologico via WhatsApp que envia questionarios humanizados aos pacientes entre consultas, permitindo que medicos acompanhem seus pacientes de forma continua. O sistema roda com 4 agentes Pydantic AI tipados (sentiment, humanize, variation, empathy), PII redaction obrigatoria, orquestracao de fluxo em funcoes async Python diretas e GeminiClient baseado em `google-genai` com circuit breaker, rate limiter e cache. O Google ADK esta integrado com runtime controls (timeout, budget, cancel), tool safety guardrails deterministicos, e observabilidade Prometheus no endpoint `/api/v2/adk/run`. Toda a camada API opera sobre AsyncSession (SQLAlchemy), enquanto Celery workers mantem sync Session por design. A integracao WhatsApp agora opera em hard cut com WuzAPI (whatsmeow), com Evolution API tombstonada.
 
 ## Core Value
 
@@ -50,13 +50,18 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - ✓ WuzAPI integration polish from audit findings (settings secret consistency + contacts sync 501) — v1.6
 - ✓ OpenTelemetry instrumentation removido e Google ADK integrado com PIISafeADKWrapper + FunctionTool/Runner path — v1.7
 - ✓ Frontend quality hardening concluida em admin SPA e quiz interface (format/lint/type/test gates) — v1.7
+- ✓ ADK runtime controls: timeout, LLM budget, cancellation, bounded session state com Redis metadata store — v1.8
+- ✓ ADK tool safety: before_tool_callback bloqueia calls inseguros antes de side effects; operator policy imutavel — v1.8
+- ✓ ADK deterministic errors: timeout/policy_block/tool_error/upstream_error sem fallback ambiguo — v1.8
+- ✓ ADK observability: Prometheus latency/throughput/in-flight metrics + structured invocation logs — v1.8
+- ✓ ADK CI smoke gate: oncology tool trajectories bloqueiam deploy em regressao — v1.8
 
 ### Active
 
-- [ ] Alinhar execucao ADK ponta a ponta no backend (wrapper, runtime, endpoint e tools)
-- [ ] Diagnosticar e corrigir erros ADK prioritarios (runtime, integracao e contratos)
-- [ ] Definir replacement de observabilidade pos-OTel para fluxos ADK (OBS-01)
-- [ ] Instrumentar metricas de latencia, throughput e erro dos agentes ADK em producao (OBS-02)
+- [ ] Definir replacement de observabilidade pos-OTel com padrao unico de instrumentacao (OBS-01)
+- [ ] Propagar correlation IDs obrigatorios em toda cadeia API -> Celery -> ADK (OBS-03)
+- [ ] Mapear taxonomia de erro ADK para envelope HTTP padronizado (ADK-14)
+- [ ] Definir politica retryable/non-retryable com idempotencia para chamadas ADK (ADK-15)
 - [ ] Fechar criterios de estabilidade operacional ADK com runbook e alertas minimos
 
 ### Out of Scope
@@ -75,12 +80,14 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 
 ## Current State
 
-- **Latest shipped milestone:** v1.7 Frontend Quality & ADK Integration (2026-03-05)
-- **Production posture:** ADK path ativo com PIISafeADKWrapper, endpoint `/api/v2/adk/run`, FunctionTool + Runner e guardrails CI para chamadas `.run()`
+- **Latest shipped milestone:** v1.8 ADK Stability & Error Hardening (2026-03-06)
+- **Production posture:** ADK runtime controls, tool safety guardrails, deterministic error classification, and Prometheus observability are live on `/api/v2/adk/run`; CI smoke gate blocks deploy on oncology trajectory regressions
 - **Frontend posture:** Admin SPA e quiz alinhados em baseline de qualidade (Prettier, ESLint 9, type gates e testes unitarios verdes)
-- **Codebase snapshot:** ~433k LOC Python + ~163k LOC TypeScript/TSX em arquitetura brownfield madura (DDD + Saga + circuit breaker)
+- **ADK module:** ~2,319 LOC across session_store, runtime, wrapper, tools, metrics in `app/ai/adk/`
+- **Codebase snapshot:** ~434k LOC Python + ~163k LOC TypeScript/TSX em arquitetura brownfield madura (DDD + Saga + circuit breaker)
 
-## Current Milestone: v1.8 ADK Stability & Error Hardening
+<details>
+<summary>Archived Milestone Brief: v1.8 ADK Stability & Error Hardening</summary>
 
 **Goal:** Consolidar o ADK como caminho operacional estavel no sistema, eliminando erros criticos e fechando lacunas de observabilidade.
 
@@ -89,6 +96,8 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - Correcao de erros ADK priorizados com validacao por testes e smoke checks
 - Observabilidade ADK pos-OTel com metricas de latencia/throughput/erro
 - Runbook operacional e alertas minimos para incidentes ADK
+
+</details>
 
 <details>
 <summary>Archived Milestone Brief: v1.7 Frontend Quality & ADK Integration</summary>
@@ -116,6 +125,7 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - v1.5 shipped: saga orchestrator deep dive — audit, flow trace, compensation integrity, 40+ tests (net +7,166 LOC)
 - v1.6 shipped: WuzAPI migration complete with Evolution tombstone and integration polish (net +9,340 LOC)
 - v1.7 shipped: frontend quality hardening + ADK integration unlocked post-OTel removal (net +4,873 LOC)
+- v1.8 shipped: ADK runtime controls, tool safety, deterministic errors, observability, CI smoke gate (net +8,028 LOC)
 - Codebase: ~434k LOC Python (brownfield, mature patterns: DDD, Saga, Circuit Breaker)
 - Python 3.13 + FastAPI + SQLAlchemy (AsyncSession on all API paths, sync on Celery workers)
 - AI stack: Pydantic AI agents + google-genai SDK + GeminiClient (cache, rate limit, circuit breaker, PII redaction)
@@ -152,10 +162,14 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 | Cancel and saga compensation as independent lifecycles            | Cancel = flow cleanup; compensation = saga failure; no coupling                   | ✓ Good (v1.5) |
 | Compensation ownership on SagaCompensator                         | Orchestrator delegates; tests validate compensator API                            | ✓ Good (v1.5) |
 | compensate_patient uses hard-delete (db.delete)                   | Matches production handler behavior; documented as contract                       | ✓ Good (v1.5) |
-| OTel removed to unblock ADK                                       | OTel instrumentation conflicts with ADK deps; user chose to remove OTel           | — Pending     |
+| OTel removed to unblock ADK                                       | OTel instrumentation conflicts with ADK deps; user chose to remove OTel           | ✓ Good (v1.7) |
+| ADK runtime controls at execution boundary                         | Timeout, budget, cancel share semantics across runner and direct-handler paths     | ✓ Good (v1.8) |
+| Operator policy metadata immutable in tool dispatch                | Prevents model-generated context from overwriting safety decisions                 | ✓ Good (v1.8) |
+| Default Prometheus registry for ADK metrics                        | Existing /metrics exporter surfaces new series without extra wiring                | ✓ Good (v1.8) |
+| Conditional real-runner tests via skipif(not HAS_ADK)              | Local environments stay green; CI smoke-adk job provides real coverage             | ✓ Good (v1.8) |
 | Hardcoded physician hours (Mon-Fri 08-17)                         | No preferences model exists yet; functional baseline                              | ⚠ Revisit     |
 | WuzAPI over Evolution API                                         | Evolution API instability and maintenance debt made hard-cut migration lower risk | ✓ Good (v1.6) |
 
 ---
 
-_Last updated: 2026-03-05 after v1.8 milestone initialization_
+_Last updated: 2026-03-06 after v1.8 milestone completion_

@@ -109,26 +109,151 @@ Living retrospective document. Updated after each milestone completion.
 
 ---
 
+## Milestone: v1.6 — WuzAPI Migration
+
+**Shipped:** 2026-03-03
+**Phases:** 7 | **Plans:** 21
+**Timeline:** 2 days (2026-03-01 -> 2026-03-03)
+
+### What Was Built
+
+- WuzAPI client with token auth, retries, rate limiting, circuit breaker, and media encoding
+- Webhook stack with raw-body HMAC, Redis idempotency, LGPD opt-out, and LID DLQ routing
+- Full outbound migration to WuzAPI with Evolution code tombstoned across Stack A/Stack B
+- Regression gates for webhook fixtures, STOP-to-send-guard E2E, and source-level Evolution import checks
+- Audit findings closed: webhook secret alignment and explicit HTTP 501 for unsupported contacts sync
+
+### What Worked
+
+- **Hard-cut strategy** — No dual-provider transition period reduced surface area and eliminated provider-selection logic
+- **Phase structure** — Foundation (33) -> Webhook (34) -> Config (35) -> Outbound (36) -> Cleanup (37) -> Tests (38) -> Polish (39) was clean dependency ordering
+- **Source-level import checks** — Evolution import blocker CI guard prevents regression from accidental re-introduction
+
+### What Was Inefficient
+
+- **Audit findings after completion** — Phase 39 polish (settings secret consistency + contacts sync 501) could have been caught during plan-check
+- **No formal milestone audit before v1.6** — Audit file was created retroactively
+
+### Key Lessons
+
+1. Hard-cut provider migrations are cleaner than dual-mode transitions when the old provider is fully isolated
+2. Source-level CI guards (import blockers) are the most reliable regression prevention for tombstoned code
+3. Post-completion polish phases (39) consistently surface 1-2 findings that initial plans miss
+
+### Cost Observations
+
+- Sessions: ~8-10 across 2 days
+- Notable: Mostly mechanical migration — pattern from v1.2 LangGraph tombstone applied to Evolution
+
+---
+
+## Milestone: v1.7 — Frontend Quality & ADK Integration
+
+**Shipped:** 2026-03-05
+**Phases:** 4 | **Plans:** 20
+**Timeline:** 2 days (2026-03-03 -> 2026-03-05)
+
+### What Was Built
+
+- OTel instrumentation removed to unblock ADK dependency resolution in Python 3.13
+- Google ADK integrated with PIISafeADKWrapper, FunctionTool + Runner dispatch, and CI guards
+- Admin SPA quality hardened: Evolution remnants removed, TanStack Query polling, Prettier/ESLint stabilized
+- Quiz interface quality at parity: Next 15 + ESLint 9, MSW v2, strict schema-boundary typing, green gates
+
+### What Worked
+
+- **Backend-then-frontend ordering** — Phases 40-41 (backend ADK) then 42-43 (frontend quality) avoided cross-domain conflicts
+- **Tooling decisions made once** — ESLint 9 flat config pattern established in admin SPA (42), then mirrored to quiz (43) without redesign
+- **PIISafeADKWrapper contract** — Mirroring PIISafeAgent contract for ADK made the wrapper predictable and testable
+
+### What Was Inefficient
+
+- **No milestone audit** — Skipped audit before completion; gap was documented but not formally verified
+- **Phase 42 checkpoint overhead** — Required explicit user approval signals for checkpoint closure, adding prompts
+
+### Key Lessons
+
+1. When removing a dependency (OTel) to unblock another (ADK), handle the removal as a distinct phase before integration
+2. Frontend quality phases benefit from shared tooling decisions — ESLint/Prettier config should be established once
+3. PIISafe wrapper pattern is reusable: PIISafeAgent (v1.2) -> PIISafeADKWrapper (v1.7) -> future wrappers
+
+### Cost Observations
+
+- Sessions: ~8-10 across 2 days
+- Notable: Frontend phases (42-43) were slower per plan due to complex build tooling decisions
+
+---
+
+## Milestone: v1.8 — ADK Stability & Error Hardening
+
+**Shipped:** 2026-03-06
+**Phases:** 6 | **Plans:** 11
+**Timeline:** 2 days (2026-03-05 -> 2026-03-06)
+
+### What Was Built
+
+- ADK runtime controls: per-invocation timeout, LLM budget, explicit cancellation, bounded session state with Redis-first metadata store
+- Pre-tool safety guardrails: `before_tool_callback` blocks unsafe calls before side effects; operator policy metadata immutable in tool dispatch
+- Deterministic error classification: every ADK failure maps to exactly one of `timeout`, `policy_block`, `tool_error`, `upstream_error`
+- ADK observability: Prometheus latency/throughput/in-flight metrics + structured invocation logs
+- ADK CI smoke gate: oncology tool trajectory coverage blocks deploy on regressions
+- Gap closure (Phases 48-49): Phase 44 verification closeout + real google-adk runner conditional smoke tests
+
+### What Worked
+
+- **Audit-driven gap closure** — Running `/gsd:audit-milestone` found 4 requirement gaps (ADK-09/10 orphaned, ADK-11/12 human_needed), which led to targeted Phases 48-49 instead of vague rework
+- **Conditional real-runner testing** — `skipif(not HAS_ADK)` keeps local dev green while CI smoke-adk provides real coverage
+- **Deterministic error taxonomy** — Establishing `policy_block`/`tool_error`/`upstream_error` early (Phase 45) made observability (Phase 46) and smoke (Phase 47) trivial to wire
+- **Fast plans** — Average plan execution was ~12 min; Phase 45 P02 took only 7 min because runtime already had the right structure from P01
+
+### What Was Inefficient
+
+- **Phase 44 missing VERIFICATION.md** — Caused an audit gap_found and required an extra Phase 48 just to create the verification artifact. Should have been created during Phase 44 execution.
+- **Phase 45 verification left at human_needed** — Required Phase 49 to promote to passed. Could have been addressed sooner if real-runner tests were scoped into Phase 45 planning.
+- **Stale VALIDATION.md in Phases 46-47** — VALIDATION.md remained draft/Wave 0 even after VERIFICATION.md passed. Low impact but clutters audit.
+
+### Patterns Established
+
+- **Verification artifacts are mandatory at phase completion** — Phase 44's missing VERIFICATION.md caused a gap closure phase. Future phases must include verification as part of execution, not as an afterthought.
+- **Conditional smoke tests** — `skipif(not HAS_ADK)` pattern allows external-dependency tests to live in the main test suite while only executing in CI environments that have the dependency.
+- **Audit -> gap closure -> complete** — The three-step pattern (`/gsd:audit-milestone` -> `/gsd:plan-milestone-gaps` -> `/gsd:complete-milestone`) is now the standard milestone completion flow.
+
+### Key Lessons
+
+1. Missing verification artifacts create audit gaps that cost more to fix retroactively than to create during execution.
+2. Deterministic error taxonomy should be established before observability instrumentation — makes metric labels and log schemas trivial.
+3. Gap closure phases (48-49) were small and fast because audit precisely identified what was missing.
+4. The most efficient milestone yet by plan duration (~12 min average) because the ADK runtime was already well-structured from v1.7.
+
+### Cost Observations
+
+- Sessions: ~3-4 across 2 days
+- Notable: Most focused milestone — 11 plans in 2 days, all backend, zero frontend work
+- Smallest net LOC among recent milestones (+8,028) reflecting hardening/testing focus over new features
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 |
-|--------|------|------|------|------|------|------|
-| Phases | 5 | 4 | 4 | 6 | 9 | 4 |
-| Plans | 13 | 10 | 16 | 31 | 54 | 14 |
-| Days | 1 | 1 | 1 | 2 | 3 | 2 |
-| Plans/day | 13 | 10 | 16 | 15.5 | 18 | 7 |
-| Net LOC | -9,314 | +4,664 | +7,680 | +5,472 | +20,503 | +7,166 |
-| Commits | 38 | 30+ | 72 | 123 | 199 | 53 |
-| Had audit? | No | No | No | No | Yes | No |
-| Gap closure plans | 0 | 0 | 0 | 0 | 2 | 2 |
+| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 | v1.6 | v1.7 | v1.8 |
+|--------|------|------|------|------|------|------|------|------|------|
+| Phases | 5 | 4 | 4 | 6 | 9 | 4 | 7 | 4 | 6 |
+| Plans | 13 | 10 | 16 | 31 | 54 | 14 | 21 | 20 | 11 |
+| Days | 1 | 1 | 1 | 2 | 3 | 2 | 2 | 2 | 2 |
+| Plans/day | 13 | 10 | 16 | 15.5 | 18 | 7 | 10.5 | 10 | 5.5 |
+| Net LOC | -9,314 | +4,664 | +7,680 | +5,472 | +20,503 | +7,166 | +9,340 | +4,873 | +8,028 |
+| Commits | 38 | 30+ | 72 | 123 | 199 | 53 | 99 | 85 | 12 |
+| Had audit? | No | No | No | No | Yes | Yes | Yes | No | Yes |
+| Gap closure plans | 0 | 0 | 0 | 0 | 2 | 2 | 1 | 0 | 2 |
 
 **Observations:**
-- Plans/day dropped in v1.5 (7 vs 18) because plans were audit/trace-heavy, not mechanical migration patterns like v1.4
-- v1.5 produced +7k LOC almost entirely in documentation and tests — zero new production features
-- Gap closure plans (30-04, 32-05) continue as a healthy pattern for catching contract drift
-- Cumulative: 32 phases, 138 plans across 6 milestones in 8 days
-- Review/audit milestones (v1.5) are inherently slower in plans/day but produce high-value verification artifacts
+- Cumulative: 49 phases, 190 plans across 9 milestones in 13 days
+- v1.8 had the lowest plans/day (5.5) but highest per-plan efficiency (~12 min average) — hardening work has fewer plans but each requires careful design
+- Gap closure via audit continues to be a standard pattern (v1.4, v1.5, v1.6, v1.8)
+- v1.8 had the lowest commit count (12) reflecting focused, targeted changes rather than broad migrations
+- The audit -> gap closure -> complete flow is now the established milestone completion pattern
+- ADK module matured from 0 LOC (pre-v1.7) to ~2,319 LOC across 2 milestones with full safety/observability/CI coverage
 
 ---
 *Created: 2026-02-28 after v1.4 milestone*
-*Updated: 2026-03-01 after v1.5 milestone*
+*Updated: 2026-03-06 after v1.8 milestone*
