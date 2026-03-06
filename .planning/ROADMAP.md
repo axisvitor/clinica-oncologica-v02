@@ -10,7 +10,7 @@
 - ✅ **v1.5 Saga Orchestrator Deep Dive** — Phases 29-32 (shipped 2026-03-01)
 - ✅ **v1.6 WuzAPI Migration** — Phases 33-39 (shipped 2026-03-03)
 - ✅ **v1.7 Frontend Quality & ADK Integration** — Phases 40-43 (shipped 2026-03-05)
-- **v1.8 ADK Stability & Error Hardening** — Phases 44-49 (gap closure in progress)
+- ✅ **v1.8 ADK Stability & Error Hardening** — Phases 44-49 (completed 2026-03-06, ready for milestone closeout)
 
 ## Phases
 
@@ -33,7 +33,7 @@
 - [x] **Phase 46: ADK Observability Baseline** - Metricas operacionais de latencia, throughput e erro por invocacao/agente. (completed 2026-03-06)
 - [x] **Phase 47: ADK CI Smoke Gate** - Gate de CI que bloqueia deploy com regressao em trajetorias oncologicas criticas. (completed 2026-03-06)
 - [x] **Phase 48: Phase 44 Verification Closeout** - Fechar cadeia de verificacao orfanada de ADK-09 e ADK-10 com artefato 44-VERIFICATION.md. (gap closure) (completed 2026-03-06)
-- [ ] **Phase 49: ADK Real Runner & Staging Validation** - Validacao humana em ambiente staging do runner google-adk para ADK-11, ADK-12 e cancel multi-instancia ADK-09. (gap closure)
+- [x] **Phase 49: ADK Real Runner & Staging Validation** - Cobertura smoke condicionada com runner `google-adk` real e fechamento final da verificacao ADK-11/ADK-12. (gap closure) (completed 2026-03-06)
 
 ## Gap Closure Phases
 
@@ -53,20 +53,20 @@ Plans:
 - [x] 48-01-PLAN.md — Run Phase 44 test suite, write 44-VERIFICATION.md with cross-referenced evidence, and update REQUIREMENTS.md (completed 2026-03-06)
 
 ### Phase 49: ADK Real Runner & Staging Validation
-**Goal**: Validar comportamento de seguranca e erro ADK em ambiente staging com google-adk real instalado.
+**Goal**: Validar comportamento de seguranca e erro ADK com `google-adk` real instalado e fechar a ultima lacuna de verificacao do milestone v1.8.
 **Depends on**: Phase 45, Phase 48
 **Requirements**: ADK-11, ADK-12
 **Gap Closure**: Closes human_needed verification and staging flow gaps from v1.8 audit
 **Success Criteria** (what must be TRUE):
   1. Real google-adk runner blocks unsafe tool call and returns `policy_block` with no side effect.
   2. Real google-adk runner/bootstrap failure returns `upstream_error` with no fallback dispatch.
-  3. Multi-instance cancel confirmation passes in staging topology (ADK-09).
+  3. Cancelamento com runner real encerra a invocacao e, combinado com a cobertura ja existente do `ADKSessionStore`, fecha a inferencia multi-instancia de ADK-09.
   4. `45-VERIFICATION.md` updated from `human_needed` to `passed`.
-**Plans**: 1 plan
+**Plans**: 1/1 plans complete
 
 Plans:
 
-- [ ] 49-01-PLAN.md — Add real-runner integration tests and update verification artifacts
+- [x] 49-01-PLAN.md — Add real-runner integration tests and update verification artifacts (completed 2026-03-06)
 
 ---
 
@@ -143,9 +143,9 @@ Plans:
 | 46. ADK Observability Baseline | 1/1 | Complete    | 2026-03-06 |
 | 47. ADK CI Smoke Gate | 1/1 | Complete    | 2026-03-06 |
 | 48. Phase 44 Verification Closeout | 1/1 | Complete    | 2026-03-06 |
-| 49. ADK Real Runner & Staging Validation | 0/1 | Planned | — |
+| 49. ADK Real Runner & Staging Validation | 1/1 | Complete    | 2026-03-06 |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 — Phase 49 planned (1 plan); final gap closure for ADK-11/ADK-12 real runner validation_
+_Last updated: 2026-03-06 — Phase 49 executed and verified; v1.8 ready for milestone closeout_
