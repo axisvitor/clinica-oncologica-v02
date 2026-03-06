@@ -58,6 +58,7 @@ markers = [
     "idempotency: Idempotency tests",
     "saga: Saga orchestration tests",
     "encryption: Encryption tests",
+    "adk_smoke: ADK smoke tests for critical oncology trajectories",
 ]
 
 [tool.coverage.run]

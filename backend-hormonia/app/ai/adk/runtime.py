@@ -56,6 +56,7 @@ _TERMINAL_INVOCATION_STATUSES = {
     "policy_block",
     "timeout",
     "tool_error",
+    "unsupported_tool",
     "upstream_error",
 }
 _PROTECTED_POLICY_KEYS = frozenset({"tool_policy", "policy", "required_context_keys"})
@@ -131,13 +132,13 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
     if handler is None:
         record_adk_invocation(
             tool_name=tool_name,
-            status="error",
+            status="unsupported_tool",
             duration_seconds=0.0,
             invocation_id=request.invocation.invocation_id or request.invocation_id,
             session_id=request.session.session_id or request.session_id,
         )
         return _build_result(
-            status="error",
+            status="unsupported_tool",
             result={
                 "message": f"Unsupported ADK tool: {request.tool_name}",
                 "tool": request.tool_name,

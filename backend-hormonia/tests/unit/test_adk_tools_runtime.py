@@ -1305,7 +1305,7 @@ async def test_metrics_recorded_on_unsupported_tool(
 
     monkeypatch.setattr(runtime, "get_tool_registry", lambda: {})
 
-    labels = {"tool_name": "missing-tool", "status": "error"}
+    labels = {"tool_name": "missing-tool", "status": "unsupported_tool"}
     before_total = _metric_value("adk_invocations_total", labels)
 
     result = await run_adk_tool(
@@ -1317,7 +1317,7 @@ async def test_metrics_recorded_on_unsupported_tool(
         )
     )
 
-    assert result["status"] == "error"
+    assert result["status"] == "unsupported_tool"
     assert result["result"]["type"] == "unsupported_tool"
     assert _metric_value("adk_invocations_total", labels) == before_total + 1.0
 
