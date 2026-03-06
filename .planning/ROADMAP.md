@@ -29,7 +29,7 @@
 </details>
 
 - [x] **Phase 44: ADK Runtime Controls** - Limites por invocacao e ciclo de vida de sessao ADK no endpoint canonico. (completed 2026-03-05)
-- [ ] **Phase 45: ADK Tool Safety and Deterministic Errors** - Guardrails de tool e classificacao deterministica de falhas ADK. (verification gaps found 2026-03-05)
+- [ ] **Phase 45: ADK Tool Safety and Deterministic Errors** - Guardrails de tool e classificacao deterministica de falhas ADK. (gap closure in progress)
 - [ ] **Phase 46: ADK Observability Baseline** - Metricas operacionais de latencia, throughput e erro por invocacao/agente.
 - [ ] **Phase 47: ADK CI Smoke Gate** - Gate de CI que bloqueia deploy com regressao em trajetorias oncologicas criticas.
 
@@ -60,13 +60,14 @@ Plans:
   1. Chamada de tool insegura e bloqueada por `before_tool_callback` antes da execucao da tool.
   2. Falhas ADK retornam exatamente uma classe deterministica entre `timeout`, `policy_block`, `tool_error` e `upstream_error`.
   3. O mesmo tipo de falha gera a mesma classe em repeticoes do mesmo cenario, sem cair em erro generico ambiguo.
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
 
 - [x] 45-01: Add the pre-tool safety guardrail and lock `policy_block` route/runtime regressions
 - [x] 45-02: Replace ambiguous runtime fallback with deterministic `tool_error` / `upstream_error` classification
 - [x] 45-03: Finalize repeated-scenario regressions and sync the Phase 45 validation map
+- [ ] 45-04: Close runner-path policy bypass — protect operator policy keys from tool-call context overwrite (gap closure)
 
 ### Phase 46: ADK Observability Baseline
 **Goal**: Operacao consegue monitorar saude ADK em producao por invocacao e por agente sem depender de debug manual.
@@ -93,11 +94,11 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 44. ADK Runtime Controls | 3/3 | Complete    | 2026-03-05 |
-| 45. ADK Tool Safety and Deterministic Errors | 3/3 | Gaps Found | - |
+| 45. ADK Tool Safety and Deterministic Errors | 3/4 | Gap Closure | - |
 | 46. ADK Observability Baseline | 0/TBD | Not started | - |
 | 47. ADK CI Smoke Gate | 0/TBD | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-05 — Phase 45 execution complete but verification found a runner-path policy gap; gap closure planning required_
+_Last updated: 2026-03-05 — Phase 45 gap closure plan 45-04 created to fix runner-path policy bypass_
