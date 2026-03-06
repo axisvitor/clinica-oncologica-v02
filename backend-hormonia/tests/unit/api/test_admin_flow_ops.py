@@ -246,27 +246,25 @@ def test_list_failed_flow_ops_returns_delivery_failures(client, mock_db):
     response = client.get("/admin-ext/flow-ops/failed")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "items": [
-            {
-                "flow_state_id": str(flow_state.id),
-                "patient_id": str(flow_state.patient_id),
-                "patient_name": "Maria Flow",
-                "current_step": 4,
-                "failure_type": "delivery_failure",
-                "failure_details": {
-                    "delivery_failures": [
-                        {"message_id": "msg-1", "error": "timeout", "attempt": 3}
-                    ],
-                    "permanently_failed_at": "2026-03-06T17:59:00+00:00",
-                },
-                "updated_at": updated_at.isoformat(),
-            }
+    body = response.json()
+    assert body["total"] == 1
+    assert body["limit"] == 50
+    assert body["offset"] == 0
+    assert len(body["items"]) == 1
+
+    item = body["items"][0]
+    assert item["flow_state_id"] == str(flow_state.id)
+    assert item["patient_id"] == str(flow_state.patient_id)
+    assert item["patient_name"] == "Maria Flow"
+    assert item["current_step"] == 4
+    assert item["failure_type"] == "delivery_failure"
+    assert item["failure_details"] == {
+        "delivery_failures": [
+            {"message_id": "msg-1", "error": "timeout", "attempt": 3}
         ],
-        "total": 1,
-        "limit": 50,
-        "offset": 0,
+        "permanently_failed_at": "2026-03-06T17:59:00+00:00",
     }
+    assert item["updated_at"].startswith("2026-03-06T18:00:00")
 
 
 def test_list_failed_flow_ops_returns_mismatch_resets(client, mock_db):

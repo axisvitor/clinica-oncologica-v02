@@ -21,6 +21,7 @@ from fastapi import APIRouter
 
 from .dlq import router as dlq_router
 from .audit import router as audit_router
+from .flow_ops import router as flow_ops_router
 
 # Create main router
 router = APIRouter()
@@ -30,6 +31,9 @@ router.include_router(dlq_router, prefix="/dlq", tags=["Admin Extensions - DLQ"]
 
 router.include_router(
     audit_router, prefix="/audit-logs", tags=["Admin Extensions - Audit Logs"]
+)
+router.include_router(
+    flow_ops_router, prefix="/flow-ops", tags=["Admin Extensions - Flow Ops"]
 )
 
 __all__ = ["router"]

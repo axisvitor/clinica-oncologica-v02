@@ -584,3 +584,46 @@ class AuditLogFilterRequest(BaseModel):
             }
         }
     )
+
+
+# ============================================================================
+# FLOW OPS SCHEMAS
+# ============================================================================
+
+
+class FlowOpsResetResponse(BaseModel):
+    patient_id: UUID
+    flow_state_id: UUID
+    action: str = "reset"
+    cleared_fields: list[str]
+
+
+class FlowOpsAdvanceResponse(BaseModel):
+    patient_id: UUID
+    flow_state_id: UUID
+    action: str = "advance"
+    new_day: int
+
+
+class FlowOpsUnstickResponse(BaseModel):
+    patient_id: UUID
+    flow_state_id: UUID
+    action: str = "unstick"
+    cleared_fields: list[str]
+
+
+class FailedFlowOperation(BaseModel):
+    flow_state_id: UUID
+    patient_id: UUID
+    patient_name: str | None
+    current_step: int | None
+    failure_type: str
+    failure_details: dict[str, Any] = Field(default_factory=dict)
+    updated_at: datetime | None
+
+
+class FailedFlowOperationsResponse(BaseModel):
+    items: list[FailedFlowOperation] = Field(default_factory=list)
+    total: int
+    limit: int
+    offset: int
