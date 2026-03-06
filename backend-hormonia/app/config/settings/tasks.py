@@ -192,6 +192,17 @@ STUCK_FLOW_RECOVERY_IDEMPOTENCY_TTL = int(
 
 
 # ============================================================================
+# FLOW STALL ALERT SETTINGS - NEW NAMING: TASK_FLOW_STALL_ALERT_*
+# ============================================================================
+
+# Hours before an awaiting-response flow triggers an observability alert
+FLOW_STALL_ALERT_HOURS = int(os.getenv("TASK_FLOW_STALL_ALERT_HOURS", "6"))
+
+# Optional webhook destination for stalled flow alerts
+FLOW_STALL_ALERT_WEBHOOK_URL = os.getenv("TASK_FLOW_STALL_ALERT_WEBHOOK_URL", "")
+
+
+# ============================================================================
 # CLEANUP SETTINGS - NEW NAMING: TASK_CLEANUP_*
 # ============================================================================
 
