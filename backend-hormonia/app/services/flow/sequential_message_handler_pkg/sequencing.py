@@ -6,6 +6,7 @@ from app.models.flow import PatientFlowState
 from app.models.message import Message, MessageDirection, MessageStatus, MessageType
 from app.models.patient import Patient
 from app.services.flow.config_validation import DayConfigValidationError
+from app.services.flow.management.advancement import advance_day_atomic
 from app.services.flow.sequential_message_handler_pkg.delivery import (
     await_inter_message_delay,
     build_flow_idempotency_key,
@@ -165,13 +166,7 @@ class SequencingMixin:
             if i < len(messages) - 1:
                 await self._await_inter_message_delay(delay_seconds)
 
-        step_data = flow_state.step_data or {}
-        step_data["day_complete"] = True
-        step_data["messages_sent"] = sent_count
-        step_data["current_day_message_index"] = max(len(messages) - 1, 0)
-        self._mark_last_message_sent(step_data)
-        step_data["awaiting_response"] = messages[-1].get("expects_response", False)
-        if step_data["awaiting_response"]:
+        if messages[-1].get("expects_response", False):
             pending_index = max(len(messages) - 1, 0)
             pending_message_id = self._resolve_sent_message_id(
                 patient_id=patient.id,
@@ -179,17 +174,26 @@ class SequencingMixin:
                 day_number=day_number,
                 message_index=pending_index,
             )
-            step_data["pending_response_context"] = {
-                "flow_day": day_number,
-                "flow_kind": flow_kind,
-                "message_index": pending_index,
-                "prompt_message_id": pending_message_id,
-            }
+            await self._set_flow_progress(
+                flow_state,
+                message_index=pending_index,
+                awaiting_response=True,
+                mark_last_sent=True,
+                flow_day=day_number,
+                flow_kind=flow_kind,
+                pending_message_id=pending_message_id,
+            )
         else:
-            step_data.pop("pending_response_context", None)
-        flow_state.step_data = step_data
-        flow_state.last_interaction_at = now_sao_paulo()
-        await self.db.commit()
+            await advance_day_atomic(
+                db=self.db,
+                flow_state=flow_state,
+                patient_id=getattr(patient, "id", None),
+                day_number=day_number,
+                flow_kind=flow_kind,
+                message_index=max(len(messages) - 1, 0),
+                sent_count=sent_count,
+                mark_last_message_sent=self._mark_last_message_sent,
+            )
 
         return {"status": "ok", "sent_count": sent_count, "mode": "sequential_auto"}
 
@@ -293,15 +297,16 @@ class SequencingMixin:
             if current_index < len(messages):
                 await self._await_inter_message_delay(2.0)
 
-        step_data = flow_state.step_data or {}
-        step_data["day_complete"] = True
-        step_data["awaiting_response"] = False
-        step_data["current_day_message_index"] = len(messages) - 1
-        self._mark_last_message_sent(step_data)
-        step_data.pop("pending_response_context", None)
-        flow_state.step_data = step_data
-        flow_state.last_interaction_at = now_sao_paulo()
-        await self.db.commit()
+        await advance_day_atomic(
+            db=self.db,
+            flow_state=flow_state,
+            patient_id=getattr(patient, "id", None),
+            day_number=day_number,
+            flow_kind=flow_kind,
+            message_index=len(messages) - 1,
+            sent_count=sent_count,
+            mark_last_message_sent=self._mark_last_message_sent,
+        )
 
         return {"status": "complete", "sent_count": sent_count, "day": day_number}
 
@@ -474,15 +479,16 @@ class SequencingMixin:
             if i < len(remaining) - 1:
                 await self._await_inter_message_delay(2.0)
 
-        step_data = flow_state.step_data or {}
-        step_data["day_complete"] = True
-        step_data["current_day_message_index"] = len(messages) - 1
-        step_data["awaiting_response"] = False
-        self._mark_last_message_sent(step_data)
-        step_data.pop("pending_response_context", None)
-        flow_state.step_data = step_data
-        flow_state.last_interaction_at = now_sao_paulo()
-        await self.db.commit()
+        await advance_day_atomic(
+            db=self.db,
+            flow_state=flow_state,
+            patient_id=getattr(patient, "id", None),
+            day_number=day_number,
+            flow_kind=flow_kind,
+            message_index=len(messages) - 1,
+            sent_count=len(remaining),
+            mark_last_message_sent=self._mark_last_message_sent,
+        )
 
         return {"status": "complete", "sent_count": len(remaining)}
 

@@ -1,6 +1,9 @@
 import logging
-from typing import Optional
+from inspect import isawaitable
+from typing import Any, Callable, Optional
 from uuid import UUID
+
+from sqlalchemy import select
 
 from app.exceptions import (
     FlowOperationError,
@@ -17,6 +20,85 @@ logger = logging.getLogger(__name__)
 FLOW_ADVANCE_BLOCKED_MESSAGE = "Cannot advance flow while awaiting patient response"
 FLOW_ADVANCE_BLOCKED_CODE = "flow_advance_blocked_awaiting_response"
 FLOW_ADVANCE_BLOCKED_REASON = "awaiting_response"
+
+
+async def advance_day_atomic(
+    *,
+    db: Any,
+    flow_state: PatientFlowState,
+    patient_id: Optional[UUID],
+    day_number: int,
+    flow_kind: str,
+    message_index: int,
+    sent_count: Optional[int] = None,
+    mark_last_message_sent: Optional[Callable[[dict[str, Any]], None]] = None,
+) -> dict[str, Any]:
+    """Persist day-complete state with optimistic locking and verification markers."""
+    step_data = dict(flow_state.step_data or {})
+    step_data["day_complete"] = True
+    step_data["awaiting_response"] = False
+    step_data["current_day_message_index"] = message_index
+    if sent_count is not None:
+        step_data["messages_sent"] = sent_count
+    if callable(mark_last_message_sent):
+        mark_last_message_sent(step_data)
+    step_data.pop("pending_response_context", None)
+    step_data["day_advance_verified"] = False
+    step_data.pop("day_advance_verified_at", None)
+
+    expected_version = getattr(flow_state, "version", 0)
+    version_result = db.execute(
+        select(PatientFlowState.version).filter(PatientFlowState.id == flow_state.id)
+    )
+    if isawaitable(version_result):
+        version_result = await version_result
+    current_version = version_result.scalar_one_or_none()
+    if current_version is None:
+        raise FlowStateNotFoundError(f"Flow state {flow_state.id} not found")
+    if isinstance(current_version, bool) or not isinstance(current_version, int):
+        current_version = expected_version
+    if current_version != expected_version:
+        raise FlowStateConflictError(
+            "Concurrent flow update detected during day completion",
+            details={
+                "patient_id": str(patient_id) if patient_id else None,
+                "flow_kind": flow_kind,
+                "day_number": day_number,
+                "expected_version": expected_version,
+                "actual_version": current_version,
+            },
+        )
+
+    flow_state.step_data = step_data
+    flow_state.last_interaction_at = now_sao_paulo()
+    flow_state.version = expected_version + 1
+
+    try:
+        commit_result = db.commit()
+        if isawaitable(commit_result):
+            await commit_result
+        step_data["day_advance_verified"] = True
+        step_data["day_advance_verified_at"] = now_sao_paulo().isoformat()
+        flow_state.step_data = step_data
+        flow_state.last_interaction_at = now_sao_paulo()
+        flow_state.version = expected_version + 2
+        commit_result = db.commit()
+        if isawaitable(commit_result):
+            await commit_result
+    except Exception as exc:
+        flow_state.step_data = step_data
+        logger.error(
+            "Day advancement commit failed - flow may be in inconsistent state",
+            extra={
+                "patient_id": str(patient_id) if patient_id else None,
+                "day_number": day_number,
+                "flow_kind": flow_kind,
+                "error": str(exc),
+            },
+        )
+        raise
+
+    return step_data
 
 
 class FlowManagementAdvancementMixin:
