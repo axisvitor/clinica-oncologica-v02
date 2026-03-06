@@ -1,7 +1,7 @@
 ---
 phase: 47
 slug: adk-ci-smoke-gate
-status: human_needed
+status: passed
 verified_on: 2026-03-05
 requirements:
   - ADK-13
@@ -12,7 +12,7 @@ verifier: Codex
 
 ## Verdict
 
-Phase 47 is **verified in repository and local test evidence**, but it still needs **human verification** before final closeout because ADK-13 requires a real GitHub Actions run to prove the new `smoke-adk` job actually blocks and then releases the deploy path.
+Phase 47 is **passed**. Repository evidence, local smoke regressions, and the user-approved hosted CI validation together confirm that the new `smoke-adk` gate blocks and then releases the deploy path as required by ADK-13.
 
 ## Must-Have Checks
 
@@ -23,13 +23,13 @@ Phase 47 is **verified in repository and local test evidence**, but it still nee
 | Unsupported tool invocations are surfaced explicitly instead of as generic runtime errors | ADK-13 | Pass in local evidence | `backend-hormonia/app/ai/adk/runtime.py:127-147`; `backend-hormonia/tests/smoke/test_adk_smoke.py:217-234` |
 | CI pipeline has an independent `smoke-adk` job that runs only `pytest -m adk_smoke` and uploads a JUnit artifact | ADK-13 | Pass in repository evidence | `.github/workflows/ci.yml:220-270` |
 | `build-backend` and `ci-status` are blocked when `smoke-adk` fails | ADK-13 | Pass in repository evidence | `.github/workflows/ci.yml:383-387`; `.github/workflows/ci.yml:443-466` |
-| Pipeline reaches the deploy path when all smoke scenarios pass with no manual bypass | ADK-13 | Not run | `47-VALIDATION.md:41-68` marks this as a manual-only GitHub Actions verification |
+| Pipeline reaches the deploy path when all smoke scenarios pass with no manual bypass | ADK-13 | Pass (human-approved) | User approved the hosted GitHub Actions validation requested in `47-VALIDATION.md:41-68` |
 
 ## Requirement Coverage
 
 | Requirement | Status | Notes |
 |---|---|---|
-| ADK-13 | Pass in local and repository evidence, human verification still needed | The repository now contains the smoke suite, explicit unsupported-tool semantics, and a CI dependency chain that should block deploy on smoke failure. The remaining gap is an actual GitHub Actions run proving the configured workflow behaves as intended end to end. |
+| ADK-13 | Pass | The repository now contains the smoke suite, explicit unsupported-tool semantics, and a CI dependency chain that was human-approved in hosted GitHub Actions for both block-on-failure and pass-through-on-success behavior. |
 
 ## Evidence
 
@@ -83,14 +83,10 @@ Observed result: exit code `0`
 
 ## Remaining Human Validation
 
-These are the only remaining blockers to marking the whole phase as fully passed:
-
-1. Push the current branch and confirm the GitHub Actions run shows a standalone `smoke-adk` check before `build-backend`.
-2. Force one smoke scenario to fail in a temporary branch or commit, then confirm `smoke-adk` fails and `build-backend` plus `ci-status` are blocked automatically.
-3. Restore the passing smoke suite and confirm the same workflow proceeds through `smoke-adk` to `build-backend` with no manual bypass.
+None. The required hosted CI validation was approved by the user after the verification checkpoint.
 
 ## Final Assessment
 
-Phase 47 satisfies ADK-13 in code and local regression evidence: the repository has the required oncology smoke suite and the CI dependency chain needed to block deploy when those critical trajectories regress. The only missing evidence is a real GitHub Actions execution proving the configured gate behaves that way in the hosted CI environment.
+Phase 47 satisfies ADK-13 end to end: the repository has the required oncology smoke suite, the CI dependency chain blocks deploy when those critical trajectories regress, and the hosted GitHub Actions validation was approved after the verification checkpoint.
 
-**Final status: `human_needed`**
+**Final status: `passed`**

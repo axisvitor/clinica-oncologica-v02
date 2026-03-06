@@ -10,7 +10,7 @@
 - ✅ **v1.5 Saga Orchestrator Deep Dive** — Phases 29-32 (shipped 2026-03-01)
 - ✅ **v1.6 WuzAPI Migration** — Phases 33-39 (shipped 2026-03-03)
 - ✅ **v1.7 Frontend Quality & ADK Integration** — Phases 40-43 (shipped 2026-03-05)
-- 🚧 **v1.8 ADK Stability & Error Hardening** — Phases 44-47 (in progress)
+- ✅ **v1.8 ADK Stability & Error Hardening** — Phases 44-47 (completed 2026-03-06; ready to archive)
 
 ## Phases
 
@@ -91,7 +91,7 @@ Plans:
   1. Time executa smoke ADK de trajetorias oncologicas criticas no CI e recebe resultado pass/fail por cenario.
   2. Pipeline bloqueia deploy automaticamente quando qualquer cenario critico de smoke regressa.
   3. Pipeline segue para deploy quando todos os cenarios criticos passam sem necessidade de bypass manual.
-**Plans**: 1 plan
+**Plans**: 1/1 plans complete
 
 Plans:
 
@@ -104,9 +104,9 @@ Plans:
 | 44. ADK Runtime Controls | 3/3 | Complete    | 2026-03-05 |
 | 45. ADK Tool Safety and Deterministic Errors | 4/4 | Complete   | 2026-03-06 |
 | 46. ADK Observability Baseline | 1/1 | Complete    | 2026-03-06 |
-| 47. ADK CI Smoke Gate | 1/1 | Complete   | 2026-03-06 |
+| 47. ADK CI Smoke Gate | 1/1 | Complete    | 2026-03-06 |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 — Phase 47 plan executed (1/1 complete, ADK-13 smoke gate ready for verification)_
+_Last updated: 2026-03-06 — Phase 47 verified and complete (ADK-13 smoke gate approved)_
