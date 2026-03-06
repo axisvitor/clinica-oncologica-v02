@@ -63,28 +63,28 @@ Requirements for bulletproof flow pipeline. Each maps to roadmap phases.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FLOW-01 | — | Pending |
-| FLOW-02 | — | Pending |
-| FLOW-03 | — | Pending |
-| FLOW-04 | — | Pending |
-| FLOW-05 | — | Pending |
-| RECV-01 | — | Pending |
-| RECV-02 | — | Pending |
-| RECV-03 | — | Pending |
-| RECV-04 | — | Pending |
-| OBS-01 | — | Pending |
-| OBS-02 | — | Pending |
-| OBS-03 | — | Pending |
-| OBS-04 | — | Pending |
-| TEST-01 | — | Pending |
-| TEST-02 | — | Pending |
-| TEST-03 | — | Pending |
+| FLOW-01 | Phase 50 | Pending |
+| FLOW-02 | Phase 50 | Pending |
+| FLOW-03 | Phase 50 | Pending |
+| FLOW-04 | Phase 50 | Pending |
+| FLOW-05 | Phase 50 | Pending |
+| RECV-01 | Phase 51 | Pending |
+| RECV-02 | Phase 51 | Pending |
+| RECV-03 | Phase 51 | Pending |
+| RECV-04 | Phase 51 | Pending |
+| OBS-01 | Phase 52 | Pending |
+| OBS-02 | Phase 52 | Pending |
+| OBS-03 | Phase 52 | Pending |
+| OBS-04 | Phase 52 | Pending |
+| TEST-01 | Phase 53 | Pending |
+| TEST-02 | Phase 53 | Pending |
+| TEST-03 | Phase 53 | Pending |
 
 **Coverage:**
 - v1.9 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16
+- Mapped to phases: 16
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-06*
-*Last updated: 2026-03-06 after initial definition*
+*Last updated: 2026-03-06 -- traceability updated after roadmap creation*
