@@ -72,12 +72,11 @@ Plans:
   2. Stalled flows are automatically recovered by re-sending the last prompt or advancing the day, based on analysis of current flow state
   3. An admin can reset, advance, or unstick a specific patient flow via a dedicated API endpoint
   4. Failed flow operations (gate blocks, send failures, recovery failures) are visible in the admin interface via a queryable surface (DLQ or dedicated query)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 51-01: Stuck flow detector periodic task
-- [ ] 51-02: Auto-recovery logic and admin flow control API
-- [ ] 51-03: Failed flow operations visibility in admin
+- [ ] 51-01-PLAN.md — Stuck flow detection service, auto-recovery logic, and Celery Beat task
+- [ ] 51-02-PLAN.md — Admin flow control API and failed flow operations visibility
 
 ### Phase 52: Flow Observability
 **Goal**: Operators can see real-time pipeline health and get alerted when patients are stuck, with full traceability from webhook to send
@@ -126,11 +125,11 @@ Phases execute in numeric order: 50 -> 51 -> 52 -> 53
 | 40-43 | v1.7 | 20/20 | Complete | 2026-03-05 |
 | 44-49 | v1.8 | 11/11 | Complete | 2026-03-06 |
 | 50. Pipeline Reliability | v1.9 | 4/4 | Complete | 2026-03-06 |
-| 51. Flow Recovery | v1.9 | 0/3 | Not started | - |
+| 51. Flow Recovery | v1.9 | 0/2 | Not started | - |
 | 52. Flow Observability | v1.9 | 0/2 | Not started | - |
 | 53. Pipeline Verification | v1.9 | 0/2 | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 -- Phase 50 complete (4/4 plans); Phase 51 ready to plan_
+_Last updated: 2026-03-06 -- Phase 51 planned (2 plans in 1 wave)_
