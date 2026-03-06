@@ -627,3 +627,23 @@ class FailedFlowOperationsResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class FlowHealthSummaryResponse(BaseModel):
+    active: int
+    stalled: int
+    failed: int
+    completed: int
+
+
+class StalledFlowInfo(BaseModel):
+    patient_id: str
+    flow_state_id: str
+    hours_stuck: float
+    last_interaction_at: str | None
+
+
+class FlowStallCheckResponse(BaseModel):
+    stalled_count: int
+    alerts_fired: bool
+    stalled_flows: list[StalledFlowInfo] = Field(default_factory=list)
