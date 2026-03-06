@@ -33,11 +33,19 @@ from app.config import settings
 from app.core.redis_manager import get_async_redis_client as get_async_redis
 from app.utils.db_retry import with_db_retry
 from app.services.webhook.utils.phone_normalizer import PhoneNormalizer
+from app.utils.structured_logger import correlation_id as correlation_id_var
 from app.utils.timezone import now_sao_paulo
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
+
+
+def _correlation_extra(**extra: Any) -> Dict[str, Any]:
+    return {
+        "correlation_id": correlation_id_var.get(),
+        **extra,
+    }
 
 # ---------------------------------------------------------------------------
 # LGPD Art. 18 — WhatsApp opt-out keyword detection
@@ -381,11 +389,11 @@ class MessageWebhookHandler:
 
             logger.info(
                 f"Processed inbound message {message.id} from patient {patient.id}",
-                extra={
-                    "message_id": str(message.id),
-                    "patient_id": str(patient.id),
-                    "context": metadata["context"],
-                },
+                extra=_correlation_extra(
+                    message_id=str(message.id),
+                    patient_id=str(patient.id),
+                    context=metadata["context"],
+                ),
             )
 
             # Step 6: Publish WebSocket event
@@ -640,6 +648,13 @@ class MessageWebhookHandler:
             response_context = {
                 key: value for key, value in response_context.items() if value is not None
             }
+            logger.info(
+                "Dispatching sequential continuation",
+                extra=_correlation_extra(
+                    patient_id=str(patient.id),
+                    response_context=response_context,
+                ),
+            )
             # Continue sequential flow first so webhook latency doesn't block the next prompt.
             sequential_result = await self._trigger_sequential_continuation(
                 patient.id,
@@ -662,21 +677,21 @@ class MessageWebhookHandler:
                 )
                 logger.info(
                     f"Flow advanced for patient {patient.id}: {advancement}",
-                    extra={
-                        "patient_id": str(patient.id),
-                        "status": status,
-                    },
+                    extra=_correlation_extra(
+                        patient_id=str(patient.id),
+                        status=status,
+                    ),
                 )
             else:
                 logger.info(
                     "Skipping flow advance due to progression gate",
-                    extra={
-                        "patient_id": str(patient.id),
-                        "status": status,
-                        "reason": sequential_result.get("reason")
+                    extra=_correlation_extra(
+                        patient_id=str(patient.id),
+                        status=status,
+                        reason=sequential_result.get("reason")
                         if isinstance(sequential_result, dict)
                         else None,
-                    },
+                    ),
                 )
 
             # AI response analysis is optional and disabled inline by default to keep
@@ -769,11 +784,11 @@ class MessageWebhookHandler:
             if not gate_allowed:
                 logger.info(
                     "Skipping sequential continuation due to progression gate",
-                    extra={
-                        "patient_id": str(patient_id),
-                        "reason": gate_reason,
-                        "response_context": normalized_context,
-                    },
+                    extra=_correlation_extra(
+                        patient_id=str(patient_id),
+                        reason=gate_reason,
+                        response_context=normalized_context,
+                    ),
                 )
                 status = "not_awaiting" if gate_reason == "not_awaiting_response" else "context_mismatch"
                 return {
@@ -795,7 +810,10 @@ class MessageWebhookHandler:
             if status in {"waiting", "day_complete", "complete"}:
                 logger.info(
                     "Sequential flow progressed after response",
-                    extra={"patient_id": str(patient_id), "status": status},
+                    extra=_correlation_extra(
+                        patient_id=str(patient_id),
+                        status=status,
+                    ),
                 )
 
             result_reason = result.get("reason") if isinstance(result, dict) else None
@@ -823,6 +841,7 @@ class MessageWebhookHandler:
             logger.error(
                 f"Failed to continue sequential flow for patient {patient_id}: {e}",
                 exc_info=True,
+                extra=_correlation_extra(patient_id=str(patient_id)),
             )
             return {"status": "error", "message": str(e), "advance_allowed": False}
 
@@ -1021,7 +1040,12 @@ class MessageWebhookHandler:
 
             response_message = self.message_service.create_message(response_data)
             logger.info(
-                f"Created message {response_message.id} for patient {patient_id}"
+                f"Created message {response_message.id} for patient {patient_id}",
+                extra=_correlation_extra(
+                    patient_id=str(patient_id),
+                    message_id=str(response_message.id),
+                    message_context=metadata.get("context"),
+                ),
             )
 
             # Step 2: Publish WebSocket event
@@ -1037,11 +1061,22 @@ class MessageWebhookHandler:
                 message_id=response_message.id, send_time=send_time, priority="high"
             )
 
-            logger.info(f"Scheduled message {response_message.id} for delivery")
+            logger.info(
+                f"Scheduled message {response_message.id} for delivery",
+                extra=_correlation_extra(
+                    patient_id=str(patient_id),
+                    message_id=str(response_message.id),
+                    message_context=metadata.get("context"),
+                ),
+            )
             return response_message
 
         except Exception as e:
-            logger.error(f"Error sending response: {e}", exc_info=True)
+            logger.error(
+                f"Error sending response: {e}",
+                exc_info=True,
+                extra=_correlation_extra(patient_id=str(patient_id)),
+            )
             try:
                 self.db.rollback()
             except Exception as rollback_error:

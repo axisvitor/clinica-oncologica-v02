@@ -170,7 +170,9 @@ async def test_missing_event_id_uses_body_hash(app: FastAPI, fake_redis):
 
     assert first.status_code == 200
     assert second.status_code == 200
-    assert second.json() == {"status": "duplicate", "event_id": expected_hash}
+    assert second.json()["status"] == "duplicate"
+    assert second.json()["event_id"] == expected_hash
+    assert second.json()["correlation_id"]
 
 
 @pytest.mark.asyncio

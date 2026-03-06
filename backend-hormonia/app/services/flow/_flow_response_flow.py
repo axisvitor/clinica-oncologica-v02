@@ -7,6 +7,7 @@ import logging
 from typing import Any, Dict, Optional
 from uuid import UUID
 
+from app.utils.structured_logger import correlation_id as correlation_id_var
 from app.utils.timezone import now_sao_paulo
 
 from app.services.flow._flow_message_flow import _prepare_dispatch_execution_context
@@ -24,6 +25,13 @@ from app.services.flow.sequential_response_gate import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _correlation_extra(**extra: Any) -> Dict[str, Any]:
+    return {
+        "correlation_id": correlation_id_var.get(),
+        **extra,
+    }
 
 
 async def load_response_context(
@@ -127,18 +135,18 @@ async def load_response_context(
             if did_reset:
                 logger.warning(
                     "Response context mismatch retry limit reached; resetting flow wait state",
-                    extra={
+                    extra=_correlation_extra(
                         **log_context,
-                        "reset_after": mismatch_result["reset_after"],
-                    },
+                        reset_after=mismatch_result["reset_after"],
+                    ),
                 )
             else:
                 logger.info(
                     "Response context mismatch; keeping flow waiting",
-                    extra={
+                    extra=_correlation_extra(
                         **log_context,
-                        "mismatch_count": mismatch_result["mismatch_count"],
-                    },
+                        mismatch_count=mismatch_result["mismatch_count"],
+                    ),
                 )
             return {
                 "result": {
@@ -171,6 +179,16 @@ async def load_response_context(
             flow_state.step_data = step_data
             await asyncio.to_thread(handler.db.commit)
 
+        logger.info(
+            "Loaded response context for continuation",
+            extra=_correlation_extra(
+                patient_id=str(patient_id),
+                flow_kind=flow_kind,
+                day_number=current_day,
+                next_message_index=next_index,
+                send_mode=send_mode,
+            ),
+        )
         return {
             "flow_state_id": getattr(flow_state, "id", None),
             "flow_state_step_data": dict(step_data),
@@ -226,6 +244,16 @@ async def dispatch_response_continuation(
             flow_kind,
             day_config,
         )
+        logger.info(
+            "Dispatched response continuation",
+            extra=_correlation_extra(
+                patient_id=str(getattr(patient, "id", state["patient_id"])),
+                flow_kind=flow_kind,
+                day_number=day_number,
+                send_mode=send_mode,
+                current_index=current_index,
+            ),
+        )
         return {"result": result}
 
     if send_mode == "wait_each":
@@ -237,6 +265,16 @@ async def dispatch_response_continuation(
             day_number,
             flow_kind,
             day_config,
+        )
+        logger.info(
+            "Dispatched response continuation",
+            extra=_correlation_extra(
+                patient_id=str(getattr(patient, "id", state["patient_id"])),
+                flow_kind=flow_kind,
+                day_number=day_number,
+                send_mode=send_mode,
+                current_index=current_index,
+            ),
         )
         return {"result": result}
 

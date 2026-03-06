@@ -24,3 +24,6 @@ def record_ai_fallback(*, reason: str) -> None:
             "metric_type": "ai_fallback",
         },
     )
+
+
+__all__ = ["AI_PERSONALIZATION_FALLBACK_TOTAL", "record_ai_fallback"]

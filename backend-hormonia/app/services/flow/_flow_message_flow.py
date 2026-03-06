@@ -21,8 +21,16 @@ from app.services.flow._flow_orchestration_utils import (
     _require_handler,
     validate_flow_message_state,
 )
+from app.utils.structured_logger import correlation_id as correlation_id_var
 
 logger = logging.getLogger(__name__)
+
+
+def _correlation_extra(**extra: Any) -> Dict[str, Any]:
+    return {
+        "correlation_id": correlation_id_var.get(),
+        **extra,
+    }
 
 
 async def load_flow_context(
@@ -52,7 +60,16 @@ async def load_flow_context(
 
         day_config = await handler._get_day_config(flow_kind, day_number)
         if not day_config:
-            logger.info("No config for day %s in %s - skipping", day_number, flow_kind)
+            logger.info(
+                "No config for day %s in %s - skipping",
+                day_number,
+                flow_kind,
+                extra=_correlation_extra(
+                    patient_id=str(patient_id),
+                    day_number=day_number,
+                    flow_kind=flow_kind,
+                ),
+            )
             return {
                 "result": {
                     "status": "skip",
@@ -69,12 +86,12 @@ async def load_flow_context(
         except DayConfigValidationError as exc:
             logger.warning(
                 "day_config validation failed - failing fast",
-                extra={
-                    "patient_id": str(patient_id),
-                    "flow_kind": flow_kind,
-                    "day_number": day_number,
-                    "validation_errors": exc.errors,
-                },
+                extra=_correlation_extra(
+                    patient_id=str(patient_id),
+                    flow_kind=flow_kind,
+                    day_number=day_number,
+                    validation_errors=exc.errors,
+                ),
             )
             return {
                 "result": {
@@ -88,7 +105,16 @@ async def load_flow_context(
         send_mode = _parse_send_mode(day_config.get("send_mode", "single"))
 
         if not messages:
-            logger.info("No messages for day %s in %s - skipping", day_number, flow_kind)
+            logger.info(
+                "No messages for day %s in %s - skipping",
+                day_number,
+                flow_kind,
+                extra=_correlation_extra(
+                    patient_id=str(patient_id),
+                    day_number=day_number,
+                    flow_kind=flow_kind,
+                ),
+            )
             return {
                 "result": {
                     "status": "skip",
@@ -136,6 +162,12 @@ async def load_flow_context(
                 previous_day,
                 day_number,
                 pending_index,
+                extra=_correlation_extra(
+                    patient_id=str(patient_id),
+                    previous_day=previous_day,
+                    day_number=day_number,
+                    pending_index=pending_index,
+                ),
             )
             return {
                 "result": {
@@ -164,6 +196,12 @@ async def load_flow_context(
                 current_index,
                 day_number,
                 flow_kind,
+                extra=_correlation_extra(
+                    patient_id=str(patient_id),
+                    current_index=current_index,
+                    day_number=day_number,
+                    flow_kind=flow_kind,
+                ),
             )
             if step_data.get("day_complete"):
                 return {
@@ -177,6 +215,16 @@ async def load_flow_context(
         step_data["current_day_message_index"] = current_index
         flow_state.step_data = step_data
 
+        logger.info(
+            "Loaded flow context for dispatch",
+            extra=_correlation_extra(
+                patient_id=str(patient_id),
+                day_number=day_number,
+                flow_kind=flow_kind,
+                send_mode=send_mode,
+                current_index=current_index,
+            ),
+        )
         return {
             "result": {},
             "flow_state_id": getattr(flow_state, "id", None),
@@ -283,6 +331,12 @@ async def dispatch_send_mode(
                 len(messages),
                 day_number,
                 flow_kind,
+                extra=_correlation_extra(
+                    patient_id=str(getattr(patient, "id", state["patient_id"])),
+                    day_number=day_number,
+                    flow_kind=flow_kind,
+                    send_mode=send_mode,
+                ),
             )
         result = await handler._send_all_sequential(
             patient,
@@ -300,6 +354,16 @@ async def dispatch_send_mode(
             },
         }
 
+    logger.info(
+        "Dispatched flow send mode",
+        extra=_correlation_extra(
+            patient_id=str(getattr(patient, "id", state["patient_id"])),
+            day_number=day_number,
+            flow_kind=flow_kind,
+            send_mode=send_mode,
+            current_index=current_index,
+        ),
+    )
     return {"result": result}
 
 
