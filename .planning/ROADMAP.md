@@ -91,7 +91,11 @@ Plans:
   1. Time executa smoke ADK de trajetorias oncologicas criticas no CI e recebe resultado pass/fail por cenario.
   2. Pipeline bloqueia deploy automaticamente quando qualquer cenario critico de smoke regressa.
   3. Pipeline segue para deploy quando todos os cenarios criticos passam sem necessidade de bypass manual.
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+
+- [ ] 47-01-PLAN.md — Register adk_smoke pytest marker, create oncology tool smoke suite, and wire smoke-adk CI job as deploy gate
 
 ## Progress
 
@@ -100,9 +104,9 @@ Plans:
 | 44. ADK Runtime Controls | 3/3 | Complete    | 2026-03-05 |
 | 45. ADK Tool Safety and Deterministic Errors | 4/4 | Complete   | 2026-03-06 |
 | 46. ADK Observability Baseline | 1/1 | Complete    | 2026-03-06 |
-| 47. ADK CI Smoke Gate | 0/TBD | Not started | - |
+| 47. ADK CI Smoke Gate | 0/1 | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 — Phase 46 completed for OBS-02; Phase 47 (ADK CI Smoke Gate) is next_
+_Last updated: 2026-03-06 — Phase 47 plan created (1 plan, ADK-13 CI smoke gate)_
