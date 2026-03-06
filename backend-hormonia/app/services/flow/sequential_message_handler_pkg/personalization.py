@@ -6,6 +6,7 @@ import re
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from app.models.patient import Patient
+from app.services.flow.metrics import record_ai_fallback
 from app.services.template_loader_pkg import MessageTemplate as FlowMessageTemplate
 
 if TYPE_CHECKING:
@@ -78,8 +79,10 @@ class PersonalizationMixin:
             expects_response=expects_response,
         )
         if not self.use_ai_personalization:
+            record_ai_fallback(reason="ai_disabled")
             return fallback_content
         if expects_response is False:
+            record_ai_fallback(reason="non_response_message")
             return fallback_content
 
         try:
@@ -124,6 +127,7 @@ class PersonalizationMixin:
                         "flow_kind": flow_kind,
                     },
                 )
+                record_ai_fallback(reason="empty_ai_result")
                 return fallback_content
 
             if not self._personalization_is_grounded(content, personalized):
@@ -135,6 +139,7 @@ class PersonalizationMixin:
                         "flow_kind": flow_kind,
                     },
                 )
+                record_ai_fallback(reason="not_grounded")
                 return fallback_content
 
             logger.debug("AI personalized message for patient %s", patient.id)
@@ -148,6 +153,7 @@ class PersonalizationMixin:
                     "flow_kind": flow_kind,
                 },
             )
+            record_ai_fallback(reason="timeout")
             return fallback_content
         except (ValueError, RuntimeError):
             logger.exception(
@@ -158,6 +164,7 @@ class PersonalizationMixin:
                     "flow_kind": flow_kind,
                 },
             )
+            record_ai_fallback(reason="value_runtime_error")
             return fallback_content
         except Exception:
             logger.exception(
@@ -168,6 +175,7 @@ class PersonalizationMixin:
                     "flow_kind": flow_kind,
                 },
             )
+            record_ai_fallback(reason="unexpected_error")
             return fallback_content
 
     def _build_fallback_content(

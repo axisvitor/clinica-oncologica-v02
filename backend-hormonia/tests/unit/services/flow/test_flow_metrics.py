@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
@@ -102,7 +102,7 @@ def test_ai_fallback_metric_is_prometheus_counter() -> None:
             True,
             _message(),
             lambda: SimpleNamespace(
-                generate_flow_message=Mock(return_value=asyncio.sleep(0, result=""))
+                generate_flow_message=AsyncMock(return_value="")
             ),
             True,
             "empty_ai_result",
@@ -111,9 +111,7 @@ def test_ai_fallback_metric_is_prometheus_counter() -> None:
             True,
             _message(),
             lambda: SimpleNamespace(
-                generate_flow_message=Mock(
-                    return_value=asyncio.sleep(0, result="conteudo desalinhado")
-                )
+                generate_flow_message=AsyncMock(return_value="conteudo desalinhado")
             ),
             False,
             "not_grounded",
@@ -122,7 +120,7 @@ def test_ai_fallback_metric_is_prometheus_counter() -> None:
             True,
             _message(),
             lambda: SimpleNamespace(
-                generate_flow_message=Mock(side_effect=asyncio.TimeoutError())
+                generate_flow_message=AsyncMock(side_effect=asyncio.TimeoutError())
             ),
             True,
             "timeout",
@@ -131,7 +129,7 @@ def test_ai_fallback_metric_is_prometheus_counter() -> None:
             True,
             _message(),
             lambda: SimpleNamespace(
-                generate_flow_message=Mock(side_effect=ValueError("bad prompt"))
+                generate_flow_message=AsyncMock(side_effect=ValueError("bad prompt"))
             ),
             True,
             "value_runtime_error",
@@ -140,7 +138,7 @@ def test_ai_fallback_metric_is_prometheus_counter() -> None:
             True,
             _message(),
             lambda: SimpleNamespace(
-                generate_flow_message=Mock(side_effect=Exception("boom"))
+                generate_flow_message=AsyncMock(side_effect=Exception("boom"))
             ),
             True,
             "unexpected_error",
@@ -156,12 +154,13 @@ async def test_personalization_mixin_records_all_fallback_paths(
 ) -> None:
     personalizer = _StubPersonalizer(use_ai_personalization=use_ai_personalization)
     patient = _patient()
+    engine = engine_factory()
 
     with patch(
         "app.services.flow.sequential_message_handler_pkg.personalization.record_ai_fallback"
     ) as record_ai_fallback:
-        if engine_factory() is not None:
-            personalizer._enhanced_flow_engine = engine_factory()
+        if engine is not None:
+            personalizer._enhanced_flow_engine = engine
         with patch.object(
             personalizer,
             "_personalization_is_grounded",
