@@ -1,18 +1,18 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.8
-milestone_name: ADK Stability & Error Hardening
-current_plan: milestone complete
-status: milestone_complete
-stopped_at: v1.8 milestone archived and tagged
-last_updated: "2026-03-06T16:30:00.000Z"
-last_activity: 2026-03-06 - v1.8 milestone completed and archived
+milestone: v1.9
+milestone_name: Bulletproof Flow Pipeline
+current_plan: —
+status: defining_requirements
+stopped_at: ~
+last_updated: "2026-03-06T18:00:00.000Z"
+last_activity: 2026-03-06 — Milestone v1.9 started
 progress:
-  total_phases: 6
-  completed_phases: 6
-  total_plans: 11
-  completed_plans: 11
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -22,14 +22,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-06)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Planning next milestone
+**Current focus:** v1.9 Bulletproof Flow Pipeline — defining requirements
 
 ## Current Position
 
-Milestone: v1.8 ADK Stability & Error Hardening — SHIPPED 2026-03-06
-Next: `/gsd:new-milestone` to start next cycle
-
-Progress: [██████████] 100% — ARCHIVED
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-06 — Milestone v1.9 started
 
 ## Performance Metrics
 
@@ -46,14 +46,17 @@ See `.planning/PROJECT.md` Key Decisions table for full log.
 
 ### Pending Todos
 
-(None — milestone complete)
+(None)
 
 ### Blockers/Concerns
 
-(None — milestone complete)
+- Sequential gate silently blocks mismatched context — patient gets stuck (HIGH)
+- Failed sends never retried — flow stalls silently (HIGH)
+- No flow stall visibility — only discovered via patient complaints
+- AI personalization failures silently degrade to fallback without alerting
 
 ## Session Continuity
 
 **Last session:** 2026-03-06
-**Stopped At:** v1.8 milestone completed and archived
+**Stopped At:** Defining v1.9 requirements
 **Resume File:** None

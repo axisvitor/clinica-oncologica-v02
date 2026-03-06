@@ -58,11 +58,24 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 
 ### Active
 
-- [ ] Definir replacement de observabilidade pos-OTel com padrao unico de instrumentacao (OBS-01)
-- [ ] Propagar correlation IDs obrigatorios em toda cadeia API -> Celery -> ADK (OBS-03)
-- [ ] Mapear taxonomia de erro ADK para envelope HTTP padronizado (ADK-14)
-- [ ] Definir politica retryable/non-retryable com idempotencia para chamadas ADK (ADK-15)
-- [ ] Fechar criterios de estabilidade operacional ADK com runbook e alertas minimos
+- [ ] Sequential gate recupera contexto mismatch com retry/reset em vez de espera silenciosa (FLOW-01)
+- [ ] Envios de mensagem falhos sao re-tentados automaticamente via Celery com backoff exponencial (FLOW-02)
+- [ ] Follow-ups adiados com falha de envio sao re-tentados via task queue (FLOW-03)
+- [ ] Avanco de dia apos day_complete e atomico e verificado (sem skip silencioso) (FLOW-04)
+- [ ] Template day_config validado no inicio do fluxo; config malformada falha rapido com erro claro (FLOW-05)
+- [ ] Detector de fluxo travado (awaiting_response > N horas) roda como task periodica Celery Beat (RECV-01)
+- [ ] Auto-recuperacao de fluxo travado tenta re-envio ou avanco baseado no estado (RECV-02)
+- [ ] Admin pode resetar/avancar/destravar fluxo de paciente via API (RECV-03)
+- [ ] Operacoes de fluxo falhas visiveis no admin (DLQ ou similar) (RECV-04)
+- [ ] Endpoint de saude do fluxo mostra contagens de fluxos ativos/travados/falhos/completos (OBS-01)
+- [ ] Alerta de fluxo travado dispara quando paciente nao progrediu em tempo configuravel (OBS-02)
+- [ ] Taxa de fallback de personalizacao AI rastreada via metrica (OBS-03)
+- [ ] Correlation ID propagado do webhook por toda cadeia de processamento do fluxo (OBS-04)
+- [ ] Testes de integracao cobrem pipeline completo webhook -> gate -> continuacao -> envio (TEST-01)
+- [ ] Testes de integracao cobrem deteccao de fluxo travado -> caminho de recuperacao (TEST-02)
+- [ ] Testes de integracao cobrem mecanica de retry para envios falhos (TEST-03)
+- [ ] Mapear taxonomia de erro ADK para envelope HTTP padronizado (ADK-14) — deferred
+- [ ] Definir politica retryable/non-retryable com idempotencia para chamadas ADK (ADK-15) — deferred
 
 ### Out of Scope
 
@@ -77,6 +90,17 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 - Saga event-sourcing rewrite — existing saga pattern functional, audit confirmed
 - Dual-provider mode (Evolution + WuzAPI) — intentionally rejected after hard cut
 - Verificacao operacional WuzAPI em ambiente real — adiada para milestone posterior apos estabilizacao ADK
+
+## Current Milestone: v1.9 Bulletproof Flow Pipeline
+
+**Goal:** Tornar o pipeline de fluxo WhatsApp 100% operacional — processamento de resposta do paciente, formulacao da proxima pergunta, e recuperacao automatica de falhas silenciosas.
+
+**Target features:**
+- Correcao do sequential gate para recuperar de context mismatches
+- Retry automatico de envios falhos via Celery
+- Deteccao e auto-recuperacao de fluxos travados
+- Observabilidade do fluxo: endpoint de saude, alertas de stall, metricas
+- Testes de integracao cobrindo pipeline end-to-end
 
 ## Current State
 
@@ -172,4 +196,4 @@ Medicos acompanham pacientes oncologicos continuamente entre consultas via Whats
 
 ---
 
-_Last updated: 2026-03-06 after v1.8 milestone completion_
+_Last updated: 2026-03-06 after v1.9 milestone start_
