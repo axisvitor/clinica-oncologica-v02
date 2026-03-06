@@ -118,6 +118,10 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.flows.monitoring.evaluate_flow_alerts",
         "schedule": 900.0,  # Every 15 minutes
     },
+    "detect-stuck-flows": {
+        "task": "app.tasks.flows.stuck_detection.detect_stuck_flows",
+        "schedule": 900.0,  # Every 15 minutes
+    },
     "generate-scheduled-reports": {
         "task": "app.tasks.reports.generate_scheduled_reports",
         "schedule": 3600.0,  # Every hour
