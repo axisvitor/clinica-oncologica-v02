@@ -7,8 +7,8 @@
 
 ### ADK Runtime
 
-- [ ] **ADK-09**: Operador pode aplicar limites de execucao ADK por invocacao (`max_llm_calls`, timeout e cancelamento) no endpoint `/api/v2/adk/run`.
-- [ ] **ADK-10**: Operador pode executar ciclo de vida de sessao ADK (create/resume/close) com crescimento de estado controlado.
+- [x] **ADK-09**: Operador pode aplicar limites de execucao ADK por invocacao (`max_llm_calls`, timeout e cancelamento) no endpoint `/api/v2/adk/run`.
+- [x] **ADK-10**: Operador pode executar ciclo de vida de sessao ADK (create/resume/close) com crescimento de estado controlado.
 
 ### ADK Safety & Errors
 
@@ -51,8 +51,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ADK-09 | Phase 44 / Phase 48 (gap closure) | Pending |
-| ADK-10 | Phase 44 / Phase 48 (gap closure) | Pending |
+| ADK-09 | Phase 44 / Phase 48 (gap closure) | Complete |
+| ADK-10 | Phase 44 / Phase 48 (gap closure) | Complete |
 | ADK-11 | Phase 45 / Phase 49 (gap closure) | Pending |
 | ADK-12 | Phase 45 / Phase 49 (gap closure) | Pending |
 | OBS-02 | Phase 46 | Complete |
