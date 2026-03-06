@@ -77,7 +77,11 @@ Plans:
   1. Operador visualiza latencia de invocacao ADK para o endpoint `/api/v2/adk/run`.
   2. Operador visualiza throughput e taxa de erro ADK por agente em producao.
   3. Operador identifica aumento de falhas ADK via metricas sem precisar inspecionar logs brutos request a request.
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+
+- [ ] 46-01-PLAN.md — Add Prometheus metrics (Histogram, Counter, Gauge) and structured logging at the ADK runtime boundary
 
 ### Phase 47: ADK CI Smoke Gate
 **Goal**: Release so avanca quando trajetorias ADK criticas do dominio oncologico continuam estaveis no CI.
@@ -95,10 +99,10 @@ Plans:
 |-------|----------------|--------|-----------|
 | 44. ADK Runtime Controls | 3/3 | Complete    | 2026-03-05 |
 | 45. ADK Tool Safety and Deterministic Errors | 4/4 | Complete   | 2026-03-06 |
-| 46. ADK Observability Baseline | 0/TBD | Not started | - |
+| 46. ADK Observability Baseline | 0/1 | Planned | - |
 | 47. ADK CI Smoke Gate | 0/TBD | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 — Phase 45 gap closure plan 45-04 completed and Phase 45 is ready for final verification_
+_Last updated: 2026-03-06 — Phase 46 planned with 1 plan covering OBS-02 (Prometheus metrics + structured logging at ADK boundary)_
