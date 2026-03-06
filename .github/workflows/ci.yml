@@ -210,11 +210,63 @@ jobs:
       - name: Upload pytest results
         uses: actions/upload-artifact@v4
         if: always()
-        with:
+      with:
           name: backend-pytest-results
           path: |
             backend-hormonia/pytest-report.xml
             backend-hormonia/htmlcov/
+          retention-days: 7
+
+  smoke-adk:
+    name: ADK Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [lint-backend]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            backend-hormonia/.venv
+          key: ${{ runner.os }}-pip-smoke-${{ hashFiles('backend-hormonia/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-smoke-
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        working-directory: backend-hormonia
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-asyncio pytest-mock
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+
+      - name: Run ADK smoke tests
+        working-directory: backend-hormonia
+        env:
+          TESTING: "true"
+          ENVIRONMENT: test
+          WHATSAPP_WUZAPI_TOKEN: smoke-ci-token
+        run: |
+          pytest -m adk_smoke --tb=short -v --junitxml=adk-smoke-report.xml
+
+      - name: Upload smoke test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adk-smoke-results
+          path: backend-hormonia/adk-smoke-report.xml
           retention-days: 7
 
   # Frontend Testing
@@ -332,7 +384,7 @@ jobs:
     name: Build Backend (Docker)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [test-backend, security-scan]
+    needs: [test-backend, security-scan, smoke-adk]
 
     steps:
       - name: Checkout code
@@ -394,6 +446,7 @@ jobs:
     needs:
       - lint-backend
       - lint-frontend
+      - smoke-adk
       - test-backend
       - test-frontend
       - security-scan
@@ -406,6 +459,7 @@ jobs:
         run: |
           if [[ "${{ needs.lint-backend.result }}" != "success" ]] || \
              [[ "${{ needs.lint-frontend.result }}" != "success" ]] || \
+             [[ "${{ needs.smoke-adk.result }}" != "success" ]] || \
              [[ "${{ needs.test-backend.result }}" != "success" ]] || \
              [[ "${{ needs.test-frontend.result }}" != "success" ]] || \
              [[ "${{ needs.build-backend.result }}" != "success" ]] || \
