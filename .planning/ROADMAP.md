@@ -31,7 +31,7 @@
 - [x] **Phase 44: ADK Runtime Controls** - Limites por invocacao e ciclo de vida de sessao ADK no endpoint canonico. (completed 2026-03-05)
 - [x] **Phase 45: ADK Tool Safety and Deterministic Errors** - Guardrails de tool e classificacao deterministica de falhas ADK. (gap closure in progress) (completed 2026-03-06)
 - [x] **Phase 46: ADK Observability Baseline** - Metricas operacionais de latencia, throughput e erro por invocacao/agente. (completed 2026-03-06)
-- [ ] **Phase 47: ADK CI Smoke Gate** - Gate de CI que bloqueia deploy com regressao em trajetorias oncologicas criticas.
+- [x] **Phase 47: ADK CI Smoke Gate** - Gate de CI que bloqueia deploy com regressao em trajetorias oncologicas criticas. (completed 2026-03-06)
 
 ## Phase Details
 
@@ -95,7 +95,7 @@ Plans:
 
 Plans:
 
-- [ ] 47-01-PLAN.md — Register adk_smoke pytest marker, create oncology tool smoke suite, and wire smoke-adk CI job as deploy gate
+- [x] 47-01-PLAN.md — Register adk_smoke pytest marker, create oncology tool smoke suite, and wire smoke-adk CI job as deploy gate
 
 ## Progress
 
@@ -104,9 +104,9 @@ Plans:
 | 44. ADK Runtime Controls | 3/3 | Complete    | 2026-03-05 |
 | 45. ADK Tool Safety and Deterministic Errors | 4/4 | Complete   | 2026-03-06 |
 | 46. ADK Observability Baseline | 1/1 | Complete    | 2026-03-06 |
-| 47. ADK CI Smoke Gate | 0/1 | Not started | - |
+| 47. ADK CI Smoke Gate | 1/1 | Complete   | 2026-03-06 |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 — Phase 47 plan created (1 plan, ADK-13 CI smoke gate)_
+_Last updated: 2026-03-06 — Phase 47 plan executed (1/1 complete, ADK-13 smoke gate ready for verification)_

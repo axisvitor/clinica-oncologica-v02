@@ -21,7 +21,7 @@
 
 ### Quality Gates
 
-- [ ] **ADK-13**: Time pode bloquear deploy quando trajetorias smoke ADK de fluxos oncologicos criticos regressam no CI.
+- [x] **ADK-13**: Time pode bloquear deploy quando trajetorias smoke ADK de fluxos oncologicos criticos regressam no CI.
 
 ## Future Requirements (Deferred)
 
@@ -56,7 +56,7 @@
 | ADK-11 | Phase 45 | Complete |
 | ADK-12 | Phase 45 | Complete |
 | OBS-02 | Phase 46 | Complete |
-| ADK-13 | Phase 47 | Pending |
+| ADK-13 | Phase 47 | Complete |
 
 **Coverage:**
 - v1 requirements: 6 total
@@ -65,4 +65,4 @@
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-06 after Phase 46 completed OBS-02 ADK observability baseline*
+*Last updated: 2026-03-06 after Phase 47 plan completion for ADK-13 CI smoke gate*

@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: ADK Stability & Error Hardening
-current_plan: 0/TBD planned
-status: ready_to_plan
-stopped_at: Completed Phase 46 verification
-last_updated: "2026-03-06T01:54:05Z"
-last_activity: 2026-03-06 - Completed Phase 46 verification and marked OBS-02 complete
+current_plan: 1/1 complete
+status: ready_to_verify
+stopped_at: Completed 47-01-PLAN.md
+last_updated: "2026-03-06T02:39:11.479Z"
+last_activity: 2026-03-06 - Completed Phase 47 plan 01 and prepared ADK-13 verification
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 9
+  completed_plans: 9
   percent: 75
 ---
 
@@ -22,17 +22,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Planejar a Phase 47 para transformar a cobertura ADK estabilizada em gate de CI que bloqueia regressao antes do deploy.
+**Current focus:** Verificar e concluir a Phase 47 para transformar a cobertura ADK estabilizada em gate de CI que bloqueia regressao antes do deploy.
 
 ## Current Position
 
 Milestone: v1.8 ADK Stability & Error Hardening
 Phase: 47 of 47 (ADK CI Smoke Gate) - next phase after Phase 46 completed on 2026-03-06
-Plan: not started
-Current Plan: 0/TBD planned
-Total Plans in Phase: TBD
-Status: Ready to plan
-Last Activity: 2026-03-06 - Completed Phase 46 verification and marked OBS-02 complete
+Plan: 47-01 complete
+Current Plan: 1/1 complete
+Total Plans in Phase: 1
+Status: Ready to verify
+Last Activity: 2026-03-06 - Completed Phase 47 plan 01 and prepared ADK-13 verification
 
 Progress: [████████░░] 75%
 
@@ -47,6 +47,7 @@ Progress: [████████░░] 75%
 | Phase 45 P03 | 10min | 2 tasks | 5 files |
 | Phase 45 P04 | 4m | 2 tasks | 3 files |
 | Phase 46 P01 | 8m | 2 tasks | 4 files |
+| Phase 47 P01 | 24m | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -118,10 +119,12 @@ Progress: [████████░░] 75%
 - [Phase 46]: Keep ADK observability on the default Prometheus registry so the existing `/metrics` exporter surfaces new series without extra wiring.
 - [Phase 46]: Record only low-cardinality labels (`tool_name`, `status`) in metrics and keep `invocation_id`/`session_id` exclusively in structured logs.
 - [Phase 46]: Measure latency at the `run_adk_tool` boundary so session resolution, policy checks, and terminal runtime paths all contribute to invocation timing.
+- [Phase 47]: Unsupported ADK tools now return explicit unsupported_tool status — Smoke failures and metrics distinguish unsupported-tool regressions from generic runtime errors.
+- [Phase 47]: The smoke-adk job depends only on lint-backend and stays service-free — This keeps feedback fast by running in parallel with test-backend while preserving a deploy gate for critical oncology trajectories.
 
 ### Pending Todos
 
-- Nenhum todo pendente para a Phase 46.
+- Nenhum todo pendente para a Phase 47.
 
 ### Blockers/Concerns
 
@@ -132,6 +135,6 @@ Progress: [████████░░] 75%
 
 ## Session Continuity
 
-**Last session:** 2026-03-06T00:54:30.875Z
-**Stopped At:** Completed 45-04-PLAN.md
+**Last session:** 2026-03-06T02:39:11.453Z
+**Stopped At:** Completed 47-01-PLAN.md
 **Resume File:** None
