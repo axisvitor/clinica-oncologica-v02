@@ -8,6 +8,10 @@ from typing import Any, Dict, Optional
 from uuid import UUID
 
 from app.models.patient import Patient
+from app.services.flow.config_validation import (
+    DayConfigValidationError,
+    validate_day_config,
+)
 
 from app.services.flow._flow_orchestration_utils import (
     FlowMessageState,
@@ -55,12 +59,32 @@ async def load_flow_context(
                     "message": f"No messages configured for day {day_number}",
                 },
             }
-        if not isinstance(day_config, dict):
-            raise TypeError("Day config must be a dict.")
+
+        try:
+            day_config = validate_day_config(
+                day_config,
+                flow_kind=flow_kind,
+                day_number=day_number,
+            )
+        except DayConfigValidationError as exc:
+            logger.warning(
+                "day_config validation failed - failing fast",
+                extra={
+                    "patient_id": str(patient_id),
+                    "flow_kind": flow_kind,
+                    "day_number": day_number,
+                    "validation_errors": exc.errors,
+                },
+            )
+            return {
+                "result": {
+                    "status": "error",
+                    "message": str(exc),
+                    "validation_errors": exc.errors,
+                }
+            }
 
         messages = day_config.get("messages", [])
-        if not isinstance(messages, list):
-            raise TypeError("Day config messages must be a list.")
         send_mode = _parse_send_mode(day_config.get("send_mode", "single"))
 
         if not messages:

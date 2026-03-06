@@ -1,35 +1,29 @@
-import asyncio
-import hashlib
 import logging
-import os
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from app.models.flow import PatientFlowState
 from app.models.message import Message, MessageDirection, MessageStatus, MessageType
 from app.models.patient import Patient
+from app.services.flow.config_validation import DayConfigValidationError
+from app.services.flow.sequential_message_handler_pkg.delivery import (
+    await_inter_message_delay,
+    build_flow_idempotency_key,
+    build_flow_send_context,
+    build_day_config_validation_error_response,
+    delay_enabled,
+    enqueue_failed_flow_send_retry,
+)
 from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
-
-
 class SequencingMixin:
     @staticmethod
     def _delay_enabled() -> bool:
-        """Disable inter-message sleeps in tests and explicit no-delay mode."""
-        if os.getenv("FLOW_DISABLE_DELAYS", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }:
-            return False
-        return not (os.getenv("TESTING") == "1" or os.getenv("PYTEST_CURRENT_TEST"))
+        return delay_enabled()
 
     async def _await_inter_message_delay(self, seconds: float) -> None:
-        if seconds <= 0 or not self._delay_enabled():
-            return
-        await asyncio.sleep(seconds)
+        await await_inter_message_delay(seconds)
 
     async def send_day_messages(
         self,
@@ -41,26 +35,12 @@ class SequencingMixin:
         try:
             from app.services.flow._flow_functions import run_flow_message
 
-            return await run_flow_message(
-                patient_id=patient_id,
-                day_number=day_number,
-                flow_kind=flow_kind,
-                handler=self,
-            )
+            return await run_flow_message(patient_id=patient_id, day_number=day_number, flow_kind=flow_kind, handler=self)
+        except DayConfigValidationError as exc:
+            return build_day_config_validation_error_response(patient_id=patient_id, flow_kind=flow_kind, day_number=day_number, exc=exc)
         except Exception as exc:
             logger.exception("Error sending day messages via direct flow function")
             return {"status": "error", "message": str(exc)}
-
-    def _build_idempotency_key(
-        self,
-        patient_id: UUID,
-        flow_kind: str,
-        day_number: int,
-        message_index: int,
-    ) -> str:
-        """Create a deterministic idempotency key for flow messages."""
-        base = f"flow:{patient_id}:{flow_kind}:{day_number}:{message_index}"
-        return hashlib.sha256(base.encode("utf-8")).hexdigest()[:32]
 
     async def _send_flow_message(
         self,
@@ -72,24 +52,37 @@ class SequencingMixin:
         expects_response: bool,
     ) -> bool:
         """Create a Message record and enqueue it via UnifiedWhatsAppService."""
-        idempotency_key = self._build_idempotency_key(
-            patient.id, flow_kind, day_number, message_index
+        idempotency_key = build_flow_idempotency_key(
+            patient_id=patient.id,
+            flow_kind=flow_kind,
+            day_number=day_number,
+            message_index=message_index,
         )
-        flow_context = {
-            "flow_type": flow_kind,
-            "flow_day": day_number,
-            "message_index": message_index,
-            "expects_response": expects_response,
-            "source": "flow_sequential",
-        }
+        flow_context = build_flow_send_context(
+            flow_kind=flow_kind,
+            day_number=day_number,
+            message_index=message_index,
+            expects_response=expects_response,
+        )
 
         existing = self.message_repo.get_by_idempotency_key(patient.id, idempotency_key)
         if existing:
             if existing.status in {MessageStatus.FAILED, MessageStatus.CANCELLED}:
-                return await self.whatsapp_service.send_message(
+                success = await self.whatsapp_service.send_message(
                     existing,
                     flow_context=flow_context,
                 )
+                if not success:
+                    enqueue_failed_flow_send_retry(
+                        message_id=existing.id,
+                        patient_id=patient.id,
+                        flow_kind=flow_kind,
+                        day_number=day_number,
+                        message_index=message_index,
+                        flow_context=flow_context,
+                        resend=True,
+                    )
+                return success
             logger.info(
                 "Skipping duplicate flow message",
                 extra={"patient_id": patient.id, "idempotency_key": idempotency_key},
@@ -118,7 +111,20 @@ class SequencingMixin:
         self.db.add(message)
         await self.db.commit()
 
-        return await self.whatsapp_service.send_message(message, flow_context=flow_context)
+        success = await self.whatsapp_service.send_message(
+            message,
+            flow_context=flow_context,
+        )
+        if not success:
+            enqueue_failed_flow_send_retry(
+                message_id=message.id,
+                patient_id=patient.id,
+                flow_kind=flow_kind,
+                day_number=day_number,
+                message_index=message_index,
+                flow_context=flow_context,
+            )
+        return success
 
     async def _send_all_sequential(
         self,
@@ -197,17 +203,7 @@ class SequencingMixin:
         flow_kind: str,
         day_config: Optional[Dict] = None,
     ) -> Dict[str, Any]:
-        """
-        FIX 3: Send messages in wait_each mode with auto-advance for non-response messages.
-
-        This fixes the Day 15 issue where the intro message (expects_response=False)
-        would cause the flow to get stuck, never advancing to the Q&A messages.
-
-        Logic:
-        1. Send message at current index
-        2. If message expects_response=False, advance and send next immediately
-        3. Repeat until we hit a message that expects_response=True or end of day
-        """
+        """Send wait_each messages, auto-advancing across non-response steps."""
         if start_index >= len(messages):
             return {"status": "complete", "message": "All messages sent"}
 

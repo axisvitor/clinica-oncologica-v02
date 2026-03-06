@@ -5,6 +5,9 @@ from uuid import UUID
 from sqlalchemy import select, text
 
 from app.models.flow import PatientFlowState
+from app.services.flow.sequential_message_handler_pkg.delivery import (
+    build_flow_idempotency_key,
+)
 from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
@@ -126,8 +129,11 @@ class StateMixin:
         message_index: int,
     ) -> Optional[str]:
         """Resolve persisted message id for deterministic response correlation."""
-        idempotency_key = self._build_idempotency_key(
-            patient_id, flow_kind, day_number, message_index
+        idempotency_key = build_flow_idempotency_key(
+            patient_id=patient_id,
+            flow_kind=flow_kind,
+            day_number=day_number,
+            message_index=message_index,
         )
         try:
             message = self.message_repo.get_by_idempotency_key(patient_id, idempotency_key)
