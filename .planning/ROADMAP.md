@@ -87,11 +87,11 @@ Plans:
   2. A stall alert fires (structured log + optional webhook) when any patient has not progressed in a configurable time window
   3. AI personalization fallback rate is tracked via Prometheus counter (ai_personalization_fallback_total) that increments each time deterministic fallback is used instead of AI
   4. A correlation ID is generated at webhook entry and propagated through every processing step (handler -> gate -> continuation -> send), visible in structured logs
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 52-01: Flow health endpoint and stall alerting
-- [ ] 52-02: AI fallback metrics and correlation ID propagation
+- [ ] 52-01-PLAN.md -- Flow health endpoint and stall alerting
+- [ ] 52-02-PLAN.md -- AI fallback metrics and correlation ID propagation
 
 ### Phase 53: Pipeline Verification
 **Goal**: Integration tests prove the full pipeline works end-to-end under both success and failure conditions
@@ -101,7 +101,7 @@ Plans:
   1. Integration tests exercise the full pipeline from webhook arrival through sequential gate, continuation, and next question send -- and all tests pass
   2. Integration tests exercise stuck flow detection triggering auto-recovery and verify the patient flow progresses -- and all tests pass
   3. Integration tests exercise failed outbound sends triggering Celery retry mechanics and verify eventual delivery or proper failure surfacing -- and all tests pass
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
 - [ ] 53-01: End-to-end pipeline integration tests
@@ -132,4 +132,4 @@ Phases execute in numeric order: 50 -> 51 -> 52 -> 53
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 -- Phase 51 complete (2 plans in 1 wave)_
+_Last updated: 2026-03-06 -- Phase 52 planned (2 plans in 1 wave)_
