@@ -56,6 +56,8 @@ _TERMINAL_INVOCATION_STATUSES = {
     "tool_error",
     "upstream_error",
 }
+_PROTECTED_POLICY_KEYS = frozenset({"tool_policy", "policy", "required_context_keys"})
+_MISSING_CONTEXT_VALUE = object()
 _IN_FLIGHT_INVOCATIONS: dict[str, asyncio.Task[Any]] = {}
 _IN_FLIGHT_LOCK = Lock()
 
@@ -911,6 +913,7 @@ def _build_before_tool_callback(request: ADKToolRunRequest) -> Any:
         context = _resolve_callback_context(
             request_context=request.context,
             tool_args=tool_args,
+            tool_name=tool_name,
         )
         return _evaluate_tool_policy(
             tool_name=tool_name,
@@ -946,8 +949,10 @@ def _resolve_callback_context(
     *,
     request_context: dict[str, Any] | None,
     tool_args: dict[str, Any],
+    tool_name: str,
 ) -> dict[str, Any] | None:
-    merged_context = dict(request_context or {})
+    original_context = dict(request_context or {})
+    merged_context = dict(original_context)
     context_json = tool_args.get("context_json")
     if isinstance(context_json, str):
         merged_context.update(_parse_callback_context_json(context_json))
@@ -956,6 +961,11 @@ def _resolve_callback_context(
     if isinstance(raw_context, dict):
         merged_context.update(raw_context)
 
+    _restore_operator_policy_context(
+        merged_context,
+        original_context=original_context,
+        tool_name=tool_name,
+    )
     return merged_context
 
 
@@ -965,6 +975,88 @@ def _parse_callback_context_json(raw_value: str) -> dict[str, Any]:
     except (TypeError, json.JSONDecodeError):
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _restore_operator_policy_context(
+    merged_context: dict[str, Any],
+    *,
+    original_context: dict[str, Any],
+    tool_name: str,
+) -> None:
+    for key in _PROTECTED_POLICY_KEYS:
+        if key in original_context:
+            merged_context[key] = original_context[key]
+        elif key in merged_context:
+            del merged_context[key]
+
+    for path in _required_context_paths_for_tool(original_context, tool_name=tool_name):
+        original_value = _get_context_path_value(original_context, path)
+        if original_value is _MISSING_CONTEXT_VALUE:
+            _delete_context_path(merged_context, path)
+        else:
+            _set_context_path_value(merged_context, path, original_value)
+
+
+def _required_context_paths_for_tool(
+    context: dict[str, Any] | None,
+    *,
+    tool_name: str,
+) -> tuple[str, ...]:
+    policy = _extract_tool_policy(context)
+    raw_required = policy.get("required_context_keys")
+    entry: Any = raw_required
+    if isinstance(raw_required, dict):
+        entry = raw_required.get(tool_name)
+        if entry is None:
+            entry = raw_required.get("*")
+
+    if isinstance(entry, dict):
+        return tuple(_normalize_string_list(entry.get("keys")))
+    return tuple(_normalize_string_list(entry))
+
+
+def _get_context_path_value(context: dict[str, Any] | None, path: str) -> Any:
+    if not isinstance(context, dict):
+        return _MISSING_CONTEXT_VALUE
+    current: Any = context
+    for segment in path.split("."):
+        if not isinstance(current, dict) or segment not in current:
+            return _MISSING_CONTEXT_VALUE
+        current = current[segment]
+    return current
+
+
+def _set_context_path_value(context: dict[str, Any], path: str, value: Any) -> None:
+    current = context
+    segments = path.split(".")
+    for segment in segments[:-1]:
+        next_value = current.get(segment)
+        if not isinstance(next_value, dict):
+            next_value = {}
+            current[segment] = next_value
+        current = next_value
+    current[segments[-1]] = value
+
+
+def _delete_context_path(context: dict[str, Any], path: str) -> None:
+    segments = path.split(".")
+    current = context
+    parents: list[tuple[dict[str, Any], str, dict[str, Any]]] = []
+    for segment in segments[:-1]:
+        next_value = current.get(segment)
+        if not isinstance(next_value, dict):
+            return
+        parents.append((current, segment, next_value))
+        current = next_value
+
+    if segments[-1] not in current:
+        return
+    del current[segments[-1]]
+
+    for parent, key, child in reversed(parents):
+        if child:
+            break
+        del parent[key]
 
 
 def _build_runner_message(

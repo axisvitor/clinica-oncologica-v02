@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 ToolResult = dict[str, Any]
 ToolHandler = Callable[..., Awaitable[ToolResult]]
+_PROTECTED_POLICY_KEYS = frozenset({"tool_policy", "policy", "required_context_keys"})
 _ADK_TOOL_CONTEXT: ContextVar[dict[str, Any] | None] = ContextVar(
     "_ADK_TOOL_CONTEXT",
     default=None,
@@ -170,7 +171,21 @@ def _merge_context(runtime_context: dict[str, Any], context_json: str) -> dict[s
     base_context = runtime_context.get("context")
     if isinstance(base_context, dict):
         merged.update(base_context)
+
+    operator_policy = {
+        key: base_context[key]
+        for key in _PROTECTED_POLICY_KEYS
+        if isinstance(base_context, dict) and key in base_context
+    }
+
     merged.update(_parse_context_json(context_json))
+
+    for key, value in operator_policy.items():
+        merged[key] = value
+    for key in _PROTECTED_POLICY_KEYS:
+        if key not in operator_policy and key in merged:
+            del merged[key]
+
     return merged
 
 
