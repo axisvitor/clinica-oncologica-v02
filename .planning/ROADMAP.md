@@ -38,7 +38,7 @@
 - Integer phases (50, 51, 52, 53): Planned milestone work
 - Decimal phases (50.1, 50.2): Urgent insertions if needed (marked with INSERTED)
 
-- [ ] **Phase 50: Pipeline Reliability** - Fix silent failures in sequential gate, message sends, follow-ups, day advancement, and config validation
+- [x] **Phase 50: Pipeline Reliability** - Fix silent failures in sequential gate, message sends, follow-ups, day advancement, and config validation
 - [ ] **Phase 51: Flow Recovery** - Detect stuck flows automatically and provide manual + automatic recovery paths
 - [ ] **Phase 52: Flow Observability** - Surface pipeline health, stall alerts, AI fallback rates, and correlation tracing
 - [ ] **Phase 53: Pipeline Verification** - Integration tests proving end-to-end pipeline, recovery, and retry paths
@@ -60,7 +60,7 @@
 Plans:
 - [x] 50-01: Sequential gate context mismatch recovery
 - [x] 50-02: Outbound message send retry via Celery with exponential backoff
-- [ ] 50-03: Deferred follow-up retry and atomic day advancement
+- [x] 50-03: Deferred follow-up retry and atomic day advancement
 - [x] 50-04: Template day_config validation at flow start
 
 ### Phase 51: Flow Recovery
@@ -125,7 +125,7 @@ Phases execute in numeric order: 50 -> 51 -> 52 -> 53
 | 33-39 | v1.6 | 21/21 | Complete | 2026-03-03 |
 | 40-43 | v1.7 | 20/20 | Complete | 2026-03-05 |
 | 44-49 | v1.8 | 11/11 | Complete | 2026-03-06 |
-| 50. Pipeline Reliability | v1.9 | 3/4 | In Progress | - |
+| 50. Pipeline Reliability | v1.9 | 4/4 | Complete | 2026-03-06 |
 | 51. Flow Recovery | v1.9 | 0/3 | Not started | - |
 | 52. Flow Observability | v1.9 | 0/2 | Not started | - |
 | 53. Pipeline Verification | v1.9 | 0/2 | Not started | - |
@@ -133,4 +133,4 @@ Phases execute in numeric order: 50 -> 51 -> 52 -> 53
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 -- Phase 50 wave 1 complete (3/4 plans)_
+_Last updated: 2026-03-06 -- Phase 50 complete (4/4 plans); Phase 51 ready to plan_
