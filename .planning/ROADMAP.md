@@ -104,8 +104,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 53-01: End-to-end pipeline integration tests
-- [ ] 53-02: Recovery and retry integration tests
+- [ ] 53-01-PLAN.md -- End-to-end pipeline integration tests (webhook -> gate -> continuation -> send)
+- [ ] 53-02-PLAN.md -- Recovery and retry integration tests (stuck detection, auto-recovery, send retry, follow-up retry)
 
 ## Progress
 
@@ -132,4 +132,4 @@ Phases execute in numeric order: 50 -> 51 -> 52 -> 53
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 -- Phase 52 complete; Phase 53 ready to plan_
+_Last updated: 2026-03-06 -- Phase 53 planned; 2 plans in 1 wave_
