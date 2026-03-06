@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: ADK Stability & Error Hardening
 current_plan: 1/1 complete
-status: ready_to_verify
+status: ready_for_verification
 stopped_at: Completed 47-01-PLAN.md
 last_updated: "2026-03-06T02:39:11.479Z"
-last_activity: 2026-03-06 - Completed Phase 47 plan 01 and prepared ADK-13 verification
+last_activity: 2026-03-06 - Generated Phase 47 verification; waiting for GitHub Actions confirmation of the smoke gate
 progress:
   total_phases: 4
   completed_phases: 3
@@ -22,7 +22,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Verificar e concluir a Phase 47 para transformar a cobertura ADK estabilizada em gate de CI que bloqueia regressao antes do deploy.
+**Current focus:** Executar a validacao humana da Phase 47 no GitHub Actions para confirmar que o smoke gate bloqueia e libera deploy como esperado.
 
 ## Current Position
 
@@ -31,8 +31,8 @@ Phase: 47 of 47 (ADK CI Smoke Gate) - next phase after Phase 46 completed on 202
 Plan: 47-01 complete
 Current Plan: 1/1 complete
 Total Plans in Phase: 1
-Status: Ready to verify
-Last Activity: 2026-03-06 - Completed Phase 47 plan 01 and prepared ADK-13 verification
+Status: Human verification required
+Last Activity: 2026-03-06 - Generated Phase 47 verification; waiting for GitHub Actions confirmation of the smoke gate
 
 Progress: [████████░░] 75%
 
