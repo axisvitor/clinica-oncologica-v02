@@ -50,6 +50,74 @@ def _runner_prompt_from_message(message: object) -> str:
     raise AssertionError("Unable to extract prompt from runner message")
 
 
+def _install_runner_override_harness(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    tool_args_factory,
+) -> dict[str, int]:
+    from app.ai.adk import runtime
+
+    calls = {"runner": 0, "domain": 0}
+
+    class FakeClient:
+        async def analyze_response_sentiment(self, *, response: str, patient_context: dict):
+            calls["domain"] += 1
+            return {"sentiment": "negative"}
+
+    class FakeFunctionTool:
+        def __init__(self, func):
+            self.func = func
+            self.name = "sentiment"
+
+    class FakeAgent:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    class FakeRunner:
+        def __init__(self, **kwargs):
+            self.agent = kwargs["agent"]
+
+        async def run_async(self, **kwargs):
+            calls["runner"] += 1
+            prompt = _runner_prompt_from_message(kwargs["new_message"])
+            tool_args = dict(tool_args_factory(prompt))
+            tool_args.setdefault("prompt", prompt)
+            callback = self.agent.kwargs["before_tool_callback"]
+            callback_result = await callback(
+                SimpleNamespace(name="sentiment"),
+                tool_args,
+                None,
+            )
+            if callback_result is not None:
+                yield {"result": callback_result}
+                return
+
+            tool = self.agent.kwargs["tools"][0]
+            result = await tool.func(
+                prompt=prompt,
+                context_json=tool_args.get("context_json", "{}"),
+            )
+            yield {"result": result}
+
+    monkeypatch.setattr("app.ai.adk.tools.GeminiDomainClient", FakeClient, raising=False)
+    monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", True, raising=False)
+    monkeypatch.setattr(runtime, "Agent", FakeAgent, raising=False)
+    monkeypatch.setattr(runtime, "Runner", FakeRunner, raising=False)
+    monkeypatch.setattr(runtime, "InMemorySessionService", lambda: object(), raising=False)
+    monkeypatch.setattr(
+        runtime,
+        "get_tool_registry",
+        lambda: {"sentiment": tools.sentiment_tool},
+    )
+    monkeypatch.setattr(
+        runtime,
+        "get_adk_function_tools",
+        lambda: {"sentiment": FakeFunctionTool(tools.sentiment_tool_adk_compat)},
+        raising=False,
+    )
+    return calls
+
+
 @pytest.mark.asyncio
 async def test_sentiment_tool_delegates_to_domain_client(monkeypatch):
     calls: list[tuple[str, dict]] = []
@@ -719,6 +787,202 @@ async def test_run_adk_tool_runner_policy_block_prevents_domain_client_execution
         invocation = await adk_runtime_store.get_invocation(invocation_id)
         assert invocation is not None
         assert invocation["status"] == "policy_block"
+
+
+@pytest.mark.asyncio
+async def test_run_adk_tool_runner_context_json_cannot_override_request_policy(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    calls = _install_runner_override_harness(
+        monkeypatch,
+        tool_args_factory=lambda prompt: {
+            "prompt": prompt,
+            "context_json": json.dumps({"tool_policy": {}}),
+        },
+    )
+
+    results = []
+    for invocation_id in ("inv-override-runner-policy-1", "inv-override-runner-policy-2"):
+        result = await run_adk_tool(
+            ADKToolRunRequest(
+                prompt="avaliar resposta",
+                tool_name="sentiment",
+                deps=AIDeps(gemini_api_key="k"),
+                user_id="user-1",
+                invocation=ADKInvocationControls(
+                    action="run",
+                    invocation_id=invocation_id,
+                ),
+                context={
+                    "tool_policy": {
+                        "blocked_tools": {
+                            "sentiment": {
+                                "reason": "manual_review_required",
+                            }
+                        }
+                    }
+                },
+            )
+        )
+        results.append((invocation_id, result))
+
+    assert calls["runner"] == 2
+    assert calls["domain"] == 0
+    assert [result["status"] for _, result in results] == ["policy_block", "policy_block"]
+    for invocation_id, result in results:
+        assert result["result"]["type"] == "policy_block"
+        assert result["result"]["reason"] == "manual_review_required"
+        invocation = await adk_runtime_store.get_invocation(invocation_id)
+        assert invocation is not None
+        assert invocation["status"] == "policy_block"
+
+
+@pytest.mark.asyncio
+async def test_run_adk_tool_runner_context_json_cannot_override_required_context_with_fabricated_values(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    calls = _install_runner_override_harness(
+        monkeypatch,
+        tool_args_factory=lambda prompt: {
+            "prompt": prompt,
+            "context_json": json.dumps(
+                {"patient_context": {"clinical_summary": "fabricated"}}
+            ),
+        },
+    )
+
+    results = []
+    for invocation_id in ("inv-override-runner-required-1", "inv-override-runner-required-2"):
+        result = await run_adk_tool(
+            ADKToolRunRequest(
+                prompt="avaliar resposta",
+                tool_name="sentiment",
+                deps=AIDeps(gemini_api_key="k"),
+                user_id="user-1",
+                invocation=ADKInvocationControls(
+                    action="run",
+                    invocation_id=invocation_id,
+                ),
+                context={
+                    "tool_policy": {
+                        "required_context_keys": {
+                            "sentiment": ["patient_context.clinical_summary"],
+                        }
+                    },
+                    "patient_context": {},
+                },
+            )
+        )
+        results.append((invocation_id, result))
+
+    assert calls["runner"] == 2
+    assert calls["domain"] == 0
+    assert [result["status"] for _, result in results] == ["policy_block", "policy_block"]
+    for invocation_id, result in results:
+        assert result["result"]["type"] == "policy_block"
+        assert result["result"]["reason"] == "missing_required_context"
+        assert result["result"]["missing_context_keys"] == [
+            "patient_context.clinical_summary"
+        ]
+        invocation = await adk_runtime_store.get_invocation(invocation_id)
+        assert invocation is not None
+        assert invocation["status"] == "policy_block"
+
+
+@pytest.mark.asyncio
+async def test_run_adk_tool_runner_context_cannot_override_policy_with_dict_and_json_payloads(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    calls = _install_runner_override_harness(
+        monkeypatch,
+        tool_args_factory=lambda prompt: {
+            "prompt": prompt,
+            "context_json": json.dumps({"tool_policy": {}, "policy": {}}),
+            "context": {"tool_policy": {}, "policy": {}},
+        },
+    )
+
+    results = []
+    for invocation_id in ("inv-override-runner-dict-1", "inv-override-runner-dict-2"):
+        result = await run_adk_tool(
+            ADKToolRunRequest(
+                prompt="trigger review",
+                tool_name="sentiment",
+                deps=AIDeps(gemini_api_key="k"),
+                user_id="user-1",
+                invocation=ADKInvocationControls(
+                    action="run",
+                    invocation_id=invocation_id,
+                ),
+                context={
+                    "tool_policy": {
+                        "blocked_prompts": {
+                            "trigger review": {
+                                "reason": "manual_review_required",
+                            }
+                        }
+                    }
+                },
+            )
+        )
+        results.append((invocation_id, result))
+
+    assert calls["runner"] == 2
+    assert calls["domain"] == 0
+    assert [result["status"] for _, result in results] == ["policy_block", "policy_block"]
+    for invocation_id, result in results:
+        assert result["result"]["type"] == "policy_block"
+        assert result["result"]["reason"] == "manual_review_required"
+        invocation = await adk_runtime_store.get_invocation(invocation_id)
+        assert invocation is not None
+        assert invocation["status"] == "policy_block"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_tool_from_adk_context_json_cannot_override_operator_tool_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_contexts: list[dict[str, object] | None] = []
+
+    async def fake_handler(*, prompt, deps, context=None):
+        captured_contexts.append(context)
+        return {"status": "success", "result": context}
+
+    monkeypatch.setattr(
+        tools,
+        "get_tool_registry",
+        lambda: {"sentiment": fake_handler},
+    )
+
+    expected_policy = {"block": True, "tools": "*"}
+    for _ in range(2):
+        token = tools.set_adk_tool_context(
+            deps=AIDeps(gemini_api_key="k"),
+            context={
+                "tool_policy": expected_policy,
+                "patient_context": {"cycle": "Q1"},
+            },
+        )
+        try:
+            result = await tools._dispatch_tool_from_adk(
+                tool_name="sentiment",
+                prompt="avaliar resposta",
+                context_json=json.dumps(
+                    {
+                        "tool_policy": {},
+                        "patient_context": {"clinical_summary": "fabricated"},
+                    }
+                ),
+            )
+        finally:
+            tools.reset_adk_tool_context(token)
+
+        assert result["status"] == "success"
+        assert captured_contexts[-1] is not None
+        assert captured_contexts[-1]["tool_policy"] == expected_policy
 
 
 @pytest.mark.asyncio
