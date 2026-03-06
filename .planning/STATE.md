@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: ADK Stability & Error Hardening
-current_plan: 3
-status: verifying
-stopped_at: Phase 45 verification found gaps
-last_updated: "2026-03-05T20:44:47-03:00"
-last_activity: 2026-03-05 - Phase 45 verification found runner-path policy bypass gap
+current_plan: 4/4 executed
+status: ready_for_verification
+stopped_at: Completed 45-04-PLAN.md
+last_updated: "2026-03-06T00:54:30.890Z"
+last_activity: 2026-03-06 - Completed Phase 45 gap-closure plan 45-04 for runner-path policy bypass
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 6
-  completed_plans: 6
+  completed_phases: 2
+  total_plans: 7
+  completed_plans: 7
   percent: 25
 ---
 
@@ -22,17 +22,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Corrigir o gap de verificacao da Phase 45 antes de avancar para a Phase 46.
+**Current focus:** Finalizar a verificacao da Phase 45 agora que o gap de seguranca do runner foi corrigido, antes de avancar para a Phase 46.
 
 ## Current Position
 
 Milestone: v1.8 ADK Stability & Error Hardening
-Phase: 45 of 47 (ADK Tool Safety and Deterministic Errors) - verification gap found on 2026-03-05
-Plan: Gap closure planning next (`/gsd-plan-phase 45 --gaps`)
-Current Plan: 3/3 executed
-Total Plans in Phase: 3
-Status: Verification gaps found
-Last Activity: 2026-03-05 - Phase 45 verification found runner-path policy bypass gap
+Phase: 45 of 47 (ADK Tool Safety and Deterministic Errors) - gap closure completed on 2026-03-06
+Plan: 45-04 complete; phase ready for final verification
+Current Plan: 4/4 executed
+Total Plans in Phase: 4
+Status: Ready for verification
+Last Activity: 2026-03-06 - Completed Phase 45 gap-closure plan 45-04 for runner-path policy bypass
 
 Progress: [███░░░░░░░] 25%
 
@@ -45,6 +45,7 @@ Progress: [███░░░░░░░] 25%
 | Phase 45 P01 | 41min | 2 tasks | 5 files |
 | Phase 45 P02 | 7min | 2 tasks | 5 files |
 | Phase 45 P03 | 10min | 2 tasks | 5 files |
+| Phase 45 P04 | 4m | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -111,20 +112,22 @@ Progress: [███░░░░░░░] 25%
 - [Phase 45]: Treat any failure after the ADK runner path starts as deterministic classification instead of falling through to direct-handler execution.
 - [Phase 45]: Phase 45-03 locked final deterministic regressions through test-only coverage because the existing runtime already passed the expanded repeated-scenario suite.
 - [Phase 45]: Phase 45-03 keeps real google-adk regression coverage conditional in validation and defers CI smoke gating to Phase 47.
+- [Phase 45]: Runner callback policy evaluation restores operator-owned required-context paths before evaluating required_context_keys.
+- [Phase 45]: ADK tool dispatch preserves operator tool_policy, policy, and required_context_keys metadata while still allowing non-policy context merges for approved executions.
 
 ### Pending Todos
 
-- Planejar gap closure da Phase 45 com `/gsd-plan-phase 45 --gaps`.
+- Nenhum todo pendente para o gap da Phase 45.
 
 ### Blockers/Concerns
 
-- Phase 45 verification found a runner-path policy bypass: tool-call `context_json` can overwrite request-level `tool_policy` before `before_tool_callback` evaluates the request.
+- Validacao local ainda pula os testes de integracao com `google-adk` real quando o pacote nao esta instalado; manter o follow-up de staging documentado em `45-VALIDATION.md`.
 - Phase 40: ADK pip resolution with pydantic-ai-slim[google] in Python 3.13 is MEDIUM confidence — first task of Phase 40 must run dry-run install and document resolved versions before touching requirements.txt
 - Phase 40: PIISafeADKWrapper hook point (ADK before_model_callback vs call-site) needs spike in ADK v1.26.0 source before implementation
 - Phase 42: hive-mind.ts frontend module disposition (keep vs remove) depends on whether /api/v2/hive-mind/* routes exist in current backend router — verify in Phase 42 plan
 
 ## Session Continuity
 
-**Last session:** 2026-03-05T20:44:47-03:00
-**Stopped At:** Phase 45 verification found gaps
-**Resume File:** .planning/phases/45-adk-tool-safety-and-deterministic-errors/45-VERIFICATION.md
+**Last session:** 2026-03-06T00:54:30.875Z
+**Stopped At:** Completed 45-04-PLAN.md
+**Resume File:** None
