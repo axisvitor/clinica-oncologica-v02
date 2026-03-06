@@ -18,6 +18,7 @@ from .batch_tasks import (
     _get_message_template_for_day,
 )
 from .cleanup_tasks import cleanup_old_flow_data
+from .followup_retry import retry_failed_followup_send
 from .monitoring import monitor_flow_task_health, evaluate_flow_alerts
 from .send_retry import retry_failed_flow_send
 
@@ -41,5 +42,6 @@ __all__ = [
     "monitor_flow_task_health",
     "evaluate_flow_alerts",
     # Retry tasks
+    "retry_failed_followup_send",
     "retry_failed_flow_send",
 ]

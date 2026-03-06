@@ -108,7 +108,11 @@ class FollowUpSystemService:
         self.escalation_scheduler = EscalationScheduler(
             self.notification_service, self.patient_repo, self.active_alerts
         )
-        self.action_executor = MessageExecutor(self.redis_store, self.pending_actions)
+        self.action_executor = MessageExecutor(
+            self.redis_store,
+            self.pending_actions,
+            scheduler=self.message_action_scheduler.schedule_message_action,
+        )
 
         logger.info("Follow-up System Service initialized with modular components")
 

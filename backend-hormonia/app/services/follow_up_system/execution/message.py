@@ -4,16 +4,38 @@ Executes message-based follow-up actions.
 """
 
 import logging
+from typing import Any, Awaitable, Callable, Optional
 
 from .executor import ActionExecutor
-from ..models import FollowUpAction
 from ..enums import FollowUpType
+from ..models import FollowUpAction
 
 logger = logging.getLogger(__name__)
+
+MESSAGE_ACTION_TYPES = {
+    FollowUpType.EMPATHETIC_RESPONSE,
+    FollowUpType.MEDICAL_CLARIFICATION,
+    FollowUpType.APPOINTMENT_SCHEDULING,
+    FollowUpType.MEDICATION_GUIDANCE,
+    FollowUpType.EMOTIONAL_SUPPORT,
+    FollowUpType.TREATMENT_ENCOURAGEMENT,
+    FollowUpType.INFORMATION_REQUEST,
+    FollowUpType.CONVERSATION_CONTINUATION,
+}
 
 
 class MessageExecutor(ActionExecutor):
     """Executes message-based follow-up actions."""
+
+    def __init__(
+        self,
+        redis_store,
+        pending_actions: dict,
+        *,
+        scheduler: Optional[Callable[[FollowUpAction], Awaitable[None]]] = None,
+    ) -> None:
+        super().__init__(redis_store, pending_actions)
+        self._scheduler = scheduler
 
     async def _execute_action(self, action: FollowUpAction) -> bool:
         """
@@ -26,7 +48,7 @@ class MessageExecutor(ActionExecutor):
             True if successful
         """
         try:
-            if action.follow_up_type == FollowUpType.EMPATHETIC_RESPONSE:
+            if action.follow_up_type in MESSAGE_ACTION_TYPES:
                 return await self._execute_message_action(action)
             elif action.follow_up_type == FollowUpType.ESCALATION_NOTIFICATION:
                 return await self._execute_escalation_action(action)
@@ -41,6 +63,31 @@ class MessageExecutor(ActionExecutor):
             logger.error(f"Failed to execute action {action.action_id}: {e}")
             return False
 
+    async def _schedule_message_action(self, action: FollowUpAction) -> bool:
+        """Schedule the underlying follow-up message delivery."""
+        if self._scheduler is not None:
+            await self._scheduler(action)
+
+        action.execution_result = {"message_scheduled": True}
+        return True
+
+    def _enqueue_retry(self, action: FollowUpAction) -> None:
+        """Queue retry task for message-like follow-up actions."""
+        from app.tasks.flows.followup_retry import (
+            FOLLOWUP_RETRY_BASE_DELAY,
+            retry_failed_followup_send,
+        )
+
+        retry_failed_followup_send.apply_async(
+            args=[str(action.action_id), str(action.patient_id)],
+            kwargs={
+                "parameters": action.parameters,
+                "follow_up_type": action.follow_up_type.value,
+                "priority": action.priority,
+            },
+            countdown=FOLLOWUP_RETRY_BASE_DELAY,
+        )
+
     async def _execute_message_action(self, action: FollowUpAction) -> bool:
         """
         Execute message-based action.
@@ -52,11 +99,23 @@ class MessageExecutor(ActionExecutor):
             True if successful
         """
         try:
-            # Message should already be scheduled, just mark as executed
-            action.execution_result = {"message_scheduled": True}
-            return True
+            return await self._schedule_message_action(action)
 
         except Exception as e:
+            self._enqueue_retry(action)
+            action.execution_result = {
+                "message_scheduled": False,
+                "retry_enqueued": True,
+                "error": str(e),
+            }
+            logger.warning(
+                "Follow-up send failed, enqueued retry task",
+                extra={
+                    "action_id": str(action.action_id),
+                    "patient_id": str(action.patient_id),
+                    "follow_up_type": action.follow_up_type.value,
+                },
+            )
             logger.error(f"Failed to execute message action: {e}")
             return False
 
