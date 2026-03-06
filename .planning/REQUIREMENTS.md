@@ -1,68 +1,90 @@
-# Requirements: Clinica Oncologica v1.8
+# Requirements: Clinica Oncologica — v1.9 Bulletproof Flow Pipeline
 
-**Defined:** 2026-03-05
+**Defined:** 2026-03-06
 **Core Value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
 
-## v1 Requirements
+## v1.9 Requirements
 
-### ADK Runtime
+Requirements for bulletproof flow pipeline. Each maps to roadmap phases.
 
-- [x] **ADK-09**: Operador pode aplicar limites de execucao ADK por invocacao (`max_llm_calls`, timeout e cancelamento) no endpoint `/api/v2/adk/run`.
-- [x] **ADK-10**: Operador pode executar ciclo de vida de sessao ADK (create/resume/close) com crescimento de estado controlado.
+### Flow Reliability
 
-### ADK Safety & Errors
+- [ ] **FLOW-01**: Sequential gate recovers from context mismatches with explicit retry or state reset instead of silently waiting forever
+- [ ] **FLOW-02**: Failed outbound message sends are automatically retried via Celery task with exponential backoff (max 3 attempts)
+- [ ] **FLOW-03**: Deferred follow-up send failures are retried via task queue instead of being silently dropped
+- [ ] **FLOW-04**: Day advancement after day_complete is atomic and verified — no silent skip when advance fails
+- [ ] **FLOW-05**: Template day_config is validated at flow start; malformed or missing config fails fast with clear error and alert
 
-- [x] **ADK-11**: Operador pode bloquear chamadas de tool inseguras via validacao `before_tool_callback` antes de efeitos colaterais.
-- [x] **ADK-12**: Operador pode classificar falhas ADK em classes deterministicas (`timeout`, `policy_block`, `tool_error`, `upstream_error`).
+### Flow Recovery
 
-### Observability
+- [ ] **RECV-01**: Stuck flow detector runs as periodic Celery Beat task, identifying flows with awaiting_response > configurable hours
+- [ ] **RECV-02**: Stuck flow auto-recovery attempts re-send of last prompt or day advance based on flow state analysis
+- [ ] **RECV-03**: Admin can manually reset, advance, or unstick a patient flow via dedicated API endpoint
+- [ ] **RECV-04**: Failed flow operations are visible in admin via DLQ or dedicated failed-flows query
 
-- [x] **OBS-02**: Operador pode monitorar latencia, throughput e taxa de erro ADK em producao por invocacao e agente.
+### Flow Observability
 
-### Quality Gates
+- [ ] **OBS-01**: Flow health API endpoint returns counts of active, stalled, failed, and completed flows
+- [ ] **OBS-02**: Flow stall alert fires (structured log + optional webhook) when patient hasn't progressed in configurable time
+- [ ] **OBS-03**: AI personalization fallback rate is tracked via Prometheus counter (ai_personalization_fallback_total)
+- [ ] **OBS-04**: Correlation ID is generated at webhook entry and propagated through handler -> gate -> continuation -> send chain
 
-- [x] **ADK-13**: Time pode bloquear deploy quando trajetorias smoke ADK de fluxos oncologicos criticos regressam no CI.
+### Pipeline Verification
 
-## Future Requirements (Deferred)
+- [ ] **TEST-01**: Integration tests cover full pipeline: webhook arrival -> sequential gate -> continuation -> next question send
+- [ ] **TEST-02**: Integration tests cover stuck flow detection -> auto-recovery path
+- [ ] **TEST-03**: Integration tests cover retry mechanics for failed outbound sends
 
-### Observability
+## Future Requirements
 
-- **OBS-01**: Definir replacement de observabilidade pos-OTel com padrao unico de instrumentacao
-- **OBS-03**: Propagar correlation IDs obrigatorios (`request_id`, `celery_task_id`, `adk_invocation_id`, `adk_session_id`, `flow_id`) em toda cadeia API -> Celery -> ADK
+### ADK Operational Maturity (deferred from v1.8)
 
-### ADK Runtime/Contracts
+- **ADK-14**: Map ADK error taxonomy to standardized HTTP response envelope
+- **ADK-15**: Define retryable/non-retryable policy with idempotency for ADK calls
+- **ADK-OPS**: Close ADK operational stability criteria with runbook and minimum alerts
 
-- **ADK-14**: Mapear taxonomia de erro ADK para envelope HTTP padronizado no endpoint `/api/v2/adk/run`
-- **ADK-15**: Definir politica retryable/non-retryable com idempotencia para chamadas ADK com side effects
-- **ADK-ADV-01**: Habilitar session service persistente em banco para continuidade multi-step
-- **ADK-ADV-02**: Expandir evaluation harness ADK com rubrica de seguranca/qualidade para go/no-go de release
+### Flow Intelligence (deferred to v2.0+)
+
+- **FLOW-AI-01**: AI adapts next question based on patient's actual response content
+- **FLOW-AI-02**: Dynamic question branching based on sentiment analysis of responses
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Biblioteca completa policy-as-code para tools | Diferenciador de fase posterior; primeiro estabilizar guardrail minimo `before_tool_callback` |
-| Canary/shadow rollout com auto-rollback | Requer baseline de metricas e thresholds maduros; adiar para operacao avancada |
-| Automacao de runbook por classe de erro | Depende da taxonomia + alertas consolidados em producao |
-| ADK substituir agentes Pydantic AI tipados | Contrato tipado atual e obrigatorio para seguranca/estabilidade clinica |
-| Persistencia de sessoes ADK como padrao default | Precisa de governanca de retencao/LGPD antes de ampliar escopo |
+| AI-driven dynamic question generation | Reliability first; template-driven pipeline must work before adding intelligence |
+| WhatsApp live chat (doctor-patient) | Requires shared inbox product; different architecture |
+| Full Celery async conversion | Workers sync Session is correct by design |
+| Frontend admin flow management UI | Backend pipeline focus; admin API endpoints sufficient for v1.9 |
+| WuzAPI live-provider verification | Deferred; requires staging environment with real WhatsApp |
+| ADK error envelope / retry policy | Separate concern from flow pipeline; deferred to next milestone |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ADK-09 | Phase 44 / Phase 48 (gap closure) | Complete |
-| ADK-10 | Phase 44 / Phase 48 (gap closure) | Complete |
-| ADK-11 | Phase 45 / Phase 49 (gap closure) | Complete |
-| ADK-12 | Phase 45 / Phase 49 (gap closure) | Complete |
-| OBS-02 | Phase 46 | Complete |
-| ADK-13 | Phase 47 | Complete |
+| FLOW-01 | — | Pending |
+| FLOW-02 | — | Pending |
+| FLOW-03 | — | Pending |
+| FLOW-04 | — | Pending |
+| FLOW-05 | — | Pending |
+| RECV-01 | — | Pending |
+| RECV-02 | — | Pending |
+| RECV-03 | — | Pending |
+| RECV-04 | — | Pending |
+| OBS-01 | — | Pending |
+| OBS-02 | — | Pending |
+| OBS-03 | — | Pending |
+| OBS-04 | — | Pending |
+| TEST-01 | — | Pending |
+| TEST-02 | — | Pending |
+| TEST-03 | — | Pending |
 
 **Coverage:**
-- v1 requirements: 6 total
-- Mapped to phases: 6
-- Unmapped: 0 ✓
+- v1.9 requirements: 16 total
+- Mapped to phases: 0
+- Unmapped: 16
 
 ---
-*Requirements defined: 2026-03-05*
-*Last updated: 2026-03-06 — Phase 49 completed; ADK-11/12 promoted to Complete via real-runner smoke coverage*
+*Requirements defined: 2026-03-06*
+*Last updated: 2026-03-06 after initial definition*
