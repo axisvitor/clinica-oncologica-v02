@@ -19,6 +19,7 @@ from .batch_tasks import (
 )
 from .cleanup_tasks import cleanup_old_flow_data
 from .monitoring import monitor_flow_task_health, evaluate_flow_alerts
+from .send_retry import retry_failed_flow_send
 
 # Export all for Celery autodiscovery
 __all__ = [
@@ -39,4 +40,6 @@ __all__ = [
     # Monitoring tasks
     "monitor_flow_task_health",
     "evaluate_flow_alerts",
+    # Retry tasks
+    "retry_failed_flow_send",
 ]
