@@ -85,6 +85,8 @@ async def test_load_response_context_increments_mismatch_counter_until_limit() -
 async def test_load_response_context_resets_waiting_after_retry_limit(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    caplog.set_level("WARNING", logger="app.services.flow._flow_response_flow")
+
     result, flow_state, commit, patient_id = await _load_context(
         {
             "current_flow_day": 2,
@@ -156,6 +158,7 @@ async def test_load_response_context_preserves_default_behavior_when_context_mis
 
 
 def test_reset_awaiting_on_mismatch_limit_uses_configurable_max(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert MAX_CONTEXT_MISMATCH_RETRIES == 3
     monkeypatch.setattr(sequential_gate, "MAX_CONTEXT_MISMATCH_RETRIES", 1)
     step_data = {
         "awaiting_response": True,

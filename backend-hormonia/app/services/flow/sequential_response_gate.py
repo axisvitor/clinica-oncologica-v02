@@ -9,11 +9,14 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from app.utils.timezone import now_sao_paulo
 from app.services.flow.context_parsing import (
     parse_optional_bool,
     parse_optional_int,
     parse_optional_str,
 )
+
+MAX_CONTEXT_MISMATCH_RETRIES = 3
 
 
 def should_record_processed_response(
@@ -27,7 +30,14 @@ def should_record_processed_response(
     Responses blocked by progression-gate mismatches must not be recorded
     as processed, otherwise valid future retries could be ignored.
     """
-    if status in {None, "error", "no_active_flow", "not_awaiting", "context_mismatch"}:
+    if status in {
+        None,
+        "error",
+        "no_active_flow",
+        "not_awaiting",
+        "context_mismatch",
+        "context_mismatch_reset",
+    }:
         return False
 
     blocked_reasons = {
@@ -45,6 +55,44 @@ def should_record_processed_response(
         "context_mismatch",
     }
     return reason not in blocked_reasons
+
+
+def reset_awaiting_on_mismatch_limit(
+    step_data: dict[str, Any],
+    mismatches: dict[str, Any],
+    db_commit_fn: Any,
+) -> tuple[bool, dict[str, Any]]:
+    """Track context mismatches and reset the wait state when the retry limit is hit."""
+    if not callable(db_commit_fn):
+        raise TypeError("db_commit_fn must be callable.")
+
+    current_count_raw = step_data.get("context_mismatch_count", 0)
+    try:
+        current_count = int(current_count_raw)
+    except (TypeError, ValueError):
+        current_count = 0
+
+    current_count = max(current_count, 0) + 1
+    step_data["context_mismatch_count"] = current_count
+
+    if current_count >= MAX_CONTEXT_MISMATCH_RETRIES:
+        step_data["awaiting_response"] = False
+        step_data.pop("pending_response_context", None)
+        step_data["context_mismatch_count"] = 0
+        step_data["last_mismatch_reset_at"] = now_sao_paulo().isoformat()
+        return True, {
+            "status": "context_mismatch_reset",
+            "reason": "context_mismatch",
+            "mismatches": mismatches,
+            "reset_after": current_count,
+        }
+
+    return False, {
+        "status": "waiting",
+        "reason": "context_mismatch",
+        "mismatches": mismatches,
+        "mismatch_count": current_count,
+    }
 
 
 def evaluate_sequential_gate(

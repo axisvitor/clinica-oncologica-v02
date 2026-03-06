@@ -19,6 +19,9 @@ from app.services.flow._flow_orchestration_utils import (
     _require_handler,
     validate_flow_message_state,
 )
+from app.services.flow.sequential_response_gate import (
+    reset_awaiting_on_mismatch_limit,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,24 +110,52 @@ async def load_response_context(
             received_context=response_context,
         )
         if mismatches:
-            logger.info(
-                "Response context mismatch; keeping flow waiting",
-                extra={
-                    "patient_id": str(patient_id),
-                    "expected_context": expected_context,
-                    "received_context": response_context,
-                    "mismatch_fields": sorted(mismatches.keys()),
-                },
+            did_reset, mismatch_result = reset_awaiting_on_mismatch_limit(
+                step_data,
+                mismatches,
+                handler.db.commit,
             )
+            flow_state.step_data = step_data
+            await asyncio.to_thread(handler.db.commit)
+
+            log_context = {
+                "patient_id": str(patient_id),
+                "expected_context": expected_context,
+                "received_context": response_context,
+                "mismatch_fields": sorted(mismatches.keys()),
+            }
+            if did_reset:
+                logger.warning(
+                    "Response context mismatch retry limit reached; resetting flow wait state",
+                    extra={
+                        **log_context,
+                        "reset_after": mismatch_result["reset_after"],
+                    },
+                )
+            else:
+                logger.info(
+                    "Response context mismatch; keeping flow waiting",
+                    extra={
+                        **log_context,
+                        "mismatch_count": mismatch_result["mismatch_count"],
+                    },
+                )
             return {
                 "result": {
-                    "status": "waiting",
+                    **mismatch_result,
                     "day": current_day,
                     "message_index": current_index,
-                    "reason": "context_mismatch",
-                    "mismatches": mismatches,
                 }
             }
+
+        existing_mismatch_count_raw = step_data.get("context_mismatch_count", 0)
+        try:
+            existing_mismatch_count = int(existing_mismatch_count_raw)
+        except (TypeError, ValueError):
+            existing_mismatch_count = 0
+        should_persist_mismatch_reset = existing_mismatch_count > 0
+        if should_persist_mismatch_reset:
+            step_data["context_mismatch_count"] = 0
 
         next_index = current_index + 1
         if next_index >= len(messages):
@@ -136,9 +167,13 @@ async def load_response_context(
             await asyncio.to_thread(handler.db.commit)
             return {"result": {"status": "day_complete", "day": current_day}}
 
+        if should_persist_mismatch_reset:
+            flow_state.step_data = step_data
+            await asyncio.to_thread(handler.db.commit)
+
         return {
             "flow_state_id": getattr(flow_state, "id", None),
-            "flow_state_step_data": dict(flow_state.step_data or {}),
+            "flow_state_step_data": dict(step_data),
             "day_config": day_config,
             "messages": messages,
             "send_mode": send_mode,
