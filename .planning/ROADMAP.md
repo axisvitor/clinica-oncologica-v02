@@ -62,7 +62,11 @@ Plans:
   2. Real google-adk runner/bootstrap failure returns `upstream_error` with no fallback dispatch.
   3. Multi-instance cancel confirmation passes in staging topology (ADK-09).
   4. `45-VERIFICATION.md` updated from `human_needed` to `passed`.
-**Plans**: TBD
+**Plans**: 1 plan
+
+Plans:
+
+- [ ] 49-01-PLAN.md — Add real-runner integration tests and update verification artifacts
 
 ---
 
@@ -139,9 +143,9 @@ Plans:
 | 46. ADK Observability Baseline | 1/1 | Complete    | 2026-03-06 |
 | 47. ADK CI Smoke Gate | 1/1 | Complete    | 2026-03-06 |
 | 48. Phase 44 Verification Closeout | 1/1 | Complete    | 2026-03-06 |
-| 49. ADK Real Runner & Staging Validation | 0/? | Planned | — |
+| 49. ADK Real Runner & Staging Validation | 0/1 | Planned | — |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 — Phase 48 planned (1 plan); gap closure phases 48-49 added after v1.8 audit_
+_Last updated: 2026-03-06 — Phase 49 planned (1 plan); final gap closure for ADK-11/ADK-12 real runner validation_
