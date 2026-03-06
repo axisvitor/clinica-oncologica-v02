@@ -174,6 +174,24 @@ HEALTH_ACTIVE_FLOWS_LIMIT = int(os.getenv("TASK_HEALTH_ACTIVE_FLOWS_LIMIT", "100
 
 
 # ============================================================================
+# STUCK FLOW DETECTION SETTINGS - NEW NAMING: TASK_STUCK_FLOW_*
+# ============================================================================
+
+# Hours before an awaiting-response flow is considered stuck
+STUCK_FLOW_DETECT_HOURS = int(os.getenv("TASK_STUCK_FLOW_DETECT_HOURS", "4"))
+
+# Maximum automatic recovery attempts before escalating for manual intervention
+STUCK_FLOW_MAX_RECOVERY_ATTEMPTS = int(
+    os.getenv("TASK_STUCK_FLOW_MAX_RECOVERY_ATTEMPTS", "3")
+)
+
+# TTL for per-flow recovery idempotency keys in Redis (seconds)
+STUCK_FLOW_RECOVERY_IDEMPOTENCY_TTL = int(
+    os.getenv("TASK_STUCK_FLOW_RECOVERY_IDEMPOTENCY_TTL_SECONDS", "900")
+)
+
+
+# ============================================================================
 # CLEANUP SETTINGS - NEW NAMING: TASK_CLEANUP_*
 # ============================================================================
 

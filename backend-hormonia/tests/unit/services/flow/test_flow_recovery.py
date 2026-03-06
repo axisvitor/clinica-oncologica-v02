@@ -106,6 +106,9 @@ def test_attempt_recovery_skips_when_max_attempts_exceeded():
         "flow_state_id": str(flow.id),
     }
     redis_client.get.assert_not_called()
+    assert flow.step_data["manual_intervention_required"] is True
+    assert flow.step_data["manual_intervention_reason"] == "stuck_flow_recovery_exhausted"
+    db.commit.assert_called_once()
 
 
 def test_attempt_recovery_skips_when_idempotency_key_is_already_present():
@@ -156,13 +159,14 @@ def test_attempt_recovery_resends_prompt_and_updates_recovery_metadata():
     latest_flow.id = flow.id
     latest_flow.patient_id = flow.patient_id
     latest_flow.current_step = flow.current_step
-    _query_chain(db, latest_flow)
+    query = _query_chain(db, latest_flow)
+    query.first.side_effect = [latest_flow]
     redis_client = MagicMock()
     redis_client.get.return_value = None
     redis_client.set.return_value = True
 
     with patch(
-        "app.services.flow.recovery.retry_failed_flow_send"
+        "app.tasks.flows.send_retry.retry_failed_flow_send.delay"
     ) as retry_task, patch(
         "app.services.flow.recovery.now_sao_paulo"
     ) as now_mock:
@@ -177,7 +181,7 @@ def test_attempt_recovery_resends_prompt_and_updates_recovery_metadata():
     }
     assert latest_flow.step_data["recovery_attempts"] == 2
     assert latest_flow.step_data["last_recovery_at"] == "2026-03-06T12:00:00-03:00"
-    retry_task.delay.assert_called_once()
+    retry_task.assert_called_once()
     db.commit.assert_called()
 
 
@@ -195,7 +199,8 @@ def test_attempt_recovery_advances_day_when_completion_is_unverified():
     latest_flow = _flow_state(step_data=dict(flow.step_data), version=flow.version, current_step=3)
     latest_flow.id = flow.id
     latest_flow.patient_id = flow.patient_id
-    _query_chain(db, latest_flow)
+    query = _query_chain(db, latest_flow)
+    query.first.side_effect = [latest_flow]
     redis_client = MagicMock()
     redis_client.get.return_value = None
     redis_client.set.return_value = True
