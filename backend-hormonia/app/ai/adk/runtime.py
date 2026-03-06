@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from dataclasses import dataclass, field
 from threading import Lock
 from typing import TYPE_CHECKING, Any
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
     from app.ai.agents.deps import AIDeps
 
 from app.ai.adk.session_store import ADKSessionStore, DEFAULT_STATE_SIZE_LIMIT_BYTES
+from app.ai.adk.metrics import ADK_INVOCATIONS_IN_FLIGHT, record_adk_invocation
 from app.ai.adk.tools import (
     ADKToolExecutionError,
     execute_tool_handler,
@@ -127,6 +129,13 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
     tool_name = request.tool_name.strip().lower()
     handler = registry.get(tool_name)
     if handler is None:
+        record_adk_invocation(
+            tool_name=tool_name,
+            status="error",
+            duration_seconds=0.0,
+            invocation_id=request.invocation.invocation_id or request.invocation_id,
+            session_id=request.session.session_id or request.session_id,
+        )
         return _build_result(
             status="error",
             result={
@@ -136,12 +145,30 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
             },
         )
 
+    metrics_start = time.monotonic()
+
+    def _record_metrics(result: dict[str, Any]) -> None:
+        record_adk_invocation(
+            tool_name=tool_name,
+            status=result["status"],
+            duration_seconds=max(time.monotonic() - metrics_start, 0.0),
+            invocation_id=result.get("invocation_id"),
+            session_id=result.get("session_id"),
+        )
+
     store = ADKSessionStore()
     if request.invocation.action == "cancel":
-        return await _cancel_invocation(store=store, request=request, tool_name=tool_name)
+        cancel_result = await _cancel_invocation(
+            store=store,
+            request=request,
+            tool_name=tool_name,
+        )
+        _record_metrics(cancel_result)
+        return cancel_result
 
     session_resolution = await _resolve_session(store=store, request=request, tool_name=tool_name)
     if "status" in session_resolution:
+        _record_metrics(session_resolution)
         return session_resolution
 
     session_id = str(session_resolution["session_id"])
@@ -187,6 +214,7 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
     )
     await store.mark_invocation_running(invocation_id)
     _register_in_flight(invocation_id, asyncio.current_task())
+    ADK_INVOCATIONS_IN_FLIGHT.labels(tool_name=tool_name).inc()
 
     try:
         raw_result = await asyncio.wait_for(
@@ -200,7 +228,7 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
             result=normalized.get("result"),
         )
         if final_invocation and final_invocation.get("status") == "cancelled":
-            return _build_result(
+            cancelled_result = _build_result(
                 status="cancelled",
                 result=final_invocation.get("result")
                 or {
@@ -209,6 +237,8 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
                 },
                 session_id=session_id,
             )
+            _record_metrics(cancelled_result)
+            return cancelled_result
 
         if normalized["status"] == "success":
             await store.update_session_state(
@@ -221,12 +251,14 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
                 invocation_id=invocation_id,
             )
 
-        return _build_result(
+        result = _build_result(
             status=normalized["status"],
             result=normalized.get("result"),
             session_id=session_id,
             invocation_id=invocation_id,
         )
+        _record_metrics(result)
+        return result
     except asyncio.TimeoutError:
         timeout_result = {
             "message": (
@@ -240,12 +272,14 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
             status="timeout",
             result=timeout_result,
         )
-        return _build_result(
+        result = _build_result(
             status="timeout",
             result=timeout_result,
             session_id=session_id,
             invocation_id=invocation_id,
         )
+        _record_metrics(result)
+        return result
     except asyncio.CancelledError:
         cancel_result = {
             "message": "Invocation cancelled by operator",
@@ -257,12 +291,14 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
             status="cancelled",
             result=cancel_result,
         )
-        return _build_result(
+        result = _build_result(
             status="cancelled",
             result=cancel_result,
             session_id=session_id,
             invocation_id=invocation_id,
         )
+        _record_metrics(result)
+        return result
     except ADKLimitExceededError:
         limit_result = {
             "message": "LLM call budget exhausted before execution completed",
@@ -275,12 +311,14 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
             status="limit_exceeded",
             result=limit_result,
         )
-        return _build_result(
+        result = _build_result(
             status="limit_exceeded",
             result=limit_result,
             session_id=session_id,
             invocation_id=invocation_id,
         )
+        _record_metrics(result)
+        return result
     except Exception as exc:  # noqa: BLE001
         error_payload = _classify_execution_failure(
             exc,
@@ -292,13 +330,16 @@ async def run_adk_tool(request: ADKToolRunRequest) -> dict[str, Any]:
             status=error_payload["status"],
             result=error_payload["result"],
         )
-        return _build_result(
+        result = _build_result(
             status=error_payload["status"],
             result=error_payload["result"],
             session_id=session_id,
             invocation_id=invocation_id,
         )
+        _record_metrics(result)
+        return result
     finally:
+        ADK_INVOCATIONS_IN_FLIGHT.labels(tool_name=tool_name).dec()
         _unregister_in_flight(invocation_id)
 
 
