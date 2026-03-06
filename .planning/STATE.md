@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: ADK Stability & Error Hardening
-current_plan: 1/1 complete
-status: ready_for_verification
-stopped_at: Completed 48-01-PLAN.md
-last_updated: "2026-03-06T15:10:29.243Z"
-last_activity: 2026-03-06 - Phase 48 plan 01 completed; Phase 44 verification artifact created and ADK-09/10 marked complete
+current_plan: not_started
+status: ready_to_plan
+stopped_at: Phase 48 verified and complete; ready to plan Phase 49
+last_updated: "2026-03-06T15:14:00Z"
+last_activity: 2026-03-06 - Phase 48 verified and complete; Phase 49 is next
 progress:
   total_phases: 6
   completed_phases: 5
@@ -22,17 +22,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Validar a closeout da Phase 48 e liberar a continuidade para a Phase 49 de staging.
+**Current focus:** Planejar a Phase 49 para validar o runner `google-adk` real e o cancelamento multi-instancia em staging.
 
 ## Current Position
 
 Milestone: v1.8 ADK Stability & Error Hardening
-Phase: 48 of 49 (Phase 44 Verification Closeout) - gap closure ready for verification
-Plan: complete
-Current Plan: 1/1 complete
-Total Plans in Phase: 1
-Status: Phase 48 ready for verification
-Last Activity: 2026-03-06 - Phase 48 plan 01 completed; Phase 44 verification artifact created and ADK-09/10 marked complete
+Phase: 49 of 49 (ADK Real Runner & Staging Validation) - next gap closure after Phase 48 completed on 2026-03-06
+Plan: not started
+Current Plan: Not planned yet
+Total Plans in Phase: TBD
+Status: Ready to plan
+Last Activity: 2026-03-06 - Phase 48 verified and complete; Phase 49 is next
 
 Progress: [██████████] 100%
 
@@ -122,20 +122,21 @@ Progress: [██████████] 100%
 - [Phase 46]: Measure latency at the `run_adk_tool` boundary so session resolution, policy checks, and terminal runtime paths all contribute to invocation timing.
 - [Phase 47]: Unsupported ADK tools now return explicit unsupported_tool status — Smoke failures and metrics distinguish unsupported-tool regressions from generic runtime errors.
 - [Phase 47]: The smoke-adk job depends only on lint-backend and stays service-free — This keeps feedback fast by running in parallel with test-backend while preserving a deploy gate for critical oncology trajectories.
+- [Phase 48]: Phase 44 verification closeout passes on fresh local pytest evidence; the only remaining ADK runtime validation is the staging multi-instance cancel proof owned by Phase 49.
 
 ### Pending Todos
 
-- Nenhum todo pendente para a Phase 47.
+- Planejar a Phase 49 (ADK Real Runner & Staging Validation).
 
 ### Blockers/Concerns
 
-- Validacao local ainda pula os testes de integracao com `google-adk` real quando o pacote nao esta instalado; manter o follow-up de staging documentado em `45-VALIDATION.md`.
+- [Phase 49] Validacao local ainda pula os testes de integracao com `google-adk` real quando o pacote nao esta instalado; concluir o follow-up de staging documentado em `45-VALIDATION.md`.
 - Phase 40: ADK pip resolution with pydantic-ai-slim[google] in Python 3.13 is MEDIUM confidence — first task of Phase 40 must run dry-run install and document resolved versions before touching requirements.txt
 - Phase 40: PIISafeADKWrapper hook point (ADK before_model_callback vs call-site) needs spike in ADK v1.26.0 source before implementation
 - Phase 42: hive-mind.ts frontend module disposition (keep vs remove) depends on whether /api/v2/hive-mind/* routes exist in current backend router — verify in Phase 42 plan
 
 ## Session Continuity
 
-**Last session:** 2026-03-06T02:47:47Z
-**Stopped At:** Phase 47 complete; milestone v1.8 ready for closeout
+**Last session:** 2026-03-06T15:14:00Z
+**Stopped At:** Phase 48 verified and complete; ready to plan Phase 49
 **Resume File:** None
