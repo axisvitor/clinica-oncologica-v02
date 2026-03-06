@@ -39,7 +39,7 @@
 - Decimal phases (50.1, 50.2): Urgent insertions if needed (marked with INSERTED)
 
 - [x] **Phase 50: Pipeline Reliability** - Fix silent failures in sequential gate, message sends, follow-ups, day advancement, and config validation
-- [ ] **Phase 51: Flow Recovery** - Detect stuck flows automatically and provide manual + automatic recovery paths
+- [x] **Phase 51: Flow Recovery** - Detect stuck flows automatically and provide manual + automatic recovery paths (completed 2026-03-06)
 - [ ] **Phase 52: Flow Observability** - Surface pipeline health, stall alerts, AI fallback rates, and correlation tracing
 - [ ] **Phase 53: Pipeline Verification** - Integration tests proving end-to-end pipeline, recovery, and retry paths
 
@@ -75,8 +75,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 51-01-PLAN.md — Stuck flow detection service, auto-recovery logic, and Celery Beat task
-- [ ] 51-02-PLAN.md — Admin flow control API and failed flow operations visibility
+- [x] 51-01-PLAN.md — Stuck flow detection service, auto-recovery logic, and Celery Beat task
+- [x] 51-02-PLAN.md — Admin flow control API and failed flow operations visibility
 
 ### Phase 52: Flow Observability
 **Goal**: Operators can see real-time pipeline health and get alerted when patients are stuck, with full traceability from webhook to send
@@ -125,11 +125,11 @@ Phases execute in numeric order: 50 -> 51 -> 52 -> 53
 | 40-43 | v1.7 | 20/20 | Complete | 2026-03-05 |
 | 44-49 | v1.8 | 11/11 | Complete | 2026-03-06 |
 | 50. Pipeline Reliability | v1.9 | 4/4 | Complete | 2026-03-06 |
-| 51. Flow Recovery | v1.9 | 0/2 | Not started | - |
+| 51. Flow Recovery | v1.9 | 2/2 | Complete | 2026-03-06 |
 | 52. Flow Observability | v1.9 | 0/2 | Not started | - |
 | 53. Pipeline Verification | v1.9 | 0/2 | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 -- Phase 51 planned (2 plans in 1 wave)_
+_Last updated: 2026-03-06 -- Phase 51 complete (2 plans in 1 wave)_
