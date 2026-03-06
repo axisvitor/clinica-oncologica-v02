@@ -2,17 +2,17 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: ADK Stability & Error Hardening
-current_plan: 4/4 executed
-status: ready_for_verification
-stopped_at: Completed 45-04-PLAN.md
-last_updated: "2026-03-06T00:54:30.890Z"
-last_activity: 2026-03-06 - Completed Phase 45 gap-closure plan 45-04 for runner-path policy bypass
+current_plan: 0/TBD planned
+status: ready_to_plan
+stopped_at: Completed Phase 46 verification
+last_updated: "2026-03-06T01:54:05Z"
+last_activity: 2026-03-06 - Completed Phase 46 verification and marked OBS-02 complete
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
-  percent: 25
+  completed_phases: 3
+  total_plans: 8
+  completed_plans: 8
+  percent: 75
 ---
 
 # Project State
@@ -22,30 +22,31 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Medicos acompanham pacientes oncologicos continuamente entre consultas via WhatsApp, com questionarios humanizados que coletam dados clinicos sem sobrecarregar o paciente.
-**Current focus:** Finalizar a verificacao da Phase 45 agora que o gap de seguranca do runner foi corrigido, antes de avancar para a Phase 46.
+**Current focus:** Planejar a Phase 47 para transformar a cobertura ADK estabilizada em gate de CI que bloqueia regressao antes do deploy.
 
 ## Current Position
 
 Milestone: v1.8 ADK Stability & Error Hardening
-Phase: 45 of 47 (ADK Tool Safety and Deterministic Errors) - gap closure completed on 2026-03-06
-Plan: 45-04 complete; phase ready for final verification
-Current Plan: 4/4 executed
-Total Plans in Phase: 4
-Status: Ready for verification
-Last Activity: 2026-03-06 - Completed Phase 45 gap-closure plan 45-04 for runner-path policy bypass
+Phase: 47 of 47 (ADK CI Smoke Gate) - next phase after Phase 46 completed on 2026-03-06
+Plan: not started
+Current Plan: 0/TBD planned
+Total Plans in Phase: TBD
+Status: Ready to plan
+Last Activity: 2026-03-06 - Completed Phase 46 verification and marked OBS-02 complete
 
-Progress: [███░░░░░░░] 25%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
 | Milestone | Phases | Plans | Timeline |
 |-----------|--------|-------|----------|
 | v1.0-v1.7 (shipped) | 43 | 179 | 2026-02-22 -> 2026-03-05 |
-| v1.8 (in progress) | 4 | 6 | 2026-03-05 -> present |
+| v1.8 (in progress) | 4 | 8 | 2026-03-05 -> present |
 | Phase 45 P01 | 41min | 2 tasks | 5 files |
 | Phase 45 P02 | 7min | 2 tasks | 5 files |
 | Phase 45 P03 | 10min | 2 tasks | 5 files |
 | Phase 45 P04 | 4m | 2 tasks | 3 files |
+| Phase 46 P01 | 8m | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -114,10 +115,13 @@ Progress: [███░░░░░░░] 25%
 - [Phase 45]: Phase 45-03 keeps real google-adk regression coverage conditional in validation and defers CI smoke gating to Phase 47.
 - [Phase 45]: Runner callback policy evaluation restores operator-owned required-context paths before evaluating required_context_keys.
 - [Phase 45]: ADK tool dispatch preserves operator tool_policy, policy, and required_context_keys metadata while still allowing non-policy context merges for approved executions.
+- [Phase 46]: Keep ADK observability on the default Prometheus registry so the existing `/metrics` exporter surfaces new series without extra wiring.
+- [Phase 46]: Record only low-cardinality labels (`tool_name`, `status`) in metrics and keep `invocation_id`/`session_id` exclusively in structured logs.
+- [Phase 46]: Measure latency at the `run_adk_tool` boundary so session resolution, policy checks, and terminal runtime paths all contribute to invocation timing.
 
 ### Pending Todos
 
-- Nenhum todo pendente para o gap da Phase 45.
+- Nenhum todo pendente para a Phase 46.
 
 ### Blockers/Concerns
 

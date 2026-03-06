@@ -17,7 +17,7 @@
 
 ### Observability
 
-- [ ] **OBS-02**: Operador pode monitorar latencia, throughput e taxa de erro ADK em producao por invocacao e agente.
+- [x] **OBS-02**: Operador pode monitorar latencia, throughput e taxa de erro ADK em producao por invocacao e agente.
 
 ### Quality Gates
 
@@ -55,7 +55,7 @@
 | ADK-10 | Phase 44 | Pending |
 | ADK-11 | Phase 45 | Complete |
 | ADK-12 | Phase 45 | Complete |
-| OBS-02 | Phase 46 | Pending |
+| OBS-02 | Phase 46 | Complete |
 | ADK-13 | Phase 47 | Pending |
 
 **Coverage:**
@@ -65,4 +65,4 @@
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-06 after Phase 45 gap closure plan 45-04 completed ADK-11/ADK-12*
+*Last updated: 2026-03-06 after Phase 46 completed OBS-02 ADK observability baseline*

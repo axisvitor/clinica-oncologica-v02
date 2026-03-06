@@ -30,7 +30,7 @@
 
 - [x] **Phase 44: ADK Runtime Controls** - Limites por invocacao e ciclo de vida de sessao ADK no endpoint canonico. (completed 2026-03-05)
 - [x] **Phase 45: ADK Tool Safety and Deterministic Errors** - Guardrails de tool e classificacao deterministica de falhas ADK. (gap closure in progress) (completed 2026-03-06)
-- [ ] **Phase 46: ADK Observability Baseline** - Metricas operacionais de latencia, throughput e erro por invocacao/agente.
+- [x] **Phase 46: ADK Observability Baseline** - Metricas operacionais de latencia, throughput e erro por invocacao/agente. (completed 2026-03-06)
 - [ ] **Phase 47: ADK CI Smoke Gate** - Gate de CI que bloqueia deploy com regressao em trajetorias oncologicas criticas.
 
 ## Phase Details
@@ -77,11 +77,11 @@ Plans:
   1. Operador visualiza latencia de invocacao ADK para o endpoint `/api/v2/adk/run`.
   2. Operador visualiza throughput e taxa de erro ADK por agente em producao.
   3. Operador identifica aumento de falhas ADK via metricas sem precisar inspecionar logs brutos request a request.
-**Plans**: 1 plan
+**Plans**: 1/1 plans complete
 
 Plans:
 
-- [ ] 46-01-PLAN.md — Add Prometheus metrics (Histogram, Counter, Gauge) and structured logging at the ADK runtime boundary
+- [x] 46-01-PLAN.md — Add Prometheus metrics (Histogram, Counter, Gauge) and structured logging at the ADK runtime boundary
 
 ### Phase 47: ADK CI Smoke Gate
 **Goal**: Release so avanca quando trajetorias ADK criticas do dominio oncologico continuam estaveis no CI.
@@ -99,10 +99,10 @@ Plans:
 |-------|----------------|--------|-----------|
 | 44. ADK Runtime Controls | 3/3 | Complete    | 2026-03-05 |
 | 45. ADK Tool Safety and Deterministic Errors | 4/4 | Complete   | 2026-03-06 |
-| 46. ADK Observability Baseline | 0/1 | Planned | - |
+| 46. ADK Observability Baseline | 1/1 | Complete    | 2026-03-06 |
 | 47. ADK CI Smoke Gate | 0/TBD | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 — Phase 46 planned with 1 plan covering OBS-02 (Prometheus metrics + structured logging at ADK boundary)_
+_Last updated: 2026-03-06 — Phase 46 completed for OBS-02; Phase 47 (ADK CI Smoke Gate) is next_
