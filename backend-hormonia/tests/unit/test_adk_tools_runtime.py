@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from prometheus_client import REGISTRY
 
 from app.ai.adk import session_store as session_store_module
 from app.ai.adk import tools
@@ -48,6 +49,11 @@ def _runner_prompt_from_message(message: object) -> str:
                 return text
 
     raise AssertionError("Unable to extract prompt from runner message")
+
+
+def _metric_value(name: str, labels: dict[str, str]) -> float:
+    value = REGISTRY.get_sample_value(name, labels=labels)
+    return 0.0 if value is None else float(value)
 
 
 def _install_runner_override_harness(
@@ -1184,3 +1190,204 @@ async def test_run_adk_tool_runner_failures_classify_as_upstream_error_without_d
         invocation = await adk_runtime_store.get_invocation(invocation_id)
         assert invocation is not None
         assert invocation["status"] == "upstream_error"
+
+
+# -- ADK Metrics Integration --
+
+
+@pytest.mark.asyncio
+async def test_metrics_recorded_on_success(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    from app.ai.adk import runtime
+
+    async def direct_handler(*, prompt, deps, context=None):
+        return {"status": "success", "result": {"text": f"ok:{prompt}"}}
+
+    monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", False, raising=False)
+    monkeypatch.setattr(runtime, "get_tool_registry", lambda: {"sentiment": direct_handler})
+
+    labels = {"tool_name": "sentiment", "status": "success"}
+    before_total = _metric_value("adk_invocations_total", labels)
+    before_histogram = _metric_value("adk_invocation_duration_seconds_count", labels)
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="como voce esta?",
+            tool_name="sentiment",
+            deps=AIDeps(gemini_api_key="k"),
+            user_id="user-1",
+        )
+    )
+
+    assert result["status"] == "success"
+    assert _metric_value("adk_invocations_total", labels) == before_total + 1.0
+    assert (
+        _metric_value("adk_invocation_duration_seconds_count", labels)
+        == before_histogram + 1.0
+    )
+
+
+@pytest.mark.asyncio
+async def test_metrics_recorded_on_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    from app.ai.adk import runtime
+
+    async def slow_handler(*, prompt, deps, context=None):
+        await asyncio.sleep(0.05)
+        return {"status": "success", "result": "late"}
+
+    monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", False, raising=False)
+    monkeypatch.setattr(runtime, "get_tool_registry", lambda: {"sentiment": slow_handler})
+
+    labels = {"tool_name": "sentiment", "status": "timeout"}
+    before_total = _metric_value("adk_invocations_total", labels)
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="demora",
+            tool_name="sentiment",
+            deps=AIDeps(gemini_api_key="k"),
+            user_id="user-1",
+            runtime=ADKRuntimeControls(timeout_seconds=0.01),
+        )
+    )
+
+    assert result["status"] == "timeout"
+    assert _metric_value("adk_invocations_total", labels) == before_total + 1.0
+
+
+@pytest.mark.asyncio
+async def test_metrics_recorded_on_policy_block(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    from app.ai.adk import runtime
+
+    async def direct_handler(*, prompt, deps, context=None):
+        return {"status": "success", "result": "should-not-run"}
+
+    monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", False, raising=False)
+    monkeypatch.setattr(runtime, "get_tool_registry", lambda: {"sentiment": direct_handler})
+
+    labels = {"tool_name": "sentiment", "status": "policy_block"}
+    before_total = _metric_value("adk_invocations_total", labels)
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="avaliar resposta",
+            tool_name="sentiment",
+            deps=AIDeps(gemini_api_key="k"),
+            user_id="user-1",
+            context={
+                "tool_policy": {
+                    "blocked_tools": {
+                        "sentiment": {"reason": "manual_review_required"}
+                    }
+                }
+            },
+        )
+    )
+
+    assert result["status"] == "policy_block"
+    assert _metric_value("adk_invocations_total", labels) == before_total + 1.0
+
+
+@pytest.mark.asyncio
+async def test_metrics_recorded_on_unsupported_tool(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    from app.ai.adk import runtime
+
+    monkeypatch.setattr(runtime, "get_tool_registry", lambda: {})
+
+    labels = {"tool_name": "missing-tool", "status": "error"}
+    before_total = _metric_value("adk_invocations_total", labels)
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="oi",
+            tool_name="missing-tool",
+            deps=AIDeps(gemini_api_key="k"),
+            user_id="user-1",
+        )
+    )
+
+    assert result["status"] == "error"
+    assert result["result"]["type"] == "unsupported_tool"
+    assert _metric_value("adk_invocations_total", labels) == before_total + 1.0
+
+
+@pytest.mark.asyncio
+async def test_metrics_recorded_on_tool_error(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    from app.ai.adk import runtime
+
+    async def failing_handler(*, prompt, deps, context=None):
+        raise tools.ADKToolExecutionError("boom")
+
+    monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", False, raising=False)
+    monkeypatch.setattr(runtime, "get_tool_registry", lambda: {"sentiment": failing_handler})
+
+    labels = {"tool_name": "sentiment", "status": "tool_error"}
+    before_total = _metric_value("adk_invocations_total", labels)
+
+    result = await run_adk_tool(
+        ADKToolRunRequest(
+            prompt="falha",
+            tool_name="sentiment",
+            deps=AIDeps(gemini_api_key="k"),
+            user_id="user-1",
+        )
+    )
+
+    assert result["status"] == "tool_error"
+    assert _metric_value("adk_invocations_total", labels) == before_total + 1.0
+
+
+@pytest.mark.asyncio
+async def test_in_flight_gauge_zero_after_completion(
+    monkeypatch: pytest.MonkeyPatch,
+    adk_runtime_store: ADKSessionStore,
+) -> None:
+    from app.ai.adk import runtime
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def slow_handler(*, prompt, deps, context=None):
+        started.set()
+        await release.wait()
+        return {"status": "success", "result": "ok"}
+
+    monkeypatch.setattr(runtime, "HAS_ADK_RUNTIME", False, raising=False)
+    monkeypatch.setattr(runtime, "get_tool_registry", lambda: {"sentiment": slow_handler})
+
+    labels = {"tool_name": "sentiment"}
+    before_gauge = _metric_value("adk_invocations_in_flight", labels)
+
+    run_task = asyncio.create_task(
+        run_adk_tool(
+            ADKToolRunRequest(
+                prompt="aguardando",
+                tool_name="sentiment",
+                deps=AIDeps(gemini_api_key="k"),
+                user_id="user-1",
+            )
+        )
+    )
+    await started.wait()
+
+    assert _metric_value("adk_invocations_in_flight", labels) == before_gauge + 1.0
+
+    release.set()
+    result = await run_task
+
+    assert result["status"] == "success"
+    assert _metric_value("adk_invocations_in_flight", labels) == before_gauge
