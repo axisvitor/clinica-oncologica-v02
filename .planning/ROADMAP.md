@@ -40,7 +40,7 @@
 
 - [x] **Phase 50: Pipeline Reliability** - Fix silent failures in sequential gate, message sends, follow-ups, day advancement, and config validation
 - [x] **Phase 51: Flow Recovery** - Detect stuck flows automatically and provide manual + automatic recovery paths (completed 2026-03-06)
-- [ ] **Phase 52: Flow Observability** - Surface pipeline health, stall alerts, AI fallback rates, and correlation tracing
+- [x] **Phase 52: Flow Observability** - Surface pipeline health, stall alerts, AI fallback rates, and correlation tracing (completed 2026-03-06)
 - [ ] **Phase 53: Pipeline Verification** - Integration tests proving end-to-end pipeline, recovery, and retry paths
 
 ## Phase Details
@@ -90,8 +90,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 52-01-PLAN.md -- Flow health endpoint and stall alerting
-- [ ] 52-02-PLAN.md -- AI fallback metrics and correlation ID propagation
+- [x] 52-01-PLAN.md -- Flow health endpoint and stall alerting
+- [x] 52-02-PLAN.md -- AI fallback metrics and correlation ID propagation
 
 ### Phase 53: Pipeline Verification
 **Goal**: Integration tests prove the full pipeline works end-to-end under both success and failure conditions
@@ -126,10 +126,10 @@ Phases execute in numeric order: 50 -> 51 -> 52 -> 53
 | 44-49 | v1.8 | 11/11 | Complete | 2026-03-06 |
 | 50. Pipeline Reliability | v1.9 | 4/4 | Complete | 2026-03-06 |
 | 51. Flow Recovery | v1.9 | 2/2 | Complete | 2026-03-06 |
-| 52. Flow Observability | v1.9 | 0/2 | Not started | - |
+| 52. Flow Observability | v1.9 | 2/2 | Complete | 2026-03-06 |
 | 53. Pipeline Verification | v1.9 | 0/2 | Not started | - |
 
 ---
 
 _Roadmap created: 2026-02-22_
-_Last updated: 2026-03-06 -- Phase 52 planned (2 plans in 1 wave)_
+_Last updated: 2026-03-06 -- Phase 52 complete; Phase 53 ready to plan_
