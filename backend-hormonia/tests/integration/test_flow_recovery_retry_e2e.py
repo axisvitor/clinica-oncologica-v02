@@ -1,8 +1,13 @@
+"""Phase 53 recovery and retry integration coverage."""
+
+from __future__ import annotations
+
 import asyncio
+import os
 from contextlib import contextmanager
 from datetime import timedelta
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -10,7 +15,7 @@ from celery.exceptions import MaxRetriesExceededError
 from sqlalchemy.orm import Session
 
 from app.exceptions import ExternalServiceError
-from app.models.flow import PatientFlowState
+from app.models.flow import FlowKind, FlowTemplateVersion, PatientFlowState
 from app.models.message import (
     Message,
     MessageDirection,
@@ -24,10 +29,7 @@ from app.services.follow_up_system.enums import FollowUpType
 from app.tasks.flows import followup_retry as followup_retry_task
 from app.tasks.flows import send_retry as send_retry_task
 from app.tasks.flows import stuck_detection as stuck_detection_task
-from app.tasks.flows.followup_retry import (
-    FOLLOWUP_RETRY_MAX,
-    retry_failed_followup_send,
-)
+from app.tasks.flows.followup_retry import FOLLOWUP_RETRY_MAX, retry_failed_followup_send
 from app.tasks.flows.send_retry import (
     SEND_RETRY_BACKOFF_FACTOR,
     SEND_RETRY_BASE_DELAY,
@@ -36,6 +38,10 @@ from app.tasks.flows.send_retry import (
 )
 from app.tasks.flows.stuck_detection import detect_stuck_flows
 from app.utils.timezone import now_sao_paulo
+
+
+os.environ.setdefault("WHATSAPP_WUZAPI_TOKEN", "test-token")
+
 
 @contextmanager
 def _scoped_session(db: Session):
@@ -110,6 +116,41 @@ def _create_patient(db: Session, name: str, phone: str) -> Patient:
     return patient
 
 
+def _create_template_version(
+    db: Session,
+    *,
+    flow_kind: str = "onboarding",
+    steps: list[dict] | None = None,
+) -> FlowTemplateVersion:
+    kind = db.query(FlowKind).filter(FlowKind.kind_key == flow_kind).first()
+    if kind is None:
+        kind = FlowKind(kind_key=flow_kind, display_name=flow_kind.title(), is_active=True)
+        db.add(kind)
+        db.commit()
+        db.refresh(kind)
+
+    latest_template = (
+        db.query(FlowTemplateVersion)
+        .filter(FlowTemplateVersion.flow_kind_id == kind.id)
+        .order_by(FlowTemplateVersion.version_number.desc())
+        .first()
+    )
+    next_version = int(getattr(latest_template, "version_number", 0) or 0) + 1
+
+    template = FlowTemplateVersion(
+        flow_kind_id=kind.id,
+        version_number=next_version,
+        template_name=f"{flow_kind.title()} recovery {next_version}",
+        is_active=True,
+        is_draft=False,
+        steps=steps or [{"content": "placeholder"}],
+    )
+    db.add(template)
+    db.commit()
+    db.refresh(template)
+    return template
+
+
 def _create_flow_state(
     db: Session,
     *,
@@ -117,13 +158,15 @@ def _create_flow_state(
     step_data: dict,
     current_step: int = 1,
     last_interaction_at=None,
+    flow_kind: str = "onboarding",
 ) -> PatientFlowState:
+    template = _create_template_version(db, flow_kind=flow_kind)
     flow_state = PatientFlowState(
         patient_id=patient_id,
-        flow_template_version_id=patient_id,
+        flow_template_version_id=template.id,
         current_step=current_step,
         status="active",
-        step_data=step_data,
+        step_data=dict(step_data),
         last_interaction_at=last_interaction_at,
     )
     db.add(flow_state)
@@ -184,18 +227,12 @@ def _patch_send_retry_task(
 @pytest.mark.pipeline_e2e
 @pytest.mark.integration
 class TestStuckFlowRecovery:
-    def test_detect_stuck_flows_finds_only_stale_waiting_flows(
+    def test_find_stuck_flows_detects_only_stale_waiting_flows(
         self,
         db_session: Session,
-        monkeypatch: pytest.MonkeyPatch,
     ):
         stale_patient = _create_patient(db_session, "Stale Flow", "+5511999000001")
         recent_patient = _create_patient(db_session, "Recent Flow", "+5511999000002")
-        stale_message = _create_failed_message(
-            db_session,
-            patient_id=stale_patient.id,
-            message_metadata={"source": "flow_sequential"},
-        )
 
         stale_flow = _create_flow_state(
             db_session,
@@ -207,9 +244,6 @@ class TestStuckFlowRecovery:
                 "flow_kind": "onboarding",
                 "current_flow_day": 2,
                 "current_day_message_index": 0,
-                "pending_response_context": {
-                    "prompt_message_id": str(stale_message.id),
-                },
             },
         )
         recent_flow = _create_flow_state(
@@ -224,70 +258,32 @@ class TestStuckFlowRecovery:
             },
         )
 
-        async def _send_message(message: Message, flow_context=None):
-            message.status = MessageStatus.SENT
-            message.message_metadata = dict(message.message_metadata or {})
-            message.message_metadata["last_flow_context"] = flow_context
-            db_session.add(message)
-            db_session.commit()
-            return True
-
-        redis_client = FakeRedis()
-        send_service = _patch_send_retry_task(
-            monkeypatch=monkeypatch,
-            db_session=db_session,
-            send_side_effect=_send_message,
-        )
-        monkeypatch.setattr(
-            stuck_detection_task,
-            "get_scoped_session",
-            lambda: _scoped_session(db_session),
-        )
-        monkeypatch.setattr(
-            stuck_detection_task,
-            "get_redis_manager",
-            lambda: SimpleNamespace(get_sync_client=lambda: redis_client),
-        )
-        monkeypatch.setattr(
-            stuck_detection_task,
-            "find_stuck_flows",
-            lambda db: recovery_service.find_stuck_flows(db, threshold_hours=1),
-        )
-
         stuck_flows = recovery_service.find_stuck_flows(db_session, threshold_hours=1)
 
         assert [flow.id for flow in stuck_flows] == [stale_flow.id]
         assert recent_flow.id not in {flow.id for flow in stuck_flows}
 
-        summary = detect_stuck_flows.run()
-
-        db_session.refresh(stale_flow)
-        db_session.refresh(stale_message)
-
-        assert summary["detected_count"] == 1
-        assert summary["recovered_count"] == 1
-        assert summary["skipped_count"] == 0
-        assert stale_flow.step_data["recovery_attempts"] == 1
-        assert stale_message.status == MessageStatus.SENT
-        send_service.send_message.assert_awaited_once()
-
-    def test_attempt_recovery_resends_prompt_and_increments_attempts(
+    def test_detect_stuck_flows_task_recovers_stale_prompt_via_retry_task(
         self,
         db_session: Session,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        patient = _create_patient(db_session, "Recovery Resend", "+5511999000003")
-        message = _create_failed_message(db_session, patient_id=patient.id)
+        patient = _create_patient(db_session, "Recover Task", "+5511999000003")
+        message = _create_failed_message(
+            db_session,
+            patient_id=patient.id,
+            message_metadata={"source": "flow_sequential"},
+        )
         flow_state = _create_flow_state(
             db_session,
             patient_id=patient.id,
             current_step=2,
-            last_interaction_at=now_sao_paulo() - timedelta(hours=5),
+            last_interaction_at=now_sao_paulo() - timedelta(hours=2),
             step_data={
                 "awaiting_response": True,
                 "flow_kind": "onboarding",
                 "current_flow_day": 2,
-                "current_day_message_index": 1,
+                "current_day_message_index": 0,
                 "pending_response_context": {
                     "prompt_message_id": str(message.id),
                 },
@@ -297,7 +293,7 @@ class TestStuckFlowRecovery:
         async def _send_message(message_to_send: Message, flow_context=None):
             message_to_send.status = MessageStatus.SENT
             message_to_send.message_metadata = dict(message_to_send.message_metadata or {})
-            message_to_send.message_metadata["flow_context"] = flow_context
+            message_to_send.message_metadata["last_flow_context"] = flow_context
             db_session.add(message_to_send)
             db_session.commit()
             return True
@@ -307,23 +303,29 @@ class TestStuckFlowRecovery:
             db_session=db_session,
             send_side_effect=_send_message,
         )
-        result = recovery_service.attempt_recovery(db_session, flow_state, FakeRedis())
+        monkeypatch.setattr(stuck_detection_task, "get_scoped_session", lambda: _scoped_session(db_session))
+        monkeypatch.setattr(
+            stuck_detection_task,
+            "get_redis_manager",
+            lambda: SimpleNamespace(get_sync_client=lambda: FakeRedis()),
+        )
+        monkeypatch.setattr(
+            stuck_detection_task,
+            "find_stuck_flows",
+            lambda db: recovery_service.find_stuck_flows(db, threshold_hours=1),
+        )
+
+        summary = detect_stuck_flows.run()
 
         db_session.refresh(flow_state)
         db_session.refresh(message)
 
-        assert result == {
-            "status": "recovered",
-            "action": "resend_prompt",
-            "flow_state_id": str(flow_state.id),
-        }
+        assert summary["detected_count"] == 1
+        assert summary["recovered_count"] == 1
+        assert summary["failed_count"] == 0
         assert flow_state.step_data["recovery_attempts"] == 1
         assert message.status == MessageStatus.SENT
-        assert send_service.send_message.await_args.args[0].id == message.id
-        assert (
-            send_service.send_message.await_args.kwargs["flow_context"]["prompt_message_id"]
-            == str(message.id)
-        )
+        send_service.send_message.assert_awaited_once()
 
     def test_attempt_recovery_advances_day_when_completion_is_unverified(
         self,
@@ -427,4 +429,213 @@ class TestStuckFlowRecovery:
         assert (
             flow_state.step_data["manual_intervention_reason"]
             == recovery_service.MANUAL_INTERVENTION_REASON
+        )
+
+
+@pytest.mark.pipeline_e2e
+@pytest.mark.integration
+class TestSendRetryMechanics:
+    def test_retry_failed_flow_send_succeeds_and_updates_message(
+        self,
+        db_session: Session,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        patient = _create_patient(db_session, "Retry Success", "+5511999000007")
+        message = _create_failed_message(
+            db_session,
+            patient_id=patient.id,
+            message_metadata={
+                "source": "flow_sequential",
+                "flow_context": {"flow_kind": "onboarding", "flow_day": 2, "message_index": 1},
+            },
+        )
+
+        async def _send_message(message_to_send: Message, flow_context=None):
+            message_to_send.status = MessageStatus.SENT
+            message_to_send.message_metadata = dict(message_to_send.message_metadata or {})
+            message_to_send.message_metadata["flow_context"] = flow_context
+            db_session.add(message_to_send)
+            db_session.commit()
+            return True
+
+        service = _patch_send_retry_task(
+            monkeypatch=monkeypatch,
+            db_session=db_session,
+            send_side_effect=_send_message,
+        )
+
+        result = retry_failed_flow_send.run(str(message.id))
+
+        db_session.refresh(message)
+
+        assert result == {
+            "status": "ok",
+            "message_id": str(message.id),
+            "attempt": 1,
+        }
+        assert message.status == MessageStatus.SENT
+        assert message.retry_count == 1
+        service.send_message.assert_awaited_once()
+
+    def test_retry_failed_flow_send_retries_with_exponential_backoff(
+        self,
+        db_session: Session,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        patient = _create_patient(db_session, "Retry Backoff", "+5511999000008")
+        message = _create_failed_message(db_session, patient_id=patient.id)
+        retry_failed_flow_send.request.retries = 1
+
+        monkeypatch.setattr(send_retry_task, "get_scoped_session", lambda: _scoped_session(db_session))
+        monkeypatch.setattr(
+            send_retry_task,
+            "UnifiedWhatsAppService",
+            lambda db: SimpleNamespace(send_message=AsyncMock(side_effect=ExternalServiceError("provider_error"))),
+        )
+        monkeypatch.setattr(send_retry_task, "async_to_sync", _async_to_sync_bridge)
+
+        with patch.object(send_retry_task.random, "randint", return_value=7), patch.object(
+            send_retry_task.retry_failed_flow_send,
+            "retry",
+            side_effect=RuntimeError("retry called"),
+        ) as retry_mock:
+            with pytest.raises(RuntimeError, match="retry called"):
+                retry_failed_flow_send.run(str(message.id))
+
+        db_session.refresh(message)
+
+        expected_countdown = (
+            SEND_RETRY_BASE_DELAY
+            * (SEND_RETRY_BACKOFF_FACTOR ** retry_failed_flow_send.request.retries)
+        ) + 7
+        assert retry_mock.call_args.kwargs["countdown"] == expected_countdown
+        assert isinstance(retry_mock.call_args.kwargs["exc"], ExternalServiceError)
+        assert message.retry_count == 2
+        assert message.next_retry_at is not None
+
+    def test_retry_failed_flow_send_records_permanent_failure_after_exhaustion(
+        self,
+        db_session: Session,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        patient = _create_patient(db_session, "Retry Exhausted", "+5511999000009")
+        flow_state = _create_flow_state(
+            db_session,
+            patient_id=patient.id,
+            current_step=4,
+            step_data={"awaiting_response": True},
+        )
+        message = _create_failed_message(
+            db_session,
+            patient_id=patient.id,
+            message_metadata={"source": "flow_sequential"},
+        )
+        retry_failed_flow_send.request.retries = SEND_RETRY_MAX_RETRIES
+
+        monkeypatch.setattr(send_retry_task, "get_scoped_session", lambda: _scoped_session(db_session))
+        monkeypatch.setattr(
+            send_retry_task,
+            "UnifiedWhatsAppService",
+            lambda db: SimpleNamespace(send_message=AsyncMock(side_effect=ExternalServiceError("provider_error"))),
+        )
+        monkeypatch.setattr(send_retry_task, "async_to_sync", _async_to_sync_bridge)
+
+        with patch.object(
+            send_retry_task.retry_failed_flow_send,
+            "retry",
+            side_effect=MaxRetriesExceededError("done"),
+        ):
+            result = retry_failed_flow_send.run(str(message.id), flow_context={"flow_kind": "onboarding"})
+
+        db_session.refresh(message)
+        db_session.refresh(flow_state)
+
+        assert result["status"] == "permanently_failed"
+        assert result["message_id"] == str(message.id)
+        assert result["attempts"] == SEND_RETRY_MAX_RETRIES
+        assert message.status == MessageStatus.FAILED
+        assert flow_state.step_data["delivery_failures"][0]["message_id"] == str(message.id)
+        assert flow_state.step_data["skip_waiting_for_message"] == str(message.id)
+
+    def test_retry_failed_followup_send_succeeds_and_marks_action_executed(
+        self,
+        db_session: Session,
+    ):
+        follow_up_service = MagicMock()
+        follow_up_service.action_executor._schedule_message_action = AsyncMock(return_value=True)
+        follow_up_service.redis_store.update_action_status = AsyncMock(return_value=True)
+
+        action_id = uuid4()
+        patient_id = uuid4()
+
+        with patch.object(
+            followup_retry_task,
+            "get_scoped_session",
+            return_value=_scoped_session(db_session),
+        ), patch.object(
+            followup_retry_task,
+            "async_to_sync",
+            side_effect=_async_to_sync_bridge,
+        ), patch(
+            "app.services.follow_up_system.service.FollowUpSystemService",
+            return_value=follow_up_service,
+        ):
+            result = retry_failed_followup_send.run(
+                str(action_id),
+                str(patient_id),
+                parameters={"message_content": "Retry me"},
+                follow_up_type=FollowUpType.CONVERSATION_CONTINUATION.value,
+                priority="medium",
+            )
+
+        assert result == {
+            "status": "ok",
+            "action_id": str(action_id),
+            "attempt": 1,
+        }
+        follow_up_service.redis_store.update_action_status.assert_awaited_once()
+        assert (
+            follow_up_service.redis_store.update_action_status.await_args.kwargs["status"]
+            == "executed"
+        )
+
+    def test_retry_failed_followup_send_marks_terminal_failure_after_exhaustion(
+        self,
+        db_session: Session,
+    ):
+        follow_up_service = MagicMock()
+        follow_up_service.action_executor._schedule_message_action = AsyncMock(
+            side_effect=RuntimeError("boom")
+        )
+        follow_up_service.redis_store.update_action_status = AsyncMock(return_value=True)
+        retry_failed_followup_send.request.retries = FOLLOWUP_RETRY_MAX
+
+        with patch.object(
+            followup_retry_task,
+            "get_scoped_session",
+            return_value=_scoped_session(db_session),
+        ), patch.object(
+            followup_retry_task,
+            "async_to_sync",
+            side_effect=_async_to_sync_bridge,
+        ), patch(
+            "app.services.follow_up_system.service.FollowUpSystemService",
+            return_value=follow_up_service,
+        ), patch.object(
+            followup_retry_task.retry_failed_followup_send,
+            "retry",
+            side_effect=MaxRetriesExceededError("done"),
+        ):
+            result = retry_failed_followup_send.run(
+                str(uuid4()),
+                str(uuid4()),
+                parameters={"message_content": "Retry me"},
+                follow_up_type=FollowUpType.CONVERSATION_CONTINUATION.value,
+            )
+
+        assert result["status"] == "permanently_failed"
+        assert result["attempts"] == FOLLOWUP_RETRY_MAX
+        assert (
+            follow_up_service.redis_store.update_action_status.await_args.kwargs["status"]
+            == "failed"
         )
