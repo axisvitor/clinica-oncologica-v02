@@ -59,6 +59,7 @@ markers = [
     "saga: Saga orchestration tests",
     "encryption: Encryption tests",
     "adk_smoke: ADK smoke tests for critical oncology trajectories",
+    "pipeline_e2e: End-to-end flow pipeline integration tests (Phase 53)",
 ]
 
 [tool.coverage.run]
