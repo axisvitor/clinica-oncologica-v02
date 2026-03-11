@@ -154,3 +154,18 @@ hive-mind-prompt-*.txt
 # Project local artifacts
 uploads/
 backend-hormonia/debug_log.txt
+
+# ── GSD baseline (auto-generated) ──
+.gsd/activity/
+.gsd/runtime/
+.gsd/worktrees/
+.gsd/auto.lock
+.gsd/metrics.json
+.gsd/STATE.md
+*.code-workspace
+.env.*
+*.pyc
+target/
+vendor/
+coverage/
+tmp/
