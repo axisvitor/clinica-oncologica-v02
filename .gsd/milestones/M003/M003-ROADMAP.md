@@ -51,7 +51,7 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Evidence Map And Cleanup Guardrails** `risk:high` `depends:[]`
+- [x] **S01: Evidence Map And Cleanup Guardrails** `risk:high` `depends:[]`
   > After this: there is a ranked hotspot inventory, a dead-code candidate ledger, and explicit guardrails for what must not break.
 - [ ] **S02: Backend Auth/Session Hotspot Refactor** `risk:high` `depends:[S01]`
   > After this: the backend auth/session hotspot is split into smaller seams with the same visible contract, proved by focused backend verification.
