@@ -88,7 +88,13 @@ api_v2_router.include_router(
 # Auth & Users (Decomposed)
 api_v2_router.include_router(auth_router, prefix="/auth", tags=["auth-v2"])
 api_v2_router.include_router(
-    users_router, prefix="/auth", tags=["users-v2"]
+    users_router, prefix="/users", tags=["users-v2"]
+)
+api_v2_router.include_router(
+    users_router,
+    prefix="/auth",
+    tags=["users-legacy-v2"],
+    include_in_schema=False,
 )  # Legacy path support for /me, /preferences
 api_v2_router.include_router(
     notifications_router, prefix="/notifications", tags=["notifications-v2"]

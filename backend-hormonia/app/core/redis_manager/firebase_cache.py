@@ -272,13 +272,24 @@ class FirebaseRedisCache(SessionCacheMixin):
         """
         key = f"user:firebase_uid:{firebase_uid}"
 
-        # Use asyncio.to_thread for sync Redis operations
         cached = await asyncio.to_thread(self.redis.get, key)
         if cached:
             logger.debug(f"✅ User cache HIT: {firebase_uid}")
             return json.loads(cached)
 
         logger.debug(f"❌ User cache MISS: {firebase_uid}")
+        return None
+
+    async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve cached user data by canonical user_id."""
+        key = f"user:id:{user_id}"
+
+        cached = await asyncio.to_thread(self.redis.get, key)
+        if cached:
+            logger.debug(f"✅ User cache HIT by user_id: {user_id}")
+            return json.loads(cached)
+
+        logger.debug(f"❌ User cache MISS by user_id: {user_id}")
         return None
 
     async def cache_user_data(
@@ -298,6 +309,17 @@ class FirebaseRedisCache(SessionCacheMixin):
 
         await asyncio.to_thread(self.redis.setex, key, ttl, json.dumps(cache_data))
         logger.debug(f"💾 User data cached: {firebase_uid} (TTL: {ttl}s)")
+
+    async def cache_user_data_by_user_id(
+        self, user_id: str, user_data: Dict[str, Any], ttl: int = 900
+    ) -> None:
+        """Cache user data by canonical user_id."""
+        key = f"user:id:{user_id}"
+
+        cache_data = {**user_data, "cached_at": now_sao_paulo().isoformat()}
+
+        await asyncio.to_thread(self.redis.setex, key, ttl, json.dumps(cache_data))
+        logger.debug(f"💾 User data cached by user_id: {user_id} (TTL: {ttl}s)")
 
     async def get_or_create_user(
         self,

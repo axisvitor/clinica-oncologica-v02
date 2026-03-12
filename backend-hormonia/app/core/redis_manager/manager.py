@@ -498,6 +498,13 @@ class RedisManager:
         cache = FirebaseRedisCache(self.get_sync_client())
         return await cache.get_user_by_uid(firebase_uid)
 
+    async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """Backward-compatible canonical user cache lookup."""
+        from .firebase_cache import FirebaseRedisCache
+
+        cache = FirebaseRedisCache(self.get_sync_client())
+        return await cache.get_user_by_id(user_id)
+
     async def get(self, key: str) -> Optional[Any]:
         """Backward-compatible async get helper."""
         client = await self.get_async_client()
@@ -543,6 +550,15 @@ class RedisManager:
         cache = FirebaseRedisCache(self.get_sync_client())
         await cache.cache_user_data(firebase_uid, user_data, ttl=ttl)
 
+    async def cache_user_data_by_user_id(
+        self, user_id: str, user_data: Dict[str, Any], ttl: int = 900
+    ) -> None:
+        """Backward-compatible canonical user cache write helper."""
+        from .firebase_cache import FirebaseRedisCache
+
+        cache = FirebaseRedisCache(self.get_sync_client())
+        await cache.cache_user_data_by_user_id(user_id, user_data, ttl=ttl)
+
     async def get_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Backward-compatible session lookup helper."""
         from .session_cache import SessionCache
@@ -558,7 +574,7 @@ class RedisManager:
         self,
         session_id: str,
         user_id: str,
-        firebase_uid: str,
+        firebase_uid: Optional[str] = None,
         ttl: int = 86400,
     ) -> bool:
         """Backward-compatible session creation helper."""

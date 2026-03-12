@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
+import inspect
 import logging
 import uuid
 
@@ -33,9 +34,13 @@ from app.utils.rate_limiter import limiter, auth_limiter
 from app.schemas.v2.auth import (
     FirebaseTokenVerifyRequest,
     FirebaseTokenVerifyResponse,
+    LocalLoginRequest,
+    LocalLoginResponse,
     SessionV2Response,
 )
 from app.config import settings
+from app.repositories.user import UserRepository
+from app.services.auth import AuthService, LocalAuthFailure
 from app.utils.auth_helpers import extract_user_id as _extract_user_id
 from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.api.v2.routers.notifications import router as notifications_router
@@ -74,6 +79,139 @@ def _auth_json_response(
     if extra_headers:
         headers.update(extra_headers)
     return JSONResponse(status_code=status_code, content=content, headers=headers)
+
+
+def _get_request_id(request: Request) -> Optional[str]:
+    """Best-effort request correlation ID used in auth diagnostics."""
+    request_id = getattr(request.state, "request_id", None)
+    if request_id:
+        return request_id
+
+    monitoring_state = getattr(request.state, "monitoring", None)
+    if isinstance(monitoring_state, dict):
+        monitoring_request_id = monitoring_state.get("request_id")
+        if monitoring_request_id:
+            return monitoring_request_id
+
+    return request.headers.get("X-Request-ID")
+
+
+
+def _auth_error_content(request: Request, *, error: str, message: str) -> dict[str, Any]:
+    """Standardized auth failure payload with stable diagnostics."""
+    return {
+        "error": error,
+        "message": message,
+        "request_id": _get_request_id(request),
+        "timestamp": now_sao_paulo().isoformat(),
+    }
+
+
+
+def _serialize_authenticated_user(user) -> dict[str, Any]:
+    """Normalize authenticated-user metadata for login/session responses."""
+    role = user.role.value if hasattr(user.role, "value") else str(user.role)
+    last_login = getattr(user, "firebase_last_sign_in", None)
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": role,
+        "is_active": bool(getattr(user, "is_active", False)),
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+        "last_login": last_login,
+        "photo_url": getattr(user, "firebase_photo_url", None),
+    }
+
+
+
+async def _call_cache_method(method, *args, **kwargs):
+    result = method(*args, **kwargs)
+    if inspect.isawaitable(result):
+        result = await result
+    return result
+
+
+
+async def _create_canonical_session_cache_entry(
+    *,
+    redis_cache,
+    session_id: str,
+    user_payload: dict[str, Any],
+    remember_me: bool,
+    ttl_seconds: int,
+) -> None:
+    """Persist the canonical session payload in Redis, supporting legacy cache adapters."""
+    metadata = {
+        "session_id": session_id,
+        "email": user_payload["email"],
+        "full_name": user_payload.get("full_name"),
+        "role": user_payload["role"],
+        "is_active": user_payload["is_active"],
+        "created_at": user_payload.get("created_at").isoformat()
+        if user_payload.get("created_at")
+        else None,
+        "updated_at": user_payload.get("updated_at").isoformat()
+        if user_payload.get("updated_at")
+        else None,
+        "last_login": user_payload.get("last_login").isoformat()
+        if user_payload.get("last_login")
+        else None,
+        "remember_me": remember_me,
+        "max_age_seconds": ttl_seconds,
+    }
+    firebase_uid = user_payload.get("firebase_uid")
+
+    creation_attempts = [
+        lambda: _call_cache_method(
+            redis_cache.create_session,
+            session_id=session_id,
+            user_id=user_payload["id"],
+            firebase_uid=firebase_uid,
+            metadata=metadata,
+            ttl_seconds=ttl_seconds,
+        ),
+        lambda: _call_cache_method(
+            redis_cache.create_session,
+            session_id=session_id,
+            user_id=user_payload["id"],
+            firebase_uid=firebase_uid,
+            metadata=metadata,
+            ttl=ttl_seconds,
+        ),
+        lambda: _call_cache_method(
+            redis_cache.create_session,
+            session_id,
+            user_payload["id"],
+            firebase_uid,
+            metadata=metadata,
+            ttl=ttl_seconds,
+        ),
+        lambda: _call_cache_method(
+            redis_cache.create_session,
+            session_id,
+            user_payload["id"],
+            firebase_uid,
+            ttl=ttl_seconds,
+        ),
+    ]
+
+    last_error: Optional[Exception] = None
+    for attempt in creation_attempts:
+        try:
+            created = await attempt()
+            if created is False:
+                raise RuntimeError("Redis create_session returned false")
+            return
+        except TypeError as exc:
+            last_error = exc
+            continue
+        except Exception as exc:
+            raise RuntimeError("Redis session creation failed") from exc
+
+    raise RuntimeError("Redis session creation failed") from last_error
+
 
 
 def _serialize_session(
@@ -537,25 +675,118 @@ async def verify_firebase_token(
 
 @router.post(
     "/login",
-    response_model=FirebaseTokenVerifyResponse,
-    summary="Create session using Firebase token (compat)",
+    response_model=LocalLoginResponse,
+    summary="Login using local email/password credentials",
 )
 @auth_limiter.limit("5/minute")
 async def login(
     request: Request,
     response: Response,
-    payload: FirebaseTokenVerifyRequest,
+    payload: LocalLoginRequest,
     db=Depends(get_db),
     redis_cache=Depends(get_redis_cache),
 ):
-    """Compatibility endpoint to create a session using Firebase ID token."""
-    return await verify_firebase_token(
-        request=request,
-        response=response,
-        payload=payload,
-        db=db,
-        redis_cache=redis_cache,
-    )
+    """Canonical first-party login endpoint backed by local credentials."""
+    auth_service = AuthService(db, UserRepository(db), redis_cache)
+    client_ip = request.client.host if request.client else None
+
+    try:
+        auth_result = await auth_service.authenticate_local_credentials(
+            email=str(payload.email),
+            password=payload.password,
+            remember_me=payload.remember_me,
+            client_ip=client_ip,
+        )
+
+        user = auth_result.user
+        ttl_seconds = AuthService.get_local_session_ttl_seconds(auth_result.remember_me)
+        expires_at = now_sao_paulo() + timedelta(seconds=ttl_seconds)
+
+        from app.models.session import Session as SessionModel
+
+        session = SessionModel(
+            user_id=user.id,
+            session_token=uuid.uuid4().hex,
+            ip_address=client_ip,
+            user_agent=request.headers.get("user-agent"),
+            last_activity=now_sao_paulo(),
+            expires_at=expires_at,
+            is_active=True,
+        )
+        db.add(session)
+        db.flush()
+        db.refresh(session)
+
+        user_payload = _serialize_authenticated_user(user)
+        user_payload["firebase_uid"] = user.firebase_uid
+
+        await _create_canonical_session_cache_entry(
+            redis_cache=redis_cache,
+            session_id=str(session.id),
+            user_payload=user_payload,
+            remember_me=auth_result.remember_me,
+            ttl_seconds=ttl_seconds,
+        )
+
+        db.commit()
+
+        response.set_cookie(
+            key=SESSION_COOKIE_NAME,
+            value=str(session.id),
+            httponly=True,
+            secure=settings.SESSION_ENABLE_COOKIE_SECURE,
+            samesite=settings.SESSION_COOKIE_SAMESITE,
+            path="/",
+            max_age=ttl_seconds,
+        )
+        if (
+            settings.APP_ENABLE_DEBUG
+            and settings.APP_ENVIRONMENT.lower() != "production"
+        ):
+            response.headers["X-Session-ID"] = str(session.id)
+
+        _apply_auth_security_headers(response)
+        return {
+            "valid": True,
+            "message": "Login successful",
+            "session_id": str(session.id),
+            "user_id": str(user.id),
+            "expires_at": expires_at,
+            "remember_me": auth_result.remember_me,
+            "user": user_payload,
+        }
+
+    except LocalAuthFailure as exc:
+        try:
+            if exc.commit_required:
+                db.commit()
+            else:
+                db.rollback()
+        except Exception as db_exc:
+            logger.warning("Failed to finalize local-auth failure state: %s", db_exc)
+            db.rollback()
+
+        extra_headers = {"WWW-Authenticate": "Session"} if exc.status_code == status.HTTP_401_UNAUTHORIZED else None
+        return _auth_json_response(
+            status_code=exc.status_code,
+            content=_auth_error_content(
+                request,
+                error=exc.error_code,
+                message=exc.message,
+            ),
+            extra_headers=extra_headers,
+        )
+    except Exception as exc:
+        logger.error("Local login failed: %s", exc, exc_info=True)
+        db.rollback()
+        return _auth_json_response(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=_auth_error_content(
+                request,
+                error="AUTH_SERVICE_UNAVAILABLE",
+                message="Authentication failed. Please try again later.",
+            ),
+        )
 
 
 @router.get("/verify-session", response_model=SessionV2Response)

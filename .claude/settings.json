@@ -68,6 +68,14 @@
             "continueOnError": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/gsd-context-monitor.js"
+          }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -98,6 +106,14 @@
             "continueOnError": true
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/gsd-check-update.js"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -126,9 +142,7 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "npx @claude-flow/cli@latest hooks statusline 2>/dev/null || node .claude/helpers/statusline.cjs 2>/dev/null || echo \"▊ Claude Flow V3\"",
-    "refreshMs": 5000,
-    "enabled": true
+    "command": "node .claude/hooks/gsd-statusline.js"
   },
   "permissions": {
     "allow": [

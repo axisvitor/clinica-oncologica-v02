@@ -23,7 +23,7 @@ Guidelines:
 - Primary owning slice: M002/S01
 - Supporting slices: M002/S03, M002/S04
 - Validation: mapped
-- Notes: User explicitly requested removal of Firebase Auth; login identifier is email only.
+- Notes: User explicitly requested removal of Firebase Auth; login identifier is email only. M002/S01 proved the backend local-login contract with focused auth API, session-identity, and protected-route/logout tests; frontend and realtime cutover still remain in S03/S04.
 
 ### R006 — Existing Redis session continuity survives the auth cutover
 - Class: continuity
@@ -34,7 +34,7 @@ Guidelines:
 - Primary owning slice: M002/S01
 - Supporting slices: M002/S03, M002/S04
 - Validation: mapped
-- Notes: The user chose to keep the current session/cookie architecture instead of moving to a pure JWT model.
+- Notes: The user chose to keep the current session/cookie architecture instead of moving to a pure JWT model. M002/S01 proved backend session issuance, verify-session, protected-route auth, logout invalidation, and HttpOnly cookie behavior on the first-party identity contract; browser remember-me restore still remains in S03.
 
 ### R007 — Existing users regain access without manual recreation
 - Class: launchability
@@ -100,7 +100,7 @@ Guidelines:
 - Primary owning slice: M002/S04
 - Supporting slices: M002/S01, M002/S02, M002/S03
 - Validation: mapped
-- Notes: Existing code already has audit/security patterns that M002 should preserve rather than regress.
+- Notes: Existing code already has audit/security patterns that M002 should preserve rather than regress. M002/S01 now emits stable login/session error codes plus request_id or debug-step diagnostics for the backend auth core; reset/migration/front-end visibility remains for later slices.
 
 ## Validated
 

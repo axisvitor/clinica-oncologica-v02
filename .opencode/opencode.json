@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "read": {
+      "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.opencode/get-shit-done/*": "allow"
+    },
+    "external_directory": {
+      "/mnt/c/Meu Projetos/clinica-oncologica-v02-1/.opencode/get-shit-done/*": "allow"
+    }
+  }
+}

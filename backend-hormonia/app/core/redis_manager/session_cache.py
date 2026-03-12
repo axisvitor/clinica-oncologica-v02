@@ -45,11 +45,20 @@ class SessionCache:
             return await method(*args, **kwargs)
         return await asyncio.to_thread(method, *args, **kwargs)
 
+    @staticmethod
+    def _session_matches_identity(session_data: Dict[str, Any], identity: str) -> bool:
+        """Match either canonical user_id or compatibility firebase_uid."""
+        if not identity:
+            return False
+        return str(session_data.get("user_id") or "") == str(identity) or str(
+            session_data.get("firebase_uid") or ""
+        ) == str(identity)
+
     async def create_session(
         self,
         session_id: str,
         user_id: str,
-        firebase_uid: str,
+        firebase_uid: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         ttl_seconds: Optional[int] = None,
         ttl: Optional[int] = None,  # Alternative parameter name for compatibility
@@ -72,15 +81,18 @@ class SessionCache:
         """
         ttl_value = ttl or ttl_seconds or self.session_ttl
         key = f"session:{session_id}"
+        session_timestamp = now_sao_paulo().isoformat()
 
         session_data = {
-            "user_id": user_id,
-            "firebase_uid": firebase_uid,
-            "created_at": now_sao_paulo().isoformat(),
-            "last_activity": now_sao_paulo().isoformat(),
-            "max_age_seconds": self.max_session_age,
             **(metadata or {}),
+            "user_id": user_id,
+            "session_created_at": session_timestamp,
+            "last_activity": session_timestamp,
         }
+        session_data.setdefault("created_at", session_timestamp)
+        session_data.setdefault("max_age_seconds", self.max_session_age)
+        if firebase_uid:
+            session_data["firebase_uid"] = firebase_uid
 
         try:
             await self._redis_call("setex", key, ttl_value, json.dumps(session_data))
@@ -113,7 +125,7 @@ class SessionCache:
                 now = now_sao_paulo()
 
                 # --- 1. Max Age Validation ---
-                created_at_str = session_data.get("created_at")
+                created_at_str = session_data.get("session_created_at") or session_data.get("created_at")
                 max_age = session_data.get("max_age_seconds", self.max_session_age)
 
                 if created_at_str:
@@ -128,15 +140,15 @@ class SessionCache:
                             await self.invalidate_session(session_id)
                             return None
                     except ValueError:
-                        # Malformed created_at, treat as new/valid but reset created_at below
-                        session_data["created_at"] = now.isoformat()
-                        logger.warning(f"🔧 Normalized malformed created_at: {session_id[:16]}...")
+                        # Malformed session_created_at, treat as new/valid but reset below
+                        session_data["session_created_at"] = now.isoformat()
+                        logger.warning(f"🔧 Normalized malformed session_created_at: {session_id[:16]}...")
                 else:
-                    # Legacy session compatibility: Set created_at = now
+                    # Legacy session compatibility: Set session_created_at = now
                     logger.info(
-                        f"⚠️ Legacy session found: {session_id[:16]}... Adding created_at."
+                        f"⚠️ Legacy session found: {session_id[:16]}... Adding session_created_at."
                     )
-                    session_data["created_at"] = now.isoformat()
+                    session_data["session_created_at"] = now.isoformat()
                     # Don't return yet, need to save this update
 
                 if "max_age_seconds" not in session_data:
@@ -183,7 +195,7 @@ class SessionCache:
             logger.error(f"Error invalidating session: {str(e)}")
             return False
 
-    async def invalidate_all_user_sessions(self, firebase_uid: str) -> int:
+    async def invalidate_all_user_sessions(self, identity: str) -> int:
         """
         Logout global - invalidate ALL sessions for a user - ASYNC VERSION.
 
@@ -192,7 +204,7 @@ class SessionCache:
         Use case: Password change, account compromise, admin force-logout.
 
         Args:
-            firebase_uid: Firebase user ID
+            identity: Canonical user_id or compatibility firebase_uid
 
         Returns:
             Number of sessions deleted
@@ -200,11 +212,6 @@ class SessionCache:
         pattern = "session:*"
 
         try:
-            # 1. Collect keys to delete (scan is lightweight)
-            keys_to_delete = []
-            
-            # Using scan_iter in a thread to avoid blocking loop on large datasets
-            # Although scan_iter itself is a generator, iterating it involves network calls
             def scan_and_filter():
                 found_keys = []
                 for key in self.redis.scan_iter(match=pattern, count=100):
@@ -212,7 +219,7 @@ class SessionCache:
                     if session_data:
                         try:
                             data = json.loads(session_data)
-                            if data.get("firebase_uid") == firebase_uid:
+                            if self._session_matches_identity(data, identity):
                                 found_keys.append(key)
                         except json.JSONDecodeError:
                             continue
@@ -223,30 +230,29 @@ class SessionCache:
             if not keys_to_delete:
                 return 0
 
-            # 2. Batch delete using pipeline
             def batch_delete(keys):
                 pipe = self.redis.pipeline(transaction=False)
                 for key in keys:
                     pipe.delete(key)
                 results = pipe.execute()
-                return sum(results) # Count successful deletes
+                return sum(results)
 
             deleted_count = await asyncio.to_thread(batch_delete, keys_to_delete)
 
             logger.info(
-                f"🚪 Global logout: {deleted_count} sessions deleted for {firebase_uid}"
+                f"🚪 Global logout: {deleted_count} sessions deleted for identity={identity}"
             )
             return deleted_count
         except Exception as e:
             logger.error(f"Error invalidating user sessions: {str(e)}")
             return 0
 
-    def list_user_sessions(self, firebase_uid: str) -> List[Dict[str, Any]]:
+    def list_user_sessions(self, identity: str) -> List[Dict[str, Any]]:
         """
         List all active sessions for a user.
 
         Args:
-            firebase_uid: Firebase user ID
+            identity: Canonical user_id or compatibility firebase_uid
 
         Returns:
             List of active session data
@@ -260,8 +266,7 @@ class SessionCache:
                 if session_data:
                     try:
                         data = json.loads(session_data)
-                        if data.get("firebase_uid") == firebase_uid:
-                            # Extract session_id from key
+                        if self._session_matches_identity(data, identity):
                             session_id = key.split(":", 1)[1] if ":" in key else key
                             data["session_id"] = session_id
                             sessions.append(data)
@@ -271,7 +276,7 @@ class SessionCache:
             logger.error(f"Error listing user sessions: {str(e)}")
             return []
 
-        logger.debug(f"📊 Active sessions for {firebase_uid}: {len(sessions)}")
+        logger.debug(f"📊 Active sessions for {identity}: {len(sessions)}")
         return sessions
 
     async def get_session_ttl(self, session_id: str) -> int:
@@ -329,7 +334,7 @@ class SessionCache:
             now = now_sao_paulo()
             
             # --- Max Age Check ---
-            created_at_str = session_data.get("created_at")
+            created_at_str = session_data.get("session_created_at") or session_data.get("created_at")
             max_age = session_data.get("max_age_seconds", self.max_session_age)
             
             if created_at_str:
@@ -343,11 +348,11 @@ class SessionCache:
                         await self.invalidate_session(session_id)
                         return False
                 except ValueError:
-                    session_data["created_at"] = now.isoformat()
-                    logger.warning(f"🔧 Normalized malformed created_at: {session_id[:16]}...")
+                    session_data["session_created_at"] = now.isoformat()
+                    logger.warning(f"🔧 Normalized malformed session_created_at: {session_id[:16]}...")
             else:
                  # Legacy fixup on update
-                 session_data["created_at"] = now.isoformat()
+                 session_data["session_created_at"] = now.isoformat()
 
             session_data["last_activity"] = now.isoformat()
 

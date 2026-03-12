@@ -214,9 +214,11 @@ async def test_login_flow(
     steps_completed = []
 
     try:
+        normalized_email = login_request.email.strip().lower()
+
         # Step 1: User lookup
-        result = await db.execute(select(User).where(User.email == login_request.email))
-        user = result.scalar_one_or_none()
+        query_result = await db.execute(select(User).where(User.email == normalized_email))
+        user = query_result.scalar_one_or_none()
         user_found = user is not None
         steps_completed.append("user_lookup")
 
@@ -226,25 +228,48 @@ async def test_login_flow(
                 user_found=False,
                 password_valid=False,
                 account_active=False,
+                account_locked=False,
                 session_created=False,
-                error="User not found",
+                error="Invalid credentials",
+                error_code="AUTH_INVALID_CREDENTIALS",
                 steps_completed=steps_completed,
             )
         else:
-            # Step 2: Password validation
             from app.utils.security import verify_password
 
-            password_valid = verify_password(
-                login_request.password, user.hashed_password
+            # Step 2: Password validation
+            password_valid = bool(
+                user.hashed_password and verify_password(login_request.password, user.hashed_password)
             )
             steps_completed.append("password_verify")
 
             # Step 3: Account status
-            account_active = user.is_active
+            account_active = bool(user.is_active)
+            account_locked = bool(user.is_locked)
+            locked_until = getattr(user, "locked_until", None)
+            if account_locked and locked_until is not None:
+                current_time = now_sao_paulo()
+                if locked_until.tzinfo is None:
+                    locked_until = locked_until.replace(tzinfo=current_time.tzinfo)
+                else:
+                    locked_until = locked_until.astimezone(current_time.tzinfo)
+                account_locked = current_time < locked_until
             steps_completed.append("account_status_check")
 
+            error_code = None
+            error = None
+            if not password_valid:
+                error_code = "AUTH_INVALID_CREDENTIALS"
+                error = "Invalid credentials"
+            elif account_locked:
+                error_code = "AUTH_ACCOUNT_LOCKED"
+                error = "Account is locked"
+            elif not account_active:
+                error_code = "AUTH_ACCOUNT_INACTIVE"
+                error = "Account is inactive"
+
             # Step 4: Session creation (simulated)
-            session_created = user_found and password_valid and account_active
+            session_created = error_code is None
             if session_created:
                 steps_completed.append("session_create_simulated")
 
@@ -253,11 +278,11 @@ async def test_login_flow(
                 user_found=True,
                 password_valid=password_valid,
                 account_active=account_active,
+                account_locked=account_locked,
                 session_created=session_created,
-                token_generated="debug_token_***" if session_created else None,
-                error=None
-                if session_created
-                else "Login failed (check password/status)",
+                token_generated="session_***" if session_created else None,
+                error=error,
+                error_code=error_code,
                 steps_completed=steps_completed,
             )
 
@@ -266,8 +291,11 @@ async def test_login_flow(
             db=db,
             admin_user=admin_user,
             endpoint="/auth/test-login",
-            parameters={"email": login_request.email},
-            result_summary=f"Login test: {'success' if result.success else 'failed'} ({len(steps_completed)} steps)",
+            parameters={"email": normalized_email},
+            result_summary=(
+                f"Login test: {'success' if result.success else 'failed'} "
+                f"error={result.error_code or 'none'} steps={','.join(steps_completed)}"
+            ),
             request=request,
         )
 

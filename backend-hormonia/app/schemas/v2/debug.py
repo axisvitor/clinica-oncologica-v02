@@ -286,9 +286,11 @@ class LoginTestResult(BaseModel):
     user_found: bool = Field(..., description="Whether user exists")
     password_valid: bool = Field(..., description="Whether password is valid")
     account_active: bool = Field(..., description="Whether account is active")
-    session_created: bool = Field(..., description="Whether session was created")
-    token_generated: Optional[str] = Field(None, description="Auth token (masked)")
-    error: Optional[str] = Field(None, description="Error if failed")
+    account_locked: bool = Field(False, description="Whether the account is currently locked")
+    session_created: bool = Field(..., description="Whether session creation would succeed")
+    token_generated: Optional[str] = Field(None, description="Compatibility-only masked session/token marker")
+    error: Optional[str] = Field(None, description="Human-readable diagnostic summary")
+    error_code: Optional[str] = Field(None, description="Stable auth error code for failed diagnostics")
     steps_completed: List[str] = Field(default_factory=list)
 
     model_config = ConfigDict(
@@ -298,9 +300,10 @@ class LoginTestResult(BaseModel):
                 "user_found": True,
                 "password_valid": True,
                 "account_active": True,
+                "account_locked": False,
                 "session_created": True,
-                "token_generated": "eyJ***...***",
-                "steps_completed": ["user_lookup", "password_verify", "session_create"],
+                "token_generated": "session_***",
+                "steps_completed": ["user_lookup", "password_verify", "account_status_check", "session_create_simulated"],
             }
         }
     )

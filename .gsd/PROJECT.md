@@ -11,10 +11,10 @@ Médicos e operadores precisam acessar o sistema com confiabilidade para acompan
 ## Current State
 
 - M001 concluído: pipeline de fluxo agora tem retry, recovery, observabilidade e testes de integração.
-- O acesso da equipe ainda é híbrido: frontend usa Firebase SDK para email/senha, backend valida token Firebase e depois cria sessão Redis/httpOnly.
-- O modelo `User` já possui `hashed_password`, `auth_provider`, `force_change_password` e `last_password_change`, então parte da base para auth local já existe.
-- Há endpoints e helpers de sessão, logout, password hashing e tokens de reset, mas o caminho canônico de login ainda passa por Firebase.
-- Há compat shims documentados para sessão por cookie/header/bearer e para clientes legados; M002 vai decidir o que permanece e o que sai no hard cut.
+- M002/S01 concluído: `POST /api/v2/auth/login` agora autentica por email/senha local, emite a sessão canônica DB + Redis + cookie HttpOnly, e `verify-session` / `logout` / auth de rota protegida funcionam no contrato centrado em `user_id`.
+- As rotas autenticadas de perfil foram expostas canonicamente em `/api/v2/users/*`, mantendo alias legado oculto em `/api/v2/auth/*` para não quebrar consumidores durante a transição.
+- O acesso da equipe ainda não completou o hard cut: frontend e bootstrap realtime continuam dependendo de Firebase SDK/tokens até S03.
+- Fluxos de reset/first-access, ativação de contas criadas por admin e remoção final dos caminhos/runtime de Firebase Auth ainda ficam para S02–S04.
 
 ## Architecture / Key Patterns
 
@@ -31,4 +31,4 @@ See `.gsd/REQUIREMENTS.md` for the explicit capability contract, requirement sta
 ## Milestone Sequence
 
 - [x] M001: Bulletproof Flow Pipeline — fluxo WhatsApp resiliente com retry, recovery, observabilidade e prova integrada ponta a ponta.
-- [ ] M002: First-Party Authentication Cutover — substituir Firebase Auth por login próprio com sessão local, migração de usuários existentes e hard cut sem dependência runtime do Firebase.
+- [ ] M002: First-Party Authentication Cutover — S01 concluído (core local de login/sessão), com reset/migração, cutover frontend/realtime e hard cut final ainda pendentes em S02–S04.

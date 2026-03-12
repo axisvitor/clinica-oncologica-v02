@@ -1,13 +1,15 @@
+from dataclasses import dataclass
 from typing import Optional, Dict, Any, Set
 from datetime import datetime, timedelta, timezone
 import logging
 from collections import defaultdict
 
 
-from app.models.user import User
+from app.models.user import User, AuthProvider
 from app.repositories.user import UserRepository
 from app.utils.security import (
     get_password_hash,
+    verify_password,
     create_access_token,
     create_refresh_token,
 )
@@ -18,6 +20,27 @@ from app.infrastructure.cache import cache, cache_user_data
 from app.utils.timezone import now_sao_paulo
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class LocalAuthFailure(Exception):
+    """Structured local-auth failure surfaced to the API layer."""
+
+    error_code: str
+    message: str
+    status_code: int
+    commit_required: bool = False
+
+    def __post_init__(self):
+        Exception.__init__(self, self.message)
+
+
+@dataclass(slots=True)
+class LocalAuthSuccess:
+    """Successful local credential verification result."""
+
+    user: User
+    remember_me: bool
 
 
 class AuthService:
@@ -56,6 +79,172 @@ class AuthService:
         if value.tzinfo is None:
             return value.replace(tzinfo=reference.tzinfo)
         return value.astimezone(reference.tzinfo)
+
+    @staticmethod
+    def get_local_session_ttl_seconds(remember_me: bool = False) -> int:
+        """Canonical local session lifetime used by the v2 login endpoint."""
+        if remember_me:
+            return int(timedelta(days=30).total_seconds())
+        return int(timedelta(days=5).total_seconds())
+
+    @staticmethod
+    def _normalize_datetime_for_user(
+        value: Optional[datetime], reference: datetime
+    ) -> Optional[datetime]:
+        """Normalize DB/user timestamps so aware/naive values can be compared safely."""
+        if value is None or not isinstance(value, datetime):
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=reference.tzinfo)
+        return value.astimezone(reference.tzinfo)
+
+    def _clear_expired_user_lock(self, user: User, reference: datetime) -> bool:
+        """Unlock accounts whose lock window has already elapsed."""
+        if not getattr(user, "is_locked", False):
+            return False
+
+        locked_until = self._normalize_datetime_for_user(
+            getattr(user, "locked_until", None), reference
+        )
+        if locked_until is not None:
+            user.locked_until = locked_until
+
+        if locked_until is None or reference < locked_until:
+            return False
+
+        user.is_locked = False
+        user.locked_until = None
+        user.failed_login_attempts = 0
+        return True
+
+    def _is_user_lock_active(self, user: User, reference: datetime) -> bool:
+        """Return whether the user is currently locked from local auth."""
+        if not getattr(user, "is_locked", False):
+            return False
+
+        locked_until = self._normalize_datetime_for_user(
+            getattr(user, "locked_until", None), reference
+        )
+        if locked_until is not None:
+            user.locked_until = locked_until
+            return reference < locked_until
+
+        return True
+
+    async def _raise_invalid_local_credentials(
+        self,
+        *,
+        email: str,
+        client_ip: Optional[str],
+        user: Optional[User] = None,
+        reference: Optional[datetime] = None,
+    ) -> None:
+        """Record invalid local-login attempts and raise a structured auth failure."""
+        now = reference or now_sao_paulo()
+        commit_required = False
+        error_code = "AUTH_INVALID_CREDENTIALS"
+        message = "Invalid credentials"
+        status_code = 401
+
+        if user is not None:
+            user.failed_login_attempts = int(user.failed_login_attempts or 0) + 1
+            user.updated_at = now
+            commit_required = True
+
+            if user.failed_login_attempts >= self.max_attempts:
+                user.is_locked = True
+                user.locked_until = now + timedelta(seconds=self.lockout_window)
+                error_code = "AUTH_ACCOUNT_LOCKED"
+                message = "Account locked due to too many failed login attempts"
+                status_code = 403
+
+            self.db.add(user)
+            self.db.flush()
+
+        await self._record_failed_attempt(email, client_ip)
+        raise LocalAuthFailure(
+            error_code=error_code,
+            message=message,
+            status_code=status_code,
+            commit_required=commit_required,
+        )
+
+    async def authenticate_local_credentials(
+        self,
+        *,
+        email: str,
+        password: str,
+        remember_me: bool = False,
+        client_ip: Optional[str] = None,
+    ) -> LocalAuthSuccess:
+        """Authenticate a local user by email/password without Firebase token exchange."""
+        normalized_email = (email or "").strip().lower()
+        if not normalized_email or not password:
+            raise LocalAuthFailure(
+                error_code="AUTH_INVALID_CREDENTIALS",
+                message="Invalid credentials",
+                status_code=401,
+            )
+
+        user = self.repository.get_by_email(normalized_email)
+        now = now_sao_paulo()
+        state_changed = False
+
+        if user is None:
+            await self._raise_invalid_local_credentials(
+                email=normalized_email,
+                client_ip=client_ip,
+                user=None,
+                reference=now,
+            )
+
+        if self._clear_expired_user_lock(user, now):
+            state_changed = True
+
+        if self._is_user_lock_active(user, now):
+            self.db.add(user)
+            if state_changed:
+                self.db.flush()
+            raise LocalAuthFailure(
+                error_code="AUTH_ACCOUNT_LOCKED",
+                message="Account is locked",
+                status_code=403,
+                commit_required=state_changed,
+            )
+
+        if not user.hashed_password or not verify_password(password, user.hashed_password):
+            await self._raise_invalid_local_credentials(
+                email=normalized_email,
+                client_ip=client_ip,
+                user=user,
+                reference=now,
+            )
+
+        if not getattr(user, "is_active", False):
+            self.db.add(user)
+            if state_changed:
+                self.db.flush()
+            raise LocalAuthFailure(
+                error_code="AUTH_ACCOUNT_INACTIVE",
+                message="Account is inactive",
+                status_code=403,
+                commit_required=state_changed,
+            )
+
+        if user.failed_login_attempts or getattr(user, "is_locked", False) or getattr(user, "locked_until", None):
+            user.failed_login_attempts = 0
+            user.is_locked = False
+            user.locked_until = None
+            state_changed = True
+
+        user.auth_provider = AuthProvider.LOCAL
+        user.firebase_last_sign_in = now
+        user.updated_at = now
+        self.db.add(user)
+        self.db.flush()
+
+        await self._clear_failed_attempts(normalized_email)
+        return LocalAuthSuccess(user=user, remember_me=remember_me)
 
     def create_access_token(
         self, data: Dict[str, Any], expires_delta: Optional[timedelta] = None
@@ -345,11 +534,17 @@ class AuthService:
             email: User email address
             client_ip: Client IP address
         """
-        # Use Redis when available; otherwise do not track in-memory
-        if self.redis and await self._redis_is_connected():
+        # Use Redis only when it exposes the required atomic counter ops.
+        if (
+            self.redis
+            and hasattr(self.redis, "incr")
+            and hasattr(self.redis, "expire")
+            and await self._redis_is_connected()
+        ):
             await self._record_failed_attempt_redis(email, client_ip)
-        else:
-            logger.warning("Failed attempt tracking skipped: Redis not available")
+            return
+
+        self._record_failed_attempt_memory(email, client_ip)
 
     async def _record_failed_attempt_redis(
         self, email: str, client_ip: Optional[str] = None

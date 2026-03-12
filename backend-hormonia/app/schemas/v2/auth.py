@@ -447,7 +447,95 @@ class SessionRevokeResponse(BaseModel):
 
 
 # ============================================================================
-# Authentication (Firebase-based)
+# Authentication (Canonical local session)
+# ============================================================================
+
+
+class LocalLoginRequest(BaseModel):
+    """Canonical login request using locally stored credentials."""
+
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
+    remember_me: bool = Field(
+        False,
+        description="Keep the session active across browser restarts",
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "email": "doctor@example.com",
+                "password": "SecureP@ssw0rd123",
+                "remember_me": True,
+            }
+        }
+    )
+
+
+class AuthenticatedUserV2(BaseModel):
+    """Normalized authenticated user payload shared by login/session endpoints."""
+
+    id: str
+    email: EmailStr
+    full_name: Optional[str] = None
+    role: str
+    is_active: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    last_login: Optional[datetime] = None
+    photo_url: Optional[str] = None
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "email": "doctor@example.com",
+                "full_name": "Dr. Maria Silva",
+                "role": "doctor",
+                "is_active": True,
+                "created_at": "2025-01-01T10:00:00-03:00",
+                "updated_at": "2025-11-07T09:00:00-03:00",
+                "last_login": "2025-11-07T08:30:00-03:00",
+            }
+        },
+    )
+
+
+class LocalLoginResponse(BaseModel):
+    """Canonical login response for first-party session issuance."""
+
+    valid: bool = True
+    message: str = "Login successful"
+    session_id: str
+    user_id: str
+    expires_at: datetime
+    remember_me: bool = False
+    user: AuthenticatedUserV2
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "valid": True,
+                "message": "Login successful",
+                "session_id": "123e4567-e89b-12d3-a456-426614174999",
+                "user_id": "123e4567-e89b-12d3-a456-426614174000",
+                "expires_at": "2025-11-12T08:30:00-03:00",
+                "remember_me": True,
+                "user": {
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "email": "doctor@example.com",
+                    "full_name": "Dr. Maria Silva",
+                    "role": "doctor",
+                    "is_active": True,
+                },
+            }
+        }
+    )
+
+
+# ============================================================================
+# Authentication (Firebase-based compatibility)
 # ============================================================================
 
 

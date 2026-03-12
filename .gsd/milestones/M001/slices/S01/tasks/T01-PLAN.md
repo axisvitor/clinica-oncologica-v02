@@ -1,0 +1,24 @@
+# T01: Sequential gate context mismatch recovery
+
+**Slice:** S01 — **Milestone:** M001
+
+## Description
+
+Fix silent patient stall when sequential gate encounters a context mismatch.
+
+Purpose: Currently, when `load_response_context` detects a mismatch between the inbound response context and the pending flow state (e.g., wrong flow_day, wrong message_index), it returns `status: "waiting"` with `reason: "context_mismatch"`. The patient stays stuck forever because no recovery mechanism exists. This plan adds a counter-based recovery: after a configurable number of consecutive mismatches, the flow resets `awaiting_response=False` so the daily flow processor can re-send the prompt on the next cycle.
+
+Output: Modified `_flow_response_flow.py` with mismatch counting and auto-reset, helper in `sequential_response_gate.py`, and comprehensive unit tests.
+
+## Must-Haves
+
+- [ ] "When sequential gate encounters a context mismatch, the flow retries with corrected context instead of waiting silently forever"
+- [ ] "After MAX_CONTEXT_MISMATCH_RETRIES consecutive mismatches, the flow resets awaiting_response=False and logs a structured warning"
+- [ ] "A single mismatch that self-corrects on the next response does not count toward the limit"
+
+## Files
+
+- `backend-hormonia/app/services/flow/_flow_response_flow.py`
+- `backend-hormonia/app/services/flow/sequential_response_gate.py`
+- `backend-hormonia/app/services/flow/_flow_orchestration_utils.py`
+- `backend-hormonia/tests/unit/services/flow/test_sequential_gate_mismatch_recovery.py`

@@ -218,3 +218,7 @@
 - "M002 preserves the Redis + HttpOnly cookie session architecture and replaces only the identity provider, avoiding a simultaneous shift to JWT-only auth."
 - "M002 standardizes staff login on email-only identifiers; CRM login is explicitly out of scope for this cutover."
 - "M002 keeps account provisioning admin-driven and migrates existing users through reset/first-access email flows instead of manual recreation."
+- "M002/S01 verification is anchored by three focused pytest suites: local auth API contract, session identity dependency contract, and login → protected route → logout integration coverage."
+- "M002/S01 makes Redis session payloads user-id-centric; `firebase_uid` becomes compatibility data rather than the canonical happy-path auth key."
+- "M002/S01 uses stable auth error codes plus request_id/debug-step diagnostics for login and session failures while redacting passwords, hashes, and raw session tokens."
+- "M002/S01 exposes canonical authenticated-user routes under /api/v2/users/* and keeps /api/v2/auth/* as a hidden legacy alias so downstream frontend cutover can move without breaking current callers immediately."

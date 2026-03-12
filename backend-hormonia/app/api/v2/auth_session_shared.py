@@ -14,6 +14,20 @@ from app.models.user import User
 from app.api.v2.user_cache_shared import get_or_cache_user_data, ensure_user_is_active
 
 
+CANONICAL_SESSION_USER_FIELDS = {
+    "user_id": "id",
+    "email": "email",
+    "full_name": "full_name",
+    "role": "role",
+    "is_active": "is_active",
+    "created_at": "created_at",
+    "updated_at": "updated_at",
+    "last_login": "last_login",
+    "photo_url": "photo_url",
+    "firebase_uid": "firebase_uid",
+}
+
+
 def resolve_session_id(
     *,
     authorization: Optional[str] = None,
@@ -40,6 +54,20 @@ def resolve_session_id(
     return final_session_id
 
 
+def _extract_canonical_user_from_session(session_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Return embedded canonical user envelope when present in the session payload."""
+    user_id = session_data.get("user_id")
+    email = session_data.get("email")
+    role = session_data.get("role")
+    is_active = session_data.get("is_active")
+
+    if not user_id or email is None or role is None or is_active is None:
+        return None
+
+    embedded_user = {target_key: session_data.get(source_key) for source_key, target_key in CANONICAL_SESSION_USER_FIELDS.items()}
+    return embedded_user
+
+
 async def get_user_data_from_session(
     *,
     session_id: str,
@@ -56,12 +84,24 @@ async def get_user_data_from_session(
             detail="Invalid or expired session",
         )
 
+    embedded_user = _extract_canonical_user_from_session(session_data)
+    if embedded_user:
+        return ensure_user_is_active(embedded_user)
+
+    user_id = session_data.get("user_id")
     firebase_uid = session_data.get("firebase_uid")
-    if not firebase_uid:
+    if not user_id and not firebase_uid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid session data",
         )
+
+    async def _fetch_user_by_id(resolved_user_id: str):
+        stmt = select(User).where(User.id == resolved_user_id)
+        result = db.execute(stmt)
+        if inspect.isawaitable(result):
+            result = await result
+        return result.scalar_one_or_none()
 
     async def _fetch_user_by_uid(uid: str):
         stmt = select(User).where(User.firebase_uid == uid)
@@ -71,8 +111,10 @@ async def get_user_data_from_session(
         return result.scalar_one_or_none()
 
     user_data = await get_or_cache_user_data(
+        user_id=user_id,
         firebase_uid=firebase_uid,
         redis_cache=redis_cache,
+        fetch_user_by_id=_fetch_user_by_id,
         fetch_user_by_uid=_fetch_user_by_uid,
     )
     return ensure_user_is_active(user_data)

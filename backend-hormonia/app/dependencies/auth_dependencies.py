@@ -241,27 +241,6 @@ def user_to_cache_dict(user: User) -> Dict[str, Any]:
     Converts SQLAlchemy User model to a JSON-serializable dict suitable
     for Redis caching. Handles enum conversion, timestamp formatting,
     and field mapping.
-
-    Args:
-        user: User model instance from database
-
-    Returns:
-        Dict with serialized user data including:
-        - id (str): UUID converted to string
-        - firebase_uid (str): Firebase user identifier
-        - email (str): User email address
-        - full_name (str): User's full name
-        - role (str): User role as string value
-        - is_active (bool): Account active status
-        - created_at (str|None): ISO formatted creation timestamp
-        - updated_at (str|None): ISO formatted update timestamp
-        - last_login (str|None): ISO formatted last login timestamp
-
-    Example:
-        >>> user = User(id=uuid4(), email="doc@example.com", role=UserRole.DOCTOR)
-        >>> cache_dict = user_to_cache_dict(user)
-        >>> cache_dict["role"]
-        'doctor'
     """
     return {
         "id": str(user.id),
@@ -275,7 +254,116 @@ def user_to_cache_dict(user: User) -> Dict[str, Any]:
         "last_login": user.firebase_last_sign_in.isoformat()
         if user.firebase_last_sign_in
         else None,
+        "photo_url": getattr(user, "firebase_photo_url", None),
     }
+
+
+def _session_payload_to_user_data(session_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Return canonical embedded user data when the session payload already carries it."""
+    user_id = session_data.get("user_id")
+    email = session_data.get("email")
+    role = session_data.get("role")
+    is_active = session_data.get("is_active")
+
+    if not user_id or email is None or role is None or is_active is None:
+        return None
+
+    return {
+        "id": str(user_id),
+        "firebase_uid": session_data.get("firebase_uid"),
+        "email": email,
+        "full_name": session_data.get("full_name"),
+        "role": role,
+        "is_active": bool(is_active),
+        "created_at": session_data.get("created_at"),
+        "updated_at": session_data.get("updated_at"),
+        "last_login": session_data.get("last_login"),
+        "photo_url": session_data.get("photo_url"),
+    }
+
+
+async def _cache_user_data_by_identity(redis_cache: Any, user_data: Dict[str, Any], ttl: int = 900) -> None:
+    """Best-effort cache hydration for canonical user_id and compatibility firebase_uid keys."""
+    user_id = user_data.get("id")
+    firebase_uid = user_data.get("firebase_uid")
+
+    if user_id and hasattr(redis_cache, "cache_user_data_by_user_id"):
+        try:
+            await redis_cache.cache_user_data_by_user_id(user_id, user_data, ttl=ttl)
+        except Exception as exc:
+            logger.warning("Failed to cache user data by user_id %s: %s", user_id, exc)
+
+    if firebase_uid and hasattr(redis_cache, "cache_user_data"):
+        try:
+            await redis_cache.cache_user_data(firebase_uid, user_data, ttl=ttl)
+        except Exception as exc:
+            logger.warning("Failed to cache user data by firebase_uid %s: %s", firebase_uid, exc)
+
+
+def _session_cache_metadata_from_user_data(user_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Return canonical session cache metadata without leaking secrets."""
+    return {
+        "session_id": None,
+        "email": user_data.get("email"),
+        "full_name": user_data.get("full_name"),
+        "role": user_data.get("role"),
+        "is_active": user_data.get("is_active"),
+        "created_at": user_data.get("created_at"),
+        "updated_at": user_data.get("updated_at"),
+        "last_login": user_data.get("last_login"),
+        "photo_url": user_data.get("photo_url"),
+    }
+
+
+async def _rehydrate_session_cache(
+    redis_cache: Any,
+    *,
+    session_id: str,
+    user_data: Dict[str, Any],
+    session_ttl: int,
+) -> None:
+    """Best-effort Redis session rehydration on fallback DB lookups."""
+    if not hasattr(redis_cache, "create_session"):
+        return
+
+    metadata = _session_cache_metadata_from_user_data(user_data)
+    metadata["session_id"] = session_id
+    metadata["max_age_seconds"] = session_ttl
+
+    try:
+        created = await redis_cache.create_session(
+            session_id=session_id,
+            user_id=user_data.get("id"),
+            firebase_uid=user_data.get("firebase_uid"),
+            metadata=metadata,
+            ttl=session_ttl,
+        )
+        if created is False:
+            logger.warning(
+                "Failed to rehydrate session cache for fallback session %s...",
+                session_id[:8],
+            )
+    except TypeError:
+        try:
+            await redis_cache.create_session(
+                session_id,
+                user_data.get("id"),
+                user_data.get("firebase_uid"),
+                metadata=metadata,
+                ttl=session_ttl,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to rehydrate session cache for fallback session %s...: %s",
+                session_id[:8],
+                exc,
+            )
+    except Exception as exc:
+        logger.warning(
+            "Failed to rehydrate session cache for fallback session %s...: %s",
+            session_id[:8],
+            exc,
+        )
 
 
 async def _get_service_provider():
@@ -380,11 +468,17 @@ class RedisAuthCacheAdapter:
     async def get_user_by_uid(self, firebase_uid: str):
         return await self._redis_manager.get_user_by_uid(firebase_uid)
 
+    async def get_user_by_id(self, user_id: str):
+        return await self._redis_manager.get_user_by_id(user_id)
+
     async def create_session(self, *args, **kwargs):
         return await self._redis_manager.create_session(*args, **kwargs)
 
     async def cache_user_data(self, *args, **kwargs):
         return await self._redis_manager.cache_user_data(*args, **kwargs)
+
+    async def cache_user_data_by_user_id(self, *args, **kwargs):
+        return await self._redis_manager.cache_user_data_by_user_id(*args, **kwargs)
 
     async def update_session_activity(self, *args, **kwargs):
         return await self._redis_manager.update_session_activity(*args, **kwargs)
@@ -648,40 +742,14 @@ async def get_current_user_from_session(
     """
     Get current authenticated user by validating Redis session (RECOMMENDED).
 
-    Ultra-fast authentication using Redis sessions with multi-layer caching:
-    - Cache hit (Layer 1): ~2-5ms
-    - Cache miss (Layer 2): ~50-100ms (PostgreSQL + cache write)
-
-    Authentication flow:
-    1. Validate session_id exists in Redis (Layer 1 cache)
-    2. Get user data from Layer 2 cache (user:{uid})
-    3. If cache miss: Query PostgreSQL and repopulate cache
-    4. Validate user is_active
-    5. Return user dict with permissions
-    
-    Session ID priority (default):
-    1. Cookie (httpOnly)
-    2. X-Session-ID header
-    3. Authorization Bearer (fallback)
-
-    Args:
-        request: FastAPI request object
-        session_cookie_id: Session ID from session_id cookie
-        x_session_id: Session ID from X-Session-ID header
-        authorization: Bearer token from Authorization header
-        redis_cache: Redis cache instance (injected)
-
-    Returns:
-        User dict with permissions
-
-    Raises:
-        HTTPException 401: Invalid or expired session
-        HTTPException 403: User account is inactive
+    Happy path accepts canonical session payloads keyed by user_id and only falls
+    back to firebase_uid compatibility when the canonical payload is incomplete.
     """
+    from uuid import UUID
+
     try:
         final_session_id = None
-        
-        # DEBUG: Log what we received
+
         logger.debug(
             f"Auth check - cookie: {session_cookie_id[:8] if session_cookie_id else 'None'}..., "
             f"x_session_id: {x_session_id[:8] if x_session_id else 'None'}..., "
@@ -691,38 +759,29 @@ async def get_current_user_from_session(
         session_source = None
 
         if settings.ENABLE_COOKIE_PRIORITY:
-            # Priority 1: Cookie (httpOnly) - most secure for HTTP
             if session_cookie_id:
                 final_session_id = session_cookie_id
                 session_source = "cookie"
-                logger.debug("Session ID from cookie (httpOnly)")
-            # Priority 2: X-Session-ID header - needed for WebSocket
             elif x_session_id:
                 final_session_id = x_session_id
                 session_source = "x-session-id"
-                logger.debug("Session ID from X-Session-ID header")
-            # Priority 3: Authorization Bearer - fallback
             elif authorization and authorization.startswith("Bearer "):
                 final_session_id = authorization.split(" ")[1]
                 session_source = "authorization"
-                logger.debug("Session ID from Authorization Bearer (fallback)")
         else:
-            # Legacy priority: Authorization -> Header -> Cookie
             if authorization and authorization.startswith("Bearer "):
                 final_session_id = authorization.split(" ")[1]
                 session_source = "authorization"
-                logger.debug("Session ID from Authorization Bearer")
             elif x_session_id:
                 final_session_id = x_session_id
                 session_source = "x-session-id"
-                logger.debug("Session ID from X-Session-ID header")
             elif session_cookie_id:
                 final_session_id = session_cookie_id
                 session_source = "cookie"
-                logger.debug("Session ID from cookie (httpOnly)")
 
         if final_session_id:
             logger.debug("Session ID resolved from %s", session_source)
+            request.state.session_id = final_session_id
 
         if not final_session_id:
             logger.warning("No session ID provided in any auth method (cookie, header, or Authorization)")
@@ -732,7 +791,6 @@ async def get_current_user_from_session(
                 headers={"WWW-Authenticate": "Session"},
             )
 
-        # Layer 1: Get session from Redis with timeout (~2-5ms)
         session_data = None
         use_fallback = False
         try:
@@ -753,6 +811,30 @@ async def get_current_user_from_session(
                 str(e),
             )
             use_fallback = True
+
+        async def _load_user_from_db_by_user_id(user_id_value: str) -> Optional[User]:
+            try:
+                user_uuid = UUID(str(user_id_value))
+            except (TypeError, ValueError):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid session data",
+                    headers={"WWW-Authenticate": "Session"},
+                )
+
+            from app.database import get_async_session_factory
+
+            async_session_factory = get_async_session_factory()
+            async with async_session_factory() as async_session:
+                try:
+                    result = await asyncio.wait_for(
+                        async_session.execute(select(User).where(User.id == user_uuid)),
+                        timeout=settings.DB_QUERY_TIMEOUT_READ,
+                    )
+                    return result.scalar_one_or_none()
+                except Exception:
+                    await async_session.rollback()
+                    raise
 
         if use_fallback:
             try:
@@ -777,6 +859,8 @@ async def get_current_user_from_session(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Database temporarily unavailable. Please try again.",
                 )
+            except HTTPException:
+                raise
             except Exception as e:
                 logger.error(
                     "Database error during fallback for session %s...: %s",
@@ -810,85 +894,42 @@ async def get_current_user_from_session(
                     detail="User account is inactive",
                 )
 
-            firebase_uid = user_data.get("firebase_uid")
-            user_id = user_data.get("id")
-            if firebase_uid and user_id:
-                user_cache_ttl = 900
-                session_ttl = (
-                    getattr(settings, "SESSION_TTL_SECONDS", None)
-                    or getattr(settings, "FIREBASE_SESSION_TTL_SECONDS", None)
-                    or getattr(redis_cache, "session_ttl", 86400)
+            session_ttl = (
+                getattr(settings, "SESSION_TTL_SECONDS", None)
+                or getattr(settings, "FIREBASE_SESSION_TTL_SECONDS", None)
+                or getattr(redis_cache, "session_ttl", 86400)
+            )
+            await _cache_user_data_by_identity(redis_cache, user_data, ttl=900)
+            await _rehydrate_session_cache(
+                redis_cache,
+                session_id=final_session_id,
+                user_data=user_data,
+                session_ttl=session_ttl,
+            )
+
+            try:
+                await asyncio.wait_for(
+                    redis_cache.update_session_activity(
+                        session_id=final_session_id,
+                        extend_ttl=True,
+                        custom_ttl=session_ttl,
+                    ),
+                    timeout=settings.REDIS_OPERATION_TIMEOUT,
                 )
-                try:
-                    await asyncio.wait_for(
-                        redis_cache.cache_user_data(
-                            firebase_uid, user_data, ttl=user_cache_ttl
-                        ),
-                        timeout=settings.REDIS_OPERATION_TIMEOUT,
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning(
-                        "Redis timeout rehydrating user cache for fallback session %s...",
-                        final_session_id[:8],
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "Failed to rehydrate user cache for fallback session %s...: %s",
-                        final_session_id[:8],
-                        str(e),
-                    )
-
-                try:
-                    created = await asyncio.wait_for(
-                        redis_cache.create_session(
-                            session_id=final_session_id,
-                            user_id=user_id,
-                            firebase_uid=firebase_uid,
-                            ttl=session_ttl,
-                        ),
-                        timeout=settings.REDIS_OPERATION_TIMEOUT,
-                    )
-                    if not created:
-                        logger.warning(
-                            "Failed to rehydrate session cache for fallback session %s...",
-                            final_session_id[:8],
-                        )
-                except asyncio.TimeoutError:
-                    logger.warning(
-                        "Redis timeout rehydrating session cache for fallback session %s...",
-                        final_session_id[:8],
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "Failed to rehydrate session cache for fallback session %s...: %s",
-                        final_session_id[:8],
-                        str(e),
-                    )
-
-                try:
-                    await asyncio.wait_for(
-                        redis_cache.update_session_activity(
-                            session_id=final_session_id,
-                            extend_ttl=True,
-                            custom_ttl=session_ttl,
-                        ),
-                        timeout=settings.REDIS_OPERATION_TIMEOUT,
-                    )
-                except asyncio.TimeoutError:
-                    logger.warning(
-                        "Redis timeout extending session TTL for fallback session %s...",
-                        final_session_id[:8],
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "Failed to extend session TTL for fallback session %s...: %s",
-                        final_session_id[:8],
-                        str(e),
-                    )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Redis timeout extending session TTL for fallback session %s...",
+                    final_session_id[:8],
+                )
+            except Exception as e:
+                logger.warning(
+                    "Failed to extend session TTL for fallback session %s...: %s",
+                    final_session_id[:8],
+                    str(e),
+                )
 
             role = user_data.get("role", "doctor")
             user_data["permissions"] = get_permissions_for_role(role)
-
             request.state.user_id = user_data.get("id")
             request.state.user_role = user_data.get("role")
 
@@ -907,13 +948,11 @@ async def get_current_user_from_session(
                 headers={"WWW-Authenticate": "Session"},
             )
 
-        # Update session activity to prevent expiration during active use
-        # This extends the TTL and updates last_activity timestamp
         try:
             await asyncio.wait_for(
                 redis_cache.update_session_activity(
                     session_id=final_session_id,
-                    extend_ttl=True,  # Reset Redis TTL to keep active users logged in
+                    extend_ttl=True,
                 ),
                 timeout=settings.REDIS_OPERATION_TIMEOUT,
             )
@@ -929,124 +968,122 @@ async def get_current_user_from_session(
                 str(e),
             )
 
-        firebase_uid = session_data.get("firebase_uid")
-        if not firebase_uid:
-            logger.error(f"Session missing firebase_uid: {final_session_id[:8]}...")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid session data",
-                headers={"WWW-Authenticate": "Session"},
-            )
-
-        # SECURITY CRITICAL: Validate Firebase UID BEFORE any cache/DB operation
-        # This prevents session hijacking if Redis is compromised
-        # Malformed UIDs could be used for cache poisoning or SQL injection
-        _validate_firebase_uid(firebase_uid)
-
-        # Layer 2: Get user from cache (~2-5ms on hit, ~50-100ms on miss)
-        # UID already validated above before any cache/DB access
-        try:
-            user_data = await asyncio.wait_for(
-                redis_cache.get_user_by_uid(firebase_uid),
-                timeout=settings.REDIS_OPERATION_TIMEOUT,
-            )
-        except asyncio.TimeoutError:
-            logger.error(
-                f"Redis operation timeout after {settings.REDIS_OPERATION_TIMEOUT}s"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                detail="User cache lookup timed out. Please try again.",
-            )
-
+        user_data = _session_payload_to_user_data(session_data)
         if not user_data:
-            # Cache miss: Query PostgreSQL with timeout protection
-            logger.info(
-                f"Cache miss for user: {firebase_uid[:8]}... Querying database with {settings.DB_QUERY_TIMEOUT_READ}s timeout."
-            )
+            user_id = session_data.get("user_id")
+            firebase_uid = session_data.get("firebase_uid")
 
-            try:
-                # Get async session
-                from app.database import get_async_session_factory
-
-                async_session_factory = get_async_session_factory()
-                async with async_session_factory() as async_session:
-                    try:
-                        user = await _get_user_from_db_async(
-                            firebase_uid, async_session
-                        )
-                    except Exception:
-                        await async_session.rollback()
-                        raise
-            except asyncio.CancelledError:
-                logger.warning(
-                    f"Database query cancelled for firebase_uid={firebase_uid[:8]}..."
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Database temporarily unavailable. Please try again.",
-                )
-            except HTTPException:
-                # Preserve upstream timeout/auth semantics (e.g. 504 from DB retry logic)
-                raise
-            except Exception as e:
-                logger.error(
-                    f"Database error for firebase_uid={firebase_uid[:8]}...: {e}"
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Database temporarily unavailable. Please try again.",
-                )
-
-            if not user:
-                logger.error(f"User not found in database: {firebase_uid[:8]}...")
+            if not user_id and not firebase_uid:
+                logger.error(f"Session missing canonical identity: {final_session_id[:8]}...")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="User not found",
+                    detail="Invalid session data",
                     headers={"WWW-Authenticate": "Session"},
                 )
 
-            # Convert SQLAlchemy model to dict and cache
-            user_data = user_to_cache_dict(user)
+            if user_id and hasattr(redis_cache, "get_user_by_id"):
+                try:
+                    user_data = await asyncio.wait_for(
+                        redis_cache.get_user_by_id(str(user_id)),
+                        timeout=settings.REDIS_OPERATION_TIMEOUT,
+                    )
+                except asyncio.TimeoutError:
+                    logger.error(
+                        "Redis operation timeout after %ss on user_id cache lookup",
+                        settings.REDIS_OPERATION_TIMEOUT,
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                        detail="User cache lookup timed out. Please try again.",
+                    )
 
-            # Cache for 15 minutes
-            try:
-                await asyncio.wait_for(
-                    redis_cache.cache_user_data(firebase_uid, user_data, ttl=900),
-                    timeout=settings.REDIS_OPERATION_TIMEOUT,
-                )
-            except asyncio.TimeoutError:
-                logger.error(
-                    f"Redis operation timeout after {settings.REDIS_OPERATION_TIMEOUT}s"
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-                    detail="User cache write timed out. Please try again.",
-                )
-            logger.debug(f"Cached user data for: {firebase_uid[:8]}...")
+            if not user_data and firebase_uid:
+                _validate_firebase_uid(firebase_uid)
+                try:
+                    user_data = await asyncio.wait_for(
+                        redis_cache.get_user_by_uid(firebase_uid),
+                        timeout=settings.REDIS_OPERATION_TIMEOUT,
+                    )
+                except asyncio.TimeoutError:
+                    logger.error(
+                        "Redis operation timeout after %ss on firebase_uid cache lookup",
+                        settings.REDIS_OPERATION_TIMEOUT,
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                        detail="User cache lookup timed out. Please try again.",
+                    )
 
-        # Validate user is active
+            if not user_data:
+                try:
+                    if user_id:
+                        user = await _load_user_from_db_by_user_id(str(user_id))
+                    else:
+                        user = None
+                        from app.database import get_async_session_factory
+
+                        async_session_factory = get_async_session_factory()
+                        async with async_session_factory() as async_session:
+                            try:
+                                user = await _get_user_from_db_async(firebase_uid, async_session)
+                            except Exception:
+                                await async_session.rollback()
+                                raise
+                except asyncio.CancelledError:
+                    logger.warning(
+                        "Database query cancelled for session-backed user lookup %s...",
+                        str(user_id or firebase_uid)[:8],
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Database temporarily unavailable. Please try again.",
+                    )
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.error(
+                        "Database error for session-backed user lookup %s...: %s",
+                        str(user_id or firebase_uid)[:8],
+                        e,
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Database temporarily unavailable. Please try again.",
+                    )
+
+                if not user:
+                    logger.error(
+                        "User not found for session-backed lookup: %s...",
+                        str(user_id or firebase_uid)[:8],
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="User not found",
+                        headers={"WWW-Authenticate": "Session"},
+                    )
+
+                user_data = user_to_cache_dict(user)
+                await _cache_user_data_by_identity(redis_cache, user_data, ttl=900)
+
         if not user_data.get("is_active", False):
-            logger.warning(f"Inactive user attempted access: {user_data.get('email')}")
+            logger.warning("Inactive user attempted access: %s", user_data.get("email"))
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="User account is inactive"
             )
 
-        # Add permissions to user data
         role = user_data.get("role", "doctor")
         user_data["permissions"] = get_permissions_for_role(role)
-
-        # Set request state for middleware access (LGPD, Audit, etc.)
         request.state.user_id = user_data.get("id")
         request.state.user_role = user_data.get("role")
 
         logger.debug(
-            f"Session validated for user: {user_data.get('email')} (role: {role})"
+            "Session validated for user: %s (role: %s)",
+            user_data.get("email"),
+            role,
         )
         return user_data
 
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
     except Exception as e:
         logger.error(f"Session validation failed: {str(e)}", exc_info=True)
@@ -1073,6 +1110,11 @@ async def get_current_user_object_from_session(
         # Remove non-model fields or mismatched keys
         user_dict.pop("permissions", None)
         user_dict.pop("cached_at", None)
+
+        # Accept canonical session payloads that still expose user_id separately.
+        if "id" not in user_dict and user_dict.get("user_id"):
+            user_dict["id"] = user_dict.get("user_id")
+        user_dict.pop("user_id", None)
 
         # Map 'last_login' back to 'firebase_last_sign_in' if it exists
         if "last_login" in user_dict:
@@ -1159,6 +1201,35 @@ async def get_current_user(
         HTTPException 401: Invalid token or user not found
         HTTPException 403: User account is inactive
     """
+    request_cookies = getattr(request, "cookies", {}) or {}
+    request_headers = getattr(request, "headers", {}) or {}
+    session_cookie_id = None
+    x_session_id = None
+    authorization_header = None
+
+    try:
+        session_cookie_id = request_cookies.get(settings.SESSION_COOKIE_NAME)
+    except Exception:
+        session_cookie_id = None
+
+    try:
+        x_session_id = request_headers.get("X-Session-ID")
+        authorization_header = request_headers.get("Authorization")
+    except Exception:
+        x_session_id = None
+        authorization_header = None
+
+    if session_cookie_id or x_session_id:
+        session_user_data = await get_current_user_from_session(
+            request=request,
+            session_cookie_id=session_cookie_id,
+            x_session_id=x_session_id,
+            authorization=authorization_header,
+        )
+        request.state.user_id = session_user_data.get("id") or session_user_data.get("user_id")
+        request.state.user_role = session_user_data.get("role")
+        return await get_current_user_object_from_session(session_user_data)
+
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"

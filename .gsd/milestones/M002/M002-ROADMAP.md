@@ -51,7 +51,7 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Local Auth Core** `risk:high` `depends:[]`
+- [x] **S01: Local Auth Core** `risk:high` `depends:[]`
   > After this: backend staff login, session issuance, verify-session, and protected-route auth work through first-party email/password in focused tests.
 - [ ] **S02: Account Recovery And Migration** `risk:high` `depends:[S01]`
   > After this: existing users and newly admin-created users can activate/reset access through secure email-backed first-access flows proved by backend tests.
