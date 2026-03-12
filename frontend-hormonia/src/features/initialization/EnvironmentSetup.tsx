@@ -20,6 +20,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { toast } from '@/hooks/use-toast'
 import { createLogger } from '@/lib/logger'
+import { apiClient } from '@/lib/api-client'
 import { loadConfig, getRuntimeConfigSync } from '@/config'
 
 const logger = createLogger('EnvironmentSetup')
@@ -40,9 +41,32 @@ interface EnvironmentSetupProps {
   onError: (error: string) => void
 }
 
+const AUTH_MODE = 'first-party-session'
+
+function hasValidCsrfToken(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+
+  const csrfToken = (payload as { csrf_token?: unknown }).csrf_token
+  if (typeof csrfToken === 'string') {
+    return csrfToken.trim().length > 0
+  }
+
+  if (
+    Array.isArray(csrfToken) &&
+    csrfToken.length >= 2 &&
+    typeof csrfToken[1] === 'string' &&
+    csrfToken[1].trim().length > 0
+  ) {
+    return true
+  }
+
+  return false
+}
+
 export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps) {
   const [checks, setChecks] = useState<EnvironmentCheck[]>([
-    // API Configuration
     {
       id: 'api_base_url',
       name: 'API Base URL',
@@ -59,15 +83,13 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       required: false,
       category: 'api',
     },
-
-    // External Services
     {
-      id: 'firebase_config',
-      name: 'Firebase Configuration',
-      description: 'Configuração de autenticação Firebase',
+      id: 'session_auth',
+      name: 'Autenticação por Sessão',
+      description: 'Prontidão do login/restore via cookies HTTP + CSRF do backend',
       status: 'pending',
       required: true,
-      category: 'services',
+      category: 'security',
     },
     {
       id: 'whatsapp_instance',
@@ -77,8 +99,6 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       required: false,
       category: 'services',
     },
-
-    // Security & Monitoring
     {
       id: 'sentry_dsn',
       name: 'Sentry DSN',
@@ -89,8 +109,8 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
     },
     {
       id: 'session_config',
-      name: 'Session Configuration',
-      description: 'Configurações de sessão e segurança',
+      name: 'Política de Sessão',
+      description: 'Timeout e limiar de renovação usados pela sessão própria',
       status: 'pending',
       required: true,
       category: 'security',
@@ -110,13 +130,11 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
 
   const categoryNames = {
     api: 'API & Comunicação',
-    database: 'Banco de Dados',
     services: 'Serviços Externos',
-    security: 'Segurança & Monitoramento',
+    security: 'Segurança & Sessão',
   }
 
   useEffect(() => {
-    // Auto-start environment check
     handleCheckEnvironment()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckEnvironment is intentionally only called on mount
   }, [])
@@ -134,98 +152,181 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
 
   const handleCheckEnvironment = async () => {
     setIsChecking(true)
-    logger.log('Starting environment checks')
+    logger.log('Starting environment checks', { auth_mode: AUTH_MODE })
+
+    const observedStatuses = new Map<string, EnvironmentCheck['status']>()
+    const markCheck = (
+      id: string,
+      status: EnvironmentCheck['status'],
+      value?: string,
+      error?: string
+    ) => {
+      observedStatuses.set(id, status)
+      updateCheckStatus(id, status, value, error)
+    }
 
     try {
-      // Load configuration
       const config = await loadConfig()
       const runtimeConfig = getRuntimeConfigSync()
+      const legacyFirebaseConfigured = Boolean(
+        runtimeConfig?.VITE_FIREBASE_API_KEY &&
+          runtimeConfig?.VITE_FIREBASE_AUTH_DOMAIN &&
+          runtimeConfig?.VITE_FIREBASE_PROJECT_ID
+      )
 
-      // Check API configuration
-      updateCheckStatus('api_base_url', 'checking')
+      setChecks((prev) =>
+        prev.map((check) => ({
+          ...check,
+          status: 'pending' as const,
+          value: undefined,
+          error: undefined,
+        }))
+      )
+      checks.forEach((check) => observedStatuses.set(check.id, 'pending'))
+
       if (config.API_BASE_URL) {
+        apiClient.setBaseURL(config.API_BASE_URL)
+      }
+
+      markCheck('api_base_url', 'checking')
+      if (config.API_BASE_URL) {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 5000)
+
         try {
           const response = await fetch(`${config.API_BASE_URL}/health`, {
             method: 'GET',
-            signal: AbortSignal.timeout(5000),
+            signal: controller.signal,
           })
+
           if (response.ok) {
-            updateCheckStatus('api_base_url', 'success', config.API_BASE_URL)
+            markCheck('api_base_url', 'success', config.API_BASE_URL)
           } else {
-            updateCheckStatus(
+            markCheck(
               'api_base_url',
               'warning',
               config.API_BASE_URL,
               `API retornou status ${response.status}`
             )
           }
-        } catch {
-          updateCheckStatus(
-            'api_base_url',
-            'error',
-            config.API_BASE_URL,
-            'Falha ao conectar com a API'
-          )
+        } catch (error) {
+          const message =
+            error instanceof Error && error.name === 'AbortError'
+              ? 'Timeout ao conectar com a API'
+              : 'Falha ao conectar com a API'
+          markCheck('api_base_url', 'error', config.API_BASE_URL, message)
+        } finally {
+          clearTimeout(timeoutId)
         }
       } else {
-        updateCheckStatus('api_base_url', 'error', '', 'URL da API não configurada')
+        markCheck('api_base_url', 'error', '', 'URL da API não configurada')
       }
 
-      // Check WebSocket URL
-      updateCheckStatus('ws_url', 'checking')
+      markCheck('ws_url', 'checking')
       if (config.WS_BASE_URL) {
-        updateCheckStatus('ws_url', 'success', config.WS_BASE_URL)
+        markCheck('ws_url', 'success', config.WS_BASE_URL)
       } else {
-        updateCheckStatus('ws_url', 'warning', '', 'WebSocket não configurado')
+        markCheck('ws_url', 'warning', '', 'WebSocket não configurado')
       }
 
-      // Check Firebase configuration
-      updateCheckStatus('firebase_config', 'checking')
-      if (runtimeConfig?.VITE_FIREBASE_API_KEY) {
-        updateCheckStatus('firebase_config', 'success', 'Configurado')
+      markCheck('session_auth', 'checking')
+      if (config.API_BASE_URL) {
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 5000)
+
+        try {
+          const response = await fetch(`${config.API_BASE_URL}/api/v2/auth/csrf-token`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              Accept: 'application/json',
+              ...apiClient.getSessionHeaders(),
+            },
+            signal: controller.signal,
+          })
+
+          if (!response.ok) {
+            throw new Error(`Sessão HTTP retornou status ${response.status}`)
+          }
+
+          const data = await response.json()
+          if (!hasValidCsrfToken(data)) {
+            throw new Error('Resposta CSRF inválida para autenticação por sessão')
+          }
+
+          markCheck(
+            'session_auth',
+            'success',
+            legacyFirebaseConfigured
+              ? 'Cookie + CSRF prontos (compat legado detectada)'
+              : 'Cookie + CSRF prontos'
+          )
+        } catch (error) {
+          const message =
+            error instanceof Error && error.name === 'AbortError'
+              ? 'Timeout na preparação da sessão HTTP'
+              : error instanceof Error
+                ? error.message
+                : 'Falha na preparação da sessão HTTP'
+
+          markCheck('session_auth', 'error', '', message)
+        } finally {
+          clearTimeout(timeoutId)
+        }
       } else {
-        updateCheckStatus('firebase_config', 'error', '', 'Firebase não configurado')
+        markCheck('session_auth', 'error', '', 'API não configurada para autenticação por sessão')
       }
 
-      // Check WhatsApp instance
-      updateCheckStatus('whatsapp_instance', 'checking')
+      markCheck('whatsapp_instance', 'checking')
       if (config.WHATSAPP_INSTANCE_NAME) {
-        updateCheckStatus('whatsapp_instance', 'success', config.WHATSAPP_INSTANCE_NAME)
+        markCheck('whatsapp_instance', 'success', config.WHATSAPP_INSTANCE_NAME)
       } else {
-        updateCheckStatus('whatsapp_instance', 'warning', '', 'WhatsApp não configurado')
+        markCheck('whatsapp_instance', 'warning', '', 'WhatsApp não configurado')
       }
 
-      // Check Sentry DSN
-      updateCheckStatus('sentry_dsn', 'checking')
+      markCheck('sentry_dsn', 'checking')
       if (config.SENTRY_DSN) {
-        updateCheckStatus('sentry_dsn', 'success', '****')
+        markCheck('sentry_dsn', 'success', '****')
       } else {
-        updateCheckStatus('sentry_dsn', 'warning', '', 'Sentry não configurado')
+        markCheck('sentry_dsn', 'warning', '', 'Sentry não configurado')
       }
 
-      // Check session configuration
-      updateCheckStatus('session_config', 'checking')
+      markCheck('session_config', 'checking')
       if (config.SESSION_TIMEOUT && config.TOKEN_REFRESH_THRESHOLD) {
-        updateCheckStatus('session_config', 'success', `Timeout: ${config.SESSION_TIMEOUT}ms`)
+        markCheck(
+          'session_config',
+          'success',
+          `Timeout: ${config.SESSION_TIMEOUT}ms • refresh: ${config.TOKEN_REFRESH_THRESHOLD}ms`
+        )
       } else {
-        updateCheckStatus('session_config', 'warning', '', 'Configurações de sessão usando padrões')
+        markCheck(
+          'session_config',
+          'warning',
+          '',
+          'Configurações de sessão usando padrões seguros'
+        )
       }
 
-      // Wait a moment for visual feedback
+      logger.log('Environment auth diagnostics', {
+        auth_mode: AUTH_MODE,
+        session_auth_status: observedStatuses.get('session_auth') ?? 'pending',
+        websocket_status: observedStatuses.get('ws_url') ?? 'pending',
+        legacy_firebase_configured: legacyFirebaseConfigured,
+      })
+
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      // Check if all required configurations are valid
       const requiredChecks = checks.filter((check) => check.required)
-      const failedRequired = requiredChecks.filter((check) => check.status === 'error')
+      const failedRequired = requiredChecks.filter((check) => observedStatuses.get(check.id) === 'error')
 
       if (failedRequired.length > 0) {
         onError(
-          `Configurações obrigatórias falharam: ${failedRequired.map((c) => c.name).join(', ')}`
+          `Configurações obrigatórias falharam: ${failedRequired.map((check) => check.name).join(', ')}`
         )
       } else {
         toast({
           title: 'Ambiente Verificado',
-          description: 'Todas as configurações essenciais estão funcionando.',
+          description: 'Sessão própria, API e integrações essenciais estão prontas.',
         })
         onComplete()
       }
@@ -291,7 +392,11 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
       acc[category]?.push(check)
       return acc
     },
-    {} as Record<string, EnvironmentCheck[]>
+    {} as Record<EnvironmentCheck['category'], EnvironmentCheck[]>
+  )
+
+  const visibleCategories = (Object.keys(categoryNames) as EnvironmentCheck['category'][]).filter(
+    (category) => (categorizedChecks[category]?.length || 0) > 0
   )
 
   const summaryStats = {
@@ -301,9 +406,10 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
     warning: checks.filter((c) => c.status === 'warning').length,
   }
 
+  const manuallyConfigurableChecks = checks.filter((check) => check.id !== 'session_auth')
+
   return (
     <div className="space-y-6">
-      {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="text-center">
           <CardContent className="pt-4">
@@ -331,38 +437,37 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
         </Card>
       </div>
 
-      {/* Environment Checks by Category */}
-      <Tabs defaultValue="api" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          {Object.keys(categoryNames).map((category) => (
+      <Tabs
+        defaultValue={visibleCategories.includes('security') ? 'security' : (visibleCategories[0] ?? 'api')}
+        className="space-y-4"
+      >
+        <TabsList
+          className="grid w-full"
+          style={{ gridTemplateColumns: `repeat(${Math.max(visibleCategories.length, 1)}, minmax(0, 1fr))` }}
+        >
+          {visibleCategories.map((category) => (
             <TabsTrigger key={category} value={category} className="flex items-center space-x-2">
-              {categoryIcons[category as keyof typeof categoryIcons]}
-              <span className="hidden sm:inline">
-                {categoryNames[category as keyof typeof categoryNames]}
-              </span>
+              {categoryIcons[category]}
+              <span className="hidden sm:inline">{categoryNames[category]}</span>
             </TabsTrigger>
           ))}
         </TabsList>
 
-        {Object.entries(categorizedChecks).map(([category, categoryChecks]) => (
+        {visibleCategories.map((category) => (
           <TabsContent key={category} value={category}>
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
-                  {categoryIcons[category as keyof typeof categoryIcons]}
-                  <span>{categoryNames[category as keyof typeof categoryNames]}</span>
+                  {categoryIcons[category]}
+                  <span>{categoryNames[category]}</span>
                 </CardTitle>
                 <CardDescription>
-                  Verificação das configurações de{' '}
-                  {categoryNames[category as keyof typeof categoryNames].toLowerCase()}
+                  Verificação das configurações de {categoryNames[category].toLowerCase()}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {categoryChecks.map((check) => (
-                  <div
-                    key={check.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
+                {(categorizedChecks[category] || []).map((check) => (
+                  <div key={check.id} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-start space-x-3 flex-1">
                       {getStatusIcon(check.status)}
                       <div className="flex-1">
@@ -416,7 +521,6 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
         ))}
       </Tabs>
 
-      {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-4 pt-6">
         <Button onClick={handleCheckEnvironment} disabled={isChecking} className="flex-1">
           {isChecking ? (
@@ -442,13 +546,13 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
         </Button>
       </div>
 
-      {/* Advanced Configuration Panel */}
       {showAdvanced && (
         <Card>
           <CardHeader>
             <CardTitle>Configuração Manual</CardTitle>
             <CardDescription>
-              Configure manualmente as variáveis de ambiente se necessário
+              Ajuste valores de ambiente do frontend quando necessário. O login da equipe usa
+              sessão própria do backend; credenciais Firebase não são obrigatórias aqui.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -460,8 +564,8 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
               </AlertDescription>
             </Alert>
 
-            {checks
-              .filter((c) => c.status === 'error' || c.status === 'warning')
+            {manuallyConfigurableChecks
+              .filter((check) => check.status === 'error' || check.status === 'warning')
               .map((check) => (
                 <div key={check.id} className="space-y-2">
                   <Label htmlFor={check.id}>{check.name}</Label>
@@ -484,7 +588,6 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
 
             <Button
               onClick={() => {
-                // Apply manual configuration and re-check
                 toast({
                   title: 'Configuração Aplicada',
                   description: 'Configurações manuais aplicadas. Verificando novamente...',

@@ -33,12 +33,14 @@ def resolve_session_id(
     authorization: Optional[str] = None,
     x_session_id: Optional[str] = None,
     session_cookie_id: Optional[str] = None,
+    query_session_id: Optional[str] = None,
 ) -> Optional[str]:
     """
     Resolve session ID from supported sources in priority order:
     1. Authorization: Bearer <session_id>
     2. X-Session-ID header
     3. session_id cookie
+    4. session_id query param (lowest-priority websocket/browser fallback)
     """
     final_session_id = None
 
@@ -51,10 +53,13 @@ def resolve_session_id(
     if not final_session_id and session_cookie_id:
         final_session_id = session_cookie_id
 
+    if not final_session_id and query_session_id:
+        final_session_id = query_session_id
+
     return final_session_id
 
 
-def _extract_canonical_user_from_session(session_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def extract_canonical_user_from_session(session_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Return embedded canonical user envelope when present in the session payload."""
     user_id = session_data.get("user_id")
     email = session_data.get("email")
@@ -64,7 +69,10 @@ def _extract_canonical_user_from_session(session_data: Dict[str, Any]) -> Option
     if not user_id or email is None or role is None or is_active is None:
         return None
 
-    embedded_user = {target_key: session_data.get(source_key) for source_key, target_key in CANONICAL_SESSION_USER_FIELDS.items()}
+    embedded_user = {
+        target_key: session_data.get(source_key)
+        for source_key, target_key in CANONICAL_SESSION_USER_FIELDS.items()
+    }
     return embedded_user
 
 
@@ -84,7 +92,7 @@ async def get_user_data_from_session(
             detail="Invalid or expired session",
         )
 
-    embedded_user = _extract_canonical_user_from_session(session_data)
+    embedded_user = extract_canonical_user_from_session(session_data)
     if embedded_user:
         return ensure_user_is_active(embedded_user)
 

@@ -1,0 +1,114 @@
+"""Cutover proof for canonical websocket session authentication."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
+from fastapi import WebSocket
+from starlette.websockets import WebSocketDisconnect
+
+from app.api import websockets as websocket_api
+
+pytestmark = [pytest.mark.api, pytest.mark.auth]
+
+
+class FakeConnectionManager:
+    def __init__(self):
+        self.sent_messages: list[tuple[str, dict]] = []
+        self.disconnected: list[str] = []
+
+    async def connect(self, _websocket: WebSocket, connection_id: str) -> str:
+        return connection_id
+
+    async def send_message(self, connection_id: str, message: dict) -> bool:
+        self.sent_messages.append((connection_id, message))
+        return True
+
+    async def disconnect(self, connection_id: str) -> None:
+        self.disconnected.append(connection_id)
+
+    async def authenticate_connection(self, *_args, **_kwargs):  # pragma: no cover - defensive
+        return None
+
+    def get_connection_info(self, _connection_id: str):  # pragma: no cover - defensive
+        return None
+
+
+def _patch_session_cache(monkeypatch: pytest.MonkeyPatch, session_payload: dict | None):
+    fake_cache = SimpleNamespace(
+        get_session=AsyncMock(return_value=session_payload),
+        get_user_by_uid=AsyncMock(
+            side_effect=AssertionError(
+                'Canonical websocket session auth should not need firebase_uid cache lookups'
+            )
+        ),
+    )
+
+    import app.core.redis_manager as redis_manager_module
+
+    monkeypatch.setattr(
+        redis_manager_module,
+        'get_redis_manager',
+        lambda: SimpleNamespace(get_compatible_client=lambda _mode: object()),
+    )
+    monkeypatch.setattr(redis_manager_module, 'FirebaseRedisCache', lambda _client: fake_cache)
+    return fake_cache
+
+
+@pytest.mark.asyncio
+async def test_websocket_session_query_auth_accepts_user_id_centric_sessions(monkeypatch):
+    manager = FakeConnectionManager()
+    monkeypatch.setattr(websocket_api, 'get_connection_manager', lambda: manager)
+
+    session_payload = {
+        'user_id': str(uuid4()),
+        'email': 'doctor.websocket@example.com',
+        'role': 'doctor',
+        'is_active': True,
+    }
+    fake_cache = _patch_session_cache(monkeypatch, session_payload)
+
+    websocket = AsyncMock(spec=WebSocket)
+    websocket.receive_text = AsyncMock(side_effect=WebSocketDisconnect(code=1000))
+
+    await websocket_api.websocket_endpoint(
+        websocket,
+        token=None,
+        session_id='session-contract-123',
+    )
+
+    authenticated_messages = [
+        message for _connection_id, message in manager.sent_messages if message.get('type') == 'authenticated'
+    ]
+
+    assert authenticated_messages, 'Expected an authenticated websocket message for canonical session auth'
+    auth_message = authenticated_messages[0]
+    assert auth_message['data']['success'] is True
+    assert auth_message['data']['user_id'] == session_payload['user_id']
+    fake_cache.get_user_by_uid.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_websocket_invalid_session_emits_stable_error_diagnostics(monkeypatch):
+    manager = FakeConnectionManager()
+    monkeypatch.setattr(websocket_api, 'get_connection_manager', lambda: manager)
+    _patch_session_cache(monkeypatch, None)
+
+    websocket = AsyncMock(spec=WebSocket)
+    websocket.receive_text = AsyncMock(side_effect=WebSocketDisconnect(code=1000))
+
+    await websocket_api.websocket_endpoint(
+        websocket,
+        token=None,
+        session_id='missing-session-id',
+    )
+
+    error_messages = [message for _connection_id, message in manager.sent_messages if message.get('type') == 'error']
+
+    assert error_messages, 'Expected an explicit websocket auth error for invalid sessions'
+    error_message = error_messages[0]
+    assert error_message['data']['error'] == 'AUTH_WEBSOCKET_SESSION_INVALID'
+    assert error_message['data']['details']['connection_id']

@@ -5,10 +5,17 @@ WebSocket endpoints for real-time communication.
 import json
 import logging
 import uuid
-from typing import Optional
+from types import SimpleNamespace
+from typing import Any, Optional
 from datetime import datetime, timezone
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Query
 
+from app.api.v2.auth_session_shared import (
+    extract_canonical_user_from_session,
+    get_user_data_from_session,
+    resolve_session_id,
+)
+from app.config import settings
 from app.services.websocket import get_websocket_manager
 from app.schemas.websocket import (
     AuthenticationRequest,
@@ -34,6 +41,187 @@ def get_connection_manager():
     if _connection_manager_instance is None:
         _connection_manager_instance = get_websocket_manager()
     return _connection_manager_instance
+
+
+AUTH_WEBSOCKET_SESSION_INVALID = "AUTH_WEBSOCKET_SESSION_INVALID"
+AUTH_WEBSOCKET_SESSION_LOOKUP_FAILED = "AUTH_WEBSOCKET_SESSION_LOOKUP_FAILED"
+
+
+def _mapping_get(mapping: Any, *keys: str) -> Optional[str]:
+    if not mapping:
+        return None
+
+    for key in keys:
+        try:
+            value = mapping.get(key)
+        except Exception:
+            value = None
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+async def _send_error_message(
+    connection_id: str,
+    *,
+    error_code: str,
+    message: str,
+    details: Optional[dict[str, Any]] = None,
+) -> None:
+    error_message = create_websocket_message(
+        WebSocketEventType.ERROR,
+        ErrorResponse(
+            error=error_code,
+            message=message,
+            details=details,
+        ).dict(),
+    )
+    await get_connection_manager().send_message(connection_id, error_message.dict())
+
+
+async def _authenticate_websocket_via_session(
+    websocket: WebSocket,
+    *,
+    connection_id: str,
+    query_session_id: Optional[str],
+) -> tuple[Optional[SimpleNamespace], bool]:
+    """Authenticate a websocket from canonical session state.
+
+    Returns a tuple of (authenticated_user, attempted_session_auth).
+    When a session source is present but invalid, an explicit websocket error payload is
+    emitted before returning (None, True).
+    """
+    headers = getattr(websocket, "headers", None)
+    cookies = getattr(websocket, "cookies", None)
+
+    final_session_id = resolve_session_id(
+        authorization=_mapping_get(headers, "authorization", "Authorization"),
+        x_session_id=_mapping_get(headers, "x-session-id", "X-Session-ID"),
+        session_cookie_id=_mapping_get(
+            cookies,
+            settings.SESSION_COOKIE_NAME,
+            "session_id",
+        ),
+        query_session_id=query_session_id,
+    )
+
+    if not final_session_id:
+        return None, False
+
+    details = {
+        "connection_id": connection_id,
+        "session_source": "query" if query_session_id else "cookie-or-header",
+    }
+
+    try:
+        from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+
+        redis_manager = get_redis_manager()
+        redis_client = redis_manager.get_compatible_client("sync")
+        redis_cache = FirebaseRedisCache(redis_client)
+
+        session_data = await redis_cache.get_session(final_session_id)
+        if not session_data:
+            await _send_error_message(
+                connection_id,
+                error_code=AUTH_WEBSOCKET_SESSION_INVALID,
+                message="Invalid or expired websocket session.",
+                details=details,
+            )
+            logger.warning(
+                "WebSocket session auth failed: missing session payload for connection %s",
+                connection_id,
+            )
+            return None, True
+
+        user_data = extract_canonical_user_from_session(session_data)
+
+        db_gen = None
+        db = None
+        if not user_data:
+            from app.database import get_db
+
+            db_gen = get_db()
+            db = next(db_gen)
+            try:
+                user_data = await get_user_data_from_session(
+                    session_id=final_session_id,
+                    db=db,
+                    redis_cache=redis_cache,
+                )
+            finally:
+                if db is not None:
+                    db.close()
+                if db_gen is not None:
+                    db_gen.close()
+
+        if not user_data or not user_data.get("is_active", False):
+            await _send_error_message(
+                connection_id,
+                error_code=AUTH_WEBSOCKET_SESSION_INVALID,
+                message="WebSocket session is not authorized.",
+                details=details,
+            )
+            logger.warning(
+                "WebSocket session auth rejected inactive/invalid user for connection %s",
+                connection_id,
+            )
+            return None, True
+
+        authenticated_user = SimpleNamespace(
+            id=user_data.get("id") or session_data.get("user_id"),
+            email=user_data.get("email"),
+            role=user_data.get("role") or session_data.get("role") or "doctor",
+            full_name=user_data.get("full_name"),
+            is_active=bool(user_data.get("is_active", False)),
+        )
+
+        manager = get_connection_manager()
+        if hasattr(manager, "_update_connection_metadata"):
+            manager._update_connection_metadata(connection_id, authenticated_user)
+
+        auth_message = create_websocket_message(
+            WebSocketEventType.AUTHENTICATED,
+            AuthenticationResponse(
+                success=True,
+                user_id=authenticated_user.id,
+                user_role=str(authenticated_user.role),
+                message="Session authentication successful",
+            ).dict(),
+        )
+        await manager.send_message(connection_id, auth_message.dict())
+
+        logger.info(
+            "WebSocket authenticated via canonical session contract for connection %s",
+            connection_id,
+        )
+        return authenticated_user, True
+    except HTTPException as exc:
+        logger.warning(
+            "WebSocket session authentication rejected for connection %s: %s",
+            connection_id,
+            exc.detail,
+        )
+        await _send_error_message(
+            connection_id,
+            error_code=AUTH_WEBSOCKET_SESSION_INVALID,
+            message=str(exc.detail),
+            details=details,
+        )
+        return None, True
+    except Exception as exc:
+        logger.warning(
+            "WebSocket session authentication lookup failed for connection %s: %s",
+            connection_id,
+            exc,
+        )
+        await _send_error_message(
+            connection_id,
+            error_code=AUTH_WEBSOCKET_SESSION_LOOKUP_FAILED,
+            message="Unable to verify websocket session right now.",
+            details=details,
+        )
+        return None, True
 
 
 @router.websocket("")
@@ -73,16 +261,15 @@ async def websocket_endpoint(
         connection_id = await get_connection_manager().connect(websocket, connection_id)
         logger.info(f"WebSocket connection accepted: {connection_id}")
 
-        # Send connection confirmation
-        # NOTE: Allow unauthenticated connections for general broadcasts
-        # Authentication is optional - room joins still require auth
+        # Send connection confirmation before auth bootstrap so clients receive the
+        # connection_id used by later authenticated/error diagnostics.
         logger.info(f"Creating welcome message for: {connection_id}")
         welcome_message = create_websocket_message(
             WebSocketEventType.CONNECTED,
             {
                 "connection_id": connection_id,
                 "message": "WebSocket connection established",
-                "authenticated": True,  # Allow connection without auth for broadcasts
+                "authenticated": False,
             },
         )
         logger.info(f"Welcome message created: {welcome_message.dict()}")
@@ -93,44 +280,23 @@ async def websocket_endpoint(
         )
         logger.info(f"Welcome message sent result: {result} for {connection_id}")
 
-        # Attempt authentication if token or session_id provided in query
-        authenticated_user = None
+        # Attempt authentication if cookie/header/query session state or a legacy
+        # token was supplied during the handshake.
+        authenticated_user, attempted_session_auth = await _authenticate_websocket_via_session(
+            websocket,
+            connection_id=connection_id,
+            query_session_id=session_id,
+        )
 
-        # Try session-based authentication first (preferred)
-        if session_id:
-            try:
-                from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
+        if attempted_session_auth and not authenticated_user:
+            logger.info(
+                "WebSocket closing after explicit session auth failure for connection %s",
+                connection_id,
+            )
+            return
 
-                # Get Redis cache
-                redis_manager = get_redis_manager()
-                redis_client = redis_manager.get_compatible_client("sync")
-                firebase_cache = FirebaseRedisCache(redis_client)
-
-                # Validate session
-                session_data = await firebase_cache.get_session(session_id)
-                if session_data:
-                    firebase_uid = session_data.get("firebase_uid")
-                    if firebase_uid:
-                        # Get user data from cache or DB
-                        user_data = await firebase_cache.get_user_by_uid(firebase_uid)
-                        if user_data and user_data.get("is_active", False):
-                            # Create a mock user object for compatibility
-                            class MockUser:
-                                def __init__(self, data):
-                                    self.id = data.get("id")
-                                    self.email = data.get("email")
-                                    self.role = data.get("role")
-                                    self.is_active = data.get("is_active", True)
-
-                            authenticated_user = MockUser(user_data)
-                            logger.info(
-                                f"WebSocket authenticated via session: {user_data.get('email')}"
-                            )
-
-            except Exception as e:
-                logger.warning(f"Session authentication failed for WebSocket: {e}")
-
-        # Fallback to token authentication if session auth failed
+        # Fallback to token authentication only when no canonical session handshake
+        # source was available.
         if not authenticated_user and token:
             # Get database session
             from app.database import get_db

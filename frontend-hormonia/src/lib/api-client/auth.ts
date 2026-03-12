@@ -10,12 +10,14 @@
  */
 
 import type { ApiClientCore } from './core'
+import { ApiError } from './core'
 import { normalizeUser } from './normalizers'
 import type { BackendUser, FrontendUser } from './normalizers'
 
 export interface LoginCredentials {
   email: string
   password: string
+  remember_me?: boolean
 }
 
 export interface RegisterData {
@@ -54,8 +56,14 @@ interface LogoutResponse {
 }
 
 export interface AuthResponse {
+  valid: boolean
+  message: string
+  session_id: string
+  user_id: string
+  expires_at: string
+  remember_me: boolean
   user: User
-  access_token: string
+  access_token?: string
   refresh_token?: string
   expires_in?: number
 }
@@ -69,9 +77,110 @@ export interface PasswordResetConfirm {
   new_password: string
 }
 
+export interface PasswordResetResponse {
+  success?: boolean
+  message: string
+}
+
 export interface PasswordChange {
   old_password: string
   new_password: string
+}
+
+export interface AuthDiagnostics {
+  message: string
+  error?: string
+  request_id?: string
+  status?: number
+  data?: Record<string, unknown>
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const pickString = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim().length > 0 ? value : undefined
+
+const extractAuthDiagnostics = (
+  payload: unknown,
+  fallbackMessage: string,
+  status?: number
+): AuthDiagnostics => {
+  const record = isRecord(payload) ? payload : {}
+  const nestedError = isRecord(record['error']) ? record['error'] : null
+
+  const errorCode =
+    pickString(record['error']) ??
+    pickString(nestedError?.['code']) ??
+    pickString(record['code']) ??
+    undefined
+
+  const requestId = pickString(record['request_id']) ?? pickString(record['requestId']) ?? undefined
+
+  const message =
+    pickString(record['message']) ??
+    pickString(record['detail']) ??
+    pickString(record['user_message']) ??
+    pickString(nestedError?.['message']) ??
+    pickString(nestedError?.['details']) ??
+    fallbackMessage
+
+  const data: Record<string, unknown> = {
+    ...(record || {}),
+    ...(errorCode ? { error: errorCode } : {}),
+    ...(requestId ? { request_id: requestId } : {}),
+    message,
+  }
+
+  return {
+    message,
+    error: errorCode,
+    request_id: requestId,
+    status,
+    data,
+  }
+}
+
+const normalizeApiError = (error: unknown, fallbackMessage: string): ApiError => {
+  if (error instanceof ApiError) {
+    const diagnostics = extractAuthDiagnostics(
+      error.data,
+      error.userFriendlyMessage || error.message || fallbackMessage,
+      error.status
+    )
+
+    return new ApiError(error.status, diagnostics.data ?? error.data, diagnostics.message, diagnostics.message)
+  }
+
+  const diagnostics = extractAuthDiagnostics(undefined, fallbackMessage)
+  return new ApiError(0, diagnostics.data ?? {}, diagnostics.message, diagnostics.message)
+}
+
+export function toUserSafeAuthError(
+  error: unknown,
+  fallbackMessage = 'Authentication request failed.'
+): Error & {
+  status?: number
+  data?: Record<string, unknown>
+  request_id?: string
+  error?: string
+} {
+  const apiError = normalizeApiError(error, fallbackMessage)
+  const diagnostics = extractAuthDiagnostics(apiError.data, apiError.message, apiError.status)
+  const safeError = new Error(diagnostics.message) as Error & {
+    status?: number
+    data?: Record<string, unknown>
+    request_id?: string
+    error?: string
+  }
+
+  safeError.name = 'AuthError'
+  safeError.status = diagnostics.status
+  safeError.data = diagnostics.data
+  safeError.request_id = diagnostics.request_id
+  safeError.error = diagnostics.error
+
+  return safeError
 }
 
 /**
@@ -104,16 +213,12 @@ export function createAuthApi(client: ApiClientCore) {
   }
 
   const fetchSession = async (): Promise<SessionValidationResponse & { session_id?: string }> => {
-    // UPDATED: Include session_id in Authorization header if available
-    // while still supporting cookie-based fallback.
     const baseURL = client.getBaseURL()
 
-    // Prepare headers
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     }
 
-    // Add auth token if available (session_id)
     const token = client.getAuthToken()
     if (token) {
       headers['Authorization'] = `Bearer ${token}`
@@ -122,7 +227,7 @@ export function createAuthApi(client: ApiClientCore) {
 
     const response = await fetch(`${baseURL}/api/v2/auth/verify-session`, {
       method: 'GET',
-      credentials: 'include', // Include session cookie
+      credentials: 'include',
       headers,
     })
 
@@ -135,26 +240,64 @@ export function createAuthApi(client: ApiClientCore) {
       valid: true,
       user: data.user,
       session_data: data.session,
-      // Extract session_id from root level (where backend returns it)
       session_id: data.session_id,
     }
   }
 
   const unsupported = (method: string): never => {
-    throw new Error(`${method} is not supported in the Firebase-based authentication flow`)
+    throw new Error(`${method} is not supported in the first-party session authentication flow`)
   }
 
   return {
-    login: async (_credentials: LoginCredentials): Promise<AuthResponse> => unsupported('login'),
+    login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+      try {
+        const response = await client.post<AuthResponse, LoginCredentials>('/api/v2/auth/login', {
+          email: credentials.email,
+          password: credentials.password,
+          remember_me: Boolean(credentials.remember_me),
+        })
+
+        if (response.session_id) {
+          client.setAuthToken(response.session_id)
+        }
+
+        return {
+          ...response,
+          user: mapSessionUser(response.user),
+          access_token: response.access_token ?? response.session_id,
+        }
+      } catch (error) {
+        throw normalizeApiError(error, 'Unable to complete login.')
+      }
+    },
+
     register: async (_data: RegisterData): Promise<AuthResponse> => unsupported('register'),
-    requestPasswordReset: async (_data: PasswordResetRequest): Promise<{ message: string }> =>
-      unsupported('requestPasswordReset'),
-    confirmPasswordReset: async (_data: PasswordResetConfirm): Promise<{ message: string }> =>
-      unsupported('confirmPasswordReset'),
+
+    requestPasswordReset: async (data: PasswordResetRequest): Promise<PasswordResetResponse> => {
+      try {
+        return await client.post<PasswordResetResponse, PasswordResetRequest>(
+          '/api/v2/auth/password/reset-request',
+          data
+        )
+      } catch (error) {
+        throw normalizeApiError(error, 'Unable to request password reset.')
+      }
+    },
+
+    confirmPasswordReset: async (data: PasswordResetConfirm): Promise<PasswordResetResponse> => {
+      try {
+        return await client.post<PasswordResetResponse, PasswordResetConfirm>(
+          '/api/v2/auth/password/reset-confirm',
+          data
+        )
+      } catch (error) {
+        throw normalizeApiError(error, 'Unable to reset password.')
+      }
+    },
+
     changePassword: async (_data: PasswordChange): Promise<{ message: string }> =>
       unsupported('changePassword'),
-    refreshToken: async (_refreshToken: string): Promise<AuthResponse> =>
-      unsupported('refreshToken'),
+    refreshToken: async (_refreshToken: string): Promise<AuthResponse> => unsupported('refreshToken'),
     verifyEmail: async (_token: string): Promise<{ message: string }> => unsupported('verifyEmail'),
     resendVerificationEmail: async (): Promise<{ message: string }> =>
       unsupported('resendVerificationEmail'),
@@ -178,7 +321,6 @@ export function createAuthApi(client: ApiClientCore) {
     checkAuth: async (): Promise<{ authenticated: boolean; user?: User; sessionId?: string }> => {
       const session = await fetchSession()
       if (session.valid && session.user) {
-        // Get session_id from root level (where backend returns it)
         const sessionId = session.session_id
         return {
           authenticated: true,
@@ -207,7 +349,6 @@ export function createAuthApi(client: ApiClientCore) {
       session_id?: string
       message?: string
     }> => {
-      // Map to backend expected payload
       const response = await client.post<{
         valid: boolean
         session_id?: string

@@ -54,12 +54,39 @@ export type WebSocketEventType =
   | 'system_maintenance'
   | 'system_notification'
 
+export type WebSocketAuthErrorCode =
+  | 'AUTH_WEBSOCKET_SESSION_INVALID'
+  | 'AUTH_WEBSOCKET_SESSION_LOOKUP_FAILED'
+
+export interface WebSocketAuthDiagnostics {
+  error: WebSocketAuthErrorCode | string
+  message: string
+  details?: {
+    connection_id?: string
+    session_source?: string
+    [key: string]: unknown
+  }
+}
+
 export interface WebSocketMessage {
   type: WebSocketEventType
   timestamp: string
   data: Record<string, unknown>
   user?: unknown
   userId?: string
+}
+
+export interface WebSocketClientMessage {
+  event: string
+  data: Record<string, unknown>
+  timestamp?: string
+  patient_id?: string
+  session_id?: string
+}
+
+export interface WebSocketBackendMessage {
+  type: string
+  data: Record<string, unknown>
 }
 
 export interface WebSocketConnectionState {
@@ -221,14 +248,14 @@ export interface PatientRoomSubscription {
 // WebSocket manager interface
 export interface IWebSocketManager {
   // Connection management
-  connect(token: string): Promise<void>
+  connect(sessionId?: string | null): Promise<void>
   disconnect(): void
   isConnected(): boolean
   getConnectionState(): WebSocketConnectionState
 
   // Authentication
   authenticate(token: string): Promise<boolean>
-  refreshToken(newToken: string): Promise<boolean>
+  refreshSession(sessionId?: string | null): Promise<boolean>
 
   // Room management
   joinPatientRoom(patientId: string): Promise<boolean>
@@ -257,7 +284,7 @@ export interface WebSocketStats {
 // Hook return types
 export interface UseWebSocketReturn {
   connectionState: WebSocketConnectionState
-  connect: (token: string) => Promise<void>
+  connect: (sessionId?: string | null) => Promise<void>
   disconnect: () => void
   joinRoom: (patientId: string) => Promise<boolean>
   leaveRoom: (patientId: string) => Promise<boolean>
@@ -275,6 +302,7 @@ export interface WebSocketHookOptions {
   enabled?: boolean
   autoConnect?: boolean
   reconnectOnTokenChange?: boolean
+  reconnectOnSessionChange?: boolean
   enableHeartbeat?: boolean
   heartbeatInterval?: number
   maxReconnectAttempts?: number

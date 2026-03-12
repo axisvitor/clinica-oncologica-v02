@@ -1,51 +1,48 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
+import React from 'react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { BrowserRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { LoginPage } from '@/pages/LoginPage'
 import { AuthContext } from '@/contexts/AuthContext'
-import { AuthContextType } from '@/contexts/AuthContext'
+import { ROUTES } from '@/app/routes/routeConfig'
 
-// Mock dependencies
 const mockLogin = vi.fn()
-const mockNavigate = vi.fn()
-
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom')
-  return {
-    ...actual,
-    Navigate: ({ to }: { to: string }) => <div data-testid="navigate-to">{to}</div>,
-    useLocation: () => ({ state: { from: { pathname: '/dashboard' } } })
-  }
-})
+const mockIsProduction = vi.fn(() => false)
+const mockConfig = {
+  VITE_ENVIRONMENT: 'development',
+  VITE_DEBUG_MODE: 'true',
+  VITE_SHOW_DEMO_CREDENTIALS: 'true',
+}
+const mockAuthSubmitState = {
+  isSubmitting: false,
+  error: null as string | null,
+}
 
 vi.mock('@/lib/runtime-config', () => ({
-  isProduction: vi.fn().mockReturnValue(false)
+  isProduction: () => mockIsProduction(),
 }))
 
 vi.mock('@/lib/config-initializer', () => ({
   useConfig: () => ({
-    config: {
-      VITE_ENVIRONMENT: 'development',
-      VITE_DEBUG_MODE: 'true',
-      VITE_SHOW_DEMO_CREDENTIALS: 'true'
-    }
-  })
+    config: mockConfig,
+  }),
 }))
 
 vi.mock('@/hooks/use-auth-submit', () => ({
-  useAuthSubmit: vi.fn().mockReturnValue({
-    isSubmitting: false,
-    error: null,
-    handleSubmit: vi.fn((fn) => fn)
-  })
+  useAuthSubmit: vi.fn().mockImplementation(({ onSubmit }) => ({
+    isSubmitting: mockAuthSubmitState.isSubmitting,
+    error: mockAuthSubmitState.error,
+    handleSubmit: async (data: unknown) => onSubmit(data),
+  })),
 }))
 
-const createMockAuthContext = (overrides: Partial<AuthContextType> = {}): AuthContextType => ({
+const createAuthValue = (overrides: Record<string, unknown> = {}) => ({
   user: null,
   session: null,
   isAuthenticated: false,
-  isLoading: false,
+  isInitializing: false,
+  isAuthenticating: false,
   login: mockLogin,
   logout: vi.fn(),
   logoutAll: vi.fn(),
@@ -53,461 +50,221 @@ const createMockAuthContext = (overrides: Partial<AuthContextType> = {}): AuthCo
   hasRole: vi.fn(),
   getFirebaseToken: vi.fn(),
   refreshToken: vi.fn(),
-  ...overrides
+  ...overrides,
 })
 
-const renderWithAuth = (authValue: Partial<AuthContextType> = {}) => {
-  const contextValue = createMockAuthContext(authValue)
+function renderLogin(options?: {
+  authOverrides?: Record<string, unknown>
+  initialEntries?: Array<string | { pathname: string; state?: unknown }>
+}) {
+  const authValue = createAuthValue(options?.authOverrides)
 
   return render(
-    <BrowserRouter>
-      <AuthContext.Provider value={contextValue}>
-        <LoginPage />
+    <MemoryRouter initialEntries={options?.initialEntries ?? [ROUTES.LOGIN]}>
+      <AuthContext.Provider value={authValue as never}>
+        <Routes>
+          <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+          <Route path={ROUTES.DASHBOARD} element={<div>Dashboard Route</div>} />
+          <Route
+            path={ROUTES.AUTH.PASSWORD_RESET_REQUEST}
+            element={<div>Reset Request Route</div>}
+          />
+        </Routes>
       </AuthContext.Provider>
-    </BrowserRouter>
+    </MemoryRouter>
   )
 }
 
 describe('LoginPage - Comprehensive Tests', () => {
-  let user: ReturnType<typeof userEvent.setup>
-
   beforeEach(() => {
-    user = userEvent.setup()
     vi.clearAllMocks()
+    mockIsProduction.mockReturnValue(false)
+    mockConfig.VITE_ENVIRONMENT = 'development'
+    mockConfig.VITE_DEBUG_MODE = 'true'
+    mockConfig.VITE_SHOW_DEMO_CREDENTIALS = 'true'
+    mockAuthSubmitState.isSubmitting = false
+    mockAuthSubmitState.error = null
   })
 
-  afterEach(() => {
-    vi.clearAllMocks()
+  it('renders the canonical email-first login form', () => {
+    renderLogin()
+
+    expect(screen.getByRole('heading', { name: /entrar na sua conta/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^senha$/i)).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /manter-me conectado/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^entrar$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /esqueci minha senha/i })).toBeInTheDocument()
   })
 
-  describe('Page Rendering', () => {
-    it('should render login form with all required elements', () => {
-      renderWithAuth()
+  it('renders the logo and development demo credentials when enabled', () => {
+    renderLogin()
 
-      expect(screen.getByRole('heading', { name: /entrar na sua conta/i })).toBeInTheDocument()
-      expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/senha/i)).toBeInTheDocument()
-      expect(screen.getByRole('checkbox', { name: /manter-me conectado/i })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /entrar/i })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /esqueci minha senha/i })).toBeInTheDocument()
-    })
-
-    it('should render logo image with correct attributes', () => {
-      renderWithAuth()
-
-      const logo = screen.getByAltText('Neoplasias Litoral - Sistema de Gestão')
-      expect(logo).toBeInTheDocument()
-      expect(logo).toHaveAttribute('src', '/images/logo_system.svg')
-    })
-
-    it('should show demo credentials in development mode', () => {
-      renderWithAuth()
-
-      expect(screen.getByText('Credenciais Demo')).toBeInTheDocument()
-      expect(screen.getByText('admin@neoplasiaslitoral.com')).toBeInTheDocument()
-      expect(screen.getByText('Admin@123456!')).toBeInTheDocument()
-    })
-
-    it('should show loading spinner when isLoading is true', () => {
-      renderWithAuth({ isLoading: true })
-
-      expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
-      expect(screen.queryByRole('form')).not.toBeInTheDocument()
-    })
-
-    it('should redirect to dashboard when already authenticated', () => {
-      renderWithAuth({ isAuthenticated: true })
-
-      expect(screen.getByTestId('navigate-to')).toHaveTextContent('/dashboard')
-    })
+    expect(screen.getByAltText('Neoplasias Litoral - Sistema de Gestão')).toBeInTheDocument()
+    expect(screen.getByText('Credenciais Demo')).toBeInTheDocument()
+    expect(screen.getByText('admin@neoplasiaslitoral.com')).toBeInTheDocument()
+    expect(screen.getByText('🔧 Ambiente de desenvolvimento')).toBeInTheDocument()
   })
 
-  describe('Form Interactions', () => {
-    it('should update email field value on input', async () => {
-      renderWithAuth()
+  it('hides demo credentials and development badge in production mode', () => {
+    mockIsProduction.mockReturnValue(true)
+    mockConfig.VITE_ENVIRONMENT = 'production'
+    mockConfig.VITE_DEBUG_MODE = 'false'
+    mockConfig.VITE_SHOW_DEMO_CREDENTIALS = 'false'
 
-      const emailInput = screen.getByLabelText(/email/i)
-      await user.type(emailInput, 'test@example.com')
+    renderLogin()
 
-      expect(emailInput).toHaveValue('test@example.com')
-    })
-
-    it('should update password field value on input', async () => {
-      renderWithAuth()
-
-      const passwordInput = screen.getByLabelText(/senha/i)
-      await user.type(passwordInput, 'password123')
-
-      expect(passwordInput).toHaveValue('password123')
-    })
-
-    it('should toggle password visibility', async () => {
-      renderWithAuth()
-
-      const passwordInput = screen.getByLabelText(/senha/i)
-      const toggleButton = screen.getByRole('button', { name: /mostrar senha/i })
-
-      expect(passwordInput).toHaveAttribute('type', 'password')
-
-      await user.click(toggleButton)
-
-      expect(passwordInput).toHaveAttribute('type', 'text')
-      expect(screen.getByRole('button', { name: /ocultar senha/i })).toBeInTheDocument()
-
-      await user.click(toggleButton)
-
-      expect(passwordInput).toHaveAttribute('type', 'password')
-    })
-
-    it('should toggle remember me checkbox', async () => {
-      renderWithAuth()
-
-      const checkbox = screen.getByRole('checkbox', { name: /manter-me conectado/i })
-
-      expect(checkbox).not.toBeChecked()
-
-      await user.click(checkbox)
-
-      expect(checkbox).toBeChecked()
-
-      await user.click(checkbox)
-
-      expect(checkbox).not.toBeChecked()
-    })
-
-    it('should show/hide forgot password section', async () => {
-      renderWithAuth()
-
-      const forgotPasswordButton = screen.getByRole('button', { name: /esqueci minha senha/i })
-
-      expect(screen.queryByText('Redefinição de Senha')).not.toBeInTheDocument()
-
-      await user.click(forgotPasswordButton)
-
-      expect(screen.getByText('Redefinição de Senha')).toBeInTheDocument()
-      expect(screen.getByText(/para redefinir sua senha/i)).toBeInTheDocument()
-
-      const closeButton = screen.getByRole('button', { name: /fechar/i })
-      await user.click(closeButton)
-
-      expect(screen.queryByText('Redefinição de Senha')).not.toBeInTheDocument()
-    })
+    expect(screen.queryByText('Credenciais Demo')).not.toBeInTheDocument()
+    expect(screen.queryByText('🔧 Ambiente de desenvolvimento')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/^email$/i)).toHaveAttribute('placeholder', 'seu@email.com')
   })
 
-  describe('Form Validation', () => {
-    it('should show email validation error for invalid email', async () => {
-      renderWithAuth()
+  it('shows a full-page spinner while auth is initializing', () => {
+    renderLogin({ authOverrides: { isInitializing: true } })
 
-      const emailInput = screen.getByLabelText(/email/i)
-      const submitButton = screen.getByRole('button', { name: /entrar/i })
+    expect(screen.getByTestId('loading-spinner')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /entrar na sua conta/i })).not.toBeInTheDocument()
+  })
 
-      await user.type(emailInput, 'invalid-email')
-      await user.click(submitButton)
-
-      await waitFor(() => {
-        expect(screen.getByText('Email inválido')).toBeInTheDocument()
-      })
+  it('redirects authenticated users to their intended destination', () => {
+    renderLogin({
+      authOverrides: { isAuthenticated: true },
+      initialEntries: [{ pathname: ROUTES.LOGIN, state: { from: { pathname: ROUTES.DASHBOARD } } }],
     })
 
-    it('should show password validation error for short password', async () => {
-      renderWithAuth()
+    expect(screen.getByText('Dashboard Route')).toBeInTheDocument()
+  })
 
-      const passwordInput = screen.getByLabelText(/senha/i)
-      const submitButton = screen.getByRole('button', { name: /entrar/i })
+  it('updates the email and password fields while typing', async () => {
+    const user = userEvent.setup()
+    renderLogin()
 
-      await user.type(passwordInput, '123')
-      await user.click(submitButton)
+    const emailInput = screen.getByLabelText(/^email$/i)
+    const passwordInput = screen.getByLabelText(/^senha$/i)
 
-      await waitFor(() => {
-        expect(screen.getByText('Senha deve ter pelo menos 6 caracteres')).toBeInTheDocument()
-      })
+    await user.type(emailInput, 'test@example.com')
+    await user.type(passwordInput, 'StrongPass123')
+
+    expect(emailInput).toHaveValue('test@example.com')
+    expect(passwordInput).toHaveValue('StrongPass123')
+  })
+
+  it('toggles password visibility', async () => {
+    const user = userEvent.setup()
+    renderLogin()
+
+    const passwordInput = screen.getByLabelText(/^senha$/i)
+    const toggleButton = screen.getByRole('button', { name: /mostrar senha/i })
+
+    expect(passwordInput).toHaveAttribute('type', 'password')
+
+    await user.click(toggleButton)
+    expect(passwordInput).toHaveAttribute('type', 'text')
+
+    await user.click(screen.getByRole('button', { name: /ocultar senha/i }))
+    expect(passwordInput).toHaveAttribute('type', 'password')
+  })
+
+  it('validates email format before submitting', async () => {
+    const user = userEvent.setup()
+    renderLogin()
+
+    await user.type(screen.getByLabelText(/^email$/i), 'invalid-email')
+    await user.type(screen.getByLabelText(/^senha$/i), 'StrongPass123')
+    await user.click(screen.getByRole('button', { name: /^entrar$/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Email inválido')).toBeInTheDocument()
     })
+    expect(mockLogin).not.toHaveBeenCalled()
+  })
 
-    it('should not submit form with validation errors', async () => {
-      renderWithAuth()
+  it('validates password length before submitting', async () => {
+    const user = userEvent.setup()
+    renderLogin()
 
-      const submitButton = screen.getByRole('button', { name: /entrar/i })
+    await user.type(screen.getByLabelText(/^email$/i), 'test@example.com')
+    await user.type(screen.getByLabelText(/^senha$/i), '123')
+    await user.click(screen.getByRole('button', { name: /^entrar$/i }))
 
-      await user.click(submitButton)
-
-      await waitFor(() => {
-        expect(mockLogin).not.toHaveBeenCalled()
-      })
+    await waitFor(() => {
+      expect(screen.getByText('Senha deve ter pelo menos 6 caracteres')).toBeInTheDocument()
     })
+    expect(mockLogin).not.toHaveBeenCalled()
+  })
 
-    it('should submit form with valid data', async () => {
-      renderWithAuth()
+  it('submits canonical email, password, and remember-me state', async () => {
+    const user = userEvent.setup()
+    renderLogin()
 
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/senha/i)
-      const rememberMeCheckbox = screen.getByRole('checkbox', { name: /manter-me conectado/i })
-      const submitButton = screen.getByRole('button', { name: /entrar/i })
+    await user.type(screen.getByLabelText(/^email$/i), 'test@example.com')
+    await user.type(screen.getByLabelText(/^senha$/i), 'StrongPass123')
+    await user.click(screen.getByRole('checkbox', { name: /manter-me conectado/i }))
+    await user.click(screen.getByRole('button', { name: /^entrar$/i }))
 
-      await user.type(emailInput, 'test@example.com')
-      await user.type(passwordInput, 'password123')
-      await user.click(rememberMeCheckbox)
-      await user.click(submitButton)
-
-      await waitFor(() => {
-        expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'password123', true)
-      })
+    await waitFor(() => {
+      expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'StrongPass123', true)
     })
   })
 
-  describe('Error Handling', () => {
-    it('should display authentication error', () => {
-      const useAuthSubmitMock = vi.mocked(require('@/hooks/use-auth-submit').useAuthSubmit)
-      useAuthSubmitMock.mockReturnValue({
-        isSubmitting: false,
-        error: 'Invalid credentials',
-        handleSubmit: vi.fn((fn) => fn)
-      })
+  it('navigates to the routed reset-request page instead of showing a support placeholder', async () => {
+    const user = userEvent.setup()
+    renderLogin()
 
-      renderWithAuth()
+    await user.click(screen.getByRole('button', { name: /solicitar redefinição de senha/i }))
 
-      expect(screen.getByText('Invalid credentials')).toBeInTheDocument()
-      expect(screen.getByRole('alert')).toBeInTheDocument()
-    })
+    expect(screen.getByText('Reset Request Route')).toBeInTheDocument()
+    expect(screen.queryByText(/suporte@neoplasiaslitoral\.com/i)).not.toBeInTheDocument()
+  })
 
-    it('should focus on error alert when error appears', async () => {
-      const useAuthSubmitMock = vi.mocked(require('@/hooks/use-auth-submit').useAuthSubmit)
+  it('surfaces auth errors in an alert and focuses the alert for assistive tech', async () => {
+    const { rerender } = renderLogin()
 
-      // First render without error
-      const { rerender } = renderWithAuth()
+    mockAuthSubmitState.error = 'Invalid credentials'
 
-      // Then rerender with error
-      useAuthSubmitMock.mockReturnValue({
-        isSubmitting: false,
-        error: 'Login failed',
-        handleSubmit: vi.fn((fn) => fn)
-      })
+    rerender(
+      <MemoryRouter initialEntries={[ROUTES.LOGIN]}>
+        <AuthContext.Provider value={createAuthValue() as never}>
+          <Routes>
+            <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+          </Routes>
+        </AuthContext.Provider>
+      </MemoryRouter>
+    )
 
-      rerender(
-        <BrowserRouter>
-          <AuthContext.Provider value={createMockAuthContext()}>
-            <LoginPage />
-          </AuthContext.Provider>
-        </BrowserRouter>
-      )
-
-      await waitFor(() => {
-        const errorAlert = screen.getByRole('alert')
-        expect(errorAlert).toHaveFocus()
-      })
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Invalid credentials')
+      expect(screen.getByRole('alert')).toHaveFocus()
     })
   })
 
-  describe('Loading States', () => {
-    it('should show submitting state during login', () => {
-      const useAuthSubmitMock = vi.mocked(require('@/hooks/use-auth-submit').useAuthSubmit)
-      useAuthSubmitMock.mockReturnValue({
-        isSubmitting: true,
-        error: null,
-        handleSubmit: vi.fn((fn) => fn)
-      })
+  it('announces loading state while login submission is in progress', () => {
+    mockAuthSubmitState.isSubmitting = true
 
-      renderWithAuth()
+    renderLogin()
 
-      const submitButton = screen.getByRole('button', { name: /entrando.../i })
-      expect(submitButton).toBeDisabled()
-      expect(screen.getByText('Entrando...')).toBeInTheDocument()
-    })
-
-    it('should disable form inputs during submission', () => {
-      const useAuthSubmitMock = vi.mocked(require('@/hooks/use-auth-submit').useAuthSubmit)
-      useAuthSubmitMock.mockReturnValue({
-        isSubmitting: true,
-        error: null,
-        handleSubmit: vi.fn((fn) => fn)
-      })
-
-      renderWithAuth()
-
-      const submitButton = screen.getByRole('button', { name: /entrando.../i })
-      expect(submitButton).toBeDisabled()
-    })
+    expect(screen.getByText('Enviando dados de login...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /entrando.../i })).toBeDisabled()
   })
 
-  describe('Accessibility', () => {
-    it('should have proper ARIA labels and roles', () => {
-      renderWithAuth()
+  it('exposes accessible form wiring for validation and autocomplete', async () => {
+    const user = userEvent.setup()
+    renderLogin()
 
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/senha/i)
-      const submitButton = screen.getByRole('button', { name: /entrar/i })
+    const emailInput = screen.getByLabelText(/^email$/i)
+    const passwordInput = screen.getByLabelText(/^senha$/i)
 
-      expect(emailInput).toHaveAttribute('aria-invalid', 'false')
-      expect(passwordInput).toHaveAttribute('aria-invalid', 'false')
-      expect(submitButton).toHaveAttribute('type', 'submit')
-    })
+    expect(emailInput).toHaveAttribute('autoComplete', 'email')
+    expect(passwordInput).toHaveAttribute('autoComplete', 'current-password')
+    expect(emailInput).toHaveAttribute('aria-invalid', 'false')
+    expect(passwordInput).toHaveAttribute('aria-invalid', 'false')
 
-    it('should set aria-invalid to true for fields with errors', async () => {
-      renderWithAuth()
+    await user.type(emailInput, 'invalid-email')
+    await user.click(screen.getByRole('button', { name: /^entrar$/i }))
 
-      const emailInput = screen.getByLabelText(/email/i)
-      const submitButton = screen.getByRole('button', { name: /entrar/i })
-
-      await user.type(emailInput, 'invalid-email')
-      await user.click(submitButton)
-
-      await waitFor(() => {
-        expect(emailInput).toHaveAttribute('aria-invalid', 'true')
-      })
-    })
-
-    it('should have proper aria-describedby for form fields', () => {
-      renderWithAuth()
-
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/senha/i)
-
-      expect(emailInput).toHaveAttribute('id', 'email')
-      expect(passwordInput).toHaveAttribute('id', 'password')
-    })
-
-    it('should announce form submission status to screen readers', () => {
-      const useAuthSubmitMock = vi.mocked(require('@/hooks/use-auth-submit').useAuthSubmit)
-      useAuthSubmitMock.mockReturnValue({
-        isSubmitting: true,
-        error: null,
-        handleSubmit: vi.fn((fn) => fn)
-      })
-
-      renderWithAuth()
-
-      const liveRegion = screen.getByText('Enviando dados de login...')
-      expect(liveRegion).toBeInTheDocument()
-    })
-
-    it('should announce errors to screen readers', () => {
-      const useAuthSubmitMock = vi.mocked(require('@/hooks/use-auth-submit').useAuthSubmit)
-      useAuthSubmitMock.mockReturnValue({
-        isSubmitting: false,
-        error: 'Login failed',
-        handleSubmit: vi.fn((fn) => fn)
-      })
-
-      renderWithAuth()
-
-      const errorAnnouncement = screen.getByText('Erro no login: Login failed')
-      expect(errorAnnouncement).toBeInTheDocument()
-    })
-  })
-
-  describe('Keyboard Navigation', () => {
-    it('should allow keyboard navigation through form elements', async () => {
-      renderWithAuth()
-
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/senha/i)
-      const rememberMeCheckbox = screen.getByRole('checkbox', { name: /manter-me conectado/i })
-      const submitButton = screen.getByRole('button', { name: /entrar/i })
-
-      // Start with email input focused
-      emailInput.focus()
-      expect(emailInput).toHaveFocus()
-
-      // Tab to password input
-      await user.tab()
-      expect(passwordInput).toHaveFocus()
-
-      // Tab to show/hide password button
-      await user.tab()
-      expect(screen.getByRole('button', { name: /mostrar senha/i })).toHaveFocus()
-
-      // Tab to remember me checkbox
-      await user.tab()
-      expect(rememberMeCheckbox).toHaveFocus()
-
-      // Tab to submit button
-      await user.tab()
-      expect(submitButton).toHaveFocus()
-    })
-
-    it('should submit form on Enter key in password field', async () => {
-      renderWithAuth()
-
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/senha/i)
-
-      await user.type(emailInput, 'test@example.com')
-      await user.type(passwordInput, 'password123')
-      await user.keyboard('{Enter}')
-
-      await waitFor(() => {
-        expect(mockLogin).toHaveBeenCalledWith('test@example.com', 'password123', false)
-      })
-    })
-  })
-
-  describe('Production vs Development Mode', () => {
-    it('should hide demo credentials in production', () => {
-      const isProductionMock = vi.mocked(require('@/lib/runtime-config').isProduction)
-      isProductionMock.mockReturnValue(true)
-
-      renderWithAuth()
-
-      expect(screen.queryByText('Credenciais Demo')).not.toBeInTheDocument()
-      expect(screen.queryByText('admin@neoplasiaslitoral.com')).not.toBeInTheDocument()
-    })
-
-    it('should show development environment indicator', () => {
-      renderWithAuth()
-
-      expect(screen.getByText('🔧 Ambiente de desenvolvimento')).toBeInTheDocument()
-    })
-
-    it('should hide development indicator in production', () => {
-      const isProductionMock = vi.mocked(require('@/lib/runtime-config').isProduction)
-      isProductionMock.mockReturnValue(true)
-
-      renderWithAuth()
-
-      expect(screen.queryByText('🔧 Ambiente de desenvolvimento')).not.toBeInTheDocument()
-    })
-  })
-
-  describe('Form Auto-completion', () => {
-    it('should have proper autocomplete attributes', () => {
-      renderWithAuth()
-
-      const emailInput = screen.getByLabelText(/email/i)
-      const passwordInput = screen.getByLabelText(/senha/i)
-
-      expect(emailInput).toHaveAttribute('autoComplete', 'email')
-      expect(passwordInput).toHaveAttribute('autoComplete', 'current-password')
-    })
-
-    it('should have email input focused by default', () => {
-      renderWithAuth()
-
-      const emailInput = screen.getByLabelText(/email/i)
-      expect(emailInput).toHaveAttribute('autoFocus')
-    })
-  })
-
-  describe('Visual States', () => {
-    it('should show correct placeholder text with demo credentials', () => {
-      renderWithAuth()
-
-      const emailInput = screen.getByLabelText(/email/i)
-      expect(emailInput).toHaveAttribute('placeholder', 'admin@neoplasiaslitoral.com')
-    })
-
-    it('should show correct placeholder text without demo credentials', () => {
-      const useConfigMock = vi.mocked(require('@/lib/config-initializer').useConfig)
-      useConfigMock.mockReturnValue({
-        config: {
-          VITE_ENVIRONMENT: 'production',
-          VITE_DEBUG_MODE: 'false',
-          VITE_SHOW_DEMO_CREDENTIALS: 'false'
-        }
-      })
-
-      renderWithAuth()
-
-      const emailInput = screen.getByLabelText(/email/i)
-      expect(emailInput).toHaveAttribute('placeholder', 'seu@email.com')
+    await waitFor(() => {
+      expect(emailInput).toHaveAttribute('aria-invalid', 'true')
+      expect(emailInput).toHaveAttribute('aria-describedby', 'email-error')
     })
   })
 })

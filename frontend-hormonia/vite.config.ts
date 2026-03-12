@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => ({
       "~backend": resolve(__dirname, "../backend-hormonia"),
       ...(mode === "test"
         ? {
+          // Legacy Firebase test aliases retained until S04 cleanup.
           "firebase/app": resolve(
             __dirname,
             "./node_modules/firebase/app/dist/esm/index.esm.js"
@@ -57,9 +58,7 @@ export default defineConfig(({ mode }) => ({
             return "router";
           }
 
-          // Firebase
-          if (id.includes("firebase")) return "firebase";
-
+          // Legacy compatibility libraries
           // Monitoring
           if (id.includes("@sentry/")) return "sentry";
 
@@ -169,8 +168,6 @@ export default defineConfig(({ mode }) => ({
       "react-dom",
       "react-router-dom",
       "@tanstack/react-query",
-      "firebase/app",
-      "firebase/auth",
       "clsx",
       "tailwind-merge",
       "lucide-react",

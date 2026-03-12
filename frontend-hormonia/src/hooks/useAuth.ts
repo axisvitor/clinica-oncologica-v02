@@ -1,5 +1,6 @@
 import { useContext } from 'react'
 import { AuthContext } from '@/app/providers/AuthContext'
+import { apiClient } from '@/lib/api-client'
 import { usePermissions } from './auth/usePermissions'
 import { useAuthRetry } from './auth/useAuthRetry'
 
@@ -16,20 +17,15 @@ interface UseAuthOptions {
 
 /**
  * Main authentication hook that provides a unified interface
- * combining Firebase auth (via AuthContext) and permissions
- *
- * This hook uses Firebase exclusively for authentication.
- * Session management is handled internally by Firebase and AuthContext.
+ * for the session-first browser auth flow plus permissions helpers.
  */
 export function useAuth(options: UseAuthOptions = {}) {
-  // Get Firebase auth from AuthContext
   const auth = useContext(AuthContext)
 
   if (!auth) {
     throw new Error('useAuth must be used within an AuthProvider')
   }
 
-  // Initialize auth retry with config
   const {
     executeWithRetry: _executeWithRetry,
     isRetrying,
@@ -37,49 +33,47 @@ export function useAuth(options: UseAuthOptions = {}) {
     resetRetryState,
   } = useAuthRetry(options.retryConfig ? { config: options.retryConfig } : {})
 
-  // Initialize permissions based on current user
   const permissions = usePermissions({ user: auth.user })
+  const sessionToken = auth.session?.session_id || auth.session?.access_token || null
+  const websocketToken = auth.session?.websocketToken || sessionToken
 
   return {
-    // User and auth state from AuthContext
     user: auth.user,
-    token: auth.session?.access_token || auth.session?.session_id || null,
-    websocketToken: auth.session?.websocketToken || null,
-    refreshToken: auth.refreshToken, // Expose for WebSocket token refresh
+    token: sessionToken,
+    websocketToken,
+    refreshToken: auth.refreshToken,
     isAuthenticated: auth.isAuthenticated,
     isLoading: auth.isInitializing,
-    isInitializing: auth.isInitializing, // Alias for direct access
+    isInitializing: auth.isInitializing,
+    isAuthenticating: auth.isAuthenticating,
     error: null,
 
-    // Session state (derived from auth state)
-    sessionData: null, // Firebase session is managed internally
-    isSessionExpiring: false, // Firebase handles expiration automatically
+    sessionData: auth.session,
+    isSessionExpiring: false,
 
-    // Auth methods from AuthContext
-    login: async (email: string, password: string) => {
+    login: async (email: string, password: string, rememberMe = false) => {
       resetRetryState()
-      return await auth.login(email, password)
+      return await auth.login(email, password, rememberMe)
     },
     logout: auth.logout,
     refreshAuth: async () => {
-      // Firebase handles refresh automatically via AuthContext
+      await auth.refreshToken()
       return null
     },
     signUp: async (_email: string, _password: string) => {
       throw new Error('Sign up must be handled through the backend API')
     },
-    resetPassword: async (_email: string) => {
-      throw new Error('Password reset must be handled through Firebase directly')
+    resetPassword: async (email: string) => {
+      return await apiClient.auth.requestPasswordReset({ email })
     },
     updatePassword: async (_newPassword: string) => {
-      throw new Error('Password update must be handled through Firebase directly')
+      throw new Error('Password update requires the routed reset-confirm flow token contract')
     },
     restoreSession: async () => {
-      // Firebase/AuthContext handles session restoration automatically
+      await auth.refreshToken()
       return auth.isAuthenticated
     },
 
-    // Permission methods from usePermissions
     hasPermission: permissions.hasPermission,
     hasRole: permissions.hasRole,
     hasAnyRole: permissions.hasAnyRole,
@@ -90,11 +84,9 @@ export function useAuth(options: UseAuthOptions = {}) {
     canAccessResource: permissions.canAccessResource,
     getPermissionLevel: permissions.getPermissionLevel,
 
-    // Permission data
     permissionConfig: permissions.permissionConfig,
     permissionSummary: permissions.permissionSummary,
 
-    // Retry state
     isRetrying,
     retryCount,
     resetRetryState,

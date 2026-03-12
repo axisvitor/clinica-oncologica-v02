@@ -1,25 +1,13 @@
-/**
- * WebSocket Hook for Real-time Metrics - Fixed Version
- *
- * [P0 FIX] Uses correct Firebase token from AuthContext
- * - Integrates with AuthContext for automatic token refresh
- * - Uses VITE_WS_BASE_URL environment variable
- * - Implements heartbeat/ping-pong mechanism
- * - Handles reconnection with exponential backoff
- *
- * Usage:
- * ```tsx
- * const { isConnected, lastMessage, error } = useMetricsWebSocket({
- *   onMessage: (data) => console.log('Metrics:', data)
- * })
- * ```
- */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from '@/app/providers/AuthContext'
+import { apiClient } from '@/lib/api-client'
 import { createLogger } from '../lib/logger'
+import type { WebSocketAuthDiagnostics } from '@/types/websocket'
 import type { MetricsWebSocketData } from './types'
 
 const logger = createLogger('metrics:websocket')
+const SESSION_INVALID_ERROR = 'AUTH_WEBSOCKET_SESSION_INVALID'
+const SESSION_LOOKUP_FAILED_ERROR = 'AUTH_WEBSOCKET_SESSION_LOOKUP_FAILED'
 
 interface UseMetricsWebSocketOptions {
   onMessage?: (data: MetricsWebSocketData) => void
@@ -42,24 +30,67 @@ interface UseMetricsWebSocketReturn {
   disconnect: () => void
 }
 
-/**
- * Get WebSocket base URL from environment or fallback to current host
- */
 function getWebSocketBaseUrl(): string {
-  // Priority 1: VITE_WS_BASE_URL (e.g., wss://backend.railway.app)
   if (import.meta.env.VITE_WS_BASE_URL) {
     return import.meta.env.VITE_WS_BASE_URL
   }
 
-  // Priority 2: VITE_WS_URL (legacy, e.g., wss://backend.railway.app/ws)
   if (import.meta.env.VITE_WS_URL) {
     return import.meta.env.VITE_WS_URL.replace('/ws', '')
   }
 
-  // Fallback: construct from window.location
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = window.location.host
   return `${protocol}//${host}`
+}
+
+function normalizeSessionQueryFallback(value?: string | null): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function isLikelyJwt(value: string): boolean {
+  return value.split('.').length === 3
+}
+
+function buildMetricsWebSocketUrl(baseUrl: string, sessionId: string | null): string {
+  const url = new URL(`${baseUrl}/api/v2/metrics/live`)
+  if (sessionId && !isLikelyJwt(sessionId)) {
+    url.searchParams.set('session_id', sessionId)
+  }
+  return url.toString()
+}
+
+function extractAuthDiagnostics(data: unknown): WebSocketAuthDiagnostics | null {
+  if (!data || typeof data !== 'object') {
+    return null
+  }
+
+  const record = data as Record<string, unknown>
+  const errorCode = typeof record['error'] === 'string' ? record['error'] : null
+  if (!errorCode) {
+    return null
+  }
+
+  if (errorCode !== SESSION_INVALID_ERROR && errorCode !== SESSION_LOOKUP_FAILED_ERROR) {
+    return null
+  }
+
+  const details =
+    typeof record['details'] === 'object' && record['details'] !== null
+      ? (record['details'] as Record<string, unknown>)
+      : undefined
+
+  return {
+    error: errorCode,
+    message:
+      typeof record['message'] === 'string' ? record['message'] : 'WebSocket authentication failed',
+    details,
+  }
 }
 
 export function useMetricsWebSocket({
@@ -69,9 +100,9 @@ export function useMetricsWebSocket({
   onDisconnect,
   reconnectInterval = 5000,
   maxReconnectAttempts = 10,
-  heartbeatInterval = 30000, // 30 seconds
+  heartbeatInterval = 30000,
 }: UseMetricsWebSocketOptions = {}): UseMetricsWebSocketReturn {
-  const { user, session, getFirebaseToken } = useAuth()
+  const { user, session } = useAuth()
 
   const [isConnected, setIsConnected] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
@@ -83,10 +114,13 @@ export function useMetricsWebSocket({
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null)
   const heartbeatTimer = useRef<NodeJS.Timeout | null>(null)
   const isManualDisconnect = useRef(false)
+  const connectRef = useRef<() => void>(() => undefined)
 
-  /**
-   * Send heartbeat ping to keep connection alive
-   */
+  const sessionQueryId = useMemo(
+    () => normalizeSessionQueryFallback(session?.session_id || apiClient.getAuthToken()),
+    [session?.session_id]
+  )
+
   const sendHeartbeat = useCallback(() => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       try {
@@ -98,9 +132,6 @@ export function useMetricsWebSocket({
     }
   }, [])
 
-  /**
-   * Start heartbeat interval
-   */
   const startHeartbeat = useCallback(() => {
     if (heartbeatTimer.current) {
       clearInterval(heartbeatTimer.current)
@@ -108,11 +139,8 @@ export function useMetricsWebSocket({
 
     heartbeatTimer.current = setInterval(sendHeartbeat, heartbeatInterval)
     logger.debug('Heartbeat started', { interval: heartbeatInterval })
-  }, [sendHeartbeat, heartbeatInterval])
+  }, [heartbeatInterval, sendHeartbeat])
 
-  /**
-   * Stop heartbeat interval
-   */
   const stopHeartbeat = useCallback(() => {
     if (heartbeatTimer.current) {
       clearInterval(heartbeatTimer.current)
@@ -121,38 +149,40 @@ export function useMetricsWebSocket({
     }
   }, [])
 
-  /**
-   * Handle WebSocket open event
-   */
   const handleOpen = useCallback(() => {
     logger.info('Metrics WebSocket connected')
     setIsConnected(true)
     setIsConnecting(false)
     setError(null)
     setReconnectAttempts(0)
-
-    // Start heartbeat to keep connection alive
     startHeartbeat()
-
     onConnect?.()
   }, [onConnect, startHeartbeat])
 
-  /**
-   * Handle WebSocket message event
-   */
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       try {
-        const data = JSON.parse(event.data)
+        const data = JSON.parse(event.data) as MetricsWebSocketData | Record<string, unknown>
 
-        // Handle pong response from server
-        if (data.type === 'pong') {
+        if ((data as MetricsWebSocketData).type === 'pong') {
           logger.debug('Heartbeat pong received')
           return
         }
 
-        setLastMessage(data)
-        onMessage?.(data)
+        const authDiagnostics = extractAuthDiagnostics(data)
+        if (authDiagnostics) {
+          logger.warn('Metrics websocket auth diagnostics received', {
+            error: authDiagnostics.error,
+            connection_id: authDiagnostics.details?.connection_id,
+          })
+          setError(authDiagnostics.message)
+          if (authDiagnostics.error === SESSION_INVALID_ERROR) {
+            isManualDisconnect.current = true
+          }
+        }
+
+        setLastMessage(data as MetricsWebSocketData)
+        onMessage?.(data as MetricsWebSocketData)
       } catch (err) {
         logger.error('Error parsing WebSocket message', { error: err })
         setError('Erro ao processar dados recebidos')
@@ -161,9 +191,6 @@ export function useMetricsWebSocket({
     [onMessage]
   )
 
-  /**
-   * Handle WebSocket error event
-   */
   const handleError = useCallback(
     (event: Event) => {
       logger.error('Metrics WebSocket error', { event })
@@ -173,55 +200,47 @@ export function useMetricsWebSocket({
     [onError]
   )
 
-  /**
-   * Handle WebSocket close event
-   */
-  const handleClose = useCallback(() => {
-    logger.info('Metrics WebSocket disconnected', {
-      manual: isManualDisconnect.current,
-      attempts: reconnectAttempts,
-    })
+  const handleClose = useCallback(
+    (event: CloseEvent) => {
+      logger.info('Metrics WebSocket disconnected', {
+        manual: isManualDisconnect.current,
+        attempts: reconnectAttempts,
+        code: event.code,
+        reason: event.reason,
+      })
 
-    setIsConnected(false)
-    setIsConnecting(false)
-    stopHeartbeat()
+      setIsConnected(false)
+      setIsConnecting(false)
+      stopHeartbeat()
+      onDisconnect?.()
 
-    onDisconnect?.()
+      if (!isManualDisconnect.current && reconnectAttempts < maxReconnectAttempts) {
+        const delay = Math.min(reconnectInterval * Math.pow(2, reconnectAttempts), 60000)
+        logger.info('Scheduling reconnection', { delay, attempt: reconnectAttempts + 1 })
 
-    // Attempt reconnection if not manually disconnected
-    if (!isManualDisconnect.current && reconnectAttempts < maxReconnectAttempts) {
-      const delay = Math.min(reconnectInterval * Math.pow(2, reconnectAttempts), 60000)
-      logger.info('Scheduling reconnection', { delay, attempt: reconnectAttempts + 1 })
+        reconnectTimer.current = setTimeout(() => {
+          setReconnectAttempts((prev) => prev + 1)
+          connectRef.current()
+        }, delay)
+      } else if (reconnectAttempts >= maxReconnectAttempts) {
+        setError('Máximo de tentativas de reconexão atingido')
+        logger.error('Max reconnection attempts reached')
+      }
+    },
+    [maxReconnectAttempts, onDisconnect, reconnectAttempts, reconnectInterval, stopHeartbeat]
+  )
 
-      reconnectTimer.current = setTimeout(() => {
-        setReconnectAttempts((prev) => prev + 1)
-        // Note: connect() will be called separately, not included in deps to avoid circular dependency
-      }, delay)
-    } else if (reconnectAttempts >= maxReconnectAttempts) {
-      setError('Máximo de tentativas de reconexão atingido')
-      logger.error('Max reconnection attempts reached')
-    }
-  }, [reconnectAttempts, maxReconnectAttempts, reconnectInterval, onDisconnect, stopHeartbeat])
-
-  /**
-   * Connect to WebSocket server
-   */
-  const connect = useCallback(async () => {
-    // Don't connect if already connected or connecting
+  const connect = useCallback(() => {
     if (ws.current?.readyState === WebSocket.OPEN || isConnecting) {
       return
     }
 
-    // [P0 FIX] Use Firebase token from AuthContext (in-memory via Firebase SDK)
-    const firebaseToken = await getFirebaseToken()
-
-    if (!firebaseToken) {
-      logger.error('Cannot connect: No Firebase token available')
+    if (!user && !sessionQueryId) {
+      logger.error('Cannot connect: no authenticated session available')
       setError('Autenticação necessária')
       return
     }
 
-    // Cleanup existing connection
     if (ws.current) {
       ws.current.close()
       ws.current = null
@@ -232,15 +251,12 @@ export function useMetricsWebSocket({
       setError(null)
       isManualDisconnect.current = false
 
-      // Build WebSocket URL with Firebase token
       const baseUrl = getWebSocketBaseUrl()
-      const wsUrl = `${baseUrl}/api/v2/metrics/live?token=${firebaseToken}`
+      const wsUrl = buildMetricsWebSocketUrl(baseUrl, sessionQueryId)
 
       logger.info('Connecting to metrics WebSocket', { url: baseUrl })
 
-      // Create WebSocket connection
       const socket = new WebSocket(wsUrl)
-
       socket.addEventListener('open', handleOpen)
       socket.addEventListener('message', handleMessage)
       socket.addEventListener('error', handleError)
@@ -252,25 +268,23 @@ export function useMetricsWebSocket({
       setError('Falha ao conectar ao servidor')
       setIsConnecting(false)
     }
-  }, [isConnecting, getFirebaseToken, handleOpen, handleMessage, handleError, handleClose])
+  }, [handleClose, handleError, handleMessage, handleOpen, isConnecting, sessionQueryId, user])
 
-  /**
-   * Disconnect from WebSocket server
-   */
+  useEffect(() => {
+    connectRef.current = connect
+  }, [connect])
+
   const disconnect = useCallback(() => {
     logger.info('Manual disconnect requested')
     isManualDisconnect.current = true
 
-    // Clear reconnection timer
     if (reconnectTimer.current) {
       clearTimeout(reconnectTimer.current)
       reconnectTimer.current = null
     }
 
-    // Stop heartbeat
     stopHeartbeat()
 
-    // Close WebSocket connection
     if (ws.current) {
       ws.current.close()
       ws.current = null
@@ -281,9 +295,6 @@ export function useMetricsWebSocket({
     setReconnectAttempts(0)
   }, [stopHeartbeat])
 
-  /**
-   * Send data through WebSocket
-   */
   const send = useCallback((data: MetricsWebSocketData) => {
     if (ws.current?.readyState === WebSocket.OPEN) {
       try {
@@ -299,24 +310,19 @@ export function useMetricsWebSocket({
     }
   }, [])
 
-  /**
-   * Auto-connect when user is authenticated
-   */
   useEffect(() => {
-    if (user && session) {
-      logger.info('User authenticated, auto-connecting WebSocket')
+    if (user || sessionQueryId) {
+      logger.info('Authenticated session available, auto-connecting metrics WebSocket')
       connect()
     } else {
-      logger.info('User not authenticated, disconnecting WebSocket')
+      logger.info('No authenticated session available, disconnecting metrics WebSocket')
       disconnect()
     }
 
-    // Cleanup on unmount
     return () => {
       disconnect()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/disconnect are stable via useCallback; including them causes reconnection loops
-  }, [user, session])
+  }, [connect, disconnect, sessionQueryId, user])
 
   return {
     isConnected,

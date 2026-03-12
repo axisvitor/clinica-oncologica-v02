@@ -1,5 +1,5 @@
 /**
- * Medico auth hook built on top of AuthContext.
+ * Medico auth hook built on top of the session-first AuthContext.
  */
 import { useAuth } from './AuthContext'
 import { getErrorMessage } from '@/lib/utils/type-guards'
@@ -23,7 +23,7 @@ export interface MedicoAuthContextValue {
 }
 
 export function useMedicoAuth(): MedicoAuthContextValue {
-  const { user, isInitializing, login, logout } = useAuth()
+  const { user, isInitializing, isAuthenticating, login, logout } = useAuth()
 
   const isAuthenticated = !!user
   const error = null as string | null
@@ -54,7 +54,7 @@ export function useMedicoAuth(): MedicoAuthContextValue {
 
   return {
     isAuthenticated,
-    isLoading: isInitializing,
+    isLoading: isInitializing || isAuthenticating,
     error,
     medico,
     signIn,

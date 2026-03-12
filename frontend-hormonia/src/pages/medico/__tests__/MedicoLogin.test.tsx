@@ -1,147 +1,95 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import React from 'react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { BrowserRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import MedicoLogin from '../MedicoLogin'
+import { AuthContext } from '@/contexts/AuthContext'
+import { ROUTES } from '@/app/routes/routeConfig'
 
-const mockNavigate = vi.fn()
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  }
-})
+const mockLogin = vi.fn()
 
-const mockSignIn = vi.fn()
-const mockSignOut = vi.fn()
-const mockAuthState = {
-  isAuthenticated: false,
-  isLoading: false,
-  error: null as string | null,
-  medico: null,
-}
+vi.mock('@/lib/runtime-config', () => ({
+  isProduction: vi.fn().mockReturnValue(false),
+}))
 
-vi.mock('@/app/providers/MedicoAuthContext', () => ({
-  useMedicoAuth: () => ({
-    ...mockAuthState,
-    signIn: mockSignIn,
-    signOut: mockSignOut,
+vi.mock('@/lib/config-initializer', () => ({
+  useConfig: () => ({
+    config: {
+      VITE_ENVIRONMENT: 'development',
+      VITE_DEBUG_MODE: 'true',
+      VITE_SHOW_DEMO_CREDENTIALS: 'false',
+    },
   }),
 }))
+
+vi.mock('@/hooks/use-auth-submit', () => ({
+  useAuthSubmit: vi.fn().mockImplementation(({ onSubmit }) => ({
+    isSubmitting: false,
+    error: null,
+    handleSubmit: async (data: unknown) => onSubmit(data),
+  })),
+}))
+
+const createAuthValue = (overrides: Record<string, unknown> = {}) => ({
+  user: null,
+  session: null,
+  isAuthenticated: false,
+  isInitializing: false,
+  isAuthenticating: false,
+  login: mockLogin,
+  logout: vi.fn(),
+  logoutAll: vi.fn(),
+  hasPermission: vi.fn(),
+  hasRole: vi.fn(),
+  getFirebaseToken: vi.fn(),
+  refreshToken: vi.fn(),
+  ...overrides,
+})
+
+function renderMedicoLogin(authOverrides: Record<string, unknown> = {}) {
+  return render(
+    <MemoryRouter initialEntries={[ROUTES.MEDICO.LOGIN]}>
+      <AuthContext.Provider value={createAuthValue(authOverrides) as never}>
+        <Routes>
+          <Route path={ROUTES.MEDICO.LOGIN} element={<MedicoLogin />} />
+          <Route path={ROUTES.PHYSICIAN.DASHBOARD} element={<div>Physician Dashboard</div>} />
+        </Routes>
+      </AuthContext.Provider>
+    </MemoryRouter>
+  )
+}
 
 describe('MedicoLogin', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockAuthState.isAuthenticated = false
-    mockAuthState.isLoading = false
-    mockAuthState.error = null
-    mockAuthState.medico = null
-    mockSignIn.mockResolvedValue({ success: true })
   })
 
-  const renderLoginPage = () => {
-    return render(
-      <BrowserRouter>
-        <MedicoLogin />
-      </BrowserRouter>
-    )
-  }
+  it('renders the canonical email-first physician compatibility entrypoint', () => {
+    renderMedicoLogin()
 
-  it('calls signIn with CRM and password on submit', async () => {
-    renderLoginPage()
+    expect(screen.getByLabelText(/^email$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^senha$/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^crm$/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/acesso médico com email/i)).toBeInTheDocument()
+  })
 
-    fireEvent.change(screen.getByLabelText(/CRM/i), { target: { value: '12345' } })
-    fireEvent.change(screen.getByLabelText(/Senha/i), { target: { value: 'password123' } })
-    fireEvent.click(screen.getByRole('button', { name: /Entrar/i }))
+  it('submits email and password through the shared login surface', async () => {
+    const user = userEvent.setup()
+    renderMedicoLogin()
+
+    await user.type(screen.getByLabelText(/^email$/i), 'medico@example.com')
+    await user.type(screen.getByLabelText(/^senha$/i), 'StrongPass123')
+    await user.click(screen.getByRole('button', { name: /^entrar$/i }))
 
     await waitFor(() => {
-      expect(mockSignIn).toHaveBeenCalledWith('12345', 'password123', false)
-    })
-    expect(mockSignIn).toHaveBeenCalledTimes(1)
-  })
-
-  it('navigates to dashboard after successful login', async () => {
-    mockSignIn.mockResolvedValue({ success: true })
-
-    renderLoginPage()
-
-    fireEvent.change(screen.getByLabelText(/CRM/i), { target: { value: '12345' } })
-    fireEvent.change(screen.getByLabelText(/Senha/i), { target: { value: 'password123' } })
-    fireEvent.click(screen.getByRole('button', { name: /Entrar/i }))
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/medico/dashboard')
+      expect(mockLogin).toHaveBeenCalledWith('medico@example.com', 'StrongPass123', false)
     })
   })
 
-  it('shows signIn error and does not navigate when login fails', async () => {
-    mockSignIn.mockResolvedValue({
-      success: false,
-      error: 'CRM ou senha incorretos',
-    })
+  it('redirects authenticated physicians to the canonical physician dashboard', () => {
+    renderMedicoLogin({ isAuthenticated: true })
 
-    renderLoginPage()
-
-    fireEvent.change(screen.getByLabelText(/CRM/i), { target: { value: '99999' } })
-    fireEvent.change(screen.getByLabelText(/Senha/i), { target: { value: 'wrongpass' } })
-    fireEvent.click(screen.getByRole('button', { name: /Entrar/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText(/CRM ou senha incorretos/i)).toBeInTheDocument()
-    })
-    expect(mockNavigate).not.toHaveBeenCalled()
-  })
-
-  it('validates CRM format before calling signIn', async () => {
-    renderLoginPage()
-
-    fireEvent.change(screen.getByLabelText(/CRM/i), { target: { value: '123' } })
-    fireEvent.change(screen.getByLabelText(/Senha/i), { target: { value: 'password123' } })
-    fireEvent.click(screen.getByRole('button', { name: /Entrar/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText(/CRM deve conter 4-7 dígitos/i)).toBeInTheDocument()
-    })
-    expect(mockSignIn).not.toHaveBeenCalled()
-  })
-
-  it('validates password length before calling signIn', async () => {
-    renderLoginPage()
-
-    fireEvent.change(screen.getByLabelText(/CRM/i), { target: { value: '12345' } })
-    fireEvent.change(screen.getByLabelText(/Senha/i), { target: { value: '123' } })
-    fireEvent.click(screen.getByRole('button', { name: /Entrar/i }))
-
-    await waitFor(() => {
-      expect(screen.getByText(/Senha deve ter no mínimo 6 caracteres/i)).toBeInTheDocument()
-    })
-    expect(mockSignIn).not.toHaveBeenCalled()
-  })
-
-  it('shows loading state while auth is initializing', () => {
-    mockAuthState.isLoading = true
-
-    renderLoginPage()
-
-    const submitButton = screen.getByRole('button', { name: /Autenticando/i })
-    expect(submitButton).toBeDisabled()
-  })
-
-  it('redirects immediately when already authenticated', async () => {
-    mockAuthState.isAuthenticated = true
-
-    renderLoginPage()
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/medico/dashboard')
-    })
-  })
-
-  it('renders context error message when available', () => {
-    mockAuthState.error = 'Sessão expirada'
-
-    renderLoginPage()
-
-    expect(screen.getByText(/Sessão expirada/i)).toBeInTheDocument()
+    expect(screen.getByText('Physician Dashboard')).toBeInTheDocument()
   })
 })

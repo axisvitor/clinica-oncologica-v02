@@ -6,6 +6,7 @@
  */
 
 import React, { lazy, Suspense, ReactNode } from 'react'
+import { Navigate } from 'react-router-dom'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { Layout } from '@/components/layout/Layout'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -22,6 +23,17 @@ export interface RouteDefinition {
 
 // Lazy load pages for better performance
 const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })))
+const MedicoLogin = lazy(() => import('@/pages/medico/MedicoLogin'))
+const PasswordResetRequestPage = lazy(() =>
+  import('@/pages/auth/PasswordResetRequestPage').then((m) => ({
+    default: m.PasswordResetRequestPage,
+  }))
+)
+const PasswordResetConfirmPage = lazy(() =>
+  import('@/pages/auth/PasswordResetConfirmPage').then((m) => ({
+    default: m.PasswordResetConfirmPage,
+  }))
+)
 const DashboardPage = lazy(() =>
   import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage }))
 )
@@ -115,6 +127,42 @@ export const publicRoutes: RouteDefinition[] = [
   {
     path: ROUTES.LOGIN,
     element: withSuspense(LoginPage),
+  },
+  {
+    path: ROUTES.MEDICO.ROOT,
+    element: <Navigate to={ROUTES.MEDICO.LOGIN} replace />,
+  },
+  {
+    path: ROUTES.MEDICO.LOGIN,
+    element: withSuspense(MedicoLogin),
+  },
+  {
+    path: ROUTES.MEDICO.DASHBOARD,
+    element: <Navigate to={ROUTES.PHYSICIAN.DASHBOARD} replace />,
+  },
+  {
+    path: ROUTES.MEDICO.PATIENTS,
+    element: <Navigate to={ROUTES.PHYSICIAN.DASHBOARD} replace />,
+  },
+  {
+    path: ROUTES.MEDICO.RECORD,
+    element: <Navigate to={ROUTES.PHYSICIAN.DASHBOARD} replace />,
+  },
+  {
+    path: ROUTES.AUTH.PASSWORD_RESET_REQUEST,
+    element: withSuspense(PasswordResetRequestPage),
+  },
+  {
+    path: ROUTES.AUTH.PASSWORD_RESET_CONFIRM,
+    element: withSuspense(PasswordResetConfirmPage),
+  },
+  {
+    path: ROUTES.AUTH.LEGACY_RESET_PASSWORD,
+    element: withSuspense(PasswordResetConfirmPage),
+  },
+  {
+    path: ROUTES.AUTH.FIRST_ACCESS,
+    element: withSuspense(PasswordResetConfirmPage),
   },
   {
     path: ROUTES.UNAUTHORIZED,

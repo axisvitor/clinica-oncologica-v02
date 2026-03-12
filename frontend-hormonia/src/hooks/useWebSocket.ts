@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from './useAuth'
 import { useConfig } from '@/lib/config-initializer'
 import { createLogger } from '../lib/logger'
+import type { WebSocketAuthDiagnostics } from '@/types/websocket'
 import type { WebSocketMessage, SystemNotification, PatientUpdate } from './types'
 
 const logger = createLogger('useWebSocket')
+const SESSION_INVALID_ERROR = 'AUTH_WEBSOCKET_SESSION_INVALID'
+const SESSION_LOOKUP_FAILED_ERROR = 'AUTH_WEBSOCKET_SESSION_LOOKUP_FAILED'
 
 interface WebSocketHookOptions {
   url?: string
@@ -17,21 +20,126 @@ interface WebSocketHookOptions {
   autoConnect?: boolean
 }
 
+function normalizeSessionQueryFallback(value?: string | null): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function isLikelyJwt(value: string): boolean {
+  return value.split('.').length === 3
+}
+
+function buildWebSocketUrl(
+  requestedUrl: string,
+  configUrl: string,
+  sessionQueryId: string | null
+): string {
+  const baseUrl =
+    requestedUrl.startsWith('ws://') || requestedUrl.startsWith('wss://')
+      ? requestedUrl
+      : configUrl
+
+  const normalizedBaseUrl = baseUrl
+    .replace(/^wss:(?!\/\/)/, 'wss://')
+    .replace(/^ws:(?!\/\/)/, 'ws://')
+
+  const wsUrl = new URL(normalizedBaseUrl)
+  if (sessionQueryId && !isLikelyJwt(sessionQueryId)) {
+    wsUrl.searchParams.set('session_id', sessionQueryId)
+  }
+
+  return wsUrl.toString()
+}
+
+function normalizeIncomingMessage(raw: unknown): WebSocketMessage | null {
+  if (!raw || typeof raw !== 'object') {
+    return null
+  }
+
+  const record = raw as Record<string, unknown>
+  const timestamp =
+    typeof record['timestamp'] === 'string' ? record['timestamp'] : new Date().toISOString()
+  const data =
+    typeof record['data'] === 'object' && record['data'] !== null
+      ? (record['data'] as Record<string, unknown>)
+      : {}
+
+  if (typeof record['type'] === 'string') {
+    return {
+      type: record['type'],
+      data,
+      timestamp,
+    }
+  }
+
+  if (typeof record['event'] === 'string') {
+    return {
+      type: record['event'],
+      data,
+      timestamp,
+    }
+  }
+
+  return null
+}
+
+function extractAuthDiagnostics(message: WebSocketMessage | null): WebSocketAuthDiagnostics | null {
+  if (!message || message.type !== 'error') {
+    return null
+  }
+
+  const payload =
+    typeof message.data === 'object' && message.data !== null
+      ? (message.data as Record<string, unknown>)
+      : {}
+
+  const errorCode = typeof payload['error'] === 'string' ? payload['error'] : null
+  if (!errorCode) {
+    return null
+  }
+
+  if (errorCode !== SESSION_INVALID_ERROR && errorCode !== SESSION_LOOKUP_FAILED_ERROR) {
+    return null
+  }
+
+  const details =
+    typeof payload['details'] === 'object' && payload['details'] !== null
+      ? (payload['details'] as Record<string, unknown>)
+      : undefined
+  const connectionId =
+    details && typeof details.connection_id === 'string' ? details.connection_id : undefined
+
+  return {
+    error: errorCode,
+    message:
+      typeof payload['message'] === 'string'
+        ? payload['message']
+        : 'WebSocket authentication failed',
+    details: {
+      ...details,
+      ...(connectionId ? { connection_id: connectionId } : {}),
+    },
+  }
+}
+
 export function useWebSocket(options: WebSocketHookOptions = {}) {
   const { config } = useConfig()
   const {
-    // Use VITE_WS_BASE_URL (standardized) with fallback to VITE_WS_URL
-    // Default port changed to 8000 (backend port) instead of 8080
-    url = config?.VITE_WS_BASE_URL || config?.VITE_WS_URL || 'ws://localhost:8000/ws',
+    url = config?.VITE_WS_BASE_URL || config?.VITE_WS_URL || 'ws://localhost:8000/ws/connect',
     reconnectAttempts = 5,
     reconnectInterval = 3000,
     onMessage,
     onError,
     onOpen,
     onClose,
+    autoConnect = true,
   } = options
 
-  const { user, token, websocketToken, refreshToken } = useAuth()
+  const { user, token, sessionData } = useAuth()
   const [isConnected, setIsConnected] = useState(false)
   const [connectionState, setConnectionState] = useState<
     'connecting' | 'connected' | 'disconnected' | 'error'
@@ -43,27 +151,15 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
   const reconnectCountRef = useRef(0)
   const shouldReconnectRef = useRef(true)
 
+  const connectionBaseUrl =
+    config?.VITE_WS_BASE_URL || config?.VITE_WS_URL || 'ws://localhost:8000/ws/connect'
+
+  const sessionQueryId = useMemo(
+    () => normalizeSessionQueryFallback(sessionData?.session_id || token),
+    [sessionData?.session_id, token]
+  )
+
   const connect = useCallback(async () => {
-    // Force refresh Firebase token before connecting to prevent expired token errors
-    if (refreshToken) {
-      try {
-        await refreshToken()
-        logger.debug('Firebase token refreshed before WebSocket connection')
-      } catch (error) {
-        logger.warn('Failed to refresh token before WebSocket connection:', error)
-        // Continue anyway - token might still be valid
-      }
-    }
-
-    // Use the token from user or direct token (after refresh)
-    const authToken = websocketToken || user?.token || token
-    if (!authToken) {
-      logger.warn('Cannot connect WebSocket: no authentication token available')
-      return
-    }
-
-    // CRITICAL FIX: Prevent duplicate connections
-    // Check if WebSocket is already connecting or open
     if (
       wsRef.current?.readyState === WebSocket.CONNECTING ||
       wsRef.current?.readyState === WebSocket.OPEN
@@ -72,28 +168,15 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       return
     }
 
+    if (!user && !sessionQueryId) {
+      logger.warn('Cannot connect WebSocket: no authenticated session available')
+      return
+    }
+
     try {
       setConnectionState('connecting')
-
-      // Build WebSocket URL - handle both absolute URLs and relative paths
-      let finalUrl: string
-      if (url.startsWith('ws://') || url.startsWith('wss://')) {
-        // Absolute WebSocket URL
-        finalUrl = url
-      } else {
-        // Relative path - backend only exposes /ws/connect, ignore path from component
-        // All WebSocket connections go to the same endpoint, use rooms for routing
-        finalUrl =
-          config?.VITE_WS_BASE_URL || config?.VITE_WS_URL || 'ws://localhost:8000/ws/connect'
-      }
-
-      // Normalize URL to ensure proper protocol format (wss:// not wss:)
-      finalUrl = finalUrl.replace(/^wss:(?!\/\/)/, 'wss://').replace(/^ws:(?!\/\/)/, 'ws://')
-
-      const wsUrl = new URL(finalUrl)
-      wsUrl.searchParams.set('token', authToken)
-
-      wsRef.current = new WebSocket(wsUrl.toString())
+      const finalUrl = buildWebSocketUrl(url, connectionBaseUrl, sessionQueryId)
+      wsRef.current = new WebSocket(finalUrl)
 
       wsRef.current.onopen = () => {
         logger.info('WebSocket connection established')
@@ -105,7 +188,23 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
 
       wsRef.current.onmessage = (event) => {
         try {
-          const message: WebSocketMessage = JSON.parse(event.data)
+          const rawMessage = JSON.parse(event.data) as unknown
+          const message = normalizeIncomingMessage(rawMessage)
+
+          if (!message) {
+            throw new Error('Unsupported WebSocket message payload')
+          }
+
+          const authDiagnostics = extractAuthDiagnostics(message)
+          if (authDiagnostics) {
+            logger.warn('Stable websocket auth diagnostics received', {
+              error: authDiagnostics.error,
+              connection_id: authDiagnostics.details?.connection_id,
+            })
+            shouldReconnectRef.current = authDiagnostics.error !== SESSION_INVALID_ERROR
+            setConnectionState('error')
+          }
+
           setLastMessage(message)
           onMessage?.(message)
         } catch (error) {
@@ -121,16 +220,13 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
         setConnectionState('disconnected')
         onClose?.()
 
-        // Only reconnect if:
-        // 1. shouldReconnect flag is true
-        // 2. Haven't exceeded max reconnect attempts
         if (shouldReconnectRef.current && reconnectCountRef.current < reconnectAttempts) {
           reconnectCountRef.current++
           logger.info(
             `Scheduling reconnection attempt ${reconnectCountRef.current}/${reconnectAttempts} in ${reconnectInterval}ms`
           )
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect()
+            void connect()
           }, reconnectInterval)
         } else if (reconnectCountRef.current >= reconnectAttempts) {
           logger.warn(`Max reconnection attempts (${reconnectAttempts}) reached, giving up`)
@@ -146,19 +242,17 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       logger.error('Failed to create WebSocket connection:', error)
       setConnectionState('error')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- config is stable and adding it causes infinite reconnection loops
   }, [
-    url,
-    user?.token,
-    token,
-    websocketToken,
-    refreshToken,
+    connectionBaseUrl,
+    onClose,
+    onError,
+    onMessage,
+    onOpen,
     reconnectAttempts,
     reconnectInterval,
-    onMessage,
-    onError,
-    onOpen,
-    onClose,
+    sessionQueryId,
+    url,
+    user,
   ])
 
   const disconnect = useCallback(() => {
@@ -171,7 +265,6 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
     }
 
     if (wsRef.current) {
-      // Close with code 1000 (normal closure) to indicate intentional disconnect
       wsRef.current.close(1000, 'Client disconnect')
       wsRef.current = null
     }
@@ -193,16 +286,20 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
     return false
   }, [])
 
-  // CRITICAL FIX: Removed connect/disconnect from dependencies to prevent unnecessary reconnections
-  // Only reconnect when authentication token actually changes
   useEffect(() => {
-    const authToken = websocketToken || user?.token || token
-    if (authToken) {
-      logger.debug('Authentication token available, connecting WebSocket')
-      shouldReconnectRef.current = true // Enable reconnections
-      connect()
+    if (!autoConnect) {
+      return () => {
+        shouldReconnectRef.current = false
+        disconnect()
+      }
+    }
+
+    if (user || sessionQueryId) {
+      logger.debug('Session auth available, connecting WebSocket')
+      shouldReconnectRef.current = true
+      void connect()
     } else {
-      logger.debug('No authentication token, disconnecting WebSocket')
+      logger.debug('No authenticated session, disconnecting WebSocket')
       disconnect()
     }
 
@@ -211,8 +308,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       shouldReconnectRef.current = false
       disconnect()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- connect/disconnect are stable via useCallback; including them causes infinite reconnection loops
-  }, [user?.token, token, websocketToken])
+  }, [autoConnect, connect, disconnect, sessionQueryId, user])
 
   return {
     isConnected,
@@ -224,21 +320,17 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
   }
 }
 
-/**
- * Hook for system notifications via WebSocket
- * @returns notifications array, connection status, and clear function
- */
 export function useSystemNotifications() {
   const [notifications, setNotifications] = useState<SystemNotification[]>([])
 
   const handleMessage = useCallback((message: WebSocketMessage<SystemNotification>) => {
     if (message.type === 'system_notification' && message.data) {
-      setNotifications((prev) => [message.data!, ...prev.slice(0, 49)]) // Keep last 50
+      setNotifications((prev) => [message.data!, ...prev.slice(0, 49)])
     }
   }, [])
 
   const { isConnected } = useWebSocket({
-    onMessage: handleMessage as (message: WebSocketMessage<unknown>) => void,
+    onMessage: handleMessage as (message: WebSocketMessage) => void,
   })
 
   return {
@@ -248,21 +340,17 @@ export function useSystemNotifications() {
   }
 }
 
-/**
- * Hook for patient update events via WebSocket
- * @returns updates array, connection status, and clear function
- */
 export function usePatientUpdates() {
   const [updates, setUpdates] = useState<PatientUpdate[]>([])
 
   const handleMessage = useCallback((message: WebSocketMessage<PatientUpdate>) => {
     if (message.type === 'patient_update' && message.data) {
-      setUpdates((prev) => [message.data!, ...prev.slice(0, 99)]) // Keep last 100
+      setUpdates((prev) => [message.data!, ...prev.slice(0, 99)])
     }
   }, [])
 
   const { isConnected } = useWebSocket({
-    onMessage: handleMessage as (message: WebSocketMessage<unknown>) => void,
+    onMessage: handleMessage as (message: WebSocketMessage) => void,
   })
 
   return {

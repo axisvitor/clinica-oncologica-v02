@@ -19,7 +19,8 @@ export interface RuntimeConfig {
   VITE_WS_BASE_URL?: string
   VITE_WHATSAPP_INSTANCE_NAME?: string
 
-  // Firebase Client Configuration
+  // Legacy Firebase compatibility knobs (optional until S04 cleanup)
+  // Staff auth now uses first-party backend sessions and does not require these values.
   VITE_FIREBASE_API_KEY?: string
   VITE_FIREBASE_AUTH_DOMAIN?: string
   VITE_FIREBASE_PROJECT_ID?: string
@@ -73,14 +74,15 @@ const CONFIG: RuntimeConfig = {
   VITE_WHATSAPP_INSTANCE_NAME:
     import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance',
 
-  // Firebase Client Configuration
-  VITE_FIREBASE_API_KEY: import.meta.env['VITE_FIREBASE_API_KEY'] || '',
-  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] || '',
-  VITE_FIREBASE_PROJECT_ID: import.meta.env['VITE_FIREBASE_PROJECT_ID'] || '',
-  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] || '',
-  VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] || '',
-  VITE_FIREBASE_APP_ID: import.meta.env['VITE_FIREBASE_APP_ID'] || '',
-  VITE_FIREBASE_MEASUREMENT_ID: import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'] || '',
+  // Legacy Firebase compatibility knobs (optional until S04 cleanup)
+  VITE_FIREBASE_API_KEY: import.meta.env['VITE_FIREBASE_API_KEY'] || undefined,
+  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] || undefined,
+  VITE_FIREBASE_PROJECT_ID: import.meta.env['VITE_FIREBASE_PROJECT_ID'] || undefined,
+  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] || undefined,
+  VITE_FIREBASE_MESSAGING_SENDER_ID:
+    import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] || undefined,
+  VITE_FIREBASE_APP_ID: import.meta.env['VITE_FIREBASE_APP_ID'] || undefined,
+  VITE_FIREBASE_MEASUREMENT_ID: import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'] || undefined,
 
   // AI Feature Flags (support legacy *_ENABLED and current ENABLE_* names)
   VITE_AI_CHAT_ENABLED:
@@ -117,12 +119,21 @@ const CONFIG: RuntimeConfig = {
   VITE_SHOW_DEMO_CREDENTIALS: import.meta.env['VITE_SHOW_DEMO_CREDENTIALS'] || 'false',
 }
 
-// Log config on load for debugging
+const legacyFirebaseConfigured = Boolean(
+  CONFIG.VITE_FIREBASE_API_KEY &&
+    CONFIG.VITE_FIREBASE_AUTH_DOMAIN &&
+    CONFIG.VITE_FIREBASE_PROJECT_ID
+)
+
+// Log config on load for debugging without exposing secrets
 if (import.meta.env['DEV']) {
   logger.log('Config loaded:', {
     API_URL: CONFIG.VITE_API_URL,
     API_BASE_URL: CONFIG.VITE_API_BASE_URL,
     WS_URL: CONFIG.VITE_WS_URL,
+    auth_mode: 'first-party-session',
+    websocket_ready: Boolean(CONFIG.VITE_WS_URL || CONFIG.VITE_WS_BASE_URL),
+    legacy_firebase_configured: legacyFirebaseConfigured,
   })
 }
 

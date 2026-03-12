@@ -19,10 +19,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { toast } from '@/hooks/use-toast'
 import { createLogger } from '@/lib/logger'
-import { loadConfig } from '@/config'
+import { loadConfig, getRuntimeConfigSync } from '@/config'
 import { apiClient } from '@/lib/api-client'
 
 const logger = createLogger('ServiceMonitor')
+const AUTH_MODE = 'first-party-session'
 
 interface ServiceDetails {
   configured?: boolean
@@ -59,20 +60,42 @@ interface ServiceMonitorProps {
   onError: (error: string) => void
 }
 
+function hasValidCsrfToken(payload: unknown): boolean {
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+
+  const csrfToken = (payload as { csrf_token?: unknown }).csrf_token
+  if (typeof csrfToken === 'string') {
+    return csrfToken.trim().length > 0
+  }
+
+  if (
+    Array.isArray(csrfToken) &&
+    csrfToken.length >= 2 &&
+    typeof csrfToken[1] === 'string' &&
+    csrfToken[1].trim().length > 0
+  ) {
+    return true
+  }
+
+  return false
+}
+
 export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
   const [services, setServices] = useState<Service[]>([
     {
-      id: 'firebase-auth',
-      name: 'Firebase Authentication',
-      description: 'Serviço de autenticação de usuários',
+      id: 'session-auth',
+      name: 'Sessão do Backend',
+      description: 'Prontidão do login e restore via cookies HTTP + CSRF próprio',
       category: 'auth',
       status: 'pending',
       required: true,
     },
     {
       id: 'websocket',
-      name: 'WebSocket Server',
-      description: 'Comunicação em tempo real',
+      name: 'WebSocket de Sessão',
+      description: 'Conectividade em tempo real alinhada ao contrato de sessão',
       category: 'websocket',
       status: 'pending',
       required: false,
@@ -124,7 +147,6 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
   }
 
   useEffect(() => {
-    // Auto-start service checks
     handleCheckServices()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- handleCheckServices is intentionally only called on mount
   }, [])
@@ -156,35 +178,64 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
     setIsChecking(true)
     setCurrentServiceIndex(0)
     setOverallProgress(0)
-    logger.log('Starting service checks')
+    logger.log('Starting service checks', { auth_mode: AUTH_MODE })
+
+    const observedStatuses = new Map<string, Service['status']>()
+    const markService = (
+      id: string,
+      status: Service['status'],
+      responseTime?: number,
+      error?: string,
+      details?: Record<string, unknown>
+    ) => {
+      observedStatuses.set(id, status)
+      updateServiceStatus(id, status, responseTime, error, details)
+    }
 
     try {
-      // Load configuration
       const config = await loadConfig()
+      const runtimeConfig = getRuntimeConfigSync()
+      const legacyFirebaseConfigured = Boolean(
+        runtimeConfig?.VITE_FIREBASE_API_KEY &&
+          runtimeConfig?.VITE_FIREBASE_AUTH_DOMAIN &&
+          runtimeConfig?.VITE_FIREBASE_PROJECT_ID
+      )
 
-      // Reset all services to pending
-      setServices((prev) => prev.map((service) => ({ ...service, status: 'pending' as const })))
+      if (config.API_BASE_URL) {
+        apiClient.setBaseURL(config.API_BASE_URL)
+      }
 
-      for (let i = 0; i < services.length; i++) {
-        const service = services[i]
+      setServices((prev) =>
+        prev.map((service) => ({
+          ...service,
+          status: 'pending' as const,
+          error: undefined,
+          details: undefined,
+          responseTime: undefined,
+        }))
+      )
+
+      const servicesToCheck = services.map((service) => ({ ...service }))
+      servicesToCheck.forEach((service) => observedStatuses.set(service.id, 'pending'))
+
+      for (let i = 0; i < servicesToCheck.length; i++) {
+        const service = servicesToCheck[i]
         if (!service) continue
 
         setCurrentServiceIndex(i)
-        updateServiceStatus(service.id, 'checking')
+        markService(service.id, 'checking')
 
         const startTime = Date.now()
 
         try {
-          await checkService(service, config)
+          const details = await checkService(service, config, legacyFirebaseConfigured)
           const responseTime = Date.now() - startTime
-          updateServiceStatus(service.id, 'healthy', responseTime)
+          markService(service.id, 'healthy', responseTime, undefined, details)
         } catch (error) {
           const responseTime = Date.now() - startTime
           const errorMessage = error instanceof Error ? error.message : 'Serviço indisponível'
-
-          // Determine status based on error type
           const normalizedError = errorMessage.toLowerCase()
-          const status =
+          const status: Service['status'] =
             normalizedError.includes('degraded') ||
             normalizedError.includes('não configur') ||
             normalizedError.includes('timeout') ||
@@ -192,28 +243,37 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
               ? 'degraded'
               : 'unhealthy'
 
-          updateServiceStatus(service.id, status, responseTime, errorMessage)
+          markService(service.id, status, responseTime, errorMessage)
           logger.error(`Service '${service.id}' check failed:`, error)
         }
 
-        // Update progress
-        const progress = Math.round(((i + 1) / services.length) * 100)
+        const progress = Math.round(((i + 1) / servicesToCheck.length) * 100)
         setOverallProgress(progress)
-
-        // Small delay for visual feedback
         await new Promise((resolve) => setTimeout(resolve, 300))
       }
 
-      // Check results - only fail if required services are unhealthy
-      const failedRequiredServices = services.filter((s) => s.required && s.status === 'unhealthy')
+      logger.log('Service auth diagnostics', {
+        auth_mode: AUTH_MODE,
+        session_auth_status: observedStatuses.get('session-auth') ?? 'pending',
+        websocket_status: observedStatuses.get('websocket') ?? 'pending',
+        legacy_firebase_configured: legacyFirebaseConfigured,
+      })
+
+      const failedRequiredServices = servicesToCheck.filter(
+        (service) => service.required && observedStatuses.get(service.id) === 'unhealthy'
+      )
 
       if (failedRequiredServices.length > 0) {
         onError(
-          `Serviços críticos falharam: ${failedRequiredServices.map((s) => s.name).join(', ')}`
+          `Serviços críticos falharam: ${failedRequiredServices.map((service) => service.name).join(', ')}`
         )
       } else {
-        const degradedServices = services.filter((s) => s.status === 'degraded').length
-        const unhealthyServices = services.filter((s) => s.status === 'unhealthy').length
+        const degradedServices = servicesToCheck.filter(
+          (service) => observedStatuses.get(service.id) === 'degraded'
+        ).length
+        const unhealthyServices = servicesToCheck.filter(
+          (service) => observedStatuses.get(service.id) === 'unhealthy'
+        ).length
 
         let message = 'Verificação de serviços concluída.'
         if (degradedServices > 0 || unhealthyServices > 0) {
@@ -235,55 +295,80 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
     }
   }
 
-  const checkService = async (service: Service, config: AppConfig): Promise<void> => {
+  const checkService = async (
+    service: Service,
+    config: AppConfig,
+    legacyFirebaseConfigured: boolean
+  ): Promise<Record<string, unknown> | undefined> => {
     switch (service.id) {
-      case 'firebase-auth':
-        await checkFirebaseAuth(config)
-        break
+      case 'session-auth':
+        return checkSessionAuth(config, legacyFirebaseConfigured)
       case 'websocket':
-        await checkWebSocket(config)
-        break
+        return checkWebSocket(config)
       case 'whatsapp':
-        await checkWhatsApp(config)
-        break
+        return checkWhatsApp(config)
       case 'sentry':
-        await checkSentry(config)
-        break
+        return checkSentry(config)
       case 'ai':
-        await checkAI(config)
-        break
+        return checkAI(config)
       default:
         throw new Error(`Unknown service: ${service.id}`)
     }
   }
 
-  const checkFirebaseAuth = async (config: AppConfig) => {
-    if (!config['FIREBASE_CONFIG']) {
-      throw new Error('Firebase não configurado')
+  const checkSessionAuth = async (
+    config: AppConfig,
+    legacyFirebaseConfigured: boolean
+  ): Promise<Record<string, unknown>> => {
+    if (!config.API_BASE_URL) {
+      throw new Error('API não configurada para autenticação por sessão')
     }
 
-    // Try to validate Firebase configuration
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 5000)
+
     try {
-      const { firebaseAuthLazy } = await import('@/lib/firebase-lazy')
-      if (!firebaseAuthLazy.isConfigured()) {
-        throw new Error('Configuração Firebase inválida')
-      }
-      updateServiceStatus('firebase-auth', 'checking', undefined, undefined, {
-        configured: true,
-        projectId: (config['FIREBASE_CONFIG'] as { projectId?: string }).projectId || 'N/A',
+      const response = await fetch(`${config.API_BASE_URL}/api/v2/auth/csrf-token`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          ...apiClient.getSessionHeaders(),
+        },
+        signal: controller.signal,
       })
-    } catch {
-      throw new Error('Falha na validação Firebase')
+
+      if (!response.ok) {
+        throw new Error(`Sessão HTTP retornou status ${response.status}`)
+      }
+
+      const data = await response.json()
+      if (!hasValidCsrfToken(data)) {
+        throw new Error('Sessão HTTP sem token CSRF válido')
+      }
+
+      return {
+        auth_mode: AUTH_MODE,
+        csrf_ready: true,
+        endpoint: `${config.API_BASE_URL}/api/v2/auth/csrf-token`,
+        legacy_firebase_configured: legacyFirebaseConfigured,
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('timeout na preparação da sessão HTTP')
+      }
+      throw error
+    } finally {
+      clearTimeout(timeoutId)
     }
   }
 
-  const checkWebSocket = async (config: AppConfig) => {
+  const checkWebSocket = async (config: AppConfig): Promise<Record<string, unknown>> => {
     if (!config.WS_BASE_URL) {
-      throw new Error('WebSocket não configurado')
+      throw new Error('degraded: WebSocket não configurado')
     }
 
-    // Try to create a test WebSocket connection
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<Record<string, unknown>>((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('Timeout na conexão WebSocket'))
       }, 5000)
@@ -295,11 +380,11 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         ws.onopen = () => {
           clearTimeout(timeout)
           ws.close()
-          updateServiceStatus('websocket', 'checking', undefined, undefined, {
+          resolve({
             url: wsUrl,
             protocol: ws.protocol || 'default',
+            auth_mode: AUTH_MODE,
           })
-          resolve()
         }
 
         ws.onerror = () => {
@@ -320,38 +405,36 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
     })
   }
 
-  const checkWhatsApp = async (config: AppConfig) => {
+  const checkWhatsApp = async (config: AppConfig): Promise<Record<string, unknown>> => {
     if (!config.WHATSAPP_INSTANCE_NAME) {
       throw new Error('WhatsApp não configurado')
     }
 
-    // Mock check - in real implementation, ping WhatsApp API
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
-    updateServiceStatus('whatsapp', 'checking', undefined, undefined, {
+    return {
       instance: config.WHATSAPP_INSTANCE_NAME,
       status: 'mock_healthy',
-    })
+    }
   }
 
-  const checkSentry = async (config: AppConfig) => {
+  const checkSentry = async (config: AppConfig): Promise<Record<string, unknown>> => {
     if (!config.SENTRY_DSN) {
       throw new Error('Sentry não configurado')
     }
 
-    // Validate Sentry DSN format
     const sentryDsnRegex = /^https:\/\/[a-f0-9]+@[a-z0-9]+\.ingest\.sentry\.io\/[0-9]+$/
     if (!sentryDsnRegex.test(config.SENTRY_DSN)) {
       throw new Error('DSN Sentry inválido')
     }
 
-    updateServiceStatus('sentry', 'checking', undefined, undefined, {
+    return {
       configured: true,
       environment: (config['ENVIRONMENT'] as string) || 'development',
-    })
+    }
   }
 
-  const checkAI = async (config: AppConfig) => {
+  const checkAI = async (config: AppConfig): Promise<Record<string, unknown>> => {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 5000)
 
@@ -388,11 +471,11 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         )
       }
 
-      updateServiceStatus('ai', 'checking', undefined, undefined, {
+      return {
         backendStatus,
         geminiStatus,
         geminiEnabled,
-      })
+      }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error('timeout na verificação de IA')
@@ -472,7 +555,6 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
 
   return (
     <div className="space-y-6">
-      {/* Progress Overview */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -482,7 +564,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
                 <span>Monitoramento de Serviços</span>
               </CardTitle>
               <CardDescription>
-                Verificando conectividade e saúde dos serviços externos
+                Verificando sessão própria, tempo real e integrações externas
               </CardDescription>
             </div>
             <div className="text-right">
@@ -501,7 +583,6 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         </CardHeader>
       </Card>
 
-      {/* Summary Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="text-center">
           <CardContent className="pt-4">
@@ -529,7 +610,6 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         </Card>
       </div>
 
-      {/* Services by Category */}
       {Object.entries(servicesByCategory).map(([category, categoryServices]) => (
         <Card key={category}>
           <CardHeader>
@@ -604,7 +684,6 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         </Card>
       ))}
 
-      {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-4">
         <Button onClick={handleCheckServices} disabled={isChecking} className="flex-1">
           {isChecking ? (
