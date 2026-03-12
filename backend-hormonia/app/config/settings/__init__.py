@@ -129,6 +129,9 @@ class Settings(
             "FIREBASE_ENABLE_BLOCK_PUBLIC_DOMAINS",
             # Rate Limiting
             "RATE_LIMIT_ENABLE_SERVICE",
+            # Notifications / auth recovery
+            "SMTP_USE_TLS",
+            "SMTP_REQUIRE_AUTH",
             # WhatsApp/Evolution
             "WHATSAPP_ENABLE_SERVICE",
             "WHATSAPP_WUZAPI_USE_MOCK",  # Phase 35: WuzAPI mock toggle

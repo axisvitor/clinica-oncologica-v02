@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from email.message import EmailMessage
 from enum import Enum
 from typing import Optional, Dict, Any, List
+from urllib.parse import quote
 
 import httpx
 from jinja2 import Template
@@ -36,7 +37,6 @@ from app.utils.timezone import now_sao_paulo
 async def get_whatsapp_service():
     """Factory for WhatsApp service (patchable in tests)."""
     from uuid import uuid4
-    from app.config import settings
     from app.integrations.whatsapp.services.message_service import MessageQueue
 
     class QueueWhatsAppService:
@@ -116,24 +116,32 @@ class NotificationService:
     def __init__(self):
         """Initialize notification service."""
         # Email configuration
-        self.smtp_host = getattr(settings, "SMTP_HOST", "smtp.gmail.com")
-        self.smtp_port = getattr(settings, "SMTP_PORT", 587)
-        self.smtp_username = getattr(settings, "SMTP_USERNAME", "")
-        self.smtp_password = getattr(settings, "SMTP_PASSWORD", "")
-        self.smtp_from = getattr(settings, "SMTP_FROM_EMAIL", "noreply@example.com")
-        self.smtp_use_tls = getattr(settings, "SMTP_USE_TLS", True)
+        self.smtp_host = settings.SMTP_HOST
+        self.smtp_port = settings.SMTP_PORT
+        self.smtp_username = settings.SMTP_USERNAME
+        self.smtp_password = settings.SMTP_PASSWORD
+        self.smtp_from = settings.SMTP_FROM_EMAIL
+        self.smtp_use_tls = settings.SMTP_USE_TLS
+        self.smtp_require_auth = settings.SMTP_REQUIRE_AUTH
+        self.smtp_timeout_seconds = settings.SMTP_TIMEOUT_SECONDS
 
         # Slack configuration
-        self.slack_webhook = getattr(settings, "SLACK_WEBHOOK_URL", "")
-        self.slack_channel = getattr(settings, "SLACK_DEFAULT_CHANNEL", "#alerts")
+        self.slack_webhook = settings.SLACK_WEBHOOK_URL
+        self.slack_channel = settings.SLACK_DEFAULT_CHANNEL
 
         # PagerDuty configuration
-        self.pagerduty_api_key = getattr(settings, "PAGERDUTY_API_KEY", "")
-        self.pagerduty_service_key = getattr(settings, "PAGERDUTY_SERVICE_KEY", "")
+        self.pagerduty_api_key = settings.PAGERDUTY_API_KEY
+        self.pagerduty_service_key = settings.PAGERDUTY_SERVICE_KEY
 
         # Retry configuration
-        self.max_retries = getattr(settings, "NOTIFICATION_RETRY_ATTEMPTS", 3)
-        self.retry_delay = getattr(settings, "NOTIFICATION_RETRY_DELAY", 5)
+        self.max_retries = settings.NOTIFICATION_RETRY_ATTEMPTS
+        self.retry_delay = settings.NOTIFICATION_RETRY_DELAY
+
+        # Auth recovery configuration
+        self.auth_reset_base_url = settings.AUTH_RESET_BASE_URL
+        self.auth_reset_path = settings.AUTH_RESET_PATH
+        self.auth_first_access_path = settings.AUTH_FIRST_ACCESS_PATH
+        self.auth_reset_token_expire_hours = settings.AUTH_RESET_TOKEN_EXPIRE_HOURS
 
         # HTTP client for webhooks/APIs
         self.http_client = httpx.AsyncClient(timeout=30.0)
@@ -142,11 +150,71 @@ class NotificationService:
             "Notification service initialized",
             extra={
                 "channels_enabled": {
-                    "email": bool(self.smtp_username),
+                    "email": bool(self.smtp_host and self.smtp_from),
                     "slack": bool(self.slack_webhook),
                     "pagerduty": bool(self.pagerduty_service_key),
-                }
+                },
+                "smtp_require_auth": self.smtp_require_auth,
             },
+        )
+
+    def is_email_delivery_configured(self) -> bool:
+        """Return whether the minimum SMTP configuration is present."""
+        if not self.smtp_host or not self.smtp_from:
+            return False
+        if self.smtp_require_auth and (
+            not self.smtp_username or not self.smtp_password
+        ):
+            return False
+        return True
+
+    async def send_password_reset_email(
+        self,
+        *,
+        email: str,
+        full_name: Optional[str],
+        reset_url: str,
+        expires_in_hours: int,
+        first_access: bool = False,
+    ) -> NotificationResult:
+        """Send a password-reset or first-access activation email."""
+        subject = (
+            "Ative seu acesso à plataforma"
+            if first_access
+            else "Recuperação de senha"
+        )
+        message = (
+            "Olá {{ full_name or email }},\n\n"
+            "{{ intro_line }}\n"
+            "Use o link abaixo para continuar:\n"
+            "{{ reset_url }}\n\n"
+            "Este link expira em {{ expires_in_hours }} hora(s).\n"
+            "Se você não solicitou esta ação, ignore este email."
+        )
+        template_data = {
+            "email": email,
+            "full_name": full_name,
+            "reset_url": reset_url,
+            "expires_in_hours": expires_in_hours,
+            "intro_line": (
+                "Defina sua senha inicial para concluir o primeiro acesso."
+                if first_access
+                else "Recebemos uma solicitação para redefinir sua senha."
+            ),
+            "first_access": first_access,
+        }
+        rendered_message = self._render_message(message, template_data)
+        message_id = await type(self)._send_email(
+            self,
+            subject,
+            rendered_message,
+            [email],
+            template_data,
+        )
+        return NotificationResult(
+            success=True,
+            channel=NotificationChannel.EMAIL,
+            message_id=message_id,
         )
 
     async def send_notification(
@@ -243,8 +311,12 @@ class NotificationService:
 
                 # Route to appropriate sender
                 if channel == NotificationChannel.EMAIL:
-                    message_id = await self._send_email(
-                        subject, rendered_message, recipients, None
+                    message_id = await type(self)._send_email(
+                        self,
+                        subject,
+                        rendered_message,
+                        recipients,
+                        None,
                     )
                 elif channel == NotificationChannel.SLACK:
                     message_id = await self._send_slack(
@@ -329,8 +401,8 @@ class NotificationService:
         if not recipients:
             raise ValueError("No email recipients provided")
 
-        if not self.smtp_username or not self.smtp_password:
-            logger.warning("SMTP credentials not configured; sending without auth")
+        if not self.is_email_delivery_configured():
+            raise RuntimeError("SMTP email delivery is not configured")
 
         class PlainTextEmail(EmailMessage):
             def __init__(self, body: str):
@@ -353,14 +425,26 @@ class NotificationService:
 
         # Send via SMTP
         try:
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+            with smtplib.SMTP(
+                self.smtp_host,
+                self.smtp_port,
+                timeout=self.smtp_timeout_seconds,
+            ) as server:
                 if self.smtp_use_tls:
                     server.starttls()
 
-                try:
-                    server.login(self.smtp_username or "", self.smtp_password or "")
-                except Exception as exc:
-                    logger.warning("SMTP login skipped/failed: %s", exc)
+                if self.smtp_username and self.smtp_password:
+                    try:
+                        server.login(self.smtp_username, self.smtp_password)
+                    except Exception as exc:
+                        logger.warning(
+                            "SMTP login failed",
+                            extra={"error_type": type(exc).__name__},
+                        )
+                        raise RuntimeError("SMTP authentication failed") from exc
+                elif self.smtp_require_auth:
+                    raise RuntimeError("SMTP authentication is required")
+
                 server.send_message(msg)
 
             message_id = (
@@ -377,7 +461,11 @@ class NotificationService:
             return message_id
 
         except Exception as e:
-            logger.error(f"SMTP send failed: {e}", exc_info=True)
+            logger.error(
+                "SMTP send failed",
+                extra={"error_type": type(e).__name__},
+                exc_info=True,
+            )
             raise
 
     async def _send_slack(

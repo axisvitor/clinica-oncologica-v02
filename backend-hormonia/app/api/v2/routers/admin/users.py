@@ -23,10 +23,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, R
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
 from app.core.database.async_engine import get_async_db
-from app.models.user import User, UserRole
+from app.database import get_db
+from app.models.user import AuthProvider, User, UserRole
+from app.services.password_reset_service import PasswordResetFailure, PasswordResetService
 from app.utils.security import get_password_hash
 from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import (
@@ -38,6 +41,7 @@ from app.schemas.v2.admin import (
     UserCreateRequest,
     UserUpdateRequest,
     UserResponse,
+    UserProvisioningResponse,
     UserListResponse,
     UserActionResponse,
 )
@@ -47,6 +51,7 @@ from .dependencies import get_admin_user
 from .utils import (
     _serialize_user,
     _log_admin_action,
+    _password_reset_failure_response,
     _validate_password_strength,
 )
 from app.api.v2.dependencies import (
@@ -365,16 +370,16 @@ async def get_user(
 
 @router.post(
     "/users",
-    response_model=UserResponse,
+    response_model=UserProvisioningResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create New User",
-    description="Create a new user account with password validation and role assignment.",
+    description="Create a new user account either with an immediate password or via first-access recovery email.",
 )
 @limiter.limit("10/hour")  # Strict rate limit for user creation
 async def create_user(
     request: Request,
     user_data: UserCreateRequest,
-    db: AsyncSession = Depends(get_async_db),
+    db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -382,66 +387,112 @@ async def create_user(
     Create a new user.
 
     Features:
-    - Password strength validation
+    - Legacy password-based provisioning compatibility
+    - First-access recovery email provisioning without plaintext passwords
     - Email uniqueness check
     - Role assignment
     - Audit logging
     """
     try:
+        normalized_email = user_data.email.lower()
+
         # Check if email already exists
-        existing_result = await db.execute(
-            select(User).where(User.email == user_data.email.lower())
-        )
-        existing_user = existing_result.scalar_one_or_none()
+        existing_user = db.query(User).filter(User.email == normalized_email).first()
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User with this email already exists",
             )
 
-        # Validate password strength
-        _validate_password_strength(user_data.password)
-
-        # Hash password
-        hashed_password = get_password_hash(user_data.password)
-
         # Convert role string to enum
         role_enum = UserRole(user_data.role.lower())
 
-        # Create user
+        is_first_access = bool(user_data.send_activation_email)
+        hashed_password = None
+        if not is_first_access:
+            _validate_password_strength(user_data.password)
+            hashed_password = get_password_hash(user_data.password)
+
         new_user = User(
-            email=user_data.email.lower(),
+            email=normalized_email,
             hashed_password=hashed_password,
             full_name=user_data.full_name,
             role=role_enum,
             is_active=user_data.is_active,
+            auth_provider=AuthProvider.LOCAL,
+            force_change_password=is_first_access,
+            failed_login_attempts=0,
+            is_locked=False,
+            locked_until=None,
+            last_password_change=None,
         )
         db.add(new_user)
-        await db.commit()
-        await db.refresh(new_user)
+        db.flush()
+
+        delivery_result = None
+        if is_first_access:
+            reset_service = PasswordResetService(db)
+            try:
+                delivery_result = await reset_service.request_password_reset_for_user(new_user)
+            except PasswordResetFailure as exc:
+                db.rollback()
+                await _log_admin_action(
+                    db,
+                    "create_user_first_access_failed",
+                    admin_user,
+                    context,
+                    additional_data={
+                        "created_email": normalized_email,
+                        "created_role": user_data.role,
+                        "error": exc.error_code,
+                    },
+                )
+                return _password_reset_failure_response(request, exc)
+
+        db.commit()
+        db.refresh(new_user)
 
         # Log action
         await _log_admin_action(
             db,
-            "create_user",
+            "create_user_first_access" if is_first_access else "create_user",
             admin_user,
             context,
             target_user_id=new_user.id,
             additional_data={
-                "created_email": user_data.email,
+                "created_email": normalized_email,
                 "created_role": user_data.role,
+                "provisioning_mode": "first_access_email" if is_first_access else "direct_password",
+                "delivery_status": getattr(delivery_result, "status", None),
             },
         )
 
-        logger.info(f"Admin {admin_user.email} created user {new_user.email}")
+        logger.info(
+            "Admin provisioned user",
+            extra={
+                "admin_email": admin_user.email,
+                "created_email": new_user.email,
+                "provisioning_mode": "first_access_email" if is_first_access else "direct_password",
+            },
+        )
 
-        return _serialize_user(new_user)
+        response_payload = _serialize_user(new_user)
+        if is_first_access and delivery_result is not None:
+            response_payload["first_access"] = {
+                "required": True,
+                "delivery": delivery_result.status,
+                "channel": delivery_result.channel,
+                "ready_for_login": False,
+                "message_id": delivery_result.message_id,
+            }
+
+        return response_payload
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error creating user: {e}")
-        await db.rollback()
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error creating user: {str(e)}",

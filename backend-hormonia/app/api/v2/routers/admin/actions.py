@@ -14,22 +14,31 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.core.database.async_engine import get_async_db
+from app.database import get_db
 from app.models.user import User, UserRole
+from app.services.password_reset_service import PasswordResetFailure, PasswordResetService
 from app.utils.security import get_password_hash
 from app.utils.rate_limiter import limiter
 from app.infrastructure.cache import invalidate_user_cache
 from app.utils.request_context import get_request_context, RequestContext
 from app.schemas.v2.admin import (
     UserActionResponse,
+    UserPasswordResetResponse,
     UserResetPasswordRequest,
 )
 
 from .dependencies import get_admin_user
-from .utils import _log_admin_action, _validate_password_strength
+from .utils import (
+    _log_admin_action,
+    _password_reset_failure_response,
+    _validate_password_strength,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -264,16 +273,16 @@ async def restore_user(
 
 @router.post(
     "/users/{user_id}/reset-password",
-    response_model=UserActionResponse,
+    response_model=UserPasswordResetResponse,
     summary="Reset User Password",
-    description="Reset a user's password with password strength validation.",
+    description="Reset a user's password through the shared email recovery contract or a legacy compatibility fallback.",
 )
 @limiter.limit("10/hour")  # Strict rate limit for password resets
 async def reset_password(
     request: Request,
     user_id: UUID,
     password_data: UserResetPasswordRequest,
-    db: AsyncSession = Depends(get_async_db),
+    db: Session = Depends(get_db),
     admin_user: User = Depends(get_admin_user),
     context: RequestContext = Depends(get_request_context),
 ):
@@ -281,61 +290,117 @@ async def reset_password(
     Reset user password.
 
     Features:
-    - Password strength validation
-    - Secure password hashing
+    - Canonical email-backed recovery using the shared password reset service
+    - Explicit legacy compatibility fallback for direct password assignment until S03
     - Cache invalidation
-    - Audit logging (without logging actual password)
-    - Optional force password change on next login
+    - Audit logging without leaking token or password material
     """
     try:
-        user = await _get_user_by_id(db, user_id)
+        user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
             )
 
-        # Validate password strength
+        if password_data.send_email:
+            reset_service = PasswordResetService(db)
+            try:
+                delivery_result = await reset_service.request_password_reset_for_user(user)
+            except PasswordResetFailure as exc:
+                db.rollback()
+                await _log_admin_action(
+                    db,
+                    "reset_password_recovery_failed",
+                    admin_user,
+                    context,
+                    target_user_id=user_id,
+                    additional_data={
+                        "user_email": user.email,
+                        "error": exc.error_code,
+                    },
+                )
+                return _password_reset_failure_response(request, exc)
+
+            await _log_admin_action(
+                db,
+                "reset_password_recovery",
+                admin_user,
+                context,
+                target_user_id=user_id,
+                additional_data={
+                    "user_email": user.email,
+                    "delivery_channel": delivery_result.channel,
+                    "delivery_status": delivery_result.status,
+                    "first_access": delivery_result.first_access,
+                },
+            )
+
+            logger.info(
+                "Admin triggered email-backed password recovery",
+                extra={
+                    "admin_email": admin_user.email,
+                    "target_user_id": str(user_id),
+                    "delivery_channel": delivery_result.channel,
+                    "first_access": delivery_result.first_access,
+                },
+            )
+
+            return JSONResponse(
+                status_code=status.HTTP_202_ACCEPTED,
+                content=UserPasswordResetResponse(
+                    success=True,
+                    message="Recovery email queued successfully",
+                    user_id=user_id,
+                    delivery={
+                        "channel": delivery_result.channel,
+                        "status": delivery_result.status,
+                        "message_id": delivery_result.message_id,
+                    },
+                ).model_dump(mode="json"),
+            )
+
+        # Explicit compatibility boundary for the pre-S03 admin SPA.
         _validate_password_strength(password_data.new_password)
+        user.hashed_password = get_password_hash(password_data.new_password)
+        user.force_change_password = bool(password_data.force_change)
+        db.add(user)
+        db.commit()
 
-        # Hash new password
-        hashed_password = get_password_hash(password_data.new_password)
-
-        # Update password
-        user.hashed_password = hashed_password
-
-        # Set force change password flag if requested
-        if password_data.force_change:
-            setattr(user, "force_change_password", True)
-
-        await db.commit()
-
-        # Invalidate cache
         invalidate_user_cache(str(user_id))
 
-        # Log action (don't log the actual password)
         await _log_admin_action(
             db,
-            "reset_password",
+            "reset_password_legacy_direct",
             admin_user,
             context,
             target_user_id=user_id,
             additional_data={
                 "user_email": user.email,
                 "force_change": password_data.force_change,
+                "compatibility_mode": "legacy_direct_password",
             },
         )
 
-        logger.info(f"Admin {admin_user.email} reset password for user {user.email}")
+        logger.info(
+            "Admin performed legacy direct password reset",
+            extra={
+                "admin_email": admin_user.email,
+                "target_user_id": str(user_id),
+                "compatibility_mode": "legacy_direct_password",
+            },
+        )
 
-        return UserActionResponse(
-            success=True, message="Password reset successfully", user_id=user_id
+        return UserPasswordResetResponse(
+            success=True,
+            message="Password reset successfully",
+            user_id=user_id,
         )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error resetting password for user {user_id}: {e}")
-        await db.rollback()
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error resetting password",

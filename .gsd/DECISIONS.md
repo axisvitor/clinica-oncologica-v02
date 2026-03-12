@@ -222,3 +222,8 @@
 - "M002/S01 makes Redis session payloads user-id-centric; `firebase_uid` becomes compatibility data rather than the canonical happy-path auth key."
 - "M002/S01 uses stable auth error codes plus request_id/debug-step diagnostics for login and session failures while redacting passwords, hashes, and raw session tokens."
 - "M002/S01 exposes canonical authenticated-user routes under /api/v2/users/* and keeps /api/v2/auth/* as a hidden legacy alias so downstream frontend cutover can move without breaking current callers immediately."
+- "M002/S02 keeps legacy /api/v2/auth/password/reset* routes removed and ships the recovery contract only on /api/v2/auth/password/reset-request and /api/v2/auth/password/reset-confirm."
+- "M002/S02 verification is anchored by three focused pytest suites: public password-recovery API contract, admin first-access API contract, and recovery/migration integration coverage."
+- "M002/S02 will reuse one shared password-reset service plus a single password-strength validator across public recovery and admin first-access flows, with session revocation keyed to canonical user_id."
+- "M002/S02/T02 standardizes public reset-confirm on `app.schemas.admin_validation.validate_password_strength` and revokes DB + Redis sessions by canonical `user_id` before committing the migrated local-auth state."
+- "M002/S02/T03 keeps direct admin-set passwords as an explicit legacy compatibility path for the pre-S03 admin SPA, while canonical admin provisioning and admin-triggered recovery now go through the shared email-backed `PasswordResetService` and return only redacted delivery metadata."

@@ -8,14 +8,18 @@ import logging
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.models.appointment import Appointment
+from app.schemas.admin_validation import validate_password_strength as _shared_validate_password_strength
 from app.utils.request_context import RequestContext
 from app.api.v2.dependencies import apply_field_selection
+from app.services.password_reset_service import PasswordResetFailure
+from app.utils.timezone import now_sao_paulo
 
 
 logger = logging.getLogger(__name__)
@@ -69,26 +73,55 @@ def _validate_password_strength(password: str) -> None:
     Raises:
         HTTPException: If password doesn't meet requirements
     """
-    if len(password) < 8:
+    try:
+        _shared_validate_password_strength(password)
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be at least 8 characters long",
-        )
-    if not any(c.isupper() for c in password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must contain at least one uppercase letter",
-        )
-    if not any(c.islower() for c in password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must contain at least one lowercase letter",
-        )
-    if not any(c.isdigit() for c in password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must contain at least one digit",
-        )
+            detail=str(exc),
+        ) from exc
+
+
+def _get_request_id(request: Request) -> Optional[str]:
+    """Best-effort request correlation ID used in admin auth diagnostics."""
+    request_id = getattr(request.state, "request_id", None)
+    if request_id:
+        return request_id
+
+    monitoring_state = getattr(request.state, "monitoring", None)
+    if isinstance(monitoring_state, dict):
+        monitoring_request_id = monitoring_state.get("request_id")
+        if monitoring_request_id:
+            return monitoring_request_id
+
+    return request.headers.get("X-Request-ID")
+
+
+
+def _admin_auth_error_content(request: Request, *, error: str, message: str) -> dict[str, Any]:
+    """Standardized admin auth failure payload with stable diagnostics."""
+    return {
+        "error": error,
+        "message": message,
+        "request_id": _get_request_id(request),
+        "timestamp": now_sao_paulo().isoformat(),
+    }
+
+
+
+def _password_reset_failure_response(
+    request: Request,
+    failure: PasswordResetFailure,
+) -> JSONResponse:
+    """Render password-reset failures using the shared diagnostic contract."""
+    return JSONResponse(
+        status_code=failure.status_code,
+        content=_admin_auth_error_content(
+            request,
+            error=failure.error_code,
+            message=failure.message,
+        ),
+    )
 
 
 async def _log_admin_action(

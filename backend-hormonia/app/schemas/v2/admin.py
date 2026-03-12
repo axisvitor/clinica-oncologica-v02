@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator, ConfigDict
 
 from .common import CursorPaginatedResponse
 from app.schemas.admin_validation import (
@@ -26,14 +26,20 @@ class UserCreateRequest(BaseModel):
     """Schema for creating a new user."""
 
     email: EmailStr = Field(..., description="User email address")
-    password: str = Field(
-        ..., min_length=8, description="User password (minimum 8 characters)"
+    password: Optional[str] = Field(
+        default=None,
+        min_length=8,
+        description="Legacy direct-login password (omit when provisioning first access by email)",
     )
     full_name: str = Field(
         ..., min_length=2, max_length=255, description="User's full name"
     )
     role: str = Field(..., description="User role: admin, doctor")
     is_active: bool = Field(default=True, description="Whether the user is active")
+    send_activation_email: bool = Field(
+        default=False,
+        description="Provision the account through the first-access recovery email flow instead of setting a password immediately",
+    )
 
     @field_validator("role")
     @classmethod
@@ -46,17 +52,40 @@ class UserCreateRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v):
+        if v is None:
+            return v
         return validate_password_strength(v)
+
+    @model_validator(mode="after")
+    def validate_provisioning_mode(self):
+        if self.send_activation_email and self.password:
+            raise ValueError(
+                "Provide either a password or send_activation_email=true, not both"
+            )
+        if not self.send_activation_email and not self.password:
+            raise ValueError(
+                "Password is required unless send_activation_email is true"
+            )
+        return self
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {
-                "email": "doctor@example.com",
-                "password": "SecureP@ss123",
-                "full_name": "Dr. Jane Smith",
-                "role": "doctor",
-                "is_active": True,
-            }
+            "examples": [
+                {
+                    "email": "doctor@example.com",
+                    "password": "SecureP@ss123",
+                    "full_name": "Dr. Jane Smith",
+                    "role": "doctor",
+                    "is_active": True,
+                },
+                {
+                    "email": "doctor@example.com",
+                    "full_name": "Dr. Jane Smith",
+                    "role": "doctor",
+                    "is_active": True,
+                    "send_activation_email": True,
+                },
+            ]
         }
     )
 
@@ -99,6 +128,47 @@ class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class RecoveryDeliveryMetadata(BaseModel):
+    """Redacted delivery state for password recovery and first-access flows."""
+
+    channel: str = Field(default="email", description="Delivery channel")
+    status: str = Field(..., description="Delivery status, e.g. sent or queued")
+    message_id: Optional[str] = Field(
+        None,
+        description="Opaque provider message identifier when available",
+    )
+
+
+class FirstAccessProvisioningState(BaseModel):
+    """Provisioning state surfaced when admin creates a first-access account."""
+
+    required: bool = Field(
+        ..., description="Whether the user must complete first-access recovery"
+    )
+    delivery: Optional[str] = Field(
+        None,
+        description="Activation email delivery state for first-access provisioning",
+    )
+    channel: Optional[str] = Field(None, description="Delivery channel")
+    ready_for_login: bool = Field(
+        default=False,
+        description="Whether the user can authenticate with local credentials immediately",
+    )
+    message_id: Optional[str] = Field(
+        None,
+        description="Opaque provider message identifier when available",
+    )
+
+
+class UserProvisioningResponse(UserResponse):
+    """User response extended with optional first-access provisioning metadata."""
+
+    first_access: Optional[FirstAccessProvisioningState] = Field(
+        None,
+        description="Provisioning metadata when the account was created through first-access recovery",
+    )
+
+
 class UserListResponse(BaseModel):
     """User list response with legacy and cursor pagination support."""
 
@@ -127,19 +197,50 @@ class UserActionResponse(BaseModel):
 
 
 class UserResetPasswordRequest(BaseModel):
-    """Schema for resetting user password."""
+    """Schema for resetting user password or triggering email-based recovery."""
 
-    new_password: str = Field(
-        ..., min_length=8, description="New password (minimum 8 characters)"
+    new_password: Optional[str] = Field(
+        default=None,
+        min_length=8,
+        description="Legacy compatibility password value for direct admin reset",
     )
     force_change: bool = Field(
         default=True, description="Force user to change password on next login"
+    )
+    send_email: Optional[bool] = Field(
+        default=None,
+        description="Trigger the shared email-backed recovery flow instead of direct password assignment",
     )
 
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, v):
+        if v is None:
+            return v
         return validate_password_strength(v)
+
+    @model_validator(mode="after")
+    def validate_reset_mode(self):
+        if self.send_email and self.new_password:
+            raise ValueError(
+                "Provide either new_password or send_email=true, not both"
+            )
+        if self.send_email is None:
+            self.send_email = self.new_password is None
+        if not self.send_email and not self.new_password:
+            raise ValueError(
+                "Either new_password or send_email=true is required"
+            )
+        return self
+
+
+class UserPasswordResetResponse(UserActionResponse):
+    """Admin password reset response extended with delivery metadata."""
+
+    delivery: Optional[RecoveryDeliveryMetadata] = Field(
+        None,
+        description="Redacted delivery metadata when reset is performed through email recovery",
+    )
 
 
 # ============================================================================

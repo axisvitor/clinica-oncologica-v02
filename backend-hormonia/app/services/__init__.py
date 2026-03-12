@@ -13,6 +13,7 @@ from typing import Dict, Tuple
 _SERVICE_EXPORTS: Dict[str, Tuple[str, str]] = {
     # Core services
     "AuthService": ("app.services.auth", "AuthService"),
+    "PasswordResetService": ("app.services.password_reset_service", "PasswordResetService"),
     "MessageService": ("app.domain.messaging.core", "MessageService"),
     "QuizTemplateService": ("app.services.quiz", "QuizTemplateService"),
     "QuizSessionService": ("app.services.quiz", "QuizSessionService"),

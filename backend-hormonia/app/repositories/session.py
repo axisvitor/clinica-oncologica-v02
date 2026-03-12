@@ -272,7 +272,11 @@ class SessionRepository(BaseRepository[Session]):
         return session
 
     def revoke_all_user_sessions(
-        self, user_id: UUID, reason: Optional[str] = None
+        self,
+        user_id: UUID,
+        reason: Optional[str] = None,
+        *,
+        commit: bool = True,
     ) -> int:
         """
         Revoke all sessions for a user.
@@ -280,6 +284,7 @@ class SessionRepository(BaseRepository[Session]):
         Args:
             user_id: User UUID
             reason: Optional revocation reason
+            commit: Persist immediately (default: True)
 
         Returns:
             Number of sessions revoked
@@ -296,7 +301,10 @@ class SessionRepository(BaseRepository[Session]):
             .update(update_data)
         )
 
-        self.db.commit()
+        if commit:
+            self.db.commit()
+        else:
+            self.db.flush()
         return count
 
     def update_activity(self, session_id: UUID) -> Optional[Session]:

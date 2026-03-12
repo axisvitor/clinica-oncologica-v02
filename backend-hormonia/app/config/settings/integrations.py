@@ -13,6 +13,82 @@ class IntegrationsSettings(BaseAppSettings):
     """Configuration for external API integrations and background tasks."""
 
     # ============================================================================
+    # Notification / auth recovery delivery
+    # ============================================================================
+    SMTP_HOST: str = Field(
+        default="localhost",
+        description="SMTP server host for email delivery",
+    )
+    SMTP_PORT: int = Field(
+        default=587,
+        description="SMTP server port for email delivery",
+    )
+    SMTP_USERNAME: Optional[str] = Field(
+        default=None,
+        description="Optional SMTP username for authenticated relays",
+    )
+    SMTP_PASSWORD: Optional[str] = Field(
+        default=None,
+        description="Optional SMTP password for authenticated relays",
+    )
+    SMTP_FROM_EMAIL: str = Field(
+        default="noreply@example.com",
+        description="From address used for outbound email notifications",
+    )
+    SMTP_USE_TLS: bool = Field(
+        default=True,
+        description="Enable STARTTLS for SMTP delivery",
+    )
+    SMTP_REQUIRE_AUTH: bool = Field(
+        default=False,
+        description="Require SMTP username/password before attempting email delivery",
+    )
+    SMTP_TIMEOUT_SECONDS: float = Field(
+        default=10.0,
+        description="SMTP connection timeout in seconds",
+    )
+    SLACK_WEBHOOK_URL: Optional[str] = Field(
+        default=None,
+        description="Slack incoming webhook URL for alerts",
+    )
+    SLACK_DEFAULT_CHANNEL: str = Field(
+        default="#alerts",
+        description="Default Slack channel for notifications",
+    )
+    PAGERDUTY_API_KEY: Optional[str] = Field(
+        default=None,
+        description="PagerDuty REST API key",
+    )
+    PAGERDUTY_SERVICE_KEY: Optional[str] = Field(
+        default=None,
+        description="PagerDuty Events API routing key",
+    )
+    NOTIFICATION_RETRY_ATTEMPTS: int = Field(
+        default=3,
+        description="Maximum retry attempts for notification delivery",
+    )
+    NOTIFICATION_RETRY_DELAY: int = Field(
+        default=5,
+        description="Base retry delay in seconds for notification delivery",
+    )
+    AUTH_RESET_BASE_URL: str = Field(
+        default="http://localhost:5173",
+        description="Frontend base URL used to build password reset links",
+    )
+    AUTH_RESET_PATH: str = Field(
+        default="/reset-password",
+        description="Frontend path used for regular password reset flows",
+    )
+    AUTH_FIRST_ACCESS_PATH: str = Field(
+        default="/primeiro-acesso",
+        description="Frontend path used for first-access activation flows",
+    )
+    AUTH_RESET_TOKEN_EXPIRE_HOURS: int = Field(
+        default=24,
+        description="Password reset token lifetime in hours",
+    )
+
+    # ============================================================================
     # WhatsApp provider - Direct ENV names
     # ============================================================================
     WHATSAPP_ENABLE_SERVICE: bool = Field(

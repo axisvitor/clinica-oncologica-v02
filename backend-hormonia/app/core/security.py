@@ -16,8 +16,8 @@ from app.config import settings
 from app.utils.security import verify_password as _verify_password_util
 from app.utils.timezone import now_sao_paulo
 
-# Default expiration for password reset tokens (24 hours)
-PASSWORD_RESET_TOKEN_EXPIRE_HOURS = 24
+# Default expiration for password reset tokens
+PASSWORD_RESET_TOKEN_EXPIRE_HOURS = getattr(settings, "AUTH_RESET_TOKEN_EXPIRE_HOURS", 24)
 PASSWORD_RESET_TOKEN_TYPE = "password_reset"
 PASSWORD_RESET_TOKEN_ISSUER = "backend-hormonia"
 PASSWORD_RESET_TOKEN_AUDIENCE = "password-reset"

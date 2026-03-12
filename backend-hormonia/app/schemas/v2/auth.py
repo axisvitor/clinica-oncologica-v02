@@ -620,10 +620,10 @@ class PasswordResetRequest(BaseModel):
 
 
 class PasswordResetConfirm(BaseModel):
-    """Confirm password reset with token"""
+    """Confirm password reset with token."""
 
     token: str = Field(..., description="Reset token from email")
-    new_password: str = Field(..., min_length=8, max_length=128)
+    new_password: str = Field(..., max_length=128)
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -633,3 +633,17 @@ class PasswordResetConfirm(BaseModel):
             }
         }
     )
+
+
+class PasswordResetRequestResponse(BaseModel):
+    """Generic non-enumerating response for password reset requests."""
+
+    success: bool = True
+    message: str = "If the account exists, a recovery email has been sent."
+
+
+class PasswordResetConfirmResponse(BaseModel):
+    """Success response for password reset confirmation."""
+
+    success: bool = True
+    message: str = "Password reset successful"

@@ -36,11 +36,16 @@ from app.schemas.v2.auth import (
     FirebaseTokenVerifyResponse,
     LocalLoginRequest,
     LocalLoginResponse,
+    PasswordResetConfirm,
+    PasswordResetConfirmResponse,
+    PasswordResetRequest,
+    PasswordResetRequestResponse,
     SessionV2Response,
 )
 from app.config import settings
 from app.repositories.user import UserRepository
 from app.services.auth import AuthService, LocalAuthFailure
+from app.services.password_reset_service import PasswordResetFailure, PasswordResetService
 from app.utils.auth_helpers import extract_user_id as _extract_user_id
 from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 from app.api.v2.routers.notifications import router as notifications_router
@@ -785,6 +790,99 @@ async def login(
                 request,
                 error="AUTH_SERVICE_UNAVAILABLE",
                 message="Authentication failed. Please try again later.",
+            ),
+        )
+
+
+@router.post(
+    "/password/reset-request",
+    response_model=PasswordResetRequestResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Request a password reset email",
+)
+@auth_limiter.limit("3/hour")
+async def request_password_reset(
+    request: Request,
+    payload: PasswordResetRequest,
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
+):
+    """Start the public password recovery flow without enumerating accounts."""
+    reset_service = PasswordResetService(db, redis_cache=redis_cache)
+
+    try:
+        await reset_service.request_password_reset(str(payload.email))
+        return _auth_json_response(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=PasswordResetRequestResponse().model_dump(),
+        )
+    except PasswordResetFailure as exc:
+        db.rollback()
+        return _auth_json_response(
+            status_code=exc.status_code,
+            content=_auth_error_content(
+                request,
+                error=exc.error_code,
+                message=exc.message,
+            ),
+        )
+    except Exception as exc:
+        logger.error("Password reset request failed: %s", exc, exc_info=True)
+        db.rollback()
+        return _auth_json_response(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=_auth_error_content(
+                request,
+                error="AUTH_PASSWORD_RESET_SERVICE_UNAVAILABLE",
+                message="Password reset failed. Please try again later.",
+            ),
+        )
+
+
+@router.post(
+    "/password/reset-confirm",
+    response_model=PasswordResetConfirmResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Confirm a password reset token",
+)
+@auth_limiter.limit("5/hour")
+async def confirm_password_reset(
+    request: Request,
+    payload: PasswordResetConfirm,
+    db=Depends(get_db),
+    redis_cache=Depends(get_redis_cache),
+):
+    """Complete password reset, migrate to local auth, and revoke active sessions."""
+    reset_service = PasswordResetService(db, redis_cache=redis_cache)
+
+    try:
+        await reset_service.confirm_password_reset(
+            token=payload.token,
+            new_password=payload.new_password,
+        )
+        return _auth_json_response(
+            status_code=status.HTTP_200_OK,
+            content=PasswordResetConfirmResponse().model_dump(),
+        )
+    except PasswordResetFailure as exc:
+        db.rollback()
+        return _auth_json_response(
+            status_code=exc.status_code,
+            content=_auth_error_content(
+                request,
+                error=exc.error_code,
+                message=exc.message,
+            ),
+        )
+    except Exception as exc:
+        logger.error("Password reset confirmation failed: %s", exc, exc_info=True)
+        db.rollback()
+        return _auth_json_response(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content=_auth_error_content(
+                request,
+                error="AUTH_PASSWORD_RESET_SERVICE_UNAVAILABLE",
+                message="Password reset failed. Please try again later.",
             ),
         )
 
