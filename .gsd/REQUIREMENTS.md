@@ -14,93 +14,7 @@ Guidelines:
 
 ## Active
 
-### R005 — First-party staff login replaces Firebase Auth
-- Class: primary-user-loop
-- Status: active
-- Description: Admins and doctors authenticate with backend-owned email/password login, without Firebase token exchange in the normal login path.
-- Why it matters: Reliable login for the clinical team is a prerequisite for the rest of the product.
-- Source: user
-- Primary owning slice: M002/S01
-- Supporting slices: M002/S03, M002/S04
-- Validation: mapped
-- Notes: User explicitly requested removal of Firebase Auth; login identifier is email only. M002/S01 proved the backend local-login contract with focused auth API, session-identity, and protected-route/logout tests; frontend and realtime cutover still remain in S03/S04.
-
-### R006 — Existing Redis session continuity survives the auth cutover
-- Class: continuity
-- Status: active
-- Description: The product keeps Redis-backed session validation, HttpOnly cookie behavior, remember-me continuity, and protected-route authentication after the provider switch.
-- Why it matters: Replacing the identity provider should not regress the stable session model already used across the backend.
-- Source: user
-- Primary owning slice: M002/S01
-- Supporting slices: M002/S03, M002/S04
-- Validation: mapped
-- Notes: The user chose to keep the current session/cookie architecture instead of moving to a pure JWT model. M002/S01 proved backend session issuance, verify-session, protected-route auth, logout invalidation, and HttpOnly cookie behavior on the first-party identity contract; browser remember-me restore still remains in S03.
-
-### R007 — Existing users regain access without manual recreation
-- Class: launchability
-- Status: active
-- Description: Users already present in the system can recover access through a first-access/reset flow instead of having accounts manually recreated.
-- Why it matters: A hard cut without a recovery path would create support load and block real users from logging in.
-- Source: user
-- Primary owning slice: M002/S02
-- Supporting slices: M002/S04
-- Validation: mapped
-- Notes: The chosen migration path is reset obrigatório / first access, not manual recreation.
-
-### R008 — Admin-managed account provisioning remains canonical
-- Class: admin/support
-- Status: active
-- Description: New staff accounts are created by admins; the system does not add public self-signup during M002.
-- Why it matters: The product is an internal clinical system, and admin-mediated onboarding reduces security and support risk.
-- Source: user
-- Primary owning slice: M002/S02
-- Supporting slices: M002/S03
-- Validation: mapped
-- Notes: The user explicitly selected admin-created accounts.
-
-### R009 — Users can recover passwords via email reset link
-- Class: continuity
-- Status: active
-- Description: A staff user can request a password reset email, receive a time-limited reset token, and set a new password securely.
-- Why it matters: Hard-cutting Firebase without self-service recovery would replace one login pain with another.
-- Source: user
-- Primary owning slice: M002/S02
-- Supporting slices: M002/S04
-- Validation: mapped
-- Notes: Chosen recovery mode is email reset link, not admin-only reset.
-
-### R010 — Frontend and realtime auth no longer depend on Firebase tokens
-- Class: integration
-- Status: active
-- Description: Dashboard login/logout/session restore and realtime/WebSocket bootstrap work with first-party session semantics only.
-- Why it matters: Removing Firebase only on the backend is insufficient if the browser and realtime path still depend on Firebase SDK state.
-- Source: inferred
-- Primary owning slice: M002/S03
-- Supporting slices: M002/S01, M002/S04
-- Validation: mapped
-- Notes: Current frontend auth path still uses `firebase-auth.ts`, `firebase-lazy.ts`, and Firebase token-based websocket bootstrap.
-
-### R011 — Firebase Auth dependency is hard-cut from runtime and compatibility paths
-- Class: constraint
-- Status: active
-- Description: Staff authentication no longer requires Firebase Auth runtime credentials, SDK calls, or long-lived compatibility mode.
-- Why it matters: The user explicitly wants the dependency gone, not just hidden behind another layer.
-- Source: user
-- Primary owning slice: M002/S04
-- Supporting slices: M002/S01, M002/S03
-- Validation: mapped
-- Notes: The chosen rollout mode is hard cut, not temporary coexistence.
-
-### R012 — Authentication failures become inspectable instead of opaque
-- Class: failure-visibility
-- Status: active
-- Description: Login, reset, session, and migration failures emit actionable diagnostics and are covered by focused verification so auth regressions stop being mysterious.
-- Why it matters: The current pain is not just login failure, but hard-to-debug authentication behavior.
-- Source: inferred
-- Primary owning slice: M002/S04
-- Supporting slices: M002/S01, M002/S02, M002/S03
-- Validation: mapped
-- Notes: Existing code already has audit/security patterns that M002 should preserve rather than regress. M002/S01 now emits stable login/session error codes plus request_id or debug-step diagnostics for the backend auth core; reset/migration/front-end visibility remains for later slices.
+- None currently. The next active requirements should be introduced by the next milestone.
 
 ## Validated
 
@@ -147,6 +61,94 @@ Guidelines:
 - Supporting slices: none
 - Validation: validated
 - Notes: Verified by M001/S04 integration suites and milestone summary evidence.
+
+### R005 — First-party staff login replaces Firebase Auth
+- Class: primary-user-loop
+- Status: validated
+- Description: Admins and doctors authenticate with backend-owned email/password login, without Firebase token exchange in the normal login path.
+- Why it matters: Reliable login for the clinical team is a prerequisite for the rest of the product.
+- Source: user
+- Primary owning slice: M002/S01
+- Supporting slices: M002/S03, M002/S04
+- Validation: validated
+- Notes: M002 proved the backend local-login contract in S01, cut the browser happy path over in S03, removed Firebase runtime seams in S04, and replayed `/login` → `/dashboard` locally on a no-Firebase stack.
+
+### R006 — Existing Redis session continuity survives the auth cutover
+- Class: continuity
+- Status: validated
+- Description: The product keeps Redis-backed session validation, HttpOnly cookie behavior, remember-me continuity, and protected-route authentication after the provider switch.
+- Why it matters: Replacing the identity provider should not regress the stable session model already used across the backend.
+- Source: user
+- Primary owning slice: M002/S01
+- Supporting slices: M002/S03, M002/S04
+- Validation: validated
+- Notes: S01 proved backend session issuance/verify/logout/protected-route auth on the first-party identity contract; S03 proved remember-me/session restore/logout in frontend tests; direct browser replay stayed authenticated across reload.
+
+### R007 — Existing users regain access without manual recreation
+- Class: launchability
+- Status: validated
+- Description: Users already present in the system can recover access through a first-access/reset flow instead of having accounts manually recreated.
+- Why it matters: A hard cut without a recovery path would create support load and block real users from logging in.
+- Source: user
+- Primary owning slice: M002/S02
+- Supporting slices: M002/S04
+- Validation: validated
+- Notes: Verified by M002/S02 public/admin recovery suites and `tests/integration/test_password_reset_migration_flow.py`, which covers existing Firebase-era users and admin-created users migrating into local auth.
+
+### R008 — Admin-managed account provisioning remains canonical
+- Class: admin/support
+- Status: validated
+- Description: New staff accounts are created by admins; the system does not add public self-signup during M002.
+- Why it matters: The product is an internal clinical system, and admin-mediated onboarding reduces security and support risk.
+- Source: user
+- Primary owning slice: M002/S02
+- Supporting slices: M002/S03
+- Validation: validated
+- Notes: M002/S02/T03 kept admin-created first-access and admin-triggered recovery canonical through the shared email-backed reset service while preserving only explicit legacy direct-password compatibility for the pre-cutover admin SPA.
+
+### R009 — Users can recover passwords via email reset link
+- Class: continuity
+- Status: validated
+- Description: A staff user can request a password reset email, receive a time-limited reset token, and set a new password securely.
+- Why it matters: Hard-cutting Firebase without self-service recovery would replace one login pain with another.
+- Source: user
+- Primary owning slice: M002/S02
+- Supporting slices: M002/S04
+- Validation: validated
+- Notes: M002/S02 shipped `POST /api/v2/auth/password/reset-request` and `/reset-confirm` with focused backend proof, and M002/S03 shipped the real routed reset-request/reset-confirm browser UX.
+
+### R010 — Frontend and realtime auth no longer depend on Firebase tokens
+- Class: integration
+- Status: validated
+- Description: Dashboard login/logout/session restore and realtime/WebSocket bootstrap work with first-party session semantics only.
+- Why it matters: Removing Firebase only on the backend is insufficient if the browser and realtime path still depend on Firebase SDK state.
+- Source: inferred
+- Primary owning slice: M002/S03
+- Supporting slices: M002/S01, M002/S04
+- Validation: validated
+- Notes: Verified by the S03 session-first auth and websocket suites, the S04 hard-cut cleanup suite, and no-Firebase browser/network replay with no Firebase-auth requests.
+
+### R011 — Firebase Auth dependency is hard-cut from runtime and compatibility paths
+- Class: constraint
+- Status: validated
+- Description: Staff authentication no longer requires Firebase Auth runtime credentials, SDK calls, or long-lived compatibility mode.
+- Why it matters: The user explicitly wants the dependency gone, not just hidden behind another layer.
+- Source: user
+- Primary owning slice: M002/S04
+- Supporting slices: M002/S01, M002/S03
+- Validation: validated
+- Notes: M002/S04 removed/tombstoned the shipped staff-auth Firebase seams, `verify-no-firebase-auth.sh` passed, and the local stack booted and authenticated staff users with Firebase env vars blank.
+
+### R012 — Authentication failures become inspectable instead of opaque
+- Class: failure-visibility
+- Status: validated
+- Description: Login, reset, session, and migration failures emit actionable diagnostics and are covered by focused verification so auth regressions stop being mysterious.
+- Why it matters: The current pain is not just login failure, but hard-to-debug authentication behavior.
+- Source: inferred
+- Primary owning slice: M002/S04
+- Supporting slices: M002/S01, M002/S02, M002/S03
+- Validation: validated
+- Notes: Across M002 the system now emits stable diagnostics for login/session/reset/password/websocket/operational failures (`error`, `message`, `request_id`, websocket auth codes, `session_auth` readiness), with focused pytest/vitest proof across all four slices.
 
 ## Deferred
 
@@ -248,14 +250,14 @@ Guidelines:
 | R002 | operability | validated | M001/S02 | none | validated |
 | R003 | failure-visibility | validated | M001/S03 | none | validated |
 | R004 | quality-attribute | validated | M001/S04 | none | validated |
-| R005 | primary-user-loop | active | M002/S01 | M002/S03, M002/S04 | mapped |
-| R006 | continuity | active | M002/S01 | M002/S03, M002/S04 | mapped |
-| R007 | launchability | active | M002/S02 | M002/S04 | mapped |
-| R008 | admin/support | active | M002/S02 | M002/S03 | mapped |
-| R009 | continuity | active | M002/S02 | M002/S04 | mapped |
-| R010 | integration | active | M002/S03 | M002/S01, M002/S04 | mapped |
-| R011 | constraint | active | M002/S04 | M002/S01, M002/S03 | mapped |
-| R012 | failure-visibility | active | M002/S04 | M002/S01, M002/S02, M002/S03 | mapped |
+| R005 | primary-user-loop | validated | M002/S01 | M002/S03, M002/S04 | validated |
+| R006 | continuity | validated | M002/S01 | M002/S03, M002/S04 | validated |
+| R007 | launchability | validated | M002/S02 | M002/S04 | validated |
+| R008 | admin/support | validated | M002/S02 | M002/S03 | validated |
+| R009 | continuity | validated | M002/S02 | M002/S04 | validated |
+| R010 | integration | validated | M002/S03 | M002/S01, M002/S04 | validated |
+| R011 | constraint | validated | M002/S04 | M002/S01, M002/S03 | validated |
+| R012 | failure-visibility | validated | M002/S04 | M002/S01, M002/S02, M002/S03 | validated |
 | R020 | compliance/security | deferred | none | none | unmapped |
 | R021 | integration | deferred | none | none | unmapped |
 | R022 | quality-attribute | deferred | none | none | unmapped |
@@ -267,7 +269,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 8
-- Mapped to slices: 8
-- Validated: 4
+- Active requirements: 0
+- Mapped to slices: 0
+- Validated: 12
 - Unmapped active requirements: 0

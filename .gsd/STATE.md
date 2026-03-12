@@ -1,13 +1,13 @@
 # GSD State
 
-**Active Milestone:** M002 — First-Party Authentication Cutover
+**Active Milestone:** None
 **Active Slice:** None
-**Phase:** completing-milestone
-**Requirements Status:** 8 active · 4 validated · 4 deferred · 4 out of scope
+**Phase:** idle
+**Requirements Status:** 0 active · 12 validated · 4 deferred · 4 out of scope
 
 ## Milestone Registry
 - ✅ **M001:** Bulletproof Flow Pipeline
-- 🔄 **M002:** First-Party Authentication Cutover
+- ✅ **M002:** First-Party Authentication Cutover
 
 ## Recent Decisions
 - None recorded
@@ -16,4 +16,4 @@
 - None
 
 ## Next Action
-All slices complete in M002. Write milestone summary.
+Select the next milestone or define the next unit of work.
