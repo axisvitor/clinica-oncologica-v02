@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional, Dict, Any, Set
 from datetime import datetime, timedelta, timezone
+import asyncio
+import inspect
 import logging
 from collections import defaultdict
 
@@ -612,19 +614,35 @@ class AuthService:
             f"Failed attempt recorded for {email} (count: {attempts['count']})"
         )
 
+    async def _call_redis_method(self, method_name: str, *args, timeout: float = 1.0, **kwargs):
+        """Invoke sync or async Redis-adapter methods with a bounded wait."""
+        if not self.redis:
+            return None
+
+        method = getattr(self.redis, method_name, None)
+        if not callable(method):
+            return None
+
+        result = method(*args, **kwargs)
+        if inspect.isawaitable(result):
+            return await asyncio.wait_for(result, timeout=timeout)
+        return result
+
     async def _redis_is_connected(self) -> bool:
         """Check if Redis client is connected and available."""
         try:
-            if hasattr(self.redis, "ping"):
-                # Test async Redis connection
-                result = await self.redis.ping()
-                return bool(result)
-            elif hasattr(self.redis, "get"):
-                # Try a simple get operation with async
-                await self.redis.get("__connection_test__")
+            ping = getattr(self.redis, "ping", None)
+            if callable(ping):
+                result = await self._call_redis_method("ping")
+                if result is not None:
+                    return bool(result)
+
+            get = getattr(self.redis, "get", None)
+            if callable(get):
+                await self._call_redis_method("get", "__connection_test__")
                 return True
-            else:
-                return False
+
+            return False
         except Exception as e:
             logger.debug(f"Redis connection check failed: {e}")
             return False
@@ -640,7 +658,7 @@ class AuthService:
         if self.redis and await self._redis_is_connected():
             try:
                 email_key = f"rate_limit:email:{email}"
-                await self.redis.delete(email_key)
+                await self._call_redis_method("delete", email_key)
                 logger.debug(f"Cleared Redis failed attempts for {email}")
             except Exception as e:
                 logger.error(f"Error clearing Redis failed attempts: {e}")

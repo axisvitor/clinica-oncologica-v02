@@ -83,7 +83,7 @@ export interface PasswordResetResponse {
 }
 
 export interface PasswordChange {
-  old_password: string
+  current_password: string
   new_password: string
 }
 
@@ -295,8 +295,13 @@ export function createAuthApi(client: ApiClientCore) {
       }
     },
 
-    changePassword: async (_data: PasswordChange): Promise<{ message: string }> =>
-      unsupported('changePassword'),
+    changePassword: async (data: PasswordChange): Promise<{ message: string }> => {
+      try {
+        return await client.put<{ message: string }, PasswordChange>('/api/v2/auth/password', data)
+      } catch (error) {
+        throw normalizeApiError(error, 'Unable to change password.')
+      }
+    },
     refreshToken: async (_refreshToken: string): Promise<AuthResponse> => unsupported('refreshToken'),
     verifyEmail: async (_token: string): Promise<{ message: string }> => unsupported('verifyEmail'),
     resendVerificationEmail: async (): Promise<{ message: string }> =>
@@ -338,30 +343,6 @@ export function createAuthApi(client: ApiClientCore) {
     invalidateAllSessions: async (): Promise<LogoutResponse> => {
       const response = await client.delete<LogoutResponse>('/api/v2/auth/logout-all')
       client.setAuthToken(null)
-      return response
-    },
-
-    createSession: async (
-      firebaseToken: string,
-      _deviceInfo?: { user_agent?: string; timestamp?: string }
-    ): Promise<{
-      valid: boolean
-      session_id?: string
-      message?: string
-    }> => {
-      const response = await client.post<{
-        valid: boolean
-        session_id?: string
-        message?: string
-        user?: User
-      }>('/api/v2/auth/firebase/verify', {
-        id_token: firebaseToken,
-      })
-
-      if (response.valid && response.session_id) {
-        client.setAuthToken(response.session_id)
-      }
-
       return response
     },
 

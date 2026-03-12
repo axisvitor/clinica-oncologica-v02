@@ -220,7 +220,7 @@ export const protectedRoutes: RouteDefinition[] = [
     element: <ProtectedRoute>{withLayoutAndSuspense(AnalyticsPage)}</ProtectedRoute>,
   },
   {
-    path: ROUTES.SETTINGS,
+    path: `${ROUTES.SETTINGS}/*`,
     element: (
       <ProtectedRoute requiredPermission="canManageSettings">
         {withLayoutAndSuspense(SettingsPage)}

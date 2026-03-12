@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.database.async_engine import get_async_db
 from app.models.user import User
 from app.utils.rate_limiter import limiter
@@ -74,11 +75,11 @@ async def debug_token_decode(
     """
     Decode and validate JWT token with sensitive data masking.
 
-    Implements JWT token decoding with:
-    - Firebase ID token validation
+    Implements JWT token diagnostics with:
+    - first-party session-token signature validation when applicable
     - JWT structure analysis
-    - Claims extraction with sensitive data masking
-    - Expiration checking
+    - claims extraction with sensitive data masking
+    - expiration checking
     """
     check_debug_enabled()
 
@@ -89,58 +90,86 @@ async def debug_token_decode(
     token_info = None
 
     try:
-        # First try to decode without verification to get token structure
-        unverified_payload = jwt.decode(
-            token_value, options={"verify_signature": False}
-        )
+        unverified_header = jwt.get_unverified_header(token_value)
+        unverified_payload = jwt.decode(token_value, options={"verify_signature": False})
 
-        # Extract claims with sensitive data masking
         claims = []
         sensitive_keys = {"email", "phone_number", "name", "picture", "sub", "uid"}
 
         for key, value in unverified_payload.items():
+            masked_value = value
+            is_masked = False
             if key in sensitive_keys and value:
-                # Mask sensitive data
+                is_masked = True
                 if isinstance(value, str):
-                    if "@" in value:  # Email
+                    if "@" in value:
                         masked_value = value[:2] + "***@" + value.split("@")[1]
                     else:
                         masked_value = value[:4] + "***" if len(value) > 4 else "***"
                 else:
                     masked_value = "***"
-                claims.append(f"{key}: {masked_value}")
-            else:
-                claims.append(f"{key}: {value}")
+            claims.append({"claim": key, "value": masked_value, "is_masked": is_masked})
 
-        # Check if token is expired
         import time
 
-        exp_timestamp = unverified_payload.get("exp", 0)
+        exp_timestamp = unverified_payload.get("exp")
+        iat_timestamp = unverified_payload.get("iat")
         is_expired = exp_timestamp < time.time() if exp_timestamp else False
+        issued_at = (
+            datetime.fromtimestamp(iat_timestamp, tz=timezone.utc)
+            if isinstance(iat_timestamp, (int, float))
+            else None
+        )
+        expires_at = (
+            datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
+            if isinstance(exp_timestamp, (int, float))
+            else None
+        )
 
-        # Try to verify with Firebase (if it's a Firebase token)
         is_valid = False
-        try:
-            from app.dependencies.auth_dependencies import verify_firebase_token
+        validation_error = None
+        token_alg = str(unverified_header.get("alg") or "").upper()
 
-            firebase_data = await verify_firebase_token(token_value)
-            if firebase_data:
-                is_valid = True
-        except Exception:
-            # Not a valid Firebase token, but we still have the decoded data
-            pass
+        if token_alg == "HS256":
+            try:
+                jwt.decode(
+                    token_value,
+                    settings.SECURITY_SECRET_KEY,
+                    algorithms=["HS256"],
+                )
+                is_valid = not is_expired
+            except ExpiredSignatureError:
+                is_expired = True
+                validation_error = "Token has expired"
+            except InvalidTokenError as exc:
+                validation_error = f"Invalid signature or claims: {str(exc)}"
+        elif token_alg:
+            validation_error = f"Unsupported token algorithm for signature validation: {token_alg}"
+        else:
+            validation_error = "Missing token algorithm"
 
         token_info = TokenDebugInfo(
-            valid=is_valid, expired=is_expired, claims=claims, error=None
+            valid=is_valid,
+            expired=is_expired,
+            claims=claims,
+            issued_at=issued_at,
+            expires_at=expires_at,
+            error=validation_error,
         )
 
         logger.info(
-            f"JWT token decoded successfully. Valid: {is_valid}, Expired: {is_expired}"
+            "JWT token decoded successfully. Valid: %s, Expired: %s, alg=%s",
+            is_valid,
+            is_expired,
+            token_alg or "unknown",
         )
 
     except ExpiredSignatureError:
         token_info = TokenDebugInfo(
-            valid=False, expired=True, claims=[], error="Token has expired"
+            valid=False,
+            expired=True,
+            claims=[],
+            error="Token has expired",
         )
 
     except InvalidTokenError as e:
@@ -150,7 +179,6 @@ async def debug_token_decode(
             claims=[],
             error=f"Invalid token format: {str(e)}",
         )
-        f"Invalid token: {str(e)}"
 
     except Exception as e:
         token_info = TokenDebugInfo(
@@ -159,9 +187,7 @@ async def debug_token_decode(
             claims=[],
             error=f"Token decode failed: {str(e)}",
         )
-        str(e)
 
-    # Audit log
     await log_debug_operation(
         db=db,
         admin_user=admin_user,
@@ -176,7 +202,7 @@ async def debug_token_decode(
         data=token_info.dict(),
         audit_logged=True,
         timestamp=now_sao_paulo(),
-        warning="JWT decoding not yet implemented",
+        warning="Only first-party session tokens receive signature validation.",
     )
 
 

@@ -16,7 +16,7 @@ from app.utils.rate_limiter import limiter
 from app.utils.logging import get_logger
 from app.config import settings
 
-from .helpers.config_builder import build_api_urls, get_firebase_public_config
+from .helpers.config_builder import build_api_urls
 from .helpers.redis_helper import get_redis_client
 
 router = APIRouter()
@@ -54,12 +54,12 @@ async def get_public_config(request: Request) -> JSONResponse:
     - Public feature flags
     - Environment indicators
     - Localization settings
-    - Public Firebase config (web app keys only)
+    - Session-first auth-safe runtime flags
 
     This endpoint uses aggressive caching (30min) and CORS headers
     to allow frontend applications to fetch configuration at startup.
     """
-    cache_key = "system:public_config"
+    cache_key = "system:public_config:session_first"
 
     # Try Redis cache first
     redis = await get_redis_client()
@@ -85,7 +85,12 @@ async def get_public_config(request: Request) -> JSONResponse:
     # Cache miss - build configuration
     try:
         urls = build_api_urls()
-        firebase_config = get_firebase_public_config()
+
+        public_allowed_origins = [
+            origin
+            for origin in list(getattr(settings, "CORS_ALLOWED_ORIGINS", []) or [])
+            if "firebase" not in str(origin).lower()
+        ]
 
         # Build configuration response
         config = {
@@ -109,18 +114,14 @@ async def get_public_config(request: Request) -> JSONResponse:
                 "enableAIHumanization": getattr(
                     settings, "AI_HUMANIZATION_ENABLED", True
                 ),
+                "enableSessionAuth": True,
             },
             # CORS information
             "cors": {
-                "allowedOrigins": settings.CORS_ALLOWED_ORIGINS
-                if hasattr(settings, "ALLOWED_ORIGINS")
-                else [],
+                "allowedOrigins": public_allowed_origins,
                 "credentials": True,
             },
         }
-
-        # Add Firebase PUBLIC config if available
-        config.update(firebase_config)
 
         # Add quiz URL if configured
         quiz_url = os.getenv("QUIZ_URL") or getattr(
@@ -167,7 +168,11 @@ async def get_public_config(request: Request) -> JSONResponse:
             "VITE_ENVIRONMENT": "development",
             "VITE_DEFAULT_LOCALE": "pt-BR",
             "VITE_SUPPORTED_LOCALES": ["pt-BR", "en-US"],
-            "features": {"enableRealtime": False, "enableAnalytics": False},
+            "features": {
+                "enableRealtime": False,
+                "enableAnalytics": False,
+                "enableSessionAuth": True,
+            },
             "error": "Failed to build complete config",
         }
 

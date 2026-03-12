@@ -52,7 +52,6 @@ CSRF_EXEMPT_PATHS: Set[str] = {
     "/health",
     "/api/v2/auth/csrf-token",
     "/api/v2/auth/logout",
-    "/api/v2/auth/firebase/verify",
     "/api/v2/enhanced-messages",
     "/webhooks/",
     "/api/public/",

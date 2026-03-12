@@ -122,8 +122,8 @@ class InitializationError(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "component": "firebase",
-                "error_message": "Failed to initialize Firebase Admin SDK",
+                "component": "session_auth",
+                "error_message": "Missing session authentication prerequisites",
                 "timestamp": "2025-11-07T10:30:00-03:00",
                 "recoverable": True,
             }
@@ -148,7 +148,7 @@ class InitializationRequest(BaseModel):
         json_schema_extra={
             "example": {
                 "force": False,
-                "components": ["database", "redis", "firebase"],
+                "components": ["database", "redis", "session_auth"],
                 "skip_health_check": False,
             }
         }
@@ -196,7 +196,7 @@ class InitializationStatusResponse(BaseModel):
                 "components": {
                     "database": "initialized",
                     "redis": "initialized",
-                    "firebase": "initialized",
+                    "session_auth": "initialized",
                 },
                 "errors": [],
                 "warnings": [],
@@ -235,7 +235,7 @@ class SystemInfoResponse(BaseModel):
                 "uptime": "5d 12h 34m",
                 "python_version": "3.11.5",
                 "features": {
-                    "firebase_auth": True,
+                    "session_auth": True,
                     "whatsapp_integration": True,
                     "ai_humanization": True,
                     "monitoring": True,
@@ -416,15 +416,15 @@ class ConfigValidationResponse(BaseModel):
             "example": {
                 "valid": True,
                 "warnings": [
-                    "Firebase Admin SDK not fully configured",
+                    "SECURITY_CSRF_SECRET_KEY is not configured for session-based auth",
                     "Rate limiting disabled in production",
                 ],
                 "errors": [],
                 "checked_at": "2025-11-07T10:30:00-03:00",
                 "categories_checked": ["security", "database", "external_services"],
                 "recommendations": [
-                    "Enable rate limiting in production",
-                    "Configure HTTPS redirect for production",
+                    "Configure SECURITY_CSRF_SECRET_KEY for session-based auth",
+                    "Enable HTTPS redirect for production",
                 ],
             }
         }
@@ -457,20 +457,6 @@ class PublicConfigResponse(BaseModel):
     # CORS info (for debugging)
     cors: Dict[str, Any] = Field(..., description="CORS configuration")
 
-    # Optional Firebase PUBLIC config (web app keys only, NOT service account)
-    VITE_FIREBASE_API_KEY: Optional[str] = Field(
-        None, description="Firebase web API key (public)"
-    )
-    VITE_FIREBASE_PROJECT_ID: Optional[str] = Field(
-        None, description="Firebase project ID (public)"
-    )
-    VITE_FIREBASE_APP_ID: Optional[str] = Field(
-        None, description="Firebase app ID (public)"
-    )
-    VITE_FIREBASE_AUTH_DOMAIN: Optional[str] = Field(
-        None, description="Firebase auth domain (public)"
-    )
-
     # Optional quiz URL
     VITE_MONTHLY_QUIZ_URL: Optional[str] = Field(None, description="Monthly quiz URL")
 
@@ -488,6 +474,7 @@ class PublicConfigResponse(BaseModel):
                     "enableAnalytics": True,
                     "enableEvolution": True,
                     "enableAIHumanization": True,
+                    "enableSessionAuth": True,
                 },
                 "cors": {
                     "allowedOrigins": ["https://app.example.com"],

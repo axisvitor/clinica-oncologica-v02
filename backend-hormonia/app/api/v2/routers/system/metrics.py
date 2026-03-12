@@ -248,7 +248,7 @@ async def get_system_info(
             "uptime": uptime,
             "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
             "features": {
-                "firebase_auth": bool(settings.FIREBASE_ADMIN_PROJECT_ID),
+                "session_auth": True,
                 "whatsapp_integration": settings.WHATSAPP_ENABLE_SERVICE,
                 "ai_humanization": settings.AI_ENABLE_HUMANIZATION,
                 "monitoring": settings.MONITORING_ENABLE_SERVICE,

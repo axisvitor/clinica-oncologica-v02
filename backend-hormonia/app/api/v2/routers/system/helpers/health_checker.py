@@ -7,7 +7,6 @@ Provides helper functions for:
 """
 
 from typing import Any, Dict
-from datetime import datetime, timezone
 import time
 
 from sqlalchemy import text
@@ -23,7 +22,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
     Check individual component health with latency measurement.
 
     Args:
-        component_name: Name of component to check (database, redis, firebase, external_apis)
+        component_name: Name of component to check (database, redis, session_auth, external_apis)
         db: Database session instance
 
     Returns:
@@ -32,7 +31,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
     Components:
         - database: PostgreSQL connectivity and latency
         - redis: Cache connectivity and latency
-        - firebase: Admin SDK configuration status
+        - session_auth: Session/cookie configuration status for staff auth
         - external_apis: External service availability
 
     Note:
@@ -43,8 +42,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
 
     try:
         if component_name == "database":
-            # Check database connectivity
-            db.execute(text("SELECT 1"))
+            await db.execute(text("SELECT 1"))
             latency_ms = (time.time() - start_time) * 1000
             return ComponentHealth(
                 name="database",
@@ -54,8 +52,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                 metadata={"type": "postgresql"},
             )
 
-        elif component_name == "redis":
-            # Check Redis connectivity
+        if component_name == "redis":
             redis = await _get_redis_client()
             if redis:
                 await redis.ping()
@@ -67,56 +64,79 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                     last_check=now_sao_paulo(),
                     metadata={"type": "cache"},
                 )
-            else:
+
+            return ComponentHealth(
+                name="redis",
+                status="unhealthy",
+                error="Redis client unavailable",
+                last_check=now_sao_paulo(),
+            )
+
+        if component_name == "session_auth":
+            latency_ms = (time.time() - start_time) * 1000
+            secret_key = getattr(settings, "SECURITY_SECRET_KEY", None)
+            cookie_name = getattr(settings, "SESSION_COOKIE_NAME", None)
+            cookie_http_only = bool(
+                getattr(settings, "SESSION_ENABLE_COOKIE_HTTPONLY", False)
+            )
+            csrf_secret_configured = bool(
+                getattr(settings, "SECURITY_CSRF_SECRET_KEY", None)
+            )
+
+            missing = []
+            if not secret_key:
+                missing.append("SECURITY_SECRET_KEY")
+            if not cookie_name:
+                missing.append("SESSION_COOKIE_NAME")
+            if not cookie_http_only:
+                missing.append("SESSION_ENABLE_COOKIE_HTTPONLY")
+
+            if missing:
                 return ComponentHealth(
-                    name="redis",
+                    name="session_auth",
                     status="unhealthy",
-                    error="Redis client unavailable",
-                    last_check=now_sao_paulo(),
-                )
-
-        elif component_name == "firebase":
-            # Check Firebase Admin SDK actual connectivity
-            try:
-                import firebase_admin
-                from firebase_admin import auth as firebase_auth  # noqa: F401
-
-                # Check if Firebase app is initialized
-                app = firebase_admin.get_app()
-                if app and settings.FIREBASE_ADMIN_PROJECT_ID:
-                    # Try to verify the SDK is functional (fast operation)
-                    latency_ms = (time.time() - start_time) * 1000
-                    return ComponentHealth(
-                        name="firebase",
-                        status="healthy",
-                        latency_ms=latency_ms,
-                        last_check=now_sao_paulo(),
-                        metadata={
-                            "configured": True,
-                            "project_id": settings.FIREBASE_ADMIN_PROJECT_ID,
-                        },
-                    )
-                else:
-                    return ComponentHealth(
-                        name="firebase",
-                        status="degraded",
-                        last_check=now_sao_paulo(),
-                        metadata={"configured": False, "reason": "not_initialized"},
-                    )
-            except (ValueError, ImportError):
-                # Firebase not initialized or not installed
-                return ComponentHealth(
-                    name="firebase",
-                    status="unknown",
+                    latency_ms=latency_ms,
+                    error=(
+                        "Missing session-auth prerequisites: "
+                        + ", ".join(missing)
+                    ),
                     last_check=now_sao_paulo(),
                     metadata={
-                        "configured": bool(settings.FIREBASE_ADMIN_PROJECT_ID),
-                        "reason": "sdk_not_initialized",
+                        "mode": "session-first",
+                        "csrf_protection_configured": csrf_secret_configured,
                     },
                 )
 
-        elif component_name == "external_apis":
-            # Check external API availability (placeholder)
+            status = "healthy"
+            error = None
+            if (
+                settings.APP_ENVIRONMENT.lower() == "production"
+                and not csrf_secret_configured
+            ):
+                status = "degraded"
+                error = (
+                    "SECURITY_CSRF_SECRET_KEY is not configured for production "
+                    "session auth"
+                )
+
+            return ComponentHealth(
+                name="session_auth",
+                status=status,
+                latency_ms=latency_ms,
+                error=error,
+                last_check=now_sao_paulo(),
+                metadata={
+                    "mode": "session-first",
+                    "cookie_name": cookie_name,
+                    "cookie_secure": bool(
+                        getattr(settings, "SESSION_ENABLE_COOKIE_SECURE", False)
+                    ),
+                    "cookie_http_only": cookie_http_only,
+                    "csrf_protection_configured": csrf_secret_configured,
+                },
+            )
+
+        if component_name == "external_apis":
             return ComponentHealth(
                 name="external_apis",
                 status="unknown",
@@ -124,13 +144,12 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
                 metadata={"evolution_enabled": settings.WHATSAPP_ENABLE_SERVICE},
             )
 
-        else:
-            return ComponentHealth(
-                name=component_name,
-                status="unknown",
-                error="Unknown component",
-                last_check=now_sao_paulo(),
-            )
+        return ComponentHealth(
+            name=component_name,
+            status="unknown",
+            error="Unknown component",
+            last_check=now_sao_paulo(),
+        )
 
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
@@ -141,6 +160,7 @@ async def _check_component_health(component_name: str, db: Any) -> ComponentHeal
             error=str(e),
             last_check=now_sao_paulo(),
         )
+
 
 
 def _calculate_health_score(components: Dict[str, ComponentHealth]) -> float:

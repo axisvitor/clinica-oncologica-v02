@@ -5,8 +5,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './tests/e2e',
-  testMatch: '**/*.e2e.spec.ts',
+  testDir: '.',
+  testMatch: ['**/*.e2e.spec.ts', '**/*.spec.ts'],
 
   // Test execution settings
   timeout: 60000, // 60 seconds per test

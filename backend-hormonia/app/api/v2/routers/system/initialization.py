@@ -63,7 +63,7 @@ _initialization_state = {
     Initializes:
     - Database connections and migrations
     - Redis cache and connection pools
-    - Firebase Admin SDK
+    - Session-auth prerequisites
     - External service configurations
     """,
 )
@@ -120,7 +120,7 @@ async def initialize_system(
         components_to_init = init_request.components or [
             "database",
             "redis",
-            "firebase",
+            "session_auth",
         ]
 
         for component in components_to_init:
@@ -140,14 +140,38 @@ async def initialize_system(
                         _initialization_state["components"]["redis"] = "failed"
                         _initialization_state["warnings"].append("Redis unavailable")
 
-                elif component == "firebase":
-                    # Check Firebase configuration
-                    if settings.FIREBASE_ADMIN_PROJECT_ID:
-                        _initialization_state["components"]["firebase"] = "initialized"
+                elif component == "session_auth":
+                    secret_key = bool(getattr(settings, "SECURITY_SECRET_KEY", None))
+                    cookie_name = bool(getattr(settings, "SESSION_COOKIE_NAME", None))
+                    cookie_http_only = bool(
+                        getattr(settings, "SESSION_ENABLE_COOKIE_HTTPONLY", False)
+                    )
+                    csrf_secret = bool(
+                        getattr(settings, "SECURITY_CSRF_SECRET_KEY", None)
+                    )
+
+                    if secret_key and cookie_name and cookie_http_only:
+                        _initialization_state["components"]["session_auth"] = "initialized"
+                        if not csrf_secret:
+                            _initialization_state["warnings"].append(
+                                "SECURITY_CSRF_SECRET_KEY not configured; session auth remains inspectable but CSRF middleware may be reduced"
+                            )
                     else:
-                        _initialization_state["components"]["firebase"] = "skipped"
-                        _initialization_state["warnings"].append(
-                            "Firebase not configured"
+                        _initialization_state["components"]["session_auth"] = "failed"
+                        missing = []
+                        if not secret_key:
+                            missing.append("SECURITY_SECRET_KEY")
+                        if not cookie_name:
+                            missing.append("SESSION_COOKIE_NAME")
+                        if not cookie_http_only:
+                            missing.append("SESSION_ENABLE_COOKIE_HTTPONLY")
+                        _initialization_state["errors"].append(
+                            {
+                                "component": "session_auth",
+                                "error_message": "Missing session-auth prerequisites: " + ", ".join(missing),
+                                "timestamp": now_sao_paulo().isoformat(),
+                                "recoverable": True,
+                            }
                         )
 
             except Exception as e:

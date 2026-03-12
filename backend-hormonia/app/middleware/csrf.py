@@ -71,7 +71,6 @@ EXEMPT_PATHS = frozenset({
     "/api/v2/webhooks/",  # WhatsApp/Evolution webhooks
     "/api/public/",
     "/api/v2/quiz-extensions/monthly/public",
-    "/api/v2/auth/firebase/verify",  # Exempt: Use ID token in body (safe from CSRF)
     "/api/v2/messages",  # Exempt: Protected by session auth (get_current_user_from_session)
     "/api/v2/enhanced-messages",  # Exempt: Protected by session auth (enhanced messaging API)
     "/api/v2/flows",  # Exempt: Protected by session auth (flow management)

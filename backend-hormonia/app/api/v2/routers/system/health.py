@@ -63,7 +63,7 @@ async def get_system_health(
     Checks all components:
     - Database connectivity
     - Redis cache availability
-    - Firebase Admin SDK status
+    - Session-auth configuration status
     - External API configurations
 
     Returns HTTP 200 for healthy/degraded, HTTP 503 for unhealthy.
@@ -75,7 +75,7 @@ async def get_system_health(
             detail="Admin privileges required for system health check",
         )
 
-    cache_key = "system:health"
+    cache_key = "system:health:session_first"
 
     # Try Redis cache first
     redis = await get_redis_client()
@@ -97,7 +97,7 @@ async def get_system_health(
     # Cache miss - check all components
     try:
         components = {}
-        component_names = ["database", "redis", "firebase", "external_apis"]
+        component_names = ["database", "redis", "session_auth", "external_apis"]
 
         for component_name in component_names:
             components[component_name] = await check_component_health(

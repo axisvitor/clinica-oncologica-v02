@@ -92,11 +92,6 @@ export function ConfigProvider({
       logger.info('🔐 [ConfigProvider] Step 4: Using first-party session authentication', {
         authMode: 'first-party-session',
         websocketConfigured: !!(runtimeConfig.VITE_WS_BASE_URL || runtimeConfig.VITE_WS_URL),
-        legacyFirebaseConfigured: Boolean(
-          runtimeConfig.VITE_FIREBASE_API_KEY &&
-            runtimeConfig.VITE_FIREBASE_AUTH_DOMAIN &&
-            runtimeConfig.VITE_FIREBASE_PROJECT_ID
-        ),
       })
 
       setConfig(runtimeConfig)

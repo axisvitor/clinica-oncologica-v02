@@ -64,7 +64,12 @@ BLOCKED_USER_AGENTS = [
 
 
 def _is_test_environment() -> bool:
-    return "PYTEST_CURRENT_TEST" in os.environ or "pytest" in sys.modules
+    return bool(
+        "PYTEST_CURRENT_TEST" in os.environ
+        or "pytest" in sys.modules
+        or os.getenv("TESTING") == "1"
+        or os.getenv("APP_ENVIRONMENT", "").lower() in ("test", "testing")
+    )
 
 
 _settings_cache = None

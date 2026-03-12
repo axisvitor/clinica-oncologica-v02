@@ -1,8 +1,8 @@
 # GSD State
 
 **Active Milestone:** M002 — First-Party Authentication Cutover
-**Active Slice:** S04 — Hard Cut Cleanup And Integrated Proof
-**Phase:** planning
+**Active Slice:** None
+**Phase:** completing-milestone
 **Requirements Status:** 8 active · 4 validated · 4 deferred · 4 out of scope
 
 ## Milestone Registry
@@ -16,4 +16,4 @@
 - None
 
 ## Next Action
-Plan slice S04 (Hard Cut Cleanup And Integrated Proof).
+All slices complete in M002. Write milestone summary.

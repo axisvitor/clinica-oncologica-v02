@@ -2,7 +2,7 @@
 Unified WebSocket Connection Manager.
 
 Consolidates:
-- Original websocket_manager.py (Firebase + JWT authentication)
+- Original websocket_manager.py (legacy token auth)
 - Enhanced websocket_manager.py (lifecycle, heartbeat, cleanup)
 
 This is the production-ready, feature-complete WebSocket manager combining
@@ -26,33 +26,11 @@ import jwt  # PyJWT - replaces python-jose to fix CVE-2024-23342
 from app.config import settings
 from app.models.user import User
 from app.repositories.user import UserRepository
-from app.services.firebase_auth_service import get_firebase_auth_service
 from app.services.websocket_heartbeat import WebSocketHeartbeatManager, HeartbeatMetrics
 from .connection_info import ConnectionState, ConnectionInfo
 from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
 
 logger = logging.getLogger(__name__)
-
-
-async def verify_firebase_token(token: str) -> Dict[str, Any]:
-    """
-    Validate Firebase token.
-
-    Kept as a module-level helper for easier unit-test patching.
-    """
-    firebase_project_id = getattr(settings, "FIREBASE_ADMIN_PROJECT_ID", None)
-    firebase_private_key = getattr(settings, "FIREBASE_ADMIN_PRIVATE_KEY", None)
-    firebase_client_email = getattr(settings, "FIREBASE_ADMIN_CLIENT_EMAIL", None)
-    if not (firebase_project_id and firebase_private_key and firebase_client_email):
-        raise ValueError("Firebase auth not configured")
-
-    firebase_auth = get_firebase_auth_service(
-        project_id=firebase_project_id,
-        private_key=firebase_private_key,
-        client_email=firebase_client_email,
-    )
-    return await firebase_auth.verify_token(token)
-
 
 def decode_jwt(token: str) -> Dict[str, Any]:
     """
@@ -68,7 +46,7 @@ class UnifiedWebSocketConnectionManager:
     Unified WebSocket connection manager.
 
     Features:
-    - Firebase + JWT authentication (from original)
+    - First-party token authentication support
     - Lifecycle management with start/stop (from enhanced)
     - Automated heartbeat monitoring (from enhanced)
     - Automatic cleanup of dead connections (from enhanced)
@@ -288,107 +266,43 @@ class UnifiedWebSocketConnectionManager:
     # ========================================================================
 
     async def authenticate_connection(
-        self, connection_id: str, token: str, db: Any, auth_type: str = "auto"
+        self, connection_id: str, token: str, db: Any, auth_type: str = "jwt"
     ) -> User:
         """
-        Authenticate connection via Firebase or JWT.
+        Authenticate a connection using the remaining first-party token contract.
 
         Args:
             connection_id: Connection to authenticate
-            token: JWT token
+            token: Internal JWT token
             db: Database session
-            auth_type: "firebase", "jwt", or "auto"
+            auth_type: Must be "jwt" or "session"
 
         Returns:
             Authenticated User object
 
         Raises:
+            ValueError: If the connection or auth mode is invalid
             HTTPException: If authentication fails
         """
         connection_info = self.connections.get(connection_id)
         if not connection_info:
             raise ValueError(f"Connection not found: {connection_id}")
 
-        user = None
+        normalized_auth_type = (auth_type or "jwt").lower()
+        if normalized_auth_type not in {"jwt", "session"}:
+            raise ValueError(
+                f"Unsupported websocket auth_type '{auth_type}'. Session-first runtime only accepts jwt/session."
+            )
 
-        # Try Firebase first if auto or firebase
-        if auth_type in ("auto", "firebase"):
-            try:
-                user = await self._authenticate_with_firebase(connection_id, token, db)
-                if user:
-                    logger.info(
-                        f"Firebase authentication successful for {connection_id}"
-                    )
-            except Exception as e:
-                logger.debug(f"Firebase auth failed: {e}")
-                if auth_type == "firebase":
-                    raise
-
-        # Try internal JWT if Firebase failed or auto/jwt
-        if not user and auth_type in ("auto", "jwt"):
-            try:
-                user = await self._authenticate_with_internal_jwt(
-                    connection_id, token, db
-                )
-                if user:
-                    logger.info(f"JWT authentication successful for {connection_id}")
-            except Exception as e:
-                logger.debug(f"JWT auth failed: {e}")
-                if auth_type == "jwt":
-                    raise
-
+        user = await self._authenticate_with_internal_jwt(connection_id, token, db)
         if not user:
-            raise ValueError("Authentication failed with all methods")
+            raise ValueError("Authentication failed")
 
-        # Update connection metadata
         self._update_connection_metadata(connection_id, user)
-
-        # Register with heartbeat manager
         self.heartbeat_manager.register_connection(connection_id)
 
+        logger.info("WebSocket JWT authentication successful for %s", connection_id)
         return user
-
-    async def _authenticate_with_firebase(
-        self, connection_id: str, token: str, db: Any
-    ) -> Optional[User]:
-        """Authenticate using Firebase (RS256)."""
-        from fastapi import HTTPException, status as http_status
-
-        try:
-            decoded_token = await verify_firebase_token(token)
-            firebase_uid = decoded_token.get("uid") or decoded_token.get("user_id")
-
-            if not firebase_uid:
-                return None
-
-            user = None
-            try:
-                user_repo = UserRepository(db)
-                user = user_repo.get_by_firebase_uid(firebase_uid)
-            except Exception:
-                user = None
-
-            if not user and hasattr(db, "query"):
-                try:
-                    user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
-                except Exception:
-                    # Legacy mock fallback in tests
-                    user = db.query().filter().first()
-
-            if not user:
-                raise HTTPException(
-                    status_code=http_status.HTTP_404_NOT_FOUND,
-                    detail=f"User not found for Firebase UID: {firebase_uid}",
-                )
-
-            return user
-
-        except Exception as e:
-            logger.error(f"Firebase authentication error: {str(e)}")
-            raise HTTPException(
-                status_code=http_status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid Firebase token: {str(e)}",
-            )
 
     async def _authenticate_with_internal_jwt(
         self, connection_id: str, token: str, db: Any

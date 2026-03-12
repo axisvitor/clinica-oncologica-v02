@@ -113,7 +113,6 @@ interface AuthContextType {
   logoutAll: () => Promise<void>
   hasPermission: (permission: string) => boolean
   hasRole: (role: string) => boolean
-  getFirebaseToken: () => Promise<string | null>
   refreshToken: () => Promise<void>
 }
 
@@ -456,10 +455,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     })
   }, [clearAuthState])
 
-  const getFirebaseToken = useCallback(async (): Promise<string | null> => {
-    return session?.websocketToken || session?.session_id || session?.access_token || null
-  }, [session])
-
   const refreshToken = useCallback(async (): Promise<void> => {
     logger.log('Auth phase=refresh-session')
     await restoreSession()
@@ -477,7 +472,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       logoutAll,
       hasPermission,
       hasRole,
-      getFirebaseToken,
       refreshToken,
     }),
     [
@@ -491,7 +485,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       logoutAll,
       hasPermission,
       hasRole,
-      getFirebaseToken,
       refreshToken,
     ]
   )

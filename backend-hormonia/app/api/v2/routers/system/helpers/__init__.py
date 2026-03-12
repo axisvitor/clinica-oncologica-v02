@@ -17,10 +17,8 @@ from .auth import (
 from .config_builder import (
     _filter_safe_env_vars,
     _build_api_urls,
-    _get_firebase_public_config,
     filter_safe_env_vars,
     build_api_urls,
-    get_firebase_public_config,  # Public aliases
 )
 from .health_checker import (
     _check_component_health,
@@ -39,11 +37,9 @@ __all__ = [
     # Config builder helpers (private convention)
     "_filter_safe_env_vars",
     "_build_api_urls",
-    "_get_firebase_public_config",
     # Config builder helpers (public API)
     "filter_safe_env_vars",
     "build_api_urls",
-    "get_firebase_public_config",
     # Health checker helpers (private convention)
     "_check_component_health",
     "_calculate_health_score",

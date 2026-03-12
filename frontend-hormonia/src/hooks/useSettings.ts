@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient } from '../lib/api-client'
+import { toUserSafeAuthError } from '../lib/api-client/auth'
 import { createLogger } from '../lib/logger'
+import { wsManager } from '../lib/websocket'
 import { toast } from './use-toast'
 
 const logger = createLogger('useSettings')
@@ -83,6 +85,27 @@ function saveFrontendOnlyPreferences(prefs: Partial<FrontendOnlyPreferences>) {
   }
 }
 
+function clearPasswordChangeSessionArtifacts() {
+  apiClient.clearAuthToken()
+  wsManager.disconnect()
+
+  try {
+    localStorage.removeItem('session_id')
+  } catch (error) {
+    logger.warn('Failed to clear session_id after password change', { error })
+  }
+}
+
+function schedulePasswordChangeReauthRedirect() {
+  if (import.meta.env.MODE === 'test' || typeof window === 'undefined') {
+    return
+  }
+
+  window.setTimeout(() => {
+    window.location.assign('/login')
+  }, 750)
+}
+
 // Mapper functions to convert between frontend and backend formats
 function mapBackendToFrontend(backend: BackendUserPreferences): UserPreferences {
   const frontendOnly = loadFrontendOnlyPreferences()
@@ -160,14 +183,12 @@ const settingsApi = {
     return response
   },
 
-  // Password change endpoint - Backend only needs new_password
-  // Firebase reauthentication should be done before calling this
+  // Password change endpoint - first-party session contract
   changePassword: async (data: PasswordChangeData) => {
-    // Note: Backend expects only new_password and handles reauthentication via Firebase
-    // The current_password should be used for Firebase reauthentication on the client side
     const response = await apiClient.request<{ message: string }>('/api/v2/auth/password', {
       method: 'PUT',
       body: JSON.stringify({
+        current_password: data.current_password,
         new_password: data.new_password,
       }),
     })
@@ -286,24 +307,25 @@ export function usePasswordChange() {
   const changePasswordMutation = useMutation({
     mutationFn: settingsApi.changePassword,
     onSuccess: () => {
+      clearPasswordChangeSessionArtifacts()
       toast({
         title: 'Senha alterada',
-        description: 'Sua senha foi alterada com sucesso.',
+        description: 'Sua senha foi alterada. Faça login novamente para continuar.',
       })
+      schedulePasswordChangeReauthRedirect()
     },
     onError: (error: unknown) => {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Não foi possível alterar sua senha.'
+      const safeError = toUserSafeAuthError(error, 'Não foi possível alterar sua senha.')
       toast({
         title: 'Erro ao alterar senha',
-        description: errorMessage,
+        description: safeError.message,
         variant: 'destructive',
       })
     },
   })
 
   return {
-    changePassword: changePasswordMutation.mutate,
+    changePassword: changePasswordMutation.mutateAsync,
     isChangingPassword: changePasswordMutation.isPending,
   }
 }

@@ -1,17 +1,14 @@
 /// <reference types="vite/client" />
 
 /**
- * Configuration Module - SIMPLIFIED
- *
- * Uses import.meta.env directly from .env file.
- * Vite replaces these values at build time.
+ * Runtime configuration for the session-first frontend.
+ * Values come directly from import.meta.env and are safe to inspect without exposing secrets.
  */
 
 import { createLogger } from './logger'
 
 const logger = createLogger('RuntimeConfig')
 
-// Environment configuration interface
 export interface RuntimeConfig {
   VITE_API_URL: string
   VITE_API_BASE_URL?: string
@@ -19,28 +16,15 @@ export interface RuntimeConfig {
   VITE_WS_BASE_URL?: string
   VITE_WHATSAPP_INSTANCE_NAME?: string
 
-  // Legacy Firebase compatibility knobs (optional until S04 cleanup)
-  // Staff auth now uses first-party backend sessions and does not require these values.
-  VITE_FIREBASE_API_KEY?: string
-  VITE_FIREBASE_AUTH_DOMAIN?: string
-  VITE_FIREBASE_PROJECT_ID?: string
-  VITE_FIREBASE_STORAGE_BUCKET?: string
-  VITE_FIREBASE_MESSAGING_SENDER_ID?: string
-  VITE_FIREBASE_APP_ID?: string
-  VITE_FIREBASE_MEASUREMENT_ID?: string
-
-  // AI Feature Flags
   VITE_AI_CHAT_ENABLED?: string
   VITE_AI_ANALYTICS_ENABLED?: string
   VITE_AI_SUMMARY_ENABLED?: string
   VITE_AI_INSIGHTS_ENABLED?: string
   VITE_AI_RECOMMENDATIONS_ENABLED?: string
 
-  // Monitoring & Analytics
   VITE_SENTRY_DSN?: string
   VITE_ANALYTICS_TRACKING_ID?: string
 
-  // Environment Settings
   VITE_ENVIRONMENT?: string
   VITE_DEBUG_MODE?: string
   VITE_SESSION_TIMEOUT?: string
@@ -48,16 +32,10 @@ export interface RuntimeConfig {
   VITE_MAX_FILE_SIZE?: string
   VITE_SUPPORTED_FILE_TYPES?: string
 
-  // Demo Configuration
   VITE_SHOW_DEMO_CREDENTIALS?: string
 }
 
-/**
- * Configuration built directly from .env file via import.meta.env
- * Vite replaces these at build time with actual values from .env
- */
 const CONFIG: RuntimeConfig = {
-  // API URLs - directly from .env
   VITE_API_URL:
     import.meta.env['VITE_API_ENDPOINT_URL'] ||
     import.meta.env['VITE_API_URL'] ||
@@ -74,17 +52,6 @@ const CONFIG: RuntimeConfig = {
   VITE_WHATSAPP_INSTANCE_NAME:
     import.meta.env['VITE_WHATSAPP_INSTANCE_NAME'] || 'hormonia-instance',
 
-  // Legacy Firebase compatibility knobs (optional until S04 cleanup)
-  VITE_FIREBASE_API_KEY: import.meta.env['VITE_FIREBASE_API_KEY'] || undefined,
-  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env['VITE_FIREBASE_AUTH_DOMAIN'] || undefined,
-  VITE_FIREBASE_PROJECT_ID: import.meta.env['VITE_FIREBASE_PROJECT_ID'] || undefined,
-  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env['VITE_FIREBASE_STORAGE_BUCKET'] || undefined,
-  VITE_FIREBASE_MESSAGING_SENDER_ID:
-    import.meta.env['VITE_FIREBASE_MESSAGING_SENDER_ID'] || undefined,
-  VITE_FIREBASE_APP_ID: import.meta.env['VITE_FIREBASE_APP_ID'] || undefined,
-  VITE_FIREBASE_MEASUREMENT_ID: import.meta.env['VITE_FIREBASE_MEASUREMENT_ID'] || undefined,
-
-  // AI Feature Flags (support legacy *_ENABLED and current ENABLE_* names)
   VITE_AI_CHAT_ENABLED:
     import.meta.env['VITE_AI_CHAT_ENABLED'] || import.meta.env['VITE_AI_ENABLE_CHAT'] || 'true',
   VITE_AI_ANALYTICS_ENABLED:
@@ -104,7 +71,9 @@ const CONFIG: RuntimeConfig = {
     import.meta.env['VITE_AI_ENABLE_RECOMMENDATIONS'] ||
     'true',
 
-  // Environment Settings
+  VITE_SENTRY_DSN: import.meta.env['VITE_SENTRY_DSN'] || undefined,
+  VITE_ANALYTICS_TRACKING_ID: import.meta.env['VITE_ANALYTICS_TRACKING_ID'] || undefined,
+
   VITE_ENVIRONMENT: import.meta.env['VITE_APP_ENVIRONMENT'] || 'development',
   VITE_DEBUG_MODE: import.meta.env['VITE_APP_ENABLE_DEBUG'] || 'false',
   VITE_SESSION_TIMEOUT: import.meta.env['VITE_SESSION_TIMEOUT_MS'] || '3600000',
@@ -115,17 +84,9 @@ const CONFIG: RuntimeConfig = {
     import.meta.env['VITE_UPLOAD_SUPPORTED_MIMETYPES'] ||
     'image/jpeg,image/png,image/gif,application/pdf',
 
-  // Demo Configuration
   VITE_SHOW_DEMO_CREDENTIALS: import.meta.env['VITE_SHOW_DEMO_CREDENTIALS'] || 'false',
 }
 
-const legacyFirebaseConfigured = Boolean(
-  CONFIG.VITE_FIREBASE_API_KEY &&
-    CONFIG.VITE_FIREBASE_AUTH_DOMAIN &&
-    CONFIG.VITE_FIREBASE_PROJECT_ID
-)
-
-// Log config on load for debugging without exposing secrets
 if (import.meta.env['DEV']) {
   logger.log('Config loaded:', {
     API_URL: CONFIG.VITE_API_URL,
@@ -133,34 +94,21 @@ if (import.meta.env['DEV']) {
     WS_URL: CONFIG.VITE_WS_URL,
     auth_mode: 'first-party-session',
     websocket_ready: Boolean(CONFIG.VITE_WS_URL || CONFIG.VITE_WS_BASE_URL),
-    legacy_firebase_configured: legacyFirebaseConfigured,
   })
 }
 
-/**
- * Gets the runtime configuration (async for compatibility)
- */
 export async function getRuntimeConfig(): Promise<RuntimeConfig> {
   return CONFIG
 }
 
-/**
- * Gets the runtime configuration synchronously
- */
 export function getRuntimeConfigSync(): RuntimeConfig {
   return CONFIG
 }
 
-/**
- * Forces a refresh of the runtime configuration (no-op in simplified version)
- */
 export async function refreshRuntimeConfig(): Promise<RuntimeConfig> {
   return CONFIG
 }
 
-/**
- * Gets a specific configuration value with fallback
- */
 export async function getConfigValue<K extends keyof RuntimeConfig>(
   key: K,
   fallback?: RuntimeConfig[K]
@@ -168,12 +116,8 @@ export async function getConfigValue<K extends keyof RuntimeConfig>(
   return CONFIG[key] || fallback
 }
 
-/**
- * Checks if the app is running in production mode
- */
 export function isProduction(): boolean {
   return import.meta.env.MODE === 'production' || import.meta.env.PROD === true
 }
 
-// Export the config object for direct access
 export { CONFIG as PRODUCTION_FALLBACK_CONFIG }

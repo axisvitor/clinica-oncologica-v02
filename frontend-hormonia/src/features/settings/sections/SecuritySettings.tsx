@@ -23,7 +23,13 @@ import { Shield, Loader2 } from 'lucide-react'
 const passwordSchema = z
   .object({
     current_password: z.string().min(1, 'Senha atual é obrigatória'),
-    new_password: z.string().min(6, 'Nova senha deve ter pelo menos 6 caracteres'),
+    new_password: z
+      .string()
+      .min(8, 'Nova senha deve ter pelo menos 8 caracteres')
+      .regex(/[A-Z]/, 'A nova senha deve ter pelo menos uma letra maiúscula')
+      .regex(/[a-z]/, 'A nova senha deve ter pelo menos uma letra minúscula')
+      .regex(/[0-9]/, 'A nova senha deve ter pelo menos um número')
+      .regex(/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/, 'A nova senha deve ter pelo menos um caractere especial'),
     confirm_password: z.string(),
   })
   .refine((data) => data['new_password'] === data['confirm_password'], {
@@ -49,8 +55,8 @@ export function SecuritySettings() {
     },
   })
 
-  const onPasswordSubmit = (data: PasswordFormData) => {
-    changePassword(data)
+  const onPasswordSubmit = async (data: PasswordFormData) => {
+    await changePassword(data)
     passwordForm.reset()
   }
 
@@ -88,7 +94,9 @@ export function SecuritySettings() {
                     <FormControl>
                       <Input type="password" placeholder="Nova senha" {...field} />
                     </FormControl>
-                    <FormDescription>A senha deve ter pelo menos 6 caracteres.</FormDescription>
+                    <FormDescription>
+                      Use pelo menos 8 caracteres com maiúsculas, minúsculas, número e caractere especial. Após salvar, será necessário fazer login novamente.
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

@@ -41,12 +41,13 @@ logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
 
-# Initialize Firebase Auth Service if configured
+# Initialize optional Firebase Auth Service for legacy compatibility paths only.
+# Session-first staff authentication must remain operational even when Firebase
+# Admin credentials are absent.
 _firebase_service = None
 try:
     from app.services.firebase_auth_service import get_firebase_auth_service
 
-    # Check if Firebase credentials are configured
     firebase_project_id = getattr(settings, "FIREBASE_ADMIN_PROJECT_ID", None)
     firebase_private_key = getattr(settings, "FIREBASE_ADMIN_PRIVATE_KEY", None)
     firebase_client_email = getattr(settings, "FIREBASE_ADMIN_CLIENT_EMAIL", None)
@@ -57,14 +58,16 @@ try:
             private_key=firebase_private_key,
             client_email=firebase_client_email,
         )
-        logger.info("Firebase Authentication enabled")
+        logger.info("Optional Firebase authentication compatibility enabled")
     else:
-        logger.error(
-            "Firebase credentials not configured - authentication will not work"
+        logger.info(
+            "Firebase admin credentials absent; session-first staff authentication remains available"
         )
         _firebase_service = None
 except Exception as e:
-    logger.error(f"Failed to initialize Firebase Auth: {str(e)}")
+    logger.warning(
+        "Failed to initialize optional Firebase auth compatibility: %s", str(e)
+    )
     _firebase_service = None
 
 # =============================================================================

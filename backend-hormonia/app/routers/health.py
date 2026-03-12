@@ -130,7 +130,7 @@ async def readiness_check(
     Checks:
     - Database connectivity
     - Redis connectivity (optional)
-    - Firebase connectivity (via environment validation)
+    - Session-auth prerequisites (cookie + secret configuration)
 
     Returns 200 only if all critical dependencies are healthy.
     This endpoint should be used by load balancers to determine
@@ -191,28 +191,44 @@ async def readiness_check(
         }
         logger.warning("Redis health check failed (non-critical)", error=str(e))
 
-    # Check Firebase configuration (environment variables)
+    # Check session-auth prerequisites (critical)
     try:
         from app.config import settings
 
-        firebase_healthy = bool(
-            getattr(settings, "FIREBASE_ADMIN_PROJECT_ID", None)
-            and getattr(settings, "FIREBASE_ADMIN_PRIVATE_KEY", None)
-            and getattr(settings, "FIREBASE_ADMIN_CLIENT_EMAIL", None)
-        )
+        missing_prerequisites = []
+        if not getattr(settings, "SECURITY_SECRET_KEY", None):
+            missing_prerequisites.append("SECURITY_SECRET_KEY")
+        if not getattr(settings, "SESSION_COOKIE_NAME", None):
+            missing_prerequisites.append("SESSION_COOKIE_NAME")
+        if not getattr(settings, "SESSION_ENABLE_COOKIE_HTTPONLY", False):
+            missing_prerequisites.append("SESSION_ENABLE_COOKIE_HTTPONLY")
 
-        dependencies["firebase"] = {
-            "status": "healthy" if firebase_healthy else "unhealthy",
-            "note": "Configuration validated",
+        session_auth_status = "healthy" if not missing_prerequisites else "unhealthy"
+        dependencies["session_auth"] = {
+            "status": session_auth_status,
+            "mode": "session-first",
+            "cookie_name": getattr(settings, "SESSION_COOKIE_NAME", None),
+            "csrf_protection_configured": bool(
+                getattr(settings, "SECURITY_CSRF_SECRET_KEY", None)
+            ),
         }
 
-        if not firebase_healthy:
+        if missing_prerequisites:
             all_healthy = False
-            logger.error("Firebase configuration incomplete")
+            dependencies["session_auth"]["error"] = (
+                "Missing session-auth prerequisites: "
+                + ", ".join(missing_prerequisites)
+            )
+            logger.error(
+                "Session-auth prerequisites incomplete",
+                missing_prerequisites=missing_prerequisites,
+            )
     except Exception as e:
         all_healthy = False
-        dependencies["firebase"] = {"status": "unhealthy", "error": str(e)}
-        logger.error("Firebase configuration check failed", exc_info=e, error=str(e))
+        dependencies["session_auth"] = {"status": "unhealthy", "error": str(e)}
+        logger.error(
+            "Session-auth readiness check failed", exc_info=e, error=str(e)
+        )
 
     total_duration = (time.perf_counter() - start_time) * 1000
 
@@ -384,7 +400,11 @@ async def startup_validation(
     try:
         from app.config import settings
 
-        required_settings = ["FIREBASE_PROJECT_ID", "DATABASE_URL", "SECRET_KEY"]
+        required_settings = [
+            "DATABASE_URL",
+            "SECURITY_SECRET_KEY",
+            "SESSION_COOKIE_NAME",
+        ]
 
         for setting in required_settings:
             value = getattr(settings, setting, None)
@@ -397,6 +417,18 @@ async def startup_validation(
             validation_results[f"config_{setting.lower()}"] = (
                 "set" if is_set else "missing"
             )
+
+        validation_results["config_security_csrf_secret_key"] = (
+            "set" if getattr(settings, "SECURITY_CSRF_SECRET_KEY", None) else "missing_optional"
+        )
+        validation_results["config_session_enable_cookie_httponly"] = (
+            "set"
+            if getattr(settings, "SESSION_ENABLE_COOKIE_HTTPONLY", False)
+            else "missing"
+        )
+        if not getattr(settings, "SESSION_ENABLE_COOKIE_HTTPONLY", False):
+            all_valid = False
+            logger.error("Required setting missing: SESSION_ENABLE_COOKIE_HTTPONLY")
 
     except Exception as e:
         all_valid = False

@@ -19,7 +19,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { toast } from '@/hooks/use-toast'
 import { createLogger } from '@/lib/logger'
-import { loadConfig, getRuntimeConfigSync } from '@/config'
+import { loadConfig } from '@/config'
 import { apiClient } from '@/lib/api-client'
 
 const logger = createLogger('ServiceMonitor')
@@ -194,12 +194,6 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
 
     try {
       const config = await loadConfig()
-      const runtimeConfig = getRuntimeConfigSync()
-      const legacyFirebaseConfigured = Boolean(
-        runtimeConfig?.VITE_FIREBASE_API_KEY &&
-          runtimeConfig?.VITE_FIREBASE_AUTH_DOMAIN &&
-          runtimeConfig?.VITE_FIREBASE_PROJECT_ID
-      )
 
       if (config.API_BASE_URL) {
         apiClient.setBaseURL(config.API_BASE_URL)
@@ -228,7 +222,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         const startTime = Date.now()
 
         try {
-          const details = await checkService(service, config, legacyFirebaseConfigured)
+          const details = await checkService(service, config)
           const responseTime = Date.now() - startTime
           markService(service.id, 'healthy', responseTime, undefined, details)
         } catch (error) {
@@ -256,7 +250,6 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         auth_mode: AUTH_MODE,
         session_auth_status: observedStatuses.get('session-auth') ?? 'pending',
         websocket_status: observedStatuses.get('websocket') ?? 'pending',
-        legacy_firebase_configured: legacyFirebaseConfigured,
       })
 
       const failedRequiredServices = servicesToCheck.filter(
@@ -297,12 +290,11 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
 
   const checkService = async (
     service: Service,
-    config: AppConfig,
-    legacyFirebaseConfigured: boolean
+    config: AppConfig
   ): Promise<Record<string, unknown> | undefined> => {
     switch (service.id) {
       case 'session-auth':
-        return checkSessionAuth(config, legacyFirebaseConfigured)
+        return checkSessionAuth(config)
       case 'websocket':
         return checkWebSocket(config)
       case 'whatsapp':
@@ -316,10 +308,7 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
     }
   }
 
-  const checkSessionAuth = async (
-    config: AppConfig,
-    legacyFirebaseConfigured: boolean
-  ): Promise<Record<string, unknown>> => {
+  const checkSessionAuth = async (config: AppConfig): Promise<Record<string, unknown>> => {
     if (!config.API_BASE_URL) {
       throw new Error('API não configurada para autenticação por sessão')
     }
@@ -351,7 +340,6 @@ export function ServiceMonitor({ onComplete, onError }: ServiceMonitorProps) {
         auth_mode: AUTH_MODE,
         csrf_ready: true,
         endpoint: `${config.API_BASE_URL}/api/v2/auth/csrf-token`,
-        legacy_firebase_configured: legacyFirebaseConfigured,
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {

@@ -21,7 +21,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { toast } from '@/hooks/use-toast'
 import { createLogger } from '@/lib/logger'
 import { apiClient } from '@/lib/api-client'
-import { loadConfig, getRuntimeConfigSync } from '@/config'
+import { loadConfig } from '@/config'
 
 const logger = createLogger('EnvironmentSetup')
 
@@ -167,12 +167,6 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
 
     try {
       const config = await loadConfig()
-      const runtimeConfig = getRuntimeConfigSync()
-      const legacyFirebaseConfigured = Boolean(
-        runtimeConfig?.VITE_FIREBASE_API_KEY &&
-          runtimeConfig?.VITE_FIREBASE_AUTH_DOMAIN &&
-          runtimeConfig?.VITE_FIREBASE_PROJECT_ID
-      )
 
       setChecks((prev) =>
         prev.map((check) => ({
@@ -254,13 +248,7 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
             throw new Error('Resposta CSRF inválida para autenticação por sessão')
           }
 
-          markCheck(
-            'session_auth',
-            'success',
-            legacyFirebaseConfigured
-              ? 'Cookie + CSRF prontos (compat legado detectada)'
-              : 'Cookie + CSRF prontos'
-          )
+          markCheck('session_auth', 'success', 'Cookie + CSRF prontos')
         } catch (error) {
           const message =
             error instanceof Error && error.name === 'AbortError'
@@ -311,7 +299,6 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
         auth_mode: AUTH_MODE,
         session_auth_status: observedStatuses.get('session_auth') ?? 'pending',
         websocket_status: observedStatuses.get('ws_url') ?? 'pending',
-        legacy_firebase_configured: legacyFirebaseConfigured,
       })
 
       await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -552,7 +539,7 @@ export function EnvironmentSetup({ onComplete, onError }: EnvironmentSetupProps)
             <CardTitle>Configuração Manual</CardTitle>
             <CardDescription>
               Ajuste valores de ambiente do frontend quando necessário. O login da equipe usa
-              sessão própria do backend; credenciais Firebase não são obrigatórias aqui.
+              sessão própria do backend e não depende de provedores externos no navegador.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

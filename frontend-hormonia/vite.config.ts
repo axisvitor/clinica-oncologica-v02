@@ -13,19 +13,6 @@ export default defineConfig(({ mode }) => ({
       "@": resolve(__dirname, "./src"),
       "~backend/client": resolve(__dirname, "./client"),
       "~backend": resolve(__dirname, "../backend-hormonia"),
-      ...(mode === "test"
-        ? {
-          // Legacy Firebase test aliases retained until S04 cleanup.
-          "firebase/app": resolve(
-            __dirname,
-            "./node_modules/firebase/app/dist/esm/index.esm.js"
-          ),
-          "firebase/auth": resolve(
-            __dirname,
-            "./node_modules/firebase/auth/dist/esm/index.esm.js"
-          ),
-        }
-        : {}),
     },
   },
 

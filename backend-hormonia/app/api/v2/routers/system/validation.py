@@ -51,8 +51,8 @@ async def validate_configuration(
     Validate system configuration.
 
     Checks:
-    - Critical settings (SECRET_KEY, DATABASE_URL)
-    - Security settings (SSL, CORS, cookies)
+    - Critical settings (SECURITY_SECRET_KEY, DATABASE_URL)
+    - Session-auth settings (cookies, CSRF, secure transport)
     - External service configurations
     - Production best practices
     """
@@ -76,42 +76,46 @@ async def validate_configuration(
             not settings.SECURITY_SECRET_KEY
             or "CHANGE_THIS" in settings.SECURITY_SECRET_KEY.upper()
         ):
-            errors.append("SECRET_KEY is not properly configured")
+            errors.append("SECURITY_SECRET_KEY is not properly configured")
 
         if not settings.DATABASE_URL:
             errors.append("DATABASE_URL is not configured")
 
-        # Check Firebase configuration
-        firebase_configured = all(
-            [
-                settings.FIREBASE_ADMIN_PROJECT_ID,
-                settings.FIREBASE_ADMIN_PRIVATE_KEY,
-                settings.FIREBASE_ADMIN_CLIENT_EMAIL,
-            ]
-        )
+        if not settings.SESSION_COOKIE_NAME:
+            errors.append("SESSION_COOKIE_NAME is not configured")
 
-        if not firebase_configured:
-            warnings.append("Firebase Admin SDK is not fully configured")
-            recommendations.append("Configure Firebase for authentication features")
+        # Check session-first auth diagnostics
+        if not getattr(settings, "SESSION_ENABLE_COOKIE_HTTPONLY", True):
+            warnings.append(
+                "SESSION_ENABLE_COOKIE_HTTPONLY should remain enabled for session-based auth"
+            )
+            recommendations.append(
+                "Enable SESSION_ENABLE_COOKIE_HTTPONLY to protect session cookies from script access"
+            )
+
+        if not getattr(settings, "SECURITY_CSRF_SECRET_KEY", None):
+            warnings.append(
+                "SECURITY_CSRF_SECRET_KEY is not configured for session-based auth"
+            )
+            recommendations.append(
+                "Configure SECURITY_CSRF_SECRET_KEY so CSRF protection remains enabled for session auth"
+            )
 
         # Check production security settings
         if settings.APP_ENVIRONMENT.lower() == "production":
             if settings.APP_ENABLE_DEBUG:
                 errors.append("DEBUG should be False in production")
 
-            if not getattr(settings, "SESSION_COOKIE_SECURE", False):
-                warnings.append("SESSION_COOKIE_SECURE should be True in production")
+            if not getattr(settings, "SESSION_ENABLE_COOKIE_SECURE", False):
+                warnings.append("SESSION_ENABLE_COOKIE_SECURE should be True in production")
                 recommendations.append("Enable secure cookies for production")
 
-            if not getattr(settings, "SECURE_SSL_REDIRECT", False):
-                warnings.append("SECURE_SSL_REDIRECT should be True in production")
+            if not getattr(settings, "SECURITY_ENABLE_SSL_REDIRECT", False):
+                warnings.append("SECURITY_ENABLE_SSL_REDIRECT should be True in production")
                 recommendations.append("Enable HTTPS redirect for production")
 
         # Check CORS configuration
-        if (
-            not getattr(settings, "ALLOWED_ORIGINS", None)
-            and not settings.CORS_FRONTEND_URL
-        ):
+        if not getattr(settings, "CORS_ALLOWED_ORIGINS", None) and not settings.CORS_FRONTEND_URL:
             warnings.append("CORS origins not configured")
             recommendations.append("Configure allowed CORS origins")
 
@@ -134,6 +138,7 @@ async def validate_configuration(
 
         categories_checked = validation_request.categories or [
             "security",
+            "session_auth",
             "database",
             "external_services",
         ]

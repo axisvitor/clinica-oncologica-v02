@@ -535,69 +535,15 @@ class LocalLoginResponse(BaseModel):
 
 
 # ============================================================================
-# Authentication (Firebase-based compatibility)
-# ============================================================================
-
-
-class FirebaseTokenVerifyRequest(BaseModel):
-    """Request to verify Firebase ID token"""
-
-    id_token: str = Field(..., description="Firebase ID token from client")
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {"id_token": "eyJhbGciOiJSUzI1NiIsImtpZCI6IjFlOWdkazcifQ..."}
-        }
-    )
-
-
-class FirebaseTokenVerifyResponse(BaseModel):
-    """Response after verifying Firebase token"""
-
-    valid: bool
-    user: Optional["UserV2Response"] = None
-    session_id: Optional[str] = None
-    message: Optional[str] = None
-
-    model_config = ConfigDict(
-        json_schema_extra={
-            "example": {
-                "valid": True,
-                "user": {
-                    "id": "123e4567-e89b-12d3-a456-426614174000",
-                    "email": "doctor@example.com",
-                    "full_name": "Dr. Maria Silva",
-                    "role": "doctor",
-                },
-                "session_id": "sess_abc123",
-            }
-        }
-    )
-
-
-# ============================================================================
-# Password Management (Legacy - Firebase handles this)
+# Password Management
 # ============================================================================
 
 
 class PasswordChangeRequest(BaseModel):
-    """Request to change password"""
+    """Request to change password."""
 
-    current_password: str = Field(..., min_length=8)
+    current_password: str = Field(..., min_length=8, max_length=128)
     new_password: str = Field(..., min_length=8, max_length=128)
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_password_strength(cls, v):
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        if not any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in v):
-            raise ValueError("Password must contain at least one special character")
-        return v
 
     model_config = ConfigDict(
         json_schema_extra={

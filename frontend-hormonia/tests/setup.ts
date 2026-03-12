@@ -15,14 +15,6 @@ vi.mock('../config', () => ({
   ENVIRONMENT: 'test'
 }))
 
-// Mock Firebase environment variables
-process.env.VITE_FIREBASE_API_KEY = 'mock-api-key'
-process.env.VITE_FIREBASE_AUTH_DOMAIN = 'mock-auth-domain.firebaseapp.com'
-process.env.VITE_FIREBASE_PROJECT_ID = 'mock-project-id'
-process.env.VITE_FIREBASE_STORAGE_BUCKET = 'mock-storage-bucket.appspot.com'
-process.env.VITE_FIREBASE_MESSAGING_SENDER_ID = '123456789'
-process.env.VITE_FIREBASE_APP_ID = '1:123456789:web:abcdef123456'
-
 // Mock window.matchMedia (not implemented in JSDOM)
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

@@ -711,6 +711,9 @@ class _NullRedisManager:
         self._store: dict[str, Any] = {}
         self._sync_client = _NullRedis()
         self._async_client = _NullAsyncRedis(self._sync_client._store)
+        self._sessions: dict[str, dict[str, Any]] = {}
+        self._users_by_id: dict[str, dict[str, Any]] = {}
+        self._users_by_uid: dict[str, dict[str, Any]] = {}
         self.max_connections = 0
 
     def get_sync_client(self) -> _NullRedis:
@@ -721,6 +724,82 @@ class _NullRedisManager:
 
     def get_compatible_client(self, preferred_type: str = "auto"):
         return self._sync_client
+
+    async def get_session(self, session_id: str) -> Optional[dict[str, Any]]:
+        session = self._sessions.get(str(session_id))
+        return dict(session) if session else None
+
+    async def create_session(
+        self,
+        session_id: str,
+        user_id: Optional[str] = None,
+        firebase_uid: Optional[str] = None,
+        metadata: Optional[dict[str, Any]] = None,
+        ttl: Optional[int] = None,
+        ttl_seconds: Optional[int] = None,
+    ) -> bool:
+        payload = {
+            "session_id": str(session_id),
+            "user_id": str(user_id) if user_id is not None else None,
+            "firebase_uid": firebase_uid,
+            "ttl": ttl if ttl is not None else ttl_seconds,
+        }
+        if isinstance(metadata, dict):
+            payload.update(metadata)
+        self._sessions[str(session_id)] = payload
+        return True
+
+    async def invalidate_session(self, session_id: str) -> bool:
+        return self._sessions.pop(str(session_id), None) is not None
+
+    async def invalidate_all_user_sessions(self, identity: Optional[str]) -> int:
+        if not identity:
+            return 0
+        identity = str(identity)
+        to_delete = [
+            session_id
+            for session_id, payload in self._sessions.items()
+            if str(payload.get("user_id") or "") == identity
+            or str(payload.get("firebase_uid") or "") == identity
+        ]
+        for session_id in to_delete:
+            self._sessions.pop(session_id, None)
+        return len(to_delete)
+
+    async def cache_user_data(self, firebase_uid: Optional[str], user_data: dict[str, Any], ttl: Optional[int] = None):
+        if firebase_uid:
+            self._users_by_uid[str(firebase_uid)] = dict(user_data)
+        return True
+
+    async def cache_user_data_by_user_id(self, user_id: Optional[str], user_data: dict[str, Any], ttl: Optional[int] = None):
+        if user_id:
+            self._users_by_id[str(user_id)] = dict(user_data)
+        firebase_uid = user_data.get("firebase_uid")
+        if firebase_uid:
+            self._users_by_uid[str(firebase_uid)] = dict(user_data)
+        return True
+
+    async def get_user_by_id(self, user_id: str):
+        user = self._users_by_id.get(str(user_id))
+        return dict(user) if user else None
+
+    async def get_user_by_uid(self, firebase_uid: str):
+        user = self._users_by_uid.get(str(firebase_uid))
+        return dict(user) if user else None
+
+    async def update_session_activity(
+        self,
+        session_id: str,
+        extend_ttl: bool = False,
+        custom_ttl: Optional[int] = None,
+    ) -> bool:
+        payload = self._sessions.get(str(session_id))
+        if not payload:
+            return False
+        if extend_ttl and custom_ttl is not None:
+            payload["ttl"] = custom_ttl
+        self._sessions[str(session_id)] = payload
+        return True
 
     async def close_all(self) -> None:
         return None
