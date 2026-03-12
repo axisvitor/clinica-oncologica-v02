@@ -14,7 +14,71 @@ Guidelines:
 
 ## Active
 
-- None currently. The next active requirements should be introduced by the next milestone.
+### R034 — Critical mixed-responsibility hotspots are split into smaller modules
+- Class: quality-attribute
+- Status: active
+- Description: The milestone must materially reduce the size and responsibility sprawl of the highest-value hotspots instead of leaving the same behavior trapped in giant files.
+- Why it matters: Large mixed-responsibility files make safe changes, debugging, and review disproportionately expensive.
+- Source: user
+- Primary owning slice: M003/S02
+- Supporting slices: M003/S03, M003/S04
+- Validation: mapped
+- Notes: The first attack zone is backend auth/session, with frontend client/type surfaces following immediately after.
+
+### R035 — Dead-code removal is evidence-based, not taste-based
+- Class: failure-visibility
+- Status: active
+- Description: Code should only be declared dead and removed when repo evidence, call graph analysis, or focused verification shows it is not part of a live path.
+- Why it matters: In a brownfield system, mistaken deletion is worse than untidy code.
+- Source: user
+- Primary owning slice: M003/S01
+- Supporting slices: M003/S04
+- Validation: mapped
+- Notes: The biggest unknown the user wants retired is separating code that is merely ugly from code that is truly removable.
+
+### R036 — Obsolete compatibility layers are removed or tightly isolated
+- Class: constraint
+- Status: active
+- Description: Legacy aliases, shims, and compatibility layers that no longer justify their complexity must either be removed or explicitly isolated away from the main runtime path.
+- Why it matters: Compatibility residue keeps the real architecture blurry and makes every future change more dangerous.
+- Source: user
+- Primary owning slice: M003/S04
+- Supporting slices: M003/S02, M003/S03
+- Validation: mapped
+- Notes: The user prefers removal when deadness is proven, not indefinite preservation out of caution.
+
+### R037 — Visible contracts remain stable during the cleanup
+- Class: continuity
+- Status: active
+- Description: The refactor must not unnecessarily change user-visible behavior, critical payload shapes, or the main staff-auth/dashboard/admin/flow entrypoint behavior.
+- Why it matters: This work is meant to buy maintainability, not hide regressions behind cleanup language.
+- Source: user
+- Primary owning slice: M003/S05
+- Supporting slices: M003/S02, M003/S03, M003/S04
+- Validation: mapped
+- Notes: The user explicitly called contract drift “past the point” for this milestone.
+
+### R038 — The codebase becomes safer to change in practice
+- Class: operability
+- Status: active
+- Description: After the milestone, maintainers should be able to reason about and change the targeted areas with less fear because module boundaries and responsibilities are clearer.
+- Why it matters: The primary beneficiary is whoever maintains the system next, not just the current cleanup effort.
+- Source: user
+- Primary owning slice: M003/S05
+- Supporting slices: M003/S02, M003/S03, M003/S04
+- Validation: mapped
+- Notes: “Mudar sem medo” is the user’s main success shape for the milestone.
+
+### R039 — Structural cleanup leaves strong proof, not just nicer files
+- Class: quality-attribute
+- Status: active
+- Description: The milestone must leave focused verification and smoke evidence that the refactor preserved critical auth/session, dashboard/admin, and WhatsApp flow behavior.
+- Why it matters: Refactors are only worth trusting if the new structure is backed by proof, not aesthetics.
+- Source: inferred
+- Primary owning slice: M003/S05
+- Supporting slices: M003/S01, M003/S02, M003/S03, M003/S04
+- Validation: mapped
+- Notes: The preferred acceptance signal is focused suites plus critical smoke checks rather than a purely cosmetic diff.
 
 ## Validated
 
@@ -196,6 +260,39 @@ Guidelines:
 - Validation: unmapped
 - Notes: Carries forward prior deferred project work.
 
+### R040 — Repo-wide file-size budgets are enforced in CI
+- Class: quality-attribute
+- Status: deferred
+- Description: Add automated size ceilings or architectural budget checks so new hotspots do not quietly regrow after M003.
+- Why it matters: Manual cleanup without a guardrail can decay back into the same problem.
+- Source: research
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Useful follow-up, but not required to make the first cleanup milestone shippable.
+
+### R041 — AI/ADK subsystem receives a dedicated deep modularization pass
+- Class: integration
+- Status: deferred
+- Description: Apply the same hotspot-splitting discipline to the AI/ADK runtime and related large modules once the first cleanup wave is complete.
+- Why it matters: Those areas are large and risky, but they are not the first attack zone for this milestone.
+- Source: discussion
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: unmapped
+- Notes: The user prioritized backend auth/session first; AI/ADK stays sensitive and deserves its own focused pass later.
+
+### R042 — Frontend-wide export/type unification extends beyond the targeted surfaces
+- Class: operability
+- Status: deferred
+- Description: Finish broad export-surface and duplicate-type cleanup across all frontend domains after the highest-value client/type hotspots are stabilized.
+- Why it matters: The frontend has many re-export layers and compatibility aliases, but M003 should focus first on the central client/type seam.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: unmapped
+- Notes: Deferred to avoid turning the current milestone into a repo-wide churn event.
+
 ## Out of Scope
 
 ### R030 — Public self-signup for staff users
@@ -242,6 +339,50 @@ Guidelines:
 - Validation: n/a
 - Notes: Quiz session flows remain separate unless a concrete dependency emerges during implementation.
 
+### R043 — New product capabilities are added during the cleanup milestone
+- Class: anti-feature
+- Status: out-of-scope
+- Description: M003 does not expand product scope with new features while refactoring the existing system.
+- Why it matters: Feature work would blur whether the milestone actually paid down structural risk.
+- Source: user
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: The milestone is about maintainability and safe cleanup, not new end-user functionality.
+
+### R044 — Public API contracts are redesigned without necessity
+- Class: constraint
+- Status: out-of-scope
+- Description: M003 does not intentionally redesign stable visible contracts unless a change is required to remove proven dead or obsolete structure.
+- Why it matters: The user explicitly does not want the refactor to cross into unnecessary behavior or payload drift.
+- Source: user
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Contract continuity is a core guardrail for the milestone.
+
+### R045 — Full architecture rewrite or replatform
+- Class: anti-feature
+- Status: out-of-scope
+- Description: M003 does not attempt to replace the project architecture wholesale or replatform major subsystems under the banner of cleanup.
+- Why it matters: A rewrite would destroy the milestone’s constraint of making the current system safer to change.
+- Source: discussion
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: The user wants aggressive cleanup, not a disguised restart.
+
+### R046 — Broad database schema redesign unrelated to hotspot cleanup
+- Class: constraint
+- Status: out-of-scope
+- Description: M003 does not broaden into schema redesign work except for incidental adjustments directly required by in-scope cleanup.
+- Why it matters: Schema churn would expand the blast radius far beyond the stated maintainability target.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Redis/Postgres session behavior is sensitive and should be preserved, not redesigned, during this milestone.
+
 ## Traceability
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
@@ -266,10 +407,23 @@ Guidelines:
 | R031 | constraint | out-of-scope | none | none | n/a |
 | R032 | anti-feature | out-of-scope | none | none | n/a |
 | R033 | constraint | out-of-scope | none | none | n/a |
+| R034 | quality-attribute | active | M003/S02 | M003/S03, M003/S04 | mapped |
+| R035 | failure-visibility | active | M003/S01 | M003/S04 | mapped |
+| R036 | constraint | active | M003/S04 | M003/S02, M003/S03 | mapped |
+| R037 | continuity | active | M003/S05 | M003/S02, M003/S03, M003/S04 | mapped |
+| R038 | operability | active | M003/S05 | M003/S02, M003/S03, M003/S04 | mapped |
+| R039 | quality-attribute | active | M003/S05 | M003/S01, M003/S02, M003/S03, M003/S04 | mapped |
+| R040 | quality-attribute | deferred | none | none | unmapped |
+| R041 | integration | deferred | none | none | unmapped |
+| R042 | operability | deferred | none | none | unmapped |
+| R043 | anti-feature | out-of-scope | none | none | n/a |
+| R044 | constraint | out-of-scope | none | none | n/a |
+| R045 | anti-feature | out-of-scope | none | none | n/a |
+| R046 | constraint | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 0
-- Mapped to slices: 0
+- Active requirements: 6
+- Mapped to slices: 6
 - Validated: 12
 - Unmapped active requirements: 0

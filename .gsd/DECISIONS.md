@@ -247,3 +247,7 @@
 - "M002/S04/T04 removes live Firebase verify/debug/websocket compatibility from shipped staff-auth surfaces; any remaining Firebase-auth residue after this task is documentation/e2e guidance deferred to T05, not runtime auth behavior."
 - "M002/S04/T05 sets Playwright E2E `testDir` to `.` because the config file itself lives under `tests/e2e/`; the previous nested path hid the hard-cut spec from discovery."
 - "M002/S04/T05 records the final gate honestly as split green/red evidence: residue guard, focused vitest/pytest suites, build, and Playwright discovery are green, while the remaining assembled-browser blocker is login staying on `/login` despite direct backend login succeeding on the same stack."
+- "M003 starts with an evidence-first hotspot inventory and dead-code guardrails before any deletion or structural refactor work."
+- "M003 attacks backend auth/session first and frontend api-client/type surfaces second, because they are the highest-value mixed-responsibility seams for maintenance risk reduction."
+- "M003 removes obsolete compatibility layers when deadness is proven; otherwise they must be explicitly isolated and justified instead of lingering in the main runtime path."
+- "M003 accepts aggressive internal cleanup but treats unnecessary visible contract drift as out of scope for the milestone."
