@@ -169,3 +169,6 @@ target/
 vendor/
 coverage/
 tmp/
+
+# ── GSD baseline (auto-generated) ──
+.gsd/completed-units.json
