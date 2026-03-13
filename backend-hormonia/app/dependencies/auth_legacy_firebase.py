@@ -52,29 +52,6 @@ def initialize_firebase_service(*, settings_obj=settings) -> Any:
     return firebase_service
 
 
-async def verify_firebase_token(
-    id_token: str,
-    *,
-    firebase_service: Any,
-) -> Optional[Dict[str, Any]]:
-    """Verify a Firebase ID token via the isolated compatibility seam."""
-    if firebase_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Firebase authentication is not configured",
-        )
-
-    try:
-        return await firebase_service.verify_token(id_token)
-    except Exception as exc:
-        logger.error("Firebase token verification failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid Firebase token: {str(exc)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-
 def _cached_user_to_model(cached_user: Dict[str, Any]) -> User:
     """Convert cached bearer-auth user data into a ``User`` model."""
     cached_payload = dict(cached_user)
@@ -296,52 +273,7 @@ async def authenticate_legacy_bearer_user(
         )
 
 
-async def get_current_user_websocket(
-    websocket: Any,
-    *,
-    services: "ServiceProvider",
-    firebase_service: Any,
-) -> Optional[User]:
-    """Authenticate a websocket connection through the legacy Firebase bearer path."""
-    try:
-        if firebase_service is None:
-            logger.error("Firebase authentication not configured for WebSocket")
-            return None
-
-        token = None
-        if hasattr(websocket, "query_params") and "token" in websocket.query_params:
-            token = websocket.query_params["token"]
-        elif hasattr(websocket, "headers"):
-            auth_header = None
-            try:
-                auth_header = websocket.headers.get("authorization")
-            except Exception:
-                if "authorization" in getattr(websocket, "headers", {}):
-                    auth_header = websocket.headers["authorization"]
-            if auth_header and auth_header.startswith("Bearer "):
-                token = auth_header[7:]
-
-        if not token:
-            return None
-
-        user_data = await firebase_service.verify_token(token)
-        email = user_data.get("email")
-        if not email:
-            return None
-
-        user = services.user_repository.get_by_email(email.strip().lower())
-        if user is None or not user.is_active:
-            return None
-
-        return user
-    except Exception as exc:
-        logger.error("WebSocket authentication failed: %s", exc)
-        return None
-
-
 __all__ = [
     "authenticate_legacy_bearer_user",
-    "get_current_user_websocket",
     "initialize_firebase_service",
-    "verify_firebase_token",
 ]

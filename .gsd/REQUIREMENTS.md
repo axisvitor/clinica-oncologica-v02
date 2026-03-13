@@ -25,28 +25,6 @@ Guidelines:
 - Validation: mapped
 - Notes: The first attack zone is backend auth/session, with frontend client/type surfaces following immediately after.
 
-### R035 — Dead-code removal is evidence-based, not taste-based
-- Class: failure-visibility
-- Status: active
-- Description: Code should only be declared dead and removed when repo evidence, call graph analysis, or focused verification shows it is not part of a live path.
-- Why it matters: In a brownfield system, mistaken deletion is worse than untidy code.
-- Source: user
-- Primary owning slice: M003/S01
-- Supporting slices: M003/S04
-- Validation: mapped
-- Notes: The biggest unknown the user wants retired is separating code that is merely ugly from code that is truly removable.
-
-### R036 — Obsolete compatibility layers are removed or tightly isolated
-- Class: constraint
-- Status: active
-- Description: Legacy aliases, shims, and compatibility layers that no longer justify their complexity must either be removed or explicitly isolated away from the main runtime path.
-- Why it matters: Compatibility residue keeps the real architecture blurry and makes every future change more dangerous.
-- Source: user
-- Primary owning slice: M003/S04
-- Supporting slices: M003/S02, M003/S03
-- Validation: mapped
-- Notes: The user prefers removal when deadness is proven, not indefinite preservation out of caution.
-
 ### R037 — Visible contracts remain stable during the cleanup
 - Class: continuity
 - Status: active
@@ -213,6 +191,28 @@ Guidelines:
 - Supporting slices: M002/S01, M002/S02, M002/S03
 - Validation: validated
 - Notes: Across M002 the system now emits stable diagnostics for login/session/reset/password/websocket/operational failures (`error`, `message`, `request_id`, websocket auth codes, `session_auth` readiness), with focused pytest/vitest proof across all four slices.
+
+### R035 — Dead-code removal is evidence-based, not taste-based
+- Class: failure-visibility
+- Status: validated
+- Description: Code should only be declared dead and removed when repo evidence, call graph analysis, or focused verification shows it is not part of a live path.
+- Why it matters: In a brownfield system, mistaken deletion is worse than untidy code.
+- Source: user
+- Primary owning slice: M003/S01
+- Supporting slices: M003/S04
+- Validation: validated
+- Notes: M003/S01 established the evidence map and deletion ledger, and M003/S04 executed the in-scope removals with focused frontend/backend proof, a cleanup manifest, and a green living verifier gate.
+
+### R036 — Obsolete compatibility layers are removed or tightly isolated
+- Class: constraint
+- Status: validated
+- Description: Legacy aliases, shims, and compatibility layers that no longer justify their complexity must either be removed or explicitly isolated away from the main runtime path.
+- Why it matters: Compatibility residue keeps the real architecture blurry and makes every future change more dangerous.
+- Source: user
+- Primary owning slice: M003/S04
+- Supporting slices: M003/S02, M003/S03
+- Validation: validated
+- Notes: M003/S04 deleted the proven-dead frontend alias/type/hook files, kept dead backend auth wrappers off the public surface, and documented `auth_session.py`, `firebase_uid`, and bearer-token fallback as explicit retained compatibility islands instead of ambiguous leftovers.
 
 ## Deferred
 
@@ -408,8 +408,8 @@ Guidelines:
 | R032 | anti-feature | out-of-scope | none | none | n/a |
 | R033 | constraint | out-of-scope | none | none | n/a |
 | R034 | quality-attribute | active | M003/S02 | M003/S03, M003/S04 | mapped |
-| R035 | failure-visibility | active | M003/S01 | M003/S04 | mapped |
-| R036 | constraint | active | M003/S04 | M003/S02, M003/S03 | mapped |
+| R035 | failure-visibility | validated | M003/S01 | M003/S04 | validated |
+| R036 | constraint | validated | M003/S04 | M003/S02, M003/S03 | validated |
 | R037 | continuity | active | M003/S05 | M003/S02, M003/S03, M003/S04 | mapped |
 | R038 | operability | active | M003/S05 | M003/S02, M003/S03, M003/S04 | mapped |
 | R039 | quality-attribute | active | M003/S05 | M003/S01, M003/S02, M003/S03, M003/S04 | mapped |
@@ -423,7 +423,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 6
-- Mapped to slices: 6
-- Validated: 12
+- Active requirements: 4
+- Mapped to slices: 4
+- Validated: 14
 - Unmapped active requirements: 0

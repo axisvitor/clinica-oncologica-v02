@@ -1,9 +1,9 @@
 # GSD State
 
 **Active Milestone:** M003 — Structural Refactor And Dead-Code Cleanup
-**Active Slice:** S04 — Dead-Code And Obsolete-Compatibility Cleanup
+**Active Slice:** S05 — Integrated Proof And Structural Closeout
 **Phase:** planning
-**Requirements Status:** 6 active · 12 validated · 7 deferred · 8 out of scope
+**Requirements Status:** 4 active · 14 validated · 7 deferred · 8 out of scope
 
 ## Milestone Registry
 - ✅ **M001:** Bulletproof Flow Pipeline
@@ -17,4 +17,4 @@
 - None
 
 ## Next Action
-Plan slice S04 (Dead-Code And Obsolete-Compatibility Cleanup).
+Plan slice S05 (Integrated Proof And Structural Closeout).

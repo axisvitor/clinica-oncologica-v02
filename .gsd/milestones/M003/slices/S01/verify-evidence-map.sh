@@ -46,7 +46,12 @@ add_failure() {
 }
 
 line_count() {
-  wc -l < "$1" | tr -d ' '
+  local file="$1"
+  if [[ ! -f "$file" ]]; then
+    printf '0'
+    return
+  fi
+  wc -l < "$file" | tr -d ' '
 }
 
 rg_count() {

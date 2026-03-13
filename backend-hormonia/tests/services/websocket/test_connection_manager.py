@@ -3,7 +3,7 @@ Unit tests for UnifiedWebSocketConnectionManager.
 
 Tests cover:
 - Connection lifecycle (connect, disconnect)
-- Authentication (Firebase, JWT, auto-fallback)
+- Authentication (session/jwt contract, legacy mode rejection)
 - Room management
 - Message broadcasting
 - Heartbeat monitoring
@@ -102,33 +102,17 @@ class TestConnectionLifecycle:
 class TestAuthentication:
     """Test authentication methods."""
 
-    async def test_authenticate_connection_firebase(self, manager, mock_websocket, mock_db):
-        """Test Firebase authentication."""
-        connection_id = "test-auth-1"
-        token = "valid-firebase-token"
-
-        with patch('app.services.websocket.connection_manager.verify_firebase_token') as mock_verify:
-            mock_user = Mock()
-            mock_user.id = "user-123"
-            mock_user.email = "test@example.com"
-            mock_user.role = "doctor"
-            mock_verify.return_value = {"uid": "firebase-uid-123"}
-
-            # Mock database query
-            mock_db.query.return_value.filter.return_value.first.return_value = mock_user
-
-            await manager.connect(mock_websocket, connection_id)
-            user = await manager.authenticate_connection(connection_id, token, mock_db, auth_type="firebase")
-
-            assert user is not None
-            conn_info = manager.connection_info[connection_id]
-            assert conn_info.state == ConnectionState.AUTHENTICATED
-            assert conn_info.user_id == "user-123"
-
-    async def test_authenticate_connection_jwt(self, manager, mock_websocket, mock_db):
-        """Test JWT authentication."""
-        connection_id = "test-auth-2"
-        token = "valid-jwt-token"
+    @pytest.mark.parametrize("auth_type", ["jwt", "session"])
+    async def test_authenticate_connection_current_contract_modes(
+        self,
+        auth_type,
+        manager,
+        mock_websocket,
+        mock_db,
+    ):
+        """JWT and session modes share the current first-party token contract."""
+        connection_id = f"test-auth-{auth_type}"
+        token = f"valid-{auth_type}-token"
 
         with patch('app.services.websocket.connection_manager.decode_jwt') as mock_decode:
             mock_user = Mock()
@@ -140,35 +124,43 @@ class TestAuthentication:
             mock_db.query.return_value.filter.return_value.first.return_value = mock_user
 
             await manager.connect(mock_websocket, connection_id)
-            user = await manager.authenticate_connection(connection_id, token, mock_db, auth_type="jwt")
+            user = await manager.authenticate_connection(connection_id, token, mock_db, auth_type=auth_type)
 
             assert user is not None
             conn_info = manager.connection_info[connection_id]
             assert conn_info.state == ConnectionState.AUTHENTICATED
+            assert conn_info.user_id == "user-456"
+            mock_decode.assert_called_once_with(token)
 
-    async def test_authenticate_auto_fallback(self, manager, mock_websocket, mock_db):
-        """Test auto fallback from Firebase to JWT."""
-        connection_id = "test-auth-3"
-        token = "jwt-token"
+    @pytest.mark.parametrize("auth_type", ["firebase", "auto"])
+    async def test_authenticate_connection_rejects_removed_legacy_modes(
+        self,
+        auth_type,
+        manager,
+        mock_websocket,
+        mock_db,
+    ):
+        """Removed Firebase-era websocket auth modes fail explicitly instead of silently falling back."""
+        connection_id = f"test-auth-{auth_type}"
 
-        with patch('app.services.websocket.connection_manager.verify_firebase_token') as mock_firebase:
-            with patch('app.services.websocket.connection_manager.decode_jwt') as mock_jwt:
-                # Firebase fails
-                mock_firebase.side_effect = Exception("Invalid Firebase token")
+        await manager.connect(mock_websocket, connection_id)
 
-                # JWT succeeds
-                mock_user = Mock()
-                mock_user.id = "user-789"
-                mock_jwt.return_value = {"user_id": "user-789"}
-                mock_db.query.return_value.filter.return_value.first.return_value = mock_user
+        with patch('app.services.websocket.connection_manager.decode_jwt') as mock_decode:
+            with pytest.raises(
+                ValueError,
+                match=f"Unsupported websocket auth_type '{auth_type}'",
+            ):
+                await manager.authenticate_connection(
+                    connection_id,
+                    "legacy-auth-token",
+                    mock_db,
+                    auth_type=auth_type,
+                )
 
-                await manager.connect(mock_websocket, connection_id)
-                user = await manager.authenticate_connection(connection_id, token, mock_db, auth_type="auto")
-
-                # Should fall back to JWT
-                assert user is not None
-                mock_firebase.assert_called_once()
-                mock_jwt.assert_called_once()
+        mock_decode.assert_not_called()
+        conn_info = manager.connection_info[connection_id]
+        assert conn_info.state == ConnectionState.CONNECTED
+        assert conn_info.user_id is None
 
 
 @pytest.mark.asyncio
