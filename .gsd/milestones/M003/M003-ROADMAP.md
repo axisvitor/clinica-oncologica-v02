@@ -53,7 +53,7 @@ This milestone is complete only when all are true:
 
 - [x] **S01: Evidence Map And Cleanup Guardrails** `risk:high` `depends:[]`
   > After this: there is a ranked hotspot inventory, a dead-code candidate ledger, and explicit guardrails for what must not break.
-- [ ] **S02: Backend Auth/Session Hotspot Refactor** `risk:high` `depends:[S01]`
+- [x] **S02: Backend Auth/Session Hotspot Refactor** `risk:high` `depends:[S01]`
   > After this: the backend auth/session hotspot is split into smaller seams with the same visible contract, proved by focused backend verification.
 - [ ] **S03: Frontend Client/Type Surface Refactor** `risk:high` `depends:[S01]`
   > After this: the frontend api-client/type hotspot is broken into clearer seams with less compatibility noise and the same visible behavior, proved by focused frontend verification.

@@ -37,9 +37,18 @@ class FakeConnectionManager:
         return None
 
 
-def _patch_session_cache(monkeypatch: pytest.MonkeyPatch, session_payload: dict | None):
+def _patch_session_cache(
+    monkeypatch: pytest.MonkeyPatch,
+    session_payload: dict | None,
+    *,
+    lookup_side_effect: Exception | None = None,
+):
+    get_session = AsyncMock(return_value=session_payload)
+    if lookup_side_effect is not None:
+        get_session = AsyncMock(side_effect=lookup_side_effect)
+
     fake_cache = SimpleNamespace(
-        get_session=AsyncMock(return_value=session_payload),
+        get_session=get_session,
         get_user_by_uid=AsyncMock(
             side_effect=AssertionError(
                 'Canonical websocket session auth should not need firebase_uid cache lookups'
@@ -111,4 +120,31 @@ async def test_websocket_invalid_session_emits_stable_error_diagnostics(monkeypa
     assert error_messages, 'Expected an explicit websocket auth error for invalid sessions'
     error_message = error_messages[0]
     assert error_message['data']['error'] == 'AUTH_WEBSOCKET_SESSION_INVALID'
+    assert error_message['data']['details']['connection_id']
+
+
+@pytest.mark.asyncio
+async def test_websocket_session_lookup_failure_emits_stable_error_diagnostics(monkeypatch):
+    manager = FakeConnectionManager()
+    monkeypatch.setattr(websocket_api, 'get_connection_manager', lambda: manager)
+    _patch_session_cache(
+        monkeypatch,
+        None,
+        lookup_side_effect=RuntimeError('redis unavailable'),
+    )
+
+    websocket = AsyncMock(spec=WebSocket)
+    websocket.receive_text = AsyncMock(side_effect=WebSocketDisconnect(code=1000))
+
+    await websocket_api.websocket_endpoint(
+        websocket,
+        token=None,
+        session_id='lookup-failed-session-id',
+    )
+
+    error_messages = [message for _connection_id, message in manager.sent_messages if message.get('type') == 'error']
+
+    assert error_messages, 'Expected an explicit websocket auth error for lookup failures'
+    error_message = error_messages[0]
+    assert error_message['data']['error'] == 'AUTH_WEBSOCKET_SESSION_LOOKUP_FAILED'
     assert error_message['data']['details']['connection_id']

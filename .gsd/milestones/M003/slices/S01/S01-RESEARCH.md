@@ -44,13 +44,13 @@ Treat S01 as the boundary-setting slice for the rest of M003:
 
 ### Backend verifier anchors
 
-- `backend-hormonia/app/dependencies/auth_dependencies.py` — `lines=1579`
+- `backend-hormonia/app/dependencies/auth_dependencies.py` — `lines=706`
 - `backend-hormonia/app/api/v2/routers/auth.py` — `lines=1245`
 - `backend-hormonia/app/routers/auth_session.py` — `lines=731`
-- `backend-hormonia/app/api/v2/routers/admin/dependencies.py` — `lines=132`
+- `backend-hormonia/app/api/v2/routers/admin/dependencies.py` — `lines=136`
 - `backend-hormonia/app/api/v2/routers/reports.py` — `lines=787`
 - `backend-hormonia/app/api/v2/routers/enhanced_reports.py` — `lines=764`
-- `backend-hormonia/app/api/v2/routers/roles/dependencies.py` — `lines=65`
+- `backend-hormonia/app/api/v2/routers/roles/dependencies.py` — `lines=23`
 - `backend-hormonia/app/api/v2/routers/flows.py` — `lines=1281`
 - `backend-hormonia/app/services/webhook/handlers/message_handler.py` — `lines=1126`
 - `Depends(get_current_user_from_session)=202`
@@ -120,9 +120,9 @@ Treat S01 as the boundary-setting slice for the rest of M003:
 
 ### Backend candidate verifier anchors
 
-- `verify_firebase_token` — `repo_refs=6`
-- `get_doctor_user` — `repo_refs=3`
-- `get_current_user_websocket` — `repo_refs=3`
+- `verify_firebase_token` — `repo_refs=14`
+- `get_doctor_user` — `repo_refs=5`
+- `get_current_user_websocket` — `repo_refs=9`
 
 ### Frontend candidate verifier anchors
 

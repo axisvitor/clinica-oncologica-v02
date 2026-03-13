@@ -2,11 +2,16 @@
 
 from .auth_dependencies import (
     get_current_user,
+    get_current_user_from_session,
+    get_current_user_object_from_session,
     get_current_active_user,
     get_optional_user,
     get_admin_user,
     get_doctor_user,
+    get_current_active_admin,
     get_current_user_websocket,
+    get_permissions_for_role,
+    verify_firebase_token,
 )
 
 from .business_dependencies import (
@@ -162,11 +167,16 @@ def get_thread_safe_service_provider() -> Generator:
 __all__ = [
     # Auth dependencies
     "get_current_user",
+    "get_current_user_from_session",
+    "get_current_user_object_from_session",
     "get_current_active_user",
     "get_optional_user",
     "get_admin_user",
     "get_doctor_user",
+    "get_current_active_admin",
     "get_current_user_websocket",
+    "get_permissions_for_role",
+    "verify_firebase_token",
     # Business dependencies
     "get_pagination_params",
     "validate_patient_access",

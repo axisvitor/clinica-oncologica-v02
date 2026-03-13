@@ -6,18 +6,20 @@ Contains authentication and authorization dependencies for admin operations.
 
 import inspect
 import os
-from fastapi import Depends, HTTPException, Request, status
+
+from fastapi import Depends, Request
 from fastapi.security import HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.async_engine import get_async_db
-from app.models.user import User, UserRole
+from app.dependencies import auth_role_dependencies
 from app.dependencies.auth_dependencies import (
     get_current_user_from_session,
     get_current_user_object_from_session,
     get_redis_cache,
 )
+from app.models.user import User, UserRole
 
 
 # HTTPBearer instance for admin authentication
@@ -104,16 +106,14 @@ async def get_admin_user(
         redis_cache=redis_cache,
     )
     current_user = await _invoke_dependency(
-        user_object_dependency, user_data=user_data
+        user_object_dependency,
+        user_data=user_data,
     )
 
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
-
-    return current_user
+    return await auth_role_dependencies.require_admin_user(
+        current_user,
+        detail="Admin access required",
+    )
 
 
 def _require_admin(current_user: User) -> None:
@@ -126,7 +126,11 @@ def _require_admin(current_user: User) -> None:
     Raises:
         HTTPException: If user is not an admin
     """
-    if current_user.role != UserRole.ADMIN:
+    role = getattr(current_user, "role", None)
+    if role != UserRole.ADMIN:
+        from fastapi import HTTPException, status
+
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
         )
