@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -6,6 +9,9 @@ import { apiClient } from '../../lib/api-client'
 import React from 'react'
 
 vi.mock('../../lib/api-client')
+
+const readRepoFile = (relativePath: string) =>
+  readFileSync(path.resolve(process.cwd(), relativePath), 'utf8')
 
 const createWrapper = () => {
   const queryClient = new QueryClient({
@@ -21,6 +27,13 @@ const createWrapper = () => {
 describe('usePatients', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('keeps the hook on the canonical @/types/api patient surface', () => {
+    const source = readRepoFile('src/hooks/usePatients.ts')
+
+    expect(source).toContain("import type { Patient } from '@/types/api'")
+    expect(source).not.toMatch(/from ['"]\.\.\/lib\/types\/api['"]/)
   })
 
   it('should fetch patients list successfully', async () => {

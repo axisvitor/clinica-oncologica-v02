@@ -3,7 +3,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 
 import { useDebounce } from './useDebounce'
 import { apiClient } from '../lib/api-client'
-import type { Patient } from '../lib/types/api'
+import type { Patient } from '@/types/api'
 import type { PaginatedApiResponse } from './types'
 
 export interface PatientFilters {

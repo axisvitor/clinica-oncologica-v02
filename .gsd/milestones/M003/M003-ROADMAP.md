@@ -55,7 +55,7 @@ This milestone is complete only when all are true:
   > After this: there is a ranked hotspot inventory, a dead-code candidate ledger, and explicit guardrails for what must not break.
 - [x] **S02: Backend Auth/Session Hotspot Refactor** `risk:high` `depends:[S01]`
   > After this: the backend auth/session hotspot is split into smaller seams with the same visible contract, proved by focused backend verification.
-- [ ] **S03: Frontend Client/Type Surface Refactor** `risk:high` `depends:[S01]`
+- [x] **S03: Frontend Client/Type Surface Refactor** `risk:high` `depends:[S01]`
   > After this: the frontend api-client/type hotspot is broken into clearer seams with less compatibility noise and the same visible behavior, proved by focused frontend verification.
 - [ ] **S04: Dead-Code And Obsolete-Compatibility Cleanup** `risk:medium` `depends:[S02,S03]`
   > After this: proven-dead paths and obsolete compat layers in scope are removed or tightly isolated from the main runtime path.

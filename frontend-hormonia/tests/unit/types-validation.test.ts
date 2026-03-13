@@ -1,44 +1,55 @@
 /**
  * Type validation tests for core application types
- * Ensures all type definitions are consistent and complete
+ * Ensures the canonical type ownership surfaces stay stable while the
+ * legacy compat barrel remains isolated for S04 cleanup.
  */
 
-import type {
-  User,
-  Patient,
-  PaginatedResponse,
-  SuccessResponse,
-  ErrorResponse,
-  ApiSuccessResponse,
-  ApiErrorResponse,
-  WebSocketMessage
-} from '../../src/lib/types/api'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 
+import type { User, Patient } from '../../src/types/api'
 import type {
+  PaginatedResponse,
+  ApiResponse,
+  ApiErrorResponse,
+} from '../../src/lib/api-client/types'
+import type { SuccessResponse, ErrorResponse, ApiSuccessResponse } from '../../src/lib/types/api'
+import type {
+  WebSocketMessage,
   WebSocketEventType,
   WebSocketConnectionState,
   PatientEventData,
   MessageEventData,
-  FlowEventData
-} from '../../src/lib/types/websocket'
+  FlowEventData,
+} from '../../src/types/websocket'
 
-import type {
-  User as AppUser,
-  Patient as AppPatient
-} from '../../src/types/index'
+import type { User as AppUser, Patient as AppPatient } from '../../src/types/index'
+
+const readRepoFile = (relativePath: string) =>
+  readFileSync(path.resolve(process.cwd(), relativePath), 'utf8')
 
 // Test type compatibility and completeness
 describe('Type Definitions Validation', () => {
+  it('documents the legacy compat barrel as isolated S04 cleanup work', () => {
+    const compatSource = readRepoFile('src/lib/types/api.ts')
+
+    expect(compatSource).toContain('compatibility-only for S04 cleanup/tombstoning')
+    expect(compatSource).toContain('Do not add new production imports here')
+  })
+
 
   it('should have complete User interface with token property', () => {
     const user: User = {
       id: '1',
       email: 'test@example.com',
       name: 'Test User',
+      full_name: 'Test User',
       role: 'doctor',
+      permissions: [],
+      is_active: true,
       token: 'jwt-token-123', // Should exist
       created_at: '2024-01-01T00:00:00-03:00',
-      updated_at: '2024-01-01T00:00:00-03:00'
+      updated_at: '2024-01-01T00:00:00-03:00',
     }
 
     expect(user.token).toBeDefined()
@@ -50,13 +61,13 @@ describe('Type Definitions Validation', () => {
       id: '1',
       name: 'Test Patient',
       phone: '+5511999999999',
-      whatsapp_number: '+5511999999999',
       treatment_type: 'oncology',
-      enrollment_date: '2024-01-01T00:00:00-03:00',
+      treatment_start_date: '2024-01-01T00:00:00-03:00',
       status: 'active',
+      flow_state: 'active',
       current_day: 15, // Should exist
       created_at: '2024-01-01T00:00:00-03:00',
-      updated_at: '2024-01-01T00:00:00-03:00'
+      updated_at: '2024-01-01T00:00:00-03:00',
     }
 
     expect(patient.current_day).toBeDefined()
@@ -66,14 +77,27 @@ describe('Type Definitions Validation', () => {
   it('should have consistent PaginatedResponse interface', () => {
     const response: PaginatedResponse<Patient> = {
       data: [],
+      items: [],
       total: 0,
       page: 1,
-      limit: 10,
-      has_more: false
+      size: 10,
+      has_more: false,
     }
 
     expect(response['data']).toBeDefined()
     expect(Array.isArray(response['data'])).toBe(true)
+  })
+
+  it('should have consistent ApiResponse interface on the transport barrel', () => {
+    const response: ApiResponse<{ id: string }> = {
+      success: true,
+      data: { id: '1' },
+      message: 'Operation successful',
+      timestamp: '2024-01-01T00:00:00-03:00',
+    }
+
+    expect(response.success).toBe(true)
+    expect(response.data.id).toBe('1')
   })
 
   it('should have consistent SuccessResponse interface', () => {
@@ -109,28 +133,28 @@ describe('Type Definitions Validation', () => {
     expect(response.timestamp).toBeDefined()
   })
 
-  it('should have ApiErrorResponse with timestamp', () => {
+  it('should have ApiErrorResponse on the transport barrel', () => {
     const response: ApiErrorResponse = {
-      success: false,
-      error: 'API_ERROR',
-      message: 'API error occurred',
-      timestamp: '2024-01-01T00:00:00-03:00'
+      error: {
+        code: 'API_ERROR',
+        message: 'API error occurred',
+      },
+      timestamp: '2024-01-01T00:00:00-03:00',
     }
 
-    expect(response.success).toBe(false)
+    expect(response.error.code).toBe('API_ERROR')
     expect(response.timestamp).toBeDefined()
   })
 
   it('should have WebSocketMessage interface', () => {
-    const message: WebSocketMessage<PatientEventData> = {
+    const message: WebSocketMessage = {
       type: 'patient_updated',
       data: {
         patient_id: '1',
         patient_name: 'Test Patient',
-        changes: { status: 'active' }
-      },
+        changes: { status: 'active' },
+      } satisfies PatientEventData,
       timestamp: '2024-01-01T00:00:00-03:00',
-      id: 'msg-1'
     }
 
     expect(message.type).toBeDefined()
@@ -217,7 +241,8 @@ describe('Type Definitions Validation', () => {
       status: 'active',
       current_day: 15, // Should exist
       createdAt: '2024-01-01T00:00:00-03:00',
-      updatedAt: '2024-01-01T00:00:00-03:00'
+      updatedAt: '2024-01-01T00:00:00-03:00',
+      flow_state: 'active',
     }
 
     expect(appPatient.current_day).toBeDefined()

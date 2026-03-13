@@ -1,7 +1,7 @@
 # GSD State
 
 **Active Milestone:** M003 — Structural Refactor And Dead-Code Cleanup
-**Active Slice:** S03 — Frontend Client/Type Surface Refactor
+**Active Slice:** S04 — Dead-Code And Obsolete-Compatibility Cleanup
 **Phase:** planning
 **Requirements Status:** 6 active · 12 validated · 7 deferred · 8 out of scope
 
@@ -17,4 +17,4 @@
 - None
 
 ## Next Action
-Plan slice S03 (Frontend Client/Type Surface Refactor).
+Plan slice S04 (Dead-Code And Obsolete-Compatibility Cleanup).

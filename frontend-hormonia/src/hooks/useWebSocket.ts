@@ -111,7 +111,9 @@ function extractAuthDiagnostics(message: WebSocketMessage | null): WebSocketAuth
       ? (payload['details'] as Record<string, unknown>)
       : undefined
   const connectionId =
-    details && typeof details.connection_id === 'string' ? details.connection_id : undefined
+    details && typeof details['connection_id'] === 'string'
+      ? details['connection_id']
+      : undefined
 
   return {
     error: errorCode,

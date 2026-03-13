@@ -76,11 +76,11 @@ Treat S01 as the boundary-setting slice for the rest of M003:
 ### Frontend verifier anchors
 
 - `frontend-hormonia/src/lib/api-client.ts` — `lines=75`, `imports=104`
-- `frontend-hormonia/src/lib/api-client/index.ts` — `lines=1304`
-- `frontend-hormonia/src/lib/api-client/types.ts` — `lines=1159`, `imports=34`
-- `frontend-hormonia/src/types/api.ts` — `lines=900`, `imports=50`
-- `frontend-hormonia/src/lib/types/api.ts` — `lines=526`, `imports=1`
-- `duplicate_exports` — `count=10`, `names=AIChatResponse, AIRecommendation, AlertType, BulkMessageRequest, GenerateReportRequest, Message, MessageType, QuizResponse, Report, SendMessageRequest`
+- `frontend-hormonia/src/lib/api-client/index.ts` — `lines=223`
+- `frontend-hormonia/src/lib/api-client/types.ts` — `lines=26`, `imports=34`
+- `frontend-hormonia/src/types/api.ts` — `lines=900`, `imports=52`
+- `frontend-hormonia/src/lib/types/api.ts` — `lines=530`, `imports=0`
+- `duplicate_exports` — `count=0`, `names=`
 
 ### Frontend S03 contract boundary
 
@@ -127,9 +127,9 @@ Treat S01 as the boundary-setting slice for the rest of M003:
 ### Frontend candidate verifier anchors
 
 - `frontend-hormonia/src/lib/api.ts` — `lines=4`, `internal_imports=0`
-- `frontend-hormonia/src/lib/types/api.ts` — `internal_imports=1`
+- `frontend-hormonia/src/lib/types/api.ts` — `internal_imports=0`
 - `frontend-hormonia/src/hooks/use-quiz-session.ts` — `lines=476`
-- `RiskAssessmentRequest` — `direct_declarations=2`
+- `RiskAssessmentRequest` — `direct_declarations=0`
 
 ## Explicit Non-Candidates
 

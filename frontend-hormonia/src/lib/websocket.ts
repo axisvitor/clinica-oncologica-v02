@@ -239,7 +239,9 @@ class WebSocketManager {
         ? (message.data['details'] as Record<string, unknown>)
         : undefined
     const connectionId =
-      details && typeof details.connection_id === 'string' ? details.connection_id : undefined
+      details && typeof details['connection_id'] === 'string'
+        ? details['connection_id']
+        : undefined
     const messageText =
       typeof message.data['message'] === 'string'
         ? message.data['message']

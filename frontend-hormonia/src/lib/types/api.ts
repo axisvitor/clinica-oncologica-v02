@@ -1,9 +1,13 @@
 /**
- * API Types Re-exports - Centralized API client and response types
- * Re-exports all types from the main types directory for compatibility
+ * API Types Re-exports - legacy compatibility barrel.
  *
- * @note This file maintains compatibility with existing imports while
- * redirecting to the centralized type definitions in /types/
+ * New live app code should prefer the canonical surfaces:
+ * - `@/types/api` for app-facing/UI types
+ * - `@/lib/api-client/types` for transport DTOs
+ * - `@/types/websocket` for realtime payloads
+ *
+ * @deprecated Keep this file compatibility-only for S04 cleanup/tombstoning.
+ * Do not add new production imports here.
  */
 
 // ============================================================================
