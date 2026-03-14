@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, func, case, extract
+from sqlalchemy import and_, func, case, extract, cast, String
 
 from app.models.patient import Patient
 from app.models.alert import Alert, AlertSeverity
@@ -169,7 +169,9 @@ class DashboardService:
         total_patients = query.count()
 
         # Active patients
-        active_patients = query.filter(Patient.flow_state == FlowState.ACTIVE).count()
+        active_patients = query.filter(
+            cast(Patient.flow_state, String) == FlowState.ACTIVE.value
+        ).count()
 
         # New patients in time range
         new_patients = 0

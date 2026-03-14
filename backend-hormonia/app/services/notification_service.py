@@ -204,13 +204,45 @@ class NotificationService:
             "first_access": first_access,
         }
         rendered_message = self._render_message(message, template_data)
-        message_id = await type(self)._send_email(
-            self,
-            subject,
-            rendered_message,
-            [email],
-            template_data,
-        )
+
+        app_env = str(getattr(settings, "APP_ENVIRONMENT", "")).lower()
+        allow_dry_run = app_env not in {"production", "prod"}
+        def _dry_run_result(reason: str) -> NotificationResult:
+            message_id = f"dry-run-reset-{int(now_sao_paulo().timestamp())}"
+            logger.warning(
+                reason,
+                extra={
+                    "first_access": first_access,
+                    "app_environment": app_env or "unknown",
+                    "message_id": message_id,
+                },
+            )
+            return NotificationResult(
+                success=True,
+                channel=NotificationChannel.EMAIL,
+                message_id=message_id,
+            )
+
+        if not self.is_email_delivery_configured() and allow_dry_run:
+            return _dry_run_result(
+                "SMTP not configured; recording password reset email as local dry-run"
+            )
+
+        try:
+            message_id = await type(self)._send_email(
+                self,
+                subject,
+                rendered_message,
+                [email],
+                template_data,
+            )
+        except Exception:
+            if allow_dry_run:
+                return _dry_run_result(
+                    "SMTP delivery failed; recording password reset email as local dry-run"
+                )
+            raise
+
         return NotificationResult(
             success=True,
             channel=NotificationChannel.EMAIL,

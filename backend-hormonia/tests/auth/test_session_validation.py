@@ -429,27 +429,19 @@ class TestSessionValidation:
         db_session.add(user)
         db_session.commit()
 
-        # Bypass CSRF
-        from app.middleware.csrf import validate_csrf_token
-        app.dependency_overrides[validate_csrf_token] = lambda: True
+        with patch('app.routers.auth_session.get_redis_manager') as mock_manager:
+            mock_manager.return_value.get_compatible_client.return_value = MagicMock()
 
-        try:
-            with patch('app.routers.auth_session.get_redis_manager') as mock_manager:
-                mock_manager.return_value.get_compatible_client.return_value = MagicMock()
-    
-                with patch('app.routers.auth_session.AuditLogService'):
-                    csrf_response = client.get("/api/v2/auth/csrf-token")
-                    csrf_token = csrf_response.json().get("csrf_token")
-                    response = client.delete(
-                        "/session/logout",
-                        headers={
-                            "X-Session-ID": valid_session_id,
-                            "X-CSRF-Token": csrf_token,
-                        },
-                    )
-        finally:
-             if validate_csrf_token in app.dependency_overrides:
-                del app.dependency_overrides[validate_csrf_token]
+            with patch('app.routers.auth_session.AuditLogService'):
+                csrf_response = client.get("/api/v2/auth/csrf-token")
+                csrf_token = csrf_response.json().get("csrf_token")
+                response = client.delete(
+                    "/session/logout",
+                    headers={
+                        "X-Session-ID": valid_session_id,
+                        "X-CSRF-Token": csrf_token,
+                    },
+                )
 
         # Assertions
         assert response.status_code == 200

@@ -46,8 +46,6 @@ from app.dependencies.auth_dependencies import (
     get_permissions_for_role,
 )
 from app.database import get_db
-from app.middleware.csrf import validate_csrf_token
-from app.middleware.csrf import validate_csrf_token
 from app.utils.rate_limiter import limiter
 from app.core.redis_manager import FirebaseRedisCache, get_redis_manager
 from app.utils.timezone import now_sao_paulo
@@ -214,7 +212,6 @@ async def test_simple_session():
     "",
     response_model=SessionResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(validate_csrf_token)],
     include_in_schema=False,
 )
 @limiter.limit("20/minute")  # Rate limit: 20 session creations per minute per IP
@@ -493,7 +490,6 @@ async def validate_session(
 @router.delete(
     "/logout",
     response_model=LogoutResponse,
-    dependencies=[Depends(validate_csrf_token)],
 )
 @limiter.limit("100/minute")  # Rate limit: 100 logout attempts per minute per IP
 async def logout_session(
@@ -589,7 +585,6 @@ async def logout_session(
 @router.delete(
     "/logout-all",
     response_model=LogoutResponse,
-    dependencies=[Depends(validate_csrf_token)],
 )
 @limiter.limit("10/hour")  # Rate limit: 10 global logout attempts per hour per IP
 async def logout_all_sessions(

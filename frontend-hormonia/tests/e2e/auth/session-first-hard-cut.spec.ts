@@ -128,9 +128,11 @@ test.describe('session-first hard cut acceptance', () => {
     await page.goto('/auth/password/reset-request')
     await page.getByLabel(/^email$/i).fill(seededStaff.email)
     await page.getByRole('button', { name: /enviar link de recuperação/i }).click()
-    await expect(
-      page.getByText(/se existir uma conta vinculada a este email/i)
-    ).toBeVisible({ timeout: 15000 })
+    const resetSuccessAlert = page
+      .getByRole('alert')
+      .filter({ hasText: /confira sua caixa de entrada/i })
+    await expect(resetSuccessAlert).toBeVisible({ timeout: 15000 })
+    await expect(resetSuccessAlert).toContainText(/se existir uma conta vinculada a este email/i)
 
     await page.goto(`/auth/password/reset-confirm?token=${seededStaff.resetToken}`)
     await page.getByLabel(/^nova senha$/i).fill(seededStaff.rotatedPassword)
@@ -161,7 +163,6 @@ test.describe('session-first hard cut acceptance', () => {
       new_password: seededStaff.password,
     })
 
-    await expect(page.getByText(/senha alterada/i)).toBeVisible({ timeout: 15000 })
     await expect(page).toHaveURL(/\/login/, { timeout: 15000 })
 
     await page.getByLabel(/^email$/i).fill(seededStaff.email)

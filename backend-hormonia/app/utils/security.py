@@ -16,7 +16,8 @@ import jwt  # PyJWT - replaces python-jose to fix CVE-2024-23342
 
 logger = logging.getLogger(__name__)
 
-# Force builtin bcrypt to avoid detection bug
+# Keep passlib's builtin backend available as an explicit fallback only.
+# The native `bcrypt` backend is materially faster for login/password checks.
 os.environ["PASSLIB_BUILTIN_BCRYPT"] = "enabled"
 
 # Additional imports for public endpoint security
@@ -107,12 +108,13 @@ def create_pwd_context() -> CryptContext:
             bcrypt__ident="2b",  # Use 2b variant to avoid wraparound bug
         )
 
-        # Try to set backend to avoid detection issues
+        # Prefer the native bcrypt backend for performance; keep builtin available
+        # only as a last-resort fallback when the compiled backend is unavailable.
         try:
             from passlib.hash import bcrypt as passlib_bcrypt
 
-            preferred_backend = "builtin"
-            fallback_backend = "bcrypt"
+            preferred_backend = "bcrypt"
+            fallback_backend = "builtin"
             passlib_bcrypt.set_backend(preferred_backend)
             logger.info("Using %s bcrypt backend", preferred_backend)
         except (ValueError, RuntimeError, ImportError):
@@ -120,7 +122,7 @@ def create_pwd_context() -> CryptContext:
                 from passlib.hash import bcrypt as passlib_bcrypt
 
                 passlib_bcrypt.set_backend(fallback_backend)
-                logger.info("Using %s bcrypt backend", fallback_backend)
+                logger.warning("Using %s bcrypt backend fallback", fallback_backend)
             except (ValueError, RuntimeError, ImportError):
                 logger.warning("Could not set specific bcrypt backend")
 
@@ -148,16 +150,19 @@ def hash_password(password: str) -> str:
         password_bytes = password_bytes[:72]
 
     try:
+        # Prefer the native bcrypt implementation on the hot path.
+        salt = bcrypt_lib.gensalt(rounds=_get_bcrypt_rounds())
+        hashed = bcrypt_lib.hashpw(password_bytes, salt)
+        return hashed.decode("utf-8")
+    except Exception as direct_error:
         if pwd_context:
-            # Use passlib
-            return pwd_context.hash(password_bytes.decode("utf-8"))
-        else:
-            # Direct bcrypt fallback
-            salt = bcrypt_lib.gensalt(rounds=_get_bcrypt_rounds())
-            hashed = bcrypt_lib.hashpw(password_bytes, salt)
-            return hashed.decode("utf-8")
-    except Exception as e:
-        logger.error(f"Failed to hash password: {e}")
+            try:
+                logger.warning("Direct bcrypt hash failed, falling back to passlib: %s", direct_error)
+                return pwd_context.hash(password_bytes.decode("utf-8"))
+            except Exception as e:
+                logger.error(f"Failed to hash password: {e}")
+                raise
+        logger.error(f"Failed to hash password: {direct_error}")
         raise
 
 
@@ -172,27 +177,28 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         password_bytes = password_bytes[:72]
 
     try:
+        # Native bcrypt is the hot-path verifier and avoids passlib's extremely slow
+        # builtin backend on this stack.
+        return bcrypt_lib.checkpw(password_bytes, hashed_password.encode("utf-8"))
+    except Exception as direct_error:
         if pwd_context:
-            # Use passlib - but handle the bug
             try:
+                logger.warning(
+                    "Direct bcrypt verify failed, falling back to passlib: %s",
+                    direct_error,
+                )
                 return pwd_context.verify(
                     password_bytes.decode("utf-8"), hashed_password
                 )
             except ValueError as e:
                 if "password cannot be longer than 72 bytes" in str(e):
-                    # This is the bug - password is fine but passlib thinks it's too long
-                    # Fall back to direct bcrypt
-                    logger.warning("Passlib bcrypt bug detected, using direct bcrypt")
-                    return bcrypt_lib.checkpw(
-                        password_bytes, hashed_password.encode("utf-8")
-                    )
-                else:
-                    raise
-        else:
-            # Direct bcrypt fallback
-            return bcrypt_lib.checkpw(password_bytes, hashed_password.encode("utf-8"))
-    except Exception as e:
-        logger.error(f"Failed to verify password: {e}")
+                    logger.warning("Passlib bcrypt bug detected after direct fallback path")
+                    return False
+            except Exception as e:
+                logger.error(f"Failed to verify password via passlib fallback: {e}")
+                return False
+
+        logger.error(f"Failed to verify password: {direct_error}")
         return False
 
 

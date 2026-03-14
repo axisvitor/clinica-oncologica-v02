@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from app.services.notification_service import (
     NotificationService,
     NotificationChannel,
-    NotificationPriority
+    NotificationPriority,
 )
 
 
@@ -36,6 +36,8 @@ def notification_service():
         mock_settings.SMTP_PASSWORD = "testpass"
         mock_settings.SMTP_FROM_EMAIL = "noreply@test.com"
         mock_settings.SMTP_USE_TLS = True
+        mock_settings.SMTP_REQUIRE_AUTH = True
+        mock_settings.SMTP_TIMEOUT_SECONDS = 10
 
         # Slack settings
         mock_settings.SLACK_WEBHOOK_URL = "https://hooks.slack.com/test"
@@ -620,6 +622,119 @@ class TestNotificationServiceMultiChannel:
             assert NotificationChannel.PAGERDUTY in results
             assert NotificationChannel.SLACK in results
             assert NotificationChannel.EMAIL in results
+
+
+@pytest.mark.unit
+class TestPasswordResetEmailDelivery:
+    @pytest.mark.asyncio
+    async def test_send_password_reset_email_dry_runs_when_smtp_missing_in_development(self):
+        with patch('app.config.settings') as mock_settings:
+            mock_settings.SMTP_HOST = None
+            mock_settings.SMTP_PORT = 587
+            mock_settings.SMTP_USERNAME = None
+            mock_settings.SMTP_PASSWORD = None
+            mock_settings.SMTP_FROM_EMAIL = None
+            mock_settings.SMTP_USE_TLS = True
+            mock_settings.SMTP_REQUIRE_AUTH = True
+            mock_settings.SMTP_TIMEOUT_SECONDS = 10
+            mock_settings.SLACK_WEBHOOK_URL = None
+            mock_settings.SLACK_DEFAULT_CHANNEL = None
+            mock_settings.PAGERDUTY_SERVICE_KEY = None
+            mock_settings.PAGERDUTY_API_KEY = None
+            mock_settings.NOTIFICATION_RETRY_ATTEMPTS = 3
+            mock_settings.NOTIFICATION_RETRY_DELAY = 1
+            mock_settings.AUTH_RESET_BASE_URL = 'http://localhost:5173'
+            mock_settings.AUTH_RESET_PATH = '/auth/password/reset-confirm'
+            mock_settings.AUTH_FIRST_ACCESS_PATH = '/auth/password/reset-confirm'
+            mock_settings.AUTH_RESET_TOKEN_EXPIRE_HOURS = 24
+            mock_settings.APP_ENVIRONMENT = 'development'
+
+            service = NotificationService()
+            result = await service.send_password_reset_email(
+                email='proof@example.com',
+                full_name='Proof User',
+                reset_url='http://localhost:5173/auth/password/reset-confirm?token=demo',
+                expires_in_hours=24,
+                first_access=False,
+            )
+
+            assert result.success is True
+            assert result.channel == NotificationChannel.EMAIL
+            assert result.message_id.startswith('dry-run-reset-')
+            await service.http_client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_send_password_reset_email_dry_runs_when_smtp_send_fails_in_development(self):
+        with patch('app.config.settings') as mock_settings:
+            mock_settings.SMTP_HOST = 'smtp.test.com'
+            mock_settings.SMTP_PORT = 587
+            mock_settings.SMTP_USERNAME = 'user'
+            mock_settings.SMTP_PASSWORD = 'pass'
+            mock_settings.SMTP_FROM_EMAIL = 'noreply@test.com'
+            mock_settings.SMTP_USE_TLS = True
+            mock_settings.SMTP_REQUIRE_AUTH = True
+            mock_settings.SMTP_TIMEOUT_SECONDS = 10
+            mock_settings.SLACK_WEBHOOK_URL = None
+            mock_settings.SLACK_DEFAULT_CHANNEL = None
+            mock_settings.PAGERDUTY_SERVICE_KEY = None
+            mock_settings.PAGERDUTY_API_KEY = None
+            mock_settings.NOTIFICATION_RETRY_ATTEMPTS = 3
+            mock_settings.NOTIFICATION_RETRY_DELAY = 1
+            mock_settings.AUTH_RESET_BASE_URL = 'http://localhost:5173'
+            mock_settings.AUTH_RESET_PATH = '/auth/password/reset-confirm'
+            mock_settings.AUTH_FIRST_ACCESS_PATH = '/auth/password/reset-confirm'
+            mock_settings.AUTH_RESET_TOKEN_EXPIRE_HOURS = 24
+            mock_settings.APP_ENVIRONMENT = 'development'
+
+            service = NotificationService()
+            with patch.object(NotificationService, '_send_email', new_callable=AsyncMock) as mock_send_email:
+                mock_send_email.side_effect = RuntimeError('smtp down')
+                result = await service.send_password_reset_email(
+                    email='proof@example.com',
+                    full_name='Proof User',
+                    reset_url='http://localhost:5173/auth/password/reset-confirm?token=demo',
+                    expires_in_hours=24,
+                    first_access=False,
+                )
+
+            assert result.success is True
+            assert result.channel == NotificationChannel.EMAIL
+            assert result.message_id.startswith('dry-run-reset-')
+            await service.http_client.aclose()
+
+    @pytest.mark.asyncio
+    async def test_send_password_reset_email_still_fails_without_smtp_in_production(self):
+        with patch('app.config.settings') as mock_settings:
+            mock_settings.SMTP_HOST = None
+            mock_settings.SMTP_PORT = 587
+            mock_settings.SMTP_USERNAME = None
+            mock_settings.SMTP_PASSWORD = None
+            mock_settings.SMTP_FROM_EMAIL = None
+            mock_settings.SMTP_USE_TLS = True
+            mock_settings.SMTP_REQUIRE_AUTH = True
+            mock_settings.SMTP_TIMEOUT_SECONDS = 10
+            mock_settings.SLACK_WEBHOOK_URL = None
+            mock_settings.SLACK_DEFAULT_CHANNEL = None
+            mock_settings.PAGERDUTY_SERVICE_KEY = None
+            mock_settings.PAGERDUTY_API_KEY = None
+            mock_settings.NOTIFICATION_RETRY_ATTEMPTS = 3
+            mock_settings.NOTIFICATION_RETRY_DELAY = 1
+            mock_settings.AUTH_RESET_BASE_URL = 'https://example.com'
+            mock_settings.AUTH_RESET_PATH = '/auth/password/reset-confirm'
+            mock_settings.AUTH_FIRST_ACCESS_PATH = '/auth/password/reset-confirm'
+            mock_settings.AUTH_RESET_TOKEN_EXPIRE_HOURS = 24
+            mock_settings.APP_ENVIRONMENT = 'production'
+
+            service = NotificationService()
+            with pytest.raises(RuntimeError, match='SMTP email delivery is not configured'):
+                await service.send_password_reset_email(
+                    email='proof@example.com',
+                    full_name='Proof User',
+                    reset_url='https://example.com/auth/password/reset-confirm?token=demo',
+                    expires_in_hours=24,
+                    first_access=False,
+                )
+            await service.http_client.aclose()
 
 
 if __name__ == "__main__":

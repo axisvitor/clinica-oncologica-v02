@@ -193,6 +193,11 @@ def create_application(
     _setup_static_files(app)
     logger.info("✓ Static file serving configured")
 
+    # Force a final middleware stack rebuild after routers/static mounts are complete.
+    # In the assembled runtime this avoids a first-request deadlock on the login path
+    # that disappears once the middleware stack is rebuilt explicitly.
+    app.middleware_stack = app.build_middleware_stack()
+
     logger.info(f"FastAPI application created successfully (mode: {deployment_mode})")
     return app
 

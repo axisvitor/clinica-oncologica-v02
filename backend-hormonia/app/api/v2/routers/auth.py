@@ -457,11 +457,9 @@ async def login(
                 "user": user_payload,
             }
         ).model_dump(mode="json")
-        success_response = _auth_json_response(
-            status_code=status.HTTP_200_OK,
-            content=response_payload,
-        )
-        success_response.set_cookie(
+        response.status_code = status.HTTP_200_OK
+        _apply_auth_security_headers(response)
+        response.set_cookie(
             key=SESSION_COOKIE_NAME,
             value=str(session.id),
             httponly=True,
@@ -474,14 +472,14 @@ async def login(
             settings.APP_ENABLE_DEBUG
             and settings.APP_ENVIRONMENT.lower() != "production"
         ):
-            success_response.headers["X-Session-ID"] = str(session.id)
+            response.headers["X-Session-ID"] = str(session.id)
 
         logger.info(
             "Local login progress: response ready for user=%s session=%s",
             user.email,
             str(session.id),
         )
-        return success_response
+        return response_payload
 
     except LocalAuthFailure as exc:
         try:

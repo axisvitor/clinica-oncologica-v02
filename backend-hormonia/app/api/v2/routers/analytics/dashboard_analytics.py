@@ -6,7 +6,7 @@ Handles overview, treatment distribution and consolidated dashboard metrics.
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, select, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.async_engine import get_async_db
@@ -79,7 +79,7 @@ async def get_analytics_overview(
 
     # Total patients (active = not cancelled/inactive)
     patient_stmt = select(func.count(Patient.id)).where(
-        Patient.flow_state != FlowState.CANCELLED
+        cast(Patient.flow_state, String) != FlowState.CANCELLED.value
     )
     if role != UserRole.ADMIN and user_uuid:
         patient_stmt = patient_stmt.where(Patient.doctor_id == user_uuid)
