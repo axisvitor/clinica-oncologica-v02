@@ -21,7 +21,7 @@ Guidelines:
 - Why it matters: Enquanto Firebase ainda estiver vivo no runtime oficial, a base continua com transição aberta e comportamento ambíguo.
 - Source: user
 - Primary owning slice: M004/S05
-- Supporting slices: M004/S02, M004/S03, M004/S04, M004/S06
+- Supporting slices: M004/S01, M004/S02, M004/S03, M004/S04, M004/S06
 - Validation: mapped
 - Notes: O usuário foi explícito: não utilizaremos mais Firebase no sistema. O foco é remover dependência real, não apenas esconder o legado atrás de shims.
 
@@ -32,7 +32,7 @@ Guidelines:
 - Why it matters: Caminhos paralelos de auth/sessão tornam qualquer manutenção futura arriscada e difícil de raciocinar.
 - Source: inferred
 - Primary owning slice: M004/S02
-- Supporting slices: M004/S03, M004/S04, M004/S06
+- Supporting slices: M004/S01, M004/S03, M004/S04, M004/S06
 - Validation: mapped
 - Notes: O app oficial é o único consumidor real dos contratos, então compatibilidades legadas não precisam continuar vivas por padrão.
 
@@ -43,7 +43,7 @@ Guidelines:
 - Why it matters: Enquanto `firebase_uid` continuar sendo chave funcional no runtime, o hard cut permanece incompleto.
 - Source: inferred
 - Primary owning slice: M004/S02
-- Supporting slices: M004/S04, M004/S05
+- Supporting slices: M004/S01, M004/S04, M004/S05
 - Validation: mapped
 - Notes: O drop físico de schema relacionado a Firebase fica para M005; M004 fecha a dependência funcional de runtime.
 
@@ -54,7 +54,7 @@ Guidelines:
 - Why it matters: Não basta o backend estar cortado se o app oficial ainda age como se Firebase estivesse vivo.
 - Source: inferred
 - Primary owning slice: M004/S03
-- Supporting slices: M004/S04, M004/S05, M004/S06
+- Supporting slices: M004/S01, M004/S04, M004/S05, M004/S06
 - Validation: mapped
 - Notes: O milestone precisa limpar comportamento, contratos e narrativa operacional do frontend oficial.
 
@@ -497,10 +497,10 @@ Guidelines:
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
 |---|---|---|---|---|---|
-| R047 | constraint | active | M004/S05 | M004/S02, M004/S03, M004/S04, M004/S06 | mapped |
-| R048 | continuity | active | M004/S02 | M004/S03, M004/S04, M004/S06 | mapped |
-| R049 | integration | active | M004/S02 | M004/S04, M004/S05 | mapped |
-| R050 | primary-user-loop | active | M004/S03 | M004/S04, M004/S05, M004/S06 | mapped |
+| R047 | constraint | active | M004/S05 | M004/S01, M004/S02, M004/S03, M004/S04, M004/S06 | mapped |
+| R048 | continuity | active | M004/S02 | M004/S01, M004/S03, M004/S04, M004/S06 | mapped |
+| R049 | integration | active | M004/S02 | M004/S01, M004/S04, M004/S05 | mapped |
+| R050 | primary-user-loop | active | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | mapped |
 | R051 | quality-attribute | active | M005/S?? (provisional) | none | mapped |
 | R052 | operability | active | M006/S?? (provisional) | none | mapped |
 | R053 | quality-attribute | active | M006/S?? (provisional) | M004/S06, M005/S?? (provisional) | mapped |

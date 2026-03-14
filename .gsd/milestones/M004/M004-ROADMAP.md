@@ -51,7 +51,7 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Guardrails do corte canônico de runtime** `risk:high` `depends:[]`
+- [x] **S01: Guardrails do corte canônico de runtime** `risk:high` `depends:[]`
   > After this: existe um verificador executável que mostra exatamente onde Firebase, `firebase_uid`, `/session/*`, `X-Session-ID` e bearer fallback ainda estão vivos no runtime oficial, e a suíte falha se novos resíduos reaparecem.
 
 - [ ] **S02: Backend auth/sessão convergido para identidade canônica** `risk:high` `depends:[S01]`

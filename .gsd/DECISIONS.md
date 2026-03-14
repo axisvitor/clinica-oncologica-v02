@@ -284,3 +284,5 @@
 - "M004/S01 uses a slice-local `runtime-residue-allowlist.json` plus `verify-runtime-residue.sh` to guard official auth/session residue by category and scope; repo-wide `firebase` or `/session` bans are explicitly out of scope because they create false positives."
 - "M004/S01 backs the residue guard with a subprocess-style pytest regression (`backend-hormonia/tests/unit/test_runtime_residue_guard.py`) so later slices can change the boundary intentionally without relying on manual grep checks."
 - "M004/S01/T02 publishes the residue handoff with the verifier's exact category ids and `backend` / `frontend` scope names; any intentional boundary shrink must update the allowlist, research, summary, and UAT together."
+- "M004/S01 pins approved runtime-residue hotspots by explicit file anchors in `runtime-residue-allowlist.json`; if a hotspot moves, the boundary must be updated intentionally instead of silently inheriting drift."
+- "M004/S01 boundary shrinkage is not complete on a green script alone; `runtime-residue-allowlist.json`, `S01-RESEARCH.md`, `S01-SUMMARY.md`, and `S01-UAT.md` are one contract and must move together."
