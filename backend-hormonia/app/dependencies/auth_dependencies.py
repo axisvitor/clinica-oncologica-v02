@@ -380,6 +380,17 @@ async def get_generic_cache() -> GenericRedisCache:
         raise
 
 
+<<<<<<< HEAD
+=======
+async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
+    """Verify Firebase ID tokens through the legacy compatibility seam."""
+    return await auth_legacy_firebase.verify_firebase_token(
+        id_token,
+        firebase_service=_firebase_service,
+    )
+
+
+>>>>>>> gsd/M003/S02
 def _get_user_from_db_sync(firebase_uid: str, db: Session) -> Optional[User]:
     """Fetch a user using an existing synchronous session."""
     from sqlalchemy import select
@@ -666,6 +677,32 @@ async def get_optional_user(
 async def get_admin_user(current_user: User = Depends(get_current_active_user)) -> User:
     """Get current user with admin privileges."""
     return await auth_role_dependencies.require_admin_user(current_user)
+<<<<<<< HEAD
+=======
+
+
+async def get_doctor_user(
+    current_user: User = Depends(get_current_active_user),
+) -> User:
+    """Get current user with doctor privileges."""
+    return await auth_role_dependencies.require_doctor_user(current_user)
+
+
+# =============================================================================
+# WEBSOCKET AUTHENTICATION
+# =============================================================================
+
+
+async def get_current_user_websocket(
+    websocket, services: "ServiceProvider" = Depends(_get_service_provider)
+) -> Optional[User]:
+    """Resolve websocket auth via the isolated legacy bearer compatibility seam."""
+    return await auth_legacy_firebase.get_current_user_websocket(
+        websocket,
+        services=services,
+        firebase_service=_firebase_service,
+    )
+>>>>>>> gsd/M003/S02
 
 
 async def get_current_active_admin(

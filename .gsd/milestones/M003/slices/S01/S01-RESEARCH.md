@@ -37,16 +37,16 @@ Treat S01 as the boundary-setting slice for the rest of M003:
 
 | Rank | Area | Files | Evidence | Why it matters now | Recommended slice |
 |---|---|---|---|---|---|
-| 1 | Backend auth/session seam | `backend-hormonia/app/dependencies/auth_dependencies.py`, `backend-hormonia/app/api/v2/routers/auth.py`, `backend-hormonia/app/routers/auth_session.py` | `auth_dependencies.py lines=1579`; `auth.py lines=1243`; `auth_session.py lines=726`; `Depends(get_current_user_from_session)=202`; `Depends(get_current_user_object_from_session)=7`; `Depends(get_current_user)=60`; `Depends(get_admin_user)=68`; `hardcoded_session_id_alias=9` | Highest maintenance risk and highest contract sensitivity; S02 has to preserve both the dict session seam and the `User` seam while canonical and legacy session writers both remain live | S02 |
+| 1 | Backend auth/session seam | `backend-hormonia/app/dependencies/auth_dependencies.py`, `backend-hormonia/app/api/v2/routers/auth.py`, `backend-hormonia/app/routers/auth_session.py` | `auth_dependencies.py lines=1579`; `auth.py lines=1245`; `auth_session.py lines=731`; `Depends(get_current_user_from_session)=202`; `Depends(get_current_user_object_from_session)=7`; `Depends(get_current_user)=60`; `Depends(get_admin_user)=68`; `hardcoded_session_id_alias=9` | Highest maintenance risk and highest contract sensitivity; S02 has to preserve both the dict session seam and the `User` seam while canonical and legacy session writers both remain live | S02 |
 | 2 | Frontend api-client/type surface | `frontend-hormonia/src/lib/api-client.ts`, `frontend-hormonia/src/lib/api-client/index.ts`, `frontend-hormonia/src/lib/api-client/types.ts`, `frontend-hormonia/src/types/api.ts`, `frontend-hormonia/src/lib/types/api.ts` | `api-client.ts lines=75 imports=104`; `index.ts lines=1304`; `types.ts lines=1159 imports=34`; `types/api.ts lines=900 imports=50`; `lib/types/api.ts lines=526 imports=1`; `duplicate_exports=10` | High churn risk across many screens; keep `@/lib/api-client` and `@/types/api` stable while moving ownership inside `src/lib/api-client/index.ts` / `types.ts` and retiring legacy aliases only after proof | S03 |
 | 3 | Adjacent backend auth consumers | `backend-hormonia/app/api/v2/routers/admin/dependencies.py`, `backend-hormonia/app/api/v2/routers/reports.py`, `backend-hormonia/app/api/v2/routers/enhanced_reports.py`, `backend-hormonia/app/api/v2/routers/roles/dependencies.py` | `admin/dependencies.py lines=132`; `reports.py lines=787`; `enhanced_reports.py lines=764`; `roles/dependencies.py lines=65`; `hardcoded_session_id_alias=9`; wrapper drift is live | These files already fork the central contract via overrides, literal cookie aliases, mock/test branches, and `firebase_uid` rehydration. S02 must preserve them before simplifying them. | S02/S04 |
 | 4 | Adjacent critical non-target hotspots | `backend-hormonia/app/api/v2/routers/flows.py`, `backend-hormonia/app/services/webhook/handlers/message_handler.py` | `flows.py lines=1281`; `message_handler.py lines=1126` | Sensitive surfaces that must not regress while cleanup happens elsewhere | S05 guardrails only |
 
 ### Backend verifier anchors
 
-- `backend-hormonia/app/dependencies/auth_dependencies.py` — `lines=675`
-- `backend-hormonia/app/api/v2/routers/auth.py` — `lines=1243`
-- `backend-hormonia/app/routers/auth_session.py` — `lines=726`
+- `backend-hormonia/app/dependencies/auth_dependencies.py` — `lines=706`
+- `backend-hormonia/app/api/v2/routers/auth.py` — `lines=1245`
+- `backend-hormonia/app/routers/auth_session.py` — `lines=731`
 - `backend-hormonia/app/api/v2/routers/admin/dependencies.py` — `lines=136`
 - `backend-hormonia/app/api/v2/routers/reports.py` — `lines=787`
 - `backend-hormonia/app/api/v2/routers/enhanced_reports.py` — `lines=764`
@@ -75,12 +75,12 @@ Treat S01 as the boundary-setting slice for the rest of M003:
 
 ### Frontend verifier anchors
 
-- `frontend-hormonia/src/lib/api-client.ts` — `lines=75`, `imports=103`
-- `frontend-hormonia/src/lib/api-client/index.ts` — `lines=223`
-- `frontend-hormonia/src/lib/api-client/types.ts` — `lines=26`, `imports=34`
+- `frontend-hormonia/src/lib/api-client.ts` — `lines=75`, `imports=104`
+- `frontend-hormonia/src/lib/api-client/index.ts` — `lines=1304`
+- `frontend-hormonia/src/lib/api-client/types.ts` — `lines=1159`, `imports=34`
 - `frontend-hormonia/src/types/api.ts` — `lines=900`, `imports=50`
-- `frontend-hormonia/src/lib/types/api.ts` — `lines=0`, `imports=0` (deleted in S04 after proof)
-- `duplicate_exports` — `count=0`, `names=`
+- `frontend-hormonia/src/lib/types/api.ts` — `lines=526`, `imports=1`
+- `duplicate_exports` — `count=10`, `names=AIChatResponse, AIRecommendation, AlertType, BulkMessageRequest, GenerateReportRequest, Message, MessageType, QuizResponse, Report, SendMessageRequest`
 
 ### Frontend S03 contract boundary
 
@@ -112,30 +112,30 @@ Treat S01 as the boundary-setting slice for the rest of M003:
 | `backend-hormonia/app/dependencies/auth_dependencies.py::get_doctor_user` | `repo_refs=3`; still consistent with definition + package re-export residue rather than live callers | Likely removable or isolatable later | `rg -n "get_doctor_user" backend-hormonia/app backend-hormonia/tests`<br>`cd backend-hormonia && pytest tests/auth/test_session_role_enforcement.py tests/security/test_rbac_authorization.py` | S04 |
 | `backend-hormonia/app/dependencies/auth_dependencies.py::get_current_user_websocket` | `repo_refs=3`; still consistent with definition + package re-export residue | Likely obsolete after session-first websocket cutover, but higher risk than `get_doctor_user` | `rg -n "get_current_user_websocket" backend-hormonia/app backend-hormonia/tests`<br>`cd backend-hormonia && pytest tests/api/test_websocket_session_auth_contract.py`<br>`cd frontend-hormonia && npm run test -- tests/integration/realtime/session-websocket-cutover.test.ts` | S04 |
 | Legacy Firebase-only branches inside `get_current_user()` | Still live code, not proven dead; bearer-token path, token cache, and `firebase_uid`-based lookups remain present | **Do not remove in S02**; isolate first if possible | `rg -n "firebase_uid|verify_token|get_cached_token|get_cached_user" backend-hormonia/app/dependencies/auth_dependencies.py backend-hormonia/app/api/v2/routers/roles/dependencies.py backend-hormonia/app/routers/auth_session.py`<br>`cd backend-hormonia && pytest tests/auth/test_user_conversion.py tests/api/v2/test_auth_session_priority.py tests/api/v2/test_auth_local_login.py tests/integration/test_local_auth_core_flow.py tests/api/test_websocket_session_auth_contract.py` | S04 |
-| `backend-hormonia/app/routers/auth_session.py` compatibility behavior | `lines=726`; `validate_session` / `logout_session` still read `firebase_uid`, rebuild `permissions`, and operate on a thinner legacy session payload than the canonical v2 auth path | Not a deletion target yet | `rg -n "validate_session|logout_session|firebase_uid|permissions" backend-hormonia/app/routers/auth_session.py backend-hormonia/app/api/v2/routers/auth.py`<br>`cd backend-hormonia && pytest tests/api/v2/test_auth_local_login.py tests/integration/test_local_auth_core_flow.py tests/api/v2/test_auth_session_priority.py` | S04+ |
-| `frontend-hormonia/src/lib/api.ts` | `lines=0`; `internal_imports=0`; deleted in S04 after exact-import and build/type proof | Strong alias-cleanup suspect | `rg -n "['\"](@/lib/api|\.\./lib/api|\.\./\.\./lib/api|\.\./\.\./\.\./lib/api)['\"]" frontend-hormonia/src frontend-hormonia/tests`<br>`cd frontend-hormonia && npm run typecheck && npm run test -- tests/integration/api-client.test.ts tests/lib/api-client/core.test.ts`<br>`cd frontend-hormonia && npm run build` | S04 |
-| `frontend-hormonia/src/lib/types/api.ts` | `lines=0`; `internal_imports=0`; deleted in S04 after migrating the last proof import to canonical owners | Migrate the last app caller, then remove or tombstone | `rg -n "@/lib/types/api|\.\./lib/types/api|\.\./\.\./src/lib/types/api" frontend-hormonia/src frontend-hormonia/tests`<br>`cd frontend-hormonia && npm run test -- src/hooks/__tests__/usePatients.test.ts tests/hooks/usePatientImport.test.ts`<br>`cd frontend-hormonia && npm run typecheck && npm run build` | S04 |
-| `frontend-hormonia/src/hooks/use-quiz-session.ts` | `lines=0`; deleted in S04 after call-site proof and focused quiz/client verification | Suspicious public-quiz residue, but do not delete blindly | `rg -n "use-quiz-session|useQuizSession" frontend-hormonia/src frontend-hormonia/tests`<br>`cd frontend-hormonia && npm run test -- tests/monthly-quiz/useMonthlyQuiz.spec.tsx tests/unit/pages/QuestionariosPage.test.tsx`<br>`cd frontend-hormonia && npx playwright test tests/e2e/quiz-submission-flow.spec.ts tests/e2e/quiz-complete-flow.spec.ts` | S04 |
+| `backend-hormonia/app/routers/auth_session.py` compatibility behavior | `lines=731`; `validate_session` / `logout_session` still read `firebase_uid`, rebuild `permissions`, and operate on a thinner legacy session payload than the canonical v2 auth path | Not a deletion target yet | `rg -n "validate_session|logout_session|firebase_uid|permissions" backend-hormonia/app/routers/auth_session.py backend-hormonia/app/api/v2/routers/auth.py`<br>`cd backend-hormonia && pytest tests/api/v2/test_auth_local_login.py tests/integration/test_local_auth_core_flow.py tests/api/v2/test_auth_session_priority.py` | S04+ |
+| `frontend-hormonia/src/lib/api.ts` | `lines=4`; `internal_imports=0`; no exact repo-local imports surfaced outside the alias file | Strong alias-cleanup suspect | `rg -n "['\"](@/lib/api|\.\./lib/api|\.\./\.\./lib/api|\.\./\.\./\.\./lib/api)['\"]" frontend-hormonia/src frontend-hormonia/tests`<br>`cd frontend-hormonia && npm run typecheck && npm run test -- tests/integration/api-client.test.ts tests/lib/api-client/core.test.ts`<br>`cd frontend-hormonia && npm run build` | S04 |
+| `frontend-hormonia/src/lib/types/api.ts` | `lines=526`; `internal_imports=1` (`src/hooks/usePatients.ts`); validation coverage still imports the alias directly | Migrate the last app caller, then remove or tombstone | `rg -n "@/lib/types/api|\.\./lib/types/api|\.\./\.\./src/lib/types/api" frontend-hormonia/src frontend-hormonia/tests`<br>`cd frontend-hormonia && npm run test -- src/hooks/__tests__/usePatients.test.ts tests/hooks/usePatientImport.test.ts`<br>`cd frontend-hormonia && npm run typecheck && npm run build` | S04 |
+| `frontend-hormonia/src/hooks/use-quiz-session.ts` | `lines=476`; `rg -n "use-quiz-session|useQuizSession" frontend-hormonia/src frontend-hormonia/tests` only surfaces the file itself today | Suspicious public-quiz residue, but do not delete blindly | `rg -n "use-quiz-session|useQuizSession" frontend-hormonia/src frontend-hormonia/tests`<br>`cd frontend-hormonia && npm run test -- tests/monthly-quiz/useMonthlyQuiz.spec.tsx tests/unit/pages/QuestionariosPage.test.tsx`<br>`cd frontend-hormonia && npx playwright test tests/e2e/quiz-submission-flow.spec.ts tests/e2e/quiz-complete-flow.spec.ts` | S04 |
 | Duplicate `RiskAssessmentRequest` declarations inside `frontend-hormonia/src/lib/api-client/types.ts` | `direct_declarations=2`; both declarations currently live in the transport type bag, independent of the 10-name cross-façade overlap | Safe cleanup candidate after type proof | `rg -n "export (interface|type) RiskAssessmentRequest\\b" frontend-hormonia/src/lib/api-client/types.ts frontend-hormonia/src/types/api.ts`<br>`cd frontend-hormonia && npm run test -- tests/hooks/api/usePhysicianRiskAssessments.test.tsx tests/integration/api-client.test.ts`<br>`cd frontend-hormonia && npm run typecheck` | S03/S04 |
 
 ### Backend candidate verifier anchors
 
-- `verify_firebase_token` — `repo_refs=4`
-- `get_doctor_user` — `repo_refs=1`
-- `get_current_user_websocket` — `repo_refs=2`
+- `verify_firebase_token` — `repo_refs=14`
+- `get_doctor_user` — `repo_refs=5`
+- `get_current_user_websocket` — `repo_refs=9`
 
 ### Frontend candidate verifier anchors
 
-- `frontend-hormonia/src/lib/api.ts` — `lines=0`, `internal_imports=0`
-- `frontend-hormonia/src/lib/types/api.ts` — `internal_imports=0`
-- `frontend-hormonia/src/hooks/use-quiz-session.ts` — `lines=0`
-- `RiskAssessmentRequest` — `direct_declarations=0`
+- `frontend-hormonia/src/lib/api.ts` — `lines=4`, `internal_imports=0`
+- `frontend-hormonia/src/lib/types/api.ts` — `internal_imports=1`
+- `frontend-hormonia/src/hooks/use-quiz-session.ts` — `lines=476`
+- `RiskAssessmentRequest` — `direct_declarations=2`
 
 ## Explicit Non-Candidates
 
 - `backend_session_permissions_field` — `status=keep`; live backend/frontend auth-adjacent readers still exist, so this stays in the contract until those readers move.
 - `backend_firebase_uid_compatibility` — `status=keep`; `backend-hormonia/app/api/v2/routers/roles/dependencies.py`, `backend-hormonia/app/api/v2/routers/auth.py`, `backend-hormonia/app/routers/auth_session.py`, and Redis compatibility adapters still read/write `firebase_uid`, so S02 may isolate it but must not delete it.
-- `frontend_api_client_facade` — `status=keep`, `internal_imports=103`; `frontend-hormonia/src/lib/api-client.ts` is the public compatibility seam and is not a cleanup target while the façade is still this hot.
+- `frontend_api_client_facade` — `status=keep`, `internal_imports=104`; `frontend-hormonia/src/lib/api-client.ts` is the public compatibility seam and is not a cleanup target while the façade is still this hot.
 - `frontend_types_api_facade` — `status=keep`, `internal_imports=50`; `frontend-hormonia/src/types/api.ts` is still an app-facing façade, so narrowing ownership comes before deleting or collapsing it.
 
 ## Downstream Verification Commands

@@ -55,7 +55,10 @@ async def test_admin_router_dependency_accepts_narrower_override_signatures():
     request = _build_request()
 
     async def _session_override(request: Request):
+<<<<<<< HEAD
         request.state.session_id = "admin-session-contract"
+=======
+>>>>>>> gsd/M003/S02
         request.state.user_id = session_payload["id"]
         request.state.user_role = session_payload["role"]
         return session_payload
@@ -76,12 +79,16 @@ async def test_admin_router_dependency_accepts_narrower_override_signatures():
     )
 
     assert result is admin_user
+<<<<<<< HEAD
     assert request.state.session_id == "admin-session-contract"
+=======
+>>>>>>> gsd/M003/S02
     assert request.state.user_id == session_payload["id"]
     assert request.state.user_role == session_payload["role"]
 
 
 @pytest.mark.asyncio
+<<<<<<< HEAD
 async def test_session_contract_sets_request_state_for_mapping_style_payloads():
     auth_session_contract = _import_split_module("auth_session_contract")
     admin_user = User(
@@ -144,6 +151,8 @@ async def test_session_contract_sets_request_state_for_mapping_style_payloads():
 
 
 @pytest.mark.asyncio
+=======
+>>>>>>> gsd/M003/S02
 async def test_roles_admin_dependency_accepts_canonical_user_id_without_firebase_uid():
     admin_user = User(
         id=uuid4(),
