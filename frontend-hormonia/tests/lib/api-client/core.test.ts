@@ -275,3 +275,50 @@ describe('ApiClientCore - Edge Cases', () => {
     expect(result).toEqual({ data: 'test' })
   })
 })
+
+describe('ApiClientCore - session-first contract proof', () => {
+  let originalFetch: typeof global.fetch
+
+  beforeEach(() => {
+    originalFetch = global.fetch
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
+    vi.restoreAllMocks()
+  })
+
+  it('getSessionHeaders stays empty for cookie-backed authentication', () => {
+    const client = new ApiClientCore('http://test.com')
+    client.setAuthToken('legacy-session-token')
+
+    expect(client.getSessionHeaders()).toEqual({})
+  })
+
+  it('state-changing requests keep CSRF plus credentials but omit Authorization and X-Session-ID', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'Content-Length': '0' }),
+      json: vi.fn(),
+    })
+
+    global.fetch = mockFetch
+
+    const client = new ApiClientCore('http://test.com')
+    seedCsrfToken(client)
+    client.setSessionToken({ access_token: 'legacy-session-token' })
+
+    await client.post('/api/v2/resource', { status: 'ok' })
+
+    const requestOptions = mockFetch.mock.calls[0]?.[1] as RequestInit & {
+      headers?: Record<string, string>
+    }
+    const headers = (requestOptions.headers ?? {}) as Record<string, string>
+
+    expect(requestOptions.credentials).toBe('include')
+    expect(headers['X-CSRF-Token']).toBe('csrf-test-token')
+    expect(headers.Authorization).toBeUndefined()
+    expect(headers['X-Session-ID']).toBeUndefined()
+  })
+})

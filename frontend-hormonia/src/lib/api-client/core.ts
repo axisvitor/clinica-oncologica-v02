@@ -185,23 +185,24 @@ export class ApiClientCore {
   }
 
   /**
-   * Set authentication token
+   * Set compatibility auth token.
+   * Shared HTTP requests remain cookie-backed and do not emit this value.
    */
   setAuthToken(token: string | null): void {
     this.authToken = token
     if (token !== null) {
-      logger.log('Auth token configured (Authorization + X-Session-ID headers)')
+      logger.log('Compatibility auth token cached; shared HTTP requests remain cookie-backed')
     } else {
-      logger.log('Auth token cleared')
+      logger.log('Compatibility auth token cleared')
     }
   }
 
   /**
    * Clear authentication token (alias for setAuthToken(null))
-   * Used after establishing cookie-based session
+   * Used when leaving compatibility flows in favor of cookie-backed session auth.
    */
   clearAuthToken(): void {
-    logger.debug('[ApiClient] Clearing auth token - switching to cookie-only auth')
+    logger.debug('[ApiClient] Clearing compatibility auth token - shared requests stay cookie-only')
     this.setAuthToken(null)
   }
 
@@ -213,15 +214,11 @@ export class ApiClientCore {
   }
 
   /**
-   * Build auth headers for direct fetch calls
+   * Build headers for direct fetch calls.
+   * Official first-party requests rely on cookies + CSRF, so no legacy session headers are emitted.
    */
   getSessionHeaders(): Record<string, string> {
-    const headers: Record<string, string> = {}
-    if (this.authToken) {
-      headers['Authorization'] = `Bearer ${this.authToken}`
-      headers['X-Session-ID'] = this.authToken
-    }
-    return headers
+    return {}
   }
 
   /**
@@ -388,12 +385,6 @@ export class ApiClientCore {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-    }
-
-    // Add auth token
-    if (this.authToken !== null) {
-      headers['Authorization'] = `Bearer ${this.authToken}`
-      headers['X-Session-ID'] = this.authToken
     }
 
     Object.assign(headers, (fetchOptions.headers as Record<string, string>) || {})

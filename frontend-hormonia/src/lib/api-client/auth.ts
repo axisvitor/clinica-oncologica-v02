@@ -215,20 +215,12 @@ export function createAuthApi(client: ApiClientCore) {
   const fetchSession = async (): Promise<SessionValidationResponse & { session_id?: string }> => {
     const baseURL = client.getBaseURL()
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    }
-
-    const token = client.getAuthToken()
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`
-      headers['X-Session-ID'] = token
-    }
-
     const response = await fetch(`${baseURL}/api/v2/auth/verify-session`, {
       method: 'GET',
       credentials: 'include',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+      },
     })
 
     if (!response.ok) {
@@ -257,14 +249,9 @@ export function createAuthApi(client: ApiClientCore) {
           remember_me: Boolean(credentials.remember_me),
         })
 
-        if (response.session_id) {
-          client.setAuthToken(response.session_id)
-        }
-
         return {
           ...response,
           user: mapSessionUser(response.user),
-          access_token: response.access_token ?? response.session_id,
         }
       } catch (error) {
         throw normalizeApiError(error, 'Unable to complete login.')

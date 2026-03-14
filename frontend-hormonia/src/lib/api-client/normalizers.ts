@@ -27,7 +27,6 @@ export interface BackendUser {
   is_active: boolean
   created_at: string
   updated_at?: string
-  firebase_uid?: string
   session_id?: string
   token?: string
   avatar_url?: string
@@ -43,7 +42,6 @@ export interface FrontendUser {
   is_active: boolean
   created_at: string
   updated_at?: string
-  firebase_uid?: string
   session_id?: string
   token?: string
   avatar_url?: string
@@ -98,7 +96,6 @@ export function normalizeUser(backendUser: BackendUser): FrontendUser {
     is_active: backendUser.is_active,
     created_at: backendUser.created_at,
     updated_at: backendUser.updated_at,
-    firebase_uid: backendUser.firebase_uid,
     session_id: backendUser.session_id,
     token: backendUser.token,
     avatar_url: backendUser.avatar_url,

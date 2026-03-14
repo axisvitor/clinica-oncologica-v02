@@ -327,16 +327,17 @@ describe('useSessionManagement - Session Verification', () => {
     mockOnSessionExpired.mockReset()
   })
 
-  it('should restore session from storage', async () => {
+  it('should defer restore to backend cookie verification instead of browser storage', async () => {
+    const storageGetSpy = vi.spyOn(Storage.prototype, 'getItem')
     const { useSessionManagement } = await import('@/hooks/auth/useSessionManagement')
 
     const { result } = renderHook(() => useSessionManagement(createHookOptions()))
 
-    // Call restoreSessionFromStorage
     const restored = result.current.restoreSessionFromStorage()
 
-    // Should return false (delegated to backend/Firebase)
     expect(restored).toBe(false)
+    expect(storageGetSpy).not.toHaveBeenCalled()
+    storageGetSpy.mockRestore()
   })
 
   it('should provide isSessionExpiring function', async () => {

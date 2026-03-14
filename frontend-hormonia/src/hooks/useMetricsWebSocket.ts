@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from '@/app/providers/AuthContext'
-import { apiClient } from '@/lib/api-client'
 import { createLogger } from '../lib/logger'
 import type { WebSocketAuthDiagnostics } from '@/types/websocket'
 import type { MetricsWebSocketData } from './types'
@@ -53,16 +52,8 @@ function normalizeSessionQueryFallback(value?: string | null): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-function isLikelyJwt(value: string): boolean {
-  return value.split('.').length === 3
-}
-
-function buildMetricsWebSocketUrl(baseUrl: string, sessionId: string | null): string {
-  const url = new URL(`${baseUrl}/api/v2/metrics/live`)
-  if (sessionId && !isLikelyJwt(sessionId)) {
-    url.searchParams.set('session_id', sessionId)
-  }
-  return url.toString()
+function buildMetricsWebSocketUrl(baseUrl: string): string {
+  return new URL(`${baseUrl}/api/v2/metrics/live`).toString()
 }
 
 function extractAuthDiagnostics(data: unknown): WebSocketAuthDiagnostics | null {
@@ -116,9 +107,9 @@ export function useMetricsWebSocket({
   const isManualDisconnect = useRef(false)
   const connectRef = useRef<() => void>(() => undefined)
 
-  const sessionQueryId = useMemo(
-    () => normalizeSessionQueryFallback(session?.session_id || apiClient.getAuthToken()),
-    [session?.session_id]
+  const sessionAuthState = useMemo(
+    () => normalizeSessionQueryFallback(session?.session_id || session?.access_token || null),
+    [session?.access_token, session?.session_id]
   )
 
   const sendHeartbeat = useCallback(() => {
@@ -235,7 +226,7 @@ export function useMetricsWebSocket({
       return
     }
 
-    if (!user && !sessionQueryId) {
+    if (!user && !sessionAuthState) {
       logger.error('Cannot connect: no authenticated session available')
       setError('Autenticação necessária')
       return
@@ -252,7 +243,7 @@ export function useMetricsWebSocket({
       isManualDisconnect.current = false
 
       const baseUrl = getWebSocketBaseUrl()
-      const wsUrl = buildMetricsWebSocketUrl(baseUrl, sessionQueryId)
+      const wsUrl = buildMetricsWebSocketUrl(baseUrl)
 
       logger.info('Connecting to metrics WebSocket', { url: baseUrl })
 
@@ -268,7 +259,7 @@ export function useMetricsWebSocket({
       setError('Falha ao conectar ao servidor')
       setIsConnecting(false)
     }
-  }, [handleClose, handleError, handleMessage, handleOpen, isConnecting, sessionQueryId, user])
+  }, [handleClose, handleError, handleMessage, handleOpen, isConnecting, sessionAuthState, user])
 
   useEffect(() => {
     connectRef.current = connect
@@ -311,7 +302,7 @@ export function useMetricsWebSocket({
   }, [])
 
   useEffect(() => {
-    if (user || sessionQueryId) {
+    if (user || sessionAuthState) {
       logger.info('Authenticated session available, auto-connecting metrics WebSocket')
       connect()
     } else {
@@ -322,7 +313,7 @@ export function useMetricsWebSocket({
     return () => {
       disconnect()
     }
-  }, [connect, disconnect, sessionQueryId, user])
+  }, [connect, disconnect, sessionAuthState, user])
 
   return {
     isConnected,

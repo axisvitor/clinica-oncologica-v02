@@ -6,7 +6,7 @@
 ## UAT Type
 
 - UAT mode: artifact-driven
-- Why this mode is sufficient: S01 ships a boundary contract and diagnostics, not a live runtime feature. The right proof is that the verifier reports the approved residue map, stays green on the current boundary, and fails clearly on synthetic drift.
+- Why this mode is sufficient: S01 ships a boundary contract and diagnostics, not a user-facing runtime feature. After S03, the right proof is that the verifier reports a backend-only approved boundary, the frontend scope stays zero-approved, and drift still fails clearly.
 
 ## Preconditions
 
@@ -17,35 +17,34 @@
 
 ## Smoke Test
 
-1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all`.
-2. Confirm the output contains both `[backend]` and `[frontend]` sections.
-3. **Expected:** The output lists category/file/count rows for approved residue and ends with `RESULT: --report all OK`.
+1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report frontend`.
+2. **Expected:** The output contains `[frontend]`, prints `- no approved residue`, and ends with `RESULT: --report frontend OK`.
 
 ## Test Cases
 
-### 1. Green boundary replay
+### 1. Frontend zero-residue replay
+
+1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report frontend`.
+2. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check frontend`.
+3. **Expected:** Both commands succeed. `--report frontend` and `--check frontend` print `no approved residue` and do not emit `unexpected_file=` or `moved_hotspot=`.
+
+### 2. Full boundary replay
 
 1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all`.
 2. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check all`.
-3. **Expected:** Both commands succeed. `--report all` prints the approved residue map; `--check all` ends with `RESULT: --check all OK` and does not emit `unexpected_file=` or `moved_hotspot=`.
+3. **Expected:** Both commands succeed. `--report all` lists approved backend category/file/count rows, shows `frontend` as `no approved residue`, and `--check all` ends with `RESULT: --check all OK`.
 
-### 2. Full regression harness stays green
+### 3. Full regression harness stays green
 
 1. Run `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py`.
 2. Wait for pytest to finish.
-3. **Expected:** The suite passes and exercises the real shell verifier through subprocesses without any failing tests.
+3. **Expected:** The suite passes and still exercises the real shell verifier through subprocesses without any failing tests.
 
-### 3. Unexpected residue failure path is still inspectable
+### 4. Failure-path diagnostics are still inspectable
 
 1. Run `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k unexpected_residue`.
-2. Wait for the targeted subset to finish.
-3. **Expected:** The subset passes, proving the guard still rejects newly introduced residue and reports the offending category/file in a stable way.
-
-### 4. Moved approved hotspot diagnostics still name the anchor
-
-1. Run `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k moved_hotspot_reports_anchor_name`.
-2. Wait for the targeted subset to finish.
-3. **Expected:** The subset passes, proving a moved approved hotspot still fails with `moved_hotspot=` and `anchor=` diagnostics instead of a generic drift error.
+2. Run `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k moved_hotspot_reports_anchor_name`.
+3. **Expected:** Both targeted subsets pass, proving the guard still rejects newly introduced residue and still names moved approved hotspots with stable diagnostics.
 
 ## Edge Cases
 
@@ -53,38 +52,37 @@
 
 1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report backend`.
 2. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report frontend`.
-3. **Expected:** The backend report shows only `backend-hormonia/...` files; the frontend report shows only `frontend-hormonia/...` files; both end with `OK`.
+3. **Expected:** The backend report shows only `backend-hormonia/...` files; the frontend report shows no approved residue and no backend files.
 
-### Out-of-scope strings stay out of the failure surface
+### Frontend reintroduction guard
 
-1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all`.
-2. Inspect the reported file paths.
-3. **Expected:** The report contains only official runtime files plus slice-local proof artifacts. It should not surface schema/history/test/doc paths such as Alembic migrations, historical docs, or unrelated vendor/public session strings.
+1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check frontend` after any future frontend auth/session cleanup or refactor.
+2. **Expected:** The command stays green. Any new frontend hit in `firebase_uid`, `x_session_id`, `session_bearer_fallback`, `websocket_session_id_query`, or `firebase_narrative` should fail immediately instead of being treated as approved debt.
 
 ## Failure Signals
 
-- `verify-runtime-residue.sh --check all` exits nonzero or prints `unexpected_file=`.
-- `verify-runtime-residue.sh --check all` exits nonzero or prints `moved_hotspot=` / `anchor=` for an approved hotspot that drifted.
-- `--report backend` includes frontend files or `--report frontend` includes backend files.
+- `verify-runtime-residue.sh --check frontend` or `--check all` exits nonzero or prints `unexpected_file=`.
+- `verify-runtime-residue.sh --check frontend` or `--check all` exits nonzero or prints `moved_hotspot=` / `anchor=` for an approved hotspot that drifted.
+- `--report frontend` lists approved residue instead of `no approved residue`.
 - The targeted pytest subsets fail, which means the failure-path diagnostics are no longer trustworthy.
 - The report output loses category/file/count detail and degrades into generic grep-style noise.
 
 ## Requirements Proved By This UAT
 
 - R047 — The official-runtime Firebase residue boundary is executable and inspectable instead of implicit.
-- R048 — Legacy auth/session surfaces inside the official runtime are now measurable by one scoped contract.
+- R048 — Legacy auth/session surfaces inside the official runtime are measurable by one scoped contract.
 - R049 — Remaining `firebase_uid` hotspots in the official runtime are enumerated and guarded against silent drift.
-- R050 — Frontend Firebase/session residue, including narrative hotspots and legacy transport fallbacks, is visible and guarded.
+- R050 — The official frontend residue boundary is now proven clean inside the scoped runtime guard.
 
 ## Not Proven By This UAT
 
-- This UAT does not prove that the runtime has already converged end-to-end to the no-Firebase canonical path; after S02 it still leaves frontend cutover, transport retirement, adjacent Firebase cleanup, and assembled-stack proof to S03–S06.
+- This UAT does not prove that the full runtime has already converged end-to-end to the no-Firebase canonical path; backend transport retirement, adjacent Firebase cleanup, and assembled-stack proof still belong to S04–S06.
 - This UAT does not prove live login, restore, logout, `/dashboard`, `/admin`, or `/whatsapp` behavior on a mounted stack.
 - This UAT does not remove schema/migration residue; M005 still owns the physical schema cleanup.
 
 ## Notes for Tester
 
-- A green result here means the boundary is honest, not that the residue is gone. After S02, a green backend report also does **not** mean `firebase_uid` still drives the canonical helper path; read `S02-SUMMARY.md` before treating helper hits as happy-path drift.
+- A green result here means the boundary is honest, not that the milestone is done. After S03, the remaining approved residue is backend-owned.
+- `frontend` showing `no approved residue` is intentional. Do not repopulate the allowlist just to quiet a regression.
 - The existing `pytest_asyncio` loop-scope deprecation warning may still appear during the backend pytest runs. Treat it as known noise unless it changes the pass/fail result.
 - If a later slice intentionally removes or moves residue, the fix is not just code cleanup: update the allowlist and the slice handoff artifacts in the same change, then rerun this UAT.
-- If a later slice narrows helper semantics without dropping backend file counts, update the allowlist descriptions/labels and the readable handoff anyway; flat counts can still hide a real boundary shrink.

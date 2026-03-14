@@ -25,7 +25,6 @@ export interface AdminUser {
   created_at: string
   updated_at?: string
   last_login?: string
-  firebase_uid?: string
   two_factor_enabled?: boolean
 }
 

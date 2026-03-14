@@ -1,21 +1,12 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { ApiClientCore, ApiError } from '@/lib/api-client/core'
+import { ApiClientCore } from '@/lib/api-client/core'
 import { createAuthApi } from '@/lib/api-client/auth'
 import { AuthProvider, useAuth, safeLocalStorage } from '@/app/providers/AuthContext'
 
 const mockFetch = vi.fn()
 global.fetch = mockFetch as typeof fetch
-
-const mockFirebaseAuth = vi.hoisted(() => ({
-  onAuthStateChanged: vi.fn(),
-  onIdTokenChanged: vi.fn(),
-  getCurrentUser: vi.fn(),
-  signOut: vi.fn(),
-  setPersistence: vi.fn(),
-  isConfigured: vi.fn().mockReturnValue(true),
-}))
 
 const mockApiClient = vi.hoisted(() => ({
   setAuthToken: vi.fn(),
@@ -38,18 +29,6 @@ const mockWsManager = vi.hoisted(() => ({
   updateToken: vi.fn(),
 }))
 
-const mockFirebaseAuthService = vi.hoisted(() => ({
-  loginUser: vi.fn(),
-  logoutUser: vi.fn(),
-  logoutAllDevices: vi.fn(),
-  setSessionId: vi.fn(),
-  clearSessionId: vi.fn(),
-}))
-
-vi.mock('@/lib/firebase-lazy', () => ({
-  firebaseAuthLazy: mockFirebaseAuth,
-}))
-
 vi.mock('@/lib/api-client', () => ({
   apiClient: mockApiClient,
 }))
@@ -57,8 +36,6 @@ vi.mock('@/lib/api-client', () => ({
 vi.mock('@/lib/websocket', () => ({
   wsManager: mockWsManager,
 }))
-
-vi.mock('@/services/firebase-auth', () => mockFirebaseAuthService)
 
 vi.mock('@/hooks/use-toast', () => ({
   toast: vi.fn(),
@@ -68,20 +45,19 @@ vi.mock('@/config/mock.config', () => ({
   isMockAuthEnabled: vi.fn().mockReturnValue(false),
 }))
 
+const staffCredentials = {
+  email: 'doctor@example.com',
+  password: 'StrongSessionFirstPass123!',
+}
+
 const sessionUser = {
   id: 'user-123',
-  email: 'doctor@example.com',
+  email: staffCredentials.email,
   full_name: 'Dra. Session First',
   role: 'doctor',
   is_active: true,
   permissions: ['patients.read'],
   created_at: '2026-03-12T08:00:00-03:00',
-}
-
-const firebaseUser = {
-  uid: 'firebase-uid-legacy',
-  email: sessionUser.email,
-  getIdToken: vi.fn().mockResolvedValue('firebase-jwt-token'),
 }
 
 function createMockResponse(data: unknown, status = 200, ok = status >= 200 && status < 300) {
@@ -105,7 +81,7 @@ function AuthProbe() {
       <button
         type="button"
         onClick={() => {
-          void auth.login('doctor@example.com', 'SecurePass123!', true)
+          void auth.login(staffCredentials.email, staffCredentials.password, true)
         }}
       >
         session-login
@@ -125,11 +101,13 @@ function AuthProbe() {
 describe('session-first auth cutover proof', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    window.localStorage.clear()
 
+    mockFetch.mockReset()
     mockApiClient.fetchCsrfToken.mockResolvedValue(undefined)
     mockApiClient.auth.login.mockResolvedValue({
       valid: true,
-      session_id: 'session-cutover-123',
+      session_id: 'legacy-session-login',
       remember_me: true,
       user: sessionUser,
       user_id: sessionUser.id,
@@ -143,23 +121,6 @@ describe('session-first auth cutover proof', () => {
     mockApiClient.auth.me.mockResolvedValue({ data: sessionUser })
     mockApiClient.auth.checkAuth.mockResolvedValue({ authenticated: false })
     mockApiClient.dashboard.getMain.mockResolvedValue({})
-
-    mockFirebaseAuth.isConfigured.mockReturnValue(true)
-    mockFirebaseAuth.setPersistence.mockResolvedValue(undefined)
-    mockFirebaseAuth.getCurrentUser.mockResolvedValue(firebaseUser)
-    mockFirebaseAuth.signOut.mockResolvedValue(undefined)
-    mockFirebaseAuth.onAuthStateChanged.mockImplementation(async (callback) => {
-      await callback(null)
-      return vi.fn()
-    })
-    mockFirebaseAuth.onIdTokenChanged.mockImplementation(async () => vi.fn())
-
-    mockFirebaseAuthService.loginUser.mockResolvedValue({
-      user: sessionUser,
-      session_id: 'session-firebase-bridge-123',
-    })
-    mockFirebaseAuthService.logoutUser.mockResolvedValue(undefined)
-    mockFirebaseAuthService.logoutAllDevices.mockResolvedValue({ sessions_deleted: 1 })
   })
 
   afterEach(() => {
@@ -185,10 +146,10 @@ describe('session-first auth cutover proof', () => {
 
     await expect(
       authApi.login({
-        email: 'doctor@example.com',
-        password: 'WrongPass123!',
+        email: staffCredentials.email,
+        password: staffCredentials.password,
         remember_me: true,
-      } as never)
+      })
     ).rejects.toMatchObject({
       status: 401,
       data: expect.objectContaining({
@@ -197,26 +158,32 @@ describe('session-first auth cutover proof', () => {
       }),
     })
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:8000/api/v2/auth/login',
+    const [requestUrl, requestInit] = mockFetch.mock.calls[0] as [string, RequestInit]
+    const requestBody = JSON.parse(String(requestInit.body ?? '{}')) as Record<string, unknown>
+
+    expect(requestUrl).toBe('http://localhost:8000/api/v2/auth/login')
+    expect(requestInit).toEqual(
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
-        body: JSON.stringify({
-          email: 'doctor@example.com',
-          password: 'WrongPass123!',
-          remember_me: true,
-        }),
       })
     )
-    expect(String(mockFetch.mock.calls[0]?.[0] ?? '')).not.toContain('/api/v2/auth/firebase/verify')
+    expect(requestBody).toMatchObject({
+      email: staffCredentials.email,
+      remember_me: true,
+    })
+    expect(requestBody.password).toEqual(expect.any(String))
+    expect(requestUrl).not.toContain('/api/v2/auth/firebase/verify')
   })
 
-  it('restores browser auth from verify-session without Firebase listeners', async () => {
+  it('restores cookie-backed session state without rehydrating localStorage.session_id', async () => {
+    const getItemSpy = vi.spyOn(safeLocalStorage, 'getItem')
+    const setItemSpy = vi.spyOn(safeLocalStorage, 'setItem')
+
     mockApiClient.auth.checkAuth.mockResolvedValue({
       authenticated: true,
       user: sessionUser,
-      sessionId: 'session-restore-123',
+      sessionId: 'legacy-session-restore',
     })
 
     render(
@@ -230,12 +197,15 @@ describe('session-first auth cutover proof', () => {
     })
 
     expect(mockApiClient.auth.checkAuth).toHaveBeenCalledTimes(1)
-    expect(mockApiClient.setAuthToken).toHaveBeenCalledWith('session-restore-123')
-    expect(mockFirebaseAuth.onAuthStateChanged).not.toHaveBeenCalled()
-    expect(mockFirebaseAuth.onIdTokenChanged).not.toHaveBeenCalled()
+    expect(mockApiClient.setAuthToken).not.toHaveBeenCalled()
+    expect(getItemSpy).not.toHaveBeenCalledWith('session_id')
+    expect(setItemSpy).not.toHaveBeenCalledWith('session_id', expect.any(String))
   })
 
-  it('logs in through apiClient.auth.login and avoids Firebase persistence controls', async () => {
+  it('logs in through AuthProvider without persisting localStorage.session_id', async () => {
+    const getItemSpy = vi.spyOn(safeLocalStorage, 'getItem')
+    const setItemSpy = vi.spyOn(safeLocalStorage, 'setItem')
+
     render(
       <AuthProvider>
         <AuthProbe />
@@ -246,27 +216,40 @@ describe('session-first auth cutover proof', () => {
       expect(screen.getByTestId('is-initializing')).toHaveTextContent('false')
     })
 
+    getItemSpy.mockClear()
+    setItemSpy.mockClear()
+    mockApiClient.setAuthToken.mockClear()
+
     fireEvent.click(screen.getByRole('button', { name: 'session-login' }))
 
     await waitFor(() => {
-      expect(mockApiClient.auth.login).toHaveBeenCalledWith({
-        email: 'doctor@example.com',
-        password: 'SecurePass123!',
-        remember_me: true,
-      })
+      expect(mockApiClient.auth.login).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: staffCredentials.email,
+          remember_me: true,
+          password: expect.any(String),
+        })
+      )
     })
 
-    expect(mockFirebaseAuthService.loginUser).not.toHaveBeenCalled()
-    expect(mockFirebaseAuth.setPersistence).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(screen.getByTestId('user-email')).toHaveTextContent(sessionUser.email)
+    })
+
+    expect(mockApiClient.setAuthToken).not.toHaveBeenCalled()
+    expect(getItemSpy).not.toHaveBeenCalledWith('session_id')
+    expect(setItemSpy).not.toHaveBeenCalledWith('session_id', expect.any(String))
   })
 
-  it('logs out through the first-party session endpoint and clears local cleanup surfaces', async () => {
+  it('logs out through the first-party session endpoint without rehydrating legacy session storage', async () => {
+    const getItemSpy = vi.spyOn(safeLocalStorage, 'getItem')
+    const setItemSpy = vi.spyOn(safeLocalStorage, 'setItem')
     const removeItemSpy = vi.spyOn(safeLocalStorage, 'removeItem')
 
     mockApiClient.auth.checkAuth.mockResolvedValue({
       authenticated: true,
       user: sessionUser,
-      sessionId: 'session-restore-123',
+      sessionId: 'legacy-session-restore',
     })
 
     render(
@@ -279,14 +262,22 @@ describe('session-first auth cutover proof', () => {
       expect(screen.getByTestId('user-email')).toHaveTextContent(sessionUser.email)
     })
 
+    getItemSpy.mockClear()
+    setItemSpy.mockClear()
+
     fireEvent.click(screen.getByRole('button', { name: 'session-logout' }))
 
     await waitFor(() => {
       expect(mockApiClient.auth.logout).toHaveBeenCalledTimes(1)
     })
 
+    await waitFor(() => {
+      expect(screen.getByTestId('user-email')).toHaveTextContent('anonymous')
+    })
+
+    expect(getItemSpy).not.toHaveBeenCalledWith('session_id')
+    expect(setItemSpy).not.toHaveBeenCalledWith('session_id', expect.any(String))
     expect(removeItemSpy).toHaveBeenCalledWith('session_id')
     expect(mockWsManager.disconnect).toHaveBeenCalled()
-    expect(mockFirebaseAuthService.logoutUser).not.toHaveBeenCalled()
   })
 })

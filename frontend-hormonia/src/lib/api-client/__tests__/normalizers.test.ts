@@ -101,6 +101,22 @@ describe('User Normalization', () => {
 
       expect(frontendUser.permissions).toEqual(['read:patients', 'write:patients'])
     })
+
+    it('should drop firebase-auth residue from normalized users', () => {
+      const backendUser = {
+        id: '123',
+        email: 'doctor@example.com',
+        full_name: 'Dr. Maria',
+        role: 'doctor',
+        is_active: true,
+        created_at: '2025-01-01T00:00:00-03:00',
+        firebase_uid: 'legacy-firebase-uid',
+      } as BackendUser & { firebase_uid?: string }
+
+      const frontendUser = normalizeUser(backendUser)
+
+      expect(frontendUser).not.toHaveProperty('firebase_uid')
+    })
   })
 
   describe('denormalizeUser', () => {

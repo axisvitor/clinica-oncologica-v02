@@ -19,16 +19,6 @@ export enum UserRole {
 }
 
 /**
- * Auth provider - matches auth_provider enum
- */
-export enum AuthProvider {
-    LOCAL = 'local',
-    FIREBASE = 'firebase',
-    GOOGLE = 'google',
-    APPLE = 'apple'
-}
-
-/**
  * Core admin user interface - matches admin_users table
  */
 export interface AdminUser {
@@ -66,13 +56,6 @@ export interface User {
     full_name?: string | null
     role: UserRole | string
     is_active: boolean
-    firebase_uid?: string | null
-    auth_provider: AuthProvider | string
-    firebase_email_verified: boolean
-    firebase_display_name?: string | null
-    firebase_photo_url?: string | null
-    firebase_custom_claims?: Record<string, unknown>
-    last_firebase_sync?: string | null
     created_at: string
     updated_at: string
 }

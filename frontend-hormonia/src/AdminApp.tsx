@@ -8,19 +8,20 @@ import { ErrorBoundary } from './components/error/ErrorBoundary'
  *
  * IMPORTANT: This component is loaded inside App.tsx which already provides:
  * - PersistQueryClientProvider (with IndexedDB persistence)
- * - AuthProvider (Firebase authentication) ✅ UNIFIED AUTH
+ * - AuthProvider (backend session auth via cookies + verify-session) ✅ UNIFIED AUTH
  * - Router (React Router v6)
  *
  * Provider Hierarchy (from App.tsx down):
  * - ErrorBoundary
  *   - PersistQueryClientProvider (shared queryClient)
- *     - AuthProvider (Firebase auth) ✅ SINGLE SOURCE OF TRUTH
+ *     - AuthProvider (session-first auth) ✅ SINGLE SOURCE OF TRUTH
  *       - Router
  *         - AdminApp (lazy loaded)
  *           - AdminRoutes
  *
  * FIXED: Removed AdminAuthProvider duplication
- * All admin components now use unified AuthProvider from App.tsx
+ * All admin components now use the shared AuthProvider from App.tsx for backend-owned login,
+ * restore, and verify-session flows.
  */
 
 const AdminApp: React.FC = () => {

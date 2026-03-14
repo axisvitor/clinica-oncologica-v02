@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '@/utils/logger'
+import { apiClient } from './index'
 
 const logger = createLogger('EnhancedAnalytics')
 import {
@@ -24,7 +25,16 @@ type RequestOptions = {
   responseType?: 'json' | 'blob'
 }
 
-type ApiErrorPayload = { message?: string }
+type ApiErrorPayload = { message?: string; error?: string; detail?: string; user_message?: string }
+
+const isCsrfErrorPayload = (payload?: ApiErrorPayload): boolean => {
+  const combined = [payload?.error, payload?.detail, payload?.message, payload?.user_message]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase()
+
+  return combined.includes('csrf')
+}
 
 class ApiClientError extends Error {
   status?: number
@@ -42,7 +52,6 @@ class HttpClient {
   constructor(
     private readonly baseUrl: string,
     private readonly timeoutMs: number,
-    private readonly getAuthHeaders: () => Record<string, string>,
     private readonly onUnauthorized: () => void
   ) {}
 
@@ -54,11 +63,31 @@ class HttpClient {
     return this.request<T>('POST', path, body, options)
   }
 
+  private async buildHeaders(method: 'GET' | 'POST'): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+
+    if (method === 'POST') {
+      if (!apiClient.getCsrfToken()) {
+        await apiClient.fetchCsrfToken()
+      }
+
+      const csrfToken = apiClient.getCsrfToken()
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken
+      }
+    }
+
+    return headers
+  }
+
   private async request<T>(
     method: 'GET' | 'POST',
     path: string,
     body?: unknown,
-    options: RequestOptions = {}
+    options: RequestOptions = {},
+    retried = false
   ): Promise<{ data: T }> {
     const controller = new AbortController()
     const timeout = window.setTimeout(() => controller.abort(), this.timeoutMs)
@@ -76,10 +105,7 @@ class HttpClient {
       const response = await fetch(url.toString(), {
         method,
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...this.getAuthHeaders(),
-        },
+        headers: await this.buildHeaders(method),
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       })
@@ -95,6 +121,12 @@ class HttpClient {
         } catch {
           payload = undefined
         }
+
+        if (response.status === 403 && isCsrfErrorPayload(payload) && !retried && method === 'POST') {
+          await apiClient.fetchCsrfToken()
+          return this.request<T>(method, path, body, options, true)
+        }
+
         throw new ApiClientError(payload?.message || response.statusText, response.status, payload)
       }
 
@@ -120,23 +152,9 @@ export class EnhancedAnalyticsApi {
       import.meta.env.VITE_API_BASE_URL ||
       import.meta.env.VITE_API_URL ||
       'http://localhost:8000'
-    this.client = new HttpClient(
-      `${this.baseUrl}/api/v2/enhanced-analytics/`,
-      30000,
-      (): Record<string, string> => {
-        const token = localStorage.getItem('session_id') || localStorage.getItem('auth_token')
-        if (!token) {
-          return {}
-        }
-        return {
-          Authorization: `Bearer ${token}`,
-          'X-Session-ID': token,
-        }
-      },
-      () => {
-        window.location.href = '/login'
-      }
-    )
+    this.client = new HttpClient(`${this.baseUrl}/api/v2/enhanced-analytics/`, 30000, () => {
+      window.location.href = '/login'
+    })
   }
 
   /**

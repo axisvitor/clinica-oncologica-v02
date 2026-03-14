@@ -47,6 +47,10 @@ describe('FrontendInitValidator', () => {
       const envResult = validator['results'].find((r) => r.component === 'Environment Variables')
       expect(envResult).toBeDefined()
       expect(envResult?.valid).toBe(true)
+      expect(envResult?.message).toMatch(/session-first environment variables/i)
+      expect(envResult?.details).toMatchObject({
+        sessionAuth: 'backend cookies + verify-session',
+      })
     })
   })
 
@@ -97,6 +101,10 @@ describe('FrontendInitValidator', () => {
       const configResult = validator['results'].find((r) => r.component === 'Configuration')
       expect(configResult).toBeDefined()
       expect(configResult?.valid).toBe(true)
+      expect(configResult?.message).toMatch(/backend session auth/i)
+      expect(configResult?.details).toMatchObject({
+        sessionAuth: 'httpOnly cookies + verify-session',
+      })
     })
   })
 
@@ -118,6 +126,10 @@ describe('FrontendInitValidator', () => {
       const apiResult = validator['results'].find((r) => r.component === 'API Connectivity')
       expect(apiResult).toBeDefined()
       expect(apiResult?.valid).toBe(true)
+      expect(apiResult?.message).toMatch(/session verification/i)
+      expect(apiResult?.details).toMatchObject({
+        sessionAuth: expect.stringMatching(/verify-session\/login\/logout/i),
+      })
     })
 
     it('should fail when API is unreachable', async () => {
@@ -128,6 +140,7 @@ describe('FrontendInitValidator', () => {
       const apiResult = validator['results'].find((r) => r.component === 'API Connectivity')
       expect(apiResult).toBeDefined()
       expect(apiResult?.valid).toBe(false)
+      expect(apiResult?.message).toMatch(/session restore/i)
     })
 
     it('should fail when API returns error status', async () => {
@@ -154,6 +167,10 @@ describe('FrontendInitValidator', () => {
       const featuresResult = validator['results'].find((r) => r.component === 'Features')
       expect(featuresResult).toBeDefined()
       expect(featuresResult?.valid).toBe(true)
+      expect(featuresResult?.message).toMatch(/backend-owned session auth/i)
+      expect(featuresResult?.details).toMatchObject({
+        features: expect.objectContaining({ backendSessionAuth: true }),
+      })
     })
   })
 
@@ -181,6 +198,19 @@ describe('FrontendInitValidator', () => {
 
       expect(results.overall).toBe(false)
     })
+
+    it('keeps validation output free of Firebase readiness wording', async () => {
+      global.fetch = vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ status: 'healthy', version: '2.0.0' }),
+        } as Response)
+      )
+
+      const results = await validator.validate()
+
+      expect(JSON.stringify(results).toLowerCase()).not.toContain('firebase')
+    })
   })
 
   describe('checkLocalStorage', () => {
@@ -190,16 +220,26 @@ describe('FrontendInitValidator', () => {
     })
 
     it('should return false when localStorage throws error', () => {
-      const originalSetItem = Storage.prototype.setItem
-      Storage.prototype.setItem = () => {
-        throw new Error('QuotaExceeded')
-      }
+      const originalLocalStorage = window.localStorage
+
+      Object.defineProperty(window, 'localStorage', {
+        configurable: true,
+        value: {
+          setItem: () => {
+            throw new Error('QuotaExceeded')
+          },
+          getItem: vi.fn(),
+          removeItem: vi.fn(),
+        },
+      })
 
       const result = validator['checkLocalStorage']()
       expect(result).toBe(false)
 
-      // Restore
-      Storage.prototype.setItem = originalSetItem
+      Object.defineProperty(window, 'localStorage', {
+        configurable: true,
+        value: originalLocalStorage,
+      })
     })
   })
 })

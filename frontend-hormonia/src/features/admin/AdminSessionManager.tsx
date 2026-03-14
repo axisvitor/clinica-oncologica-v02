@@ -53,17 +53,19 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     setShowInactivityDialog(false)
   }, [])
 
-  // Handle session extension (Firebase handles token refresh automatically)
+  // Handle session extension for the local warning state while backend cookies own auth
   const handleExtendSession = useCallback(async () => {
     setIsExtending(true)
     try {
-      // Firebase automatically refreshes tokens, just reset activity tracking
+      // The shared auth flow renews the real session via backend cookies + verify-session.
+      // Here we only clear the local warning state and treat the user as active again.
+      logger.info('Admin session extension requested; resetting local warning state for cookie-backed auth')
       setSessionWarning(null)
       updateActivity()
     } catch {
       setSessionWarning({
         type: 'expired',
-        message: 'Session extension failed. Please login again.',
+        message: 'Unable to keep this session active. Please sign in again.',
         action: 'logout',
       })
     } finally {
@@ -169,7 +171,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     }
   }, [updateActivity])
 
-  // Auto-refresh token when close to expiry (Firebase handles this automatically)
+  // Surface session-renewal warnings near expiry; backend auth owns the actual cookie session.
   useEffect(() => {
     if (!isAuthenticated || !sessionExpiry) return
 
@@ -177,8 +179,7 @@ export const AdminSessionManager: React.FC<AdminSessionManagerProps> = ({ classN
     const shouldRefresh = timeRemaining <= SESSION_WARNING_TIME && timeRemaining > 0
 
     if (shouldRefresh && !sessionWarning) {
-      // Firebase automatically refreshes tokens
-      logger.info('Session auto-refresh handled by Firebase')
+      logger.info('Session nearing expiry; backend cookie auth should be renewed through the shared session flow')
     }
   }, [isAuthenticated, sessionExpiry, sessionWarning, getTimeRemaining])
 

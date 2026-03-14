@@ -23,7 +23,7 @@ import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { createLogger } from '@/lib/logger'
 import type { AdminLoginCredentials, AdminLoginResponse } from '@/types/admin'
 
-import { UserRole, AuthProvider } from '@/types/rbac'
+import { UserRole } from '@/types/rbac'
 
 const logger = createLogger('AdminRoutes.lazy')
 
@@ -289,16 +289,6 @@ const AdminLoginPage: React.FC = () => {
         two_factor_enabled: false,
         failed_login_attempts: 0,
         locked_until: null,
-        // Missing fields
-        firebase_uid: 'mock-firebase-uid',
-        auth_provider: AuthProvider.LOCAL,
-        firebase_last_sign_in: null,
-        firebase_created_at: null,
-        firebase_email_verified: true,
-        firebase_display_name: 'Admin User',
-        firebase_photo_url: null,
-        firebase_custom_claims: {},
-        last_firebase_sync: null,
         is_locked: false,
         force_change_password: false,
         last_password_change: null,

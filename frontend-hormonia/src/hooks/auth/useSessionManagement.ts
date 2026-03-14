@@ -52,7 +52,7 @@ export function useSessionManagement({
       clearTimeouts()
 
       if (autoRefresh) {
-        // Setup refresh token timer (5 minutes before expiry)
+        // Schedule the refresh callback shortly before the backend session expires.
         const refreshTime = Math.max(0, expiresIn * 1000 - TOKEN_REFRESH_THRESHOLD)
         refreshTimeoutRef.current = setTimeout(() => {
           onRefreshNeeded().catch((error) => {
@@ -74,8 +74,8 @@ export function useSessionManagement({
     (tokens: AuthTokens) => {
       if (tokens.expires_in) {
         setupSession(tokens.expires_in)
-        // SECURITY: Session managed by httpOnly cookies (backend)
-        // No localStorage storage needed - cookies are automatic
+        // SECURITY: Session lifetime metadata comes from the backend.
+        // Credentials stay in httpOnly cookies instead of browser storage.
       }
     },
     [setupSession]
@@ -87,11 +87,10 @@ export function useSessionManagement({
   }, [clearTimeouts])
 
   const restoreSessionFromStorage = useCallback((): boolean => {
-    // SECURITY: Session restoration handled by httpOnly cookies (backend)
-    // Firebase Auth SDK manages token refresh automatically
-    // No localStorage restoration needed
-    logger.debug('Session restore: delegated to backend cookies + Firebase SDK')
-    return false // Always return false - let backend/Firebase handle it
+    // SECURITY: Session restoration is handled through backend-owned httpOnly cookies.
+    // The frontend intentionally does not rehydrate auth state from localStorage.
+    logger.debug('Session restore delegated to backend cookie verification via verify-session')
+    return false // Shared auth restoration stays cookie-backed and server-verified.
   }, [])
 
   const sessionData: SessionData = {

@@ -3,13 +3,12 @@ id: S01
 parent: M004
 milestone: M004
 provides:
-  - Executable guardrails for official-runtime auth/session residue with a machine-readable boundary, live verifier, and regression harness.
+  - Executable guardrails for official-runtime auth/session residue; after S03 the frontend scope is zero-approved and only backend-owned residue remains live inside the approved boundary.
 requires: []
 affects:
-  - M004/S02
-  - M004/S03
   - M004/S04
   - M004/S05
+  - M004/S06
 key_files:
   - .gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json
   - .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh
@@ -17,19 +16,20 @@ key_files:
   - .gsd/milestones/M004/slices/S01/S01-UAT.md
   - backend-hormonia/tests/unit/test_runtime_residue_guard.py
 key_decisions:
-  - The official-runtime residue boundary is enforced per category and per scope, with approved hotspots pinned by explicit file anchors.
+  - The official-runtime residue boundary remains enforced per category and per scope, but after S03 the frontend scopes stay present with empty approved sets so they act as reintroduction guards instead of disappearing.
   - Published handoff artifacts reuse the verifier's exact category ids and backend/frontend scope names so later slices cannot drift into alternate naming.
-  - Boundary shrinkage is only complete when the allowlist, research, summary, and UAT move together with a green verifier run; after S02 that can mean semantic relabeling of compatibility-only hotspots even when backend file counts stay flat.
+  - Boundary shrinkage is only complete when the allowlist, research, summary, UAT, and current-slice handoff move together with green report/check output.
 patterns_established:
   - Slice-local shell verification delegates deterministic scanning and JSON parsing to embedded Python while remaining black-box testable through subprocess pytest.
   - Guardrail slices close with both an executable gate and a readable hotspot map so later cleanup work updates one boundary contract instead of reopening discovery.
+  - Empty approved sets are valid state when a scope has converged; keep the roots and let the verifier police reintroduction.
 observability_surfaces:
+  - bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report frontend
+  - bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check frontend
   - bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all
   - bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check all
   - cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k unexpected_residue
   - cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k moved_hotspot_reports_anchor_name
-  - .gsd/milestones/M004/slices/S01/S01-RESEARCH.md
-  - .gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json
 drill_down_paths:
   - .gsd/milestones/M004/slices/S01/tasks/T01-SUMMARY.md
   - .gsd/milestones/M004/slices/S01/tasks/T02-SUMMARY.md
@@ -40,46 +40,41 @@ completed_at: 2026-03-14T00:45:23-03:00
 
 # S01: Guardrails do corte canônico de runtime
 
-**Scoped runtime-residue guardrails now freeze the official auth/session boundary with a live allowlist, `--report` / `--check` verifier, and regression proof for unexpected residue plus moved approved hotspots.**
+**Scoped runtime-residue guardrails now freeze a backend-only live residue boundary; after S03 the `frontend` scope reports `no approved residue` and exists only as a reintroduction guard.**
 
 ## What Happened
 
-S01 turned the runtime-cut discussion into an executable boundary. The slice added `.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json` as the machine-readable contract for the six residue classes that still matter to the official runtime: `firebase_uid`, root legacy `/session/*`, `X-Session-ID`, session-as-Bearer fallback, websocket `session_id` query fallback, and Firebase narrative residue. The boundary is deliberately scoped to `backend-hormonia/app`, `frontend-hormonia/src`, and slice-local proof artifacts, with explicit exclusions for schema/model residue, historical docs/tests, and unrelated vendor/public session strings.
+S01 turned the runtime-cut discussion into an executable boundary. The slice added `.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json` as the machine-readable contract for the six residue classes that still matter to the official runtime: `firebase_uid`, root legacy `/session/*`, `X-Session-ID`, session-as-Bearer fallback, websocket `session_id` query fallback, and Firebase narrative residue. On top of that contract, the slice shipped `.gsd/milestones/M004/slices/S01/verify-runtime-residue.sh`, which reports approved residue by scope/category/file/count and fails on drift with named diagnostics like `unexpected_file=` and `moved_hotspot=`.
 
-On top of that contract, the slice shipped `.gsd/milestones/M004/slices/S01/verify-runtime-residue.sh`. In `--report` mode it emits approved residue by scope, category, file, and count. In `--check` mode it fails on drift with named diagnostics like `unexpected_file=` and `moved_hotspot=... anchor=...`. That makes later slices update the boundary intentionally instead of relying on grep memory.
+S02 already republished the handoff to reflect backend semantic shrinkage without lowering raw backend counts. S03 completed the frontend side of that story. The official frontend loop no longer emits `X-Session-ID`, `Authorization: Bearer <session_id>`, websocket `session_id` query fallback, browser `session_id` storage/rehydration, or Firebase-shaped auth/admin narrative baggage. The latest report now shows `frontend` as `no approved residue`; every approved residue class is backend-owned.
 
-The guardrail is backed by `backend-hormonia/tests/unit/test_runtime_residue_guard.py`, which runs the real shell verifier in subprocesses against temp repos and temp allowlists. The suite proves three things that matter downstream: approved hotspots stay green, newly introduced residue fails loudly in the right category, and anchor drift reports the moved hotspot name instead of collapsing into an opaque nonzero exit.
-
-S01 also published the human-readable handoff pack. `S01-RESEARCH.md` mirrors the live residue map with the verifier's exact category ids and scope names. This summary compresses the slice for downstream execution. `S01-UAT.md` turns the guardrail into an artifact-driven review script so later slices can verify both the happy path and the expected failure paths without reopening repo-wide discovery.
-
-T03 of S02 republished that handoff without changing the raw backend inventory counts. The post-convergence backend report still shows 14 `firebase_uid` files / 133 matching lines, but the canonical helper-family hits in `auth_dependencies.py`, `auth_session_contract.py`, `auth_session_cache.py`, `auth_session_shared.py`, and `user_cache_shared.py` are now compatibility-only fallback or passthrough seams instead of happy-path identity selection. The remaining high-value live legacy surface is transport-heavy: root `/session/*`, backend acceptance of `X-Session-ID`, session-as-Bearer, websocket `session_id` query fallback, plus deliberate Firebase-era narrative and adjacent/admin compatibility residue.
+The allowlist and readable handoff were updated to encode that new truth directly. The frontend scope roots were kept in place with empty approved sets so later work still fails if those seams reappear. `S01-RESEARCH.md`, this summary, and `S01-UAT.md` now tell the same post-S03 story as the verifier: S03 is done on the official frontend path; S04 owns backend transport retirement and root `/session/*`; S05 owns the remaining backend/adjacent Firebase residue; S06 owns assembled-stack proof.
 
 ## Verification
 
-Passed on closeout rerun:
+Latest republish reruns confirmed the new boundary state:
 
-- `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py`
-- `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k unexpected_residue`
-- `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k moved_hotspot_reports_anchor_name`
+- `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report frontend`
+- `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check frontend`
 - `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all`
-- `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check all`
 
-Observability/diagnostic surfaces confirmed on rerun:
+Expected diagnostic surfaces remain authoritative:
 
-- `--report all` emitted backend/frontend category-file-count rows for the approved live boundary.
-- `--check all` stayed green on the current boundary.
-- The two targeted pytest subsets still exercise the failure-path diagnostics for unexpected residue and moved hotspots.
+- `--report frontend` prints `no approved residue`.
+- `--report all` prints backend category/file/count rows and no approved frontend rows.
+- `--check frontend` / `--check all` fail if frontend hotspots reappear or approved anchors drift.
+- The subprocess pytest harness remains the trusted failure-path proof for `unexpected_file=` and `moved_hotspot=` behavior.
 
 ## Requirements Advanced
 
-- R047 — The slice now names and guards every approved Firebase-era residue hotspot that still leaks into the official runtime boundary.
-- R048 — The slice makes dual auth/session surfaces measurable, so later slices can remove them against a single executable contract.
-- R049 — The slice freezes where `firebase_uid` still survives in the official runtime and prevents silent reintroduction while backend convergence happens.
-- R050 — The slice exposes the frontend's remaining Firebase/session residue explicitly, including narrative/comment hotspots and legacy session transport fallbacks.
+- R047 — The official-runtime Firebase residue boundary is still executable and now distinguishes the backend-only residue left after the frontend cut.
+- R048 — The legacy auth/session surface inside the official runtime is now measurable as a backend-only live boundary plus a zero-approved frontend guard.
+- R049 — Remaining `firebase_uid` hotspots in the official runtime are now clearly backend-owned compatibility residue.
+- R050 — The boundary now records that the official frontend has no approved runtime residue in scope.
 
 ## Requirements Validated
 
-- none — S01 proves the residue boundary and guardrails, not the final no-Firebase runtime behavior.
+- none — S01 still proves the residue boundary and guardrails, not the full milestone behavior.
 
 ## New Requirements Surfaced
 
@@ -91,46 +86,46 @@ Observability/diagnostic surfaces confirmed on rerun:
 
 ## Deviations
 
-Added explicit failure-path verification commands to `S01-PLAN.md` during execution so slice closeout proves diagnostics, not only green-path reruns.
+None. This republish is the intended way S01 stays truthful as later slices shrink the live boundary.
 
 ## Known Limitations
 
-- The approved residue is still live by design. After S02 the backend `firebase_uid` helper hits are compatibility-only, but the transport and legacy-route residue still remain for S03–S05; a green guard is still not convergence.
+- The approved residue is still live by design. After S03, it is concentrated entirely in backend compatibility, transport, and narrative seams; a green guard is still not full milestone convergence.
 - `backend-hormonia` pytest still emits the existing `pytest_asyncio` loop-scope deprecation warning during the guard suite. It is unchanged and non-blocking.
 
 ## Follow-ups
 
-- S03 should remove official frontend emission of `X-Session-ID`, session-as-Bearer, and websocket `session_id` query fallback while keeping the backend acceptance paths stable enough for a controlled cutover.
 - S04 should retire the root `/session/*` island and backend acceptance of `X-Session-ID`, session-as-Bearer, and websocket query fallback before collapsing the backend Firebase narrative.
-- S05 should remove the remaining fallback-only helper/admin `firebase_uid` residue and the frontend/admin Firebase narrative that survive after the transport cut.
-- Any later slice that removes or relocates approved residue must update `runtime-residue-allowlist.json`, `S01-RESEARCH.md`, this summary, and `S01-UAT.md` in the same change.
+- S05 should remove the remaining backend fallback-only/helper/admin `firebase_uid` residue and any adjacent runtime Firebase baggage that survives after transport retirement.
+- S06 should replay the assembled no-Firebase stack across the critical routed surfaces after the backend legacy contract is gone.
+- Any later slice that removes or relocates approved residue must update `runtime-residue-allowlist.json`, `S01-RESEARCH.md`, this summary, `S01-UAT.md`, and the current slice handoff in the same change.
 
 ## Files Created/Modified
 
-- `.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json` — machine-readable boundary for approved residue classes, scopes, anchors, and exclusions.
+- `.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json` — machine-readable boundary for approved residue classes, roots, anchors, and the zero-approved frontend scopes after S03.
 - `.gsd/milestones/M004/slices/S01/verify-runtime-residue.sh` — executable `--report` / `--check` guard with deterministic counts and drift diagnostics.
 - `backend-hormonia/tests/unit/test_runtime_residue_guard.py` — black-box regression harness for approved residue, unexpected residue, scope handling, and moved hotspots.
-- `.gsd/milestones/M004/slices/S01/S01-RESEARCH.md` — readable hotspot map aligned to live verifier output.
-- `.gsd/milestones/M004/slices/S01/S01-UAT.md` — artifact-driven reviewer script for green-path and failure-path boundary checks.
-- `.gsd/milestones/M004/slices/S01/S01-PLAN.md` — slice verification block updated with explicit failure-path checks and task completion markers.
+- `.gsd/milestones/M004/slices/S01/S01-RESEARCH.md` — readable hotspot map aligned to the post-S03 live verifier output.
+- `.gsd/milestones/M004/slices/S01/S01-UAT.md` — reviewer script for the backend-only live boundary plus frontend reintroduction guard.
+- `.gsd/milestones/M004/slices/S01/S01-SUMMARY.md` — condensed guardrail handoff updated for the post-S03 boundary.
 
 ## Forward Intelligence
 
 ### What the next slice should know
-- The verifier is already scoped tightly enough to be actionable. Do not broaden it repo-wide; shrink the allowlist as backend/frontend convergence lands.
-- The current highest-value backend residue is concentrated in auth/session seams, not random stragglers. Start there instead of chasing low-count leaf files.
-- Frontend narrative residue is small in file count but strategically important because R050 includes comments and operational semantics, not only live transport code.
+- The verifier is already scoped tightly enough to be actionable. Do not broaden it repo-wide; shrink the backend allowlist and keep the empty frontend scopes intact.
+- `frontend` reporting `no approved residue` is not a special case to work around; it is the intended post-S03 steady state.
+- The current highest-value live residue is transport-heavy backend behavior, not stray frontend leftovers.
 
 ### What's fragile
-- Allowlist anchors in `auth_session.py`, `auth_dependencies.py`, and the websocket/client session helpers — these files are likely to move during S02/S03, so anchor drift will fail until the boundary contract is updated intentionally.
+- Backend acceptance paths in `auth_session.py`, `auth_dependencies.py`, and `app/api/websockets.py` — these files still mix legacy transport handling with compatibility semantics, so S04 changes will move anchors quickly.
 - The distinction between official-runtime scope and out-of-scope schema/history strings — broadening scans casually will create noise and weaken the guard.
 
 ### Authoritative diagnostics
-- `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all` — source of truth for what residue is still approved right now.
+- `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report frontend` — fastest way to confirm the official frontend still has zero approved residue.
+- `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all` — source of truth for what backend residue is still approved right now.
 - `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check all` — fastest way to catch new live residue or stale hotspot bookkeeping.
-- `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k unexpected_residue` — trusted proof that new residue still fails with category/file diagnostics.
 - `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k moved_hotspot_reports_anchor_name` — trusted proof that moved approved hotspots still surface anchor-aware failures.
 
 ### What assumptions changed
-- "A couple of grep commands plus prose will be enough for the handoff" — not true; the boundary needed a machine-readable allowlist, named anchors, and black-box failure-path tests.
-- "Green report/check output alone is enough to close the slice" — not true; later slices need the readable hotspot map and UAT in lockstep or the guard becomes opaque bookkeeping.
+- "The frontend cut would still leave some approved S01 hotspots behind" — not true; after S03 the correct boundary is zero-approved frontend scope.
+- "Zero frontend residue means the milestone is done" — not true; the remaining approved work is backend-owned and still substantial enough for S04/S05/S06.

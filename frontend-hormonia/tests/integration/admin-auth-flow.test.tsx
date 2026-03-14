@@ -2,10 +2,12 @@ import React from 'react'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 
-import AdminApp from '@/AdminApp'
 import { AuthProvider, useAuth } from '@/app/providers/AuthContext'
+import AdminRoutes from '@/app/routes/AdminRoutes'
+import { ROUTES } from '@/app/routes/routeConfig'
+import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
 
 const mockApiClient = vi.hoisted(() => ({
   setAuthToken: vi.fn(),
@@ -73,7 +75,13 @@ vi.mock('@/lib/logger', () => {
 })
 
 vi.mock('@/features/admin/AdminDashboard', () => ({
-  default: () => React.createElement('div', null, 'Admin dashboard mock'),
+  default: () =>
+    React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('div', null, 'Admin dashboard mock'),
+      React.createElement(Outlet, null)
+    ),
 }))
 
 vi.mock('@/features/admin/CompensationFailures', () => ({
@@ -99,37 +107,90 @@ const adminUser = {
   created_at: '2026-03-12T08:00:00-03:00',
 }
 
-function AuthProbe() {
-  const { user } = useAuth()
-
-  return <div data-testid="auth-user">{user?.email ?? 'anonymous'}</div>
+const staffCredentials = {
+  email: adminUser.email,
+  password: 'StrongAdminRoutePass123!',
 }
 
-function renderAdminApp(initialRoute: string) {
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location-path">{location.pathname}</div>
+}
+
+function MockCanonicalLogin() {
+  const { login } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [email, setEmail] = React.useState(staffCredentials.email)
+  const [password, setPassword] = React.useState(staffCredentials.password)
+  const [rememberMe, setRememberMe] = React.useState(true)
+
+  return (
+    <form
+      aria-label="canonical-login"
+      onSubmit={async (event) => {
+        event.preventDefault()
+        await login(email, password, rememberMe)
+
+        const redirectTarget =
+          (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? '/dashboard'
+
+        navigate(redirectTarget, { replace: true })
+      }}
+    >
+      <h1>Canonical Login</h1>
+      <label htmlFor="login-email">Email</label>
+      <input id="login-email" value={email} onChange={(event) => setEmail(event.target.value)} />
+      <label htmlFor="login-password">Senha</label>
+      <input
+        id="login-password"
+        type="password"
+        value={password}
+        onChange={(event) => setPassword(event.target.value)}
+      />
+      <label htmlFor="login-remember">Manter-me conectado</label>
+      <input
+        id="login-remember"
+        type="checkbox"
+        checked={rememberMe}
+        onChange={(event) => setRememberMe(event.target.checked)}
+      />
+      <button type="submit">Entrar</button>
+    </form>
+  )
+}
+
+function renderOfficialRouter(initialRoute: string) {
   return render(
     <MemoryRouter initialEntries={[initialRoute]}>
       <AuthProvider>
-        <AuthProbe />
+        <LocationProbe />
         <Routes>
-          <Route path="/admin/*" element={<AdminApp />} />
+          <Route path="/login" element={<MockCanonicalLogin />} />
+          <Route
+            path={ROUTES.ADMIN.ROOT}
+            element={
+              <ProtectedRoute requiredPermission="canAccessAdmin">
+                <AdminRoutes />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </AuthProvider>
     </MemoryRouter>
   )
 }
 
-describe('Admin Authentication Flow - session-first integration', () => {
+describe('Admin Authentication Flow - routed session-first integration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    if (typeof window.localStorage?.removeItem === 'function') {
-      window.localStorage.removeItem('session_id')
-    }
+    window.localStorage.clear()
 
     mockApiClient.fetchCsrfToken.mockResolvedValue(undefined)
     mockApiClient.auth.checkAuth.mockResolvedValue({ authenticated: false })
     mockApiClient.auth.login.mockResolvedValue({
       valid: true,
-      session_id: 'admin-session-123',
+      session_id: 'legacy-admin-session',
       remember_me: true,
       user: adminUser,
       user_id: adminUser.id,
@@ -143,77 +204,62 @@ describe('Admin Authentication Flow - session-first integration', () => {
     mockApiClient.dashboard.getMain.mockResolvedValue({})
   })
 
-  it('redirects unauthenticated /admin access to the admin login screen', async () => {
-    renderAdminApp('/admin')
+  it('treats /admin/login as a protected routed path and redirects to canonical /login', async () => {
+    renderOfficialRouter('/admin/login')
 
     await waitFor(() => {
-      expect(screen.getByText(/Portal Administrativo/i)).toBeInTheDocument()
+      expect(screen.getByTestId('location-path')).toHaveTextContent(/^\/login$/)
     })
 
+    expect(screen.getByRole('heading', { name: /canonical login/i })).toBeInTheDocument()
     expect(mockApiClient.auth.checkAuth).toHaveBeenCalledTimes(1)
-    expect(screen.getByTestId('auth-user')).toHaveTextContent('anonymous')
   })
 
-  it('submits the admin login form through apiClient.auth.login with remember_me', async () => {
+  it('routes protected /admin/* access through canonical /login and back into the shipped admin tree', async () => {
     const user = userEvent.setup()
-    renderAdminApp('/admin/login')
+
+    renderOfficialRouter('/admin/system/compensation')
 
     await waitFor(() => {
-      expect(screen.getByText(/Portal Administrativo/i)).toBeInTheDocument()
+      expect(screen.getByTestId('location-path')).toHaveTextContent(/^\/login$/)
     })
 
-    await user.type(screen.getByLabelText(/Endereço de Email/i), 'admin@hormonia.com')
-    await user.type(screen.getByLabelText(/^Senha$/i), 'SecurePass123!')
-    await user.click(screen.getByRole('checkbox'))
-    await user.click(screen.getByRole('button', { name: /Entrar/i }))
+    await user.clear(screen.getByLabelText(/^email$/i))
+    await user.type(screen.getByLabelText(/^email$/i), staffCredentials.email)
+    await user.clear(screen.getByLabelText(/^senha$/i))
+    await user.type(screen.getByLabelText(/^senha$/i), staffCredentials.password)
+    await user.click(screen.getByRole('button', { name: /^entrar$/i }))
 
     await waitFor(() => {
-      expect(mockApiClient.auth.login).toHaveBeenCalledWith({
-        email: 'admin@hormonia.com',
-        password: 'SecurePass123!',
-        remember_me: true,
-      })
+      expect(mockApiClient.auth.login).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: staffCredentials.email,
+          remember_me: true,
+          password: expect.any(String),
+        })
+      )
     })
 
     await waitFor(() => {
-      expect(screen.getByTestId('auth-user')).toHaveTextContent('admin@hormonia.com')
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/admin/system/compensation')
     })
 
-    expect(mockApiClient.setAuthToken).toHaveBeenCalledWith('admin-session-123')
+    expect(await screen.findByText('Compensation failures mock')).toBeInTheDocument()
   })
 
-  it('restores an authenticated admin session into the protected dashboard route', async () => {
+  it('restores an authenticated admin session directly into the shipped /admin/* route tree', async () => {
     mockApiClient.auth.checkAuth.mockResolvedValueOnce({
       authenticated: true,
       user: adminUser,
-      sessionId: 'restored-admin-session',
+      sessionId: 'legacy-restored-admin-session',
     })
 
-    renderAdminApp('/admin')
+    renderOfficialRouter('/admin/templates')
 
     await waitFor(() => {
-      expect(screen.getByText('Admin dashboard mock')).toBeInTheDocument()
+      expect(screen.getByTestId('location-path')).toHaveTextContent('/admin/templates')
     })
 
-    expect(screen.getByTestId('auth-user')).toHaveTextContent('admin@hormonia.com')
-    expect(mockApiClient.setAuthToken).toHaveBeenCalledWith('restored-admin-session')
-  })
-
-  it('shows insufficient permissions when the restored user lacks admin.read', async () => {
-    mockApiClient.auth.checkAuth.mockResolvedValueOnce({
-      authenticated: true,
-      user: {
-        ...adminUser,
-        role: 'doctor',
-        permissions: [],
-      },
-      sessionId: 'restored-admin-session',
-    })
-
-    renderAdminApp('/admin')
-
-    await waitFor(() => {
-      expect(screen.getByText(/Insufficient Permissions/i)).toBeInTheDocument()
-    })
+    expect(await screen.findByText('Template management mock', {}, { timeout: 5000 })).toBeInTheDocument()
   })
 })

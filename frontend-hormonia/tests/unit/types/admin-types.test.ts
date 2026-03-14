@@ -525,6 +525,31 @@ describe('Type Guard Functions', () => {
       expect(isAdmin(admin)).toBe(true)
       expect(isAdmin(doctor)).toBe(false)
     })
+
+    it('keeps the canonical admin user contract free of firebase-auth fields', () => {
+      const admin: AdminUser = {
+        id: 'admin-2',
+        email: 'clean-admin@test.com',
+        full_name: 'Clean Admin',
+        role: 'admin',
+        is_active: true,
+        permissions: [],
+        created_at: '2024-01-01T00:00:00-03:00',
+        updated_at: '2024-01-01T00:00:00-03:00',
+        last_login: null,
+        login_count: 0,
+        two_factor_enabled: false,
+        failed_login_attempts: 0,
+        locked_until: null,
+      }
+
+      const adminRecord = admin as Record<string, unknown>
+
+      expect(adminRecord).not.toHaveProperty('firebase_uid')
+      expect(adminRecord).not.toHaveProperty('auth_provider')
+      expect(adminRecord).not.toHaveProperty('firebase_email_verified')
+      expect(adminRecord).not.toHaveProperty('last_firebase_sync')
+    })
   })
 })
 

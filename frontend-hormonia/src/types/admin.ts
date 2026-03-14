@@ -1,28 +1,17 @@
-import { UserRole, AuthProvider } from './rbac'
+import { UserRole } from './rbac'
 
 /**
- * Complete Admin User interface matching backend User model
- * Backend: app/models/user.py User class
- * Backend Schema: app/schemas/admin_users.py UserResponse
+ * Canonical admin user interface for the session-first frontend/admin runtime.
+ * Source data still comes from backend user/admin schemas, but frontend code only keeps
+ * the fields the official runtime reads.
  */
 export interface AdminUser {
-  // Core fields from backend User model
+  // Core fields from backend user/admin schemas
   id: string
   email: string
   full_name: string | null
   role: UserRole // ONLY 'admin' or 'doctor'
   is_active: boolean
-
-  // Firebase authentication fields
-  firebase_uid: string | null
-  auth_provider: AuthProvider
-  firebase_last_sign_in: string | null
-  firebase_created_at: string | null
-  firebase_email_verified: boolean
-  firebase_display_name: string | null
-  firebase_photo_url: string | null
-  firebase_custom_claims: Record<string, unknown>
-  last_firebase_sync: string | null
 
   // Account security fields
   failed_login_attempts: number

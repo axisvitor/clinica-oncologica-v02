@@ -20,7 +20,7 @@ interface WebSocketHookOptions {
   autoConnect?: boolean
 }
 
-function normalizeSessionQueryFallback(value?: string | null): string | null {
+function normalizeSessionAuthValue(value?: string | null): string | null {
   if (typeof value !== 'string') {
     return null
   }
@@ -29,15 +29,7 @@ function normalizeSessionQueryFallback(value?: string | null): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-function isLikelyJwt(value: string): boolean {
-  return value.split('.').length === 3
-}
-
-function buildWebSocketUrl(
-  requestedUrl: string,
-  configUrl: string,
-  sessionQueryId: string | null
-): string {
+function buildWebSocketUrl(requestedUrl: string, configUrl: string): string {
   const baseUrl =
     requestedUrl.startsWith('ws://') || requestedUrl.startsWith('wss://')
       ? requestedUrl
@@ -48,10 +40,6 @@ function buildWebSocketUrl(
     .replace(/^ws:(?!\/\/)/, 'ws://')
 
   const wsUrl = new URL(normalizedBaseUrl)
-  if (sessionQueryId && !isLikelyJwt(sessionQueryId)) {
-    wsUrl.searchParams.set('session_id', sessionQueryId)
-  }
-
   return wsUrl.toString()
 }
 
@@ -156,8 +144,8 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
   const connectionBaseUrl =
     config?.VITE_WS_BASE_URL || config?.VITE_WS_URL || 'ws://localhost:8000/ws/connect'
 
-  const sessionQueryId = useMemo(
-    () => normalizeSessionQueryFallback(sessionData?.session_id || token),
+  const sessionAuthState = useMemo(
+    () => normalizeSessionAuthValue(sessionData?.session_id || token),
     [sessionData?.session_id, token]
   )
 
@@ -170,14 +158,14 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       return
     }
 
-    if (!user && !sessionQueryId) {
+    if (!user && !sessionAuthState) {
       logger.warn('Cannot connect WebSocket: no authenticated session available')
       return
     }
 
     try {
       setConnectionState('connecting')
-      const finalUrl = buildWebSocketUrl(url, connectionBaseUrl, sessionQueryId)
+      const finalUrl = buildWebSocketUrl(url, connectionBaseUrl)
       wsRef.current = new WebSocket(finalUrl)
 
       wsRef.current.onopen = () => {
@@ -252,7 +240,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
     onOpen,
     reconnectAttempts,
     reconnectInterval,
-    sessionQueryId,
+    sessionAuthState,
     url,
     user,
   ])
@@ -296,7 +284,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       }
     }
 
-    if (user || sessionQueryId) {
+    if (user || sessionAuthState) {
       logger.debug('Session auth available, connecting WebSocket')
       shouldReconnectRef.current = true
       void connect()
@@ -310,7 +298,7 @@ export function useWebSocket(options: WebSocketHookOptions = {}) {
       shouldReconnectRef.current = false
       disconnect()
     }
-  }, [autoConnect, connect, disconnect, sessionQueryId, user])
+  }, [autoConnect, connect, disconnect, sessionAuthState, user])
 
   return {
     isConnected,

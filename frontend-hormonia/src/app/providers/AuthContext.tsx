@@ -164,14 +164,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       session_id: normalizedSessionId,
       websocketToken: normalizedSessionId,
     })
-
-    apiClient.setAuthToken(normalizedSessionId ?? null)
-
-    if (normalizedSessionId) {
-      safeLocalStorage.setItem('session_id', normalizedSessionId)
-    } else {
-      safeLocalStorage.removeItem('session_id')
-    }
   }, [])
 
   const prefetchDashboard = useCallback(() => {
@@ -255,26 +247,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     try {
-      const storedSessionId = safeLocalStorage.getItem('session_id')
-      if (storedSessionId) {
-        logger.log('Restoring session_id from localStorage for API auth')
-        apiClient.setAuthToken(storedSessionId)
-      } else {
-        apiClient.clearAuthToken()
-      }
-
       logger.log('Auth phase=restore via verify-session')
       const { authenticated, user: sessionUser, sessionId } = await apiClient.auth.checkAuth()
 
       if (!authenticated || !sessionUser) {
-        if (storedSessionId) {
-          logger.warn('Stored session_id invalid, clearing')
-        }
         clearAuthState()
         return false
       }
 
-      persistSessionState(sessionUser, sessionId ?? storedSessionId)
+      persistSessionState(sessionUser, sessionId)
       prefetchDashboard()
       return true
     } catch (error) {
@@ -320,7 +301,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
               session_id: mockSession.access_token,
               websocketToken: mockSession.access_token,
             })
-            apiClient.setAuthToken(mockSession.access_token)
           }
         } catch (error) {
           logger.error('Mock auth initialization error:', error)
@@ -375,7 +355,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
             session_id: result.session.access_token,
             websocketToken: result.session.access_token,
           })
-          apiClient.setAuthToken(result.session.access_token)
           prefetchDashboard()
           return
         }

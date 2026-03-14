@@ -1,6 +1,5 @@
 /// <reference types="vite/client" />
 
-import { apiClient } from './api-client'
 import { getRuntimeConfigSync } from './runtime-config'
 import { createLogger } from './logger'
 import type { WebSocketAuthDiagnostics } from '@/types/websocket'
@@ -91,7 +90,7 @@ const PROTOCOL_MAP: Record<string, string> = {
   pong: 'pong',
 }
 
-function normalizeSessionFallback(value?: string | null): string | null {
+function normalizeSessionAuthValue(value?: string | null): string | null {
   if (typeof value !== 'string') {
     return null
   }
@@ -100,25 +99,8 @@ function normalizeSessionFallback(value?: string | null): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-function isLikelyJwt(value: string): boolean {
-  return value.split('.').length === 3
-}
-
-function resolveSessionFallback(sessionId?: string | null): string | null {
-  return normalizeSessionFallback(sessionId) ?? normalizeSessionFallback(apiClient.getAuthToken())
-}
-
-function buildWebSocketUrl(base: string, sessionId?: string | null): string {
-  const url = new URL(base)
-  const sessionFallback = resolveSessionFallback(sessionId)
-
-  if (sessionFallback && !isLikelyJwt(sessionFallback)) {
-    url.searchParams.set('session_id', sessionFallback)
-  } else if (sessionFallback) {
-    logger.warn('Ignoring legacy websocket JWT fallback; relying on first-party session state')
-  }
-
-  return url.toString()
+function buildWebSocketUrl(base: string): string {
+  return new URL(base).toString()
 }
 
 class WebSocketManager {
@@ -129,7 +111,7 @@ class WebSocketManager {
   private roomSubscriptions: Set<string> = new Set()
   private isConnecting = false
   private shouldReconnect = true
-  private currentSessionFallback: string | null = null
+  private currentSessionAuthValue: string | null = null
   private connectionPromise: Promise<void> | null = null
 
   async connect(sessionId?: string | null): Promise<void> {
@@ -141,7 +123,7 @@ class WebSocketManager {
       return Promise.resolve()
     }
 
-    this.currentSessionFallback = resolveSessionFallback(sessionId)
+    this.currentSessionAuthValue = normalizeSessionAuthValue(sessionId)
     this.isConnecting = true
     this.shouldReconnect = true
 
@@ -155,7 +137,7 @@ class WebSocketManager {
         return resolve()
       }
 
-      const wsUrl = buildWebSocketUrl(base, this.currentSessionFallback)
+      const wsUrl = buildWebSocketUrl(base)
 
       try {
         this.ws = new WebSocket(wsUrl)
@@ -197,7 +179,7 @@ class WebSocketManager {
           this.emit('disconnected', { code: event.code, reason: event.reason })
 
           if (this.shouldReconnect) {
-            this.attemptReconnect(this.currentSessionFallback)
+            this.attemptReconnect(this.currentSessionAuthValue)
           }
 
           if (event.code !== 1000 && event.code !== 1001) {
@@ -496,7 +478,7 @@ class WebSocketManager {
     this.roomSubscriptions.clear()
     this.reconnectAttempts = 0
     this.isConnecting = false
-    this.currentSessionFallback = null
+    this.currentSessionAuthValue = null
     this.connectionPromise = null
   }
 
@@ -522,7 +504,7 @@ class WebSocketManager {
   }
 
   updateToken(sessionId: string | null) {
-    this.currentSessionFallback = resolveSessionFallback(sessionId)
+    this.currentSessionAuthValue = normalizeSessionAuthValue(sessionId)
 
     if (!sessionId) {
       this.shouldReconnect = false

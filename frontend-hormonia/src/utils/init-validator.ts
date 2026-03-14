@@ -1,12 +1,12 @@
 /**
  * Frontend Initialization Validator
  *
- * Validates frontend initialization and configuration:
+ * Validates frontend initialization and session-first runtime readiness:
  * - Environment variables
- * - API connectivity
- * - Required services
- * - Browser compatibility
- * - Feature detection
+ * - API connectivity for health/session checks
+ * - Browser compatibility for cookie-backed auth
+ * - Required application features
+ * - Session/auth narrative surfaces
  */
 
 import { createLogger } from '../lib/logger'
@@ -94,10 +94,11 @@ export class FrontendInitValidator {
         this.results.push({
           component: 'Environment Variables',
           valid: true,
-          message: 'All required environment variables present',
+          message: 'Session-first environment variables present',
           details: {
             apiUrl: config.VITE_API_URL,
             apiBaseUrl: config.VITE_API_BASE_URL,
+            sessionAuth: 'backend cookies + verify-session',
           },
         })
       }
@@ -120,6 +121,7 @@ export class FrontendInitValidator {
     try {
       const features = {
         fetch: typeof window.fetch === 'function',
+        cookies: typeof navigator === 'undefined' ? true : navigator.cookieEnabled,
         localStorage: this.checkLocalStorage(),
         sessionStorage: this.checkSessionStorage(),
         webWorkers: typeof Worker !== 'undefined',
@@ -183,10 +185,11 @@ export class FrontendInitValidator {
         this.results.push({
           component: 'Configuration',
           valid: true,
-          message: 'Configuration valid',
+          message: 'Configuration valid for backend session auth',
           details: {
             apiUrl,
             environment: config.VITE_ENVIRONMENT || 'production',
+            sessionAuth: 'httpOnly cookies + verify-session',
           },
         })
       }
@@ -221,18 +224,19 @@ export class FrontendInitValidator {
         this.results.push({
           component: 'API Connectivity',
           valid: true,
-          message: 'API is reachable and healthy',
+          message: 'API is reachable for health checks and session verification',
           details: {
             status: data.status,
             responseTime: `${responseTime}ms`,
             version: data.version,
+            sessionAuth: 'backend verify-session/login/logout endpoints available via same API origin',
           },
         })
       } else {
         this.results.push({
           component: 'API Connectivity',
           valid: false,
-          message: `API returned error status: ${response.status}`,
+          message: `API returned error status during health/session validation: ${response.status}`,
           details: {
             status: response.status,
             statusText: response.statusText,
@@ -243,7 +247,7 @@ export class FrontendInitValidator {
       this.results.push({
         component: 'API Connectivity',
         valid: false,
-        message: 'Cannot reach API',
+        message: 'Cannot reach API required for health checks and session restore',
         error: error as Error,
       })
     }
@@ -260,13 +264,13 @@ export class FrontendInitValidator {
         reactQuery: typeof window !== 'undefined',
         router: typeof window.history !== 'undefined',
         errorBoundary: true, // Always supported with React
-        authentication: true, // Firebase always available
+        backendSessionAuth: true, // AuthProvider restores/verifies server-owned sessions
       }
 
       this.results.push({
         component: 'Features',
         valid: true,
-        message: 'All required features available',
+        message: 'All required features available for backend-owned session auth',
         details: { features },
       })
     } catch (error) {
