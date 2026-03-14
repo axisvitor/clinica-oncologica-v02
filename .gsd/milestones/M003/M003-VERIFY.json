@@ -1,0 +1,44 @@
+{
+  "milestone": "M003",
+  "verified_at": "2026-03-13T22:17:00-03:00",
+  "structural_gate": {
+    "report_all": "passed",
+    "check_all": "passed",
+    "command": "bash .gsd/milestones/M003/slices/S01/verify-evidence-map.sh --report all && --check all"
+  },
+  "backend_structural_pack": {
+    "status": "passed",
+    "command": "cd backend-hormonia && pytest -q tests/unit/test_auth_dependency_module_split.py tests/api/v2/test_auth_hard_cut_cleanup.py tests/api/test_websocket_session_auth_contract.py tests/auth/test_session_role_enforcement.py tests/security/test_rbac_authorization.py tests/auth/test_session_validation.py tests/services/websocket/test_connection_manager.py tests/integration/test_auth_hard_cut_end_to_end.py"
+  },
+  "frontend_structural_pack": {
+    "status": "passed",
+    "command": "cd frontend-hormonia && npm run test -- tests/integration/api-client.test.ts tests/integration/auth/session-first-cutover.test.tsx tests/integration/admin-auth-flow.test.tsx tests/integration/realtime/session-websocket-cutover.test.ts && npm run typecheck && npm run build"
+  },
+  "session_first_e2e": {
+    "status": "passed",
+    "command": "cd frontend-hormonia && source /tmp/gsd-s05-browser-bootstrap ./node_modules/.bin/playwright test tests/e2e/auth/session-first-hard-cut.spec.ts --config tests/e2e/playwright.config.e2e.ts --project=chromium"
+  },
+  "direct_runtime_probe": {
+    "login": { "status": 200, "has_user": true, "session_id_in_body": true },
+    "verify_cookie": { "status": 200, "has_user": true },
+    "verify_bearer": { "status": 200, "has_user": true },
+    "users_me_bearer": { "status": 200, "has_email": true },
+    "logout": { "status": 200, "success": true, "sessions_deleted": 1, "message": "Session logged out successfully" },
+    "validate_after_logout": { "status": 200, "valid": false }
+  },
+  "routed_browser_smoke": {
+    "dashboard": { "url": "http://localhost:5173/dashboard", "heading": "Dashboard" },
+    "admin": { "url": "http://localhost:5173/admin", "heading": "Admin Dashboard" },
+    "whatsapp": { "url": "http://localhost:5173/whatsapp", "heading": "WhatsApp Integration" },
+    "console_error_count": 3,
+    "console_errors": [
+      "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+      "TaskHealthIndicator failed to fetch queue status during route smoke (duplicated twice)"
+    ]
+  },
+  "accepted_non_blocking_diagnostics": [
+    "frontend integration tests still emit the existing Node warning about --localstorage-file without a valid path",
+    "backend pytest still emits the existing pytest_asyncio loop-scope deprecation warning",
+    "routed browser smoke still logs TaskHealthIndicator queue-status fetch errors while dashboard/admin/whatsapp routes load successfully"
+  ]
+}

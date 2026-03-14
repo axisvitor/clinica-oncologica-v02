@@ -59,7 +59,7 @@ This milestone is complete only when all are true:
   > After this: the frontend api-client/type hotspot is broken into clearer seams with less compatibility noise and the same visible behavior, proved by focused frontend verification.
 - [x] **S04: Dead-Code And Obsolete-Compatibility Cleanup** `risk:medium` `depends:[S02,S03]`
   > After this: proven-dead paths and obsolete compat layers in scope are removed or tightly isolated from the main runtime path.
-- [ ] **S05: Integrated Proof And Structural Closeout** `risk:medium` `depends:[S02,S03,S04]`
+- [x] **S05: Integrated Proof And Structural Closeout** `risk:medium` `depends:[S02,S03,S04]`
   > After this: focused verification and critical smoke checks prove the structural cleanup held across the real affected backend/frontend surfaces.
 
 ## Boundary Map
