@@ -1,8 +1,8 @@
 # GSD State
 
 **Active Milestone:** M004 — Convergência Canônica de Runtime
-**Active Slice:** S01 → S02 handoff
-**Phase:** branch-handoff-safe
+**Active Slice:** S02 — Backend auth/sessão convergido para identidade canônica
+**Phase:** planning
 **Requirements Status:** 7 active · 18 validated · 7 deferred · 11 out of scope
 
 ## Milestone Registry
@@ -21,4 +21,4 @@
 - None
 
 ## Next Action
-- Restart auto-mode and let it checkout `gsd/M004/S01`; from there the next execution target is M004/S02 against the S01 guardrail pack.
+- Start `/gsd auto` from `docs-refactor-py313`; the next unit should be `plan-slice M004/S02`, which will create/check out `gsd/M004/S02` and use the S01 guardrail pack as input.
