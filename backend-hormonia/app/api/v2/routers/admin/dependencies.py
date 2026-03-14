@@ -60,17 +60,18 @@ async def get_admin_user(
     """
     Dependency to verify admin access.
 
-    In tests, allow falling back to a local admin user when no session headers
-    are provided. This keeps admin endpoints testable without auth headers.
+    In tests, allow falling back to a local admin user only when no auth attempt
+    is present at all. Cookie-backed staff sessions remain the canonical path.
     """
     auth_header = request.headers.get("Authorization", "")
-    token_value = None
-    if auth_header.startswith("Bearer "):
-        token_value = auth_header.split(" ", 1)[1]
+    session_cookie_id = request.cookies.get("session_id")
+    has_legacy_transport = bool(
+        request.headers.get("X-Session-ID")
+        or (auth_header and auth_header.startswith("Bearer "))
+    )
+    has_auth_attempt = bool(session_cookie_id or has_legacy_transport)
 
-    has_session_header = bool(token_value or request.headers.get("X-Session-ID"))
-
-    if _is_test_environment() and not has_session_header:
+    if _is_test_environment() and not has_auth_attempt:
         preferred_admin_result = await db.execute(
             select(User).where(
                 User.email == "admin@test.com",
@@ -100,9 +101,9 @@ async def get_admin_user(
     user_data = await _invoke_dependency(
         session_dependency,
         request=request,
-        session_cookie_id=request.cookies.get("session_id"),
-        x_session_id=request.headers.get("X-Session-ID"),
-        authorization=auth_header or None,
+        session_cookie_id=session_cookie_id,
+        x_session_id=None,
+        authorization=None,
         redis_cache=redis_cache,
     )
     current_user = await _invoke_dependency(

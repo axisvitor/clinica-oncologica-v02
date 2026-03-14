@@ -61,6 +61,25 @@ def _mapping_get(mapping: Any, *keys: str) -> Optional[str]:
     return None
 
 
+def _resolve_legacy_websocket_session_transport(
+    *,
+    headers: Any,
+    query_session_id: Optional[str],
+) -> tuple[Optional[str], Optional[str]]:
+    authorization = _mapping_get(headers, "authorization", "Authorization")
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.split(" ", 1)[1], "authorization"
+
+    x_session_id = _mapping_get(headers, "x-session-id", "X-Session-ID")
+    if x_session_id:
+        return x_session_id, "x-session-id"
+
+    if query_session_id:
+        return query_session_id, "query"
+
+    return None, None
+
+
 async def _send_error_message(
     connection_id: str,
     *,
@@ -94,23 +113,43 @@ async def _authenticate_websocket_via_session(
     headers = getattr(websocket, "headers", None)
     cookies = getattr(websocket, "cookies", None)
 
-    final_session_id = resolve_session_id(
-        authorization=_mapping_get(headers, "authorization", "Authorization"),
-        x_session_id=_mapping_get(headers, "x-session-id", "X-Session-ID"),
+    cookie_session_id = resolve_session_id(
         session_cookie_id=_mapping_get(
             cookies,
             settings.SESSION_COOKIE_NAME,
             "session_id",
-        ),
+        )
+    )
+    legacy_session_id, legacy_session_source = _resolve_legacy_websocket_session_transport(
+        headers=headers,
         query_session_id=query_session_id,
     )
 
-    if not final_session_id:
+    if not cookie_session_id and legacy_session_id:
+        details = {
+            "connection_id": connection_id,
+            "session_source": legacy_session_source,
+        }
+        await _send_error_message(
+            connection_id,
+            error_code=AUTH_WEBSOCKET_SESSION_INVALID,
+            message="WebSocket session requires a session cookie.",
+            details=details,
+        )
+        logger.warning(
+            "Rejected legacy websocket session transport %s for connection %s",
+            legacy_session_source,
+            connection_id,
+        )
+        return None, True
+
+    if not cookie_session_id:
         return None, False
 
+    final_session_id = cookie_session_id
     details = {
         "connection_id": connection_id,
-        "session_source": "query" if query_session_id else "cookie-or-header",
+        "session_source": "cookie",
     }
 
     try:
@@ -231,7 +270,8 @@ async def websocket_endpoint(
     websocket: WebSocket,
     token: Optional[str] = Query(None, description="JWT authentication token"),
     session_id: Optional[str] = Query(
-        None, description="Session ID for session-based auth"
+        None,
+        description="Legacy session transport (rejected; use the session cookie instead)",
     ),
 ) -> None:
     """
@@ -280,8 +320,8 @@ async def websocket_endpoint(
         )
         logger.info(f"Welcome message sent result: {result} for {connection_id}")
 
-        # Attempt authentication if cookie/header/query session state or a legacy
-        # token was supplied during the handshake.
+        # Attempt cookie-backed session authentication first. Legacy header/query
+        # session transport is rejected with explicit websocket diagnostics.
         authenticated_user, attempted_session_auth = await _authenticate_websocket_via_session(
             websocket,
             connection_id=connection_id,

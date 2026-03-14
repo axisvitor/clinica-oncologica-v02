@@ -42,28 +42,9 @@ def resolve_session_id(
     session_cookie_id: Optional[str] = None,
     query_session_id: Optional[str] = None,
 ) -> Optional[str]:
-    """
-    Resolve session ID from supported sources in priority order:
-    1. Authorization: Bearer <session_id>
-    2. X-Session-ID header
-    3. session_id cookie
-    4. session_id query param (lowest-priority websocket/browser fallback)
-    """
-    final_session_id = None
-
-    if authorization and authorization.startswith("Bearer "):
-        final_session_id = authorization.split(" ")[1]
-
-    if not final_session_id and x_session_id:
-        final_session_id = x_session_id
-
-    if not final_session_id and session_cookie_id:
-        final_session_id = session_cookie_id
-
-    if not final_session_id and query_session_id:
-        final_session_id = query_session_id
-
-    return final_session_id
+    """Resolve the canonical staff session ID from cookie-backed request state only."""
+    _ = authorization, x_session_id, query_session_id
+    return session_cookie_id or None
 
 
 def extract_canonical_user_from_session(session_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:

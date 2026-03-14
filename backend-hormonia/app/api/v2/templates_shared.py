@@ -11,7 +11,7 @@ import hashlib
 import logging
 from difflib import unified_diff
 
-from fastapi import Cookie, Header, Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -43,53 +43,16 @@ RATE_LIMIT_SEARCH = "30/minute"
 
 async def _get_current_user_simple(
     session_cookie_id: Optional[str] = Cookie(None, alias="session_id"),
-    x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
-    authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
     redis_cache=Depends(get_redis_cache),
 ) -> Dict[str, Any]:
-    """Simplified session validation for template operations.
-
-    Validates user session from cookie or header and retrieves user data
-    from cache or database. Used as dependency for template endpoints.
-
-    Supports multiple authentication sources (in priority order):
-    1. Authorization header (Bearer <session_id>)
-    2. X-Session-ID header
-    3. session_id cookie
-
-    Args:
-        session_cookie_id: Session ID from cookie. Defaults to None.
-        x_session_id: Session ID from X-Session-ID header. Defaults to None.
-        authorization: Authorization header (Bearer token). Defaults to None.
-        db: Database session from dependency injection.
-        redis_cache: Redis cache instance from dependency injection.
-
-    Returns:
-        Dictionary containing user data (id, firebase_uid, email, full_name, role, is_active)
-
-    Raises:
-        HTTPException: 401 if session invalid/expired or user not found
-        HTTPException: 403 if user account is inactive
-
-    Example:
-        >>> user = await _get_current_user_simple(
-        ...     session_cookie_id="abc123",
-        ...     db=db_session,
-        ...     redis_cache=cache
-        ... )
-        >>> print(user["email"])
-        "user@example.com"
-    """
-    final_session_id = resolve_session_id(
-        authorization=authorization,
-        x_session_id=x_session_id,
-        session_cookie_id=session_cookie_id,
-    )
+    """Simplified session validation for template operations using the canonical session cookie."""
+    final_session_id = resolve_session_id(session_cookie_id=session_cookie_id)
 
     if not final_session_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session cookie required",
         )
 
     return await get_user_data_from_session(

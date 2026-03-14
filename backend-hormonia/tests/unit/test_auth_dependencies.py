@@ -63,8 +63,8 @@ def test_validate_firebase_uid_sql_injection():
 
 
 @pytest.mark.asyncio
-async def test_session_id_priority_cookie_first(monkeypatch):
-    """Cookie should take priority over header and bearer."""
+async def test_session_cookie_is_used_when_present(monkeypatch):
+    """Cookie-backed session state remains the only accepted staff transport."""
     monkeypatch.setattr(settings, "ENABLE_COOKIE_PRIORITY", True)
 
     request = _build_request()
@@ -83,43 +83,49 @@ async def test_session_id_priority_cookie_first(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_session_id_priority_header_second(monkeypatch):
-    """Header should be used when cookie is missing."""
+async def test_session_header_transport_rejected_without_cookie(monkeypatch):
+    """Header transport should fail closed once the cookie-only contract is active."""
     monkeypatch.setattr(settings, "ENABLE_COOKIE_PRIORITY", True)
 
     request = _build_request()
     firebase_uid = "c" * 28
     redis_cache = _build_redis_cache(firebase_uid)
 
-    await get_current_user_from_session(
-        request=request,
-        session_cookie_id=None,
-        x_session_id="header-session",
-        authorization="Bearer bearer-session",
-        redis_cache=redis_cache,
-    )
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user_from_session(
+            request=request,
+            session_cookie_id=None,
+            x_session_id="header-session",
+            authorization="Bearer bearer-session",
+            redis_cache=redis_cache,
+        )
 
-    redis_cache.get_session.assert_awaited_once_with("header-session")
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Session cookie required"
+    redis_cache.get_session.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_session_id_priority_bearer_fallback(monkeypatch):
-    """Bearer should be used only as fallback."""
+async def test_session_bearer_transport_rejected_without_cookie(monkeypatch):
+    """Bearer session transport should fail closed once the cookie-only contract is active."""
     monkeypatch.setattr(settings, "ENABLE_COOKIE_PRIORITY", True)
 
     request = _build_request()
     firebase_uid = "d" * 28
     redis_cache = _build_redis_cache(firebase_uid)
 
-    await get_current_user_from_session(
-        request=request,
-        session_cookie_id=None,
-        x_session_id=None,
-        authorization="Bearer bearer-session",
-        redis_cache=redis_cache,
-    )
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user_from_session(
+            request=request,
+            session_cookie_id=None,
+            x_session_id=None,
+            authorization="Bearer bearer-session",
+            redis_cache=redis_cache,
+        )
 
-    redis_cache.get_session.assert_awaited_once_with("bearer-session")
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Session cookie required"
+    redis_cache.get_session.assert_not_awaited()
 
 
 def test_has_permission_admin():

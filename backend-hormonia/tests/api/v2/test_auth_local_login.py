@@ -1,17 +1,15 @@
-"""Contract tests for first-party local auth endpoints.
-
-These tests are intentionally written before the implementation cutover.
-They should stay red until `/api/v2/auth/login`, `verify-session`, and
-`logout` satisfy the slice's local-auth contract.
-"""
+"""Contract tests for first-party local auth endpoints."""
 
 from __future__ import annotations
 
 from datetime import timedelta
-from uuid import uuid4
+from unittest.mock import MagicMock
+from uuid import UUID, uuid4
 
 import pytest
+from fastapi import Request, Response
 
+from app.api.v2.routers import auth as auth_router_module
 from app.config import settings
 from app.dependencies.auth_dependencies import get_redis_cache
 from app.main import app
@@ -123,7 +121,7 @@ def local_session_cache(local_user, local_session):
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "updated_at": user.updated_at.isoformat() if user.updated_at else None,
         "last_login": None,
-        # Intentionally no firebase_uid: this is the contract T03 must satisfy.
+        # Intentionally no firebase_uid: this is the canonical local-auth contract.
     }
     return LocalSessionRedisCache(str(local_session.id), session_payload)
 
@@ -163,6 +161,7 @@ def test_post_login_with_email_password_returns_canonical_response_and_cookie_co
     assert data["user"]["full_name"] == user.full_name
     assert data["user"]["role"] == user.role.value
     assert data["user"]["is_active"] is True
+    assert response.headers.get("X-Session-ID") is None
 
     response_dump = str(data).lower()
     assert "password" not in response_dump
@@ -240,23 +239,66 @@ def test_verify_session_accepts_local_session_identity_without_firebase_uid(
     assert data["user"]["role"] == user.role.value
 
 
-def test_logout_returns_canonical_success_shape_and_clears_local_session_cookie(
+def test_verify_session_rejects_x_session_id_header_without_cookie(
     client,
+    local_session,
+    override_local_session_cache,
+):
+    response = client.get(
+        "/api/v2/auth/verify-session",
+        headers={"X-Session-ID": str(local_session.id)},
+    )
+
+    assert response.status_code == 401, response.text
+    data = response.json()
+    assert data["detail"] == "Session cookie required"
+    assert data["message"] == "Session cookie required"
+    assert data["error"] == "HTTP_ERROR"
+
+
+def test_verify_session_rejects_bearer_session_transport_without_cookie(
+    client,
+    local_session,
+    override_local_session_cache,
+):
+    response = client.get(
+        "/api/v2/auth/verify-session",
+        headers={"Authorization": f"Bearer {local_session.id}"},
+    )
+
+    assert response.status_code == 401, response.text
+    data = response.json()
+    assert data["detail"] == "Session cookie required"
+    assert data["message"] == "Session cookie required"
+    assert data["error"] == "HTTP_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_logout_returns_canonical_success_shape_and_clears_local_session_cookie(
     db_session,
     local_user,
     local_session,
     override_local_session_cache,
 ):
     user, _password = local_user
+    request = MagicMock(spec=Request)
+    request.cookies = {settings.SESSION_COOKIE_NAME: str(local_session.id)}
+    response = Response()
 
-    response = client.delete(
-        "/api/v2/auth/logout",
-        headers={"X-Session-ID": str(local_session.id)},
-        cookies={settings.SESSION_COOKIE_NAME: str(local_session.id)},
+    current_user = {
+        **override_local_session_cache.session_payload,
+        "id": override_local_session_cache.session_payload["user_id"],
+    }
+
+    payload = await auth_router_module.logout(
+        request=request,
+        response=response,
+        current_user=current_user,
+        redis_cache=override_local_session_cache,
+        db=db_session,
     )
 
-    assert response.status_code == 200, response.text
-    assert response.json() == {
+    assert payload == {
         "message": "Logged out successfully",
         "success": True,
     }
@@ -271,3 +313,26 @@ def test_logout_returns_canonical_success_shape_and_clears_local_session_cookie(
     cookie_header_lower = cookie_header.lower()
     assert f"{settings.SESSION_COOKIE_NAME}=" in cookie_header
     assert "expires=" in cookie_header_lower or "max-age=0" in cookie_header_lower
+
+
+def test_logout_rejects_bearer_session_transport_without_cookie(
+    client,
+    db_session,
+    local_session,
+    override_local_session_cache,
+):
+    response = client.delete(
+        "/api/v2/auth/logout",
+        headers={"Authorization": f"Bearer {local_session.id}"},
+    )
+
+    assert response.status_code == 401, response.text
+    data = response.json()
+    assert data["detail"] == "Session cookie required"
+    assert data["message"] == "Session cookie required"
+    assert data["error"] == "HTTP_ERROR"
+
+    db_session.refresh(local_session)
+    assert local_session.is_active is True
+    assert local_session.revoked_at is None
+    assert override_local_session_cache.invalidated_sessions == []

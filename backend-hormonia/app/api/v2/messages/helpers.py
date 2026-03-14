@@ -9,7 +9,7 @@ from uuid import UUID
 import json
 import base64
 import logging
-from fastapi import HTTPException, status, Cookie, Header, Depends
+from fastapi import HTTPException, status, Cookie, Depends
 from sqlalchemy.orm import Session, Query
 
 from app.database import get_db
@@ -30,18 +30,15 @@ PaginatedResult = Tuple[List[Any], bool, Optional[str], Optional[int]]
 
 async def _get_current_user_simple(
     session_cookie_id: str = Cookie(None, alias="session_id"),
-    x_session_id: str = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
     redis_cache=Depends(get_redis_cache),
 ):
-    """Simplified session validation."""
-    final_session_id = resolve_session_id(
-        x_session_id=x_session_id,
-        session_cookie_id=session_cookie_id,
-    )
+    """Simplified session validation using the canonical session cookie."""
+    final_session_id = resolve_session_id(session_cookie_id=session_cookie_id)
     if not final_session_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session cookie required",
         )
     return await get_user_data_from_session(
         session_id=final_session_id,

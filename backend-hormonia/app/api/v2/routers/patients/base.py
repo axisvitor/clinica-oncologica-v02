@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 from uuid import UUID
 
 # Third-party imports
-from fastapi import Cookie, Depends, Header, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,13 +38,6 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from app.core.redis_manager import FirebaseRedisCache
 
-
-# Helper for async DB access in shared auth flow.
-async def _get_user_by_firebase_uid(
-    db: AsyncSession, firebase_uid: str
-) -> Optional[User]:
-    result = await db.execute(select(User).where(User.firebase_uid == firebase_uid))
-    return result.scalar_one_or_none()
 
 # ============================================================================
 # Pydantic Models - Shared Schemas
@@ -96,7 +89,6 @@ class PatientStatsResponse(BaseModel):
 
 async def get_current_user_simple(
     session_cookie_id: str = Cookie(None, alias="session_id"),
-    x_session_id: str = Header(None, alias="X-Session-ID"),
     db: AsyncSession = Depends(get_async_db),
     redis_cache: "FirebaseRedisCache" = Depends(get_redis_cache),
 ) -> Dict[str, Any]:
@@ -105,14 +97,10 @@ async def get_current_user_simple(
 
     Returns user data dict from Redis cache or database.
     """
-    async def _fetch_user(firebase_uid: str) -> Optional[User]:
-        return await _get_user_by_firebase_uid(db, firebase_uid)
-
     return await get_current_user_simple_shared(
         session_cookie_id=session_cookie_id,
-        x_session_id=x_session_id,
+        db=db,
         redis_cache=redis_cache,
-        fetch_user_by_uid=_fetch_user,
     )
 
 

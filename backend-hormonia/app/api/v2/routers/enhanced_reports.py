@@ -20,7 +20,6 @@ from fastapi import (
     Request,
     Response,
     Cookie,
-    Header,
 )
 from fastapi.responses import RedirectResponse
 
@@ -73,8 +72,6 @@ RATE_LIMIT_EXPORT = "15/hour"
 async def _get_current_user_from_session_dep(
     request: Request,
     session_cookie_id: str = Cookie(None, alias="session_id"),
-    x_session_id: str = Header(None, alias="X-Session-ID"),
-    authorization: Optional[str] = Header(None),
 ):
     override_result = None
     try:
@@ -97,16 +94,16 @@ async def _get_current_user_from_session_dep(
         result = get_current_user_from_session(
             request=request,
             session_cookie_id=session_cookie_id,
-            x_session_id=x_session_id,
-            authorization=authorization,
+            x_session_id=None,
+            authorization=None,
         )
     else:
         redis_cache = await asyncio.wait_for(get_redis_cache(), timeout=2.0)
         result = get_current_user_from_session(
             request=request,
             session_cookie_id=session_cookie_id,
-            x_session_id=x_session_id,
-            authorization=authorization,
+            x_session_id=None,
+            authorization=None,
             redis_cache=redis_cache,
         )
 

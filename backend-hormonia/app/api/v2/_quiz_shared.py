@@ -29,7 +29,7 @@ CACHE_TTL_QUIZ_LIST = 300  # 5 minutes for quiz lists
 async def _get_current_user_simple(
     current_user: User = Depends(get_current_user_object_from_session),
 ) -> User:
-    """Session-based auth for quiz endpoints (cookie/X-Session-ID/Bearer session_id)."""
+    """Session-based auth for quiz endpoints using the canonical session cookie."""
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

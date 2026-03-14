@@ -23,34 +23,11 @@ def resolve_request_session_id(
     authorization: Optional[str] = None,
     enable_cookie_priority: Optional[bool] = None,
 ) -> Tuple[Optional[str], Optional[str]]:
-    """Resolve session ID from the supported request sources with explicit precedence."""
-    cookie_priority = (
-        settings.ENABLE_COOKIE_PRIORITY
-        if enable_cookie_priority is None
-        else enable_cookie_priority
-    )
+    """Resolve the canonical staff session ID from cookie-backed request state only."""
+    _ = x_session_id, authorization, enable_cookie_priority, settings
 
-    bearer_session_id = None
-    if authorization and authorization.startswith("Bearer "):
-        bearer_session_id = authorization.split(" ", 1)[1]
-
-    ordered_candidates = (
-        (
-            ("cookie", session_cookie_id),
-            ("x-session-id", x_session_id),
-            ("authorization", bearer_session_id),
-        )
-        if cookie_priority
-        else (
-            ("authorization", bearer_session_id),
-            ("x-session-id", x_session_id),
-            ("cookie", session_cookie_id),
-        )
-    )
-
-    for source, candidate in ordered_candidates:
-        if candidate:
-            return candidate, source
+    if session_cookie_id:
+        return session_cookie_id, "cookie"
 
     return None, None
 
@@ -93,11 +70,16 @@ async def resolve_authenticated_session_user(
 ) -> Dict[str, Any]:
     """Resolve session-backed authentication while preserving the public request contract."""
     try:
+        legacy_transports = []
+        if x_session_id:
+            legacy_transports.append("x-session-id")
+        if authorization and authorization.startswith("Bearer "):
+            legacy_transports.append("authorization")
+
         logger.debug(
-            "Auth check - cookie: %s..., x_session_id: %s..., auth_header: %s",
+            "Auth check - cookie: %s..., legacy_session_transports: %s",
             session_cookie_id[:8] if session_cookie_id else "None",
-            x_session_id[:8] if x_session_id else "None",
-            "Bearer" if authorization and authorization.startswith("Bearer") else "None",
+            legacy_transports or ["none"],
         )
 
         final_session_id, session_source = resolve_request_session_id(
@@ -111,12 +93,16 @@ async def resolve_authenticated_session_user(
             apply_session_request_state(request, session_id=final_session_id)
 
         if not final_session_id:
-            logger.warning(
-                "No session ID provided in any auth method (cookie, header, or Authorization)"
-            )
+            if legacy_transports:
+                logger.warning(
+                    "Rejected legacy session transport(s) for staff auth: %s",
+                    ", ".join(legacy_transports),
+                )
+            else:
+                logger.warning("Session cookie required for staff auth")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Session ID not provided",
+                detail="Session cookie required",
                 headers={"WWW-Authenticate": "Session"},
             )
 

@@ -158,7 +158,6 @@ def _session_request_parts(session_id: str):
     csrf_token = get_csrf_token()
     return {
         "headers": {
-            "X-Session-ID": session_id,
             "X-CSRF-Token": csrf_token,
         },
         "cookies": {
@@ -192,6 +191,19 @@ def test_login_verify_reset_password_rotate_and_logout_without_firebase_staff_au
     login_data = login_response.json()
     session_id = login_data["session_id"]
     session_request = _session_request_parts(session_id)
+    client.cookies.clear()
+
+    legacy_header_verify_response = client.get(
+        "/api/v2/auth/verify-session",
+        headers={"X-Session-ID": session_id},
+    )
+    assert (
+        legacy_header_verify_response.status_code == status.HTTP_401_UNAUTHORIZED
+    ), legacy_header_verify_response.text
+    legacy_header_verify_data = legacy_header_verify_response.json()
+    assert legacy_header_verify_data["detail"] == "Session cookie required"
+    assert legacy_header_verify_data["message"] == "Session cookie required"
+    assert legacy_header_verify_data["error"] == "HTTP_ERROR"
 
     assert login_data["valid"] is True
     assert login_data["user"]["id"] == str(user.id)

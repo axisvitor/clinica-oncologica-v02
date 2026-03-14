@@ -135,7 +135,6 @@ def local_session_auth(local_password_user):
     try:
         yield {
             "headers": {
-                "X-Session-ID": session_id,
                 "X-CSRF-Token": csrf_token,
             },
             "cookies": {
@@ -195,6 +194,29 @@ def test_debug_token_inspection_no_longer_depends_on_firebase_verification():
 
     assert "verify_firebase_token" not in debug_auth_source
     assert "Firebase ID token" not in debug_auth_source
+
+
+def test_password_change_rejects_legacy_header_transport_without_cookie(client):
+    csrf_token = get_csrf_token()
+
+    response = client.put(
+        "/api/v2/auth/password",
+        headers={
+            "X-Session-ID": "legacy-session",
+            "X-CSRF-Token": csrf_token,
+        },
+        cookies={"csrf_token": csrf_token},
+        json={
+            "current_password": "WrongPass123!",
+            "new_password": "NewHardCut123!",
+        },
+    )
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED, response.text
+    data = response.json()
+    assert data["detail"] == "Session cookie required"
+    assert data["message"] == "Session cookie required"
+    assert data["error"] == "HTTP_ERROR"
 
 
 def test_password_change_rejects_wrong_current_password_with_stable_diagnostics(

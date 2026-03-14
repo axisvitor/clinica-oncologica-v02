@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, List, Tuple
 from uuid import UUID
 import logging
 
-from fastapi import Depends, HTTPException, status, Header, Cookie
+from fastapi import Depends, HTTPException, status, Cookie
 
 from app.core.database.async_engine import get_async_db
 from app.models.user import UserRole
@@ -32,29 +32,17 @@ logger = logging.getLogger(__name__)
 
 
 async def _get_current_user_simple(
-    session_id: str = Header(None, alias="X-Session-ID"),
     session_cookie_id: str = Cookie(None, alias="session_id"),
-    authorization: str = Header(None),
     db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> Dict[str, Any]:
-    """Simplified session validation for V2 endpoints.
-    
-    Supports multiple authentication sources (in priority order):
-    1. Authorization header (Bearer <session_id>)
-    2. X-Session-ID header
-    3. session_id cookie
-    """
-    final_session_id = resolve_session_id(
-        authorization=authorization,
-        x_session_id=session_id,
-        session_cookie_id=session_cookie_id,
-    )
+    """Simplified session validation for V2 task endpoints using the canonical session cookie."""
+    final_session_id = resolve_session_id(session_cookie_id=session_cookie_id)
 
     if not final_session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided",
+            detail="Session cookie required",
         )
 
     return await get_user_data_from_session(

@@ -55,13 +55,13 @@ def _shared_user_model(*, user_id: str, firebase_uid: str | None = None, role: s
 @pytest.mark.parametrize(
     ("authorization", "x_session_id", "session_cookie_id", "query_session_id", "expected"),
     [
-        ("Bearer bearer-session", "header-session", "cookie-session", "query-session", "bearer-session"),
-        (None, "header-session", "cookie-session", "query-session", "header-session"),
+        ("Bearer bearer-session", "header-session", "cookie-session", "query-session", "cookie-session"),
+        (None, "header-session", "cookie-session", "query-session", "cookie-session"),
         (None, None, "cookie-session", "query-session", "cookie-session"),
-        (None, None, None, "query-session", "query-session"),
+        (None, None, None, "query-session", None),
     ],
 )
-def test_shared_resolve_session_id_preserves_runtime_and_websocket_precedence(
+def test_shared_resolve_session_id_uses_cookie_only_contract(
     authorization: str | None,
     x_session_id: str | None,
     session_cookie_id: str | None,
@@ -101,7 +101,6 @@ async def test_messages_helper_accepts_embedded_canonical_session_without_fireba
 
     user_data = await message_helpers._get_current_user_simple(
         session_cookie_id="messages-session",
-        x_session_id=None,
         db=object(),
         redis_cache=redis_cache,
     )
@@ -148,9 +147,9 @@ async def test_shared_helper_accepts_embedded_canonical_id_alias_without_user_id
 
 
 @pytest.mark.asyncio
-async def test_tasks_dependency_prefers_authorization_session_id_for_official_runtime_callers():
+async def test_tasks_dependency_uses_cookie_only_canonical_session():
     session_payload = {
-        "session_id": "bearer-session",
+        "session_id": "cookie-session",
         "user_id": str(uuid4()),
         "email": "tasks.shared@example.com",
         "full_name": "Dra. Tasks Shared",
@@ -159,27 +158,25 @@ async def test_tasks_dependency_prefers_authorization_session_id_for_official_ru
     }
     redis_cache = SimpleNamespace(
         get_session=AsyncMock(
-            side_effect=lambda session_id: session_payload if session_id == "bearer-session" else None
+            side_effect=lambda session_id: session_payload if session_id == "cookie-session" else None
         ),
         get_user_by_uid=AsyncMock(
-            side_effect=AssertionError("Canonical bearer session should not require firebase_uid cache lookup")
+            side_effect=AssertionError("Canonical cookie session should not require firebase_uid cache lookup")
         ),
         get_user_by_id=AsyncMock(
-            side_effect=AssertionError("Embedded canonical bearer session should not require user cache lookup")
+            side_effect=AssertionError("Embedded canonical cookie session should not require user cache lookup")
         ),
     )
 
     user_data = await tasks_dependencies._get_current_user_simple(
-        session_id="header-session",
         session_cookie_id="cookie-session",
-        authorization="Bearer bearer-session",
         db=object(),
         redis_cache=redis_cache,
     )
 
     assert user_data["id"] == session_payload["user_id"]
     assert user_data["role"] == session_payload["role"]
-    redis_cache.get_session.assert_awaited_once_with("bearer-session")
+    redis_cache.get_session.assert_awaited_once_with("cookie-session")
 
 
 @pytest.mark.asyncio

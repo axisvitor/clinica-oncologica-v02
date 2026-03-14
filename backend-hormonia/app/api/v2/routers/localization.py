@@ -12,7 +12,7 @@ import json
 import sys
 import inspect
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Cookie
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database.async_engine import get_async_db
@@ -84,19 +84,19 @@ NAMESPACES = ["flows", "messages", "auth", "common", "errors", "email"]
 
 
 async def _get_current_user_simple(
-    session_id: str = Header(None, alias="X-Session-ID"),
+    session_cookie_id: Optional[str] = Cookie(None, alias="session_id"),
     db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(get_redis_cache),
 ) -> Dict[str, Any]:
-    """Simplified session validation for V2 endpoints."""
-    if not session_id:
+    """Simplified session validation for V2 endpoints using the canonical session cookie."""
+    if not session_cookie_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session ID not provided in X-Session-ID header",
+            detail="Session cookie required",
         )
 
     return await get_user_data_from_session(
-        session_id=session_id,
+        session_id=session_cookie_id,
         db=db,
         redis_cache=redis_cache,
     )
@@ -143,7 +143,8 @@ async def _get_redis_cache_compat():
 
 
 async def _get_current_user_simple_compat(
-    session_id: str = Header(None, alias="X-Session-ID"),
+    request: Request,
+    session_cookie_id: Optional[str] = Cookie(None, alias="session_id"),
     db: AsyncSession = Depends(get_async_db),
     redis_cache=Depends(_get_redis_cache_compat),
 ) -> Dict[str, Any]:
@@ -153,18 +154,30 @@ async def _get_current_user_simple_compat(
 
     if target is _ORIGINAL_GET_CURRENT_USER_SIMPLE:
         return await _ORIGINAL_GET_CURRENT_USER_SIMPLE(
-            session_id=session_id,
+            session_cookie_id=session_cookie_id,
             db=db,
             redis_cache=redis_cache,
         )
 
     try:
-        result = target(session_id=session_id, db=db, redis_cache=redis_cache)
+        result = target(
+            request=request,
+            session_cookie_id=session_cookie_id,
+            db=db,
+            redis_cache=redis_cache,
+        )
     except TypeError:
         try:
-            result = target(session_id=session_id)
+            result = target(
+                session_cookie_id=session_cookie_id,
+                db=db,
+                redis_cache=redis_cache,
+            )
         except TypeError:
-            result = target()
+            try:
+                result = target(session_id=session_cookie_id)
+            except TypeError:
+                result = target()
 
     return await _resolve_awaitable_or_callable(result)
 

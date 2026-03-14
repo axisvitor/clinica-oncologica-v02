@@ -8,51 +8,35 @@ an async session helper to avoid duplicated get_current_user logic.
 from __future__ import annotations
 
 import re
-from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, TypeVar
+from typing import Any, Dict, Optional, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException, status
 
 from app.models.patient import FlowState
 from app.models.user import UserRole
-from app.api.v2.user_cache_shared import get_or_cache_user_data, ensure_user_is_active
+from app.api.v2.auth_session_shared import resolve_session_id, get_user_data_from_session
 from app.utils.auth_helpers import extract_user_context
-
-TUser = TypeVar("TUser")
 
 
 async def get_current_user_simple_shared(
     session_cookie_id: Optional[str],
-    x_session_id: Optional[str],
+    db: Any,
     redis_cache: Any,
-    fetch_user_by_uid: Callable[[str], Awaitable[Optional[TUser]]],
 ) -> Dict[str, Any]:
-    """Shared session validation and user fetch logic."""
-    final_session_id = session_cookie_id or x_session_id
+    """Shared session validation using the canonical session cookie only."""
+    final_session_id = resolve_session_id(session_cookie_id=session_cookie_id)
     if not final_session_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Session ID not provided"
-        )
-
-    session_data = await redis_cache.get_session(final_session_id)
-    if not session_data:
-        raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired session",
+            detail="Session cookie required",
         )
 
-    firebase_uid = session_data.get("firebase_uid")
-    if not firebase_uid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session data"
-        )
-
-    user_data = await get_or_cache_user_data(
-        firebase_uid=firebase_uid,
+    return await get_user_data_from_session(
+        session_id=final_session_id,
+        db=db,
         redis_cache=redis_cache,
-        fetch_user_by_uid=fetch_user_by_uid,
     )
-    return ensure_user_is_active(user_data)
 
 
 def extract_user_context_sync(

@@ -28,6 +28,19 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 from fastapi.testclient import TestClient
 
+from app.config import settings
+from app.middleware.csrf import get_csrf_token
+
+
+def _session_request_kwargs(session_id: str = "test_session") -> Dict[str, Dict[str, str]]:
+    csrf_token = get_csrf_token()
+    return {
+        "headers": {"X-CSRF-Token": csrf_token},
+        "cookies": {
+            settings.SESSION_COOKIE_NAME: session_id,
+            "csrf_token": csrf_token,
+        },
+    }
 
 
 # ============================================================================
@@ -139,6 +152,38 @@ def mock_redis_cache():
     return MockRedisCache()
 
 
+class TestLocalizationAuthContract:
+    @pytest.mark.asyncio
+    async def test_languages_rejects_x_session_id_without_cookie(
+        self,
+        client: TestClient,
+        mock_redis_cache,
+    ):
+        with patch('app.api.v2.routers.localization.get_redis_cache', return_value=mock_redis_cache):
+            response = client.get(
+                "/api/v2/localization/languages",
+                headers={"X-Session-ID": "legacy-session"},
+            )
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Session cookie required"
+
+    @pytest.mark.asyncio
+    async def test_languages_rejects_expired_cookie_session(
+        self,
+        client: TestClient,
+        mock_redis_cache,
+    ):
+        with patch('app.api.v2.routers.localization.get_redis_cache', return_value=mock_redis_cache):
+            response = client.get(
+                "/api/v2/localization/languages",
+                **_session_request_kwargs("expired-session"),
+            )
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid or expired session"
+
+
 # ============================================================================
 # List Languages Tests
 # ============================================================================
@@ -161,7 +206,7 @@ class TestListLanguages:
 
                 response = client.get(
                     "/api/v2/localization/languages",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -189,7 +234,7 @@ class TestListLanguages:
 
                 response = client.get(
                     "/api/v2/localization/languages?enabled_only=true",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -214,7 +259,7 @@ class TestListLanguages:
 
                 response = client.get(
                     "/api/v2/localization/languages?fields=code,name",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -242,14 +287,14 @@ class TestListLanguages:
                 # First request - should cache
                 response1 = client.get(
                     "/api/v2/localization/languages",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
                 assert response1.status_code == 200
 
                 # Second request - should hit cache
                 response2 = client.get(
                     "/api/v2/localization/languages",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
                 assert response2.status_code == 200
 
@@ -280,7 +325,7 @@ class TestGetTranslations:
 
                 response = client.get(
                     "/api/v2/localization/translations/en-US",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -307,7 +352,7 @@ class TestGetTranslations:
 
                 response = client.get(
                     "/api/v2/localization/translations/invalid-lang",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 404
@@ -329,7 +374,7 @@ class TestGetTranslations:
 
                 response = client.get(
                     "/api/v2/localization/translations/en-US?namespace=auth",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -354,7 +399,7 @@ class TestGetTranslations:
 
                 response = client.get(
                     "/api/v2/localization/translations/en-US?search=login",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -389,7 +434,7 @@ class TestGetTranslationByKey:
 
                 response = client.get(
                     "/api/v2/localization/translations/en-US/auth.login.title",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -420,7 +465,7 @@ class TestGetTranslationByKey:
                 # Request translation that only exists in fallback language
                 response = client.get(
                     "/api/v2/localization/translations/es-ES/auth.login.button",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -447,7 +492,7 @@ class TestGetTranslationByKey:
                 variables = json.dumps({"name": "John", "count": 5})
                 response = client.get(
                     f"/api/v2/localization/translations/en-US/messages.welcome?variables={variables}",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -472,7 +517,7 @@ class TestGetTranslationByKey:
                 # Test with count = 1 (singular)
                 response1 = client.get(
                     "/api/v2/localization/translations/en-US/messages.sent?count=1",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response1.status_code == 200
@@ -482,7 +527,7 @@ class TestGetTranslationByKey:
                 # Test with count = 5 (plural)
                 response2 = client.get(
                     "/api/v2/localization/translations/en-US/messages.sent?count=5",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response2.status_code == 200
@@ -506,7 +551,7 @@ class TestGetTranslationByKey:
                 # Test with formal context
                 response = client.get(
                     "/api/v2/localization/translations/pt-BR/greeting.hello?context=formal",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -529,7 +574,7 @@ class TestGetTranslationByKey:
 
                 response = client.get(
                     "/api/v2/localization/translations/en-US/messages.sent?variables=invalid-json",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 400
@@ -560,7 +605,7 @@ class TestUpdateTranslation:
                 response = client.put(
                     "/api/v2/localization/translations/en-US/auth.login.title",
                     json={"value": "New Login Title"},
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -584,7 +629,7 @@ class TestUpdateTranslation:
                 response = client.put(
                     "/api/v2/localization/translations/en-US/auth.login.title",
                     json={"value": "New Login Title"},
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 403
@@ -606,7 +651,7 @@ class TestUpdateTranslation:
                 response = client.put(
                     "/api/v2/localization/translations/invalid-lang/auth.login.title",
                     json={"value": "New Login Title"},
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 404
@@ -628,14 +673,14 @@ class TestUpdateTranslation:
                 # Get translation to cache it
                 client.get(
                     "/api/v2/localization/translations/en-US/auth.login.title",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 # Update translation
                 response = client.put(
                     "/api/v2/localization/translations/en-US/auth.login.title",
                     json={"value": "Updated Title"},
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -663,7 +708,7 @@ class TestUserLanguagePreference:
 
                 response = client.get(
                     "/api/v2/localization/user/language",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -690,7 +735,7 @@ class TestUserLanguagePreference:
                 response = client.put(
                     "/api/v2/localization/user/language",
                     json={"language": "pt-BR"},
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -715,7 +760,7 @@ class TestUserLanguagePreference:
                 response = client.put(
                     "/api/v2/localization/user/language",
                     json={"language": "invalid-lang"},
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 400
@@ -738,14 +783,14 @@ class TestUserLanguagePreference:
                 response1 = client.put(
                     "/api/v2/localization/user/language",
                     json={"language": "pt-BR"},
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
                 assert response1.status_code == 200
 
                 # Get preference (should be cached)
                 response2 = client.get(
                     "/api/v2/localization/user/language",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
                 assert response2.status_code == 200
 
@@ -869,14 +914,14 @@ class TestLocalizationRBAC:
                 # Patient should be able to read languages
                 response = client.get(
                     "/api/v2/localization/languages",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
                 assert response.status_code == 200
 
                 # Patient should be able to read translations
                 response = client.get(
                     "/api/v2/localization/translations/en-US",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
                 assert response.status_code == 200
 
@@ -899,7 +944,7 @@ class TestLocalizationRBAC:
                 response = client.put(
                     "/api/v2/localization/translations/en-US/test.key",
                     json={"value": "Test Value"},
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
                 assert response.status_code == 403
 
@@ -912,7 +957,7 @@ class TestLocalizationRBAC:
                 response = client.put(
                     "/api/v2/localization/translations/en-US/test.key",
                     json={"value": "Test Value"},
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
                 assert response.status_code == 200
 
@@ -945,7 +990,7 @@ class TestLocalizationPerformance:
 
                 response = client.get(
                     "/api/v2/localization/translations/en-US",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -969,7 +1014,7 @@ class TestLocalizationPerformance:
                 response = client.put(
                     "/api/v2/localization/translations/pt-BR/test.unicode",
                     json={"value": unicode_text},
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 assert response.status_code == 200
@@ -992,7 +1037,7 @@ class TestLocalizationPerformance:
                 # Empty key should return error or handle gracefully
                 response = client.get(
                     "/api/v2/localization/translations/en-US/",
-                    headers={"X-Session-ID": "test_session"}
+                    **_session_request_kwargs()
                 )
 
                 # Should handle gracefully (404 or 400)

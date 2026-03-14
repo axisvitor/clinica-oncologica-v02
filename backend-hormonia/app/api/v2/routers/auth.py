@@ -289,20 +289,8 @@ def _normalize_session_uuid(raw_session_id: Optional[str]) -> Optional[str]:
 
 
 def _get_session_id_from_request(request: Request) -> Optional[str]:
-    """Extract session ID from cookie, header, or Authorization bearer."""
-    cookie_id = request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get("session_id")
-    if cookie_id:
-        return cookie_id
-
-    header_id = request.headers.get("X-Session-ID")
-    if header_id:
-        return header_id
-
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        return auth_header.split(" ", 1)[1]
-
-    return None
+    """Extract the canonical session ID from cookie-backed request state only."""
+    return request.cookies.get(SESSION_COOKIE_NAME) or request.cookies.get("session_id")
 
 
 async def _invalidate_session_cache(redis_cache, session_id: str) -> bool:
@@ -468,12 +456,6 @@ async def login(
             path="/",
             max_age=ttl_seconds,
         )
-        if (
-            settings.APP_ENABLE_DEBUG
-            and settings.APP_ENVIRONMENT.lower() != "production"
-        ):
-            response.headers["X-Session-ID"] = str(session.id)
-
         logger.info(
             "Local login progress: response ready for user=%s session=%s",
             user.email,

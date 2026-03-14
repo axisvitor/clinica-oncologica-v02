@@ -79,13 +79,7 @@ async def get_redis_cache():
 async def _get_current_user_simple(
     current_user: User = Depends(get_current_user_from_session),
 ) -> User:
-    """Current user dependency using session-based authentication.
-    
-    Supports:
-    - Authorization: Bearer <session_id> header
-    - X-Session-ID header  
-    - session_id cookie
-    """
+    """Current user dependency using the canonical session cookie."""
     if not current_user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

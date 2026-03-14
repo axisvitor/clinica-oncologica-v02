@@ -71,9 +71,9 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(prometheus_exporters.router)
     logger.info("✓ Prometheus metrics exporter registered (/metrics)")
 
-    # Session authentication endpoints
-    app.include_router(auth_session, tags=["Session Authentication"])
-    logger.info("✓ Session authentication endpoints registered (/session)")
+    # Legacy root /session tombstones
+    app.include_router(auth_session, tags=["Retired Session Endpoints"])
+    logger.info("✓ Legacy /session retirement endpoints registered")
 
     # Redis health endpoint (migrated from v1)
     @app.get("/api/v2/redis/health", tags=["Health"])

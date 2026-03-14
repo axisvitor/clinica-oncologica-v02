@@ -7,10 +7,10 @@ access control, and serialization.
 """
 
 from typing import Optional, Tuple
-from fastapi import Cookie, Header, Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.models.user import User, UserRole
+from app.models.user import UserRole
 from app.models.patient import FlowState
 from app.database import get_db
 from app.dependencies.auth_dependencies import get_redis_cache
@@ -25,26 +25,16 @@ from app.api.v2.patients_shared_helpers import (
 )
 
 
-def _get_user_by_firebase_uid(db: Session, firebase_uid: str) -> Optional[User]:
-    return db.query(User).filter(User.firebase_uid == firebase_uid).first()
-
-
 async def _get_current_user_simple(
     session_cookie_id: str = Cookie(None, alias="session_id"),
-    x_session_id: str = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
     redis_cache=Depends(get_redis_cache),
 ):
     """Simplified session validation without ServiceProvider."""
-    async def _fetch_user(firebase_uid: str) -> Optional[User]:
-        # Preserve previous synchronous DB query behavior in this module.
-        return _get_user_by_firebase_uid(db, firebase_uid)
-
     return await get_current_user_simple_shared(
         session_cookie_id=session_cookie_id,
-        x_session_id=x_session_id,
+        db=db,
         redis_cache=redis_cache,
-        fetch_user_by_uid=_fetch_user,
     )
 
 

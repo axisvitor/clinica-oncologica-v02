@@ -29,7 +29,6 @@ from fastapi import (
     Response,
     Request,
     Cookie,
-    Header,
 )
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -60,8 +59,6 @@ RATE_LIMIT_SCHEDULE = "5/minute"
 async def _get_current_user_from_session_dep(
     request: Request,
     session_cookie_id: str = Cookie(None, alias="session_id"),
-    x_session_id: str = Header(None, alias="X-Session-ID"),
-    authorization: Optional[str] = Header(None),
     redis_cache=Depends(get_redis_cache),
 ):
     override_result = None
@@ -83,8 +80,8 @@ async def _get_current_user_from_session_dep(
     result = get_current_user_from_session(
         request=request,
         session_cookie_id=session_cookie_id,
-        x_session_id=x_session_id,
-        authorization=authorization,
+        x_session_id=None,
+        authorization=None,
         redis_cache=redis_cache,
     )
     if hasattr(result, "__await__"):
