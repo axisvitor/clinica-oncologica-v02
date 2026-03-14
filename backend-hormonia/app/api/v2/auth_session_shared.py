@@ -15,7 +15,6 @@ from app.api.v2.user_cache_shared import get_or_cache_user_data, ensure_user_is_
 
 
 CANONICAL_SESSION_USER_FIELDS = {
-    "user_id": "id",
     "email": "email",
     "full_name": "full_name",
     "role": "role",
@@ -26,6 +25,14 @@ CANONICAL_SESSION_USER_FIELDS = {
     "photo_url": "photo_url",
     "firebase_uid": "firebase_uid",
 }
+
+
+def resolve_canonical_session_user_id(session_data: Dict[str, Any]) -> Optional[str]:
+    """Return the canonical authenticated user ID from session payload aliases."""
+    user_id = session_data.get("id") or session_data.get("user_id")
+    if user_id is None or user_id == "":
+        return None
+    return str(user_id)
 
 
 def resolve_session_id(
@@ -61,7 +68,7 @@ def resolve_session_id(
 
 def extract_canonical_user_from_session(session_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Return embedded canonical user envelope when present in the session payload."""
-    user_id = session_data.get("user_id")
+    user_id = resolve_canonical_session_user_id(session_data)
     email = session_data.get("email")
     role = session_data.get("role")
     is_active = session_data.get("is_active")
@@ -70,8 +77,11 @@ def extract_canonical_user_from_session(session_data: Dict[str, Any]) -> Optiona
         return None
 
     embedded_user = {
-        target_key: session_data.get(source_key)
-        for source_key, target_key in CANONICAL_SESSION_USER_FIELDS.items()
+        "id": user_id,
+        **{
+            target_key: session_data.get(source_key)
+            for source_key, target_key in CANONICAL_SESSION_USER_FIELDS.items()
+        },
     }
     return embedded_user
 
@@ -96,7 +106,7 @@ async def get_user_data_from_session(
     if embedded_user:
         return ensure_user_is_active(embedded_user)
 
-    user_id = session_data.get("user_id")
+    user_id = resolve_canonical_session_user_id(session_data)
     firebase_uid = session_data.get("firebase_uid")
     if not user_id and not firebase_uid:
         raise HTTPException(

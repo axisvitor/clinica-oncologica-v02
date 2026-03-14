@@ -78,12 +78,13 @@
 
 ## Not Proven By This UAT
 
-- This UAT does not prove that the runtime has already converged to the no-Firebase canonical path; that work belongs to S02–S06.
+- This UAT does not prove that the runtime has already converged end-to-end to the no-Firebase canonical path; after S02 it still leaves frontend cutover, transport retirement, adjacent Firebase cleanup, and assembled-stack proof to S03–S06.
 - This UAT does not prove live login, restore, logout, `/dashboard`, `/admin`, or `/whatsapp` behavior on a mounted stack.
 - This UAT does not remove schema/migration residue; M005 still owns the physical schema cleanup.
 
 ## Notes for Tester
 
-- A green result here means the boundary is honest, not that the residue is gone.
+- A green result here means the boundary is honest, not that the residue is gone. After S02, a green backend report also does **not** mean `firebase_uid` still drives the canonical helper path; read `S02-SUMMARY.md` before treating helper hits as happy-path drift.
 - The existing `pytest_asyncio` loop-scope deprecation warning may still appear during the backend pytest runs. Treat it as known noise unless it changes the pass/fail result.
 - If a later slice intentionally removes or moves residue, the fix is not just code cleanup: update the allowlist and the slice handoff artifacts in the same change, then rerun this UAT.
+- If a later slice narrows helper semantics without dropping backend file counts, update the allowlist descriptions/labels and the readable handoff anyway; flat counts can still hide a real boundary shrink.

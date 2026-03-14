@@ -75,7 +75,7 @@
     {
       "id": "firebase_uid",
       "display_name": "firebase_uid",
-      "description": "firebase_uid runtime dependence retained in auth/session/cache helpers and official admin compatibility types.",
+      "description": "Compatibility-oriented firebase_uid residue retained in fallback helpers, legacy/root-session seams, and official admin compatibility types after S02 removed canonical backend happy-path dependence.",
       "matchers": [
         {
           "type": "literal",
@@ -134,7 +134,7 @@
                 {
                   "type": "literal",
                   "pattern": "firebase_uid = session_data.get(\"firebase_uid\")",
-                  "label": "auth_session_cache_session_uid_lookup"
+                  "label": "auth_session_cache_compat_uid_fallback"
                 }
               ]
             },
@@ -144,7 +144,7 @@
                 {
                   "type": "literal",
                   "pattern": "load_user_from_db_by_firebase_uid: Callable[[str], Any],",
-                  "label": "auth_session_contract_uid_loader"
+                  "label": "auth_session_contract_compat_uid_loader"
                 }
               ]
             },
@@ -184,7 +184,7 @@
                 {
                   "type": "literal",
                   "pattern": "\"firebase_uid\": \"firebase_uid\"",
-                  "label": "auth_session_shared_canonical_mapping"
+                  "label": "auth_session_shared_compat_uid_passthrough"
                 }
               ]
             },
@@ -234,7 +234,7 @@
                 {
                   "type": "literal",
                   "pattern": "firebase_uid: Optional[str] = None,",
-                  "label": "user_cache_shared_uid_fallback"
+                  "label": "user_cache_shared_compat_uid_fallback"
                 }
               ]
             }

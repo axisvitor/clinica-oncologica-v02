@@ -19,7 +19,7 @@ key_files:
 key_decisions:
   - The official-runtime residue boundary is enforced per category and per scope, with approved hotspots pinned by explicit file anchors.
   - Published handoff artifacts reuse the verifier's exact category ids and backend/frontend scope names so later slices cannot drift into alternate naming.
-  - Boundary shrinkage is only complete when the allowlist, research, summary, and UAT move together with a green verifier run.
+  - Boundary shrinkage is only complete when the allowlist, research, summary, and UAT move together with a green verifier run; after S02 that can mean semantic relabeling of compatibility-only hotspots even when backend file counts stay flat.
 patterns_established:
   - Slice-local shell verification delegates deterministic scanning and JSON parsing to embedded Python while remaining black-box testable through subprocess pytest.
   - Guardrail slices close with both an executable gate and a readable hotspot map so later cleanup work updates one boundary contract instead of reopening discovery.
@@ -51,6 +51,8 @@ On top of that contract, the slice shipped `.gsd/milestones/M004/slices/S01/veri
 The guardrail is backed by `backend-hormonia/tests/unit/test_runtime_residue_guard.py`, which runs the real shell verifier in subprocesses against temp repos and temp allowlists. The suite proves three things that matter downstream: approved hotspots stay green, newly introduced residue fails loudly in the right category, and anchor drift reports the moved hotspot name instead of collapsing into an opaque nonzero exit.
 
 S01 also published the human-readable handoff pack. `S01-RESEARCH.md` mirrors the live residue map with the verifier's exact category ids and scope names. This summary compresses the slice for downstream execution. `S01-UAT.md` turns the guardrail into an artifact-driven review script so later slices can verify both the happy path and the expected failure paths without reopening repo-wide discovery.
+
+T03 of S02 republished that handoff without changing the raw backend inventory counts. The post-convergence backend report still shows 14 `firebase_uid` files / 133 matching lines, but the canonical helper-family hits in `auth_dependencies.py`, `auth_session_contract.py`, `auth_session_cache.py`, `auth_session_shared.py`, and `user_cache_shared.py` are now compatibility-only fallback or passthrough seams instead of happy-path identity selection. The remaining high-value live legacy surface is transport-heavy: root `/session/*`, backend acceptance of `X-Session-ID`, session-as-Bearer, websocket `session_id` query fallback, plus deliberate Firebase-era narrative and adjacent/admin compatibility residue.
 
 ## Verification
 
@@ -93,12 +95,14 @@ Added explicit failure-path verification commands to `S01-PLAN.md` during execut
 
 ## Known Limitations
 
-- The approved residue is still live by design. S02–S05 must now shrink the allowlist instead of treating the green guard as convergence.
+- The approved residue is still live by design. After S02 the backend `firebase_uid` helper hits are compatibility-only, but the transport and legacy-route residue still remain for S03–S05; a green guard is still not convergence.
 - `backend-hormonia` pytest still emits the existing `pytest_asyncio` loop-scope deprecation warning during the guard suite. It is unchanged and non-blocking.
 
 ## Follow-ups
 
-- S02 should start with the backend-heavy hotspots from the current report: `auth_dependencies.py`, `auth_session_cache.py`, `auth_legacy_firebase.py`, `auth_session.py`, and the remaining `X-Session-ID` / bearer / root `/session/*` seams.
+- S03 should remove official frontend emission of `X-Session-ID`, session-as-Bearer, and websocket `session_id` query fallback while keeping the backend acceptance paths stable enough for a controlled cutover.
+- S04 should retire the root `/session/*` island and backend acceptance of `X-Session-ID`, session-as-Bearer, and websocket query fallback before collapsing the backend Firebase narrative.
+- S05 should remove the remaining fallback-only helper/admin `firebase_uid` residue and the frontend/admin Firebase narrative that survive after the transport cut.
 - Any later slice that removes or relocates approved residue must update `runtime-residue-allowlist.json`, `S01-RESEARCH.md`, this summary, and `S01-UAT.md` in the same change.
 
 ## Files Created/Modified

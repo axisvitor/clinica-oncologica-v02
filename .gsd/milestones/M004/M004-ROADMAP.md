@@ -54,7 +54,7 @@ This milestone is complete only when all are true:
 - [x] **S01: Guardrails do corte canônico de runtime** `risk:high` `depends:[]`
   > After this: existe um verificador executável que mostra exatamente onde Firebase, `firebase_uid`, `/session/*`, `X-Session-ID` e bearer fallback ainda estão vivos no runtime oficial, e a suíte falha se novos resíduos reaparecem.
 
-- [ ] **S02: Backend auth/sessão convergido para identidade canônica** `risk:high` `depends:[S01]`
+- [x] **S02: Backend auth/sessão convergido para identidade canônica** `risk:high` `depends:[S01]`
   > After this: login, verify-session, restore e logout funcionam no backend pelo contrato canônico de sessão/`user_id`, com `firebase_uid` fora do happy path oficial.
 
 - [ ] **S03: Frontend oficial convergido para contrato session-first canônico** `risk:medium` `depends:[S01,S02]`

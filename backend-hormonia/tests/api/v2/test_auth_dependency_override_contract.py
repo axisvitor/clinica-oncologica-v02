@@ -55,6 +55,7 @@ async def test_admin_router_dependency_accepts_narrower_override_signatures():
     request = _build_request()
 
     async def _session_override(request: Request):
+        request.state.session_id = "admin-session-contract"
         request.state.user_id = session_payload["id"]
         request.state.user_role = session_payload["role"]
         return session_payload
@@ -75,8 +76,71 @@ async def test_admin_router_dependency_accepts_narrower_override_signatures():
     )
 
     assert result is admin_user
+    assert request.state.session_id == "admin-session-contract"
     assert request.state.user_id == session_payload["id"]
     assert request.state.user_role == session_payload["role"]
+
+
+@pytest.mark.asyncio
+async def test_session_contract_sets_request_state_for_mapping_style_payloads():
+    auth_session_contract = _import_split_module("auth_session_contract")
+    admin_user = User(
+        id=uuid4(),
+        email="admin.session.contract@example.com",
+        full_name="Admin Session Contract",
+        role=UserRole.ADMIN,
+        is_active=True,
+    )
+    request = _build_request(session_id="canonical-state-session")
+    redis_cache = SimpleNamespace(
+        get_session=AsyncMock(
+            return_value={
+                "user_id": str(admin_user.id),
+                "email": admin_user.email,
+                "full_name": admin_user.full_name,
+                "role": "admin",
+                "is_active": True,
+            }
+        ),
+        update_session_activity=AsyncMock(return_value=None),
+        get_user_by_id=AsyncMock(
+            side_effect=AssertionError("Embedded canonical session should not require user_id cache lookup")
+        ),
+        get_user_by_uid=AsyncMock(
+            side_effect=AssertionError("Embedded canonical session should not require firebase_uid cache lookup")
+        ),
+    )
+
+    user_data = await auth_session_contract.resolve_authenticated_session_user(
+        request=request,
+        session_cookie_id="canonical-state-session",
+        x_session_id=None,
+        authorization=None,
+        redis_cache=redis_cache,
+        get_permissions_for_role=lambda role: [f"{role}.read"],
+        validate_firebase_uid=lambda firebase_uid: (_ for _ in ()).throw(
+            AssertionError(f"firebase_uid fallback should not run (got {firebase_uid!r})")
+        ),
+        load_user_from_db_by_user_id=AsyncMock(
+            side_effect=AssertionError("Embedded canonical session should not require DB lookup")
+        ),
+        load_user_from_db_by_firebase_uid=AsyncMock(
+            side_effect=AssertionError("Embedded canonical session should not require firebase DB lookup")
+        ),
+        load_user_from_db_by_session=AsyncMock(
+            side_effect=AssertionError("Embedded canonical session should not require session fallback lookup")
+        ),
+        serialize_user=lambda user: user,
+    )
+
+    assert user_data["id"] == str(admin_user.id)
+    assert user_data["role"] == "admin"
+    assert user_data["permissions"] == ["admin.read"]
+    assert request.state.session_id == "canonical-state-session"
+    assert request.state.user_id == str(admin_user.id)
+    assert request.state.user_role == "admin"
+    redis_cache.get_user_by_id.assert_not_called()
+    redis_cache.get_user_by_uid.assert_not_called()
 
 
 @pytest.mark.asyncio

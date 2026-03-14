@@ -8,7 +8,7 @@ S01 now closes on an executable residue boundary instead of a recommendation. `.
 
 The boundary is intentionally narrow. It covers the official auth/session runtime plus the explicit compatibility islands still shipped in `backend-hormonia/app` and `frontend-hormonia/src`. It does **not** treat repo-wide Firebase or `/session` strings as failures. Schema/model residue, historical docs/tests, and unrelated vendor/public session strings stay excluded so S02–S05 can cut live runtime behavior instead of fighting noise.
 
-Downstream ownership is now explicit: S02 removes backend `firebase_uid` identity/session dependence from the canonical runtime path; S03 removes official frontend emission of `X-Session-ID`, `Authorization: Bearer <session_id>`, and websocket `session_id` query fallback; S04 retires the root `/session/*` island and backend acceptance of the legacy auth/session inputs; S05 removes the remaining adjacent `firebase_uid` and Firebase-narrative residue that survives the canonical cut.
+Downstream ownership is now explicit: S02 already converged the canonical backend auth/session helper path, so the backend `firebase_uid` hotspots left in this report are fallback-only helper passthroughs plus deliberate legacy/admin seams rather than happy-path blockers. S03 removes official frontend emission of `X-Session-ID`, `Authorization: Bearer <session_id>`, and websocket `session_id` query fallback; S04 retires the root `/session/*` island and backend acceptance of the legacy auth/session inputs; S05 removes the remaining adjacent/helper/admin `firebase_uid` and Firebase-narrative residue that survives after the transport cut.
 
 ## Recommendation
 
@@ -18,7 +18,7 @@ Treat the handoff pack as a three-part contract:
 2. **Readable map:** this research artifact explains why each approved hotspot is still live, which slice owns its removal, and which paths are intentionally excluded.
 3. **Change discipline:** when a future slice removes a hotspot, moves an approved anchor, or narrows the scope, update the allowlist, this file, `S01-SUMMARY.md`, and `S01-UAT.md` in the same change. A green verifier with stale docs is still drift.
 
-`--report all` is the inventory surface; `--check all` is the gate. If `--check` fails because a hotspot moved or disappeared, treat that as bookkeeping drift first and decide whether the removal was intentional before changing code or the allowlist.
+`--report all` is the inventory surface; `--check all` is the gate. If `--check` fails because a hotspot moved or disappeared, treat that as bookkeeping drift first and decide whether the removal was intentional before changing code or the allowlist. After S02, a flat backend `firebase_uid` count does not imply the helper path stayed unchanged: the verifier measures surviving literals, so semantic shrinkage can mean relabeling fallback-only hotspots and updating the handoff even when the inventory still has the same files.
 
 ## Finalized Residue Boundary
 
@@ -54,7 +54,7 @@ The lists below use the exact category ids and scope names from `runtime-residue
 
 ### `firebase_uid`
 
-**Meaning:** runtime dependence on `firebase_uid` that still survives in auth/session/cache helpers and official admin compatibility types.
+**Meaning:** compatibility-oriented `firebase_uid` residue that still survives in fallback-only helper paths, legacy/root-session seams, and official admin compatibility types.
 
 - `backend` — 14 files / 133 matching lines
   - `backend-hormonia/app/api/v2/auth_session_shared.py` (5)
@@ -76,8 +76,9 @@ The lists below use the exact category ids and scope names from `runtime-residue
   - `frontend-hormonia/src/lib/api-client/admin.ts` (1)
   - `frontend-hormonia/src/lib/api-client/normalizers.ts` (3)
   - `frontend-hormonia/src/types/admin.ts` (1)
-- **Temporarily preserved in S01:** the backend still carries `firebase_uid` through canonical auth/session/cache helpers, legacy router paths, and adjacent patient/admin helpers; the frontend still exposes admin/client compatibility fields.
-- **Cut owner:** S02 removes `firebase_uid` from the official backend identity/session path first (`auth.py`, session/cache helpers, auth dependencies/contracts). S05 removes the remaining adjacent/backend-helper and frontend admin/type compatibility residue that survives after the canonical cut.
+- **Post-S02 interpretation:** the backend count stays flat because the verifier measures surviving literals, not happy-path lookup order. The canonical helper family is green; the `auth_dependencies.py`, `auth_session_contract.py`, `auth_session_cache.py`, `auth_session_shared.py`, and `user_cache_shared.py` hits now represent compatibility-only fallback or passthrough behavior instead of canonical identity selection.
+- **Temporarily preserved in S01:** the remaining backend hits also include deliberate root `/session/*`, legacy Firebase auth, adjacent patient/admin helpers, cache serialization seams, and compatibility metadata that later slices still need visible; the frontend still exposes admin/client compatibility fields.
+- **Cut owner:** S04 removes the root `/session/*`-bound backend Firebase seams as part of transport retirement. S05 removes the remaining fallback-only helper, adjacent/backend-helper, and frontend admin/type compatibility residue that survives after the transport cut.
 
 ### `root_legacy_session`
 
@@ -168,8 +169,8 @@ The lists below use the exact category ids and scope names from `runtime-residue
 ## Cut Order Snapshot For S02–S05
 
 1. **S02 — backend canonical identity/session cut**
-   - Remove backend-happy-path `firebase_uid` dependence from canonical auth/session/cache flows.
-   - Do **not** delete `/session/*`, `X-Session-ID`, Bearer-as-session, or websocket query fallback yet unless the allowlist/report are deliberately updated with matching proof.
+   - Removed backend-happy-path `firebase_uid` dependence from canonical auth/session/cache flows while leaving fallback-only helper residue visible in the guard.
+   - Intentionally did **not** delete `/session/*`, `X-Session-ID`, Bearer-as-session, or websocket query fallback yet; those remain explicit transport residue for later slices.
 2. **S03 — official frontend canonical contract cut**
    - Remove frontend emission of `X-Session-ID`, `Authorization: Bearer <session_id>`, and websocket `session_id` query fallback.
    - Leave backend acceptance and root `/session/*` stable until S04 retires them deliberately.

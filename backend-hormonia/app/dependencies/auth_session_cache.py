@@ -13,6 +13,14 @@ logger = logging.getLogger(__name__)
 TUser = TypeVar("TUser")
 
 
+def resolve_canonical_user_id(identity_payload: Dict[str, Any]) -> Optional[str]:
+    """Return the canonical authenticated user ID from mapping-style payloads."""
+    user_id = identity_payload.get("id") or identity_payload.get("user_id")
+    if user_id is None or user_id == "":
+        return None
+    return str(user_id)
+
+
 def serialize_user_data(user: Any) -> Dict[str, Any]:
     """Normalize a user model into the canonical auth/session cache payload."""
     return {
@@ -33,7 +41,7 @@ def serialize_user_data(user: Any) -> Dict[str, Any]:
 
 def session_payload_to_user_data(session_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Return canonical embedded user data when the session payload already carries it."""
-    user_id = session_data.get("user_id")
+    user_id = resolve_canonical_user_id(session_data)
     email = session_data.get("email")
     role = session_data.get("role")
     is_active = session_data.get("is_active")
@@ -42,7 +50,7 @@ def session_payload_to_user_data(session_data: Dict[str, Any]) -> Optional[Dict[
         return None
 
     return {
-        "id": str(user_id),
+        "id": user_id,
         "firebase_uid": session_data.get("firebase_uid"),
         "email": email,
         "full_name": session_data.get("full_name"),
@@ -61,7 +69,7 @@ async def cache_user_data_by_identity(
     ttl: int = 900,
 ) -> None:
     """Best-effort cache hydration for canonical user_id and compatibility firebase_uid keys."""
-    user_id = user_data.get("id")
+    user_id = resolve_canonical_user_id(user_data)
     firebase_uid = user_data.get("firebase_uid")
 
     if user_id and hasattr(redis_cache, "cache_user_data_by_user_id"):
@@ -110,7 +118,7 @@ async def rehydrate_session_cache(
     try:
         created = await redis_cache.create_session(
             session_id=session_id,
-            user_id=user_data.get("id"),
+            user_id=resolve_canonical_user_id(user_data),
             firebase_uid=user_data.get("firebase_uid"),
             metadata=metadata,
             ttl=session_ttl,
@@ -124,7 +132,7 @@ async def rehydrate_session_cache(
         try:
             await redis_cache.create_session(
                 session_id,
-                user_data.get("id"),
+                resolve_canonical_user_id(user_data),
                 user_data.get("firebase_uid"),
                 metadata=metadata,
                 ttl=session_ttl,
@@ -158,7 +166,7 @@ async def _lookup_session_identity_user_data(
     if user_data:
         return user_data
 
-    user_id = session_data.get("user_id")
+    user_id = resolve_canonical_user_id(session_data)
     firebase_uid = session_data.get("firebase_uid")
 
     if not user_id and not firebase_uid:
@@ -185,7 +193,7 @@ async def _lookup_session_identity_user_data(
                 detail="User cache lookup timed out. Please try again.",
             )
 
-    if not user_data and firebase_uid and hasattr(redis_cache, "get_user_by_uid"):
+    if not user_data and not user_id and firebase_uid and hasattr(redis_cache, "get_user_by_uid"):
         validate_firebase_uid(firebase_uid)
         try:
             user_data = await asyncio.wait_for(

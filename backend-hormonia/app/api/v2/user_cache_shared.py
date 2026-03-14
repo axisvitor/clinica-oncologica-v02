@@ -11,6 +11,14 @@ from fastapi import HTTPException, status
 TUser = TypeVar("TUser")
 
 
+def resolve_canonical_user_id(user_data: Dict[str, Any]) -> Optional[str]:
+    """Return the canonical authenticated user ID from mapping-style payloads."""
+    user_id = user_data.get("id") or user_data.get("user_id")
+    if user_id is None or user_id == "":
+        return None
+    return str(user_id)
+
+
 def serialize_user_data(user: Any) -> Dict[str, Any]:
     """Normalize user model attributes into session-cache payload."""
     return {
@@ -38,19 +46,21 @@ async def get_or_cache_user_data(
     fetch_user_by_uid: Optional[Callable[[str], Awaitable[Optional[TUser]]]] = None,
 ) -> Dict[str, Any]:
     """Read user profile from cache, fallback to DB/service and repopulate cache."""
-    if user_id and hasattr(redis_cache, "get_user_by_id"):
-        user_data = await redis_cache.get_user_by_id(user_id)
+    canonical_user_id = str(user_id) if user_id not in (None, "") else None
+
+    if canonical_user_id and hasattr(redis_cache, "get_user_by_id"):
+        user_data = await redis_cache.get_user_by_id(canonical_user_id)
         if user_data:
             return user_data
 
-    if firebase_uid and hasattr(redis_cache, "get_user_by_uid"):
+    if not canonical_user_id and firebase_uid and hasattr(redis_cache, "get_user_by_uid"):
         user_data = await redis_cache.get_user_by_uid(firebase_uid)
         if user_data:
             return user_data
 
     user = None
-    if user_id and fetch_user_by_id:
-        user = await fetch_user_by_id(user_id)
+    if canonical_user_id and fetch_user_by_id:
+        user = await fetch_user_by_id(canonical_user_id)
     elif firebase_uid and fetch_user_by_uid:
         user = await fetch_user_by_uid(firebase_uid)
 
@@ -59,8 +69,9 @@ async def get_or_cache_user_data(
 
     user_data = serialize_user_data(user)
 
-    if user_data.get("id") and hasattr(redis_cache, "cache_user_data_by_user_id"):
-        await redis_cache.cache_user_data_by_user_id(user_data["id"], user_data, ttl=900)
+    canonical_user_id = resolve_canonical_user_id(user_data)
+    if canonical_user_id and hasattr(redis_cache, "cache_user_data_by_user_id"):
+        await redis_cache.cache_user_data_by_user_id(canonical_user_id, user_data, ttl=900)
     if user_data.get("firebase_uid") and hasattr(redis_cache, "cache_user_data"):
         await redis_cache.cache_user_data(user_data["firebase_uid"], user_data, ttl=900)
 
