@@ -1,17 +1,17 @@
 # S05: Integrated Proof And Structural Closeout — UAT
 
 **Milestone:** M003
-**Written:** 2026-03-13T22:17:00-03:00
-**Status:** passed — structural gate, assembled auth/session/logout proof, seeded-user Chromium acceptance, and routed `/dashboard` / `/admin` / `/whatsapp` smoke are green on the current branch.
+**Written:** 2026-03-13T14:15:57-03:00
+**Status:** partial / red closeout — structural gate and direct compat proof are partially green, but legacy `/session/logout` is still blocking final acceptance.
 
 ## UAT Type
 
 - UAT mode: mixed
-- Why this mode is sufficient: S05 closes only when the cleanup boundary stays green, the assembled no-Firebase runtime still honors the retained auth/session contract, and the affected routed surfaces render successfully in-browser. This artifact captures all three.
+- Why this mode is sufficient: S05 acceptance depends on both the replayed structural gate from T01 and the assembled local-stack runtime proof from T02/T03. This artifact records both, and it leaves the unresolved runtime blocker explicit instead of implying end-to-end closure.
 
 ## Preconditions
 
-Local assembled stack used for the final replay:
+Local assembled stack used for the runtime proof:
 
 ### Backend
 
@@ -41,11 +41,10 @@ cd frontend-hormonia && \
 
 Replay-safe local proof artifacts:
 - `/tmp/gsd-s05-t02-proof.env` — masked seeded-user contract
-- `/tmp/gsd-s05-runtime-proof.json` — earlier sanitized compat results
-- `/tmp/gsd-s05-browser-bootstrap` — browser/bootstrap helper that avoids printing credentials
-- `.gsd/milestones/M003/M003-VERIFY.json` — authoritative final verification artifact for the milestone closeout
+- `/tmp/gsd-s05-runtime-proof.json` — sanitized direct compat results
+- `/tmp/gsd-s05-browser-bootstrap` — browser bootstrap helper that avoids printing credentials
 
-Runtime truth checks:
+Runtime truth checks that stayed green:
 - `http://localhost:8000/health/ready`
   - `status=ready`
   - dependencies included `database`, `redis`, `session_auth`
@@ -57,41 +56,36 @@ Runtime truth checks:
 
 Quick acceptance checkpoint for this slice:
 1. Replay the focused structural gate from T01.
-2. Prove canonical login + canonical verify + Bearer fallback + legacy `/session/logout` on the assembled stack.
-3. Prove the seeded-user browser acceptance spec and routed `/dashboard`, `/admin`, and `/whatsapp` smoke.
+2. Prove canonical login + canonical verify + Bearer fallback + invalid legacy `session/validate` on the assembled stack.
+3. Prove live legacy `session/logout` and then finish `/admin`, `/dashboard`, and `/whatsapp` browser smoke.
 
 Current result:
-- Steps 1, 2, and 3 are green.
+- Steps 1 and 2 are green.
+- Step 3 is red at `DELETE /session/logout`, so the routed browser smoke was not claimed green afterward.
 
 ## Test Cases
 
 ### 1. Structural closeout gate stays green on the S05 branch
 
-Run:
-- `cd frontend-hormonia && npm run test -- tests/unit/import-boundaries/dead-compat-cleanup.contract.test.ts tests/unit/types-validation.test.ts tests/monthly-quiz/useMonthlyQuiz.spec.tsx`
-- `cd frontend-hormonia && npm run test -- tests/integration/api-client.test.ts tests/integration/auth/session-first-cutover.test.tsx tests/integration/admin-auth-flow.test.tsx tests/integration/realtime/session-websocket-cutover.test.ts`
-- `cd frontend-hormonia && npm run typecheck && npm run build`
-- `cd backend-hormonia && pytest -q tests/unit/test_auth_dependency_module_split.py tests/api/v2/test_auth_hard_cut_cleanup.py tests/api/test_websocket_session_auth_contract.py tests/auth/test_session_role_enforcement.py tests/security/test_rbac_authorization.py tests/auth/test_session_validation.py tests/services/websocket/test_connection_manager.py tests/integration/test_auth_hard_cut_end_to_end.py`
-- `bash .gsd/milestones/M003/slices/S01/verify-evidence-map.sh --report all`
-- `bash .gsd/milestones/M003/slices/S01/verify-evidence-map.sh --check all`
-
-Expected:
-- all commands pass
-- the cleanup boundary remains green before runtime claims are made
-
-Captured result:
-- passed
+1. Run:
+   - `cd frontend-hormonia && npm run test -- tests/unit/import-boundaries/dead-compat-cleanup.contract.test.ts tests/unit/types-validation.test.ts tests/monthly-quiz/useMonthlyQuiz.spec.tsx`
+   - `cd frontend-hormonia && npm run test -- tests/integration/api-client.test.ts tests/integration/auth/session-first-cutover.test.tsx tests/integration/admin-auth-flow.test.tsx tests/integration/realtime/session-websocket-cutover.test.ts`
+   - `cd frontend-hormonia && npm run typecheck && npm run build`
+   - `cd backend-hormonia && pytest -q tests/unit/test_auth_dependency_module_split.py tests/api/v2/test_auth_hard_cut_cleanup.py tests/api/test_websocket_session_auth_contract.py tests/auth/test_session_role_enforcement.py tests/security/test_rbac_authorization.py tests/auth/test_session_validation.py tests/services/websocket/test_connection_manager.py tests/integration/test_auth_hard_cut_end_to_end.py`
+   - `bash .gsd/milestones/M003/slices/S01/verify-evidence-map.sh --report all`
+   - `bash .gsd/milestones/M003/slices/S01/verify-evidence-map.sh --check all`
+2. Confirm all commands pass.
+3. **Expected:** the S04 cleanup boundary is still green before any runtime claim is made.
 
 ### 2. Canonical auth/session and Bearer fallback still work on the assembled backend
 
-Run direct assembled-stack probes against:
-- `POST /api/v2/auth/login`
-- cookie-backed `GET /api/v2/auth/verify-session`
-- `GET /api/v2/auth/verify-session` with `Authorization: Bearer <session_id>`
-- `GET /api/v2/users/me` with `Authorization: Bearer <session_id>`
-
-Expected:
-- all return `200` on the local no-Firebase stack
+1. Use the seeded proof user from `/tmp/gsd-s05-t02-proof.env`.
+2. Run direct assembled-stack probes against:
+   - `POST /api/v2/auth/login`
+   - cookie-backed `GET /api/v2/auth/verify-session`
+   - `GET /api/v2/auth/verify-session` with `Authorization: Bearer <session_id>`
+   - `GET /api/v2/users/me` with `Authorization: Bearer <session_id>`
+3. **Expected:** all four return `200` on the local no-Firebase stack.
 
 Captured result:
 - `POST /api/v2/auth/login` → `200`
@@ -101,97 +95,109 @@ Captured result:
 
 ### 3. Retained legacy compat checks stay within the documented contract
 
-Run:
 1. Send invalid session input to `GET /session/validate`.
-2. Send a live session created by canonical login to `DELETE /session/logout` with CSRF token.
+2. Send a live session created by canonical login to `DELETE /session/logout`.
 3. Check the same live session again with `GET /session/validate`.
-
-Expected:
-- invalid `session/validate` returns `200` with `valid:false`
-- live `session/logout` returns a clean success response
-- the same session is invalid afterward
+4. **Expected:** invalid `session/validate` returns `200` with `valid:false`, and live `session/logout` returns a clean success response that revokes the session.
 
 Captured result:
 - invalid `GET /session/validate` → `200` with `valid:false`
-- live `DELETE /session/logout` → `200` with `success=true`, `sessions_deleted=1`, `message="Session logged out successfully"`
+- live `DELETE /session/logout` → `422`
 - follow-up `GET /session/validate` on that same session → `200` with `valid:false`
 
-### 4. Seeded-user browser acceptance proves the no-Firebase staff-auth contract end to end
+Exact live `DELETE /session/logout` response body captured in T03:
 
-Run:
-
-```bash
-cd frontend-hormonia && \
-  source /tmp/gsd-s05-browser-bootstrap \
-  ./node_modules/.bin/playwright test tests/e2e/auth/session-first-hard-cut.spec.ts \
-    --config tests/e2e/playwright.config.e2e.ts \
-    --project=chromium
+```json
+{
+  "detail": [
+    {
+      "type": "missing",
+      "loc": ["query", "token"],
+      "msg": "Field required",
+      "input": null
+    }
+  ],
+  "error": "VALIDATION_ERROR",
+  "message": "Input validation failed",
+  "details": {
+    "errors": [
+      {
+        "field": "query.token",
+        "message": "Field required",
+        "type": "missing",
+        "details": null
+      }
+    ]
+  },
+  "request_id": null,
+  "timestamp": "2026-03-13T14:12:19.838161-03:00"
+}
 ```
 
-Expected:
-- one Chromium spec passes covering config truth, login, restore, reset, password rotation, logout, and logout-all
+Interpretation for the handoff:
+- the retained `/session/logout` island is not green
+- the live failure shape points at request/dependency transport mismatch (`query.token`) rather than a vague runtime crash
+- the same session becoming invalid by the next `session/validate` call means response contract and side effect are currently out of sync
 
-Captured result:
-- passed (`1 passed`)
+### 4. Routed browser entrypoints
 
-### 5. Routed browser entrypoints render successfully on the live frontend
-
-Target entrypoints:
-- `/dashboard`
+Target routed entrypoints for final acceptance:
 - `/admin`
+- `/dashboard`
 - `/whatsapp`
 
-Expected:
-1. login reaches `/dashboard`
-2. `/admin` renders authenticated admin root
-3. `/whatsapp` renders the WhatsApp integration surface
+Expected routed proof once the compat blocker is fixed:
+1. `/admin` redirects to `/login` when unauthenticated.
+2. Successful login returns to the intended route.
+3. `/dashboard` completes a successful `/api/v2/dashboard/main` fetch without fatal render error state.
+4. `/admin` authenticated root renders for the staff user.
+5. `/whatsapp` completes a successful `/api/v2/monitoring/wuzapi/session/status` fetch on mocked WuzAPI.
 
-Captured result:
-- `/dashboard` → heading `Dashboard`
-- `/admin` → heading `Admin Dashboard`
-- `/whatsapp` → heading `WhatsApp Integration`
-- recorded in `.gsd/milestones/M003/M003-VERIFY.json`
+Current result:
+- not claimed green in this closeout
+- these checks were left pending after the retained legacy `/session/logout` blocker turned the slice red
 
 ## Edge Cases
 
 ### Invalid legacy session validation
 
-Expected:
-- `GET /session/validate` with invalid session input returns `200` with `valid:false`
+1. Call `GET /session/validate` with invalid session input.
+2. **Expected:** `200` with `valid:false` rather than a canonical auth-style `401`.
 
 Captured result:
 - passed exactly as expected
 
 ### Conditional Playwright acceptance
 
-Expected:
-- use the seeded-user contract only when available locally and keep it masked from repo artifacts
+1. Seeded-user contract availability was checked first.
+2. The seeded-user contract was available locally, so fixture availability was **not** the reason the Playwright pass stopped.
+3. **Expected:** only run the Chromium Playwright pass once the retained compatibility proof ahead of it is clean enough to make the browser result meaningful.
 
 Captured result:
-- seeded-user contract was available locally
-- Chromium acceptance ran and passed using the masked bootstrap helper
+- `cd frontend-hormonia && npx playwright test tests/e2e/auth/session-first-hard-cut.spec.ts --config tests/e2e/playwright.config.e2e.ts --project=chromium` was intentionally not claimed green in the final closeout because the slice stopped after the actionable live `/session/logout` blocker was isolated.
 
 ## Failure Signals
 
-- `DELETE /session/logout` stops returning a clean success response
+- `DELETE /session/logout` returns `422` with missing `query.token`
 - `GET /session/validate` stops returning `200` with `valid:false` for invalid sessions
 - `Authorization: Bearer <session_id>` stops working on canonical auth/session paths
-- seeded-user Chromium acceptance fails on login/restore/reset/logout flows
-- `/dashboard`, `/admin`, or `/whatsapp` stops rendering its expected routed surface
-- `bash .gsd/milestones/M003/slices/S01/verify-evidence-map.sh --check all` fails
+- `/admin` does not redirect through `/login` correctly
+- `/api/v2/dashboard/main` fails or the dashboard falls into fatal render error state
+- `/api/v2/monitoring/wuzapi/session/status` fails on `/whatsapp`
 
 ## Requirements Proved By This UAT
 
-- R037 — visible contracts stayed stable across auth/session/logout and the routed dashboard/admin/WhatsApp surfaces
-- R038 — the cleanup is safer to maintain because the narrowed seams are backed by replayable current-state proof
-- R039 — milestone closeout rests on focused suites plus direct runtime and browser smoke evidence
+- none fully — this UAT advances `R037`, `R038`, and `R039`, but it does not close them because legacy `/session/logout` is still red and the routed `/admin`, `/dashboard`, and `/whatsapp` smoke is still pending.
 
 ## Not Proven By This UAT
 
-- anything beyond the targeted M003 surfaces; this UAT is structural-cleanup acceptance, not a full product regression sweep
+- clean live revocation behavior for legacy `/session/logout`
+- final browser/runtime proof for `/admin`, `/dashboard`, and `/whatsapp`
+- the seeded-user Chromium Playwright acceptance path as a green closeout signal
+- milestone closure for `R037`, `R038`, and `R039`
 
 ## Notes for Tester
 
-- Use `.gsd/milestones/M003/M003-VERIFY.json` as the current authoritative closeout artifact; it supersedes the earlier red S05 handoff.
-- The routed browser smoke still logs non-blocking `TaskHealthIndicator` queue-status fetch errors plus the usual unauthenticated restore 401 before login. Those did not block milestone closure because the target routes rendered and the auth/session contract stayed green.
-- If a future branch reopens `auth_session.py`, the first replay should be: `verify-evidence-map.sh --check all`, the direct assembled auth/logout probe, then the seeded-user Chromium spec.
+- Treat `.gsd/milestones/M003/slices/S05/S05-SUMMARY.md` and this UAT as the authoritative closeout pair for S05.
+- `S05` can stay marked complete in `.gsd/milestones/M003/M003-ROADMAP.md` as a truthful red handoff, but do not move `R037`, `R038`, `R039` in `.gsd/REQUIREMENTS.md` until legacy `/session/logout` is explained or fixed and the routed `/admin`, `/dashboard`, `/whatsapp` smoke is rerun.
+- The most direct next replay is: fix or rebind the legacy `/session/logout` CSRF contract, rerun the direct compat probes, then run the pending browser/Playwright proof.

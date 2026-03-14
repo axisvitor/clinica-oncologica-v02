@@ -16,8 +16,8 @@ Médicos e operadores precisam acessar e operar o sistema com confiabilidade, e 
 - O frontend e o realtime foram cortados para semântica session-first: `AuthContext`, `/login`, `/medico/login`, rotas públicas de recuperação e bootstrap websocket não dependem mais de Firebase SDK/tokens.
 - O hard cut foi concluído: runtime/config de staff auth não exige Firebase Auth, `session_auth` virou o sinal operacional verdadeiro, e o repositório ganhou provas focadas + guarda estática para evitar reintrodução.
 - O replay local sem Firebase confirmou login browser → `/dashboard` → reload no contrato novo; o stack ainda pode exibir erros pós-login de dashboard relacionados a drift de query/dados fora do escopo de auth.
-- M003 em andamento: S01–S04 já fecharam o inventário de evidência, o split dos hotspots de auth/session e api-client/types, e a limpeza de compatibilidades comprovadamente mortas com manifest explícito para os legados ainda vivos.
-- O próximo passo é S05: replay integrado de prova/smoke sobre auth/session, dashboard/admin e superfícies afetadas para confirmar que a limpeza estrutural se sustentou ponta a ponta.
+- M003 segue aberto, mas o plano original de slices foi executado até S05: S01–S04 fecharam inventário/splits/cleanup, e S05 publicou o closeout integrado com prova estrutural verde, prova direta de login/verify/Bearer/`/session/validate` no stack sem Firebase, e um blocker explícito no legado `/session/logout`.
+- O próximo passo não é mais “rodar S05”, e sim decidir o follow-up do blocker: corrigir ou rebindar o contrato legado de `/session/logout`, depois rerodar o smoke pendente de `/admin`, `/dashboard` e `/whatsapp` antes de chamar M003 de concluído.
 
 ## Architecture / Key Patterns
 
