@@ -25,17 +25,6 @@ Guidelines:
 - Validation: mapped
 - Notes: O usuário foi explícito: não utilizaremos mais Firebase no sistema. O foco é remover dependência real, não apenas esconder o legado atrás de shims.
 
-### R048 — Auth/sessão converge para um contrato canônico único
-- Class: continuity
-- Status: active
-- Description: O sistema oficial da equipe autentica, restaura sessão e revoga sessão por um único contrato canônico, sem caminhos duplos ainda aceitos por inércia histórica.
-- Why it matters: Caminhos paralelos de auth/sessão tornam qualquer manutenção futura arriscada e difícil de raciocinar.
-- Source: inferred
-- Primary owning slice: M004/S02
-- Supporting slices: M004/S01, M004/S03, M004/S04, M004/S06
-- Validation: mapped
-- Notes: O app oficial é o único consumidor real dos contratos, então compatibilidades legadas não precisam continuar vivas por padrão.
-
 ### R049 — A identidade canônica deixa de depender de `firebase_uid` no runtime
 - Class: integration
 - Status: active
@@ -46,17 +35,6 @@ Guidelines:
 - Supporting slices: M004/S01, M004/S04, M004/S05
 - Validation: mapped
 - Notes: O drop físico de schema relacionado a Firebase fica para M005; M004 fecha a dependência funcional de runtime.
-
-### R050 — O frontend oficial usa apenas o contrato canônico sem resíduo funcional de Firebase
-- Class: primary-user-loop
-- Status: active
-- Description: `/login`, `/dashboard`, `/admin` e superfícies oficiais relacionadas usam apenas o contrato session-first canônico, sem lógica funcional, comentários operacionais ou tipos oficiais ancorados em Firebase.
-- Why it matters: Não basta o backend estar cortado se o app oficial ainda age como se Firebase estivesse vivo.
-- Source: inferred
-- Primary owning slice: M004/S03
-- Supporting slices: M004/S01, M004/S04, M004/S05, M004/S06
-- Validation: mapped
-- Notes: O milestone precisa limpar comportamento, contratos e narrativa operacional do frontend oficial.
 
 ### R051 — Schema e migrações refletem o modelo final, não o legado de transição
 - Class: quality-attribute
@@ -291,6 +269,28 @@ Guidelines:
 - Validation: validated
 - Notes: Milestone closeout now rests on the green evidence-map gate, focused backend/frontend packs, a seeded-user Chromium acceptance spec, direct assembled-stack probes, and routed `/dashboard` / `/admin` / `/whatsapp` smoke.
 
+### R050 — O frontend oficial usa apenas o contrato canônico sem resíduo funcional de Firebase
+- Class: primary-user-loop
+- Status: validated
+- Description: `/login`, `/dashboard`, `/admin` e superfícies oficiais relacionadas usam apenas o contrato session-first canônico, sem lógica funcional, comentários operacionais ou tipos oficiais ancorados em Firebase.
+- Why it matters: Não basta o backend estar cortado se o app oficial ainda age como se Firebase estivesse vivo.
+- Source: inferred
+- Primary owning slice: M004/S03
+- Supporting slices: M004/S01, M004/S04, M004/S05, M004/S06
+- Validation: validated
+- Notes: Verified by M004/S03’s focused frontend proof packs, green routed `/login` → `/admin/*` coverage, green websocket diagnostic proof, green build, and a green residue guard showing zero approved frontend auth/session/Firebase residue.
+
+### R048 — Auth/sessão converge para um contrato canônico único
+- Class: continuity
+- Status: validated
+- Description: O sistema oficial da equipe autentica, restaura sessão e revoga sessão por um único contrato canônico, sem caminhos duplos ainda aceitos por inércia histórica.
+- Why it matters: Caminhos paralelos de auth/sessão tornam qualquer manutenção futura arriscada e difícil de raciocinar.
+- Source: inferred
+- Primary owning slice: M004/S02
+- Supporting slices: M004/S01, M004/S03, M004/S04
+- Validation: validated
+- Notes: Verified by the combined M004/S02–S04 proof: canonical login/verify-session/restore/logout stayed green on the cookie-backed contract, the official frontend already consumed only that contract, and S04 retired `/session/*`, `X-Session-ID`, session-as-Bearer, and websocket `session_id` fallback as accepted runtime transport.
+
 ## Deferred
 
 ### R020 — Multi-factor authentication for staff access
@@ -498,9 +498,9 @@ Guidelines:
 | ID | Class | Status | Primary owner | Supporting | Proof |
 |---|---|---|---|---|---|
 | R047 | constraint | active | M004/S05 | M004/S01, M004/S02, M004/S03, M004/S04, M004/S06 | mapped |
-| R048 | continuity | active | M004/S02 | M004/S01, M004/S03, M004/S04, M004/S06 | mapped |
+| R048 | continuity | validated | M004/S02 | M004/S01, M004/S03, M004/S04 | validated |
 | R049 | integration | active | M004/S02 | M004/S01, M004/S04, M004/S05 | mapped |
-| R050 | primary-user-loop | active | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | mapped |
+| R050 | primary-user-loop | validated | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | validated |
 | R051 | quality-attribute | active | M005/S?? (provisional) | none | mapped |
 | R052 | operability | active | M006/S?? (provisional) | none | mapped |
 | R053 | quality-attribute | active | M006/S?? (provisional) | M004/S06, M005/S?? (provisional) | mapped |
@@ -543,7 +543,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 7
-- Mapped to slices: 7
-- Validated: 18
+- Active requirements: 5
+- Mapped to slices: 5
+- Validated: 20
 - Unmapped active requirements: 0

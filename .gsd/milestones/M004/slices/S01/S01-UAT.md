@@ -6,7 +6,7 @@
 ## UAT Type
 
 - UAT mode: artifact-driven
-- Why this mode is sufficient: S01 ships a boundary contract and diagnostics, not a live runtime feature. The right proof is that the verifier reports the approved residue map, stays green on the current boundary, and fails clearly on synthetic drift.
+- Why this mode is sufficient: S01 ships a boundary contract and diagnostics, not a user-facing runtime feature. After S04, the right proof is that the verifier reports the reduced live residue inventory honestly, the frontend scope stays zero-approved, and root `/session/*` retirement remains explicit under focused pytest.
 
 ## Preconditions
 
@@ -17,35 +17,34 @@
 
 ## Smoke Test
 
-1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all`.
-2. Confirm the output contains both `[backend]` and `[frontend]` sections.
-3. **Expected:** The output lists category/file/count rows for approved residue and ends with `RESULT: --report all OK`.
+1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check backend`.
+2. **Expected:** The output lists only approved backend residue rows for `firebase_uid`, `x_session_id`, `session_bearer_fallback`, and `websocket_session_id_query`, then ends with `RESULT: --check backend OK`.
 
 ## Test Cases
 
-### 1. Green boundary replay
+### 1. Reduced backend residue boundary replay
 
-1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all`.
-2. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check all`.
-3. **Expected:** Both commands succeed. `--report all` prints the approved residue map; `--check all` ends with `RESULT: --check all OK` and does not emit `unexpected_file=` or `moved_hotspot=`.
+1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report backend`.
+2. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check backend`.
+3. **Expected:** Both commands succeed. The output lists only approved backend category/file/count rows for `firebase_uid`, `x_session_id`, `session_bearer_fallback`, and `websocket_session_id_query`. It must not mention approved `root_legacy_session` or backend Firebase-narrative residue.
 
-### 2. Full regression harness stays green
+### 2. Frontend zero-residue replay
 
-1. Run `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py`.
+1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report frontend`.
+2. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check frontend`.
+3. **Expected:** Both commands succeed. `frontend` prints `no approved residue` and does not emit `unexpected_file=` or `moved_hotspot=`.
+
+### 3. Root `/session/*` retirement stays explicit
+
+1. Run `cd backend-hormonia && pytest -q tests/auth/test_session_validation.py`.
 2. Wait for pytest to finish.
-3. **Expected:** The suite passes and exercises the real shell verifier through subprocesses without any failing tests.
+3. **Expected:** The suite passes and proves representative `/session/*` routes return HTTP 410 with `AUTH_LEGACY_SESSION_ROUTE_RETIRED`, the retired path, and the canonical replacement prefix instead of 404 drift or legacy route behavior.
 
-### 3. Unexpected residue failure path is still inspectable
+### 4. Failure-path diagnostics are still inspectable
 
 1. Run `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k unexpected_residue`.
-2. Wait for the targeted subset to finish.
-3. **Expected:** The subset passes, proving the guard still rejects newly introduced residue and reports the offending category/file in a stable way.
-
-### 4. Moved approved hotspot diagnostics still name the anchor
-
-1. Run `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k moved_hotspot_reports_anchor_name`.
-2. Wait for the targeted subset to finish.
-3. **Expected:** The subset passes, proving a moved approved hotspot still fails with `moved_hotspot=` and `anchor=` diagnostics instead of a generic drift error.
+2. Run `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k moved_hotspot_reports_anchor_name`.
+3. **Expected:** Both targeted subsets pass, proving the guard still rejects newly introduced residue and still names moved approved hotspots with stable diagnostics.
 
 ## Edge Cases
 
@@ -53,37 +52,45 @@
 
 1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report backend`.
 2. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report frontend`.
-3. **Expected:** The backend report shows only `backend-hormonia/...` files; the frontend report shows only `frontend-hormonia/...` files; both end with `OK`.
+3. **Expected:** The backend report shows only `backend-hormonia/...` files and no retired root-session category. The frontend report shows no approved residue and no backend files.
 
-### Out-of-scope strings stay out of the failure surface
+### Frontend reintroduction guard
 
-1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all`.
-2. Inspect the reported file paths.
-3. **Expected:** The report contains only official runtime files plus slice-local proof artifacts. It should not surface schema/history/test/doc paths such as Alembic migrations, historical docs, or unrelated vendor/public session strings.
+1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check frontend` after any future frontend auth/session cleanup or refactor.
+2. **Expected:** The command stays green. Any new frontend hit in `firebase_uid`, `x_session_id`, `session_bearer_fallback`, `websocket_session_id_query`, or `firebase_narrative` should fail immediately instead of being treated as approved debt.
+
+### `/session/*` verifier split
+
+1. Run `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check backend`.
+2. Run `cd backend-hormonia && pytest -q tests/auth/test_session_validation.py`.
+3. **Expected:** The verifier remains green even though `/session/*` strings still exist in the tombstone router and router registry. That surface is intentionally guarded by focused pytest now, not by approved verifier debt.
 
 ## Failure Signals
 
-- `verify-runtime-residue.sh --check all` exits nonzero or prints `unexpected_file=`.
-- `verify-runtime-residue.sh --check all` exits nonzero or prints `moved_hotspot=` / `anchor=` for an approved hotspot that drifted.
-- `--report backend` includes frontend files or `--report frontend` includes backend files.
+- `verify-runtime-residue.sh --check backend` or `--check frontend` exits nonzero or prints `unexpected_file=`.
+- `verify-runtime-residue.sh --check backend` or `--check frontend` exits nonzero or prints `moved_hotspot=` / `anchor=` for an approved hotspot that drifted.
+- `--report backend` starts listing approved `root_legacy_session` or backend Firebase-narrative residue again.
+- `tests/auth/test_session_validation.py` returns 404 or old `/session/*` behavior instead of the explicit 410 tombstone.
 - The targeted pytest subsets fail, which means the failure-path diagnostics are no longer trustworthy.
 - The report output loses category/file/count detail and degrades into generic grep-style noise.
 
 ## Requirements Proved By This UAT
 
 - R047 — The official-runtime Firebase residue boundary is executable and inspectable instead of implicit.
-- R048 — Legacy auth/session surfaces inside the official runtime are now measurable by one scoped contract.
+- R048 — Legacy auth/session surfaces inside the official runtime are measurable by one scoped contract plus the explicit root-route retirement proof.
 - R049 — Remaining `firebase_uid` hotspots in the official runtime are enumerated and guarded against silent drift.
-- R050 — Frontend Firebase/session residue, including narrative hotspots and legacy transport fallbacks, is visible and guarded.
+- R050 — The official frontend residue boundary is still proven clean inside the scoped runtime guard.
 
 ## Not Proven By This UAT
 
-- This UAT does not prove that the runtime has already converged to the no-Firebase canonical path; that work belongs to S02–S06.
-- This UAT does not prove live login, restore, logout, `/dashboard`, `/admin`, or `/whatsapp` behavior on a mounted stack.
+- This UAT does not prove the full runtime has already converged end to end to the no-Firebase canonical path; S05 and S06 still own the remaining cleanup and assembled-stack proof.
+- This UAT does not prove live `/login`, `/dashboard`, `/admin`, or `/whatsapp` behavior on a mounted stack.
 - This UAT does not remove schema/migration residue; M005 still owns the physical schema cleanup.
 
 ## Notes for Tester
 
-- A green result here means the boundary is honest, not that the residue is gone.
+- A green result here means the boundary is honest, not that the milestone is done.
+- `frontend` showing `no approved residue` is intentional. Do not repopulate the allowlist just to quiet a regression.
+- Root `/session/*` is no longer approved verifier debt. If it regresses, fix the route or its focused proof instead of stuffing it back into `runtime-residue-allowlist.json`.
 - The existing `pytest_asyncio` loop-scope deprecation warning may still appear during the backend pytest runs. Treat it as known noise unless it changes the pass/fail result.
 - If a later slice intentionally removes or moves residue, the fix is not just code cleanup: update the allowlist and the slice handoff artifacts in the same change, then rerun this UAT.

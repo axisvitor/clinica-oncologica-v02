@@ -60,7 +60,7 @@ This milestone is complete only when all are true:
 - [x] **S03: Frontend oficial convergido para contrato session-first canônico** `risk:medium` `depends:[S01,S02]`
   > After this: `/login`, `/dashboard` e `/admin` usam apenas o contrato oficial de auth/sessão, sem semântica funcional de Firebase no caminho feliz.
 
-- [ ] **S04: Superfícies legadas de auth/sessão aposentadas** `risk:high` `depends:[S02,S03]`
+- [x] **S04: Superfícies legadas de auth/sessão aposentadas** `risk:high` `depends:[S02,S03]`
   > After this: o app oficial deixa de precisar de `/session/*`, `X-Session-ID` e fallbacks legados em escopo; o que sobrar fica rejeitado ou tombstonado explicitamente.
 
 - [ ] **S05: Resíduo funcional de Firebase removido do runtime adjacente** `risk:medium` `depends:[S02,S03]`

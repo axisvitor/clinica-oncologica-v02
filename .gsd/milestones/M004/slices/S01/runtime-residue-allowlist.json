@@ -75,7 +75,7 @@
     {
       "id": "firebase_uid",
       "display_name": "firebase_uid",
-      "description": "firebase_uid runtime dependence retained in auth/session/cache helpers and official admin compatibility types.",
+      "description": "Compatibility-oriented firebase_uid residue retained in backend fallback/cache/auth helpers after S04 retired root /session/* and legacy session transport from the official runtime.",
       "matchers": [
         {
           "type": "literal",
@@ -134,7 +134,7 @@
                 {
                   "type": "literal",
                   "pattern": "firebase_uid = session_data.get(\"firebase_uid\")",
-                  "label": "auth_session_cache_session_uid_lookup"
+                  "label": "auth_session_cache_compat_uid_fallback"
                 }
               ]
             },
@@ -144,7 +144,7 @@
                 {
                   "type": "literal",
                   "pattern": "load_user_from_db_by_firebase_uid: Callable[[str], Any],",
-                  "label": "auth_session_contract_uid_loader"
+                  "label": "auth_session_contract_compat_uid_loader"
                 }
               ]
             },
@@ -155,16 +155,6 @@
                   "type": "literal",
                   "pattern": "\"firebase_uid\": user.firebase_uid,",
                   "label": "auth_user_adapter_serializes_firebase_uid"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/routers/auth_session.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "firebase_uid = user_data[\"uid\"]",
-                  "label": "legacy_session_router_uses_firebase_uid"
                 }
               ]
             },
@@ -184,27 +174,7 @@
                 {
                   "type": "literal",
                   "pattern": "\"firebase_uid\": \"firebase_uid\"",
-                  "label": "auth_session_shared_canonical_mapping"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/patients_shared_helpers.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "firebase_uid = session_data.get(\"firebase_uid\")",
-                  "label": "patients_shared_helpers_uid_fallback"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/patients_utils.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "def _get_user_by_firebase_uid(db: Session, firebase_uid: str) -> Optional[User]:",
-                  "label": "patients_utils_uid_lookup"
+                  "label": "auth_session_shared_compat_uid_passthrough"
                 }
               ]
             },
@@ -234,7 +204,7 @@
                 {
                   "type": "literal",
                   "pattern": "firebase_uid: Optional[str] = None,",
-                  "label": "user_cache_shared_uid_fallback"
+                  "label": "user_cache_shared_compat_uid_fallback"
                 }
               ]
             }
@@ -246,96 +216,14 @@
             "frontend-hormonia/src/types/admin.ts",
             "frontend-hormonia/shared-types/src/admin.ts"
           ],
-          "approved": [
-            {
-              "path": "frontend-hormonia/src/lib/api-client/admin.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "firebase_uid?: string",
-                  "label": "admin_client_uid_field"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/src/lib/api-client/normalizers.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "firebase_uid: backendUser.firebase_uid,",
-                  "label": "normalizers_preserve_firebase_uid"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/src/types/admin.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "firebase_uid: string | null",
-                  "label": "admin_types_uid_field"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/shared-types/src/admin.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "firebase_uid?: string | null",
-                  "label": "shared_admin_types_uid_field"
-                }
-              ]
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "root_legacy_session",
-      "display_name": "root legacy /session/*",
-      "description": "Root legacy /session compatibility island that still ships alongside canonical /api/v2/auth routes.",
-      "matchers": [
-        {
-          "type": "literal",
-          "pattern": "/session"
-        }
-      ],
-      "scopes": {
-        "backend": {
-          "roots": [
-            "backend-hormonia/app/core/router_registry.py",
-            "backend-hormonia/app/routers/auth_session.py"
-          ],
-          "approved": [
-            {
-              "path": "backend-hormonia/app/core/router_registry.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "Session authentication endpoints registered (/session)",
-                  "label": "router_registry_root_session_mount"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/routers/auth_session.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "router = APIRouter(prefix=\"/session\", tags=[\"Session Authentication\"])",
-                  "label": "auth_session_router_prefix"
-                }
-              ]
-            }
-          ]
+          "approved": []
         }
       }
     },
     {
       "id": "x_session_id",
       "display_name": "X-Session-ID",
-      "description": "Legacy X-Session-ID emission and acceptance that remains live across backend helpers and frontend clients.",
+      "description": "Legacy X-Session-ID text that survives only in backend rejection/detection plumbing after S04 removed it as accepted staff session transport; the frontend scope remains a reintroduction guard.",
       "matchers": [
         {
           "type": "literal",
@@ -356,18 +244,8 @@
               "anchors": [
                 {
                   "type": "literal",
-                  "pattern": "x_session_id=_mapping_get(headers, \"x-session-id\", \"X-Session-ID\")",
-                  "label": "websocket_header_fallback"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/routers/auth_session.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "x_session_id: Optional[str] = Header(None, alias=\"X-Session-ID\")",
-                  "label": "auth_session_header_alias"
+                  "pattern": "x_session_id = _mapping_get(headers, \"x-session-id\", \"X-Session-ID\")",
+                  "label": "websocket_header_detection"
                 }
               ]
             },
@@ -382,132 +260,12 @@
               ]
             },
             {
-              "path": "backend-hormonia/app/api/v2/_quiz_shared.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "cookie/X-Session-ID/Bearer session_id",
-                  "label": "quiz_shared_header_docstring"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/auth_session_shared.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "2. X-Session-ID header",
-                  "label": "auth_session_shared_header_priority"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/messages/helpers.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "x_session_id: str = Header(None, alias=\"X-Session-ID\"),",
-                  "label": "messages_helpers_header_alias"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/patients_utils.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "x_session_id: str = Header(None, alias=\"X-Session-ID\"),",
-                  "label": "patients_utils_header_alias"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/templates_shared.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "2. X-Session-ID header",
-                  "label": "templates_shared_header_priority"
-                }
-              ]
-            },
-            {
               "path": "backend-hormonia/app/api/v2/routers/admin/dependencies.py",
               "anchors": [
                 {
                   "type": "literal",
-                  "pattern": "has_session_header = bool(token_value or request.headers.get(\"X-Session-ID\"))",
-                  "label": "admin_dependencies_header_detection"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/routers/auth.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "header_id = request.headers.get(\"X-Session-ID\")",
-                  "label": "auth_router_header_lookup"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/routers/enhanced_reports.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "x_session_id: str = Header(None, alias=\"X-Session-ID\"),",
-                  "label": "enhanced_reports_header_alias"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/routers/localization.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "session_id: str = Header(None, alias=\"X-Session-ID\"),",
-                  "label": "localization_header_alias"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "- X-Session-ID header",
-                  "label": "monthly_quiz_shared_header_docstring"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/routers/patients/base.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "x_session_id: str = Header(None, alias=\"X-Session-ID\"),",
-                  "label": "patients_base_header_alias"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/routers/reports.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "x_session_id: str = Header(None, alias=\"X-Session-ID\"),",
-                  "label": "reports_header_alias"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/routers/tasks/dependencies.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "session_id: str = Header(None, alias=\"X-Session-ID\"),",
-                  "label": "tasks_dependencies_header_alias"
+                  "pattern": "request.headers.get(\"X-Session-ID\")",
+                  "label": "admin_dependencies_legacy_header_detection"
                 }
               ]
             }
@@ -517,45 +275,14 @@
           "roots": [
             "frontend-hormonia/src/lib/api-client"
           ],
-          "approved": [
-            {
-              "path": "frontend-hormonia/src/lib/api-client/auth.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "headers['X-Session-ID'] = token",
-                  "label": "auth_client_emits_header"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/src/lib/api-client/core.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "headers['X-Session-ID'] = this.authToken",
-                  "label": "core_client_emits_header"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/src/lib/api-client/enhanced-analytics.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "'X-Session-ID': token,",
-                  "label": "analytics_client_emits_header"
-                }
-              ]
-            }
-          ]
+          "approved": []
         }
       }
     },
     {
       "id": "session_bearer_fallback",
       "display_name": "session-as-Bearer fallback",
-      "description": "Authorization: Bearer <session_id> fallback still accepted or emitted by shipped helpers and clients.",
+      "description": "Authorization: Bearer <session_id> text that survives only in backend rejection/detection plumbing after S04 removed it as accepted staff session transport; the frontend scope remains a reintroduction guard.",
       "matchers": [
         {
           "type": "literal",
@@ -591,72 +318,12 @@
               ]
             },
             {
-              "path": "backend-hormonia/app/api/v2/_quiz_shared.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "cookie/X-Session-ID/Bearer session_id",
-                  "label": "quiz_shared_bearer_docstring"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/auth_session_shared.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "Authorization: Bearer <session_id>",
-                  "label": "auth_session_shared_bearer_priority"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/templates_shared.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "Authorization header (Bearer <session_id>)",
-                  "label": "templates_shared_bearer_priority"
-                }
-              ]
-            },
-            {
               "path": "backend-hormonia/app/api/v2/routers/admin/dependencies.py",
               "anchors": [
                 {
                   "type": "literal",
-                  "pattern": "if auth_header.startswith(\"Bearer \"):",
-                  "label": "admin_dependencies_bearer_lookup"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/routers/auth.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "if auth_header and auth_header.startswith(\"Bearer \"):",
-                  "label": "auth_router_bearer_lookup"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "Authorization: Bearer <session_id> header",
-                  "label": "monthly_quiz_shared_bearer_docstring"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/routers/tasks/dependencies.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "Authorization header (Bearer <session_id>)",
-                  "label": "tasks_dependencies_bearer_docstring"
+                  "pattern": "or (auth_header and auth_header.startswith(\"Bearer \"))",
+                  "label": "admin_dependencies_legacy_bearer_detection"
                 }
               ]
             }
@@ -666,45 +333,14 @@
           "roots": [
             "frontend-hormonia/src/lib/api-client"
           ],
-          "approved": [
-            {
-              "path": "frontend-hormonia/src/lib/api-client/auth.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "headers['Authorization'] = `Bearer ${token}`",
-                  "label": "auth_client_bearer_header"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/src/lib/api-client/core.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "headers['Authorization'] = `Bearer ${this.authToken}`",
-                  "label": "core_client_bearer_header"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/src/lib/api-client/enhanced-analytics.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "Authorization: `Bearer ${token}`,",
-                  "label": "analytics_client_bearer_header"
-                }
-              ]
-            }
-          ]
+          "approved": []
         }
       }
     },
     {
       "id": "websocket_session_id_query",
       "display_name": "websocket session_id query fallback",
-      "description": "Legacy websocket session_id query fallback still emitted on the client and accepted on the server.",
+      "description": "Legacy websocket session_id query fallback text retained only in backend rejection plumbing after S04 removed it as accepted transport; the frontend scope remains a reintroduction guard.",
       "matchers": [
         {
           "type": "literal",
@@ -750,35 +386,14 @@
             "frontend-hormonia/src/lib/websocket.ts",
             "frontend-hormonia/src/hooks/useWebSocket.ts"
           ],
-          "approved": [
-            {
-              "path": "frontend-hormonia/src/hooks/useWebSocket.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "wsUrl.searchParams.set('session_id', sessionQueryId)",
-                  "label": "use_websocket_query_param"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/src/lib/websocket.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "url.searchParams.set('session_id', sessionFallback)",
-                  "label": "websocket_manager_query_param"
-                }
-              ]
-            }
-          ]
+          "approved": []
         }
       }
     },
     {
       "id": "firebase_narrative",
       "display_name": "Firebase narrative residue",
-      "description": "Firebase-era narrative/comments retained in shipped auth/session surfaces.",
+      "description": "Firebase-era narrative residue is no longer approved in backend runtime code after S04 retired auth_session.py; the frontend scope remains a reintroduction guard.",
       "matchers": [
         {
           "type": "literal",
@@ -786,23 +401,6 @@
         }
       ],
       "scopes": {
-        "backend": {
-          "roots": [
-            "backend-hormonia/app/routers/auth_session.py"
-          ],
-          "approved": [
-            {
-              "path": "backend-hormonia/app/routers/auth_session.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "Provides session management endpoints for Firebase + Redis architecture.",
-                  "label": "auth_session_router_firebase_story"
-                }
-              ]
-            }
-          ]
-        },
         "frontend": {
           "roots": [
             "frontend-hormonia/src/hooks/auth",
@@ -811,58 +409,7 @@
             "frontend-hormonia/src/utils/init-validator.ts",
             "frontend-hormonia/src/types/admin.ts"
           ],
-          "approved": [
-            {
-              "path": "frontend-hormonia/src/AdminApp.tsx",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "AuthProvider (Firebase authentication)",
-                  "label": "admin_app_firebase_provider_story"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/src/features/admin/AdminSessionManager.tsx",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "Firebase handles token refresh automatically",
-                  "label": "admin_session_manager_refresh_comment"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/src/hooks/auth/useSessionManagement.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "Firebase Auth SDK manages token refresh automatically",
-                  "label": "use_session_management_refresh_comment"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/src/types/admin.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "// Firebase authentication fields",
-                  "label": "admin_types_firebase_comment"
-                }
-              ]
-            },
-            {
-              "path": "frontend-hormonia/src/utils/init-validator.ts",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "authentication: true, // Firebase always available",
-                  "label": "init_validator_firebase_comment"
-                }
-              ]
-            }
-          ]
+          "approved": []
         }
       }
     }
