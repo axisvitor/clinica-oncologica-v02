@@ -8,15 +8,20 @@ from .auth_dependencies import (
     get_optional_user,
     get_admin_user,
 <<<<<<< HEAD
+<<<<<<< HEAD
     get_current_active_admin,
     get_permissions_for_role,
 =======
     get_doctor_user,
+=======
+>>>>>>> gsd/M003/S04
     get_current_active_admin,
-    get_current_user_websocket,
     get_permissions_for_role,
+<<<<<<< HEAD
     verify_firebase_token,
 >>>>>>> gsd/M003/S02
+=======
+>>>>>>> gsd/M003/S04
 )
 
 from .business_dependencies import (
@@ -178,15 +183,20 @@ __all__ = [
     "get_optional_user",
     "get_admin_user",
 <<<<<<< HEAD
+<<<<<<< HEAD
     "get_current_active_admin",
     "get_permissions_for_role",
 =======
     "get_doctor_user",
+=======
+>>>>>>> gsd/M003/S04
     "get_current_active_admin",
-    "get_current_user_websocket",
     "get_permissions_for_role",
+<<<<<<< HEAD
     "verify_firebase_token",
 >>>>>>> gsd/M003/S02
+=======
+>>>>>>> gsd/M003/S04
     # Business dependencies
     "get_pagination_params",
     "validate_patient_access",

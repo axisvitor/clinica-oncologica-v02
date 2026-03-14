@@ -381,6 +381,7 @@ async def get_generic_cache() -> GenericRedisCache:
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
     """Verify Firebase ID tokens through the legacy compatibility seam."""
@@ -391,6 +392,8 @@ async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
 
 
 >>>>>>> gsd/M003/S02
+=======
+>>>>>>> gsd/M003/S04
 def _get_user_from_db_sync(firebase_uid: str, db: Session) -> Optional[User]:
     """Fetch a user using an existing synchronous session."""
     from sqlalchemy import select
@@ -681,6 +684,7 @@ async def get_admin_user(current_user: User = Depends(get_current_active_user)) 
 =======
 
 
+<<<<<<< HEAD
 async def get_doctor_user(
     current_user: User = Depends(get_current_active_user),
 ) -> User:
@@ -705,6 +709,8 @@ async def get_current_user_websocket(
 >>>>>>> gsd/M003/S02
 
 
+=======
+>>>>>>> gsd/M003/S04
 async def get_current_active_admin(
     current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict:

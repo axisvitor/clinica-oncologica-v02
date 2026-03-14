@@ -1,8 +1,8 @@
 # S04 Cleanup Manifest
 
-**Slice:** S04 — Dead-Code And Obsolete-Compatibility Cleanup
-**Milestone:** M003
-**Published:** 2026-03-13
+**Slice:** S04 — Dead-Code And Obsolete-Compatibility Cleanup  
+**Milestone:** M003  
+**Published:** 2026-03-13  
 **Status:** closed with proof
 
 ## Purpose

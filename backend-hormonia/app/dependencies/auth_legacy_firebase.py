@@ -53,6 +53,7 @@ def initialize_firebase_service(*, settings_obj=settings) -> Any:
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 async def verify_firebase_token(
     id_token: str,
@@ -78,6 +79,8 @@ async def verify_firebase_token(
 
 
 >>>>>>> gsd/M003/S02
+=======
+>>>>>>> gsd/M003/S04
 def _cached_user_to_model(cached_user: Dict[str, Any]) -> User:
     """Convert cached bearer-auth user data into a ``User`` model."""
     cached_payload = dict(cached_user)
@@ -300,6 +303,7 @@ async def authenticate_legacy_bearer_user(
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 __all__ = [
     "authenticate_legacy_bearer_user",
     "initialize_firebase_service",
@@ -347,10 +351,14 @@ async def get_current_user_websocket(
         return None
 
 
+=======
+>>>>>>> gsd/M003/S04
 __all__ = [
     "authenticate_legacy_bearer_user",
-    "get_current_user_websocket",
     "initialize_firebase_service",
+<<<<<<< HEAD
     "verify_firebase_token",
 >>>>>>> gsd/M003/S02
+=======
+>>>>>>> gsd/M003/S04
 ]

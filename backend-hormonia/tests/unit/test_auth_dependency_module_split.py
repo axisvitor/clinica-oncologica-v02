@@ -13,9 +13,13 @@ from fastapi import Request
 from fastapi.security import HTTPAuthorizationCredentials
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import app.dependencies as dependency_exports
 =======
 >>>>>>> gsd/M003/S02
+=======
+import app.dependencies as dependency_exports
+>>>>>>> gsd/M003/S04
 from app.config import settings
 from app.dependencies import auth_dependencies
 from app.models.user import User, UserRole
@@ -227,6 +231,7 @@ async def test_get_current_user_from_session_delegates_to_split_session_contract
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 def test_removed_legacy_auth_exports_stay_absent_from_public_surface():
     auth_legacy_firebase = _import_split_module("auth_legacy_firebase")
     removed_public_symbols = {
@@ -249,21 +254,34 @@ def test_removed_legacy_auth_exports_stay_absent_from_public_surface():
 async def test_verify_firebase_token_delegates_to_auth_legacy_firebase(
     monkeypatch: pytest.MonkeyPatch,
 ):
+=======
+def test_removed_legacy_auth_exports_stay_absent_from_public_surface():
+>>>>>>> gsd/M003/S04
     auth_legacy_firebase = _import_split_module("auth_legacy_firebase")
-    firebase_service = object()
-    expected_user_data = {"uid": "firebaseuid12345678901234567"}
-    verifier = AsyncMock(return_value=expected_user_data)
-    monkeypatch.setattr(auth_legacy_firebase, "verify_firebase_token", verifier)
-    monkeypatch.setattr(auth_dependencies, "_firebase_service", firebase_service)
+    removed_public_symbols = {
+        "verify_firebase_token",
+        "get_doctor_user",
+        "get_current_user_websocket",
+    }
 
-    result = await auth_dependencies.verify_firebase_token("firebase-token")
+    package_exports = set(getattr(dependency_exports, "__all__", []))
 
+<<<<<<< HEAD
     assert result is expected_user_data
     verifier.assert_awaited_once_with(
         "firebase-token",
         firebase_service=firebase_service,
     )
 >>>>>>> gsd/M003/S02
+=======
+    for symbol in removed_public_symbols:
+        assert not hasattr(auth_dependencies, symbol)
+        assert symbol not in package_exports
+        assert not hasattr(dependency_exports, symbol)
+
+    for legacy_symbol in {"verify_firebase_token", "get_current_user_websocket"}:
+        assert not hasattr(auth_legacy_firebase, legacy_symbol)
+>>>>>>> gsd/M003/S04
 
 
 @pytest.mark.asyncio
@@ -318,6 +336,7 @@ async def test_get_current_user_delegates_legacy_bearer_auth_to_split_module(
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 @pytest.mark.asyncio
 async def test_get_current_user_websocket_delegates_to_auth_legacy_firebase(
@@ -352,6 +371,8 @@ async def test_get_current_user_websocket_delegates_to_auth_legacy_firebase(
 
 
 >>>>>>> gsd/M003/S02
+=======
+>>>>>>> gsd/M003/S04
 def test_resolve_user_role_delegates_to_auth_user_adapter(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -434,6 +455,7 @@ async def test_get_admin_user_delegates_to_split_role_dependency(
     assert result is admin_user
     checker.assert_awaited_once_with(admin_user)
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 
@@ -457,3 +479,5 @@ async def test_get_doctor_user_delegates_to_split_role_dependency(
     assert result is doctor_user
     checker.assert_awaited_once_with(doctor_user)
 >>>>>>> gsd/M003/S02
+=======
+>>>>>>> gsd/M003/S04
