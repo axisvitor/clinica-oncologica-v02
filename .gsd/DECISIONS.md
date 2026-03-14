@@ -283,3 +283,4 @@
 - "M004 must close with an explicit no-Firebase assembled-stack proof slice; grep and focused contract tests alone are not enough to claim runtime convergence."
 - "M004/S01 uses a slice-local `runtime-residue-allowlist.json` plus `verify-runtime-residue.sh` to guard official auth/session residue by category and scope; repo-wide `firebase` or `/session` bans are explicitly out of scope because they create false positives."
 - "M004/S01 backs the residue guard with a subprocess-style pytest regression (`backend-hormonia/tests/unit/test_runtime_residue_guard.py`) so later slices can change the boundary intentionally without relying on manual grep checks."
+- "M004/S01/T02 publishes the residue handoff with the verifier's exact category ids and `backend` / `frontend` scope names; any intentional boundary shrink must update the allowlist, research, summary, and UAT together."

@@ -32,6 +32,7 @@
 
 - `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py`
 - `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k unexpected_residue`
+- `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k moved_hotspot_reports_anchor_name`
 - `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all`
 - `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check all`
 
@@ -56,7 +57,7 @@
   - Do: Create a machine-readable allowlist grouped by residue class and official-runtime scope; implement `verify-runtime-residue.sh` with `--report` / `--check` and `backend` / `frontend` / `all` scopes, explicit out-of-scope exclusions, deterministic counts, and named drift failures; then add a subprocess-style pytest regression that proves approved residue fixtures pass while new unallowlisted residue fails in the expected category.
   - Verify: `(cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py) && bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all && bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check all`
   - Done when: the verifier and regression test are green, `--report` enumerates the approved live residue by category/file/count, and `--check` fails only on real scope drift.
-- [ ] **T02: Publish the official-runtime residue map and slice handoff** `est:45m`
+- [x] **T02: Publish the official-runtime residue map and slice handoff** `est:45m`
   - Why: S02–S05 need one durable map of approved official surfaces, retained compat islands, and exclusions; the script alone is not enough for downstream execution.
   - Files: `.gsd/milestones/M004/slices/S01/S01-RESEARCH.md`, `.gsd/milestones/M004/slices/S01/S01-SUMMARY.md`, `.gsd/milestones/M004/slices/S01/S01-UAT.md`, `.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json`, `.gsd/milestones/M004/slices/S01/verify-runtime-residue.sh`
   - Do: Update `S01-RESEARCH.md` with the finalized category-by-category residue map and the explicit official-versus-compat boundary, write `S01-SUMMARY.md` with the downstream cut order and inherited verification commands, write `S01-UAT.md` with the reviewer checklist for new residue and stale allowlist drift, and reconcile all three artifacts against the verifier output so later slices update one shared boundary.

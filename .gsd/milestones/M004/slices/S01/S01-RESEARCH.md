@@ -1,126 +1,226 @@
 # M004/S01 — Research
 
-**Date:** 2026-03-13
+**Date:** 2026-03-14
 
 ## Summary
 
-S01 does not directly own or support an Active requirement in `.gsd/REQUIREMENTS.md`; it is an enabling slice for `R047`, `R048`, `R049`, and `R050`. The real job here is to make runtime residue visible and replayable before S02–S05 start cutting it. Current shipped residue is real, not hypothetical: root `/session/*` is still mounted, canonical `/api/v2/auth/*` still writes `firebase_uid` into session cache metadata and still accepts `X-Session-ID` / `Authorization: Bearer <session_id>`, the official frontend client still emits both header forms and restores `session_id` from localStorage, and websocket auth still accepts a `session_id` query fallback on both client and server.
+S01 now closes on an executable residue boundary instead of a recommendation. `.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json` and `.gsd/milestones/M004/slices/S01/verify-runtime-residue.sh` are the official truth for the six runtime residue classes inside the `backend` and `frontend` scopes: `firebase_uid`, `root_legacy_session`, `x_session_id`, `session_bearer_fallback`, `websocket_session_id_query`, and `firebase_narrative`. Final reruns on 2026-03-14 ended with `RESULT: --report all OK` and `RESULT: --check all OK`; the map below mirrors that exact output.
 
-A repo-wide “ban firebase” guard would be the wrong tool. There are legitimate out-of-scope Firebase/schema leftovers, third-party `/session/*` strings under WuzAPI, and multiple live auth helper families with conflicting source precedence. The slice should instead produce a scoped verifier that reports exactly which official runtime surfaces still carry: `firebase_uid`, root legacy `/session/*`, `X-Session-ID`, Bearer-as-session fallback, websocket `session_id` query fallback, and Firebase operational narrative/comments in shipped files.
+The boundary is intentionally narrow. It covers the official auth/session runtime plus the explicit compatibility islands still shipped in `backend-hormonia/app` and `frontend-hormonia/src`. It does **not** treat repo-wide Firebase or `/session` strings as failures. Schema/model residue, historical docs/tests, and unrelated vendor/public session strings stay excluded so S02–S05 can cut live runtime behavior instead of fighting noise.
 
-Primary recommendation: create a new M004 guardrail script under `.gsd/milestones/M004/slices/S01/` with both `--report` and `--check` modes, reusing the shape of M002’s scoped residue scanner and M003’s machine-readable verifier. `--report` should print the current allowed residue map; `--check` should fail when new references appear outside the approved surface list or when existing hotspots move without the research boundary being updated. That gives S02–S05 a hard boundary for `R047`–`R050` without pretending those requirements are already satisfied.
+Downstream ownership is now explicit: S02 removes backend `firebase_uid` identity/session dependence from the canonical runtime path; S03 removes official frontend emission of `X-Session-ID`, `Authorization: Bearer <session_id>`, and websocket `session_id` query fallback; S04 retires the root `/session/*` island and backend acceptance of the legacy auth/session inputs; S05 removes the remaining adjacent `firebase_uid` and Firebase-narrative residue that survives the canonical cut.
 
 ## Recommendation
 
-Take a two-layer verifier approach.
+Treat the handoff pack as a three-part contract:
 
-1. **Runtime residue inventory (`--report`)**
-   - Emit one section each for:
-     - `firebase_uid` runtime dependence
-     - root legacy `/session/*`
-     - `X-Session-ID` emission/acceptance
-     - `Authorization: Bearer <session_id>` acceptance/emission
-     - websocket `session_id` query fallback
-     - Firebase operational narrative in shipped runtime files
-   - For each section, list current live files and counts, not just pass/fail.
-   - Keep scope to `backend-hormonia/app`, `frontend-hormonia/src`, and the slice-local verifier/artifacts. Do **not** scan repo-wide docs/tests/models by default.
+1. **Executable boundary:** `runtime-residue-allowlist.json` and `verify-runtime-residue.sh` define the approved files, anchors, scopes, and exclusions.
+2. **Readable map:** this research artifact explains why each approved hotspot is still live, which slice owns its removal, and which paths are intentionally excluded.
+3. **Change discipline:** when a future slice removes a hotspot, moves an approved anchor, or narrows the scope, update the allowlist, this file, `S01-SUMMARY.md`, and `S01-UAT.md` in the same change. A green verifier with stale docs is still drift.
 
-2. **Guardrail enforcement (`--check`)**
-   - Fail when:
-     - a new runtime file starts emitting or accepting `X-Session-ID`
-     - a new runtime file starts using session-as-Bearer fallback
-     - a new runtime file reintroduces Firebase narrative/comments in official auth/session surfaces
-     - `firebase_uid` appears in new runtime-auth/session/cache helpers outside the approved residual set
-     - root `/session/*` grows or stays ambiguous instead of remaining an explicit compat island
-   - Allow a small explicit allowlist for surfaces already known to be live in M004/S01.
+`--report all` is the inventory surface; `--check all` is the gate. If `--check` fails because a hotspot moved or disappeared, treat that as bookkeeping drift first and decide whether the removal was intentional before changing code or the allowlist.
 
-3. **Use separate allowlists, not one giant grep**
-   - `firebase_uid` allowlist: cache/session helpers, compat admin DTOs, legacy islands explicitly left for M004/S02–S05 or M005.
-   - `/session/*` allowlist: root legacy auth router only; explicitly exclude WuzAPI `/session/*` and quiz session routes from auth cleanup failures.
-   - header/bearer allowlist: current frontend auth client, current backend resolver families, websocket handshake.
-   - narrative allowlist: ideally empty for shipped auth/session files; failures here are useful early wins.
+## Finalized Residue Boundary
 
-4. **Treat resolver drift as a first-class problem**
-   - There are multiple live session resolvers with different precedence rules. The verifier should track all of them explicitly, because cutting only one leaves ambiguity alive.
-   - Current live resolver families:
-     - `backend-hormonia/app/dependencies/auth_session_contract.py`
-     - `backend-hormonia/app/api/v2/auth_session_shared.py`
-     - `backend-hormonia/app/api/v2/routers/auth.py::_get_session_id_from_request()`
+### Official runtime surfaces in scope
 
-5. **Define the official-runtime boundary up front**
-   - **In scope for S01 guardrails**
-     - `backend-hormonia/app/core/router_registry.py`
-     - `backend-hormonia/app/routers/auth_session.py`
-     - `backend-hormonia/app/dependencies/auth_*`
-     - `backend-hormonia/app/api/v2/auth_session_shared.py`
-     - `backend-hormonia/app/api/websockets.py`
-     - `backend-hormonia/app/core/redis_manager/session_cache.py`
-     - current frontend auth/api/websocket sources under `frontend-hormonia/src`
-   - **Out of scope for this slice’s failure surface**
-     - schema/model residue intended for M005
-     - historical docs/test artifacts unless they are the official proof harness
-     - vendor/session strings unrelated to staff auth (for example WuzAPI)
+The frozen S01 failure surface is the union of the category roots defined in `runtime-residue-allowlist.json`, filtered by the scope defaults in that file:
 
-Why this approach: it matches what S01 promises in the roadmap — an executable map of live runtime residue — without pretending the runtime is already canonical. It also sets up S02–S05 to remove residue one category at a time while keeping reintroduction visible.
+- `backend` scope: Python sources under the approved auth/session/runtime roots in `backend-hormonia/app`
+- `frontend` scope: TypeScript/TSX sources under the approved auth/api/websocket/admin roots in `frontend-hormonia/src` plus the shared admin types package
+- Proof artifacts: the slice-local allowlist, verifier, and subprocess regression harness that explain and enforce the boundary
+
+### Retained compatibility islands inside that boundary
+
+These strings are still intentionally live in S01 and therefore approved rather than treated as surprise drift:
+
+- The root legacy `/session/*` router mount and `backend-hormonia/app/routers/auth_session.py`
+- Backend acceptance of `X-Session-ID`, `Authorization: Bearer <session_id>`, and websocket `session_id` query fallback while the runtime is still converging
+- Frontend emission of `X-Session-ID`, `Authorization: Bearer <session_id>`, and websocket `session_id` query fallback while the official client is still pre-cutover
+- `firebase_uid` compatibility keys in backend auth/session/cache helpers and official admin/client type surfaces
+- Firebase-era operational comments/narrative that still appear in shipped runtime files
+
+### Out-of-scope exclusions (`runtime-residue-allowlist.json`)
+
+| Exclusion id | Why excluded | Paths |
+|---|---|---|
+| `schema_model_residue` | Schema/model residue belongs to M005, not the S01 official runtime failure surface. | `backend-hormonia/app/models/**`, `backend-hormonia/app/schemas/**` |
+| `historical_docs_tests` | Historical docs, generated docs, and tests may mention the legacy contract without representing live runtime drift. | `backend-hormonia/tests/**`, `backend-hormonia/docs/**`, `backend-hormonia/app/api/v2/routers/docs/**`, `frontend-hormonia/tests/**`, `frontend-hormonia/src/**/__tests__/**`, `frontend-hormonia/src/**/*.test.ts`, `frontend-hormonia/src/**/*.test.tsx`, `frontend-hormonia/src/**/*.spec.ts`, `frontend-hormonia/src/**/*.spec.tsx`, `docs/**` |
+| `vendor_or_unrelated_session_strings` | WuzAPI, quiz/public session strings, mocks, and other unrelated clients are not the staff auth/session runtime boundary frozen in S01. | `backend-hormonia/app/api/v2/monitoring/wuzapi.py`, `backend-hormonia/app/api/v2/routers/monthly_quiz_operations/public.py`, `backend-hormonia/app/api/v2/routers/monthly_quiz_operations/crud.py`, `frontend-hormonia/src/features/whatsapp/**`, `frontend-hormonia/src/services/whatsapp/**`, `frontend-hormonia/src/mocks/**`, `frontend-hormonia/src/monitoring/**` |
+
+## Approved Hotspot Inventory
+
+The lists below use the exact category ids and scope names from `runtime-residue-allowlist.json` and `verify-runtime-residue.sh`.
+
+### `firebase_uid`
+
+**Meaning:** runtime dependence on `firebase_uid` that still survives in auth/session/cache helpers and official admin compatibility types.
+
+- `backend` — 14 files / 133 matching lines
+  - `backend-hormonia/app/api/v2/auth_session_shared.py` (5)
+  - `backend-hormonia/app/api/v2/patients_shared_helpers.py` (3)
+  - `backend-hormonia/app/api/v2/patients_utils.py` (4)
+  - `backend-hormonia/app/api/v2/routers/admin/utils.py` (1)
+  - `backend-hormonia/app/api/v2/routers/auth.py` (7)
+  - `backend-hormonia/app/api/v2/user_cache_shared.py` (8)
+  - `backend-hormonia/app/core/redis_manager/session_cache.py` (8)
+  - `backend-hormonia/app/dependencies/auth_dependencies.py` (25)
+  - `backend-hormonia/app/dependencies/auth_legacy_firebase.py` (20)
+  - `backend-hormonia/app/dependencies/auth_role_dependencies.py` (4)
+  - `backend-hormonia/app/dependencies/auth_session_cache.py` (24)
+  - `backend-hormonia/app/dependencies/auth_session_contract.py` (4)
+  - `backend-hormonia/app/dependencies/auth_user_adapter.py` (1)
+  - `backend-hormonia/app/routers/auth_session.py` (19)
+- `frontend` — 4 files / 6 matching lines
+  - `frontend-hormonia/shared-types/src/admin.ts` (1)
+  - `frontend-hormonia/src/lib/api-client/admin.ts` (1)
+  - `frontend-hormonia/src/lib/api-client/normalizers.ts` (3)
+  - `frontend-hormonia/src/types/admin.ts` (1)
+- **Temporarily preserved in S01:** the backend still carries `firebase_uid` through canonical auth/session/cache helpers, legacy router paths, and adjacent patient/admin helpers; the frontend still exposes admin/client compatibility fields.
+- **Cut owner:** S02 removes `firebase_uid` from the official backend identity/session path first (`auth.py`, session/cache helpers, auth dependencies/contracts). S05 removes the remaining adjacent/backend-helper and frontend admin/type compatibility residue that survives after the canonical cut.
+
+### `root_legacy_session`
+
+**Meaning:** the root `/session/*` compatibility island that still ships beside `/api/v2/auth/*`.
+
+- `backend` — 2 files / 8 matching lines
+  - `backend-hormonia/app/core/router_registry.py` (1)
+  - `backend-hormonia/app/routers/auth_session.py` (7)
+- `frontend` — no approved surfaces
+- **Temporarily preserved in S01:** the mount and router stay live so later slices can retire them deliberately instead of assuming they are already dead.
+- **Cut owner:** S04. Keep this island stable through S02/S03 while the canonical backend/frontend contract is proven, then retire, reject, or tombstone it explicitly.
+
+### `x_session_id`
+
+**Meaning:** legacy `X-Session-ID` emission and acceptance across backend helpers and frontend clients.
+
+- `backend` — 16 files / 28 matching lines
+  - `backend-hormonia/app/api/v2/_quiz_shared.py` (1)
+  - `backend-hormonia/app/api/v2/auth_session_shared.py` (1)
+  - `backend-hormonia/app/api/v2/messages/helpers.py` (1)
+  - `backend-hormonia/app/api/v2/patients_utils.py` (1)
+  - `backend-hormonia/app/api/v2/routers/admin/dependencies.py` (2)
+  - `backend-hormonia/app/api/v2/routers/auth.py` (2)
+  - `backend-hormonia/app/api/v2/routers/enhanced_reports.py` (1)
+  - `backend-hormonia/app/api/v2/routers/localization.py` (3)
+  - `backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py` (1)
+  - `backend-hormonia/app/api/v2/routers/patients/base.py` (1)
+  - `backend-hormonia/app/api/v2/routers/reports.py` (1)
+  - `backend-hormonia/app/api/v2/routers/tasks/dependencies.py` (2)
+  - `backend-hormonia/app/api/v2/templates_shared.py` (3)
+  - `backend-hormonia/app/api/websockets.py` (1)
+  - `backend-hormonia/app/dependencies/auth_dependencies.py` (2)
+  - `backend-hormonia/app/routers/auth_session.py` (5)
+- `frontend` — 3 files / 5 matching lines
+  - `frontend-hormonia/src/lib/api-client/auth.ts` (1)
+  - `frontend-hormonia/src/lib/api-client/core.ts` (3)
+  - `frontend-hormonia/src/lib/api-client/enhanced-analytics.ts` (1)
+- **Temporarily preserved in S01:** the official client still emits the header and the backend still accepts it in multiple helper families.
+- **Cut owner:** S03 removes frontend emission first. S04 removes backend acceptance and any remaining docstring/helper spread once the official app is off the header.
+
+### `session_bearer_fallback`
+
+**Meaning:** `Authorization: Bearer <session_id>` fallback still emitted or accepted by shipped helpers and clients.
+
+- `backend` — 8 files / 11 matching lines
+  - `backend-hormonia/app/api/v2/_quiz_shared.py` (1)
+  - `backend-hormonia/app/api/v2/auth_session_shared.py` (2)
+  - `backend-hormonia/app/api/v2/routers/admin/dependencies.py` (2)
+  - `backend-hormonia/app/api/v2/routers/auth.py` (1)
+  - `backend-hormonia/app/api/v2/routers/monthly_quiz_operations/_shared.py` (1)
+  - `backend-hormonia/app/api/v2/routers/tasks/dependencies.py` (1)
+  - `backend-hormonia/app/api/v2/templates_shared.py` (2)
+  - `backend-hormonia/app/dependencies/auth_session_contract.py` (1)
+- `frontend` — 3 files / 4 matching lines
+  - `frontend-hormonia/src/lib/api-client/auth.ts` (1)
+  - `frontend-hormonia/src/lib/api-client/core.ts` (2)
+  - `frontend-hormonia/src/lib/api-client/enhanced-analytics.ts` (1)
+- **Temporarily preserved in S01:** the frontend still emits session-as-Bearer and the backend still resolves it.
+- **Cut owner:** S03 removes frontend Bearer-as-session emission. S04 removes backend acceptance and any explanatory residue that still advertises the fallback.
+
+### `websocket_session_id_query`
+
+**Meaning:** websocket `session_id` query fallback still emitted on the client and accepted on the server.
+
+- `backend` — 1 file / 4 matching lines
+  - `backend-hormonia/app/api/websockets.py` (4)
+- `frontend` — 2 files / 6 matching lines
+  - `frontend-hormonia/src/hooks/useWebSocket.ts` (3)
+  - `frontend-hormonia/src/lib/websocket.ts` (3)
+- **Temporarily preserved in S01:** both sides still know how to speak the fallback, so this cannot be cut safely on only one side.
+- **Cut owner:** S03 removes frontend query emission. S04 removes backend acceptance after the browser path is proven canonical.
+
+### `firebase_narrative`
+
+**Meaning:** Firebase-era comments and operational narrative still present in shipped auth/session surfaces.
+
+- `backend` — 1 file / 29 matching lines
+  - `backend-hormonia/app/routers/auth_session.py` (29)
+- `frontend` — 5 files / 12 matching lines
+  - `frontend-hormonia/src/AdminApp.tsx` (2)
+  - `frontend-hormonia/src/features/admin/AdminSessionManager.tsx` (5)
+  - `frontend-hormonia/src/hooks/auth/useSessionManagement.ts` (3)
+  - `frontend-hormonia/src/types/admin.ts` (1)
+  - `frontend-hormonia/src/utils/init-validator.ts` (1)
+- **Temporarily preserved in S01:** these files still tell the old Firebase story even where runtime behavior has already partially moved.
+- **Cut owner:** S04 removes the backend narrative when the root `/session/*` island is retired. S05 removes the remaining frontend/admin narrative and type commentary once the canonical runtime cut is complete.
+
+## Cut Order Snapshot For S02–S05
+
+1. **S02 — backend canonical identity/session cut**
+   - Remove backend-happy-path `firebase_uid` dependence from canonical auth/session/cache flows.
+   - Do **not** delete `/session/*`, `X-Session-ID`, Bearer-as-session, or websocket query fallback yet unless the allowlist/report are deliberately updated with matching proof.
+2. **S03 — official frontend canonical contract cut**
+   - Remove frontend emission of `X-Session-ID`, `Authorization: Bearer <session_id>`, and websocket `session_id` query fallback.
+   - Leave backend acceptance and root `/session/*` stable until S04 retires them deliberately.
+3. **S04 — retire legacy auth/session surfaces**
+   - Remove or tombstone the root `/session/*` island.
+   - Remove backend acceptance of `X-Session-ID`, session-as-Bearer, and websocket query fallback.
+   - Collapse backend Firebase narrative in `auth_session.py` as part of that retirement.
+4. **S05 — remove adjacent Firebase runtime residue**
+   - Remove remaining `firebase_uid` compatibility in adjacent helpers/types/admin surfaces.
+   - Remove the remaining frontend/admin Firebase narrative and operational semantics.
 
 ## Don't Hand-Roll
 
 | Problem | Existing Solution | Why Use It |
 |---------|------------------|------------|
-| Scoped residue scanning for auth cleanup | `.gsd/milestones/M002/slices/S04/verify-no-firebase-auth.sh` | Already proved the value of targeted `rg` checks with explicit hotspot allowlists instead of noisy repo-wide bans. |
-| Machine-readable report/check verifier shape | `.gsd/milestones/M003/slices/S01/verify-evidence-map.sh` | Already implements the right ergonomics for `--report` vs `--check`, anchored metrics, and drift notes. |
-| Canonical no-Firebase auth proof | `backend-hormonia/tests/integration/test_auth_hard_cut_end_to_end.py` | Proves the first-party login/verify/reset/logout flows on canonical `user_id` sessions and shows where Firebase-based fallback is no longer needed on the happy path. |
-| Legacy `/session/*` compatibility proof | `backend-hormonia/tests/auth/test_session_validation.py` | Pins the retained compat island semantics (`200 + valid:false`, header-based validation/logout) so S01 can distinguish intentional residue from accidental reintroduction. |
-| Frontend hard-cut contract proof | `frontend-hormonia/tests/integration/auth/hard-cut-cleanup-proof.test.tsx` | Already guards the public auth API against `createSession`/`getFirebaseToken` reintroduction and proves password change uses the first-party endpoint. |
+| Scoped runtime residue inventory and drift detection | `.gsd/milestones/M004/slices/S01/verify-runtime-residue.sh` | Already emits the approved boundary by category/scope and fails on unexpected files or moved anchors. |
+| Machine-readable hotspot ownership | `.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json` | Keeps file/anchor bookkeeping explicit so later cleanup updates the contract instead of relying on memory. |
+| Failure-path proof for the guardrail | `backend-hormonia/tests/unit/test_runtime_residue_guard.py` | Proves unexpected residue and moved hotspots fail with category/path/anchor diagnostics. |
+| Historical pattern for scoped residue gates | `.gsd/milestones/M002/slices/S04/verify-no-firebase-auth.sh` and `.gsd/milestones/M003/slices/S01/verify-evidence-map.sh` | These are the prior milestones’ working examples of targeted, low-noise cleanup guards. |
 
 ## Existing Code and Patterns
 
-- `backend-hormonia/app/core/router_registry.py` — authoritative live-app truth: both the root legacy `/session` router and `/ws` websocket routes are still mounted.
-- `backend-hormonia/app/routers/auth_session.py` — real compatibility island, not dead code. `validate` / `logout` use cookie + `X-Session-ID`; `logout-all` / `active` still use Firebase Bearer verification; top-level docstring still tells the Firebase-era story.
-- `backend-hormonia/app/api/v2/routers/auth.py` — canonical `/api/v2/auth/*` contract; still writes `firebase_uid` into session cache metadata, still extracts session IDs from cookie / `X-Session-ID` / `Authorization: Bearer`.
-- `backend-hormonia/app/dependencies/auth_dependencies.py` — session-first façade with a live legacy bearer fallback when no cookie/header session is present.
-- `backend-hormonia/app/dependencies/auth_session_contract.py` — one live session resolver family; precedence is setting-driven and not identical to the shared V2 helper.
-- `backend-hormonia/app/api/v2/auth_session_shared.py` — second resolver family; hard-codes `Bearer -> X-Session-ID -> cookie -> query_session_id`, which matters for websocket and helper drift.
-- `backend-hormonia/app/core/redis_manager/session_cache.py` — still stores `firebase_uid` in session payloads and matches global invalidation by either canonical `user_id` or compatibility `firebase_uid`.
-- `backend-hormonia/app/api/v2/user_cache_shared.py` — still reads/writes cached user data by both `id` and `firebase_uid`; this is one of the key runtime pivot points for `R049` risk.
-- `backend-hormonia/app/api/websockets.py` — websocket handshake still accepts `session_id` from query string as a live fallback in addition to cookie/header sources.
-- `backend-hormonia/app/api/v2/templates_shared.py` — representative V2 helper still accepts `Authorization`, `X-Session-ID`, and cookie session sources; useful model for how far header fallback has spread beyond auth routes.
-- `backend-hormonia/app/api/v2/patients_shared_helpers.py` and `backend-hormonia/app/api/v2/patients_utils.py` — older helper family still resolves session -> `firebase_uid` -> user, so S01 cannot assume the canonical helpers are the only live dependency path.
-- `frontend-hormonia/src/lib/api-client/core.ts` — official frontend runtime still emits both `Authorization: Bearer <session_id>` and `X-Session-ID` when an auth token is present.
-- `frontend-hormonia/src/lib/api-client/auth.ts` — verify-session client still sends both header forms, and the public auth client still treats `session_id` as the core browser-held token.
-- `frontend-hormonia/src/app/providers/AuthContext.tsx` — official app persists `session_id` in localStorage, restores it on startup, and configures the API client with that token before cookie-only verification runs.
-- `frontend-hormonia/src/lib/websocket.ts` and `frontend-hormonia/src/hooks/useWebSocket.ts` — current frontend websocket path still appends `session_id` query fallback when a session-style token is present.
-- `frontend-hormonia/src/hooks/auth/useSessionManagement.ts` — no live Firebase code, but still contains Firebase-auth operational comments that tell the wrong runtime story.
-- `frontend-hormonia/src/features/admin/AdminSessionManager.tsx` — another shipped Firebase-narrative surface; describes session extension/refresh as Firebase-managed.
-- `frontend-hormonia/src/AdminApp.tsx` — shipped comment block still says `AuthProvider (Firebase authentication)`.
-- `frontend-hormonia/src/utils/init-validator.ts` — current init validator still hardcodes `authentication: true` with a Firebase-era comment.
-- `frontend-hormonia/src/types/admin.ts` and `frontend-hormonia/shared-types/src/admin.ts` — official frontend/admin type surfaces still expose Firebase-specific fields and enums.
+- `.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json` — authoritative category ids, scope names, approved hotspots, anchors, and exclusions.
+- `.gsd/milestones/M004/slices/S01/verify-runtime-residue.sh` — authoritative `--report` / `--check` surface; use this before reading the repo manually.
+- `backend-hormonia/tests/unit/test_runtime_residue_guard.py` — authoritative proof that the guard emits inspectable `unexpected_file=` and `moved_hotspot=` failures.
+- `backend-hormonia/app/api/v2/routers/auth.py`, `backend-hormonia/app/dependencies/auth_*`, and `backend-hormonia/app/core/redis_manager/session_cache.py` — the backend happy-path/auth-session core that S02 must canonicalize away from `firebase_uid`.
+- `frontend-hormonia/src/lib/api-client/*.ts`, `frontend-hormonia/src/lib/websocket.ts`, and `frontend-hormonia/src/hooks/useWebSocket.ts` — the official frontend contract that S03 must stop emitting through header/bearer/query fallbacks.
+- `backend-hormonia/app/routers/auth_session.py` and `backend-hormonia/app/core/router_registry.py` — the retained root `/session/*` compatibility island that S04 must retire explicitly.
+- `frontend-hormonia/src/types/admin.ts`, `frontend-hormonia/shared-types/src/admin.ts`, `frontend-hormonia/src/lib/api-client/admin.ts`, and the Firebase narrative files — adjacent/admin residue that S05 must remove once the canonical runtime path is already green.
 
 ## Constraints
 
-- S01 is an **enabling** slice for `R047`, `R048`, `R049`, and `R050`; it does not validate them by itself. Its job is to make their runtime residue visible and guardable.
-- A repo-wide `firebase` or `/session/` ban will be wrong. The repo still contains legitimate schema/model residue, WuzAPI `/session/*` strings, and quiz/public session routes that are not the same as staff-auth runtime residue.
-- There is **no single source of truth** for session ID precedence today. Multiple live resolver families disagree on cookie/header/Bearer/query ordering.
-- The official frontend runtime still emits `X-Session-ID` and `Authorization: Bearer <session_id>`; S01 cannot treat these as test-only residue.
-- Websocket query fallback is live on **both** client and server. Any future cut has to land on both sides together.
-- Root legacy `/session/*` is mixed: `validate`/`logout` are session-based, while `logout-all`/`active` still depend on Firebase bearer verification.
-- Many `firebase_uid` occurrences are not equal in importance. S01 should isolate **runtime-auth/session/cache** dependence from broader schema/audit leftovers intended for M005.
+- S01 is an enabling slice only. It freezes the runtime boundary; it does not prove runtime convergence by itself.
+- The official runtime boundary is scoped by the allowlist. Repo-wide Firebase or `/session` greps are intentionally out of scope because they create false positives.
+- Multiple live backend resolver families still disagree on source precedence. Until S02/S04 land, the verifier must keep all approved header/bearer/query hotspots visible.
+- Websocket query fallback is two-sided. Do not remove only the backend or only the frontend half and then hand-wave the rest.
+- Anything left for M005 must be schema/migration residue, not ambiguous live runtime behavior.
 
 ## Common Pitfalls
 
-- **Using a single repo-wide grep as the guardrail** — this will drown in false positives from models, docs, tests, WuzAPI, and other out-of-scope session strings. Keep the verifier scoped to the official runtime boundary.
-- **Treating `X-Session-ID` and Bearer-as-session as stale tests only** — the shipped frontend client still emits both, and backend helpers still accept them.
-- **Guarding only `auth.py` and missing the spread helpers** — `templates_shared.py`, `tasks/dependencies.py`, `localization.py`, patient helpers, and websocket handshake code still participate in the live session contract.
-- **Cutting websocket query fallback on only one side** — the browser still appends `session_id` query params, and the backend still accepts them.
-- **Ignoring narrative residue because the code path works** — S01 explicitly promises guardrails for Firebase narrative/semantics too. Wrong comments/logs in shipped auth/session files are part of the runtime ambiguity.
+- **Updating the allowlist but not the docs** — later slices need the readable map and cut owner, not just a green script.
+- **Cutting frontend fallback and backend fallback in the same unbounded pass** — S03 and S04 split those responsibilities for a reason; keep the blast radius small.
+- **Treating all `firebase_uid` files as equal** — some are canonical auth/session blockers for S02, others are adjacent/admin cleanups for S05.
+- **Broadening the failure scope to docs/tests/vendor code** — that makes the guard noisy and hides real runtime drift.
 
 ## Open Risks
 
-- **Resolver drift may survive unnoticed** — because multiple resolver families exist, one path can become canonical while another quietly keeps accepting header/query/bearer residue.
-- **Frontend contract cleanup may lag behind runtime cleanup** — even if the auth happy path works, admin/shared types and runtime comments can keep the official contract narratively tied to Firebase.
-- **`firebase_uid` is still a real runtime pivot in cache/session helpers** — cutting the obvious router code without addressing cache hydration and invalidation paths will leave `R049` half-open.
-- **Legacy `/session/*` has deeper live behavior than expected** — `logout-all` and `active` are still Firebase-bearer-based, so S04 will be more than a simple header rejection pass.
-- **Secondary clients may be overlooked** — `frontend-hormonia/src/lib/api-client/enhanced-analytics.ts` still emits both `Authorization` and `X-Session-ID`, so guardrails that only inspect the main auth client will miss reintroduction paths.
+- Resolver drift can still hide behind non-auth V2 helpers until S04 removes the acceptance paths, because `X-Session-ID` and Bearer session fallback have spread beyond the obvious auth router.
+- `firebase_uid` still bridges cache/session/user helpers; if S02 only patches the login router, the canonical identity path stays ambiguous.
+- Root `/session/*` retirement is deeper than a route delete: `auth_session.py` still mixes session validation/logout with Firebase-bearer behavior and narrative residue.
+- Frontend admin types and narrative can make the system look Firebase-shaped even after the happy path is canonical unless S05 closes them deliberately.
 
 ## Skills Discovered
 
@@ -132,14 +232,8 @@ Why this approach: it matches what S01 promises in the roadmap — an executable
 
 ## Sources
 
-- Live router mount truth: root legacy `/session` and `/ws` are still part of the shipped app (source: [`backend-hormonia/app/core/router_registry.py`](backend-hormonia/app/core/router_registry.py))
-- Root legacy router is still a real compat island and still carries Firebase narrative plus mixed auth behavior (`validate/logout` vs `logout-all/active`) (source: [`backend-hormonia/app/routers/auth_session.py`](backend-hormonia/app/routers/auth_session.py))
-- Canonical auth still writes `firebase_uid` into session cache metadata and still accepts cookie / `X-Session-ID` / Bearer extraction (source: [`backend-hormonia/app/api/v2/routers/auth.py`](backend-hormonia/app/api/v2/routers/auth.py))
-- Session-first façade still keeps a legacy bearer fallback, and session resolution is split across multiple helper families (source: [`backend-hormonia/app/dependencies/auth_dependencies.py`](backend-hormonia/app/dependencies/auth_dependencies.py), [`backend-hormonia/app/dependencies/auth_session_contract.py`](backend-hormonia/app/dependencies/auth_session_contract.py), [`backend-hormonia/app/api/v2/auth_session_shared.py`](backend-hormonia/app/api/v2/auth_session_shared.py))
-- Cache/session helpers still use `firebase_uid` as a live compatibility key for hydration, caching, and invalidation (source: [`backend-hormonia/app/core/redis_manager/session_cache.py`](backend-hormonia/app/core/redis_manager/session_cache.py), [`backend-hormonia/app/api/v2/user_cache_shared.py`](backend-hormonia/app/api/v2/user_cache_shared.py))
-- Older V2 helpers still resolve authenticated users through `firebase_uid`, so canonical auth helpers are not the only live path (source: [`backend-hormonia/app/api/v2/patients_shared_helpers.py`](backend-hormonia/app/api/v2/patients_shared_helpers.py), [`backend-hormonia/app/api/v2/patients_utils.py`](backend-hormonia/app/api/v2/patients_utils.py), [`backend-hormonia/app/api/v2/templates_shared.py`](backend-hormonia/app/api/v2/templates_shared.py))
-- Websocket auth still accepts query-string session fallback on the backend and still emits it on the frontend (source: [`backend-hormonia/app/api/websockets.py`](backend-hormonia/app/api/websockets.py), [`frontend-hormonia/src/lib/websocket.ts`](frontend-hormonia/src/lib/websocket.ts), [`frontend-hormonia/src/hooks/useWebSocket.ts`](frontend-hormonia/src/hooks/useWebSocket.ts))
-- Official frontend auth runtime still stores `session_id`, restores it on boot, and emits both `Authorization` and `X-Session-ID` (source: [`frontend-hormonia/src/app/providers/AuthContext.tsx`](frontend-hormonia/src/app/providers/AuthContext.tsx), [`frontend-hormonia/src/lib/api-client/core.ts`](frontend-hormonia/src/lib/api-client/core.ts), [`frontend-hormonia/src/lib/api-client/auth.ts`](frontend-hormonia/src/lib/api-client/auth.ts), [`frontend-hormonia/src/lib/api-client/enhanced-analytics.ts`](frontend-hormonia/src/lib/api-client/enhanced-analytics.ts))
-- Shipped frontend narrative/type surfaces still carry Firebase semantics even where runtime logic no longer depends on it (source: [`frontend-hormonia/src/AdminApp.tsx`](frontend-hormonia/src/AdminApp.tsx), [`frontend-hormonia/src/hooks/auth/useSessionManagement.ts`](frontend-hormonia/src/hooks/auth/useSessionManagement.ts), [`frontend-hormonia/src/features/admin/AdminSessionManager.tsx`](frontend-hormonia/src/features/admin/AdminSessionManager.tsx), [`frontend-hormonia/src/utils/init-validator.ts`](frontend-hormonia/src/utils/init-validator.ts), [`frontend-hormonia/src/types/admin.ts`](frontend-hormonia/src/types/admin.ts), [`frontend-hormonia/shared-types/src/admin.ts`](frontend-hormonia/shared-types/src/admin.ts))
-- Reusable verifier and proof patterns already exist and should be adapted rather than reinvented (source: [`.gsd/milestones/M002/slices/S04/verify-no-firebase-auth.sh`](.gsd/milestones/M002/slices/S04/verify-no-firebase-auth.sh), [`.gsd/milestones/M003/slices/S01/verify-evidence-map.sh`](.gsd/milestones/M003/slices/S01/verify-evidence-map.sh), [`backend-hormonia/tests/auth/test_session_validation.py`](backend-hormonia/tests/auth/test_session_validation.py), [`backend-hormonia/tests/integration/test_auth_hard_cut_end_to_end.py`](backend-hormonia/tests/integration/test_auth_hard_cut_end_to_end.py), [`frontend-hormonia/tests/integration/auth/hard-cut-cleanup-proof.test.tsx`](frontend-hormonia/tests/integration/auth/hard-cut-cleanup-proof.test.tsx))
-- External skill suggestions for the core stack were discovered with `npx skills find` for FastAPI, React, and Playwright (source: local skill discovery commands run during S01 research)
+- The authoritative hotspot definitions, exclusions, and anchors now live in `.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json` (source: [`.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json`](.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json))
+- The readable inventory and drift gate now live in `.gsd/milestones/M004/slices/S01/verify-runtime-residue.sh` (source: [`.gsd/milestones/M004/slices/S01/verify-runtime-residue.sh`](.gsd/milestones/M004/slices/S01/verify-runtime-residue.sh))
+- Failure-path diagnostics are pinned by the subprocess regression harness in `backend-hormonia/tests/unit/test_runtime_residue_guard.py` (source: [`backend-hormonia/tests/unit/test_runtime_residue_guard.py`](backend-hormonia/tests/unit/test_runtime_residue_guard.py))
+- M004 slice ordering and ownership come from the milestone roadmap (source: [`.gsd/milestones/M004/M004-ROADMAP.md`](.gsd/milestones/M004/M004-ROADMAP.md))
+- The official runtime motivation and non-goals come from the milestone context (source: [`.gsd/milestones/M004/M004-CONTEXT.md`](.gsd/milestones/M004/M004-CONTEXT.md))
