@@ -31,6 +31,7 @@
 ## Verification
 
 - `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py`
+- `cd backend-hormonia && pytest -q tests/unit/test_runtime_residue_guard.py -k unexpected_residue`
 - `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --report all`
 - `bash .gsd/milestones/M004/slices/S01/verify-runtime-residue.sh --check all`
 
@@ -49,7 +50,7 @@
 
 ## Tasks
 
-- [ ] **T01: Build the scoped runtime-residue verifier and regression harness** `est:55m`
+- [x] **T01: Build the scoped runtime-residue verifier and regression harness** `est:55m`
   - Why: The slice only becomes real once the residue boundary is executable and can fail on drift; later artifact work should close against a living contract, not prose.
   - Files: `.gsd/milestones/M004/slices/S01/verify-runtime-residue.sh`, `.gsd/milestones/M004/slices/S01/runtime-residue-allowlist.json`, `backend-hormonia/tests/unit/test_runtime_residue_guard.py`
   - Do: Create a machine-readable allowlist grouped by residue class and official-runtime scope; implement `verify-runtime-residue.sh` with `--report` / `--check` and `backend` / `frontend` / `all` scopes, explicit out-of-scope exclusions, deterministic counts, and named drift failures; then add a subprocess-style pytest regression that proves approved residue fixtures pass while new unallowlisted residue fails in the expected category.
