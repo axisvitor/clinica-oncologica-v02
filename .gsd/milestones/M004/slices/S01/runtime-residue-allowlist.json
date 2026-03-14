@@ -75,7 +75,7 @@
     {
       "id": "firebase_uid",
       "display_name": "firebase_uid",
-      "description": "Compatibility-oriented firebase_uid residue retained in backend fallback helpers and legacy/root-session seams after S03 removed the official frontend admin/type baggage.",
+      "description": "firebase_uid runtime dependence retained in auth/session/cache helpers and official admin compatibility types.",
       "matchers": [
         {
           "type": "literal",
@@ -134,7 +134,7 @@
                 {
                   "type": "literal",
                   "pattern": "firebase_uid = session_data.get(\"firebase_uid\")",
-                  "label": "auth_session_cache_compat_uid_fallback"
+                  "label": "auth_session_cache_session_uid_lookup"
                 }
               ]
             },
@@ -144,7 +144,7 @@
                 {
                   "type": "literal",
                   "pattern": "load_user_from_db_by_firebase_uid: Callable[[str], Any],",
-                  "label": "auth_session_contract_compat_uid_loader"
+                  "label": "auth_session_contract_uid_loader"
                 }
               ]
             },
@@ -184,7 +184,7 @@
                 {
                   "type": "literal",
                   "pattern": "\"firebase_uid\": \"firebase_uid\"",
-                  "label": "auth_session_shared_compat_uid_passthrough"
+                  "label": "auth_session_shared_canonical_mapping"
                 }
               ]
             },
@@ -234,7 +234,7 @@
                 {
                   "type": "literal",
                   "pattern": "firebase_uid: Optional[str] = None,",
-                  "label": "user_cache_shared_compat_uid_fallback"
+                  "label": "user_cache_shared_uid_fallback"
                 }
               ]
             }
@@ -246,7 +246,48 @@
             "frontend-hormonia/src/types/admin.ts",
             "frontend-hormonia/shared-types/src/admin.ts"
           ],
-          "approved": []
+          "approved": [
+            {
+              "path": "frontend-hormonia/src/lib/api-client/admin.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "firebase_uid?: string",
+                  "label": "admin_client_uid_field"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/src/lib/api-client/normalizers.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "firebase_uid: backendUser.firebase_uid,",
+                  "label": "normalizers_preserve_firebase_uid"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/src/types/admin.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "firebase_uid: string | null",
+                  "label": "admin_types_uid_field"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/shared-types/src/admin.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "firebase_uid?: string | null",
+                  "label": "shared_admin_types_uid_field"
+                }
+              ]
+            }
+          ]
         }
       }
     },
@@ -294,7 +335,7 @@
     {
       "id": "x_session_id",
       "display_name": "X-Session-ID",
-      "description": "Legacy X-Session-ID residue retained in backend acceptance/helpers after S03 removed official frontend emission; the frontend scope now acts as a reintroduction guard.",
+      "description": "Legacy X-Session-ID emission and acceptance that remains live across backend helpers and frontend clients.",
       "matchers": [
         {
           "type": "literal",
@@ -476,14 +517,45 @@
           "roots": [
             "frontend-hormonia/src/lib/api-client"
           ],
-          "approved": []
+          "approved": [
+            {
+              "path": "frontend-hormonia/src/lib/api-client/auth.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "headers['X-Session-ID'] = token",
+                  "label": "auth_client_emits_header"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/src/lib/api-client/core.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "headers['X-Session-ID'] = this.authToken",
+                  "label": "core_client_emits_header"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/src/lib/api-client/enhanced-analytics.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "'X-Session-ID': token,",
+                  "label": "analytics_client_emits_header"
+                }
+              ]
+            }
+          ]
         }
       }
     },
     {
       "id": "session_bearer_fallback",
       "display_name": "session-as-Bearer fallback",
-      "description": "Authorization: Bearer <session_id> residue retained in backend acceptance/helpers after S03 removed official frontend emission; the frontend scope now acts as a reintroduction guard.",
+      "description": "Authorization: Bearer <session_id> fallback still accepted or emitted by shipped helpers and clients.",
       "matchers": [
         {
           "type": "literal",
@@ -594,14 +666,45 @@
           "roots": [
             "frontend-hormonia/src/lib/api-client"
           ],
-          "approved": []
+          "approved": [
+            {
+              "path": "frontend-hormonia/src/lib/api-client/auth.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "headers['Authorization'] = `Bearer ${token}`",
+                  "label": "auth_client_bearer_header"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/src/lib/api-client/core.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "headers['Authorization'] = `Bearer ${this.authToken}`",
+                  "label": "core_client_bearer_header"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/src/lib/api-client/enhanced-analytics.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "Authorization: `Bearer ${token}`,",
+                  "label": "analytics_client_bearer_header"
+                }
+              ]
+            }
+          ]
         }
       }
     },
     {
       "id": "websocket_session_id_query",
       "display_name": "websocket session_id query fallback",
-      "description": "Legacy websocket session_id query fallback retained only in backend acceptance after S03 removed official client emission; the frontend scope now acts as a reintroduction guard.",
+      "description": "Legacy websocket session_id query fallback still emitted on the client and accepted on the server.",
       "matchers": [
         {
           "type": "literal",
@@ -647,14 +750,35 @@
             "frontend-hormonia/src/lib/websocket.ts",
             "frontend-hormonia/src/hooks/useWebSocket.ts"
           ],
-          "approved": []
+          "approved": [
+            {
+              "path": "frontend-hormonia/src/hooks/useWebSocket.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "wsUrl.searchParams.set('session_id', sessionQueryId)",
+                  "label": "use_websocket_query_param"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/src/lib/websocket.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "url.searchParams.set('session_id', sessionFallback)",
+                  "label": "websocket_manager_query_param"
+                }
+              ]
+            }
+          ]
         }
       }
     },
     {
       "id": "firebase_narrative",
       "display_name": "Firebase narrative residue",
-      "description": "Firebase-era narrative/comments retained only in backend compatibility surfaces after S03 removed the shipped frontend auth/admin narrative residue.",
+      "description": "Firebase-era narrative/comments retained in shipped auth/session surfaces.",
       "matchers": [
         {
           "type": "literal",
@@ -687,7 +811,58 @@
             "frontend-hormonia/src/utils/init-validator.ts",
             "frontend-hormonia/src/types/admin.ts"
           ],
-          "approved": []
+          "approved": [
+            {
+              "path": "frontend-hormonia/src/AdminApp.tsx",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "AuthProvider (Firebase authentication)",
+                  "label": "admin_app_firebase_provider_story"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/src/features/admin/AdminSessionManager.tsx",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "Firebase handles token refresh automatically",
+                  "label": "admin_session_manager_refresh_comment"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/src/hooks/auth/useSessionManagement.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "Firebase Auth SDK manages token refresh automatically",
+                  "label": "use_session_management_refresh_comment"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/src/types/admin.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "// Firebase authentication fields",
+                  "label": "admin_types_firebase_comment"
+                }
+              ]
+            },
+            {
+              "path": "frontend-hormonia/src/utils/init-validator.ts",
+              "anchors": [
+                {
+                  "type": "literal",
+                  "pattern": "authentication: true, // Firebase always available",
+                  "label": "init_validator_firebase_comment"
+                }
+              ]
+            }
+          ]
         }
       }
     }

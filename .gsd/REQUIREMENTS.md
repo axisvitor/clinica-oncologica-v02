@@ -14,49 +14,82 @@ Guidelines:
 
 ## Active
 
-### R034 — Critical mixed-responsibility hotspots are split into smaller modules
-- Class: quality-attribute
+### R047 — Firebase sai de vez do runtime oficial
+- Class: constraint
 - Status: active
-- Description: The milestone must materially reduce the size and responsibility sprawl of the highest-value hotspots instead of leaving the same behavior trapped in giant files.
-- Why it matters: Large mixed-responsibility files make safe changes, debugging, and review disproportionately expensive.
+- Description: O runtime oficial do sistema deixa de depender de Firebase para autenticação, sessão, identidade da equipe ou narrativa operacional do caminho feliz.
+- Why it matters: Enquanto Firebase ainda estiver vivo no runtime oficial, a base continua com transição aberta e comportamento ambíguo.
 - Source: user
-- Primary owning slice: M003/S02
-- Supporting slices: M003/S03, M003/S04
+- Primary owning slice: M004/S05
+- Supporting slices: M004/S01, M004/S02, M004/S03, M004/S04, M004/S06
 - Validation: mapped
-- Notes: The first attack zone is backend auth/session, with frontend client/type surfaces following immediately after.
+- Notes: O usuário foi explícito: não utilizaremos mais Firebase no sistema. O foco é remover dependência real, não apenas esconder o legado atrás de shims.
 
-### R037 — Visible contracts remain stable during the cleanup
+### R048 — Auth/sessão converge para um contrato canônico único
 - Class: continuity
 - Status: active
-- Description: The refactor must not unnecessarily change user-visible behavior, critical payload shapes, or the main staff-auth/dashboard/admin/flow entrypoint behavior.
-- Why it matters: This work is meant to buy maintainability, not hide regressions behind cleanup language.
-- Source: user
-- Primary owning slice: M003/S05
-- Supporting slices: M003/S02, M003/S03, M003/S04
+- Description: O sistema oficial da equipe autentica, restaura sessão e revoga sessão por um único contrato canônico, sem caminhos duplos ainda aceitos por inércia histórica.
+- Why it matters: Caminhos paralelos de auth/sessão tornam qualquer manutenção futura arriscada e difícil de raciocinar.
+- Source: inferred
+- Primary owning slice: M004/S02
+- Supporting slices: M004/S01, M004/S03, M004/S04, M004/S06
 - Validation: mapped
-- Notes: The user explicitly called contract drift “past the point” for this milestone.
+- Notes: O app oficial é o único consumidor real dos contratos, então compatibilidades legadas não precisam continuar vivas por padrão.
 
-### R038 — The codebase becomes safer to change in practice
-- Class: operability
+### R049 — A identidade canônica deixa de depender de `firebase_uid` no runtime
+- Class: integration
 - Status: active
-- Description: After the milestone, maintainers should be able to reason about and change the targeted areas with less fear because module boundaries and responsibilities are clearer.
-- Why it matters: The primary beneficiary is whoever maintains the system next, not just the current cleanup effort.
-- Source: user
-- Primary owning slice: M003/S05
-- Supporting slices: M003/S02, M003/S03, M003/S04
+- Description: O runtime resolve identidade, cache, sessão e superfícies oficiais por `id` / `user_id`, sem precisar de `firebase_uid` no happy path nem como pivô funcional oculto.
+- Why it matters: Enquanto `firebase_uid` continuar sendo chave funcional no runtime, o hard cut permanece incompleto.
+- Source: inferred
+- Primary owning slice: M004/S02
+- Supporting slices: M004/S01, M004/S04, M004/S05
 - Validation: mapped
-- Notes: “Mudar sem medo” is the user’s main success shape for the milestone.
+- Notes: O drop físico de schema relacionado a Firebase fica para M005; M004 fecha a dependência funcional de runtime.
 
-### R039 — Structural cleanup leaves strong proof, not just nicer files
+### R050 — O frontend oficial usa apenas o contrato canônico sem resíduo funcional de Firebase
+- Class: primary-user-loop
+- Status: active
+- Description: `/login`, `/dashboard`, `/admin` e superfícies oficiais relacionadas usam apenas o contrato session-first canônico, sem lógica funcional, comentários operacionais ou tipos oficiais ancorados em Firebase.
+- Why it matters: Não basta o backend estar cortado se o app oficial ainda age como se Firebase estivesse vivo.
+- Source: inferred
+- Primary owning slice: M004/S03
+- Supporting slices: M004/S01, M004/S04, M004/S05, M004/S06
+- Validation: mapped
+- Notes: O milestone precisa limpar comportamento, contratos e narrativa operacional do frontend oficial.
+
+### R051 — Schema e migrações refletem o modelo final, não o legado de transição
 - Class: quality-attribute
 - Status: active
-- Description: The milestone must leave focused verification and smoke evidence that the refactor preserved critical auth/session, dashboard/admin, and WhatsApp flow behavior.
-- Why it matters: Refactors are only worth trusting if the new structure is backed by proof, not aesthetics.
-- Source: inferred
-- Primary owning slice: M003/S05
-- Supporting slices: M003/S01, M003/S02, M003/S03, M003/S04
+- Description: O schema ativo, os modelos e o grafo Alembic deixam de carregar resíduo estrutural de Firebase/legado como parte necessária do sistema atual.
+- Why it matters: Sem fechar o banco e as migrações, a convergência fica incompleta e frágil para novos ambientes ou upgrades.
+- Source: user
+- Primary owning slice: M005/S?? (provisional)
+- Supporting slices: none
 - Validation: mapped
-- Notes: The preferred acceptance signal is focused suites plus critical smoke checks rather than a purely cosmetic diff.
+- Notes: Esta frente trata colunas, enums, logs de sync, migrations neutralizadas/one-way e qualquer drift estrutural ainda pendente.
+
+### R052 — Código morto e compatibilidades restantes são removidos com prova
+- Class: operability
+- Status: active
+- Description: O restante do código morto, bridges, aliases, tombstones e compatibilidades sem uso real é removido com evidência e verificação, não por gosto.
+- Why it matters: A lapidação final só fecha quando o repositório deixa de carregar resíduo morto como se fosse parte legítima do sistema.
+- Source: user
+- Primary owning slice: M006/S?? (provisional)
+- Supporting slices: none
+- Validation: mapped
+- Notes: M006 herda a disciplina de manifests, guardrails e provas montadas estabelecida em M003.
+
+### R053 — A convergência final fecha com prova integrada, não só com cleanup estático
+- Class: quality-attribute
+- Status: active
+- Description: O encerramento da frente M004–M006 precisa provar o sistema montado em estado final, em vez de depender apenas de grep, manifests e diffs de código.
+- Why it matters: Cleanup sem prova integrada deixa dúvida sobre o que realmente continua funcionando.
+- Source: inferred
+- Primary owning slice: M006/S?? (provisional)
+- Supporting slices: M004/S06, M005/S?? (provisional)
+- Validation: mapped
+- Notes: Cada milestone terá sua própria prova, mas a frente toda fecha só quando o estado final estiver replayável e confiável.
 
 ## Validated
 
@@ -213,6 +246,50 @@ Guidelines:
 - Supporting slices: M003/S02, M003/S03
 - Validation: validated
 - Notes: M003/S04 deleted the proven-dead frontend alias/type/hook files, kept dead backend auth wrappers off the public surface, and documented `auth_session.py`, `firebase_uid`, and bearer-token fallback as explicit retained compatibility islands instead of ambiguous leftovers.
+
+### R034 — Critical mixed-responsibility hotspots are split into smaller modules
+- Class: quality-attribute
+- Status: validated
+- Description: The milestone must materially reduce the size and responsibility sprawl of the highest-value hotspots instead of leaving the same behavior trapped in giant files.
+- Why it matters: Large mixed-responsibility files make safe changes, debugging, and review disproportionately expensive.
+- Source: user
+- Primary owning slice: M003/S02
+- Supporting slices: M003/S03, M003/S04
+- Validation: validated
+- Notes: M003 closed with the targeted hotspots materially smaller under green proof: `auth_dependencies.py` shrank from 1579 to 675 lines, `src/lib/api-client/index.ts` from 1304 to 223, and `src/lib/api-client/types.ts` from 1159 to 26.
+
+### R037 — Visible contracts remain stable during the cleanup
+- Class: continuity
+- Status: validated
+- Description: The refactor must not unnecessarily change user-visible behavior, critical payload shapes, or the main staff-auth/dashboard/admin/flow entrypoint behavior.
+- Why it matters: This work is meant to buy maintainability, not hide regressions behind cleanup language.
+- Source: user
+- Primary owning slice: M003/S05
+- Supporting slices: M003/S02, M003/S03, M003/S04
+- Validation: validated
+- Notes: Final M003 proof combined focused backend/frontend suites, green direct runtime probes for canonical auth plus legacy `/session/logout`, a green seeded-user Chromium acceptance spec, and green routed smoke for `/dashboard`, `/admin`, and `/whatsapp`.
+
+### R038 — The codebase becomes safer to change in practice
+- Class: operability
+- Status: validated
+- Description: After the milestone, maintainers should be able to reason about and change the targeted areas with less fear because module boundaries and responsibilities are clearer.
+- Why it matters: The primary beneficiary is whoever maintains the system next, not just the current cleanup effort.
+- Source: user
+- Primary owning slice: M003/S05
+- Supporting slices: M003/S02, M003/S03, M003/S04
+- Validation: validated
+- Notes: M003 leaves smaller seams, explicit canonical-vs-legacy ownership boundaries, the S04 cleanup manifest, and `M003-VERIFY.json` as replayable maintenance guidance.
+
+### R039 — Structural cleanup leaves strong proof, not just nicer files
+- Class: quality-attribute
+- Status: validated
+- Description: The milestone must leave focused verification and smoke evidence that the refactor preserved critical auth/session, dashboard/admin, and WhatsApp flow behavior.
+- Why it matters: Refactors are only worth trusting if the new structure is backed by proof, not aesthetics.
+- Source: inferred
+- Primary owning slice: M003/S05
+- Supporting slices: M003/S01, M003/S02, M003/S03, M003/S04
+- Validation: validated
+- Notes: Milestone closeout now rests on the green evidence-map gate, focused backend/frontend packs, a seeded-user Chromium acceptance spec, direct assembled-stack probes, and routed `/dashboard` / `/admin` / `/whatsapp` smoke.
 
 ## Deferred
 
@@ -383,10 +460,50 @@ Guidelines:
 - Validation: n/a
 - Notes: Redis/Postgres session behavior is sensitive and should be preserved, not redesigned, during this milestone.
 
+### R054 — Novas features de produto durante a convergência final
+- Class: anti-feature
+- Status: out-of-scope
+- Description: A frente M004–M006 não existe para expandir produto; ela existe para convergir runtime, schema e legado restante.
+- Why it matters: Adicionar feature nova misturaria lapidação estrutural com expansão de escopo e tornaria a prova final menos honesta.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Melhorias funcionais novas entram em milestone própria depois da convergência.
+
+### R055 — Preservar um modo híbrido duradouro com compatibilidade Firebase por segurança
+- Class: anti-feature
+- Status: out-of-scope
+- Description: A nova frente não vai manter Firebase vivo em paralelo ao runtime oficial apenas por precaução.
+- Why it matters: Isso contradiz diretamente a decisão do usuário de não utilizar mais Firebase no sistema.
+- Source: user
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Compatibilidades só sobrevivem se forem pontes explicitamente justificadas e com prazo claro de remoção.
+
+### R056 — Reescrita ampla ou replatform sob o pretexto de lapidação
+- Class: anti-feature
+- Status: out-of-scope
+- Description: M004–M006 não são licença para recomeçar a arquitetura do zero ou trocar a base tecnológica em bloco.
+- Why it matters: O objetivo é convergir a base atual com segurança e prova, não esconder uma reescrita dentro de cleanup.
+- Source: inferred
+- Primary owning slice: none
+- Supporting slices: none
+- Validation: n/a
+- Notes: Mudanças amplas só entram se uma pesquisa futura provar necessidade real e escopo separado.
+
 ## Traceability
 
 | ID | Class | Status | Primary owner | Supporting | Proof |
 |---|---|---|---|---|---|
+| R047 | constraint | active | M004/S05 | M004/S01, M004/S02, M004/S03, M004/S04, M004/S06 | mapped |
+| R048 | continuity | active | M004/S02 | M004/S01, M004/S03, M004/S04, M004/S06 | mapped |
+| R049 | integration | active | M004/S02 | M004/S01, M004/S04, M004/S05 | mapped |
+| R050 | primary-user-loop | active | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | mapped |
+| R051 | quality-attribute | active | M005/S?? (provisional) | none | mapped |
+| R052 | operability | active | M006/S?? (provisional) | none | mapped |
+| R053 | quality-attribute | active | M006/S?? (provisional) | M004/S06, M005/S?? (provisional) | mapped |
 | R001 | continuity | validated | M001/S01 | none | validated |
 | R002 | operability | validated | M001/S02 | none | validated |
 | R003 | failure-visibility | validated | M001/S03 | none | validated |
@@ -407,12 +524,12 @@ Guidelines:
 | R031 | constraint | out-of-scope | none | none | n/a |
 | R032 | anti-feature | out-of-scope | none | none | n/a |
 | R033 | constraint | out-of-scope | none | none | n/a |
-| R034 | quality-attribute | active | M003/S02 | M003/S03, M003/S04 | mapped |
+| R034 | quality-attribute | validated | M003/S02 | M003/S03, M003/S04 | validated |
 | R035 | failure-visibility | validated | M003/S01 | M003/S04 | validated |
 | R036 | constraint | validated | M003/S04 | M003/S02, M003/S03 | validated |
-| R037 | continuity | active | M003/S05 | M003/S02, M003/S03, M003/S04 | mapped |
-| R038 | operability | active | M003/S05 | M003/S02, M003/S03, M003/S04 | mapped |
-| R039 | quality-attribute | active | M003/S05 | M003/S01, M003/S02, M003/S03, M003/S04 | mapped |
+| R037 | continuity | validated | M003/S05 | M003/S02, M003/S03, M003/S04 | validated |
+| R038 | operability | validated | M003/S05 | M003/S02, M003/S03, M003/S04 | validated |
+| R039 | quality-attribute | validated | M003/S05 | M003/S01, M003/S02, M003/S03, M003/S04 | validated |
 | R040 | quality-attribute | deferred | none | none | unmapped |
 | R041 | integration | deferred | none | none | unmapped |
 | R042 | operability | deferred | none | none | unmapped |
@@ -420,10 +537,13 @@ Guidelines:
 | R044 | constraint | out-of-scope | none | none | n/a |
 | R045 | anti-feature | out-of-scope | none | none | n/a |
 | R046 | constraint | out-of-scope | none | none | n/a |
+| R054 | anti-feature | out-of-scope | none | none | n/a |
+| R055 | anti-feature | out-of-scope | none | none | n/a |
+| R056 | anti-feature | out-of-scope | none | none | n/a |
 
 ## Coverage Summary
 
-- Active requirements: 4
-- Mapped to slices: 4
-- Validated: 14
+- Active requirements: 7
+- Mapped to slices: 7
+- Validated: 18
 - Unmapped active requirements: 0
