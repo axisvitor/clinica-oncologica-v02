@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 
 from app.api.v2 import auth_session_shared, user_cache_shared
 from app.api.v2.messages import helpers as message_helpers
@@ -18,14 +19,12 @@ pytestmark = [pytest.mark.api, pytest.mark.auth]
 def _canonical_user_data(
     *,
     user_id: str | None = None,
-    firebase_uid: str | None = None,
     email: str = "shared.helper@example.com",
     role: str = "doctor",
 ) -> dict:
     resolved_user_id = user_id or str(uuid4())
     return {
         "id": resolved_user_id,
-        "firebase_uid": firebase_uid,
         "email": email,
         "full_name": "Dra. Shared Helper",
         "role": role,
@@ -92,10 +91,14 @@ async def test_messages_helper_accepts_embedded_canonical_session_without_fireba
     redis_cache = SimpleNamespace(
         get_session=AsyncMock(return_value=session_payload),
         get_user_by_uid=AsyncMock(
-            side_effect=AssertionError("Embedded canonical message session should not require firebase_uid cache lookup")
+            side_effect=AssertionError(
+                "Embedded canonical message session should not require firebase_uid cache lookup"
+            )
         ),
         get_user_by_id=AsyncMock(
-            side_effect=AssertionError("Embedded canonical message session should not require user cache lookup")
+            side_effect=AssertionError(
+                "Embedded canonical message session should not require user cache lookup"
+            )
         ),
     )
 
@@ -108,7 +111,7 @@ async def test_messages_helper_accepts_embedded_canonical_session_without_fireba
     assert user_data["id"] == session_payload["user_id"]
     assert user_data["email"] == session_payload["email"]
     assert user_data["role"] == session_payload["role"]
-    assert user_data["firebase_uid"] is None
+    assert "firebase_uid" not in user_data
     redis_cache.get_user_by_uid.assert_not_called()
     redis_cache.get_user_by_id.assert_not_called()
 
@@ -126,10 +129,14 @@ async def test_shared_helper_accepts_embedded_canonical_id_alias_without_user_id
     redis_cache = SimpleNamespace(
         get_session=AsyncMock(return_value=session_payload),
         get_user_by_uid=AsyncMock(
-            side_effect=AssertionError("Embedded canonical shared id alias should not require firebase_uid cache lookup")
+            side_effect=AssertionError(
+                "Embedded canonical shared id alias should not require firebase_uid cache lookup"
+            )
         ),
         get_user_by_id=AsyncMock(
-            side_effect=AssertionError("Embedded canonical shared id alias should not require user cache lookup")
+            side_effect=AssertionError(
+                "Embedded canonical shared id alias should not require user cache lookup"
+            )
         ),
     )
 
@@ -141,7 +148,40 @@ async def test_shared_helper_accepts_embedded_canonical_id_alias_without_user_id
 
     assert user_data["id"] == session_payload["id"]
     assert user_data["email"] == session_payload["email"]
-    assert user_data["firebase_uid"] is None
+    assert "firebase_uid" not in user_data
+    redis_cache.get_user_by_uid.assert_not_called()
+    redis_cache.get_user_by_id.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_shared_helper_rejects_firebase_uid_only_session_payload_without_lookup():
+    session_payload = {
+        "session_id": "legacy-firebase-only-session",
+        "firebase_uid": "u" * 28,
+    }
+    redis_cache = SimpleNamespace(
+        get_session=AsyncMock(return_value=session_payload),
+        get_user_by_uid=AsyncMock(
+            side_effect=AssertionError(
+                "firebase_uid-only sessions should be rejected before shared cache lookup"
+            )
+        ),
+        get_user_by_id=AsyncMock(
+            side_effect=AssertionError(
+                "firebase_uid-only sessions should be rejected before canonical cache lookup"
+            )
+        ),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await auth_session_shared.get_user_data_from_session(
+            session_id="legacy-firebase-only-session",
+            db=object(),
+            redis_cache=redis_cache,
+        )
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Invalid session data"
     redis_cache.get_user_by_uid.assert_not_called()
     redis_cache.get_user_by_id.assert_not_called()
 
@@ -161,10 +201,14 @@ async def test_tasks_dependency_uses_cookie_only_canonical_session():
             side_effect=lambda session_id: session_payload if session_id == "cookie-session" else None
         ),
         get_user_by_uid=AsyncMock(
-            side_effect=AssertionError("Canonical cookie session should not require firebase_uid cache lookup")
+            side_effect=AssertionError(
+                "Canonical cookie session should not require firebase_uid cache lookup"
+            )
         ),
         get_user_by_id=AsyncMock(
-            side_effect=AssertionError("Embedded canonical cookie session should not require user cache lookup")
+            side_effect=AssertionError(
+                "Embedded canonical cookie session should not require user cache lookup"
+            )
         ),
     )
 
@@ -176,66 +220,112 @@ async def test_tasks_dependency_uses_cookie_only_canonical_session():
 
     assert user_data["id"] == session_payload["user_id"]
     assert user_data["role"] == session_payload["role"]
+    assert "firebase_uid" not in user_data
     redis_cache.get_session.assert_awaited_once_with("cookie-session")
 
 
 @pytest.mark.asyncio
-async def test_user_cache_shared_prefers_db_lookup_by_user_id_before_firebase_uid_cache_when_canonical_id_present():
+async def test_user_cache_shared_returns_canonical_runtime_payload_without_firebase_uid():
     canonical_user_id = str(uuid4())
-    firebase_uid = "s" * 28
-    stale_uid_cache_user = _canonical_user_data(
-        user_id=str(uuid4()),
-        firebase_uid=firebase_uid,
-        email="stale.shared.uid@example.com",
-    )
-    canonical_user = _shared_user_model(user_id=canonical_user_id, firebase_uid=firebase_uid)
-
     redis_cache = SimpleNamespace(
         get_user_by_id=AsyncMock(return_value=None),
-        get_user_by_uid=AsyncMock(return_value=stale_uid_cache_user),
+        get_user_by_uid=AsyncMock(
+            side_effect=AssertionError(
+                "Canonical runtime payload writes should not touch firebase_uid cache adapters"
+            )
+        ),
         cache_user_data_by_user_id=AsyncMock(return_value=True),
-        cache_user_data=AsyncMock(return_value=True),
+        cache_user_data=AsyncMock(
+            side_effect=AssertionError(
+                "Canonical runtime payload writes should not repopulate firebase_uid cache entries"
+            )
+        ),
     )
-    fetch_user_by_id = AsyncMock(return_value=canonical_user)
+    fetch_user_by_id = AsyncMock(
+        return_value=_shared_user_model(
+            user_id=canonical_user_id,
+            firebase_uid="s" * 28,
+        )
+    )
 
     user_data = await user_cache_shared.get_or_cache_user_data(
         redis_cache=redis_cache,
         user_id=canonical_user_id,
-        firebase_uid=firebase_uid,
         fetch_user_by_id=fetch_user_by_id,
-        fetch_user_by_uid=AsyncMock(
-            side_effect=AssertionError("firebase_uid DB fallback should stay quarantined when user_id exists")
-        ),
     )
 
     assert user_data["id"] == canonical_user_id
-    assert user_data["email"] == canonical_user.email
+    assert user_data["email"] == "shared.db@example.com"
+    assert "firebase_uid" not in user_data
     redis_cache.get_user_by_uid.assert_not_called()
+    redis_cache.cache_user_data.assert_not_called()
     fetch_user_by_id.assert_awaited_once_with(canonical_user_id)
+    redis_cache.cache_user_data_by_user_id.assert_awaited_once_with(
+        canonical_user_id,
+        user_data,
+        ttl=900,
+    )
 
 
 @pytest.mark.asyncio
-async def test_user_cache_shared_falls_back_to_firebase_uid_only_when_canonical_identity_is_absent():
-    firebase_uid = "u" * 28
-    cached_user = _canonical_user_data(firebase_uid=firebase_uid, email="compat.shared.uid@example.com")
+async def test_user_cache_shared_strips_legacy_firebase_uid_from_cached_user_payloads():
+    canonical_user_id = str(uuid4())
     redis_cache = SimpleNamespace(
-        get_user_by_uid=AsyncMock(return_value=cached_user),
-        cache_user_data_by_user_id=AsyncMock(return_value=True),
-        cache_user_data=AsyncMock(return_value=True),
+        get_user_by_id=AsyncMock(
+            return_value={
+                **_canonical_user_data(user_id=canonical_user_id, email="cached.shared@example.com"),
+                "firebase_uid": "legacy-shared-uid",
+            }
+        ),
+        get_user_by_uid=AsyncMock(
+            side_effect=AssertionError(
+                "Canonical cache hits should not fall back to firebase_uid lookups"
+            )
+        ),
     )
 
     user_data = await user_cache_shared.get_or_cache_user_data(
         redis_cache=redis_cache,
-        user_id=None,
-        firebase_uid=firebase_uid,
+        user_id=canonical_user_id,
         fetch_user_by_id=AsyncMock(
-            side_effect=AssertionError("Canonical DB lookup should not run without a canonical user_id")
-        ),
-        fetch_user_by_uid=AsyncMock(
-            side_effect=AssertionError("firebase_uid cache hit should not require DB lookup")
+            side_effect=AssertionError("Canonical cache hits should not require DB lookup")
         ),
     )
 
-    assert user_data["firebase_uid"] == firebase_uid
-    assert user_data["email"] == cached_user["email"]
-    redis_cache.get_user_by_uid.assert_awaited_once_with(firebase_uid)
+    assert user_data["id"] == canonical_user_id
+    assert user_data["email"] == "cached.shared@example.com"
+    assert "firebase_uid" not in user_data
+    redis_cache.get_user_by_uid.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_user_cache_shared_rejects_missing_canonical_user_id_without_firebase_uid_lookup():
+    redis_cache = SimpleNamespace(
+        get_user_by_uid=AsyncMock(
+            side_effect=AssertionError(
+                "Missing canonical user_id should fail before firebase_uid cache lookup"
+            )
+        ),
+        cache_user_data_by_user_id=AsyncMock(return_value=True),
+        cache_user_data=AsyncMock(
+            side_effect=AssertionError(
+                "Missing canonical user_id should fail before firebase_uid cache writes"
+            )
+        ),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await user_cache_shared.get_or_cache_user_data(
+            redis_cache=redis_cache,
+            user_id=None,
+            fetch_user_by_id=AsyncMock(
+                side_effect=AssertionError(
+                    "Missing canonical user_id should fail before DB lookup"
+                )
+            ),
+        )
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.detail == "Invalid session data"
+    redis_cache.get_user_by_uid.assert_not_called()
+    redis_cache.cache_user_data.assert_not_called()

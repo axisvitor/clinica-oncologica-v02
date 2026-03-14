@@ -323,9 +323,8 @@ class AuditLogResponse(BaseModel):
     id: UUID = Field(..., description="Audit log ID")
     event_type: str = Field(..., description="Event type")
     event_status: str = Field(..., description="Event status (success/failure/error)")
-    user_id: Optional[UUID] = Field(None, description="User ID")
+    user_id: Optional[UUID] = Field(None, description="Canonical user ID")
     user_email: Optional[str] = Field(None, description="User email")
-    firebase_uid: Optional[str] = Field(None, description="Firebase UID")
     ip_address: Optional[str] = Field(None, description="Client IP address")
     user_agent: Optional[str] = Field(None, description="User agent string")
     resource: Optional[str] = Field(None, description="Resource accessed")
@@ -347,7 +346,6 @@ class AuditLogResponse(BaseModel):
                 "event_status": "success",
                 "user_id": "660e8400-e29b-41d4-a716-446655440000",
                 "user_email": "doctor@example.com",
-                "firebase_uid": "firebase_uid_123",
                 "ip_address": "192.168.1.100",
                 "user_agent": "Mozilla/5.0...",
                 "resource": "/api/v2/auth/login",

@@ -232,6 +232,7 @@ async def test_resolve_session_user_data_rehydrates_fallback_session_with_canoni
     assert create_session_call.kwargs["session_id"] == "fallback-session-contract"
     assert create_session_call.kwargs["user_id"] == user_data["id"]
     assert create_session_call.kwargs["firebase_uid"] is None
+    assert "firebase_uid" not in create_session_call.kwargs["metadata"]
     assert create_session_call.kwargs["metadata"]["session_id"] == "fallback-session-contract"
     assert create_session_call.kwargs["metadata"]["email"] == canonical_user.email
     assert create_session_call.kwargs["metadata"]["max_age_seconds"] == 43200

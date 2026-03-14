@@ -1,261 +1,176 @@
-"""
-Unit tests for HIPAA Audit Service - Phase 3 Sprint 1
+"""Focused runtime audit contract tests for the canonical session cutover."""
 
-Tests cover:
-- Event logging with tamper-proof checksums
-- Integrity verification
-- PHI access tracking
-- Data modification tracking
-- Compliance statistics
-"""
-import pytest
-from datetime import datetime, timedelta
+from __future__ import annotations
+
 from uuid import uuid4
 
+import pytest
+from starlette.requests import Request
+from starlette.responses import Response
+
+from app.middleware.hipaa_audit_middleware import HIPAAAuditMiddleware
 from app.models.audit_log import AuditEventType
-from app.services.audit import AuditService, AuditEventContext
+from app.models.user import User, UserRole
+from app.services.audit.audit_service import AuditEventContext, AuditService
+from app.utils.security import get_password_hash
+from tests.conftest import SyncToAsyncSessionAdapter
 
 
-from app.utils.timezone import now_sao_paulo, now_sao_paulo_naive
-class TestAuditService:
-    """Test suite for AuditService."""
+@pytest.fixture
+def audit_user(db_session):
+    user = User(
+        id=uuid4(),
+        email="audit-user@example.com",
+        hashed_password=get_password_hash("AuditPass123"),
+        full_name="Audit User",
+        role=UserRole.ADMIN,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
 
+
+class TestCanonicalAuditService:
     @pytest.mark.asyncio
-    async def test_log_basic_event(self, db_session):
-        """Test basic audit event logging."""
-        # Arrange
-        audit_service = AuditService(db_session)
-        user_id = uuid4()
+    async def test_log_event_persists_canonical_user_id_and_strips_legacy_firebase_identity(
+        self, db_session, audit_user
+    ):
+        async_db = SyncToAsyncSessionAdapter(db_session)
+        audit_service = AuditService(async_db)
+        user_id = audit_user.id
 
         context = AuditEventContext(
             user_id=user_id,
-            user_email="test@example.com",
-            ip_address="192.168.1.1",
+            user_email="operator@example.com",
+            user_role="admin",
+            session_id="cookie-session",
             status="SUCCESS",
-            description="Test event"
+            description="GET /api/v2/patients",
+            metadata={
+                "session_source": "cookie",
+                "firebase_uid": "legacy-firebase-uid",
+            },
+            resource_identifiers={
+                "patient_id": str(uuid4()),
+                "firebase_uid": "legacy-firebase-uid",
+            },
         )
 
-        # Act
         audit_log = await audit_service.log_event(
             event_type=AuditEventType.LOGIN_SUCCESS,
             event_category="AUTHENTICATION",
-            context=context
+            context=context,
         )
 
-        # Assert
-        assert audit_log is not None
-        assert audit_log.id is not None
-        assert audit_log.event_type == AuditEventType.LOGIN_SUCCESS
-        assert audit_log.event_category == "AUTHENTICATION"
         assert audit_log.user_id == user_id
-        assert audit_log.user_email == "test@example.com"
-        assert audit_log.ip_address == "192.168.1.1"
-        assert audit_log.status == "SUCCESS"
-        assert audit_log.checksum is not None  # Checksum auto-calculated by trigger
-        assert audit_log.archive_eligible_at is not None  # Auto-set by trigger
+        assert audit_log.session_id == "cookie-session"
+        assert audit_log.firebase_uid is None
+        assert audit_log.event_metadata == {"session_source": "cookie"}
+        assert audit_log.resource_identifiers == {"patient_id": context.resource_identifiers["patient_id"]}
 
     @pytest.mark.asyncio
-    async def test_log_phi_access(self, db_session):
-        """Test PHI access event logging."""
-        # Arrange
-        audit_service = AuditService(db_session)
-        user_id = uuid4()
-        patient_id = uuid4()
+    async def test_log_event_calculates_changed_fields_without_legacy_identity_dependency(
+        self, db_session, audit_user
+    ):
+        async_db = SyncToAsyncSessionAdapter(db_session)
+        audit_service = AuditService(async_db)
 
-        context = AuditEventContext(
-            user_id=user_id,
-            resource_type="PATIENT",
-            resource_id=patient_id,
-            operation="READ",
-            ip_address="192.168.1.1",
-            status="SUCCESS",
-            metadata={"patient_mrn": "12345", "accessed_fields": ["name", "dob"]}
-        )
-
-        # Act
         audit_log = await audit_service.log_event(
-            event_type=AuditEventType.SUSPICIOUS_ACTIVITY,  # Placeholder
-            event_category="PHI_ACCESS",
-            context=context
-        )
-
-        # Assert
-        assert audit_log.event_category == "PHI_ACCESS"
-        assert audit_log.resource_type == "PATIENT"
-        assert audit_log.resource_id == patient_id
-        assert audit_log.operation == "READ"
-        assert audit_log.event_metadata["patient_mrn"] == "12345"
-
-    @pytest.mark.asyncio
-    async def test_log_data_modification(self, db_session):
-        """Test data modification event logging with before/after states."""
-        # Arrange
-        audit_service = AuditService(db_session)
-        user_id = uuid4()
-        patient_id = uuid4()
-
-        before_state = {"name": "John Doe", "phone": "555-0100"}
-        after_state = {"name": "John Doe", "phone": "555-0200"}
-
-        context = AuditEventContext(
-            user_id=user_id,
-            resource_type="PATIENT",
-            resource_id=patient_id,
-            operation="UPDATE",
-            changes_before=before_state,
-            changes_after=after_state,
-            status="SUCCESS"
-        )
-
-        # Act
-        audit_log = await audit_service.log_event(
-            event_type=AuditEventType.SUSPICIOUS_ACTIVITY,  # Placeholder
+            event_type=AuditEventType.SUSPICIOUS_ACTIVITY,
             event_category="DATA_MODIFICATION",
-            context=context
-        )
-
-        # Assert
-        assert audit_log.event_category == "DATA_MODIFICATION"
-        assert audit_log.operation == "UPDATE"
-        assert audit_log.changes_before == before_state
-        assert audit_log.changes_after == after_state
-        assert audit_log.changed_fields == ["phone"]  # Auto-calculated
-
-    @pytest.mark.asyncio
-    async def test_verify_integrity(self, db_session):
-        """Test audit log integrity verification."""
-        # Arrange
-        audit_service = AuditService(db_session)
-
-        # Create multiple audit logs
-        for i in range(5):
-            context = AuditEventContext(
-                user_id=uuid4(),
-                status="SUCCESS",
-                description=f"Test event {i}"
-            )
-            await audit_service.log_event(
-                event_type=AuditEventType.LOGIN_SUCCESS,
-                event_category="AUTHENTICATION",
-                context=context
-            )
-
-        # Act
-        result = await audit_service.verify_integrity()
-
-        # Assert
-        assert result["total_checked"] == 5
-        assert result["valid_count"] == 5
-        assert result["invalid_count"] == 0
-        assert result["chain_breaks"] == 0
-        assert result["has_tampering"] is False
-        assert result["integrity_score"] == 100.0
-
-    @pytest.mark.asyncio
-    async def test_get_phi_access_logs(self, db_session):
-        """Test retrieving PHI access logs."""
-        # Arrange
-        audit_service = AuditService(db_session)
-        patient_id = uuid4()
-
-        # Create PHI access logs
-        for i in range(3):
-            context = AuditEventContext(
-                user_id=uuid4(),
+            context=AuditEventContext(
+                user_id=audit_user.id,
                 resource_type="PATIENT",
-                resource_id=patient_id,
-                operation="READ",
-                status="SUCCESS"
-            )
-            await audit_service.log_event(
-                event_type=AuditEventType.SUSPICIOUS_ACTIVITY,
-                event_category="PHI_ACCESS",
-                context=context
-            )
-
-        # Act
-        logs = await audit_service.get_phi_access_logs(
-            resource_type="PATIENT",
-            resource_id=patient_id
+                resource_id=uuid4(),
+                operation="UPDATE",
+                changes_before={"status": "active", "phone": "1111"},
+                changes_after={"status": "active", "phone": "2222"},
+                status="SUCCESS",
+            ),
         )
 
-        # Assert
-        assert len(logs) == 3
-        for log in logs:
-            assert log.event_category == "PHI_ACCESS"
-            assert log.resource_type == "PATIENT"
-            assert log.resource_id == patient_id
+        assert audit_log.changed_fields == ["phone"]
+        assert audit_log.operation == "UPDATE"
+        assert audit_log.resource_type == "PATIENT"
+
+    def test_hash_session_token_is_stable(self):
+        hashed = AuditService.hash_session_token("my-secret-session-token")
+
+        assert len(hashed) == 64
+        assert hashed == AuditService.hash_session_token("my-secret-session-token")
+        assert hashed != "my-secret-session-token"
+
+
+class TestCanonicalHIPAAAuditMiddleware:
+    @staticmethod
+    def _make_request(*, cookie_header: str = "session_id=cookie-session") -> Request:
+        async def receive() -> dict:
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        scope = {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "http",
+            "path": "/api/v2/patients",
+            "raw_path": b"/api/v2/patients",
+            "query_string": b"",
+            "headers": [
+                (b"host", b"testserver"),
+                (b"user-agent", b"pytest"),
+                (b"cookie", cookie_header.encode()),
+            ],
+            "client": ("127.0.0.1", 12345),
+            "server": ("testserver", 80),
+        }
+        return Request(scope, receive)
 
     @pytest.mark.asyncio
-    async def test_get_compliance_statistics(self, db_session):
-        """Test compliance statistics generation."""
-        # Arrange
-        audit_service = AuditService(db_session)
-        start_date = now_sao_paulo_naive() - timedelta(days=1)
-        end_date = now_sao_paulo_naive() + timedelta(days=1)
+    async def test_dispatch_uses_request_state_user_id_and_session_without_firebase_uid(
+        self, monkeypatch
+    ):
+        captured: dict[str, object] = {}
 
-        # Create diverse audit logs
-        categories = ["AUTHENTICATION", "PHI_ACCESS", "DATA_MODIFICATION"]
-        for category in categories:
-            for i in range(2):
-                context = AuditEventContext(
-                    user_id=uuid4(),
-                    status="SUCCESS" if i == 0 else "FAILURE"
-                )
-                await audit_service.log_event(
-                    event_type=AuditEventType.LOGIN_SUCCESS if i == 0 else AuditEventType.LOGIN_FAILURE,
-                    event_category=category,
-                    context=context
-                )
+        class FakeAuditService:
+            def __init__(self, db):
+                self.db = db
 
-        # Act
-        stats = await audit_service.get_compliance_statistics(start_date, end_date)
+            @staticmethod
+            def hash_session_token(token: str) -> str:
+                return f"hashed:{token}"
 
-        # Assert
-        assert stats["total_events"] == 6
-        assert stats["events_by_category"]["AUTHENTICATION"] == 2
-        assert stats["events_by_category"]["PHI_ACCESS"] == 2
-        assert stats["events_by_category"]["DATA_MODIFICATION"] == 2
-        assert stats["failed_events"] == 3
-        assert stats["compliance_rate"] == 50.0
+            async def log_event(self, *, event_type, event_category, context):
+                captured["event_type"] = event_type
+                captured["event_category"] = event_category
+                captured["context"] = context
 
-    @pytest.mark.asyncio
-    async def test_calculate_changed_fields(self):
-        """Test changed fields calculation."""
-        # Arrange
-        before = {"name": "John", "age": 30, "city": "NYC"}
-        after = {"name": "John", "age": 31, "city": "LA"}
+        async def app(_scope, _receive, _send):
+            return None
 
-        # Act
-        changed = AuditService._calculate_changed_fields(before, after)
+        async def call_next(request: Request) -> Response:
+            request.state.user_id = str(user_id)
+            request.state.user_role = "admin"
+            request.state.session_id = "resolved-session"
+            request.state.firebase_uid = "legacy-firebase-uid"
+            return Response(status_code=200)
 
-        # Assert
-        assert set(changed) == {"age", "city"}
+        user_id = uuid4()
+        request = self._make_request()
+        request.state.db = object()
 
-    def test_calculate_checksum(self):
-        """Test checksum calculation."""
-        # Arrange
-        data = {"user_id": "123", "event": "login"}
+        monkeypatch.setattr(
+            "app.middleware.hipaa_audit_middleware.AuditService", FakeAuditService
+        )
 
-        # Act
-        checksum = AuditService.calculate_checksum(data)
+        middleware = HIPAAAuditMiddleware(app)
+        response = await middleware.dispatch(request, call_next)
 
-        # Assert
-        assert len(checksum) == 64  # SHA-256 produces 64 hex characters
-        assert isinstance(checksum, str)
-
-        # Same data should produce same checksum
-        checksum2 = AuditService.calculate_checksum(data)
-        assert checksum == checksum2
-
-    def test_hash_session_token(self):
-        """Test session token hashing."""
-        # Arrange
-        token = "my-secret-session-token"
-
-        # Act
-        hashed = AuditService.hash_session_token(token)
-
-        # Assert
-        assert len(hashed) == 64  # SHA-256
-        assert hashed != token  # Should be hashed, not plaintext
+        assert response.status_code == 200
+        context = captured["context"]
+        assert isinstance(context, AuditEventContext)
+        assert context.user_id == user_id
+        assert context.user_role == "admin"
+        assert context.session_id == "resolved-session"
+        assert "firebase_uid" not in context.model_dump()

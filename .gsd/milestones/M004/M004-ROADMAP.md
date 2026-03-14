@@ -63,7 +63,7 @@ This milestone is complete only when all are true:
 - [x] **S04: Superfícies legadas de auth/sessão aposentadas** `risk:high` `depends:[S02,S03]`
   > After this: o app oficial deixa de precisar de `/session/*`, `X-Session-ID` e fallbacks legados em escopo; o que sobrar fica rejeitado ou tombstonado explicitamente.
 
-- [ ] **S05: Resíduo funcional de Firebase removido do runtime adjacente** `risk:medium` `depends:[S02,S03]`
+- [x] **S05: Resíduo funcional de Firebase removido do runtime adjacente** `risk:medium` `depends:[S02,S03]`
   > After this: cache, auditoria, tipos/docs operacionais e módulos adjacentes em escopo param de tratar Firebase como parte viva do sistema.
 
 - [ ] **S06: Prova integrada de runtime sem Firebase** `risk:medium` `depends:[S04,S05]`

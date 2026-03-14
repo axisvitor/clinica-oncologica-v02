@@ -66,18 +66,18 @@ def get_static_guides() -> List[Dict[str, Any]]:
 
 ## Authentication
 
-The Hormonia API uses session-based authentication with Firebase Auth.
+The Hormonia API uses cookie-backed session authentication for operator and admin traffic.
 
 ### Steps to Authenticate:
-1. Obtain Firebase credentials
-2. Create a session via `/api/v2/auth/login`
-3. Use session cookie or X-Session-ID header in requests
+1. POST your credentials to `/api/v2/auth/login`
+2. Store the `session_id` cookie returned by the server
+3. Send subsequent requests with the same session cookie
 
 ## Making Your First Request
 
 ```bash
 curl -X GET "https://api.hormonia.com/api/v2/patients" \\
-  -H "X-Session-ID: your-session-id"
+  --cookie "session_id=your-session-id"
 ```
 
 ## Response Format
@@ -107,26 +107,24 @@ All responses follow this structure:
 
 ## Session-Based Authentication
 
-Hormonia uses session-based authentication with Firebase Auth integration.
+Hormonia authenticates operator and admin requests with a server-issued `session_id` cookie.
 
 ### Login Flow
-1. Authenticate with Firebase
-2. POST to `/api/v2/auth/login` with Firebase token
-3. Receive session ID in response
-4. Use session ID in subsequent requests
+1. POST credentials to `/api/v2/auth/login`
+2. Receive `Set-Cookie: session_id=...` in the response
+3. Persist that cookie in your HTTP client
+4. Send subsequent requests with the stored cookie
 
-### Session Headers
-Include session in one of these ways:
-- Cookie: `session_id=your-session-id`
-- Header: `X-Session-ID: your-session-id`
+### Session Transport
+Authenticated requests rely on the `session_id` cookie set during login.
 
-### Token Expiration
+### Session Expiration
 Sessions expire after 7 days of inactivity.
 
 ### Security Best Practices
-- Store session IDs securely
+- Let your HTTP client manage the session cookie
 - Use HTTPS in production
-- Implement token refresh flow
+- Clear the session cookie on logout
 - Handle 401 errors gracefully
 """,
             "tags": ["authentication", "security", "sessions"],
@@ -322,11 +320,13 @@ def get_static_examples() -> List[Dict[str, Any]]:
             "language": "python",
             "code": """import requests
 
+session = requests.Session()
+session.cookies.set("session_id", "your-session-id")
+
 url = "https://api.hormonia.com/api/v2/patients"
-headers = {"X-Session-ID": "your-session-id"}
 params = {"limit": 20}
 
-response = requests.get(url, headers=headers, params=params)
+response = session.get(url, params=params)
 data = response.json()
 
 for patient in data["data"]:
@@ -335,7 +335,7 @@ for patient in data["data"]:
 # Get next page
 if data["has_more"]:
     params["cursor"] = data["next_cursor"]
-    next_response = requests.get(url, headers=headers, params=params)
+    next_response = session.get(url, params=params)
 """,
             "tags": ["python", "patients", "pagination"],
             "endpoint": "/api/v2/patients",
@@ -349,22 +349,22 @@ if data["has_more"]:
             "language": "javascript",
             "code": """const axios = require('axios');
 
+const api = axios.create({
+  baseURL: 'https://api.hormonia.com',
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
 const createPatient = async () => {
-  const response = await axios.post(
-    'https://api.hormonia.com/api/v2/patients',
-    {
-      full_name: 'João Silva',
-      email: 'joao@example.com',
-      birth_date: '1980-01-15',
-      phone: '+5511999999999'
-    },
-    {
-      headers: {
-        'X-Session-ID': 'your-session-id',
-        'Content-Type': 'application/json'
-      }
-    }
-  );
+  // Assumes /api/v2/auth/login already established the session cookie.
+  const response = await api.post('/api/v2/patients', {
+    full_name: 'João Silva',
+    email: 'joao@example.com',
+    birth_date: '1980-01-15',
+    phone: '+5511999999999'
+  });
 
   console.log('Patient created:', response.data);
 };
@@ -378,37 +378,28 @@ createPatient();
         {
             "id": "example-003",
             "title": "Authentication Flow",
-            "description": "Complete authentication flow with Firebase",
+            "description": "Complete cookie-backed session login flow",
             "category": "authentication",
             "language": "python",
             "code": """import requests
-import firebase_admin
-from firebase_admin import auth
 
-# Initialize Firebase
-cred = firebase_admin.credentials.Certificate('path/to/serviceAccountKey.json')
-firebase_admin.initialize_app(cred)
+session = requests.Session()
 
-# Get Firebase token
-firebase_token = auth.create_custom_token('user-uid')
-
-# Login to Hormonia API
-response = requests.post(
+login_response = session.post(
     'https://api.hormonia.com/api/v2/auth/login',
-    json={'firebase_token': firebase_token.decode()}
+    json={'email': 'operator@example.com', 'password': 'S3curePass!123'}
 )
+login_response.raise_for_status()
 
-session_id = response.json()['session_id']
-print(f"Logged in with session: {session_id}")
+print('Session cookie established.')
 
-# Use session for authenticated requests
-headers = {'X-Session-ID': session_id}
-patients = requests.get(
-    'https://api.hormonia.com/api/v2/patients',
-    headers=headers
-)
+patients = session.get('https://api.hormonia.com/api/v2/patients')
+patients.raise_for_status()
+
+for patient in patients.json()["data"]:
+    print(patient["full_name"])
 """,
-            "tags": ["python", "authentication", "firebase"],
+            "tags": ["python", "authentication", "sessions"],
             "endpoint": "/api/v2/auth/login",
             "created_at": "2025-01-01T00:00:00-03:00",
         },
@@ -439,12 +430,14 @@ curl -X GET "https://api.hormonia.com/api/v2/docs/endpoints?category=patients"
             "language": "javascript",
             "code": """const axios = require('axios');
 
+const api = axios.create({
+  baseURL: 'https://api.hormonia.com',
+  withCredentials: true
+});
+
 async function makeApiRequest(url, options = {}) {
   try {
-    const response = await axios.get(url, {
-      headers: {
-        'X-Session-ID': options.sessionId
-      },
+    const response = await api.get(url, {
       params: options.params
     });
 
@@ -457,12 +450,10 @@ async function makeApiRequest(url, options = {}) {
 
       switch (status) {
         case 401:
-          console.error('Authentication failed:', data.message);
-          // Trigger re-authentication
+          console.error('Session expired or missing:', data.message);
           break;
         case 429:
           console.error('Rate limit exceeded');
-          // Implement retry with backoff
           break;
         case 500:
           console.error('Server error:', data.message);
@@ -482,8 +473,8 @@ async function makeApiRequest(url, options = {}) {
 
 // Usage
 const result = await makeApiRequest(
-  'https://api.hormonia.com/api/v2/patients',
-  { sessionId: 'your-session-id' }
+  '/api/v2/patients',
+  { params: { limit: 20 } }
 );
 
 if (result.success) {

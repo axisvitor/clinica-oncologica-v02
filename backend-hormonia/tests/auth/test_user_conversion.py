@@ -38,7 +38,7 @@ class TestUserToCacheDict:
 
         # Assert
         assert result["id"] == str(user_id)
-        assert result["firebase_uid"] == "test_firebase_uid_123"
+        assert "firebase_uid" not in result
         assert result["email"] == "doctor@example.com"
         assert result["full_name"] == "Dr. Test User"
         assert result["role"] == "doctor"

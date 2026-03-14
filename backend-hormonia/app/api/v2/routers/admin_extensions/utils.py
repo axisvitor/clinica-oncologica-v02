@@ -78,7 +78,11 @@ def serialize_audit_log(
     Returns:
         Serialized audit log dictionary
     """
-    event_data = log.event_metadata or {}
+    event_data = {
+        key: value
+        for key, value in (log.event_metadata or {}).items()
+        if key != "firebase_uid"
+    }
 
     # Redact sensitive data if requested
     if redact_sensitive:
@@ -96,7 +100,6 @@ def serialize_audit_log(
         "event_status": log.event_status,
         "user_id": log.user_id,
         "user_email": log.user_email,
-        "firebase_uid": log.firebase_uid,
         "ip_address": str(log.ip_address) if log.ip_address else None,
         "user_agent": log.user_agent,
         "resource": log.resource,

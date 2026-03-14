@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, patch
 from fastapi import status
 from fastapi.testclient import TestClient
 
+from app.api.v2.routers.docs.data_providers import get_static_examples, get_static_guides
+
 
 # ==================== Test Fixtures ====================
 
@@ -820,3 +822,43 @@ class TestPublicAccess:
 
         # Should succeed without authentication
         assert response.status_code == status.HTTP_200_OK
+
+
+class TestCanonicalRuntimeDocsGuidance:
+    def test_static_guides_use_cookie_backed_contract_without_firebase_or_header(self):
+        guides = {guide["slug"]: guide for guide in get_static_guides()}
+        combined = "\n".join(
+            [guides["getting-started"]["content"], guides["authentication"]["content"]]
+        )
+
+        assert "Firebase" not in combined
+        assert "X-Session-ID" not in combined
+        assert "session_id" in combined
+        assert "cookie" in combined.lower()
+
+    def test_static_examples_use_cookie_aware_clients_without_legacy_transports(self):
+        examples = {example["id"]: example for example in get_static_examples()}
+        combined = "\n".join(example["code"] for example in examples.values())
+
+        assert "Firebase" not in combined
+        assert "X-Session-ID" not in combined
+        assert "requests.Session()" in examples["example-003"]["code"]
+        assert "withCredentials: true" in examples["example-002"]["code"]
+        assert "withCredentials: true" in examples["example-005"]["code"]
+
+    def test_authentication_guide_endpoint_returns_cookie_guidance(
+        self,
+        client: TestClient,
+        mock_redis_cache,
+    ):
+        with patch(
+            "app.api.v2.routers.docs.cache_utils.get_async_redis",
+            return_value=mock_redis_cache,
+        ):
+            response = client.get("/api/v2/docs/guides/authentication")
+
+        assert response.status_code == status.HTTP_200_OK
+        payload = response.json()
+        assert "Firebase" not in payload["content"]
+        assert "X-Session-ID" not in payload["content"]
+        assert "session_id" in payload["content"]

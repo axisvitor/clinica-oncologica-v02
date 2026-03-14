@@ -84,10 +84,9 @@ def resolve_user_role(
 
 
 def user_to_cache_dict(user: User) -> Dict[str, Any]:
-    """Convert a ``User`` model to a JSON-serializable cache payload."""
+    """Convert a ``User`` model to the canonical runtime cache payload."""
     return {
         "id": str(user.id),
-        "firebase_uid": user.firebase_uid,
         "email": user.email,
         "full_name": user.full_name,
         "role": user.role.value if hasattr(user.role, "value") else str(user.role),

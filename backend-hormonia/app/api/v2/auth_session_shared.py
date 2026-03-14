@@ -23,7 +23,6 @@ CANONICAL_SESSION_USER_FIELDS = {
     "updated_at": "updated_at",
     "last_login": "last_login",
     "photo_url": "photo_url",
-    "firebase_uid": "firebase_uid",
 }
 
 
@@ -88,8 +87,7 @@ async def get_user_data_from_session(
         return ensure_user_is_active(embedded_user)
 
     user_id = resolve_canonical_session_user_id(session_data)
-    firebase_uid = session_data.get("firebase_uid")
-    if not user_id and not firebase_uid:
+    if not user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid session data",
@@ -102,18 +100,9 @@ async def get_user_data_from_session(
             result = await result
         return result.scalar_one_or_none()
 
-    async def _fetch_user_by_uid(uid: str):
-        stmt = select(User).where(User.firebase_uid == uid)
-        result = db.execute(stmt)
-        if inspect.isawaitable(result):
-            result = await result
-        return result.scalar_one_or_none()
-
     user_data = await get_or_cache_user_data(
         user_id=user_id,
-        firebase_uid=firebase_uid,
         redis_cache=redis_cache,
         fetch_user_by_id=_fetch_user_by_id,
-        fetch_user_by_uid=_fetch_user_by_uid,
     )
     return ensure_user_is_active(user_data)

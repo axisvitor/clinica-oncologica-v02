@@ -146,12 +146,12 @@ async def test_websocket_rejects_legacy_session_transport_without_cookie(
 
     assert error_messages, "Expected an explicit websocket auth error for rejected legacy transport"
     error_message = error_messages[0]
-<<<<<<< HEAD
     assert error_message["data"]["error"] == "AUTH_WEBSOCKET_SESSION_INVALID"
     assert error_message["data"]["message"] == "WebSocket session requires a session cookie."
     assert error_message["data"]["details"]["connection_id"]
     assert error_message["data"]["details"]["session_source"] == expected_source
     fake_cache.get_session.assert_not_awaited()
+    fake_cache.get_user_by_uid.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -180,6 +180,7 @@ async def test_websocket_invalid_cookie_session_emits_stable_error_diagnostics(m
     assert error_message["data"]["details"]["connection_id"]
     assert error_message["data"]["details"]["session_source"] == "cookie"
     fake_cache.get_session.assert_awaited_once_with("missing-cookie-session")
+    fake_cache.get_user_by_uid.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -195,29 +196,10 @@ async def test_websocket_cookie_session_lookup_failure_emits_stable_error_diagno
     websocket = _build_websocket(
         cookies={settings.SESSION_COOKIE_NAME: "lookup-failed-cookie-session"}
     )
-=======
-    assert error_message['data']['error'] == 'AUTH_WEBSOCKET_SESSION_INVALID'
-    assert error_message['data']['details']['connection_id']
-
-
-@pytest.mark.asyncio
-async def test_websocket_session_lookup_failure_emits_stable_error_diagnostics(monkeypatch):
-    manager = FakeConnectionManager()
-    monkeypatch.setattr(websocket_api, 'get_connection_manager', lambda: manager)
-    _patch_session_cache(
-        monkeypatch,
-        None,
-        lookup_side_effect=RuntimeError('redis unavailable'),
-    )
-
-    websocket = AsyncMock(spec=WebSocket)
-    websocket.receive_text = AsyncMock(side_effect=WebSocketDisconnect(code=1000))
->>>>>>> gsd/M003/S02
 
     await websocket_api.websocket_endpoint(
         websocket,
         token=None,
-<<<<<<< HEAD
         session_id=None,
     )
 
@@ -231,14 +213,4 @@ async def test_websocket_session_lookup_failure_emits_stable_error_diagnostics(m
     assert error_message["data"]["details"]["connection_id"]
     assert error_message["data"]["details"]["session_source"] == "cookie"
     fake_cache.get_session.assert_awaited_once_with("lookup-failed-cookie-session")
-=======
-        session_id='lookup-failed-session-id',
-    )
-
-    error_messages = [message for _connection_id, message in manager.sent_messages if message.get('type') == 'error']
-
-    assert error_messages, 'Expected an explicit websocket auth error for lookup failures'
-    error_message = error_messages[0]
-    assert error_message['data']['error'] == 'AUTH_WEBSOCKET_SESSION_LOOKUP_FAILED'
-    assert error_message['data']['details']['connection_id']
->>>>>>> gsd/M003/S02
+    fake_cache.get_user_by_uid.assert_not_called()

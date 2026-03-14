@@ -75,7 +75,7 @@
     {
       "id": "firebase_uid",
       "display_name": "firebase_uid",
-      "description": "Compatibility-oriented firebase_uid residue retained in backend fallback/cache/auth helpers after S04 retired root /session/* and legacy session transport from the official runtime.",
+      "description": "Passive firebase_uid compatibility residue retained in backend fallback, sanitization, and adjacent admin/auth helpers after S05 removed live session/cache/login/audit/docs/frontend runtime emission.",
       "matchers": [
         {
           "type": "literal",
@@ -149,36 +149,6 @@
               ]
             },
             {
-              "path": "backend-hormonia/app/dependencies/auth_user_adapter.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "\"firebase_uid\": user.firebase_uid,",
-                  "label": "auth_user_adapter_serializes_firebase_uid"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/core/redis_manager/session_cache.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "session_data[\"firebase_uid\"] = firebase_uid",
-                  "label": "session_cache_persists_firebase_uid"
-                }
-              ]
-            },
-            {
-              "path": "backend-hormonia/app/api/v2/auth_session_shared.py",
-              "anchors": [
-                {
-                  "type": "literal",
-                  "pattern": "\"firebase_uid\": \"firebase_uid\"",
-                  "label": "auth_session_shared_compat_uid_passthrough"
-                }
-              ]
-            },
-            {
               "path": "backend-hormonia/app/api/v2/routers/admin/utils.py",
               "anchors": [
                 {
@@ -193,8 +163,8 @@
               "anchors": [
                 {
                   "type": "literal",
-                  "pattern": "user_payload[\"firebase_uid\"] = user.firebase_uid",
-                  "label": "auth_router_login_payload_compat_key"
+                  "pattern": "compatibility cache adapters may still match legacy `firebase_uid` values.",
+                  "label": "auth_router_firebase_uid_compat_comment"
                 }
               ]
             },
@@ -203,8 +173,8 @@
               "anchors": [
                 {
                   "type": "literal",
-                  "pattern": "firebase_uid: Optional[str] = None,",
-                  "label": "user_cache_shared_compat_uid_fallback"
+                  "pattern": "sanitized.pop(\"firebase_uid\", None)",
+                  "label": "user_cache_shared_sanitizes_firebase_uid"
                 }
               ]
             }

@@ -10,7 +10,7 @@
  * Type Safety Fix: Ensure frontend types match backend exactly
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import type {
   Patient,
   PatientFlowState,
@@ -23,6 +23,45 @@ import type {
   Permission,
   Role,
 } from '@/types/admin'
+import type { User as ApiUser } from '@/types/api'
+import type { MedicoRoleValidation } from '@/types/medico'
+
+describe('Canonical Auth Type Contract', () => {
+  it('keeps the frontend user contract free of firebase_uid residue', () => {
+    const hasFirebaseUidKey: ('firebase_uid' extends keyof ApiUser ? true : false) = false
+
+    const user: ApiUser = {
+      id: 'user-123',
+      email: 'doctor@test.com',
+      name: 'Dr. Test',
+      full_name: 'Dr. Test',
+      role: 'doctor',
+      permissions: [],
+      is_active: true,
+      created_at: '2024-01-01T00:00:00-03:00',
+      session_id: 'session-123',
+    }
+
+    expect(hasFirebaseUidKey).toBe(false)
+    expect((user as Record<string, unknown>)).not.toHaveProperty('firebase_uid')
+  })
+
+  it('uses generic validation context instead of firebase claims in medico helpers', () => {
+    const hasClaimsKey: ('claims' extends keyof MedicoRoleValidation ? true : false) = false
+    const hasContextKey: ('context' extends keyof MedicoRoleValidation ? true : false) = true
+
+    const validation: MedicoRoleValidation = {
+      isValid: true,
+      role: 'doctor',
+      context: { source: 'session' },
+    }
+
+    expect(hasClaimsKey).toBe(false)
+    expect(hasContextKey).toBe(true)
+    expect((validation as Record<string, unknown>)).toHaveProperty('context')
+    expect((validation as Record<string, unknown>)).not.toHaveProperty('claims')
+  })
+})
 
 describe('Patient Type Consistency', () => {
   describe('PatientFlowState', () => {

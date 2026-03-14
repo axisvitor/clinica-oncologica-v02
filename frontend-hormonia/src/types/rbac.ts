@@ -1,8 +1,8 @@
 /**
  * RBAC (Role-Based Access Control) Types
  *
- * Complete TypeScript types matching backend-hormonia/app/core/permissions.py
- * This file provides type-safe RBAC functionality for the frontend admin system.
+ * Session-first access-control types matching the backend permission model consumed by
+ * the frontend admin system.
  */
 
 // ============================================================================
@@ -16,15 +16,6 @@
 export enum UserRole {
   ADMIN = 'admin',
   DOCTOR = 'doctor',
-}
-
-/**
- * Authentication provider types
- * Backend: app/models/user.py AuthProvider enum
- */
-export enum AuthProvider {
-  LOCAL = 'local',
-  FIREBASE = 'firebase',
 }
 
 // ============================================================================

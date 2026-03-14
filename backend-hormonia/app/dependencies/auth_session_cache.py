@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 TUser = TypeVar("TUser")
 
 
-<<<<<<< HEAD
 def resolve_canonical_user_id(identity_payload: Dict[str, Any]) -> Optional[str]:
     """Return the canonical authenticated user ID from mapping-style payloads."""
     user_id = identity_payload.get("id") or identity_payload.get("user_id")
@@ -22,8 +21,6 @@ def resolve_canonical_user_id(identity_payload: Dict[str, Any]) -> Optional[str]
     return str(user_id)
 
 
-=======
->>>>>>> gsd/M003/S02
 def serialize_user_data(user: Any) -> Dict[str, Any]:
     """Normalize a user model into the canonical auth/session cache payload."""
     return {
@@ -44,11 +41,7 @@ def serialize_user_data(user: Any) -> Dict[str, Any]:
 
 def session_payload_to_user_data(session_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Return canonical embedded user data when the session payload already carries it."""
-<<<<<<< HEAD
     user_id = resolve_canonical_user_id(session_data)
-=======
-    user_id = session_data.get("user_id")
->>>>>>> gsd/M003/S02
     email = session_data.get("email")
     role = session_data.get("role")
     is_active = session_data.get("is_active")
@@ -57,11 +50,7 @@ def session_payload_to_user_data(session_data: Dict[str, Any]) -> Optional[Dict[
         return None
 
     return {
-<<<<<<< HEAD
         "id": user_id,
-=======
-        "id": str(user_id),
->>>>>>> gsd/M003/S02
         "firebase_uid": session_data.get("firebase_uid"),
         "email": email,
         "full_name": session_data.get("full_name"),
@@ -79,12 +68,8 @@ async def cache_user_data_by_identity(
     user_data: Dict[str, Any],
     ttl: int = 900,
 ) -> None:
-    """Best-effort cache hydration for canonical user_id and compatibility firebase_uid keys."""
-<<<<<<< HEAD
+    """Best-effort cache hydration for canonical user_id and passive firebase_uid compatibility keys."""
     user_id = resolve_canonical_user_id(user_data)
-=======
-    user_id = user_data.get("id")
->>>>>>> gsd/M003/S02
     firebase_uid = user_data.get("firebase_uid")
 
     if user_id and hasattr(redis_cache, "cache_user_data_by_user_id"):
@@ -129,16 +114,13 @@ async def rehydrate_session_cache(
     metadata = session_cache_metadata_from_user_data(user_data)
     metadata["session_id"] = session_id
     metadata["max_age_seconds"] = session_ttl
+    canonical_user_id = resolve_canonical_user_id(user_data)
 
     try:
         created = await redis_cache.create_session(
             session_id=session_id,
-<<<<<<< HEAD
-            user_id=resolve_canonical_user_id(user_data),
-=======
-            user_id=user_data.get("id"),
->>>>>>> gsd/M003/S02
-            firebase_uid=user_data.get("firebase_uid"),
+            user_id=canonical_user_id,
+            firebase_uid=None,
             metadata=metadata,
             ttl=session_ttl,
         )
@@ -151,12 +133,8 @@ async def rehydrate_session_cache(
         try:
             await redis_cache.create_session(
                 session_id,
-<<<<<<< HEAD
-                resolve_canonical_user_id(user_data),
-=======
-                user_data.get("id"),
->>>>>>> gsd/M003/S02
-                user_data.get("firebase_uid"),
+                canonical_user_id,
+                None,
                 metadata=metadata,
                 ttl=session_ttl,
             )
@@ -185,15 +163,11 @@ async def _lookup_session_identity_user_data(
     load_user_from_db_by_firebase_uid: Callable[[str], Awaitable[Optional[TUser]]],
     serialize_user: Callable[[TUser], Dict[str, Any]],
 ) -> Dict[str, Any]:
-    user_data = session_payload_to_user_data(session_data)
-    if user_data:
-        return user_data
+    embedded_user_data = session_payload_to_user_data(session_data)
+    if embedded_user_data:
+        return embedded_user_data
 
-<<<<<<< HEAD
     user_id = resolve_canonical_user_id(session_data)
-=======
-    user_id = session_data.get("user_id")
->>>>>>> gsd/M003/S02
     firebase_uid = session_data.get("firebase_uid")
 
     if not user_id and not firebase_uid:
@@ -204,9 +178,10 @@ async def _lookup_session_identity_user_data(
             headers={"WWW-Authenticate": "Session"},
         )
 
+    cached_user_data = None
     if user_id and hasattr(redis_cache, "get_user_by_id"):
         try:
-            user_data = await asyncio.wait_for(
+            cached_user_data = await asyncio.wait_for(
                 redis_cache.get_user_by_id(str(user_id)),
                 timeout=redis_operation_timeout,
             )
@@ -220,14 +195,10 @@ async def _lookup_session_identity_user_data(
                 detail="User cache lookup timed out. Please try again.",
             )
 
-<<<<<<< HEAD
-    if not user_data and not user_id and firebase_uid and hasattr(redis_cache, "get_user_by_uid"):
-=======
-    if not user_data and firebase_uid and hasattr(redis_cache, "get_user_by_uid"):
->>>>>>> gsd/M003/S02
+    if not cached_user_data and not user_id and firebase_uid and hasattr(redis_cache, "get_user_by_uid"):
         validate_firebase_uid(firebase_uid)
         try:
-            user_data = await asyncio.wait_for(
+            cached_user_data = await asyncio.wait_for(
                 redis_cache.get_user_by_uid(firebase_uid),
                 timeout=redis_operation_timeout,
             )
@@ -241,8 +212,8 @@ async def _lookup_session_identity_user_data(
                 detail="User cache lookup timed out. Please try again.",
             )
 
-    if user_data:
-        return user_data
+    if cached_user_data:
+        return cached_user_data
 
     identity = str(user_id or firebase_uid)
 

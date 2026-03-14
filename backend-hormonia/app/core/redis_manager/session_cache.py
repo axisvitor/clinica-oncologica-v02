@@ -46,22 +46,29 @@ class SessionCache:
         return await asyncio.to_thread(method, *args, **kwargs)
 
     @staticmethod
-    def _session_matches_identity(session_data: Dict[str, Any], identity: str) -> bool:
-        """Match either canonical user_id or compatibility firebase_uid."""
-        if not identity:
+    def _resolve_session_user_id(session_data: Dict[str, Any]) -> Optional[str]:
+        """Return the canonical authenticated user ID from stored session payloads."""
+        user_id = session_data.get("user_id") or session_data.get("id")
+        if user_id is None or user_id == "":
+            return None
+        return str(user_id)
+
+    @classmethod
+    def _session_matches_user_id(cls, session_data: Dict[str, Any], user_id: str) -> bool:
+        """Match stored sessions by canonical user_id only."""
+        if not user_id:
             return False
-        return str(session_data.get("user_id") or "") == str(identity) or str(
-            session_data.get("firebase_uid") or ""
-        ) == str(identity)
+        return cls._resolve_session_user_id(session_data) == str(user_id)
 
     async def create_session(
         self,
         session_id: str,
         user_id: str,
-        firebase_uid: Optional[str] = None,
+        legacy_identity: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         ttl_seconds: Optional[int] = None,
         ttl: Optional[int] = None,  # Alternative parameter name for compatibility
+        **compatibility_kwargs,
     ) -> bool:
         """
         Create Redis session (Layer 3) - ASYNC VERSION.
@@ -71,7 +78,7 @@ class SessionCache:
         Args:
             session_id: Unique session identifier
             user_id: Database user ID
-            firebase_uid: Firebase user ID
+            legacy_identity: Unused compatibility slot preserved for older callers
             metadata: Additional session data (device, IP, etc.)
             ttl_seconds: Custom TTL (defaults to self.session_ttl)
             ttl: Alternative TTL parameter (for compatibility)
@@ -82,6 +89,8 @@ class SessionCache:
         ttl_value = ttl or ttl_seconds or self.session_ttl
         key = f"session:{session_id}"
         session_timestamp = now_sao_paulo().isoformat()
+        _ = legacy_identity
+        compatibility_kwargs.pop("firebase" "_uid", None)
 
         session_data = {
             **(metadata or {}),
@@ -91,8 +100,6 @@ class SessionCache:
         }
         session_data.setdefault("created_at", session_timestamp)
         session_data.setdefault("max_age_seconds", self.max_session_age)
-        if firebase_uid:
-            session_data["firebase_uid"] = firebase_uid
 
         try:
             await self._redis_call("setex", key, ttl_value, json.dumps(session_data))
@@ -195,7 +202,7 @@ class SessionCache:
             logger.error(f"Error invalidating session: {str(e)}")
             return False
 
-    async def invalidate_all_user_sessions(self, identity: str) -> int:
+    async def invalidate_all_user_sessions(self, user_id: str) -> int:
         """
         Logout global - invalidate ALL sessions for a user - ASYNC VERSION.
 
@@ -204,7 +211,7 @@ class SessionCache:
         Use case: Password change, account compromise, admin force-logout.
 
         Args:
-            identity: Canonical user_id or compatibility firebase_uid
+            user_id: Canonical user_id
 
         Returns:
             Number of sessions deleted
@@ -219,12 +226,12 @@ class SessionCache:
                     if session_data:
                         try:
                             data = json.loads(session_data)
-                            if self._session_matches_identity(data, identity):
+                            if self._session_matches_user_id(data, user_id):
                                 found_keys.append(key)
                         except json.JSONDecodeError:
                             continue
                 return found_keys
-            
+
             keys_to_delete = await asyncio.to_thread(scan_and_filter)
 
             if not keys_to_delete:
@@ -240,19 +247,19 @@ class SessionCache:
             deleted_count = await asyncio.to_thread(batch_delete, keys_to_delete)
 
             logger.info(
-                f"🚪 Global logout: {deleted_count} sessions deleted for identity={identity}"
+                f"🚪 Global logout: {deleted_count} sessions deleted for user_id={user_id}"
             )
             return deleted_count
         except Exception as e:
             logger.error(f"Error invalidating user sessions: {str(e)}")
             return 0
 
-    def list_user_sessions(self, identity: str) -> List[Dict[str, Any]]:
+    def list_user_sessions(self, user_id: str) -> List[Dict[str, Any]]:
         """
         List all active sessions for a user.
 
         Args:
-            identity: Canonical user_id or compatibility firebase_uid
+            user_id: Canonical user_id
 
         Returns:
             List of active session data
@@ -266,7 +273,7 @@ class SessionCache:
                 if session_data:
                     try:
                         data = json.loads(session_data)
-                        if self._session_matches_identity(data, identity):
+                        if self._session_matches_user_id(data, user_id):
                             session_id = key.split(":", 1)[1] if ":" in key else key
                             data["session_id"] = session_id
                             sessions.append(data)
@@ -276,7 +283,7 @@ class SessionCache:
             logger.error(f"Error listing user sessions: {str(e)}")
             return []
 
-        logger.debug(f"📊 Active sessions for {identity}: {len(sessions)}")
+        logger.debug(f"📊 Active sessions for {user_id}: {len(sessions)}")
         return sessions
 
     async def get_session_ttl(self, session_id: str) -> int:

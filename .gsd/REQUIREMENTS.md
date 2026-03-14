@@ -23,18 +23,8 @@ Guidelines:
 - Primary owning slice: M004/S05
 - Supporting slices: M004/S01, M004/S02, M004/S03, M004/S04, M004/S06
 - Validation: mapped
-- Notes: O usuário foi explícito: não utilizaremos mais Firebase no sistema. O foco é remover dependência real, não apenas esconder o legado atrás de shims.
+- Notes: S05 fechou a dependência funcional adjacente de Firebase no runtime por prova de contrato; S06 ainda precisa revalidar o estado montado local sem Firebase Auth antes desta requirement sair de Active.
 
-### R049 — A identidade canônica deixa de depender de `firebase_uid` no runtime
-- Class: integration
-- Status: active
-- Description: O runtime resolve identidade, cache, sessão e superfícies oficiais por `id` / `user_id`, sem precisar de `firebase_uid` no happy path nem como pivô funcional oculto.
-- Why it matters: Enquanto `firebase_uid` continuar sendo chave funcional no runtime, o hard cut permanece incompleto.
-- Source: inferred
-- Primary owning slice: M004/S02
-- Supporting slices: M004/S01, M004/S04, M004/S05
-- Validation: mapped
-- Notes: O drop físico de schema relacionado a Firebase fica para M005; M004 fecha a dependência funcional de runtime.
 
 ### R051 — Schema e migrações refletem o modelo final, não o legado de transição
 - Class: quality-attribute
@@ -269,6 +259,28 @@ Guidelines:
 - Validation: validated
 - Notes: Milestone closeout now rests on the green evidence-map gate, focused backend/frontend packs, a seeded-user Chromium acceptance spec, direct assembled-stack probes, and routed `/dashboard` / `/admin` / `/whatsapp` smoke.
 
+### R048 — Auth/sessão converge para um contrato canônico único
+- Class: continuity
+- Status: validated
+- Description: O sistema oficial da equipe autentica, restaura sessão e revoga sessão por um único contrato canônico, sem caminhos duplos ainda aceitos por inércia histórica.
+- Why it matters: Caminhos paralelos de auth/sessão tornam qualquer manutenção futura arriscada e difícil de raciocinar.
+- Source: inferred
+- Primary owning slice: M004/S02
+- Supporting slices: M004/S01, M004/S03, M004/S04
+- Validation: validated
+- Notes: Verified by the combined M004/S02–S04 proof: canonical login/verify-session/restore/logout stayed green on the cookie-backed contract, the official frontend already consumed only that contract, and S04 retired `/session/*`, `X-Session-ID`, session-as-Bearer, and websocket `session_id` fallback as accepted runtime transport.
+
+### R049 — A identidade canônica deixa de depender de `firebase_uid` no runtime
+- Class: integration
+- Status: validated
+- Description: O runtime resolve identidade, cache, sessão e superfícies oficiais por `id` / `user_id`, sem precisar de `firebase_uid` no happy path nem como pivô funcional oculto.
+- Why it matters: Enquanto `firebase_uid` continuar sendo chave funcional no runtime, o hard cut permanece incompleto.
+- Source: inferred
+- Primary owning slice: M004/S02
+- Supporting slices: M004/S01, M004/S04, M004/S05
+- Validation: validated
+- Notes: Verified by the combined M004/S02+S05 proof: Redis session creation/listing/invalidation, shared auth/cache restore, login-written payloads, websocket-adjacent auth, audit/admin/docs serialization, and adjacent frontend type surfaces all stay on canonical `id` / `user_id` semantics while the green residue guard now lists only passive compatibility/rejection bookkeeping and M005 keeps the schema drop.
+
 ### R050 — O frontend oficial usa apenas o contrato canônico sem resíduo funcional de Firebase
 - Class: primary-user-loop
 - Status: validated
@@ -499,7 +511,7 @@ Guidelines:
 |---|---|---|---|---|---|
 | R047 | constraint | active | M004/S05 | M004/S01, M004/S02, M004/S03, M004/S04, M004/S06 | mapped |
 | R048 | continuity | validated | M004/S02 | M004/S01, M004/S03, M004/S04 | validated |
-| R049 | integration | active | M004/S02 | M004/S01, M004/S04, M004/S05 | mapped |
+| R049 | integration | validated | M004/S02 | M004/S01, M004/S04, M004/S05 | validated |
 | R050 | primary-user-loop | validated | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | validated |
 | R051 | quality-attribute | active | M005/S?? (provisional) | none | mapped |
 | R052 | operability | active | M006/S?? (provisional) | none | mapped |
@@ -543,7 +555,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 5
-- Mapped to slices: 5
-- Validated: 20
+- Active requirements: 4
+- Mapped to slices: 4
+- Validated: 21
 - Unmapped active requirements: 0

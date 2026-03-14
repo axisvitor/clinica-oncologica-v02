@@ -169,17 +169,17 @@ export type MedicoPermission = (typeof MEDICO_PERMISSIONS)[keyof typeof MEDICO_P
 
 /**
  * Medico Role Validation
- * Note: Firebase custom claims may use 'medico' but TypeScript types use 'doctor'
+ * Supports canonical session/user payload validation while tolerating legacy role labels.
  */
 export interface MedicoRoleValidation {
   /** Whether user has valid medico role */
   isValid: boolean
 
-  /** Role name (Firebase claims use 'medico', TypeScript types use 'doctor') */
-  role: 'medico' | 'doctor' | string
+  /** Role name from the app payload; legacy compatibility may still surface 'medico'. */
+  role: 'doctor' | 'medico' | string
 
-  /** Custom claims from Firebase */
-  claims: Record<string, unknown>
+  /** Supporting session/user context inspected during validation */
+  context: Record<string, unknown>
 
   /** Error message if invalid */
   error?: string

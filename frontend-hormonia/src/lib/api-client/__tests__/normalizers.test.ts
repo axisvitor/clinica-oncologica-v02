@@ -17,6 +17,7 @@ import {
   isBackendPatient,
   normalizePaginatedResponse,
   type BackendUser,
+  type FrontendUser,
   type BackendPatient,
   type PatientStatus,
 } from '../normalizers'
@@ -103,6 +104,7 @@ describe('User Normalization', () => {
     })
 
     it('should drop firebase-auth residue from normalized users', () => {
+      const hasFirebaseUidKey: ('firebase_uid' extends keyof FrontendUser ? true : false) = false
       const backendUser = {
         id: '123',
         email: 'doctor@example.com',
@@ -115,6 +117,7 @@ describe('User Normalization', () => {
 
       const frontendUser = normalizeUser(backendUser)
 
+      expect(hasFirebaseUidKey).toBe(false)
       expect(frontendUser).not.toHaveProperty('firebase_uid')
     })
   })

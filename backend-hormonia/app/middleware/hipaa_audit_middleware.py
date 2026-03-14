@@ -32,7 +32,7 @@ from starlette.types import ASGIApp
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_log import AuditEventType
-from app.services.audit import AuditService, AuditEventContext
+from app.services.audit.audit_service import AuditService, AuditEventContext
 
 
 class HIPAAAuditMiddleware(BaseHTTPMiddleware):
@@ -115,6 +115,9 @@ class HIPAAAuditMiddleware(BaseHTTPMiddleware):
         # Process request
         response = await call_next(request)
 
+        # Refresh identity/session context after downstream auth dependencies run.
+        self._apply_request_state_identity(request, context)
+
         # Calculate duration
         duration_ms = int((time.time() - start_time) * 1000)
         context.duration_ms = duration_ms
@@ -177,24 +180,22 @@ class HIPAAAuditMiddleware(BaseHTTPMiddleware):
         Returns:
             AuditEventContext with extracted information
         """
-        # User context (from request state, populated by auth middleware)
+        # User context (from request state if an upstream dependency already populated it)
         user_id = getattr(request.state, "user_id", None)
         user_email = getattr(request.state, "user_email", None)
         user_role = getattr(request.state, "user_role", None)
-        firebase_uid = getattr(request.state, "firebase_uid", None)
 
         # Session context
-        session_id = None
         session_token_hash = None
 
-        # Try to extract session from headers or cookies
+        # Hash bearer token if present (for non-cookie auth surfaces that still use it)
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header[7:]
             session_token_hash = AuditService.hash_session_token(token)
 
-        # Extract session ID from custom header or cookie
-        session_id = request.headers.get("X-Session-ID") or request.cookies.get(
+        # Canonical runtime transport is cookie-backed session auth.
+        session_id = getattr(request.state, "session_id", None) or request.cookies.get(
             "session_id"
         )
 
@@ -233,7 +234,6 @@ class HIPAAAuditMiddleware(BaseHTTPMiddleware):
             user_id=user_id,
             user_email=user_email,
             user_role=user_role,
-            firebase_uid=firebase_uid,
             session_id=session_id,
             session_token_hash=session_token_hash,
             device_fingerprint=device_fingerprint,
@@ -250,6 +250,18 @@ class HIPAAAuditMiddleware(BaseHTTPMiddleware):
         )
 
         return context
+
+    def _apply_request_state_identity(
+        self, request: Request, context: AuditEventContext
+    ) -> None:
+        """Refresh canonical identity/session fields after downstream auth resolution."""
+        for field_name in ("user_id", "user_email", "user_role", "session_id"):
+            value = getattr(request.state, field_name, None)
+            if value is None:
+                continue
+            if field_name == "user_id":
+                value = AuditEventContext(user_id=value).user_id
+            setattr(context, field_name, value)
 
     def _get_client_ip(self, request: Request) -> Optional[str]:
         """Extract client IP address, handling proxies."""

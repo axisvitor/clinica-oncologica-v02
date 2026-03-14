@@ -422,7 +422,7 @@ export interface BulkOperationResult {
 // ============================================================================
 
 // Re-export RBAC types for convenience
-export { UserRole, Permission, AuthProvider, SecurityLevel } from './rbac'
+export { UserRole, Permission, SecurityLevel } from './rbac'
 export type {
   RoleDefinition,
   PermissionResource,

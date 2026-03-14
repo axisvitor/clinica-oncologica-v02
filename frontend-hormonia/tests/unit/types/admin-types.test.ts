@@ -11,6 +11,8 @@
  */
 
 import { describe, it, expect } from 'vitest'
+import * as adminTypeExports from '@/types/admin'
+import * as rbacTypeExports from '@/types/rbac'
 import type {
   AdminUser,
   Permission,
@@ -27,6 +29,13 @@ import type {
 } from '@/types/admin'
 
 describe('Admin RBAC Type System', () => {
+  describe('Canonical Runtime Surface', () => {
+    it('does not export legacy auth-provider enums from RBAC barrels', () => {
+      expect(rbacTypeExports).not.toHaveProperty('AuthProvider')
+      expect(adminTypeExports).not.toHaveProperty('AuthProvider')
+    })
+  })
+
   describe('Permission Types', () => {
     it('should create valid Permission object', () => {
       const permission: Permission = {

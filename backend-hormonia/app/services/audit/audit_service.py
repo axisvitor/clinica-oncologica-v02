@@ -34,7 +34,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.models.audit_log import AuditLog, AuditEventType
 from app.services.audit.audit_repository import AuditRepository
@@ -43,11 +43,12 @@ from app.services.audit.audit_repository import AuditRepository
 class AuditEventContext(BaseModel):
     """Context information for audit events."""
 
+    model_config = ConfigDict(extra="ignore")
+
     # User context
     user_id: Optional[UUID] = None
     user_email: Optional[str] = None
     user_role: Optional[str] = None
-    firebase_uid: Optional[str] = None
 
     # Session context
     session_id: Optional[str] = None
@@ -103,6 +104,24 @@ class AuditService:
         self.db = db
         self.repository = AuditRepository(db)
 
+    @staticmethod
+    def _strip_legacy_identity_keys(
+        payload: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        """Remove legacy identity keys from canonical runtime payloads."""
+        if payload is None:
+            return None
+        return {key: value for key, value in payload.items() if key != "firebase_uid"}
+
+    def _normalize_context(self, context: AuditEventContext) -> AuditEventContext:
+        """Re-validate context and drop legacy Firebase-era runtime identity."""
+        normalized = AuditEventContext.model_validate(context.model_dump())
+        normalized.metadata = self._strip_legacy_identity_keys(normalized.metadata)
+        normalized.resource_identifiers = self._strip_legacy_identity_keys(
+            normalized.resource_identifiers
+        )
+        return normalized
+
     async def log_event(
         self,
         event_type: AuditEventType,
@@ -133,6 +152,8 @@ class AuditService:
                 )
             )
         """
+        context = self._normalize_context(context)
+
         # Calculate changed fields if before/after provided
         if context.changes_before and context.changes_after:
             context.changed_fields = self._calculate_changed_fields(
@@ -150,7 +171,6 @@ class AuditService:
             user_id=context.user_id,
             user_email=context.user_email,
             user_role=context.user_role,
-            firebase_uid=context.firebase_uid,
             # Session tracking
             session_id=context.session_id,
             session_token_hash=context.session_token_hash,

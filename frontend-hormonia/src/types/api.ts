@@ -478,13 +478,13 @@ export interface ActivityItem {
 // ============================================================================
 
 /**
- * User - Represents an authenticated user in the system
+ * User - Canonical authenticated user surface for the session-first frontend runtime.
  *
  * FIELD MAPPING (Frontend <-> Backend):
  * - name (frontend) <-> full_name (backend)
  * - full_name is kept for backward compatibility
  *
- * Use normalizers from @/lib/api-client/normalizers to convert between formats
+ * Use normalizers from @/lib/api-client/normalizers to convert between formats.
  */
 export interface User {
   id: string
@@ -496,9 +496,8 @@ export interface User {
   is_active: boolean
   created_at: string
   updated_at?: string | undefined
-  firebase_uid?: string
-  session_id?: string
-  token?: string // Optional for WebSocket/API auth
+  session_id?: string // Optional session identifier surfaced for diagnostics/UI flows
+  token?: string // Optional compatibility field when an endpoint also returns a bearer token
   avatar_url?: string // Optional for profile picture
 }
 

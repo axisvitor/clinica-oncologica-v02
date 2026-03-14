@@ -52,6 +52,17 @@ class LocalSessionRedisCache:
         return True
 
 
+class CapturingLoginRedisCache:
+    """Redis double that records login session writes for contract assertions."""
+
+    def __init__(self):
+        self.create_session_calls: list[dict[str, object]] = []
+
+    async def create_session(self, *args, **kwargs):
+        self.create_session_calls.append({"args": args, "kwargs": kwargs})
+        return True
+
+
 @pytest.fixture
 def local_user(db_session):
     password = "LocalPass123!"
@@ -138,7 +149,25 @@ def override_local_session_cache(local_session_cache):
         app.dependency_overrides.pop(get_redis_cache, None)
 
 
-def test_post_login_with_email_password_returns_canonical_response_and_cookie_contract(client, local_user):
+@pytest.fixture
+def capture_login_session_cache():
+    cache = CapturingLoginRedisCache()
+
+    async def _override_redis_cache():
+        return cache
+
+    app.dependency_overrides[get_redis_cache] = _override_redis_cache
+    try:
+        yield cache
+    finally:
+        app.dependency_overrides.pop(get_redis_cache, None)
+
+
+def test_post_login_with_email_password_returns_canonical_response_and_cookie_contract(
+    client,
+    local_user,
+    capture_login_session_cache,
+):
     user, password = local_user
 
     response = client.post(
@@ -161,11 +190,21 @@ def test_post_login_with_email_password_returns_canonical_response_and_cookie_co
     assert data["user"]["full_name"] == user.full_name
     assert data["user"]["role"] == user.role.value
     assert data["user"]["is_active"] is True
+    assert "firebase_uid" not in data["user"]
     assert response.headers.get("X-Session-ID") is None
 
     response_dump = str(data).lower()
     assert "password" not in response_dump
     assert "hashed_password" not in response_dump
+
+    assert len(capture_login_session_cache.create_session_calls) == 1
+    create_session_call = capture_login_session_cache.create_session_calls[0]
+    assert create_session_call["args"] == ()
+    assert create_session_call["kwargs"]["user_id"] == str(user.id)
+    assert "firebase_uid" not in create_session_call["kwargs"]
+    assert "firebase_uid" not in create_session_call["kwargs"]["metadata"]
+    assert create_session_call["kwargs"]["metadata"]["email"] == user.email
+    assert create_session_call["kwargs"]["metadata"]["role"] == user.role.value
 
     cookie_header = response.headers.get("set-cookie", "")
     cookie_header_lower = cookie_header.lower()
@@ -237,6 +276,7 @@ def test_verify_session_accepts_local_session_identity_without_firebase_uid(
     assert data["user"]["id"] == str(user.id)
     assert data["user"]["email"] == user.email
     assert data["user"]["role"] == user.role.value
+    assert "firebase_uid" not in data["user"]
 
 
 def test_verify_session_rejects_x_session_id_header_without_cookie(

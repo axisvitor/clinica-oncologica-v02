@@ -158,14 +158,11 @@ async def _create_canonical_session_cache_entry(
         "remember_me": remember_me,
         "max_age_seconds": ttl_seconds,
     }
-    firebase_uid = user_payload.get("firebase_uid")
-
     creation_attempts = [
         lambda: _call_cache_method(
             redis_cache.create_session,
             session_id=session_id,
             user_id=user_payload["id"],
-            firebase_uid=firebase_uid,
             metadata=metadata,
             ttl_seconds=ttl_seconds,
         ),
@@ -173,7 +170,6 @@ async def _create_canonical_session_cache_entry(
             redis_cache.create_session,
             session_id=session_id,
             user_id=user_payload["id"],
-            firebase_uid=firebase_uid,
             metadata=metadata,
             ttl=ttl_seconds,
         ),
@@ -181,7 +177,7 @@ async def _create_canonical_session_cache_entry(
             redis_cache.create_session,
             session_id,
             user_payload["id"],
-            firebase_uid,
+            None,
             metadata=metadata,
             ttl=ttl_seconds,
         ),
@@ -189,7 +185,7 @@ async def _create_canonical_session_cache_entry(
             redis_cache.create_session,
             session_id,
             user_payload["id"],
-            firebase_uid,
+            None,
             ttl=ttl_seconds,
         ),
     ]
@@ -412,7 +408,6 @@ async def login(
         )
 
         user_payload = _serialize_authenticated_user(user)
-        user_payload["firebase_uid"] = user.firebase_uid
 
         await _create_canonical_session_cache_entry(
             redis_cache=redis_cache,

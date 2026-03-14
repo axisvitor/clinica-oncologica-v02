@@ -20,6 +20,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, List, Any, TYPE_CHECKING
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
+import importlib
 import logging
 import asyncio
 import inspect
@@ -35,7 +36,6 @@ from app.config import settings
 from app.utils.timezone import now_sao_paulo
 
 from . import (
-    auth_legacy_firebase,
     auth_role_dependencies,
     auth_session_contract,
     auth_user_adapter,
@@ -45,12 +45,28 @@ logger = logging.getLogger(__name__)
 
 security = HTTPBearer(auto_error=False)
 
-# Initialize optional Firebase Auth Service for legacy compatibility paths only.
-# Session-first staff authentication must remain operational even when Firebase
-# Admin credentials are absent.
-_firebase_service = auth_legacy_firebase.initialize_firebase_service(
-    settings_obj=settings
-)
+_legacy_auth_module = None
+_firebase_service = None
+_firebase_service_initialized = False
+
+
+def _get_auth_legacy_firebase():
+    """Import the legacy Firebase compatibility seam only when a legacy path needs it."""
+    global _legacy_auth_module
+    if _legacy_auth_module is None:
+        _legacy_auth_module = importlib.import_module("app.dependencies.auth_legacy_firebase")
+    return _legacy_auth_module
+
+
+def _get_firebase_service():
+    """Lazily initialize the optional Firebase Admin service for legacy compatibility."""
+    global _firebase_service, _firebase_service_initialized
+    if not _firebase_service_initialized:
+        _firebase_service = _get_auth_legacy_firebase().initialize_firebase_service(
+            settings_obj=settings
+        )
+        _firebase_service_initialized = True
+    return _firebase_service
 
 # =============================================================================
 # CORE AUTHENTICATION DEPENDENCIES
@@ -380,20 +396,6 @@ async def get_generic_cache() -> GenericRedisCache:
         raise
 
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-async def verify_firebase_token(id_token: str) -> Optional[Dict[str, Any]]:
-    """Verify Firebase ID tokens through the legacy compatibility seam."""
-    return await auth_legacy_firebase.verify_firebase_token(
-        id_token,
-        firebase_service=_firebase_service,
-    )
-
-
->>>>>>> gsd/M003/S02
-=======
->>>>>>> gsd/M003/S04
 def _get_user_from_db_sync(firebase_uid: str, db: Session) -> Optional[User]:
     """Fetch a user using an existing synchronous session."""
     from sqlalchemy import select
@@ -629,11 +631,12 @@ async def get_current_user(
         request.state.user_role = session_user_data.get("role")
         return await get_current_user_object_from_session(session_user_data)
 
-    return await auth_legacy_firebase.authenticate_legacy_bearer_user(
+    legacy_auth = _get_auth_legacy_firebase()
+    return await legacy_auth.authenticate_legacy_bearer_user(
         request=request,
         credentials=credentials,
         services=services,
-        firebase_service=_firebase_service,
+        firebase_service=_get_firebase_service(),
         validate_firebase_uid=_validate_firebase_uid,
         validate_email=_validate_email,
         resolve_user_role=_resolve_user_role,
@@ -680,37 +683,8 @@ async def get_optional_user(
 async def get_admin_user(current_user: User = Depends(get_current_active_user)) -> User:
     """Get current user with admin privileges."""
     return await auth_role_dependencies.require_admin_user(current_user)
-<<<<<<< HEAD
-=======
 
 
-<<<<<<< HEAD
-async def get_doctor_user(
-    current_user: User = Depends(get_current_active_user),
-) -> User:
-    """Get current user with doctor privileges."""
-    return await auth_role_dependencies.require_doctor_user(current_user)
-
-
-# =============================================================================
-# WEBSOCKET AUTHENTICATION
-# =============================================================================
-
-
-async def get_current_user_websocket(
-    websocket, services: "ServiceProvider" = Depends(_get_service_provider)
-) -> Optional[User]:
-    """Resolve websocket auth via the isolated legacy bearer compatibility seam."""
-    return await auth_legacy_firebase.get_current_user_websocket(
-        websocket,
-        services=services,
-        firebase_service=_firebase_service,
-    )
->>>>>>> gsd/M003/S02
-
-
-=======
->>>>>>> gsd/M003/S04
 async def get_current_active_admin(
     current_user: Dict = Depends(get_current_user_from_session),
 ) -> Dict:

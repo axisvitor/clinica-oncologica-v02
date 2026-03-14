@@ -358,7 +358,6 @@ async def export_audit_logs(
             "event_status",
             "user_id",
             "user_email",
-            "firebase_uid",
             "ip_address",
             "user_agent",
             "resource",
@@ -368,9 +367,15 @@ async def export_audit_logs(
             "error_details",
             "created_at",
         ]
-        fields_to_export = (
-            export_request.fields if export_request.fields else all_fields
-        )
+        if export_request.fields:
+            fields_to_export = [field for field in export_request.fields if field in all_fields]
+            if not fields_to_export:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No supported audit export fields were requested",
+                )
+        else:
+            fields_to_export = all_fields
 
         # Log action
         audit_service = AuditService(db)
