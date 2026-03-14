@@ -57,7 +57,7 @@ This milestone is complete only when all are true:
 - [x] **S02: Backend auth/sessão convergido para identidade canônica** `risk:high` `depends:[S01]`
   > After this: login, verify-session, restore e logout funcionam no backend pelo contrato canônico de sessão/`user_id`, com `firebase_uid` fora do happy path oficial.
 
-- [ ] **S03: Frontend oficial convergido para contrato session-first canônico** `risk:medium` `depends:[S01,S02]`
+- [x] **S03: Frontend oficial convergido para contrato session-first canônico** `risk:medium` `depends:[S01,S02]`
   > After this: `/login`, `/dashboard` e `/admin` usam apenas o contrato oficial de auth/sessão, sem semântica funcional de Firebase no caminho feliz.
 
 - [ ] **S04: Superfícies legadas de auth/sessão aposentadas** `risk:high` `depends:[S02,S03]`

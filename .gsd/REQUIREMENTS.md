@@ -47,17 +47,6 @@ Guidelines:
 - Validation: mapped
 - Notes: O drop físico de schema relacionado a Firebase fica para M005; M004 fecha a dependência funcional de runtime.
 
-### R050 — O frontend oficial usa apenas o contrato canônico sem resíduo funcional de Firebase
-- Class: primary-user-loop
-- Status: active
-- Description: `/login`, `/dashboard`, `/admin` e superfícies oficiais relacionadas usam apenas o contrato session-first canônico, sem lógica funcional, comentários operacionais ou tipos oficiais ancorados em Firebase.
-- Why it matters: Não basta o backend estar cortado se o app oficial ainda age como se Firebase estivesse vivo.
-- Source: inferred
-- Primary owning slice: M004/S03
-- Supporting slices: M004/S01, M004/S04, M004/S05, M004/S06
-- Validation: mapped
-- Notes: O milestone precisa limpar comportamento, contratos e narrativa operacional do frontend oficial.
-
 ### R051 — Schema e migrações refletem o modelo final, não o legado de transição
 - Class: quality-attribute
 - Status: active
@@ -291,6 +280,17 @@ Guidelines:
 - Validation: validated
 - Notes: Milestone closeout now rests on the green evidence-map gate, focused backend/frontend packs, a seeded-user Chromium acceptance spec, direct assembled-stack probes, and routed `/dashboard` / `/admin` / `/whatsapp` smoke.
 
+### R050 — O frontend oficial usa apenas o contrato canônico sem resíduo funcional de Firebase
+- Class: primary-user-loop
+- Status: validated
+- Description: `/login`, `/dashboard`, `/admin` e superfícies oficiais relacionadas usam apenas o contrato session-first canônico, sem lógica funcional, comentários operacionais ou tipos oficiais ancorados em Firebase.
+- Why it matters: Não basta o backend estar cortado se o app oficial ainda age como se Firebase estivesse vivo.
+- Source: inferred
+- Primary owning slice: M004/S03
+- Supporting slices: M004/S01, M004/S04, M004/S05, M004/S06
+- Validation: validated
+- Notes: Verified by M004/S03’s focused frontend proof packs, green routed `/login` → `/admin/*` coverage, green websocket diagnostic proof, green build, and a green residue guard showing zero approved frontend auth/session/Firebase residue.
+
 ## Deferred
 
 ### R020 — Multi-factor authentication for staff access
@@ -500,7 +500,7 @@ Guidelines:
 | R047 | constraint | active | M004/S05 | M004/S01, M004/S02, M004/S03, M004/S04, M004/S06 | mapped |
 | R048 | continuity | active | M004/S02 | M004/S01, M004/S03, M004/S04, M004/S06 | mapped |
 | R049 | integration | active | M004/S02 | M004/S01, M004/S04, M004/S05 | mapped |
-| R050 | primary-user-loop | active | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | mapped |
+| R050 | primary-user-loop | validated | M004/S03 | M004/S01, M004/S04, M004/S05, M004/S06 | validated |
 | R051 | quality-attribute | active | M005/S?? (provisional) | none | mapped |
 | R052 | operability | active | M006/S?? (provisional) | none | mapped |
 | R053 | quality-attribute | active | M006/S?? (provisional) | M004/S06, M005/S?? (provisional) | mapped |
@@ -543,7 +543,7 @@ Guidelines:
 
 ## Coverage Summary
 
-- Active requirements: 7
-- Mapped to slices: 7
-- Validated: 18
+- Active requirements: 6
+- Mapped to slices: 6
+- Validated: 19
 - Unmapped active requirements: 0
